@@ -1,0 +1,12 @@
+---
+description: Shared errors, correlation IDs, and sanitized structured logging
+globs: apps/web/src/server/**/*,apps/web/src/app/api/**/*,packages/contracts/src/errors/**/*
+alwaysApply: false
+---
+# Error handling and observability
+- Follow `docs/HiveForYou-ERROR-HANDLING-OBSERVABILITY.md` for public error shape, stages, codes, and logging rules.
+- Use `@hiveforyou/contracts` for allowlisted error codes/categories/stages and `toPublicErrorResponse()`.
+- Resolve or generate `x-correlation-id` at the API boundary; return it on responses and error JSON.
+- Emit one structured JSON log event per meaningful transition at the owning boundary; allowlisted fields only; never log document text, quotes, prompts, tokens, or credentials.
+- Map unexpected exceptions, including partial lookalike objects, to `INTERNAL_ERROR` with a safe message. Keep `cause` non-enumerable and out of public JSON. Do not expose stacks, paths, or provider bodies to clients or logs.
+- Do not add retry/timeout frameworks, observability vendors, diagnostic env vars, or fail-only public routes without an approved ticket need.

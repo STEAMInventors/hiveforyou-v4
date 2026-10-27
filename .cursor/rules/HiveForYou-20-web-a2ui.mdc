@@ -1,0 +1,12 @@
+---
+description: Application-first React UX, source chips and safe A2UI
+globs: apps/web/src/app/**/*,apps/web/src/components/**/*,apps/web/src/lib/**/*
+alwaysApply: false
+---
+# UX and A2UI
+- Stable Documents, Study, Reports tabs. Don't let the model replace navigation, security/account controls or document upload/delete UI.
+- Dynamic A2UI may only compose schema-validated allowlisted components from authorized pinned analysis/Study data; never execute model HTML/JS, SQL or arbitrary tool actions.
+- Every material case claim links to trusted fact/derived IDs and source chip; chip opens correct original physical page subject to authorization.
+- Brand: user-provided unchanged PDF is the authority. Blue=needs you/action; Coral=missing; Honey=changed and source chip; Leaf=checked. Calm exact tone; never invent urgency or verdicts.
+- Responsive accessible keyboard focus, labelled statuses, source sheet and accessible chart/table equivalents. Safe static fallback when dynamic view is invalid.
+- No generated data used as permissions or source-of-truth. Refer to `docs/HiveForYou-FEATURES.md` and `docs/HiveForYou-UX-A2UI-DESIGN.md`.

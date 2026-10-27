@@ -1,0 +1,13 @@
+---
+description: HiveForYou V4 governing priorities and single-ticket workflow
+alwaysApply: true
+---
+# HiveForYou V4 — always
+- V4 is a **new active development project**, not production; do not assume a deployed repo or copy V3 implementations.
+- Start with `docs/HiveForYou-NEXT.md`: exactly ONE active ticket. Do nothing unrelated; park discoveries.
+- Inspect real files and Git state before proposing changes. For significant tasks: read-only plan, obtain approval, implement only approved scope, test success/failure, sync docs, close ticket. Don't begin next ticket automatically.
+- No code implementation, commit, push, deployment, migration, destructive database action or paid model run without respective founder approval.
+- One Hive, one evolving accepted Canonical Study, many pinned analyses/reports. Model proposes, trusted code validates. No source, no claim.
+- No new configuration variables, feature flags, duplicate pipelines or domain-specific framework without a demonstrated need and approval.
+- Brand PDF `docs/brand/HiveForYou-Brand-Guide-v1.0.pdf` unchanged; the accepted prompt texts in `prompts/` are not silently edited.
+- Refer to `docs/HiveForYou-CURSOR-DEVELOPMENT-STANDARDS.md`, `docs/HiveForYou-DECISIONS.md`, `docs/HiveForYou-PRODUCT-REQUIREMENTS.md` and `docs/HiveForYou-NAMING-CONVENTIONS.md`.

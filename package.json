@@ -1,0 +1,19 @@
+{
+  "name": "hiveforyou-v4",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @hiveforyou/web",
+    "build": "npm run build -w @hiveforyou/web",
+    "typecheck": "npm run typecheck -w @hiveforyou/contracts && npm run typecheck -w @hiveforyou/web",
+    "lint": "npm run lint -w @hiveforyou/web",
+    "test": "npm run test -w @hiveforyou/contracts && npm run test -w @hiveforyou/web"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}

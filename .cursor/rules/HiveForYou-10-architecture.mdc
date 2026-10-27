@@ -1,0 +1,13 @@
+---
+description: Architecture boundaries for backend and core TypeScript
+globs: apps/web/src/server/**/*,packages/core/src/**/*,packages/contracts/src/**/*
+alwaysApply: false
+---
+# Server/core architecture
+- Target: one Next.js/TypeScript-first application backed by Supabase, with server-side frontier-model integration. Durable worker execution is OPEN, not something to scaffold by habit.
+- Never put provider/service credentials in client or direct model calls from browser.
+- Keep pure validation, arithmetic and Study acceptance logic out of framework-specific route handlers; keep I/O and authorization on server boundaries.
+- `hive-extract/1` is pack-free default. Extraction models yield untrusted candidate JSON; only independent verifier can accept observations.
+- Study revision pointer is advanced atomically on successfully accepted revision. Reports and analyses pin revision, each Generate action has a unique run.
+- Avoid new environment variables, feature flags, shadow pipelines, duplicate provider adapters and unnecessary packages.
+- Consult `docs/HiveForYou-ARCHITECTURE.md`, `docs/HiveForYou-REPOSITORY-STRUCTURE.md` and `docs/HiveForYou-DATA-MODEL.md`; do not invent file paths or migration status.

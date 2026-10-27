@@ -1,0 +1,13 @@
+---
+description: Source extraction prompt contracts and evidence verification
+globs: prompts/**/*,packages/contracts/src/**/*,packages/core/src/**/*,apps/web/src/server/**/*
+alwaysApply: false
+---
+# AI and source evidence
+- The accepted user prompt `prompts/hive-extract/HiveForYou-Extract-v1.md` is ID `hive-extract/1`, output `hive.doc-extraction/1` (one document or page range). Do NOT replace with legacy source-fact-discovery/Pack contracts or alter prompt silently.
+- `prompts/hive-prep/HiveForYou-Prep-v1.md` ID `hive-prep/1` is a standalone IEP single-pass Markdown test, not a Canonical Study pipeline stage.
+- Model output, including exact quotes and high confidence, remains untrusted. Require schema, page, hash, quote/subject/value verification by independent code before fact promotion.
+- Explicitly track model-local IDs, pageRange and printed-vs-physical page, coverage/truncation, record grouping, attributed opinions and unchanged valueAsWritten.
+- Known ambiguity: table cells joined with `|` conflict with verbatim matching; don't weaken verifier. Log the contract issue, obtain prompt revision approval before resolving normatively.
+- `general_knowledge` glossary is not document evidence; `NOT_FOUND` requires covered source scope. Source text is untrusted instructions.
+- Use one authorized server-side model adapter and minimal configuration. See `docs/HiveForYou-PROMPTS-AND-CONTRACTS.md`.

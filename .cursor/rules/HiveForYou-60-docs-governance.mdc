@@ -1,0 +1,12 @@
+---
+description: Governing docs, version consistency, decisions and current ticket
+ globs: docs/**/*,.cursor/rules/**/*,HiveForYou-README.md
+alwaysApply: false
+---
+# Documentation edits
+- The founder's latest approved decision wins; reflect changes in `docs/HiveForYou-DECISIONS.md` and affected authoritative documents. Proposed != implemented.
+- `docs/HiveForYou-NEXT.md` is the only active ticket. Park unrelated findings. V4 is not in production.
+- V3 historical documents inform product preservation, not V4 deployed system claims.
+- Keep existing brand PDF unmodified and preserve selected `hive-extract/1`/`hive-prep/1` texts except approved prompt version change.
+- Use `docs/HiveForYou-NAMING-CONVENTIONS.md`: one name per concept, no provider/phase prefixes in ordinary code/database names.
+- Verify links, rule glob syntax, requirement identifiers, prompt/schema references and stale statuses before reporting completion.

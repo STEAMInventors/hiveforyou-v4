@@ -1,0 +1,12 @@
+---
+description: Safety, privacy, tests, fixtures and failure recovery
+globs: apps/**/*,packages/**/*,tests/**/*,supabase/**/*
+alwaysApply: false
+---
+# Privacy and tests
+- Use synthetic/sanitized fixtures; real sensitive files require separate agreements, provider/data-use decision and founder authorization.
+- Reversible tokenization is a PROPOSED security boundary, not automatic HIPAA de-identification; protected map and original-source quote reconciliation must be designed before use.
+- Test relevant success and negative paths (unauthorized source, bad quote/page, prompt injection, unreadable pages, malformed model JSON, timeout, retry/replay and DB failure) in affected ticket.
+- Support errors with safe codes, correlation IDs, stage and retryability. Never leak original quotes/PHI, tokens, secrets or model payloads in logs.
+- Failure must not promote unchecked facts, change current accepted Study or erase reports. Bounded retries/timeouts, safe idempotency, no custom retry system without need.
+- Report actual tests/commands; don't claim passing tests that were not run.

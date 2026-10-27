@@ -1,0 +1,12 @@
+---
+description: Supabase SQL RLS, storage ownership and migrations
+globs: supabase/**/*,apps/web/src/server/db/**/*,apps/web/src/server/storage/**/*
+alwaysApply: false
+---
+# Persistence, storage, auth
+- Proposed new V4 schema `hive` (never `hive4` in object names); no reuse of V3 live project or data without explicit migration approval.
+- One owner-bound Hive, nullable 0..1 Canonical Study, immutable accepted revisions and one current revision pointer; model candidates not accepted observations.
+- All owner content RLS + server authorization, private storage and opaque keys; no service-role key to browser.
+- SQL snake_case, tables plural, timestamped append-only migrations, scoped constraints/indexes/policies. Follow `docs/HiveForYou-NAMING-CONVENTIONS.md`.
+- A migration is a sensitive authorized action: first propose exact SQL/rollback risk and negative-path tests; never apply by assumption.
+- Do not invent/delete previously deployed tables or policies. Use synthetic data. Review 30-day recoverable account deletion policy before implementing any account/Hive cleanup.
