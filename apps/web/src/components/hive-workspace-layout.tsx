@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { HiveTabNav } from "./hive-tab-nav";
@@ -20,12 +21,26 @@ export function HiveWorkspaceLayout({
   return (
     <div>
       <p className="muted" style={{ marginTop: 0, fontSize: "0.875rem" }}>
-        Preview workspace — not connected to an account yet.
+        <Link href="/hives" style={{ textDecoration: "none" }}>
+          My Hives
+        </Link>{" "}
+        / {hiveName}
       </p>
-      <h1 style={{ fontFamily: "var(--font-display)", marginBottom: "0.25rem" }}>{hiveName}</h1>
-      <p className="muted" style={{ marginTop: 0 }}>{hiveDescription}</p>
+      <h1
+        style={{ fontFamily: "var(--font-display)", marginBottom: "0.25rem" }}
+      >
+        {hiveName}
+      </h1>
+      {hiveDescription ? (
+        <p className="muted" style={{ marginTop: 0 }}>
+          {hiveDescription}
+        </p>
+      ) : null}
 
-      <label htmlFor="hive-ask" style={{ display: "block", marginTop: "1.25rem", fontWeight: 600 }}>
+      <label
+        htmlFor="hive-ask"
+        style={{ display: "block", marginTop: "1.25rem", fontWeight: 600 }}
+      >
         Ask about these documents
       </label>
       <input
@@ -33,12 +48,17 @@ export function HiveWorkspaceLayout({
         className="hero-input"
         type="text"
         disabled
-        placeholder="Available after sign-in and document upload"
+        placeholder="Available after document upload"
         aria-describedby="hive-ask-help"
         style={{ marginTop: "0.5rem" }}
       />
-      <p id="hive-ask-help" className="muted" style={{ fontSize: "0.875rem" }}>
-        Questions and analysis are not available in this preview shell.
+      <p
+        id="hive-ask-help"
+        className="muted"
+        style={{ fontSize: "0.875rem" }}
+      >
+        Upload and register documents in a future update to start Study
+        processing.
       </p>
 
       <HiveTabNav hiveId={hiveId} active={activeTab} />

@@ -1,8 +1,6 @@
-import { notFound } from "next/navigation";
-
 import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
 import { TabEmptyState } from "@/components/tab-empty-state";
-import { DEMO_HIVES } from "@/lib/demo-scaffold";
+import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 
 type StudyPageProps = {
   params: Promise<{ hiveId: string }>;
@@ -10,16 +8,13 @@ type StudyPageProps = {
 
 export default async function StudyPage({ params }: StudyPageProps) {
   const { hiveId } = await params;
-  const hive = DEMO_HIVES.find((item) => item.id === hiveId);
-  if (!hive) {
-    notFound();
-  }
+  const hive = await loadOwnedHiveOrNotFound(hiveId, `/hives/${hiveId}/study`);
 
   return (
     <HiveWorkspaceLayout
-      hiveId={hiveId}
+      hiveId={hive.id}
       hiveName={hive.name}
-      hiveDescription={hive.description}
+      hiveDescription={hive.description ?? ""}
       activeTab="study"
     >
       <TabEmptyState variant="study" />

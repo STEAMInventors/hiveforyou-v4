@@ -94,7 +94,7 @@ export function withApiRoute(
         errorCode: hiveError.errorCode,
         retryable: hiveError.retryable,
         durationMs,
-        diagnosticReason: "unexpected_exception",
+        diagnosticReason: hiveError.diagnosticReason ?? "unexpected_exception",
       });
 
       return NextResponse.json(toPublicErrorResponse(hiveError), {

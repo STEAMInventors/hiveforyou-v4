@@ -1,8 +1,6 @@
-import { notFound } from "next/navigation";
-
 import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
 import { TabEmptyState } from "@/components/tab-empty-state";
-import { DEMO_HIVES } from "@/lib/demo-scaffold";
+import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 
 type ReportsPageProps = {
   params: Promise<{ hiveId: string }>;
@@ -10,16 +8,16 @@ type ReportsPageProps = {
 
 export default async function ReportsPage({ params }: ReportsPageProps) {
   const { hiveId } = await params;
-  const hive = DEMO_HIVES.find((item) => item.id === hiveId);
-  if (!hive) {
-    notFound();
-  }
+  const hive = await loadOwnedHiveOrNotFound(
+    hiveId,
+    `/hives/${hiveId}/reports`,
+  );
 
   return (
     <HiveWorkspaceLayout
-      hiveId={hiveId}
+      hiveId={hive.id}
       hiveName={hive.name}
-      hiveDescription={hive.description}
+      hiveDescription={hive.description ?? ""}
       activeTab="reports"
     >
       <TabEmptyState variant="reports" />

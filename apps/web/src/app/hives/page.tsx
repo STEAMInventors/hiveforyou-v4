@@ -1,28 +1,30 @@
-import Link from "next/link";
+import type { Hive } from "@hiveforyou/contracts";
+import { redirect } from "next/navigation";
 
-import { DEMO_HIVES } from "@/lib/demo-scaffold";
+import { MyHivesPanel } from "@/components/hives/MyHivesPanel";
+import { requestCorrelationId } from "@/server/auth/action-support";
+import { listHivesViaEdge } from "@/server/hives/hive-edge-gateway";
+import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
-export default function MyHivesPage() {
-  return (
-    <div>
-      <h1 style={{ fontFamily: "var(--font-display)", marginTop: 0 }}>My Hives</h1>
-      <p className="muted">
-        Account sign-in and saved hives are not available yet. Below is a local preview list only.
-      </p>
+export default async function MyHivesPage() {
+  const auth = await requireAuthenticatedUser();
+  if (!auth.ok) {
+    redirect("/login?next=%2Fhives");
+  }
 
-      <button type="button" className="button" disabled aria-disabled="true" style={{ marginTop: "1rem" }}>
-        New Hive (requires sign-in)
-      </button>
+  const correlationId = await requestCorrelationId();
+  let hives: Hive[] = [];
+  let initialError: string | null = null;
 
-      <ul style={{ listStyle: "none", padding: 0, marginTop: "1.5rem", display: "grid", gap: "0.75rem" }}>
-        {DEMO_HIVES.map((hive) => (
-          <li key={hive.id} className="card">
-            <h2 style={{ margin: "0 0 0.25rem", fontSize: "1.125rem" }}>{hive.name}</h2>
-            <p className="muted" style={{ margin: "0 0 0.75rem" }}>{hive.description}</p>
-            <Link href={`/hives/${hive.id}/documents`}>Open hive</Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+  try {
+    const result = await listHivesViaEdge(auth.client, correlationId);
+    hives = result.hives;
+  } catch (error) {
+    initialError =
+      error && typeof error === "object" && "safeMessage" in error
+        ? String((error as { safeMessage: string }).safeMessage)
+        : "Could not load your Hives.";
+  }
+
+  return <MyHivesPanel initialHives={hives} initialError={initialError} />;
 }

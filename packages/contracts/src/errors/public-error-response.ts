@@ -36,6 +36,12 @@ export function suggestedHttpStatus(errorCode: string): number {
       return 401;
     case "ACCESS_DENIED":
       return 403;
+    case "NOT_FOUND":
+      return 404;
+    case "IDEMPOTENCY_CONFLICT":
+      return 409;
+    case "PERSISTENCE_FAILED":
+      return 503;
     case "INTERNAL_ERROR":
     default:
       return 500;

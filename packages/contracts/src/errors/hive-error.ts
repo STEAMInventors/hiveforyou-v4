@@ -10,6 +10,7 @@ export type HiveError = {
   safeMessage: string;
   correlationId: string;
   operationId?: string;
+  diagnosticReason?: string;
   cause?: unknown;
 };
 
@@ -25,6 +26,14 @@ export function createHiveError(input: HiveError): HiveError {
 
   if (typeof input.operationId === "string" && input.operationId.length > 0) {
     error.operationId = input.operationId;
+  }
+
+  if (typeof input.diagnosticReason === "string" && input.diagnosticReason.length > 0) {
+    Object.defineProperty(error, "diagnosticReason", {
+      value: input.diagnosticReason,
+      enumerable: false,
+      configurable: true,
+    });
   }
 
   if (input.cause !== undefined) {

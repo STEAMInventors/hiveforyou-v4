@@ -1,6 +1,6 @@
 # HiveForYou V4 — documentation-first starter
 
-**Status (2026-10-26):** V4 documentation plus an **accepted V4-001 application shell** (`apps/web`, `@hiveforyou/contracts`). Verification passed locally. The initial Git commit is not made. No GitHub remote, SQL migration, deployment, or paid model integration yet.
+**Status (2026-10-26):** V4 documentation, closed V4-001 application shell (`3ba9cd1`), and active **V4-002** authentication + owner-only Hive persistence (`apps/web`, `@hiveforyou/contracts`, `supabase/`). No paid model integration yet.
 
 > **The complicated, made simple.**
 

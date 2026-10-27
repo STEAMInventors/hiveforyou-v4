@@ -62,6 +62,11 @@ describe("toPublicErrorResponse", () => {
 describe("suggestedHttpStatus", () => {
   it("maps known codes", () => {
     expect(suggestedHttpStatus("INVALID_REQUEST")).toBe(422);
+    expect(suggestedHttpStatus("UNAUTHENTICATED")).toBe(401);
+    expect(suggestedHttpStatus("ACCESS_DENIED")).toBe(403);
+    expect(suggestedHttpStatus("NOT_FOUND")).toBe(404);
+    expect(suggestedHttpStatus("IDEMPOTENCY_CONFLICT")).toBe(409);
+    expect(suggestedHttpStatus("PERSISTENCE_FAILED")).toBe(503);
     expect(suggestedHttpStatus("INTERNAL_ERROR")).toBe(500);
   });
 });

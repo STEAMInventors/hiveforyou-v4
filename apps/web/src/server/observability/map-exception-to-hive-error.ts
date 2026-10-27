@@ -37,6 +37,7 @@ export function mapExceptionToHiveError(
       safeMessage: error.safeMessage,
       correlationId,
       operationId: error.operationId,
+      diagnosticReason: error.diagnosticReason,
       cause: error.cause,
     });
   }

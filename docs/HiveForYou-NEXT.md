@@ -1,16 +1,25 @@
-# HiveForYou V4 — NEXT (no active engineering ticket)
+# HiveForYou V4 — NEXT (single active engineering ticket)
 
-**Date:** 2026-10-26 | **Status:** V4-001 **accepted locally** — verification passed; **initial Git commit not made** | **Repository:** `hiveforyou-v4` (local git initialized; GitHub remote not created)
+**Date:** 2026-10-26 | **Status:** **V4-002 ACTIVE** — Port Authentication + Hives from V3 | **Repository:** `hiveforyou-v4` (`main` tracking `origin/main`)
 
-> **No engineering ticket is active.** V4-001 is accepted and ready for its initial commit. Do not start V4-002 until the founder opens it. No extraction, database migrations, deployments, paid model calls, tokenization, or A2UI-generated content as a side effect.
+> **Active ticket: V4-002.** V4-001 is closed and committed (`3ba9cd1`). Do not start V4-003 until V4-002 is verified and closed. Do not apply SQL migrations, deploy Edge Functions, modify Supabase infrastructure, commit, or push without separate authorization.
 
-## V4-001 — accepted, awaiting the initial commit
+## Active ticket — V4-002 — Port Authentication + Hives from V3
 
+**Objective:** Reuse the working V3 authentication and Hive functionality in V4 with minimum changes, following all approved V4 engineering standards.
+
+**Approved scope:**
+1. Retain Next.js SSR authentication, session management, signup, login, logout, PKCE/OTP callback, and password recovery.
+2. Route Hive CRUD (`create`, `list`, `get`) through the authenticated `v1-hives` Supabase Edge Function (`verify_jwt = true`) and `SECURITY INVOKER` public RPCs (`list_hives`, `get_hive`, `get_hive_by_client_request_id`, `create_hive`) over private `hive.hives` with owner-only RLS (`ENABLE` + `FORCE`).
+3. Enforce complete authorization, validation (name 1–100 chars trimmed, description ≤500 chars trimmed, UUID `client_request_id`), and atomic idempotency (`(owner_user_id, client_request_id)`) in the RPC/database boundary as well as application contracts.
+4. Do not grant general `UPDATE` or `DELETE` permissions on `hive.hives` in V4-002; implement only `create`, `list`, and `get`.
+5. Map idempotency conflicts to `409 IDEMPOTENCY_CONFLICT` without treating unrelated uniqueness failures as the same error.
+6. Connect My Hives and Create/Open Hive to the V4 branded shell (`Documents · Study · Reports`) and remove demo Hive data once replaced with functioning persistence.
+
+## Closed ticket record — V4-001
+
+**Status:** Closed and committed (`3ba9cd1 chore(v4): establish application foundation and observability`).
 **Verification (2026-10-26):** typecheck, lint, unit tests, and production build passed. Documents, Study, and Reports show distinct empty states. Unknown hive ids render the hive not-found screen; other unknown addresses render the root not-found screen. `GET /api/health` returns `x-correlation-id` on the header and body, regenerates invalid ids without logging them, and writes the same id on the structured completion event. Unexpected failures through `withApiRoute` return `INTERNAL_ERROR` with that same correlation id, stage, and error code in the failure log, and without stacks, paths, or nested sensitive values.
-
-**Remaining authorization:** the initial Git commit. Push, remote creation, and deployment are still separate. Do not open V4-002 from this acceptance.
-
-## Ticket record — V4-001
 
 **Objective:** Establish a minimal Next.js V4 codebase and brand-faithful application shell using these governing documents, without importing V3 implementation complexity.
 
@@ -37,7 +46,6 @@
 
 | Ticket | Scope | Unlock |
 |---|---|---|
-| V4-002 | Supabase Auth, owner-only My Hives, create/open Hive; initial safe data model and RLS | After V4-001 |
 | V4-003 | Upload/register/read/view PDF, image and DOCX with page-aware provenance; Free quota | After V4-002 |
 | V4-004 | Pack-free `hive-extract/1` one real synthetic document; bounded pages, candidate JSON and statuses | After V4-003; approve model route/cost |
 | V4-005 | Independent candidate verification, immutable accepted Study revision, source chip to original page | After V4-004 |

@@ -19,8 +19,8 @@ Build the smallest real, pleasant **Documents → Study → Reports** experience
 
 | Phase / ticket | Work | User-visible proof | State |
 |---|---|---|---|
-| P0 · **V4-001** | New repo, code scaffold, brand-faithful stable application shell | Documents, Study, Reports tabs and true empty states locally | **ACCEPTED locally — initial commit not yet authorized** |
-| P1 · V4-002 | Auth/My Hives/Create Hive + owner-only RLS, idempotent creation | User signs in, creates own empty Hive; cannot access another owner's Hive | PARKED |
+| P0 · **V4-001** | New repo, code scaffold, brand-faithful stable application shell | Documents, Study, Reports tabs and true empty states locally | **CLOSED (`3ba9cd1`)** |
+| P1 · **V4-002** | Auth/My Hives/Create Hive + owner-only RLS, idempotent creation | User signs in, creates own empty Hive; cannot access another owner's Hive | **ACTIVE** |
 | P1 · V4-003 | Private file upload, quota, page-reading/viewer with real status | Synthetic PDF/PNG/JPEG/DOCX registered; exact page displayed; error/quota cases | PARKED |
 | P2 · V4-004 | Frontier pack-free extraction `hive-extract/1`, versioned candidates, bounded pages | Real synthetic receipt produces honest `hive.doc-extraction/1` candidate JSON | PARKED |
 | P2 · V4-005 | Verify evidence, candidate trust dispositions, merge accepted revision | Source page chips work and one verified Study is accepted; bad quote rejected | PARKED |

@@ -1,0 +1,16 @@
+# HiveForYou V4 — Supabase configuration
+# Keep application schema `hive` unexposed to direct browser PostgREST access.
+# Hive CRUD routes through authenticated Edge Function `v1-hives` -> SECURITY INVOKER RPCs.
+
+project_id = "hiveforyou-v4"
+
+[api]
+enabled = true
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+
+[db]
+major_version = 15
+
+[functions.v1-hives]
+verify_jwt = true
