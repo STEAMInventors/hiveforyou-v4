@@ -15,6 +15,8 @@ import {
   MIN_PASSWORD_LENGTH,
 } from "@/server/auth/validation";
 
+import { TEXT_LINK_CLASS } from "@/components/button-classes";
+
 import {
   AuthCrossLinks,
   AuthField,
@@ -84,7 +86,7 @@ export function AuthCard({
       {mode === "login" ? (
         <>
           <AuthHeading title="Welcome back" lede="Log in to your Hives." />
-          <form action={formAction} className="form-stack">
+          <form action={formAction} className="flex flex-col gap-4">
             <input type="hidden" name="next" value={safeNext} />
             <AuthField
               label="Email"
@@ -102,17 +104,13 @@ export function AuthCard({
               autoComplete="current-password"
               required
             />
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "0.75rem",
-                fontSize: "0.875rem",
-              }}
-            >
-              <Link href="/sign-in-help">Forgot email?</Link>
+            <div className="flex justify-end gap-3 text-sm">
+              <Link href="/sign-in-help" className={TEXT_LINK_CLASS}>
+                Forgot email?
+              </Link>
               <Link
                 href={`/forgot-password?next=${encodeURIComponent(safeNext)}`}
+                className={TEXT_LINK_CLASS}
               >
                 Forgot password?
               </Link>
@@ -124,11 +122,8 @@ export function AuthCard({
             />
           </form>
           {state.unconfirmedEmail ? (
-            <div
-              className="form-stack"
-              style={{ borderTop: "1px solid #e1e4e8", paddingTop: "1rem" }}
-            >
-              <p className="muted" style={{ margin: 0, fontSize: "0.875rem" }}>
+            <div className="flex flex-col gap-4 border-t border-line pt-4">
+              <p className="m-0 text-sm text-ink-muted">
                 Send the confirmation email again.
               </p>
               <ResendConfirmationForm
@@ -137,11 +132,11 @@ export function AuthCard({
               />
             </div>
           ) : null}
-          <p
-            className="muted"
-            style={{ margin: 0, textAlign: "center", fontSize: "0.875rem" }}
-          >
-            <Link href={`/register?next=${encodeURIComponent(safeNext)}`}>
+          <p className="m-0 text-center text-sm text-ink-muted">
+            <Link
+              href={`/register?next=${encodeURIComponent(safeNext)}`}
+              className={TEXT_LINK_CLASS}
+            >
               Create an account
             </Link>
           </p>
@@ -152,7 +147,7 @@ export function AuthCard({
             title="Create your account"
             lede="It takes a minute. You can create a Hive right after."
           />
-          <form action={formAction} className="form-stack">
+          <form action={formAction} className="flex flex-col gap-4">
             <input type="hidden" name="next" value={safeNext} />
             <AuthField
               label="Your name"
@@ -185,17 +180,18 @@ export function AuthCard({
               pendingLabel="Creating…"
             />
           </form>
-          <p
-            className="muted"
-            style={{ margin: 0, textAlign: "center", fontSize: "0.875rem" }}
-          >
+          <p className="m-0 text-center text-sm text-ink-muted">
             Already have an account?{" "}
-            <Link href={`/login?next=${encodeURIComponent(safeNext)}`}>
+            <Link
+              href={`/login?next=${encodeURIComponent(safeNext)}`}
+              className={TEXT_LINK_CLASS}
+            >
               Log in
             </Link>
             <span aria-hidden> · </span>
             <Link
               href={`/forgot-password?next=${encodeURIComponent(safeNext)}`}
+              className={TEXT_LINK_CLASS}
             >
               Forgot password?
             </Link>

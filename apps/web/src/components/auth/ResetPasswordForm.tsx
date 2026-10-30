@@ -12,6 +12,8 @@ import {
   MIN_PASSWORD_LENGTH,
 } from "@/server/auth/validation";
 
+import { SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
+
 import { AuthField, AuthNotice, AuthSubmit } from "./AuthFrame";
 
 const initialState: AuthActionState = {};
@@ -26,7 +28,7 @@ export function ResetPasswordForm() {
   return (
     <>
       {state.error ? <AuthNotice tone="error">{state.error}</AuthNotice> : null}
-      <form action={formAction} className="form-stack">
+      <form action={formAction} className="flex flex-col gap-4">
         <AuthField
           label="New password"
           name="password"
@@ -53,7 +55,7 @@ export function ResetPasswordForm() {
         />
       </form>
       <form action={backToLoginFromRecoveryAction}>
-        <button type="submit" className="button button-secondary">
+        <button type="submit" className={`${SECONDARY_BUTTON_CLASS} w-full`}>
           Back to log in
         </button>
       </form>

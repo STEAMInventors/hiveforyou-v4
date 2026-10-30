@@ -24,7 +24,7 @@ export function ChangePasswordForm({ email }: { email: string }) {
     <>
       {state.error ? <AuthNotice tone="error">{state.error}</AuthNotice> : null}
       {state.info ? <AuthNotice tone="info">{state.info}</AuthNotice> : null}
-      <form action={formAction} className="form-stack">
+      <form action={formAction} className="flex flex-col gap-4">
         <input
           type="hidden"
           name="username"

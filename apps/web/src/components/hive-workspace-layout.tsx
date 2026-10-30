@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { MY_HIVES_PATH } from "@/lib/hive-routes";
+
 import { HiveTabNav } from "./hive-tab-nav";
 
 type HiveWorkspaceLayoutProps = {
@@ -19,47 +21,51 @@ export function HiveWorkspaceLayout({
   children,
 }: HiveWorkspaceLayoutProps) {
   return (
-    <div>
-      <p className="muted" style={{ marginTop: 0, fontSize: "0.875rem" }}>
-        <Link href="/hives" style={{ textDecoration: "none" }}>
-          My Hives
-        </Link>{" "}
-        / {hiveName}
-      </p>
-      <h1
-        style={{ fontFamily: "var(--font-display)", marginBottom: "0.25rem" }}
-      >
-        {hiveName}
-      </h1>
-      {hiveDescription ? (
-        <p className="muted" style={{ marginTop: 0 }}>
-          {hiveDescription}
-        </p>
-      ) : null}
+    <div className="mx-auto w-full max-w-[1160px] px-4 py-8 md:px-8 md:py-10">
+      <nav aria-label="Breadcrumb" className="mb-4">
+        <ol className="m-0 flex list-none flex-wrap items-center gap-2 p-0 text-sm text-ink-muted">
+          <li>
+            <Link
+              href={MY_HIVES_PATH}
+              className="font-medium text-cell-blue-deep no-underline hover:underline"
+            >
+              My Hives
+            </Link>
+          </li>
+          <li aria-hidden>/</li>
+          <li aria-current="page" className="min-w-0 break-words">
+            {hiveName}
+          </li>
+        </ol>
+      </nav>
 
-      <label
-        htmlFor="hive-ask"
-        style={{ display: "block", marginTop: "1.25rem", fontWeight: 600 }}
-      >
-        Ask about these documents
-      </label>
-      <input
-        id="hive-ask"
-        className="hero-input"
-        type="text"
-        disabled
-        placeholder="Available after document upload"
-        aria-describedby="hive-ask-help"
-        style={{ marginTop: "0.5rem" }}
-      />
-      <p
-        id="hive-ask-help"
-        className="muted"
-        style={{ fontSize: "0.875rem" }}
-      >
-        Upload and register documents in a future update to start Study
-        processing.
-      </p>
+      <div className="mb-6">
+        <h1 className="m-0 break-words font-brand text-[clamp(1.75rem,4vw,2.125rem)] font-semibold text-ink">
+          {hiveName}
+        </h1>
+        {hiveDescription ? (
+          <p className="mb-0 mt-2 max-w-2xl text-[15px] leading-relaxed text-ink-muted">
+            {hiveDescription}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mb-6 max-w-[720px]">
+        <label htmlFor="hive-ask" className="mb-2 block text-sm font-semibold text-ink">
+          Ask about these documents
+        </label>
+        <input
+          id="hive-ask"
+          type="text"
+          disabled
+          placeholder="Available after document upload"
+          aria-describedby="hive-ask-help"
+          className="h-12 w-full cursor-not-allowed rounded-[14px] border border-line bg-paper px-4 text-[15px] text-ink placeholder:text-ink-muted"
+        />
+        <p id="hive-ask-help" className="mb-0 mt-2 text-xs text-ink-muted">
+          Questions open once documents are uploaded and a Study is accepted.
+        </p>
+      </div>
 
       <HiveTabNav hiveId={hiveId} active={activeTab} />
       {children}

@@ -1,10 +1,12 @@
 # HiveForYou V4 — NEXT (single active engineering ticket)
 
-**Date:** 2026-10-26 | **Status:** **V4-002 ACTIVE** — Port Authentication + Hives from V3 | **Repository:** `hiveforyou-v4` (`main` tracking `origin/main`)
+**Date:** 2026-10-30 | **Status:** **V4-002 CLOSED** — V4-003 next, read-only plan awaiting founder approval | **Repository:** `hiveforyou-v4` (`main` tracking `origin/main`)
 
-> **Active ticket: V4-002.** V4-001 is closed and committed (`3ba9cd1`). Do not start V4-003 until V4-002 is verified and closed. Do not apply SQL migrations, deploy Edge Functions, modify Supabase infrastructure, commit, or push without separate authorization.
+> **No ticket in implementation.** V4-001 (`3ba9cd1`) and V4-002 (`092252d` plus the look-and-feel commit) are closed. V4-003 starts only after its plan is approved. Do not apply SQL migrations, deploy Edge Functions, modify Supabase infrastructure, commit, or push without separate authorization.
 
-## Active ticket — V4-002 — Port Authentication + Hives from V3
+## Closed ticket record — V4-002 — Port Authentication + Hives from V3
+
+**Status:** Closed by founder decision on 2026-10-30. **Verification:** typecheck, lint, 58 unit tests (11 contracts, 47 web), production build and `git diff --check` passed. Browser checks (signed out): landing parity, guest composer hand-off to `/register?next=/hives?create=1`, styled auth pages, `/hives` redirects to login, sanitized `signIn.failed` log with correlation id, no horizontal overflow at 375 px. **Not run:** signed-in browser checks (My Hives cards, Create Hive modal, card menu, workspace tabs, password recovery email) because no local `apps/web/.env.local` was available.
 
 **Objective:** Reuse the working V3 authentication and Hive functionality in V4 with minimum changes, following all approved V4 engineering standards.
 
@@ -15,6 +17,8 @@
 4. Do not grant general `UPDATE` or `DELETE` permissions on `hive.hives` in V4-002; implement only `create`, `list`, and `get`.
 5. Map idempotency conflicts to `409 IDEMPOTENCY_CONFLICT` without treating unrelated uniqueness failures as the same error.
 6. Connect My Hives and Create/Open Hive to the V4 branded shell (`Documents · Study · Reports`) and remove demo Hive data once replaced with functioning persistence.
+
+**Progress (2026-10-30) — V3 look-and-feel port (item 6):** Landing, auth, app header, My Hives (cards, composer, Create Hive modal, `?create=1` hand-off after sign-up) and the workspace header/tabs/empty states reuse V3 layouts on Tailwind 3 mapped to brand tokens (D-024). No contract, Edge Function, SQL, middleware or auth-action changes. Hive archive/deletion is a **proposed design only** (D-025, F-004); it is outside V4-002 item 4 and needs separate approval before SQL or Edge work.
 
 ## Closed ticket record — V4-001
 

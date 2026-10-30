@@ -1,225 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --color-cell-blue: #3b7cf6;
   --color-cell-blue-deep: #1a56c4;
+  --color-cell-blue-wash: #eef4ff;
   --color-coral: #ef5143;
   --color-coral-deep: #b33a2e;
+  --color-coral-wash: #fdedeb;
   --color-honey: #f6b826;
   --color-honey-deep: #7a5200;
+  --color-honey-wash: #fbf4e2;
   --color-leaf: #2fa35a;
   --color-leaf-deep: #197040;
   --color-paper: #ffffff;
   --color-mist: #f4f6f8;
   --color-ink: #1f2328;
   --color-ink-muted: #5c6370;
+  --color-line: #e7e9ed;
+  --color-line-strong: #d9dde3;
   --font-ui: var(--font-dm-sans), system-ui, sans-serif;
   --font-display: var(--font-outfit), system-ui, sans-serif;
   --font-quote: var(--font-source-serif), Georgia, serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+@layer base {
+  html,
+  body {
+    min-height: 100%;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-ui);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  [role="menuitem"]:focus-visible {
+    outline: 2px solid var(--color-cell-blue);
+    outline-offset: 2px;
+  }
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  min-height: 100%;
-  background: var(--color-mist);
-  color: var(--color-ink);
-  font-family: var(--font-ui);
-  line-height: 1.5;
-}
+@layer components {
+  .hive-composer {
+    position: relative;
+    transition: box-shadow 0.25s ease;
+  }
 
-a {
-  color: var(--color-cell-blue-deep);
-}
+  .hive-composer::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 29px;
+    padding: 1.5px;
+    background: conic-gradient(
+      from 200deg,
+      var(--color-cell-blue),
+      var(--color-coral),
+      var(--color-honey),
+      var(--color-leaf),
+      var(--color-cell-blue)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+  }
 
-a:focus-visible,
-button:focus-visible,
-input:focus-visible {
-  outline: 2px solid var(--color-cell-blue);
-  outline-offset: 2px;
-}
+  .hive-composer:hover::before,
+  .hive-composer:focus-within::before {
+    opacity: 0.85;
+  }
 
-main {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
-}
+  .hive-composer:hover,
+  .hive-composer:focus-within {
+    box-shadow:
+      0 1px 2px rgba(31, 35, 40, 0.04),
+      -10px 10px 30px rgba(59, 124, 246, 0.1),
+      10px 10px 30px rgba(47, 163, 90, 0.08),
+      0 -6px 24px rgba(246, 184, 38, 0.06);
+  }
 
-.hero-input {
-  width: 100%;
-  max-width: 32rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid #d0d7de;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  font-family: var(--font-ui);
-  background: var(--color-paper);
-}
-
-.hero-input:focus-visible {
-  box-shadow:
-    0 0 0 1px var(--color-cell-blue),
-    0 0 0 3px rgba(59, 124, 246, 0.25),
-    0 0 0 4px rgba(239, 81, 67, 0.15),
-    0 0 0 5px rgba(246, 184, 38, 0.12),
-    0 0 0 6px rgba(47, 163, 90, 0.1);
-}
-
-.card {
-  background: var(--color-paper);
-  border: 1px solid #e1e4e8;
-  border-radius: 0.75rem;
-  padding: 1.25rem;
-}
-
-.muted {
-  color: var(--color-ink-muted);
-}
-
-.tab-nav {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin: 1rem 0;
-}
-
-.tab-nav a {
-  text-decoration: none;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
-  color: var(--color-ink);
-  font-weight: 500;
-}
-
-.tab-nav a[aria-current="page"] {
-  background: var(--color-paper);
-  box-shadow: inset 0 0 0 1px #d0d7de;
-}
-
-.source-chip {
-  display: inline-flex;
-  align-items: center;
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  background: rgba(246, 184, 38, 0.2);
-  color: var(--color-honey-deep);
-}
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  border: none;
-  background: var(--color-cell-blue);
-  color: white;
-  font-weight: 600;
-  font-family: var(--font-ui);
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.button-secondary {
-  background: transparent;
-  color: var(--color-cell-blue-deep);
-  border: 1px solid #d0d7de;
-}
-
-.auth-container {
-  max-width: 28rem;
-  margin: 1.5rem auto;
-}
-
-.form-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  font-weight: 600;
-  font-size: 0.9375rem;
-}
-
-.form-input,
-.form-textarea {
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid #d0d7de;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  font-family: var(--font-ui);
-  background: var(--color-paper);
-  color: var(--color-ink);
-}
-
-.form-input[aria-invalid="true"],
-.form-textarea[aria-invalid="true"] {
-  border-color: var(--color-coral-deep);
-}
-
-.field-hint {
-  font-size: 0.8125rem;
-  font-weight: 400;
-  color: var(--color-ink-muted);
-}
-
-.notice-error {
-  margin: 0;
-  padding: 0.625rem 0.875rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-coral);
-  background: rgba(239, 81, 67, 0.1);
-  color: var(--color-coral-deep);
-  font-size: 0.875rem;
-}
-
-.notice-info {
-  margin: 0;
-  padding: 0.625rem 0.875rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--color-cell-blue);
-  background: rgba(59, 124, 246, 0.1);
-  color: var(--color-cell-blue-deep);
-  font-size: 0.875rem;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(31, 35, 40, 0.45);
-}
-
-.modal-dialog {
-  position: relative;
-  z-index: 10;
-  width: 100%;
-  max-width: 32rem;
-  background: var(--color-paper);
-  border: 1px solid #e1e4e8;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  box-shadow: 0 12px 32px rgba(31, 35, 40, 0.14);
+  @media (prefers-reduced-motion: reduce) {
+    .hive-composer,
+    .hive-composer::before {
+      transition: none;
+    }
+  }
 }

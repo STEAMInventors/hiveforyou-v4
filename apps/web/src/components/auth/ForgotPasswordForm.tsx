@@ -6,6 +6,7 @@ import { useActionState, useState } from "react";
 import { requestPasswordResetAction } from "@/server/auth/auth-actions";
 import type { AuthActionState } from "@/server/auth/auth-state";
 import { SIGN_IN_HELP_PATH } from "@/server/auth/recovery";
+import { TEXT_LINK_CLASS } from "@/components/button-classes";
 
 import {
   AuthCrossLinks,
@@ -37,7 +38,7 @@ export function ForgotPasswordForm({
       {state.error ? <AuthNotice tone="error">{state.error}</AuthNotice> : null}
       {state.info ? <AuthNotice tone="info">{state.info}</AuthNotice> : null}
       {!showOtp ? (
-        <form action={formAction} className="form-stack">
+        <form action={formAction} className="flex flex-col gap-4">
           <AuthField
             label="Email"
             name="email"
@@ -62,11 +63,10 @@ export function ForgotPasswordForm({
           codeLabel="Reset code"
         />
       ) : null}
-      <p
-        className="muted"
-        style={{ margin: 0, textAlign: "center", fontSize: "0.875rem" }}
-      >
-        <Link href={SIGN_IN_HELP_PATH}>Forgot which email you used?</Link>
+      <p className="m-0 text-center text-sm text-ink-muted">
+        <Link href={SIGN_IN_HELP_PATH} className={TEXT_LINK_CLASS}>
+          Forgot which email you used?
+        </Link>
       </p>
       <AuthCrossLinks nextPath={nextPath} />
     </>

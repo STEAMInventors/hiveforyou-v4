@@ -13,16 +13,27 @@ const tabs = [
 
 export function HiveTabNav({ hiveId, active }: HiveTabNavProps) {
   return (
-    <nav className="tab-nav" aria-label="Hive workspace">
-      {tabs.map((tab) => (
-        <Link
-          key={tab.key}
-          href={tab.href(hiveId)}
-          aria-current={active === tab.key ? "page" : undefined}
-        >
-          {tab.label}
-        </Link>
-      ))}
+    <nav
+      aria-label="Hive workspace"
+      className="mb-8 flex gap-6 overflow-x-auto border-b border-line"
+    >
+      {tabs.map((tab) => {
+        const isActive = active === tab.key;
+        return (
+          <Link
+            key={tab.key}
+            href={tab.href(hiveId)}
+            aria-current={isActive ? "page" : undefined}
+            className={
+              isActive
+                ? "-mb-px whitespace-nowrap border-b-2 border-cell-blue-deep pb-3 text-sm font-semibold text-cell-blue-deep no-underline"
+                : "whitespace-nowrap border-b-2 border-transparent pb-3 text-sm font-medium text-ink-muted no-underline hover:text-ink"
+            }
+          >
+            {tab.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

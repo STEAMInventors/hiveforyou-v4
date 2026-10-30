@@ -1,75 +1,63 @@
 "use client";
 
-import {
-  validateCreateHiveInput,
-  type Hive,
-} from "@hiveforyou/contracts";
-import Link from "next/link";
+import type { Hive } from "@hiveforyou/contracts";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { HiveComposer } from "@/components/HiveComposer";
 import {
-  HiveClientError,
-  createHive,
-  fetchMyHives,
-} from "@/lib/hives-client";
+  PRIMARY_BUTTON_CLASS,
+  SECONDARY_BUTTON_CLASS,
+} from "@/components/button-classes";
+import { HiveClientError, fetchMyHives } from "@/lib/hives-client";
+import { MY_HIVES_PATH, hiveDocumentsPath } from "@/lib/hive-routes";
 
 import { CreateHiveModal } from "./CreateHiveModal";
+import { HiveCardGrid } from "./HiveCard";
+import { useCreateHive } from "./useCreateHive";
+
+type ListError = {
+  message: string;
+  correlationId: string | null;
+};
 
 type MyHivesPanelProps = {
   initialHives: Hive[];
-  initialError?: string | null;
+  initialError?: ListError | null;
+  openCreateOnLoad?: boolean;
 };
 
-function formatUpdatedAt(isoTimestamp: string): string {
-  const parsed = new Date(isoTimestamp);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-  return `Updated ${parsed.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })}`;
-}
+const CARD_SHADOW =
+  "shadow-[0_1px_2px_rgba(31,35,40,0.04),0_8px_28px_rgba(31,35,40,0.06)]";
 
 export function MyHivesPanel({
   initialHives,
   initialError = null,
+  openCreateOnLoad = false,
 }: MyHivesPanelProps) {
   const router = useRouter();
   const [hives, setHives] = useState<Hive[]>(initialHives);
-  const [listError, setListError] = useState<string | null>(initialError);
+  const [listError, setListError] = useState<ListError | null>(initialError);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [hiveName, setHiveName] = useState("");
-  const [hiveDescription, setHiveDescription] = useState("");
-  const [nameError, setNameError] = useState<string | null>(null);
-  const [descriptionError, setDescriptionError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitBusy, setSubmitBusy] = useState(false);
-  const clientRequestIdRef = useRef<string>(crypto.randomUUID());
+  const handleCreated = useCallback(
+    (hive: Hive) => {
+      setHives((current) =>
+        current.some((item) => item.id === hive.id) ? current : [hive, ...current],
+      );
+      router.push(hiveDocumentsPath(hive.id));
+    },
+    [router],
+  );
+  const createFlow = useCreateHive(handleCreated);
+  const { openModal } = createFlow;
 
-  const handleOpenCreateModal = useCallback(() => {
-    setNameError(null);
-    setDescriptionError(null);
-    setSubmitError(null);
-    setModalOpen(true);
-  }, []);
-
-  const handleCloseCreateModal = useCallback(() => {
-    if (submitBusy) {
-      return;
+  useEffect(() => {
+    if (openCreateOnLoad) {
+      router.replace(MY_HIVES_PATH, { scroll: false });
+      openModal();
     }
-    setModalOpen(false);
-    setHiveName("");
-    setHiveDescription("");
-    setNameError(null);
-    setDescriptionError(null);
-    setSubmitError(null);
-    clientRequestIdRef.current = crypto.randomUUID();
-  }, [submitBusy]);
+  }, [openCreateOnLoad, openModal, router]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -80,110 +68,53 @@ export function MyHivesPanel({
     } catch (error) {
       setListError(
         error instanceof HiveClientError
-          ? error.message
-          : "Could not load your Hives.",
+          ? { message: error.message, correlationId: error.correlationId }
+          : { message: "Could not load your Hives.", correlationId: null },
       );
     } finally {
       setRefreshing(false);
     }
   }, []);
 
-  const handleCreateSubmit = useCallback(async () => {
-    const validated = validateCreateHiveInput({
-      name: hiveName,
-      description: hiveDescription,
-      clientRequestId: clientRequestIdRef.current,
-    });
-
-    if (!validated.ok) {
-      setNameError(validated.nameError ?? null);
-      setDescriptionError(validated.descriptionError ?? null);
-      if (!validated.nameError && !validated.descriptionError) {
-        setSubmitError(validated.message);
-      }
-      return;
-    }
-
-    setNameError(null);
-    setDescriptionError(null);
-    setSubmitError(null);
-    setSubmitBusy(true);
-
-    try {
-      const response = await createHive({
-        name: validated.value.name,
-        description: validated.value.description,
-        clientRequestId: validated.value.clientRequestId,
-      });
-
-      setHives((prev) => {
-        const exists = prev.some((item) => item.id === response.hive.id);
-        return exists ? prev : [response.hive, ...prev];
-      });
-
-      setModalOpen(false);
-      setHiveName("");
-      setHiveDescription("");
-      clientRequestIdRef.current = crypto.randomUUID();
-      router.push(`/hives/${response.hive.id}/documents`);
-    } catch (error) {
-      if (
-        error instanceof HiveClientError &&
-        error.errorCode === "IDEMPOTENCY_CONFLICT"
-      ) {
-        clientRequestIdRef.current = crypto.randomUUID();
-      }
-      setSubmitError(
-        error instanceof HiveClientError
-          ? error.message
-          : "Could not create your Hive. Please try again.",
-      );
-    } finally {
-      setSubmitBusy(false);
-    }
-  }, [hiveDescription, hiveName, router]);
-
   return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "1rem",
-          flexWrap: "wrap",
-        }}
-      >
+    <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-9 px-4 py-10 md:px-8 md:py-14">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 style={{ fontFamily: "var(--font-display)", margin: 0 }}>
+          <h1 className="m-0 font-brand text-[clamp(1.75rem,4vw,2.25rem)] font-semibold tracking-tight text-ink">
             My Hives
           </h1>
-          <p className="muted" style={{ margin: "0.25rem 0 0" }}>
-            Each Hive keeps one situation&apos;s documents and Canonical Study
-            together.
+          <p className="mb-0 mt-2 text-[15px] text-ink-muted">
+            Each Hive keeps one situation&apos;s documents and Study together.
           </p>
         </div>
-        <button
-          type="button"
-          className="button"
-          onClick={handleOpenCreateModal}
-          disabled={submitBusy}
-        >
-          New Hive
-        </button>
+        {hives.length > 0 ? (
+          <button
+            type="button"
+            className={PRIMARY_BUTTON_CLASS}
+            onClick={openModal}
+            disabled={createFlow.submitBusy}
+          >
+            New Hive
+          </button>
+        ) : null}
       </div>
+
+      <HiveComposer onSubmit={openModal} busy={createFlow.submitBusy} />
 
       {listError ? (
         <div
-          className="card"
           role="alert"
-          style={{ marginTop: "1.5rem" }}
+          className="rounded-[18px] border border-line bg-paper p-8 text-center"
         >
-          <p className="notice-error">{listError}</p>
+          <p className="m-0 text-sm text-ink">{listError.message}</p>
+          {listError.correlationId ? (
+            <p className="mb-0 mt-2 font-mono text-xs text-ink-muted">
+              Support reference: {listError.correlationId}
+            </p>
+          ) : null}
           <button
             type="button"
-            className="button button-secondary"
-            style={{ marginTop: "0.75rem" }}
+            className={`${SECONDARY_BUTTON_CLASS} mt-4`}
             disabled={refreshing}
             onClick={() => void handleRefresh()}
           >
@@ -194,104 +125,30 @@ export function MyHivesPanel({
 
       {!listError && hives.length === 0 ? (
         <section
-          className="card"
           aria-labelledby="empty-hives-title"
-          style={{ marginTop: "1.5rem" }}
+          className={`rounded-[18px] border border-line bg-paper px-6 py-12 text-center ${CARD_SHADOW}`}
         >
-          <h2
-            id="empty-hives-title"
-            style={{ marginTop: 0, fontSize: "1.125rem" }}
-          >
+          <h2 id="empty-hives-title" className="m-0 text-xl font-semibold text-ink">
             Create a hive to get started
           </h2>
-          <p className="muted" style={{ marginBottom: "1rem" }}>
-            You don&apos;t have any Hives yet. Create one to organize documents
-            and build an evidence-backed Study.
+          <p className="mx-auto mb-0 mt-3 max-w-md text-[15px] leading-relaxed text-ink-muted">
+            A Hive is a private space for one situation. Add the documents you
+            have, and build an evidence-backed Study from them.
           </p>
           <button
             type="button"
-            className="button"
-            onClick={handleOpenCreateModal}
+            className={`${PRIMARY_BUTTON_CLASS} mt-6`}
+            onClick={openModal}
+            disabled={createFlow.submitBusy}
           >
             Create a Hive
           </button>
         </section>
       ) : null}
 
-      {hives.length > 0 ? (
-        <ul
-          style={{
-            listStyle: "none",
-            padding: 0,
-            marginTop: "1.5rem",
-            display: "grid",
-            gap: "0.75rem",
-          }}
-        >
-          {hives.map((hive) => (
-            <li key={hive.id} className="card">
-              <h2 style={{ margin: "0 0 0.25rem", fontSize: "1.125rem" }}>
-                <Link
-                  href={`/hives/${hive.id}/documents`}
-                  style={{ textDecoration: "none", color: "var(--color-ink)" }}
-                >
-                  {hive.name}
-                </Link>
-              </h2>
-              {hive.description ? (
-                <p className="muted" style={{ margin: "0 0 0.5rem" }}>
-                  {hive.description}
-                </p>
-              ) : null}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "0.75rem",
-                  flexWrap: "wrap",
-                  marginTop: "0.5rem",
-                }}
-              >
-                <span className="muted" style={{ fontSize: "0.8125rem" }}>
-                  No accepted Study yet · {formatUpdatedAt(hive.updatedAt)}
-                </span>
-                <Link href={`/hives/${hive.id}/documents`}>Open hive</Link>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {hives.length > 0 ? <HiveCardGrid hives={hives} /> : null}
 
-      <CreateHiveModal
-        open={modalOpen}
-        hiveName={hiveName}
-        hiveDescription={hiveDescription}
-        nameError={nameError}
-        descriptionError={descriptionError}
-        submitError={submitError}
-        submitBusy={submitBusy}
-        onHiveNameChange={(val) => {
-          setHiveName(val);
-          if (nameError) {
-            setNameError(null);
-          }
-          if (submitError) {
-            setSubmitError(null);
-          }
-        }}
-        onHiveDescriptionChange={(val) => {
-          setHiveDescription(val);
-          if (descriptionError) {
-            setDescriptionError(null);
-          }
-          if (submitError) {
-            setSubmitError(null);
-          }
-        }}
-        onCancel={handleCloseCreateModal}
-        onSubmit={() => void handleCreateSubmit()}
-      />
+      <CreateHiveModal {...createFlow.modalProps} />
     </div>
   );
 }

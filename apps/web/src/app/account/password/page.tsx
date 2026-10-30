@@ -12,7 +12,7 @@ export default async function AccountPasswordPage() {
   }
 
   return (
-    <AuthFrame>
+    <AuthFrame withLogo={false}>
       <AuthHeading
         title="Change password"
         lede="Enter your current password, then choose a new one."

@@ -27,6 +27,8 @@ hiveforyou-v4/
 │   ├── hive-extract/HiveForYou-Extract-v1.md
 │   └── hive-prep/HiveForYou-Prep-v1.md
 ├── apps/web/                       # Next.js shell from V4-001
+│   ├── public/                     # brand logo/mark, favicons, OG image
+│   ├── tailwind.config.ts          # theme mapped to brand CSS variables (D-024)
 │   └── src/
 │       ├── app/                    # Next.js routes + server API handlers
 │       ├── components/             # brand shell, screens, approved renderer

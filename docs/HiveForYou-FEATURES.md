@@ -13,7 +13,7 @@
 | F-001 | Landing | Explain what HiveForYou does; sign in/create account with approved brand | No promise of legal/medical outcome, no invented testimonial/claim |
 | F-002 | Auth | Sign up, sign in, sign out, callback/session recovery | PKCE callback where confirmation applies; no leakage of other users' Hives |
 | F-003 | My Hives | Show owned Hives, create with name and optional description | Enforce 100/500 char constraints; client request idempotent; route to created Hive |
-| F-004 | My Hives | Archive / delete Hive with explicit confirmation | Pre/post Study deletion safeguards and recoverable failures; do not silently hard-delete evidence |
+| F-004 | My Hives | Archive / delete Hive with explicit confirmation | Pre/post Study deletion safeguards and recoverable failures; do not silently hard-delete evidence. **Design PROPOSED (D-025); not implemented.** |
 | F-005 | Documents | Upload PDF/PNG/JPEG/DOCX, register with private source metadata | Free 10 successful registered uploads per UTC month; server validates, bad file clearly fails |
 | F-006 | Documents | See ordered document list and registration/read states | Duplicates and unreadable pages described accurately, not declared accepted |
 | F-007 | Documents | Open exact original document and page | Accessible viewer; physically numbered pages; source authorization checked on each request |

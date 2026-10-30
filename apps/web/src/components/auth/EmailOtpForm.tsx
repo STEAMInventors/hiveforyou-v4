@@ -31,13 +31,12 @@ export function EmailOtpForm({
   return (
     <form
       action={formAction}
-      className="form-stack"
-      style={{ borderTop: "1px solid #e1e4e8", paddingTop: "1rem" }}
+      className="flex flex-col gap-4 border-t border-line pt-4"
     >
       <input type="hidden" name="purpose" value={purpose} />
       <input type="hidden" name="next" value={nextPath} />
       {state.error ? <AuthNotice tone="error">{state.error}</AuthNotice> : null}
-      <p className="muted" style={{ margin: 0, fontSize: "0.875rem" }}>
+      <p className="m-0 text-sm text-ink-muted">
         {purpose === "recovery"
           ? "Enter the code from your reset email. Leave the link unopened if your mail app scans links automatically."
           : "Enter the confirmation code from your email, or open the confirmation link in this browser."}

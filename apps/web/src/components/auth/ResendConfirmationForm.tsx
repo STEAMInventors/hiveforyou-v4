@@ -24,7 +24,7 @@ export function ResendConfirmationForm({
 
   return (
     <>
-      <form action={formAction} className="form-stack">
+      <form action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={nextPath} />
         {state.error ? (
           <AuthNotice tone="error">{state.error}</AuthNotice>

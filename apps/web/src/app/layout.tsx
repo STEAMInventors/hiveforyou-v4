@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono, Outfit, Source_Serif_4 } from "next/font/google";
 
-import { AppHeader } from "@/components/app-header";
+import { BRAND_ASSETS } from "@/lib/brand-assets";
 
 import "./globals.css";
 
@@ -32,6 +32,16 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "HiveForYou",
   description: "The complicated, made simple.",
+  icons: {
+    icon: [
+      { url: BRAND_ASSETS.faviconSvg, type: "image/svg+xml" },
+      { url: BRAND_ASSETS.faviconIco },
+    ],
+    apple: BRAND_ASSETS.appleTouchIcon,
+  },
+  openGraph: {
+    images: [BRAND_ASSETS.ogImage],
+  },
 };
 
 export const dynamic = "force-dynamic";
@@ -46,10 +56,7 @@ export default function RootLayout({
       lang="en"
       className={`${outfit.variable} ${dmSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
-      <body>
-        <AppHeader />
-        <main>{children}</main>
-      </body>
+      <body className="font-sans text-ink">{children}</body>
     </html>
   );
 }
