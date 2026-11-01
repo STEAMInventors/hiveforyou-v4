@@ -14,6 +14,7 @@ import { HiveClientError, deleteHive, fetchMyHives } from "@/lib/hives-client";
 import { MY_HIVES_PATH, hiveDocumentsPath } from "@/lib/hive-routes";
 
 import { CreateHiveModal } from "./CreateHiveModal";
+import { NameHiveDialog } from "./NameHiveDialog";
 import { DeleteHiveModal } from "./DeleteHiveModal";
 import { HiveCardGrid } from "./HiveCard";
 import { useCreateHive } from "./useCreateHive";
@@ -204,6 +205,7 @@ export function MyHivesPanel({
       ) : null}
 
       <CreateHiveModal {...createFlow.modalProps} />
+      <NameHiveDialog {...createFlow.namingDialogProps} />
       <DeleteHiveModal
         hiveName={hivePendingDelete?.name ?? ""}
         open={hivePendingDelete !== null}

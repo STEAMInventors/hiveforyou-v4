@@ -61,6 +61,20 @@ export type ComposerDraftValidation = {
   filesError: string | null;
 };
 
+export function validateHiveName(name: string): { ok: true; value: string } | { ok: false; error: string } {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Give your Hive a name so you can find it later." };
+  }
+  if (trimmed.length > HIVE_NAME_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `Hive name must be ${HIVE_NAME_MAX_LENGTH} characters or fewer.`,
+    };
+  }
+  return { ok: true, value: trimmed };
+}
+
 export function validateComposerDraft(input: {
   intentText: string;
   files: readonly Pick<SelectedSourceFile, "state">[];
@@ -111,6 +125,7 @@ export type CreateHiveFlowDeps = {
 
 export type CreateHiveFlowInput = {
   progress: CreateHiveProgress;
+  hiveName: string;
   intentText: string;
   hiveRequestId: string;
   intentRequestId: string;
@@ -172,11 +187,12 @@ export async function runCreateHiveFlow(
 ): Promise<CreateHiveFlowResult> {
   let progress = { ...input.progress };
   const intentText = input.intentText.trim();
+  const hiveName = input.hiveName.trim();
 
   if (!progress.hive) {
     try {
       const response = await deps.createHive({
-        name: provisionalHiveName(intentText),
+        name: hiveName,
         clientRequestId: input.hiveRequestId,
       });
       progress = { ...progress, hive: response.hive };

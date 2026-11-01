@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
 import { HiveComposer } from "@/components/HiveComposer";
+import { NameHiveDialog } from "@/components/hives/NameHiveDialog";
 import { useCreateHive, useHiveComposer } from "@/components/hives/useCreateHive";
 import { saveGuestDraft, type GuestDraft } from "@/lib/guest-draft";
 import {
@@ -46,6 +47,7 @@ export function LandingStart({ signedIn }: { signedIn: boolean }) {
 
   return (
     <div className="flex w-full flex-col gap-5">
+      {signedIn ? <NameHiveDialog {...createFlow.namingDialogProps} /> : null}
       <HiveComposer {...composerProps} />
       <div className="flex flex-wrap justify-center gap-2">
         {STARTER_SITUATIONS.map((situation) => {

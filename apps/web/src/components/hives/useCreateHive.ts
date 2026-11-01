@@ -9,9 +9,12 @@ import { createHive } from "@/lib/hives-client";
 import { createIntentRequest } from "@/lib/source-documents-client";
 
 import type { CreateHiveModalProps } from "./CreateHiveModal";
+import type { NameHiveDialogProps } from "./NameHiveDialog";
 import {
+  provisionalHiveName,
   runCreateHiveFlow,
   validateComposerDraft,
+  validateHiveName,
   type CreateHiveFailure,
   type CreateHiveProgress,
 } from "./create-hive-flow";
@@ -95,12 +98,16 @@ export function useHiveComposer(onValidSubmit: (draft: GuestDraft) => void | Pro
     onSubmit: () => void submit(),
   };
 
-  return { composerProps, files, setFiles, setFailure, load, reset, clearErrors, busy };
+  return { composerProps, files, setFiles, setFailure, load, reset, clearErrors, busy, setBusy };
 }
 
 export function useCreateHive(onCreated: (hive: Hive) => void) {
   const [open, setOpen] = useState(false);
   const [progress, setProgress] = useState<CreateHiveProgress>(EMPTY_PROGRESS);
+  const [namingOpen, setNamingOpen] = useState(false);
+  const [hiveName, setHiveName] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [namingFailure, setNamingFailure] = useState<CreateHiveFailure | null>(null);
   const progressRef = useRef<CreateHiveProgress>(EMPTY_PROGRESS);
   const hiveRequestIdRef = useRef("");
   const intentRequestIdRef = useRef("");
@@ -119,41 +126,14 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
     setProgress(next);
   };
 
-  const create = async (draft: GuestDraft) => {
-    ensureRequestIds();
-    const result = await runCreateHiveFlow(
-      {
-        createHive,
-        createIntentRequest,
-        uploadFiles: uploadSelectedSourceFiles,
-      },
-      {
-        progress: progressRef.current,
-        intentText: draft.intentText,
-        hiveRequestId: hiveRequestIdRef.current,
-        intentRequestId: intentRequestIdRef.current,
-        files: composer.files,
-        onProgress: updateProgress,
-        onFileUpdate: (key, patch) =>
-          composer.setFiles((current) =>
-            current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
-          ),
-      },
-    );
-    if (result.ok) {
-      finish(result.hive);
-      return;
-    }
-    if (result.failure.errorCode === "IDEMPOTENCY_CONFLICT") {
-      if (result.failure.stage === "createHive") {
-        hiveRequestIdRef.current = crypto.randomUUID();
-      }
-      intentRequestIdRef.current = crypto.randomUUID();
-    }
-    composer.setFailure(result.failure);
-  };
+  const beginNaming = useCallback(async (draft: GuestDraft) => {
+    setHiveName(provisionalHiveName(draft.intentText));
+    setNameError(null);
+    setNamingFailure(null);
+    setNamingOpen(true);
+  }, []);
 
-  const composer = useHiveComposer(create);
+  const composer = useHiveComposer(beginNaming);
   const { load, reset: resetComposer, clearErrors } = composer;
 
   const reset = useCallback(() => {
@@ -162,14 +142,81 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
     setProgress(EMPTY_PROGRESS);
     hiveRequestIdRef.current = "";
     intentRequestIdRef.current = "";
+    setNamingOpen(false);
+    setHiveName("");
+    setNameError(null);
+    setNamingFailure(null);
   }, [resetComposer]);
 
-  const finish = (hive: Hive) => {
-    setOpen(false);
-    reset();
-    void clearGuestDraft();
-    onCreated(hive);
-  };
+  const finish = useCallback(
+    (hive: Hive) => {
+      setOpen(false);
+      reset();
+      void clearGuestDraft();
+      onCreated(hive);
+    },
+    [onCreated, reset],
+  );
+
+  const runPersist = useCallback(
+    async (confirmedName: string, intentText: string) => {
+      ensureRequestIds();
+      composer.setBusy(true);
+      setNamingFailure(null);
+      try {
+        const result = await runCreateHiveFlow(
+          {
+            createHive,
+            createIntentRequest,
+            uploadFiles: uploadSelectedSourceFiles,
+          },
+          {
+            progress: progressRef.current,
+            hiveName: confirmedName,
+            intentText,
+            hiveRequestId: hiveRequestIdRef.current,
+            intentRequestId: intentRequestIdRef.current,
+            files: composer.files,
+            onProgress: updateProgress,
+            onFileUpdate: (key, patch) =>
+              composer.setFiles((current) =>
+                current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+              ),
+          },
+        );
+        if (result.ok) {
+          setNamingOpen(false);
+          finish(result.hive);
+          return;
+        }
+        if (result.failure.errorCode === "IDEMPOTENCY_CONFLICT") {
+          if (result.failure.stage === "createHive") {
+            hiveRequestIdRef.current = crypto.randomUUID();
+          }
+          intentRequestIdRef.current = crypto.randomUUID();
+        }
+        if (result.failure.stage === "createHive") {
+          setNamingFailure(result.failure);
+          return;
+        }
+        setNamingOpen(false);
+        composer.setFailure(result.failure);
+      } finally {
+        composer.setBusy(false);
+      }
+    },
+    [composer, finish],
+  );
+
+  const confirmNaming = useCallback(async () => {
+    const validated = validateHiveName(hiveName);
+    if (!validated.ok) {
+      setNameError(validated.error);
+      return;
+    }
+    setNameError(null);
+    await runPersist(validated.value, composer.composerProps.intentText.trim());
+  }, [composer.composerProps.intentText, hiveName, runPersist]);
 
   const openModal = useCallback(
     (draft?: GuestDraft) => {
@@ -183,7 +230,7 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
   );
 
   const closeModal = () => {
-    if (composer.busy) {
+    if (composer.busy || namingOpen) {
       return;
     }
     if (progress.hive) {
@@ -194,8 +241,18 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
     reset();
   };
 
+  const cancelNaming = () => {
+    if (composer.busy) {
+      return;
+    }
+    setNamingOpen(false);
+    setNameError(null);
+    setNamingFailure(null);
+  };
+
   const composerProps: HiveComposerProps = {
     ...composer.composerProps,
+    busy: composer.busy || namingOpen,
     intentLocked: progress.intentSaved,
     onIntentTextChange: (value) => {
       if (progress.intentSaved) {
@@ -208,11 +265,32 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
 
   const modalProps: CreateHiveModalProps = {
     open,
-    busy: composer.busy,
+    busy: composer.busy || namingOpen,
     hiveCreated: progress.hive !== null,
     onClose: closeModal,
     composerProps,
   };
 
-  return { openModal, submitBusy: composer.busy, composerProps, modalProps };
+  const namingDialogProps: NameHiveDialogProps = {
+    open: namingOpen,
+    hiveName,
+    nameError,
+    failure: namingFailure,
+    busy: composer.busy,
+    onHiveNameChange: (value) => {
+      setHiveName(value);
+      setNameError(null);
+      setNamingFailure(null);
+    },
+    onConfirm: () => void confirmNaming(),
+    onCancel: cancelNaming,
+  };
+
+  return {
+    openModal,
+    submitBusy: composer.busy,
+    composerProps,
+    modalProps,
+    namingDialogProps,
+  };
 }

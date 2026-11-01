@@ -7,6 +7,7 @@ import {
   provisionalHiveName,
   runCreateHiveFlow,
   validateComposerDraft,
+  validateHiveName,
   type CreateHiveFlowDeps,
   type CreateHiveFlowInput,
 } from "./create-hive-flow";
@@ -76,6 +77,20 @@ describe("validateComposerDraft", () => {
   });
 });
 
+describe("validateHiveName", () => {
+  it("requires a non-empty trimmed name within the limit", () => {
+    expect(validateHiveName("   ")).toEqual({
+      ok: false,
+      error: "Give your Hive a name so you can find it later.",
+    });
+    expect(validateHiveName("March records")).toEqual({ ok: true, value: "March records" });
+    expect(validateHiveName("a".repeat(HIVE_NAME_MAX_LENGTH + 1))).toEqual({
+      ok: false,
+      error: `Hive name must be ${HIVE_NAME_MAX_LENGTH} characters or fewer.`,
+    });
+  });
+});
+
 describe("provisionalHiveName", () => {
   it("uses short intent verbatim", () => {
     expect(provisionalHiveName("Prepare for an IEP meeting")).toBe("Prepare for an IEP meeting");
@@ -132,6 +147,7 @@ describe("runCreateHiveFlow", () => {
   function input(overrides: Partial<CreateHiveFlowInput> = {}): CreateHiveFlowInput {
     return {
       progress: { hive: null, intentSaved: false },
+      hiveName: "Prepare for an IEP meeting",
       intentText: "  Prepare for an IEP meeting  ",
       hiveRequestId: HIVE_REQUEST_ID,
       intentRequestId: INTENT_REQUEST_ID,

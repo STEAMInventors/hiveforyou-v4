@@ -137,7 +137,7 @@ export function CreateHiveModal({
             </h2>
             <p id={descriptionId} className="mb-0 mt-2 text-[15px] leading-[1.55] text-ink-muted">
               Describe what you&apos;re trying to get done and attach the documents you
-              have. We&apos;ll name the Hive from your own words.
+              have. You&apos;ll confirm a Hive name before anything is saved.
             </p>
           </div>
           <button

@@ -234,9 +234,10 @@ export class SupabaseVaultRepositories implements VaultRepositories {
         const { data, error } = await supabaseClient.rpc("get_source_upload_by_client_request", {
           p_hive_id: caseId,
           p_client_request_id: clientRequestId,
+          p_owner_user_id: ownerUserId,
         });
         throwOnError(error, requestCorrelationId, "read");
-        return data === null || data === undefined ? undefined : mapUploadFromRpc(data);
+        return data === null ? undefined : mapUploadRpcJson(data);
       },
       async listByCase(caseId: CaseId) {
         const { data, error } = await hive()
@@ -728,7 +729,7 @@ function uploadRow(record: UploadOperationRecord): Record<string, unknown> {
   };
 }
 
-function mapUploadFromRpc(raw: unknown): UploadOperationRecord {
+function mapUploadRpcJson(raw: unknown): UploadOperationRecord {
   const row = asRecord(raw);
   return {
     id: str(row, "id") as UploadOperationRecord["id"],
