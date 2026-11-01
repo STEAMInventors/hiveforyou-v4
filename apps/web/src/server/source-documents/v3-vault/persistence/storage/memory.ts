@@ -74,6 +74,13 @@ export class InMemoryEvidenceObjectStore implements EvidenceObjectStore {
     return Uint8Array.from(stored.bytes);
   }
 
+  async createSignedUploadUrl(
+    ref: ObjectRef,
+    _expiresSeconds: number = DEFAULT_SIGNED_URL_SECONDS,
+  ): Promise<{ path: string; token: string }> {
+    return { path: ref.path, token: `memory-upload-token:${objectKey(ref)}` };
+  }
+
   async createSignedReadUrl(
     ref: ObjectRef,
     expiresSeconds: number = DEFAULT_SIGNED_URL_SECONDS,

@@ -89,6 +89,11 @@ export type PrepareSourceDocumentRequest = {
   fileName: string;
   mimeType: SourceMimeType;
   byteSize: number;
+  sha256: string;
+  clientRequestId: string;
+};
+
+export type CompleteSourceDocumentRequest = {
   clientRequestId: string;
 };
 
@@ -102,6 +107,8 @@ export type PrepareSourceDocumentResponse = {
 export type RegisterSourceDocumentResponse = {
   sourceDocument: SourceDocument;
 };
+
+export type CompleteSourceDocumentResponse = RegisterSourceDocumentResponse;
 
 export type ListSourceDocumentsResponse = {
   sourceDocuments: SourceDocument[];
@@ -282,6 +289,7 @@ export function validatePrepareSourceDocumentInput(
     "fileName",
     "mimeType",
     "byteSize",
+    "sha256",
     "clientRequestId",
   ]);
   if (unexpected) {
@@ -308,7 +316,41 @@ export function validatePrepareSourceDocumentInput(
   if (record.mimeType !== candidate.value.mimeType) {
     return { ok: false, message: UNSUPPORTED_FILE_MESSAGE, diagnosticReason: "invalid_document_type" };
   }
-  return { ok: true, value: { ...candidate.value, clientRequestId } };
+  const sha256 = typeof record.sha256 === "string" ? record.sha256.trim().toLowerCase() : "";
+  if (!/^[0-9a-f]{64}$/.test(sha256)) {
+    return {
+      ok: false,
+      message: "sha256 must be a 64-character hex digest.",
+      diagnosticReason: "invalid_sha256",
+    };
+  }
+  return { ok: true, value: { ...candidate.value, sha256, clientRequestId } };
+}
+
+export function validateCompleteSourceDocumentInput(
+  body: unknown,
+): ContractValidation<CompleteSourceDocumentRequest> {
+  const record = asRecord(body);
+  if (!record) {
+    return {
+      ok: false,
+      message: "Request body must be a JSON object.",
+      diagnosticReason: "invalid_payload_shape",
+    };
+  }
+  const unexpected = rejectUnexpectedKeys(record, ["clientRequestId"]);
+  if (unexpected) {
+    return unexpected;
+  }
+  const clientRequestId = readClientRequestId(record);
+  if (!clientRequestId) {
+    return {
+      ok: false,
+      message: "clientRequestId must be a valid UUID.",
+      diagnosticReason: "invalid_client_request_id",
+    };
+  }
+  return { ok: true, value: { clientRequestId } };
 }
 
 export function validateCreateIntentRequestInput(

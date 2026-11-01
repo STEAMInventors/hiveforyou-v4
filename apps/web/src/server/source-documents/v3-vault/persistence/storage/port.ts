@@ -20,11 +20,17 @@ export type PutCreateOnlyInput = ObjectRef & {
   readonly correlationId: CorrelationId;
 };
 
+export type SignedUploadTarget = {
+  readonly path: string;
+  readonly token: string;
+};
+
 export type EvidenceObjectStore = {
   putCreateOnly(input: PutCreateOnlyInput): Promise<void>;
   exists(ref: ObjectRef): Promise<boolean>;
   getMetadata(ref: ObjectRef): Promise<ObjectMetadata | undefined>;
   downloadBytes(ref: ObjectRef): Promise<Uint8Array>;
   createSignedReadUrl(ref: ObjectRef, expiresSeconds?: number): Promise<string>;
+  createSignedUploadUrl(ref: ObjectRef, expiresSeconds?: number): Promise<SignedUploadTarget>;
   delete(ref: ObjectRef): Promise<void>;
 };

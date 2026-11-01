@@ -41,6 +41,194 @@ export type RegisterSourceDocumentDeps = {
   readonly sourceBucket: string;
 };
 
+export type PrepareSourceDocumentUploadInput = {
+  readonly actorUserId: UserId;
+  readonly actorType: ActorType;
+  readonly caseId: SourceDocumentRecord["caseId"];
+  readonly clientRequestId: string;
+  readonly originalFilename: string;
+  readonly mimeType: string;
+  readonly byteSize: number;
+  readonly sha256: string;
+  readonly correlationId: CorrelationId;
+};
+
+export type PrepareSourceDocumentUploadResult = {
+  readonly uploadOperation: UploadOperationRecord;
+  readonly signedUpload: { readonly path: string; readonly token: string };
+};
+
+export async function prepareSourceDocumentUpload(
+  deps: RegisterSourceDocumentDeps,
+  input: PrepareSourceDocumentUploadInput,
+): Promise<PrepareSourceDocumentUploadResult> {
+  const { vault, store, sourceBucket } = deps;
+  const caseRecord = await vault.cases.getById(input.caseId);
+  if (caseRecord === undefined) {
+    throw new HiveError({
+      code: "CASE_ACCESS_DENIED",
+      category: "AUTHORIZATION_ERROR",
+      message: "Actor is not authorized for this case.",
+      retryable: false,
+      severity: "FATAL",
+      correlationId: input.correlationId,
+    });
+  }
+  assertCaseOwner(input.actorUserId, caseRecord.ownerUserId, input.correlationId);
+  validateUpload({
+    originalName: input.originalFilename,
+    mimeType: input.mimeType,
+    sizeBytes: input.byteSize,
+    correlationId: input.correlationId,
+  });
+
+  const existing = await vault.uploadOperations.getByClientRequestId(
+    caseRecord.ownerUserId,
+    caseRecord.id,
+    input.clientRequestId,
+  );
+  if (existing !== undefined) {
+    if (
+      existing.originalFilename !== input.originalFilename ||
+      existing.mimeType !== input.mimeType ||
+      existing.byteSize !== input.byteSize ||
+      existing.sha256 !== input.sha256
+    ) {
+      throw new HiveError({
+        code: "IDEMPOTENCY_CONFLICT",
+        category: "CONCURRENCY_ERROR",
+        message: "Client request ID was already used with different upload metadata.",
+        retryable: false,
+        severity: "ERROR",
+        correlationId: input.correlationId,
+      });
+    }
+    const ref: ObjectRef = { bucket: existing.storageBucket, path: existing.storagePath };
+    if (existing.status === "REGISTERED" || existing.status === "FAILED") {
+      return { uploadOperation: existing, signedUpload: { path: ref.path, token: "" } };
+    }
+    const signedUpload = await store.createSignedUploadUrl(ref);
+    return { uploadOperation: existing, signedUpload };
+  }
+
+  const sourceDocumentId = createSourceDocumentId();
+  const uploadOperationId = createUploadOperationId();
+  const storagePath = buildSourceObjectPath(
+    caseRecord.ownerUserId,
+    caseRecord.id,
+    sourceDocumentId,
+  );
+  const now = new Date().toISOString();
+  const pending: UploadOperationRecord = {
+    id: uploadOperationId,
+    caseId: caseRecord.id,
+    ownerUserId: caseRecord.ownerUserId,
+    sourceDocumentId,
+    originalFilename: input.originalFilename,
+    mimeType: input.mimeType,
+    byteSize: input.byteSize,
+    sha256: input.sha256,
+    storageBucket: sourceBucket,
+    storagePath,
+    status: "PENDING",
+    errorCode: null,
+    errorCategory: null,
+    clientRequestId: input.clientRequestId,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await vault.uploadOperations.insertPending(pending);
+  const ref: ObjectRef = { bucket: sourceBucket, path: storagePath };
+  const signedUpload = await store.createSignedUploadUrl(ref);
+  return { uploadOperation: pending, signedUpload };
+}
+
+export async function completePreparedSourceDocumentUpload(
+  deps: RegisterSourceDocumentDeps,
+  input: {
+    readonly uploadOperationId: UploadOperationId;
+    readonly actorUserId: UserId;
+    readonly actorType: ActorType;
+    readonly correlationId: CorrelationId;
+  },
+): Promise<RegisterSourceDocumentResult> {
+  const operation = await deps.vault.uploadOperations.getById(input.uploadOperationId);
+  if (operation === undefined) {
+    throw new HiveError({
+      code: "UPLOAD_OPERATION_NOT_FOUND",
+      category: "STORAGE_ERROR",
+      message: "Upload operation was not found.",
+      retryable: false,
+      severity: "ERROR",
+      correlationId: input.correlationId,
+    });
+  }
+  const caseRecord = await deps.vault.cases.getById(operation.caseId);
+  if (caseRecord === undefined) {
+    throw new HiveError({
+      code: "CASE_ACCESS_DENIED",
+      category: "AUTHORIZATION_ERROR",
+      message: "Actor is not authorized for this case.",
+      retryable: false,
+      severity: "FATAL",
+      correlationId: input.correlationId,
+    });
+  }
+  assertCaseOwner(input.actorUserId, caseRecord.ownerUserId, input.correlationId);
+
+  if (operation.status === "REGISTERED") {
+    const document = await deps.vault.sourceDocuments.getById(operation.sourceDocumentId);
+    if (document === undefined) {
+      throw wrapRegistrationFailure(new Error("missing source document"), input.correlationId);
+    }
+    return {
+      document,
+      uploadOperation: operation,
+      hashMatches: [],
+    };
+  }
+
+  const ref: ObjectRef = { bucket: operation.storageBucket, path: operation.storagePath };
+  const bytes = await deps.store.downloadBytes(ref);
+  validateUpload({
+    originalName: operation.originalFilename,
+    mimeType: operation.mimeType,
+    sizeBytes: bytes.byteLength,
+    correlationId: input.correlationId,
+    bytes,
+  });
+  if (sha256Hex(bytes) !== operation.sha256) {
+    await deps.vault.uploadOperations.markFailed(
+      operation.id,
+      new Date().toISOString(),
+      "FILE_CONTENT_MISMATCH",
+      "INPUT_ERROR",
+    );
+    throw new HiveError({
+      code: "FILE_CONTENT_MISMATCH",
+      category: "INPUT_ERROR",
+      message: "Uploaded bytes did not match declared metadata.",
+      retryable: false,
+      severity: "ERROR",
+      correlationId: input.correlationId,
+    });
+  }
+
+  const reconciled = await reconcileUploadOperation(deps, operation.id, {
+    userId: input.actorUserId,
+    actorType: input.actorType,
+    correlationId: input.correlationId,
+  });
+  const document = await deps.vault.sourceDocuments.getById(reconciled.sourceDocumentId);
+  if (document === undefined) {
+    throw wrapRegistrationFailure(new Error("missing source document"), input.correlationId);
+  }
+  const hashMatches = (await deps.vault.sourceDocuments.findBySha256(caseRecord.id, document.sha256)).filter(
+    (item) => item.id !== document.id,
+  );
+  return { document, uploadOperation: reconciled, hashMatches };
+}
+
 export async function registerSourceDocument(
   deps: RegisterSourceDocumentDeps,
   input: RegisterSourceDocumentInput,

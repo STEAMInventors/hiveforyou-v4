@@ -13,6 +13,7 @@ import type {
 
 export type VaultTransactionOp =
   | { readonly op: "insert_case"; readonly row: Record<string, unknown> }
+  | { readonly op: "insert_upload_pending"; readonly row: Record<string, unknown> }
   | { readonly op: "insert_source_document"; readonly row: Record<string, unknown> }
   | { readonly op: "insert_intake_run"; readonly row: Record<string, unknown> }
   | { readonly op: "insert_intake_run_document"; readonly row: Record<string, unknown> }
@@ -20,6 +21,8 @@ export type VaultTransactionOp =
   | { readonly op: "update_intake_run_step"; readonly row: Record<string, unknown> }
   | { readonly op: "update_intake_run"; readonly row: Record<string, unknown> }
   | { readonly op: "append_audit"; readonly row: Record<string, unknown> }
+  | { readonly op: "mark_upload_stored"; readonly row: Record<string, unknown> }
+  | { readonly op: "mark_upload_failed"; readonly row: Record<string, unknown> }
   | { readonly op: "mark_upload_registered"; readonly row: Record<string, unknown> };
 
 export function caseRow(record: CaseRecord): Record<string, unknown> {

@@ -125,6 +125,7 @@ export class SupabaseVaultRepositories implements VaultRepositories {
     private readonly correlationId: CorrelationId,
   ) {
     const hive = () => this.client.schema("hive");
+    const supabaseClient = this.client;
     const requestCorrelationId = this.correlationId;
 
     this.cases = {
@@ -204,7 +205,11 @@ export class SupabaseVaultRepositories implements VaultRepositories {
 
     this.uploadOperations = {
       async insertPending(record) {
-        const { error } = await hive().from("upload_operations").insert(uploadRow(record));
+        const { error } = await supabaseClient.rpc("apply_vault_transaction", {
+          payload: {
+            operations: [{ op: "insert_upload_pending", row: uploadRow(record) }],
+          },
+        });
         throwOnError(error, requestCorrelationId, "write");
       },
       async getById(id: UploadOperationId) {
@@ -224,6 +229,14 @@ export class SupabaseVaultRepositories implements VaultRepositories {
           .maybeSingle();
         throwOnError(error, requestCorrelationId, "read");
         return data === null ? undefined : mapUpload(data);
+      },
+      async getByClientRequestId(ownerUserId, caseId, clientRequestId) {
+        const { data, error } = await supabaseClient.rpc("get_source_upload_by_client_request", {
+          p_hive_id: caseId,
+          p_client_request_id: clientRequestId,
+        });
+        throwOnError(error, requestCorrelationId, "read");
+        return data === null || data === undefined ? undefined : mapUploadFromRpc(data);
       },
       async listByCase(caseId: CaseId) {
         const { data, error } = await hive()
@@ -501,7 +514,7 @@ export class SupabaseVaultRepositories implements VaultRepositories {
     const operations: VaultTransactionOp[] = [];
     const stores = createBufferedStores(this, operations, this.correlationId);
     const result = await fn(stores);
-    const { error } = await this.client.schema("hive").rpc("apply_vault_transaction", {
+    const { error } = await this.client.rpc("apply_vault_transaction", {
       payload: vaultTransactionPayload(operations),
     });
     throwOnError(error, this.correlationId, "write");
@@ -709,8 +722,31 @@ function uploadRow(record: UploadOperationRecord): Record<string, unknown> {
     status: record.status,
     error_code: record.errorCode,
     error_category: record.errorCategory,
+    client_request_id: record.clientRequestId ?? null,
     created_at: record.createdAt,
     updated_at: record.updatedAt,
+  };
+}
+
+function mapUploadFromRpc(raw: unknown): UploadOperationRecord {
+  const row = asRecord(raw);
+  return {
+    id: str(row, "id") as UploadOperationRecord["id"],
+    caseId: str(row, "caseId") as UploadOperationRecord["caseId"],
+    ownerUserId: str(row, "ownerUserId") as UploadOperationRecord["ownerUserId"],
+    sourceDocumentId: str(row, "sourceDocumentId") as UploadOperationRecord["sourceDocumentId"],
+    originalFilename: str(row, "originalFilename"),
+    mimeType: str(row, "mimeType"),
+    byteSize: num(row, "byteSize"),
+    sha256: str(row, "sha256"),
+    storageBucket: str(row, "storageBucket"),
+    storagePath: str(row, "storagePath"),
+    status: str(row, "status") as UploadOperationRecord["status"],
+    errorCode: strOrNull(row, "errorCode"),
+    errorCategory: strOrNull(row, "errorCategory") as UploadOperationRecord["errorCategory"],
+    clientRequestId: strOrNull(row, "clientRequestId"),
+    createdAt: iso(str(row, "createdAt")),
+    updatedAt: iso(str(row, "updatedAt")),
   };
 }
 
@@ -730,6 +766,7 @@ function mapUpload(raw: unknown): UploadOperationRecord {
     status: str(row, "status") as UploadOperationRecord["status"],
     errorCode: strOrNull(row, "error_code"),
     errorCategory: strOrNull(row, "error_category") as UploadOperationRecord["errorCategory"],
+    clientRequestId: strOrNull(row, "client_request_id"),
     createdAt: iso(str(row, "created_at")),
     updatedAt: iso(str(row, "updated_at")),
   };

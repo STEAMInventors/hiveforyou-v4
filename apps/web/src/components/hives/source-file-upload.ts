@@ -24,6 +24,7 @@ export type SelectedSourceFile = {
   clientRequestId: string;
   state: SourceFileState;
   message: string | null;
+  correlationId?: string | null;
 };
 
 export const MAX_FILES_PER_BATCH = FREE_UPLOADS_PER_UTC_MONTH;
@@ -56,7 +57,7 @@ export function hasUploadableFiles(files: SelectedSourceFile[]): boolean {
   return files.length > 0 && files.every((item) => item.state !== "invalid");
 }
 
-/** Uploads pending files one at a time via V3's server-side registerSourceDocument; replays are safe via clientRequestId. */
+/** Uploads pending files: prepare → direct Storage upload → complete; replays are safe via clientRequestId. */
 export async function uploadSelectedSourceFiles(
   hiveId: string,
   files: SelectedSourceFile[],
@@ -91,6 +92,7 @@ export async function uploadSelectedSourceFiles(
       onUpdate(item.key, {
         state: settled ? "rejected" : "failed",
         message: error instanceof HiveClientError ? error.message : "This file didn't upload. Try again.",
+        correlationId: error instanceof HiveClientError ? error.correlationId : null,
       });
     }
   }

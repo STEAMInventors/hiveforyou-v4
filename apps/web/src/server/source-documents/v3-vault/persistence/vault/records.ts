@@ -78,6 +78,7 @@ export type UploadOperationRecord = {
   readonly status: UploadOperationStatus;
   readonly errorCode: string | null;
   readonly errorCategory: ErrorCategory | null;
+  readonly clientRequestId?: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 };

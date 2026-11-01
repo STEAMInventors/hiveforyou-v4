@@ -170,6 +170,14 @@ export class InMemoryVaultRepositories implements VaultRepositories {
       async getBySourceDocumentId(id) {
         return [...self.uploadStore.values()].find((item) => item.sourceDocumentId === id);
       },
+      async getByClientRequestId(ownerUserId, caseId, clientRequestId) {
+        return [...self.uploadStore.values()].find(
+          (item) =>
+            item.ownerUserId === ownerUserId &&
+            item.caseId === caseId &&
+            item.clientRequestId === clientRequestId,
+        );
+      },
       async listByCase(caseId) {
         return [...self.uploadStore.values()].filter((item) => item.caseId === caseId);
       },

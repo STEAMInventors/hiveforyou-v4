@@ -11,8 +11,8 @@ import { createCase } from "@hives/persistence/vault/create-case";
 import type { VaultRepositories } from "@hives/persistence/vault/ports";
 import type { SourceDocumentRecord, UploadOperationRecord } from "@hives/persistence/vault/records";
 import {
-  reconcileUploadOperation,
-  registerSourceDocument,
+  completePreparedSourceDocumentUpload,
+  prepareSourceDocumentUpload,
 } from "@hives/persistence/vault/register";
 import { SupabaseVaultRepositories } from "@hives/persistence/vault/supabase";
 import { validateUpload } from "@hives/security";
@@ -28,11 +28,16 @@ import {
   type CreateIntentRequestResponse,
   type GetUploadQuotaResponse,
   type Hive,
+  normalizeSourceDocumentRecord,
+  type CompleteSourceDocumentResponse,
   type ListSourceDocumentsResponse,
+  type PrepareSourceDocumentResponse,
   type SourceDocument,
   type SourceFailureReason,
   type SourceMimeType,
   type UploadQuota,
+  validateCompleteSourceDocumentInput,
+  validatePrepareSourceDocumentInput,
 } from "@hiveforyou/contracts";
 
 import { getHiveViaEdge, type EdgeSupabaseClient } from "@/server/hives/hive-edge-gateway";
@@ -127,6 +132,7 @@ export type HiveVaultUploadAdapterDeps = {
   readonly sourceBucket?: string;
   readonly scanHash?: HashScanner;
   readonly clientRequests?: ClientRequestRegistry;
+  readonly userClient?: RpcCapableClient;
   readonly loadOwnedHive: (
     userId: string,
     hiveId: string,
@@ -154,6 +160,31 @@ function requireUuid(
     });
   }
   return trimmed;
+}
+
+function mapPendingUploadToSourceDocument(
+  operation: UploadOperationRecord,
+  scanStatus: SourceDocument["scanStatus"],
+): SourceDocument {
+  const mimeType: SourceMimeType = isSourceMimeType(operation.mimeType)
+    ? operation.mimeType
+    : "application/pdf";
+  return {
+    id: operation.sourceDocumentId,
+    sourceDocumentId: operation.sourceDocumentId,
+    hiveId: operation.caseId,
+    clientRequestId: operation.clientRequestId ?? operation.id,
+    fileName: operation.originalFilename,
+    mimeType,
+    byteSize: operation.byteSize,
+    status: operation.status === "FAILED" ? "REJECTED" : "PENDING",
+    failureReason: operation.status === "FAILED" ? "TYPE_MISMATCH" : null,
+    scanStatus,
+    readStatus: "PENDING",
+    registeredAt: null,
+    createdAt: operation.createdAt,
+    updatedAt: operation.updatedAt,
+  };
 }
 
 export function mapV3DocumentToV4SourceDocument(
@@ -368,18 +399,138 @@ function mapV3UploadError(
   };
 }
 
-export async function uploadHiveSourceDocumentWithV3Vault(
+export async function prepareHiveSourceDocumentUpload(
   deps: HiveVaultUploadAdapterDeps,
   input: {
     readonly ownerUserId: string;
     readonly hiveId: string;
     readonly clientRequestId: string;
     readonly fileName: string;
-    readonly mimeType?: string;
-    readonly bytes: Uint8Array;
+    readonly mimeType: SourceMimeType;
+    readonly byteSize: number;
+    readonly sha256: string;
     readonly correlationId: string;
   },
-): Promise<{ sourceDocument: SourceDocument; uploadOperation: UploadOperationRecord | null; created: boolean }> {
+): Promise<PrepareSourceDocumentResponse> {
+  const prepared = await prepareHiveSourceDocumentUploadInternal(deps, input);
+  const upload =
+    prepared.signedUpload.token.length > 0
+      ? { path: prepared.signedUpload.path, token: prepared.signedUpload.token }
+      : null;
+  return {
+    sourceDocument: prepared.sourceDocument,
+    upload,
+    created: prepared.created,
+  };
+}
+
+export async function completeHiveSourceDocumentUpload(
+  deps: HiveVaultUploadAdapterDeps,
+  input: {
+    readonly ownerUserId: string;
+    readonly hiveId: string;
+    readonly clientRequestId: string;
+    readonly correlationId: string;
+  },
+): Promise<CompleteSourceDocumentResponse & { created: boolean }> {
+  const safeHiveId = requireUuid(
+    input.hiveId,
+    input.correlationId,
+    "Invalid Hive identifier.",
+    "invalid_hive_id",
+  );
+  const safeClientRequestId = requireUuid(
+    input.clientRequestId,
+    input.correlationId,
+    "clientRequestId must be a valid UUID.",
+    "invalid_client_request_id",
+  );
+  await deps.loadOwnedHive(input.ownerUserId, safeHiveId, input.correlationId);
+  const sourceBucket = deps.sourceBucket ?? DEFAULT_HIVE_SOURCE_BUCKET;
+  const operation = await deps.vault.uploadOperations.getByClientRequestId(
+    input.ownerUserId as UserId,
+    safeHiveId as CaseId,
+    safeClientRequestId,
+  );
+  if (operation === undefined) {
+    throw createHiveError({
+      errorCode: "NOT_FOUND",
+      category: "DOCUMENT",
+      stage: "REGISTER",
+      retryable: false,
+      safeMessage: "We could not find that upload. Try preparing it again.",
+      correlationId: input.correlationId,
+      diagnosticReason: "upload_not_found",
+    });
+  }
+  if (operation.status === "REGISTERED") {
+    const doc = await deps.vault.sourceDocuments.getById(operation.sourceDocumentId);
+    if (!doc) {
+      throw createHiveError({
+        errorCode: "PERSISTENCE_FAILED",
+        category: "PERSISTENCE",
+        stage: "REGISTER",
+        retryable: true,
+        safeMessage: "Something went wrong with your documents. Please try again.",
+        correlationId: input.correlationId,
+        diagnosticReason: "persistence_failed",
+      });
+    }
+    return {
+      sourceDocument: mapV3DocumentToV4SourceDocument(doc, {
+        clientRequestId: safeClientRequestId,
+      }),
+      created: false,
+    };
+  }
+  try {
+    const registered = await completePreparedSourceDocumentUpload(
+      { vault: deps.vault, store: deps.store, sourceBucket },
+      {
+        uploadOperationId: operation.id as UploadOperationId,
+        actorUserId: input.ownerUserId as UserId,
+        actorType: "USER",
+        correlationId: input.correlationId as CorrelationId,
+      },
+    );
+    return {
+      sourceDocument: mapV3DocumentToV4SourceDocument(registered.document, {
+        clientRequestId: safeClientRequestId,
+      }),
+      created: true,
+    };
+  } catch (error) {
+    const mapped = mapV3UploadError(error, input.correlationId, {
+      hiveId: safeHiveId,
+      clientRequestId: safeClientRequestId,
+      fileName: operation.originalFilename,
+      mimeType: isSourceMimeType(operation.mimeType) ? operation.mimeType : "application/pdf",
+      byteSize: operation.byteSize,
+    });
+    if (mapped.rejected) {
+      return { sourceDocument: mapped.rejected, created: true };
+    }
+    throw mapped.thrown!;
+  }
+}
+
+async function prepareHiveSourceDocumentUploadInternal(
+  deps: HiveVaultUploadAdapterDeps,
+  input: {
+    readonly ownerUserId: string;
+    readonly hiveId: string;
+    readonly clientRequestId: string;
+    readonly fileName: string;
+    readonly mimeType: SourceMimeType;
+    readonly byteSize: number;
+    readonly sha256: string;
+    readonly correlationId: string;
+  },
+): Promise<{
+  sourceDocument: SourceDocument;
+  signedUpload: { path: string; token: string };
+  created: boolean;
+}> {
   const safeHiveId = requireUuid(
     input.hiveId,
     input.correlationId,
@@ -393,89 +544,9 @@ export async function uploadHiveSourceDocumentWithV3Vault(
     "invalid_client_request_id",
   );
   const trimmedName = input.fileName.trim();
-  const resolvedMime =
-    (input.mimeType && isSourceMimeType(input.mimeType) ? input.mimeType : null) ??
-    sourceMimeTypeForFileName(trimmedName);
-
-  if (!trimmedName || trimmedName.length > 255 || /[\u0000-\u001f\u007f/\\]/.test(trimmedName)) {
-    throw createHiveError({
-      errorCode: "INVALID_DOCUMENT",
-      category: "DOCUMENT",
-      stage: "REGISTER",
-      retryable: false,
-      safeMessage: "Rename this file and try again.",
-      correlationId: input.correlationId,
-      diagnosticReason: "invalid_file_name",
-    });
-  }
-  if (!resolvedMime) {
-    throw createHiveError({
-      errorCode: "INVALID_DOCUMENT",
-      category: "DOCUMENT",
-      stage: "REGISTER",
-      retryable: false,
-      safeMessage: "Only PDF, PNG, JPG and DOCX files up to 25 MB are supported.",
-      correlationId: input.correlationId,
-      diagnosticReason: "invalid_document_type",
-    });
-  }
-
-  // 1. Verify Hive ownership via V4 Hive identity.
   const hive = await deps.loadOwnedHive(input.ownerUserId, safeHiveId, input.correlationId);
   const sourceBucket = deps.sourceBucket ?? DEFAULT_HIVE_SOURCE_BUCKET;
 
-  // 2. Check idempotent replay for (ownerUserId, clientRequestId).
-  if (deps.clientRequests) {
-    const existingBinding = await deps.clientRequests.get(input.ownerUserId, safeClientRequestId);
-    if (existingBinding) {
-      if (
-        existingBinding.hiveId !== safeHiveId ||
-        existingBinding.fileName !== trimmedName ||
-        existingBinding.byteSize !== input.bytes.byteLength
-      ) {
-        throw createHiveError({
-          errorCode: "IDEMPOTENCY_CONFLICT",
-          category: "PERSISTENCE",
-          stage: "SHELL",
-          retryable: false,
-          safeMessage: "This request ID was already used with different details.",
-          correlationId: input.correlationId,
-          diagnosticReason: "idempotency_conflict",
-        });
-      }
-      if (existingBinding.status === "REJECTED") {
-        return {
-          sourceDocument: buildRejectedSourceDocument(existingBinding),
-          uploadOperation: null,
-          created: false,
-        };
-      }
-      if (existingBinding.uploadOperationId) {
-        const reconciled = await reconcileUploadOperation(
-          { vault: deps.vault, store: deps.store, sourceBucket },
-          existingBinding.uploadOperationId as UploadOperationId,
-          {
-            userId: input.ownerUserId as UserId,
-            actorType: "USER",
-            correlationId: input.correlationId as CorrelationId,
-          },
-        );
-        const doc = await deps.vault.sourceDocuments.getById(reconciled.sourceDocumentId);
-        if (doc) {
-          return {
-            sourceDocument: mapV3DocumentToV4SourceDocument(doc, {
-              clientRequestId: safeClientRequestId,
-              scanStatus: existingBinding.scanStatus,
-            }),
-            uploadOperation: reconciled,
-            created: false,
-          };
-        }
-      }
-    }
-  }
-
-  // 3. Enforce Free monthly quota (10 registered uploads per UTC month, D-012).
   const quota = deps.getQuota
     ? await deps.getQuota(input.ownerUserId, input.correlationId)
     : await computeVaultUploadQuota(deps.vault, input.ownerUserId);
@@ -491,50 +562,10 @@ export async function uploadHiveSourceDocumentWithV3Vault(
     });
   }
 
-  // 4. Run V3's validateUpload pre-check so magic-byte or size errors fail before hash scan.
-  try {
-    validateUpload({
-      originalName: trimmedName,
-      mimeType: resolvedMime,
-      sizeBytes: input.bytes.byteLength,
-      correlationId: input.correlationId as CorrelationId,
-      bytes: input.bytes,
-    });
-  } catch (error) {
-    const mapped = mapV3UploadError(error, input.correlationId, {
-      hiveId: safeHiveId,
-      clientRequestId: safeClientRequestId,
-      fileName: trimmedName,
-      mimeType: resolvedMime,
-      byteSize: input.bytes.byteLength,
-    });
-    if (mapped.rejected) {
-      if (deps.clientRequests) {
-        await deps.clientRequests.save({
-          ownerUserId: input.ownerUserId,
-          clientRequestId: safeClientRequestId,
-          hiveId: safeHiveId,
-          uploadOperationId: null,
-          status: "REJECTED",
-          failureReason: "TYPE_MISMATCH",
-          scanStatus: "UNKNOWN_TO_SCANNER",
-          fileName: trimmedName,
-          mimeType: resolvedMime,
-          byteSize: input.bytes.byteLength,
-          createdAt: mapped.rejected.createdAt,
-        });
-      }
-      return { sourceDocument: mapped.rejected, uploadOperation: null, created: true };
-    }
-    throw mapped.thrown!;
-  }
-
-  // 5. Run pre-registration SHA-256 malware hash scan (D-027).
-  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
   const scanHash = deps.scanHash ?? defaultHashScanner;
   let verdict: ScanVerdict;
   try {
-    verdict = await scanHash(sha256);
+    verdict = await scanHash(input.sha256);
   } catch (error) {
     const reason = error instanceof ScanError ? error.reason : "scan_unavailable";
     throw createHiveError({
@@ -550,82 +581,115 @@ export async function uploadHiveSourceDocumentWithV3Vault(
       diagnosticReason: reason,
     });
   }
-
   if (verdict === "MALICIOUS") {
     const now = new Date().toISOString();
-    const binding: ClientRequestBinding = {
-      ownerUserId: input.ownerUserId,
-      clientRequestId: safeClientRequestId,
-      hiveId: safeHiveId,
-      uploadOperationId: null,
-      status: "REJECTED",
-      failureReason: "MALWARE_DETECTED",
-      scanStatus: "MALICIOUS",
-      fileName: trimmedName,
-      mimeType: resolvedMime,
-      byteSize: input.bytes.byteLength,
-      createdAt: now,
-    };
-    if (deps.clientRequests) {
-      await deps.clientRequests.save(binding);
-    }
     return {
-      sourceDocument: buildRejectedSourceDocument(binding),
-      uploadOperation: null,
+      sourceDocument: buildRejectedSourceDocument({
+        ownerUserId: input.ownerUserId,
+        clientRequestId: safeClientRequestId,
+        hiveId: safeHiveId,
+        uploadOperationId: null,
+        status: "REJECTED",
+        failureReason: "MALWARE_DETECTED",
+        scanStatus: "MALICIOUS",
+        fileName: trimmedName,
+        mimeType: input.mimeType,
+        byteSize: input.byteSize,
+        createdAt: now,
+      }),
+      signedUpload: { path: "", token: "" },
       created: true,
     };
   }
 
-  // 6. Ensure the 1:1 `hive.cases` companion row exists (`caseId === hive.id`).
   const caseId = await ensureCaseForOwnedHive(deps.vault, {
     ownerUserId: input.ownerUserId,
     hive,
     correlationId: input.correlationId,
   });
 
-  // 7. Invoke V3's `registerSourceDocument` unchanged.
-  try {
-    const registered = await registerSourceDocument(
-      { vault: deps.vault, store: deps.store, sourceBucket },
-      {
-        actorUserId: input.ownerUserId as UserId,
-        actorType: "USER",
-        caseId,
-        originalFilename: trimmedName,
-        mimeType: resolvedMime,
-        bytes: input.bytes,
-        correlationId: input.correlationId as CorrelationId,
-      },
-    );
-
-    if (deps.clientRequests) {
-      await deps.clientRequests.save({
-        ownerUserId: input.ownerUserId,
-        clientRequestId: safeClientRequestId,
-        hiveId: safeHiveId,
-        uploadOperationId: registered.uploadOperation.id,
-        status: "REGISTERED",
-        failureReason: null,
-        scanStatus: verdict,
-        fileName: trimmedName,
-        mimeType: resolvedMime,
-        byteSize: input.bytes.byteLength,
-        createdAt: registered.document.createdAt,
-      });
+  const existingBefore = await deps.vault.uploadOperations.getByClientRequestId(
+    input.ownerUserId as UserId,
+    caseId,
+    safeClientRequestId,
+  );
+  const prepared = await prepareSourceDocumentUpload(
+    { vault: deps.vault, store: deps.store, sourceBucket },
+    {
+      actorUserId: input.ownerUserId as UserId,
+      actorType: "USER",
+      caseId,
+      clientRequestId: safeClientRequestId,
+      originalFilename: trimmedName,
+      mimeType: input.mimeType,
+      byteSize: input.byteSize,
+      sha256: input.sha256,
+      correlationId: input.correlationId as CorrelationId,
+    },
+  );
+  const created = existingBefore === undefined;
+  const scanStatus: SourceDocument["scanStatus"] =
+    verdict === "NO_DETECTIONS" ? "NO_DETECTIONS" : "UNKNOWN_TO_SCANNER";
+  if (prepared.uploadOperation.status === "REGISTERED") {
+    const doc = await deps.vault.sourceDocuments.getById(prepared.uploadOperation.sourceDocumentId);
+    if (doc) {
+      return {
+        sourceDocument: mapV3DocumentToV4SourceDocument(doc, {
+          clientRequestId: safeClientRequestId,
+          scanStatus,
+        }),
+        signedUpload: prepared.signedUpload,
+        created: false,
+      };
     }
+  }
+  return {
+    sourceDocument: mapPendingUploadToSourceDocument(prepared.uploadOperation, scanStatus),
+    signedUpload: prepared.signedUpload,
+    created,
+  };
+}
 
-    return {
-      sourceDocument: mapV3DocumentToV4SourceDocument(registered.document, {
-        clientRequestId: safeClientRequestId,
-        scanStatus: verdict,
-      }),
-      uploadOperation: registered.uploadOperation,
-      created: true,
-    };
+/** Test/local helper: prepare, store bytes once, then complete (no second Storage write). */
+export async function uploadHiveSourceDocumentWithV3Vault(
+  deps: HiveVaultUploadAdapterDeps,
+  input: {
+    readonly ownerUserId: string;
+    readonly hiveId: string;
+    readonly clientRequestId: string;
+    readonly fileName: string;
+    readonly mimeType?: string;
+    readonly bytes: Uint8Array;
+    readonly correlationId: string;
+  },
+): Promise<{ sourceDocument: SourceDocument; uploadOperation: UploadOperationRecord | null; created: boolean }> {
+  const trimmedName = input.fileName.trim();
+  const resolvedMime =
+    (input.mimeType && isSourceMimeType(input.mimeType) ? input.mimeType : null) ??
+    sourceMimeTypeForFileName(trimmedName);
+  if (!resolvedMime) {
+    throw createHiveError({
+      errorCode: "INVALID_DOCUMENT",
+      category: "DOCUMENT",
+      stage: "REGISTER",
+      retryable: false,
+      safeMessage: "Only PDF, PNG, JPG and DOCX files up to 25 MB are supported.",
+      correlationId: input.correlationId,
+      diagnosticReason: "invalid_document_type",
+    });
+  }
+  try {
+    validateUpload({
+      originalName: trimmedName,
+      mimeType: resolvedMime,
+      sizeBytes: input.bytes.byteLength,
+      correlationId: input.correlationId as CorrelationId,
+      bytes: input.bytes,
+    });
   } catch (error) {
     const mapped = mapV3UploadError(error, input.correlationId, {
-      hiveId: safeHiveId,
-      clientRequestId: safeClientRequestId,
+      hiveId: input.hiveId,
+      clientRequestId: input.clientRequestId,
       fileName: trimmedName,
       mimeType: resolvedMime,
       byteSize: input.bytes.byteLength,
@@ -635,10 +699,114 @@ export async function uploadHiveSourceDocumentWithV3Vault(
     }
     throw mapped.thrown!;
   }
+  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+  const prepared = await prepareHiveSourceDocumentUploadInternal(deps, {
+    ownerUserId: input.ownerUserId,
+    hiveId: input.hiveId,
+    clientRequestId: input.clientRequestId,
+    fileName: trimmedName,
+    mimeType: resolvedMime,
+    byteSize: input.bytes.byteLength,
+    sha256,
+    correlationId: input.correlationId,
+  });
+  if (prepared.sourceDocument.status === "REJECTED") {
+    return { sourceDocument: prepared.sourceDocument, uploadOperation: null, created: prepared.created };
+  }
+  const sourceBucket = deps.sourceBucket ?? DEFAULT_HIVE_SOURCE_BUCKET;
+  const operation = await deps.vault.uploadOperations.getByClientRequestId(
+    input.ownerUserId as UserId,
+    input.hiveId as CaseId,
+    input.clientRequestId.trim().toLowerCase(),
+  );
+  if (operation && operation.status !== "REGISTERED") {
+    await deps.store.putCreateOnly({
+      bucket: sourceBucket,
+      path: operation.storagePath,
+      bytes: input.bytes,
+      contentType: resolvedMime,
+      correlationId: input.correlationId as CorrelationId,
+    });
+  }
+  const completed = await completeHiveSourceDocumentUpload(deps, {
+    ownerUserId: input.ownerUserId,
+    hiveId: input.hiveId,
+    clientRequestId: input.clientRequestId,
+    correlationId: input.correlationId,
+  });
+  const uploadOperation =
+    operation === undefined
+      ? null
+      : ((await deps.vault.uploadOperations.getById(operation.id)) ?? null);
+  return {
+    sourceDocument: completed.sourceDocument,
+    uploadOperation,
+    created: completed.created,
+  };
+}
+
+export async function prepareHiveSourceDocumentFromApiBody(
+  deps: HiveVaultUploadAdapterDeps,
+  hiveId: string,
+  ownerUserId: string,
+  rawBody: unknown,
+  correlationId: string,
+): Promise<PrepareSourceDocumentResponse> {
+  const validated = validatePrepareSourceDocumentInput(rawBody);
+  if (!validated.ok) {
+    throw createHiveError({
+      errorCode: "INVALID_DOCUMENT",
+      category: "DOCUMENT",
+      stage: "REGISTER",
+      retryable: false,
+      safeMessage: validated.message,
+      correlationId,
+      diagnosticReason: validated.diagnosticReason,
+    });
+  }
+  return prepareHiveSourceDocumentUpload(deps, {
+    ownerUserId,
+    hiveId,
+    clientRequestId: validated.value.clientRequestId,
+    fileName: validated.value.fileName,
+    mimeType: validated.value.mimeType,
+    byteSize: validated.value.byteSize,
+    sha256: validated.value.sha256,
+    correlationId,
+  });
+}
+
+export async function completeHiveSourceDocumentFromApiBody(
+  deps: HiveVaultUploadAdapterDeps,
+  hiveId: string,
+  ownerUserId: string,
+  rawBody: unknown,
+  correlationId: string,
+): Promise<CompleteSourceDocumentResponse & { created: boolean }> {
+  const validated = validateCompleteSourceDocumentInput(rawBody);
+  if (!validated.ok) {
+    throw createHiveError({
+      errorCode: "INVALID_REQUEST",
+      category: "VALIDATION",
+      stage: "REGISTER",
+      retryable: false,
+      safeMessage: validated.message,
+      correlationId,
+      diagnosticReason: validated.diagnosticReason,
+    });
+  }
+  return completeHiveSourceDocumentUpload(deps, {
+    ownerUserId,
+    hiveId,
+    clientRequestId: validated.value.clientRequestId,
+    correlationId,
+  });
 }
 
 export async function listHiveSourceDocumentsWithV3Vault(
-  deps: Pick<HiveVaultUploadAdapterDeps, "vault" | "loadOwnedHive">,
+  deps: Pick<HiveVaultUploadAdapterDeps, "vault" | "loadOwnedHive"> & {
+    readonly userClient?: RpcCapableClient;
+  },
   input: {
     readonly ownerUserId: string;
     readonly hiveId: string;
@@ -652,6 +820,20 @@ export async function listHiveSourceDocumentsWithV3Vault(
     "invalid_hive_id",
   );
   await deps.loadOwnedHive(input.ownerUserId, safeHiveId, input.correlationId);
+  if (deps.userClient && typeof deps.userClient.rpc === "function") {
+    const { data, error } = await deps.userClient.rpc("list_hive_source_documents", {
+      p_hive_id: safeHiveId,
+    });
+    if (!error && data && typeof data === "object") {
+      const rawList = (data as { sourceDocuments?: unknown }).sourceDocuments;
+      if (Array.isArray(rawList)) {
+        const sourceDocuments = rawList
+          .map((item) => normalizeSourceDocumentRecord(item))
+          .filter((item): item is SourceDocument => item !== null);
+        return { sourceDocuments };
+      }
+    }
+  }
   const records = await deps.vault.sourceDocuments.listByCase(safeHiveId as CaseId);
   const sorted = [...records].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return {
@@ -796,6 +978,7 @@ export function createLiveHiveVaultUploadAdapterDeps(
     store,
     sourceBucket: DEFAULT_HIVE_SOURCE_BUCKET,
     scanHash: defaultHashScanner,
+    userClient,
     loadOwnedHive: async (_userId, hiveId, corrId) => {
       const { hive } = await getHiveViaEdge(userClient, hiveId, corrId);
       return hive;

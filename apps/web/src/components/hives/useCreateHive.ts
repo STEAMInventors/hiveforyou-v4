@@ -1,218 +1,218 @@
 "use client";
 
-import {
-  validateCreateHiveInput,
-  validateCreateIntentRequestInput,
-  type Hive,
-} from "@hiveforyou/contracts";
+import type { Hive } from "@hiveforyou/contracts";
 import { useCallback, useRef, useState } from "react";
 
+import type { HiveComposerProps } from "@/components/HiveComposer";
 import { clearGuestDraft, type GuestDraft } from "@/lib/guest-draft";
-import { HiveClientError, createHive } from "@/lib/hives-client";
+import { createHive } from "@/lib/hives-client";
 import { createIntentRequest } from "@/lib/source-documents-client";
 
 import type { CreateHiveModalProps } from "./CreateHiveModal";
 import {
+  runCreateHiveFlow,
+  validateComposerDraft,
+  type CreateHiveFailure,
+  type CreateHiveProgress,
+} from "./create-hive-flow";
+import {
   MAX_FILES_PER_BATCH,
-  hasUploadableFiles,
   toSelectedSourceFiles,
   uploadSelectedSourceFiles,
   type SelectedSourceFile,
-  type SourceFileState,
 } from "./source-file-upload";
 
-const CREATE_FALLBACK_MESSAGE = "Could not create your Hive. Please try again.";
+const EMPTY_PROGRESS: CreateHiveProgress = { hive: null, intentSaved: false };
 
-export function useCreateHive(onCreated: (hive: Hive) => void) {
-  const [open, setOpen] = useState(false);
-  const [hiveName, setHiveName] = useState("");
-  const [hiveDescription, setHiveDescription] = useState("");
+/** Intent + attachments state and D-026 validation shared by every Hive composer. */
+export function useHiveComposer(onValidSubmit: (draft: GuestDraft) => void | Promise<void>) {
   const [intentText, setIntentText] = useState("");
   const [files, setFiles] = useState<SelectedSourceFile[]>([]);
-  const [nameError, setNameError] = useState<string | null>(null);
-  const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [intentError, setIntentError] = useState<string | null>(null);
   const [filesError, setFilesError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitBusy, setSubmitBusy] = useState(false);
-  const [createdHive, setCreatedHive] = useState<Hive | null>(null);
-  const clientRequestIdRef = useRef<string>("");
-  const intentRequestIdRef = useRef<string>("");
+  const [failure, setFailure] = useState<CreateHiveFailure | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const resetForm = useCallback(() => {
-    setHiveName("");
-    setHiveDescription("");
+  const load = useCallback((draft: GuestDraft) => {
+    setIntentText(draft.intentText);
+    setFiles(toSelectedSourceFiles(draft.files).slice(0, MAX_FILES_PER_BATCH));
+  }, []);
+
+  const reset = useCallback(() => {
     setIntentText("");
     setFiles([]);
-    setNameError(null);
-    setDescriptionError(null);
     setIntentError(null);
     setFilesError(null);
-    setSubmitError(null);
-    setCreatedHive(null);
-    clientRequestIdRef.current = "";
-    intentRequestIdRef.current = "";
+    setFailure(null);
   }, []);
 
-  const openModal = useCallback((draft?: GuestDraft) => {
-    if (!clientRequestIdRef.current) {
-      clientRequestIdRef.current = crypto.randomUUID();
-      intentRequestIdRef.current = crypto.randomUUID();
-    }
-    if (draft) {
-      setIntentText(draft.intentText);
-      setFiles(toSelectedSourceFiles(draft.files).slice(0, MAX_FILES_PER_BATCH));
-    }
-    setNameError(null);
-    setDescriptionError(null);
+  const clearErrors = useCallback(() => {
     setIntentError(null);
     setFilesError(null);
-    setSubmitError(null);
-    setOpen(true);
+    setFailure(null);
   }, []);
-
-  const finish = useCallback(
-    (hive: Hive) => {
-      setOpen(false);
-      resetForm();
-      void clearGuestDraft();
-      onCreated(hive);
-    },
-    [onCreated, resetForm],
-  );
-
-  const closeModal = useCallback(() => {
-    if (submitBusy) {
-      return;
-    }
-    if (createdHive) {
-      finish(createdHive);
-      return;
-    }
-    setOpen(false);
-    resetForm();
-  }, [createdHive, finish, resetForm, submitBusy]);
 
   const submit = useCallback(async () => {
-    const validated = validateCreateHiveInput({
-      name: hiveName,
-      description: hiveDescription,
-      clientRequestId: clientRequestIdRef.current,
-    });
-    const intent = validateCreateIntentRequestInput({
-      intentText,
-      clientRequestId: intentRequestIdRef.current,
-    });
-    const filesOk = hasUploadableFiles(files);
-
-    setNameError(validated.ok ? null : (validated.nameError ?? null));
-    setDescriptionError(validated.ok ? null : (validated.descriptionError ?? null));
-    setIntentError(intent.ok ? null : intent.message);
-    setFilesError(
-      filesOk
-        ? null
-        : files.length === 0
-          ? "Add at least one document."
-          : "Remove the files that aren't supported.",
-    );
-    if (!validated.ok || !intent.ok || !filesOk) {
-      if (!validated.ok && !validated.nameError && !validated.descriptionError) {
-        setSubmitError(validated.message);
-      }
+    const validation = validateComposerDraft({ intentText, files });
+    setIntentError(validation.intentError);
+    setFilesError(validation.filesError);
+    if (!validation.ok) {
       return;
     }
-
-    setSubmitError(null);
-    setSubmitBusy(true);
-
-    const states = new Map<string, SourceFileState>(files.map((item) => [item.key, item.state]));
-    const updateFile = (key: string, patch: Partial<SelectedSourceFile>) => {
-      if (patch.state) {
-        states.set(key, patch.state);
-      }
-      setFiles((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
-    };
-
+    setFailure(null);
+    setBusy(true);
     try {
-      let hive = createdHive;
-      if (!hive) {
-        const response = await createHive({
-          name: validated.value.name,
-          description: validated.value.description,
-          clientRequestId: validated.value.clientRequestId,
-        });
-        hive = response.hive;
-        setCreatedHive(hive);
-      }
-      await createIntentRequest(hive.id, intent.value);
-
-      const { allSettled } = await uploadSelectedSourceFiles(hive.id, files, updateFile);
-      const registered = Array.from(states.values()).filter((state) => state === "registered").length;
-
-      if (allSettled && registered > 0) {
-        finish(hive);
-        return;
-      }
-      setSubmitError(
-        allSettled
-          ? "None of your documents were accepted. Add another document to continue."
-          : "Some documents didn't upload. Try again, or open your Hive and add them later.",
-      );
-    } catch (error) {
-      if (error instanceof HiveClientError && error.errorCode === "IDEMPOTENCY_CONFLICT") {
-        clientRequestIdRef.current = crypto.randomUUID();
-        intentRequestIdRef.current = crypto.randomUUID();
-      }
-      setSubmitError(
-        error instanceof HiveClientError ? error.message : CREATE_FALLBACK_MESSAGE,
-      );
+      await onValidSubmit({ intentText: intentText.trim(), files: files.map((item) => item.file) });
     } finally {
-      setSubmitBusy(false);
+      setBusy(false);
     }
-  }, [createdHive, files, finish, hiveDescription, hiveName, intentText]);
+  }, [files, intentText, onValidSubmit]);
 
-  const modalProps: CreateHiveModalProps = {
-    open,
-    hiveName,
-    hiveDescription,
+  const composerProps: HiveComposerProps = {
     intentText,
     files,
-    nameError,
-    descriptionError,
     intentError,
     filesError,
-    submitError,
-    submitBusy,
-    hiveCreated: createdHive !== null,
-    onHiveNameChange: (value) => {
-      setHiveName(value);
-      setNameError(null);
-      setSubmitError(null);
-    },
-    onHiveDescriptionChange: (value) => {
-      setHiveDescription(value);
-      setDescriptionError(null);
-      setSubmitError(null);
-    },
+    failure,
+    busy,
     onIntentTextChange: (value) => {
       setIntentText(value);
       setIntentError(null);
-      setSubmitError(null);
+      setFailure(null);
     },
     onAddFiles: (picked) => {
       setFiles((current) =>
         [...current, ...toSelectedSourceFiles(picked)].slice(0, MAX_FILES_PER_BATCH),
       );
       setFilesError(null);
-      setSubmitError(null);
+      setFailure(null);
     },
     onRemoveFile: (key) => {
       setFiles((current) => current.filter((item) => item.key !== key));
-      setSubmitError(null);
+      setFilesError(null);
+      setFailure(null);
     },
-    onCancel: closeModal,
     onSubmit: () => void submit(),
   };
 
-  return { openModal, submitBusy, modalProps };
+  return { composerProps, files, setFiles, setFailure, load, reset, clearErrors, busy };
+}
+
+export function useCreateHive(onCreated: (hive: Hive) => void) {
+  const [open, setOpen] = useState(false);
+  const [progress, setProgress] = useState<CreateHiveProgress>(EMPTY_PROGRESS);
+  const progressRef = useRef<CreateHiveProgress>(EMPTY_PROGRESS);
+  const hiveRequestIdRef = useRef("");
+  const intentRequestIdRef = useRef("");
+
+  const ensureRequestIds = () => {
+    if (!hiveRequestIdRef.current) {
+      hiveRequestIdRef.current = crypto.randomUUID();
+    }
+    if (!intentRequestIdRef.current) {
+      intentRequestIdRef.current = crypto.randomUUID();
+    }
+  };
+
+  const updateProgress = (next: CreateHiveProgress) => {
+    progressRef.current = next;
+    setProgress(next);
+  };
+
+  const create = async (draft: GuestDraft) => {
+    ensureRequestIds();
+    const result = await runCreateHiveFlow(
+      {
+        createHive,
+        createIntentRequest,
+        uploadFiles: uploadSelectedSourceFiles,
+      },
+      {
+        progress: progressRef.current,
+        intentText: draft.intentText,
+        hiveRequestId: hiveRequestIdRef.current,
+        intentRequestId: intentRequestIdRef.current,
+        files: composer.files,
+        onProgress: updateProgress,
+        onFileUpdate: (key, patch) =>
+          composer.setFiles((current) =>
+            current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+          ),
+      },
+    );
+    if (result.ok) {
+      finish(result.hive);
+      return;
+    }
+    if (result.failure.errorCode === "IDEMPOTENCY_CONFLICT") {
+      if (result.failure.stage === "createHive") {
+        hiveRequestIdRef.current = crypto.randomUUID();
+      }
+      intentRequestIdRef.current = crypto.randomUUID();
+    }
+    composer.setFailure(result.failure);
+  };
+
+  const composer = useHiveComposer(create);
+  const { load, reset: resetComposer, clearErrors } = composer;
+
+  const reset = useCallback(() => {
+    resetComposer();
+    progressRef.current = EMPTY_PROGRESS;
+    setProgress(EMPTY_PROGRESS);
+    hiveRequestIdRef.current = "";
+    intentRequestIdRef.current = "";
+  }, [resetComposer]);
+
+  const finish = (hive: Hive) => {
+    setOpen(false);
+    reset();
+    void clearGuestDraft();
+    onCreated(hive);
+  };
+
+  const openModal = useCallback(
+    (draft?: GuestDraft) => {
+      if (draft) {
+        load(draft);
+      }
+      clearErrors();
+      setOpen(true);
+    },
+    [clearErrors, load],
+  );
+
+  const closeModal = () => {
+    if (composer.busy) {
+      return;
+    }
+    if (progress.hive) {
+      finish(progress.hive);
+      return;
+    }
+    setOpen(false);
+    reset();
+  };
+
+  const composerProps: HiveComposerProps = {
+    ...composer.composerProps,
+    intentLocked: progress.intentSaved,
+    onIntentTextChange: (value) => {
+      if (progress.intentSaved) {
+        return;
+      }
+      intentRequestIdRef.current = "";
+      composer.composerProps.onIntentTextChange(value);
+    },
+  };
+
+  const modalProps: CreateHiveModalProps = {
+    open,
+    busy: composer.busy,
+    hiveCreated: progress.hive !== null,
+    onClose: closeModal,
+    composerProps,
+  };
+
+  return { openModal, submitBusy: composer.busy, composerProps, modalProps };
 }

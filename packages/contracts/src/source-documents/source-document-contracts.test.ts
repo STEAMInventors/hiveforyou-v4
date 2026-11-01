@@ -66,6 +66,7 @@ describe("request validation", () => {
       fileName: " Receipt.pdf ",
       mimeType: "application/pdf",
       byteSize: 1200,
+      sha256: "a".repeat(64),
       clientRequestId: REQUEST_ID.toUpperCase(),
     });
     expect(valid).toEqual({
@@ -74,6 +75,7 @@ describe("request validation", () => {
         fileName: "Receipt.pdf",
         mimeType: "application/pdf",
         byteSize: 1200,
+        sha256: "a".repeat(64),
         clientRequestId: REQUEST_ID,
       },
     });
@@ -81,6 +83,7 @@ describe("request validation", () => {
       fileName: "Receipt.pdf",
       mimeType: "image/png",
       byteSize: 1200,
+      sha256: "b".repeat(64),
       clientRequestId: REQUEST_ID,
     });
     expect(mismatched.ok).toBe(false);

@@ -36,6 +36,10 @@ export type SupabaseBucketApi = {
     path: string,
     expiresIn: number,
   ): Promise<{ data: { signedUrl: string } | null; error: StorageCallError | null }>;
+  createSignedUploadUrl(
+    path: string,
+    options?: { upsert?: boolean },
+  ): Promise<{ data: { path: string; token: string; signedUrl?: string } | null; error: StorageCallError | null }>;
   remove(paths: string[]): Promise<{ error: StorageCallError | null }>;
   list(
     path: string,
@@ -165,6 +169,26 @@ export class SupabaseEvidenceObjectStore implements EvidenceObjectStore {
       byteSize: found.metadata?.size ?? 0,
       contentType: null,
     };
+  }
+
+  async createSignedUploadUrl(
+    ref: ObjectRef,
+    _expiresSeconds: number = DEFAULT_SIGNED_URL_SECONDS,
+  ): Promise<{ path: string; token: string }> {
+    const { data, error } = await this.client.storage
+      .from(ref.bucket)
+      .createSignedUploadUrl(ref.path, { upsert: false });
+    if (error !== null || data === null) {
+      throw new HiveError({
+        code: "SIGNED_URL_FAILED",
+        category: "STORAGE_ERROR",
+        message: "Unable to create a signed upload URL.",
+        retryable: true,
+        severity: "ERROR",
+        correlationId: this.correlationId,
+      });
+    }
+    return { path: data.path, token: data.token };
   }
 
   async createSignedReadUrl(

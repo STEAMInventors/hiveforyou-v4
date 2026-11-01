@@ -1,6 +1,6 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-**Date:** 2026-10-31 | **Status:** V4-003 in progress (local implementation; deployment and live upload verification pending) | **Repository:** `hiveforyou-v4`
+**Date:** 2026-11-01 | **Status:** V4-003 in progress (local implementation; deployment and live upload verification pending; Preview create flow diagnosed as failing — see below) | **Repository:** `hiveforyou-v4`
 
 > **Exactly one active engineering ticket: V4-003 — Upload, register and quota-enforce supported source documents (read/view deferred).** No extraction pipeline, paid model calls, tokenization, document reading/OCR, page viewer, or A2UI-generated Study content as a side effect of this ticket.
 
@@ -16,11 +16,20 @@
 2. **V3 Authentication reused as-is:** `apps/web/src/server/auth/auth-actions.ts` delegates directly to V3's `apps/web/src/lib/auth/*` (`session-actions.ts`, `otp-actions.ts`, `recovery-actions.ts`, `action-outcome.ts`) without changing user sessions, cookies, or login behavior.
 3. **V3 Vault Document Uploader reused as-is:** `apps/web/src/server/source-documents/hive-vault-upload-adapter.ts` connects V4 Hive identity (`hive.hives`) 1:1 to V3's `Case` contract (`caseId === hive.id` via `createCase`), runs the pre-registration SHA-256 malware hash scan and 10/month quota check, and invokes V3's `registerSourceDocument` and `reconcileUploadOperation` unchanged against private bucket `hive-source-documents`.
 4. **Surgical DOCX addition in `@hives/security`:** `files.ts` and `page-count.ts` accept `.docx` (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`, PK ZIP + `word/document.xml` magic-byte check) alongside PDF, PNG, and JPG up to 25 MB.
-5. **Landing `HiveComposer` and guest draft:** require non-empty intent and at least one supported file before continuing to Create Hive.
-6. **Create Hive modal:** validates name/description, intent (1–2000 chars), and at least one uploadable PDF/PNG/JPG/DOCX (≤ 25 MB); creates Hive, writes `intent_requests`, then batch-uploads via V3's `registerSourceDocument`.
+5. **One shared `HiveComposer` (D-037):** Landing and the Create Hive dialog use the same composer — intent textarea, paperclip, removable document chips, single **Create Hive**. Signed-out visitors keep a guest draft through sign-up; signed-in owners create directly.
+6. **Create Hive flow (`create-hive-flow.ts`):** validates intent (1–2000 chars) and at least one uploadable PDF/PNG/JPG/DOCX (≤ 25 MB); generates a provisional Hive name from the intent; runs `createHive` → `createIntentRequest` → `uploadSelectedSourceFiles` as named stages with per-stage errors and support reference; completed stages are skipped on retry.
 7. **Documents tab `DocumentsPanel` (D-036 prototype alignment scope):** list, quota display, drag-and-drop + button upload with status states (uploading, registered, failed), and inventory table layout mapped from `prototype/HiveForYou V4 Prototype.dc.html` (`isDocs`) without synthetic sample loaders, coverage matrix (`hasMatrix`), or page viewer (`hasViewer`).
 8. **Migration `20261030150000_create_source_documents.sql`:** `hive.intent_requests`, 1:1 `hive.cases` (`FOREIGN KEY (id, owner_user_id) REFERENCES hive.hives (id, owner_user_id)`), V3's `hive.source_documents`, `hive.upload_operations`, `hive.audit_events`, `hive.storage_orphans`, `hive.apply_vault_transaction`, private `hive-source-documents` bucket, and monthly quota RPC. No second signed-upload or custom registration Edge Function (`v1-source-documents` retired).
 9. **Focused tests:** source-document contracts, client upload batch orchestration, V3 Vault upload adapter (1:1 Case creation, PDF/DOCX registration, idempotent `clientRequestId` replay via `reconcileUploadOperation`, owner isolation, malware/magic-byte rejection, and 10/month quota).
+
+10. **Restored API routes (2026-11-01):** `api/v1/hives/[hiveId]/intent-requests`, `api/v1/hives/[hiveId]/source-documents` (GET list, POST multipart upload) and `api/v1/upload-quota`, wired to the existing adapter. These were removed by an earlier `git clean` before commit `d7137c0`, so commits up to `7f48779` call routes that do not exist.
+
+**Preview failure diagnosis (2026-11-01, `Could not save what you need`):**
+
+- **Failing operation:** `createIntentRequest` → `POST /api/v1/hives/{id}/intent-requests`. `createHive` succeeds first, so each failed attempt leaves one Hive with no intent or documents (existing records left untouched).
+- **Response:** HTML `404` from Next.js `/_not-found` (verified on `hiveforyou-v4.vercel.app`; the branch Preview is behind Vercel Authentication and built from the same commit). `parseApiJson` cannot read JSON and substitutes the fallback message with `PERSISTENCE_FAILED`. The correlation ID is generated in the browser per request and echoed by middleware; no route handler runs, so no server log line exists for it.
+- **Blockers behind the route fix (unverified against the live project — no credentials available locally):** migration `20261030150000` (`public.create_intent_request`, `public.get_upload_quota`, `hive.cases`/`source_documents`/…, bucket) is recorded as not applied; the V3 Vault adapter calls PostgREST `schema("hive")` with the service key, but `hive` is intentionally unexposed (config + tests), which would return `PGRST106`; `SUPABASE_SECRET_KEY` must exist in Vercel; Vercel Functions reject request bodies over 4.5 MB, below the 25 MB upload limit; the live adapter has no persistent `clientRequestId` registry, so a lost-response retry can register a duplicate document.
+- **Documents tab:** committed `documents/page.tsx` renders the static "No documents yet" empty state, not `DocumentsPanel` (item 7), so registered uploads would not be shown.
 
 **Explicitly deferred (still V4-003 scope boundaries or later tickets):**
 

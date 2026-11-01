@@ -42,6 +42,11 @@ export type SourceDocumentRepository = {
 
 export type UploadOperationRepository = {
   insertPending(record: UploadOperationRecord): Promise<void>;
+  getByClientRequestId(
+    ownerUserId: UserId,
+    caseId: CaseId,
+    clientRequestId: string,
+  ): Promise<UploadOperationRecord | undefined>;
   getById(id: UploadOperationId): Promise<UploadOperationRecord | undefined>;
   getBySourceDocumentId(id: SourceDocumentId): Promise<UploadOperationRecord | undefined>;
   listByCase(caseId: CaseId): Promise<readonly UploadOperationRecord[]>;

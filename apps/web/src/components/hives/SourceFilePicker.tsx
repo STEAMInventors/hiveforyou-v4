@@ -123,6 +123,65 @@ export function AddFilesButton({
   );
 }
 
+type SelectedFileChipsProps = {
+  files: SelectedSourceFile[];
+  onRemove?: (key: string) => void;
+  busy?: boolean;
+};
+
+const CHIP_PROBLEM_STATES: ReadonlySet<SourceFileState> = new Set(["invalid", "rejected", "failed"]);
+
+export function SelectedFileChips({ files, onRemove, busy = false }: SelectedFileChipsProps) {
+  if (files.length === 0) {
+    return null;
+  }
+  const problems = files.filter((item) => CHIP_PROBLEM_STATES.has(item.state) && item.message);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <ul aria-label="Attached documents" className="m-0 flex list-none flex-wrap gap-2 p-0">
+        {files.map((item) => {
+          const problem = CHIP_PROBLEM_STATES.has(item.state);
+          const removable = Boolean(onRemove) && !busy && item.state !== "registered";
+          return (
+            <li
+              key={item.key}
+              className={`inline-flex h-8 max-w-full items-center gap-1.5 rounded-full border pl-3 text-[13px] ${
+                removable ? "pr-1" : "pr-3"
+              } ${problem ? "border-coral-deep bg-coral-wash text-coral-deep" : "border-line bg-mist text-ink"}`}
+            >
+              <span className="min-w-0 max-w-[220px] truncate font-medium" title={item.file.name}>
+                {item.file.name}
+              </span>
+              <span className={`shrink-0 ${problem ? "" : "text-ink-subtle"}`} aria-live="polite">
+                {item.state === "ready" ? formatSize(item.file.size) : STATE_LABELS[item.state]}
+              </span>
+              {removable ? (
+                <button
+                  type="button"
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-current hover:bg-paper"
+                  aria-label={`Remove ${item.file.name}`}
+                  onClick={() => onRemove?.(item.key)}
+                >
+                  <span aria-hidden>×</span>
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      {problems.length > 0 ? (
+        <ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-[13px] text-coral-deep">
+          {problems.map((item) => (
+            <li key={item.key}>
+              <span className="font-medium">{item.file.name}</span>: {item.message}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 type SelectedFileListProps = {
   files: SelectedSourceFile[];
   onRemove?: (key: string) => void;
