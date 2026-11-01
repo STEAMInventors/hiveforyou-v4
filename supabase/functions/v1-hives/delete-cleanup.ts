@@ -8,6 +8,7 @@ import {
   verifyStoragePrefixEmpty,
 } from "../_shared/hive-source-storage.ts";
 import { jsonResponse, logEdgeEvent } from "../_shared/http.ts";
+import { parseRpcJsonObject } from "../_shared/rpc-json.ts";
 
 type EdgeUserSupabaseClient = {
   rpc: (
@@ -50,8 +51,10 @@ async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promi
 }
 
 function createServiceClient() {
-  const url = Deno.env.get("SUPABASE_URL");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const url = Deno.env.get("SUPABASE_URL")?.trim();
+  const serviceKey =
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim() ||
+    Deno.env.get("SUPABASE_SECRET_KEY")?.trim();
   if (!url || !serviceKey) {
     throw new Error("misconfigured");
   }
@@ -70,7 +73,8 @@ export async function deleteHiveWithCleanup(
   if (beginError) {
     throw beginError;
   }
-  const begin = beginRaw as BeginDeletionPayload;
+  const beginRecord = parseRpcJsonObject(beginRaw);
+  const begin = (beginRecord ?? {}) as BeginDeletionPayload;
   const storagePrefix =
     typeof begin.storage_prefix === "string" ? begin.storage_prefix.trim() : "";
   const dbPaths = parseStringArray(begin.storage_paths);
@@ -165,8 +169,9 @@ export async function deleteHiveWithCleanup(
   if (completeError) {
     throw completeError;
   }
-  const complete = completeRaw as { deleted?: boolean } | null;
-  if (!complete?.deleted) {
+  const completeRecord = parseRpcJsonObject(completeRaw);
+  const completeDeleted = completeRecord?.deleted;
+  if (completeDeleted !== true) {
     throw new Error("db_finalize_failed");
   }
 

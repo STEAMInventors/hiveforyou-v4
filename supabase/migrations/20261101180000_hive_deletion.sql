@@ -176,10 +176,10 @@ BEGIN
     v_replayed := true;
   END IF;
 
-  IF to_regclass('hive.vault_source_documents') IS NOT NULL THEN
+  IF to_regclass('hive.source_documents') IS NOT NULL THEN
     SELECT coalesce(json_agg(d.storage_path ORDER BY d.created_at), '[]'::json)
       INTO v_paths
-      FROM hive.vault_source_documents d
+      FROM hive.source_documents d
      WHERE d.case_id = p_hive_id
        AND d.deleted_at IS NULL
        AND btrim(d.storage_path) <> '';

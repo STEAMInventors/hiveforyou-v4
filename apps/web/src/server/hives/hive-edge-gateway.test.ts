@@ -2,6 +2,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
+import { parseEdgeErrorBody } from "@/server/edge/invoke-edge-function";
+
+import { parseRpcJsonObject } from "../../../../../supabase/functions/_shared/rpc-json.ts";
 import {
   handleV1HivesRequest,
   mapRpcFailure,
@@ -9,6 +12,7 @@ import {
 } from "../../../../../supabase/functions/v1-hives/handler";
 import {
   createHiveViaEdge,
+  deleteHiveViaEdge,
   getHiveViaEdge,
   listHivesViaEdge,
   type EdgeSupabaseClient,
@@ -550,6 +554,66 @@ describe("V4-002 Hive Edge Function + RPC + Gateway architecture", () => {
     expect(result.hives[0]?.name).toBe("Recovered Hive");
   });
 
+  it("parses begin_hive_deletion JSON payloads returned as strings from PostgREST", () => {
+    const payload = {
+      hive_id: REQ_1,
+      storage_prefix: `${USER_A}/${REQ_1}`,
+      storage_paths: [`${USER_A}/${REQ_1}/doc/original`],
+    };
+    const parsed = parseRpcJsonObject(JSON.stringify(payload));
+    expect(parsed?.storage_prefix).toBe(`${USER_A}/${REQ_1}`);
+    expect(parsed?.storage_paths).toEqual([`${USER_A}/${REQ_1}/doc/original`]);
+  });
+
+  it("maps missing deletion RPCs to deletion_rpc_missing", () => {
+    const mapped = mapRpcFailure({
+      code: "PGRST202",
+      message:
+        "Could not find the function public.begin_hive_deletion(p_hive_id) in the schema cache",
+    });
+    expect(mapped.diagnosticReason).toBe("deletion_rpc_missing");
+    expect(mapped.retryable).toBe(false);
+  });
+
+  it("parses nested public error bodies from the Edge Function on invoke", () => {
+    const parsed = parseEdgeErrorBody(
+      {
+        error: {
+          errorCode: "PERSISTENCE_FAILED",
+          category: "PERSISTENCE",
+          message: "We could not finish deleting this Hive. Try again.",
+          stage: "SHELL",
+          retryable: true,
+          correlationId: CORR_ID,
+          timestamp: "2026-11-01T00:00:00.000Z",
+        },
+      },
+      CORR_ID,
+    );
+    expect(parsed?.errorCode).toBe("PERSISTENCE_FAILED");
+    expect(parsed?.safeMessage).toBe("We could not finish deleting this Hive. Try again.");
+  });
+
+  it("returns deleted:true from deleteHiveViaEdge when Edge confirms deletion", async () => {
+    const client: EdgeSupabaseClient = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { access_token: "token-user-a" } },
+          error: null,
+        })),
+      } as unknown as EdgeSupabaseClient["auth"],
+      functions: {
+        invoke: vi.fn(async () => ({
+          data: { deleted: true },
+          error: null,
+        })),
+      } as unknown as EdgeSupabaseClient["functions"],
+    };
+
+    const result = await deleteHiveViaEdge(client, REQ_1, CORR_ID);
+    expect(result).toEqual({ deleted: true });
+  });
+
   it("verifies migration SQL grants only SELECT and INSERT on hive.hives and does not expose hive schema in config.toml", async () => {
     const repoRoot = path.resolve(process.cwd(), "../..");
     const sql = await readFile(
@@ -565,6 +629,12 @@ describe("V4-002 Hive Edge Function + RPC + Gateway architecture", () => {
     );
 
     expect(sql).toContain("GRANT SELECT, INSERT ON hive.hives TO authenticated;");
+    const deletionSql = await readFile(
+      path.join(repoRoot, "supabase/migrations/20261101180000_hive_deletion.sql"),
+      "utf8",
+    );
+    expect(deletionSql).toContain("hive.source_documents");
+    expect(deletionSql).not.toContain("vault_source_documents");
     expect(sql).not.toMatch(/GRANT[^;]*UPDATE[^;]*ON\s+hive\.hives/i);
     expect(sql).not.toMatch(/GRANT[^;]*DELETE[^;]*ON\s+hive\.hives/i);
     expect(sql).toContain("ALTER TABLE hive.hives ENABLE ROW LEVEL SECURITY;");

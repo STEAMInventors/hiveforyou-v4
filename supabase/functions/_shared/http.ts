@@ -116,6 +116,13 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "scan_unavailable",
   "scan_rate_limited",
   "storage_failed",
+  "deletion_rpc_missing",
+  "begin_without_prefix",
+  "db_finalize_failed",
+  "storage_cleanup_incomplete",
+  "storage_unavailable",
+  "deletion_marked",
+  "deletion_completed",
 ]);
 
 const SENSITIVE_KEY_PATTERN =

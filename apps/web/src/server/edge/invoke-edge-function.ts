@@ -55,11 +55,23 @@ async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promi
   }
 }
 
+function coerceJsonBody(body: unknown): unknown {
+  if (typeof body !== "string") {
+    return body;
+  }
+  try {
+    return JSON.parse(body);
+  } catch {
+    return body;
+  }
+}
+
 function extractEdgeErrorRecord(body: unknown): Record<string, unknown> | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  const coerced = coerceJsonBody(body);
+  if (!coerced || typeof coerced !== "object" || Array.isArray(coerced)) {
     return null;
   }
-  const top = body as Record<string, unknown>;
+  const top = coerced as Record<string, unknown>;
   const nested = top.error;
   if (nested && typeof nested === "object" && !Array.isArray(nested)) {
     return nested as Record<string, unknown>;

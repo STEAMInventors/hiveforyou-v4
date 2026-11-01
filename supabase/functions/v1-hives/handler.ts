@@ -515,6 +515,43 @@ export function mapRpcFailure(error: unknown): EdgeErrorPayload {
     };
   }
 
+  if (
+    message === "begin_without_prefix" ||
+    message === "db_finalize_failed" ||
+    lowered.includes("begin_without_prefix") ||
+    lowered.includes("db_finalize_failed")
+  ) {
+    return {
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "SHELL",
+      message: "We could not finish deleting this Hive. Try again.",
+      retryable: true,
+      diagnosticReason:
+        message === "db_finalize_failed" || lowered.includes("db_finalize_failed")
+          ? "db_finalize_failed"
+          : "begin_without_prefix",
+      status: 503,
+    };
+  }
+
+  if (
+    code === "PGRST202" ||
+    lowered.includes("begin_hive_deletion") ||
+    lowered.includes("complete_hive_deletion")
+  ) {
+    return {
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "SHELL",
+      message:
+        "Hive deletion is not available on this project yet. Try again later or contact support.",
+      retryable: false,
+      diagnosticReason: "deletion_rpc_missing",
+      status: 503,
+    };
+  }
+
   return {
     errorCode: "PERSISTENCE_FAILED",
     category: "PERSISTENCE",
@@ -778,6 +815,17 @@ export async function handleV1HivesRequest(
       durationMs: Date.now() - started,
       diagnosticReason: mapped.diagnosticReason,
     });
-    return jsonResponse(mapped, mapped.status, correlationId);
+    return jsonResponse(
+      buildPublicErrorBody({
+        errorCode: mapped.errorCode,
+        category: mapped.category,
+        message: mapped.message,
+        stage: mapped.stage,
+        retryable: mapped.retryable,
+        correlationId,
+      }),
+      mapped.status,
+      correlationId,
+    );
   }
 }
