@@ -1,0 +1,456 @@
+# HiveForYou V4 — apply Supabase SQL migrations (manual workflow_dispatch only).
+# Does not deploy Edge Functions; see HiveForYou-deploy-edge-functions.yml.
+#
+# Bounded apply copies migration files with version <= apply_through_version into a
+# temporary Supabase project directory, then runs `supabase db push --linked` there so
+# later migration files in the repository are never visible to the CLI.
+
+name: HiveForYou Deploy Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_mode:
+        description: Report pending migrations, or apply unapplied migrations up to a target version.
+        required: true
+        default: report
+        type: choice
+        options:
+          - report
+          - apply
+      apply_through_version:
+        description: >-
+          Exact migration timestamp to apply through (inclusive), e.g. 20261027090000.
+          Must match a file in supabase/migrations/ on the selected branch. Required when run_mode is apply.
+        required: false
+        type: string
+      acknowledge_v4_003_vault_schema:
+        description: >-
+          Set true only after founder review of migrations that introduce or reuse V3 Vault
+          tables (detected from migration headers). Required before those migrations run.
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hiveforyou-deploy-migrations
+  cancel-in-progress: false
+
+jobs:
+  deploy-migrations:
+    name: Supabase SQL migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      RUN_MODE: ${{ github.event.inputs.run_mode }}
+      APPLY_THROUGH: ${{ github.event.inputs.apply_through_version }}
+      ACK_V4_003: ${{ github.event.inputs.acknowledge_v4_003_vault_schema }}
+      MIG_DIR: supabase/migrations
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize temporary job paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "MIG_VERSIONS_FILE=$RUNNER_TEMP/hiveforyou-migration-versions.txt"
+            echo "MIG_V4_003_ACK_FILE=$RUNNER_TEMP/hiveforyou-v4-003-ack-versions.txt"
+            echo "MIG_SELECTED_PENDING_FILE=$RUNNER_TEMP/hiveforyou-selected-pending.txt"
+            echo "MIG_REMOTE_APPLIED_BEFORE_FILE=$RUNNER_TEMP/hiveforyou-remote-applied-before.txt"
+            echo "BOUNDED_ROOT=$RUNNER_TEMP/hiveforyou-bounded-supabase"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate secrets and discover local migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "::error title=Missing secret::Configure SUPABASE_ACCESS_TOKEN (Supabase account access token)."
+            exit 1
+          fi
+
+          if [ -z "${SUPABASE_PROJECT_ID:-}" ]; then
+            echo "::error title=Missing secret::Configure SUPABASE_PROJECT_ID (V4 Supabase project reference id)."
+            exit 1
+          fi
+
+          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "::error title=Missing secret::Configure SUPABASE_DB_PASSWORD (remote Postgres password for supabase link / migrations)."
+            exit 1
+          fi
+
+          if [ ! -d "$MIG_DIR" ]; then
+            echo "::error title=Missing migrations::Expected directory $MIG_DIR."
+            exit 1
+          fi
+
+          shopt -s nullglob
+          sql_files=( "$MIG_DIR"/*.sql )
+          shopt -u nullglob
+
+          if [ "${#sql_files[@]}" -eq 0 ]; then
+            echo "::error title=No migrations::No .sql files in $MIG_DIR."
+            exit 1
+          fi
+
+          declare -A seen_versions=()
+          unsorted_versions=()
+          for f in "${sql_files[@]}"; do
+            base="$(basename "$f")"
+            if ! [[ "$base" =~ ^([0-9]{14})_.+\.sql$ ]]; then
+              echo "::error title=Invalid migration filename::Expected {14-digit-timestamp}_name.sql; got $base."
+              exit 1
+            fi
+            ver="${BASH_REMATCH[1]}"
+            if [ -n "${seen_versions[$ver]+x}" ]; then
+              echo "::error title=Duplicate migration version::Version $ver appears more than once in $MIG_DIR."
+              exit 1
+            fi
+            seen_versions["$ver"]=1
+            unsorted_versions+=("$ver")
+          done
+          mapfile -t LOCAL_VERSIONS < <(printf '%s\n' "${unsorted_versions[@]}" | sort)
+
+          printf '%s\n' "${LOCAL_VERSIONS[@]}" > "$MIG_VERSIONS_FILE"
+
+          echo "## Local migration chain (discovered, sorted)"
+          for v in "${LOCAL_VERSIONS[@]}"; do
+            echo "- $v"
+          done
+
+          : > "$MIG_V4_003_ACK_FILE"
+          for f in "${sql_files[@]}"; do
+            if head -n 12 "$f" | grep -qiE 'V3 Vault|reuse V3 Vault'; then
+              ver="$(basename "$f" | sed -n 's/^\([0-9]\{14\}\)_.*/\1/p')"
+              echo "$ver" >> "$MIG_V4_003_ACK_FILE"
+              echo "V4-003 / V3 Vault acknowledgement required before applying: $ver"
+            fi
+          done
+
+          if [ "$RUN_MODE" = "apply" ]; then
+            if [ -z "${APPLY_THROUGH:-}" ]; then
+              echo "::error title=Missing input::Set apply_through_version when run_mode is apply."
+              exit 1
+            fi
+            if ! [[ "$APPLY_THROUGH" =~ ^[0-9]{14}$ ]]; then
+              echo "::error title=Invalid target::apply_through_version must be a 14-digit migration timestamp."
+              exit 1
+            fi
+            found=false
+            for v in "${LOCAL_VERSIONS[@]}"; do
+              if [ "$v" = "$APPLY_THROUGH" ]; then
+                found=true
+                break
+              fi
+            done
+            if [ "$found" = false ]; then
+              echo "::error title=Unknown target::apply_through_version $APPLY_THROUGH is not in the discovered local chain."
+              exit 1
+            fi
+          fi
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      - name: Link Supabase project (repository view)
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          echo "Linked to project ref (redacted)."
+
+      - name: Verify migration history and report pending
+        id: history
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t LOCAL_VERSIONS < "$MIG_VERSIONS_FILE"
+          mapfile -t V4_003_ACK_VERSIONS < "$MIG_V4_003_ACK_FILE" || true
+
+          requires_v4_003_ack() {
+            local ver="$1"
+            local a
+            for a in "${V4_003_ACK_VERSIONS[@]:-}"; do
+              [ -n "$a" ] || continue
+              if [ "$a" = "$ver" ]; then
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          migration_is_applied() {
+            local ver="$1"
+            local list_file="$2"
+            local line
+            line="$(grep -E "^[[:space:]]*${ver}" "$list_file" || true)"
+            if [ -z "$line" ]; then
+              return 1
+            fi
+            mapfile -t nums < <(grep -oE '[0-9]{14}' <<< "$line")
+            [ "${#nums[@]}" -ge 2 ] && [ "${nums[0]}" = "${nums[1]}" ]
+          }
+
+          parse_remote_applied() {
+            local list_file="$1"
+            declare -n _out="$2"
+            while IFS= read -r line; do
+              if ! [[ "$line" =~ ^[[:space:]]*[0-9]{14} ]]; then
+                continue
+              fi
+              mapfile -t nums < <(grep -oE '[0-9]{14}' <<< "$line")
+              if [ "${#nums[@]}" -ge 2 ] && [ "${nums[0]}" = "${nums[1]}" ]; then
+                _out["${nums[0]}"]=1
+              elif [ "${#nums[@]}" -ge 2 ]; then
+                echo "::error title=Incompatible migration row::Local ${nums[0]} vs remote ${nums[1]} on the same line."
+                exit 1
+              fi
+            done < "$list_file"
+          }
+
+          LIST_FILE="$(mktemp)"
+          supabase migration list --linked > "$LIST_FILE"
+
+          echo "## Migration history (local vs remote)"
+          echo '```'
+          cat "$LIST_FILE"
+          echo '```'
+
+          declare -A REMOTE_APPLIED=()
+          parse_remote_applied "$LIST_FILE" REMOTE_APPLIED
+
+          REMOTE_VERSIONS=()
+          for v in "${LOCAL_VERSIONS[@]}"; do
+            if [ -n "${REMOTE_APPLIED[$v]+x}" ]; then
+              REMOTE_VERSIONS+=("$v")
+            fi
+          done
+
+          for remote_only in "${!REMOTE_APPLIED[@]}"; do
+            found=false
+            for v in "${LOCAL_VERSIONS[@]}"; do
+              if [ "$v" = "$remote_only" ]; then
+                found=true
+                break
+              fi
+            done
+            if [ "$found" = false ]; then
+              echo "::error title=Incompatible remote history::Remote has migration $remote_only which is not in this branch. Do not repair or overwrite history from this workflow."
+              exit 1
+            fi
+          done
+
+          last_remote=""
+          for v in "${LOCAL_VERSIONS[@]}"; do
+            if [ -n "${REMOTE_APPLIED[$v]+x}" ]; then
+              last_remote="$v"
+            elif [ -n "$last_remote" ]; then
+              echo "::error title=Gap in remote history::Remote applied $last_remote but not $v. Repair history out of band before applying new migrations."
+              exit 1
+            fi
+          done
+
+          PENDING=()
+          for v in "${LOCAL_VERSIONS[@]}"; do
+            if [ -z "${REMOTE_APPLIED[$v]+x}" ]; then
+              PENDING+=("$v")
+            fi
+          done
+
+          echo "## Pending migrations (full repository chain)"
+          if [ "${#PENDING[@]}" -eq 0 ]; then
+            echo "None — remote history matches local chain through ${LOCAL_VERSIONS[-1]}."
+          else
+            for v in "${PENDING[@]}"; do
+              label="$v"
+              if requires_v4_003_ack "$v"; then
+                label="$v (V4-003 / V3 Vault — requires acknowledge_v4_003_vault_schema)"
+              fi
+              echo "- $label"
+            done
+          fi
+
+          echo "pending_count=${#PENDING[@]}" >> "$GITHUB_OUTPUT"
+
+          echo "## Dry run (full repository — all pending migrations; informational only in report mode)"
+          supabase db push --dry-run --linked || {
+            echo "::error title=Dry run failed::Could not evaluate pending migrations (connection, history, or SQL preview error)."
+            exit 1
+          }
+
+          if [ "$RUN_MODE" = "report" ]; then
+            echo "Report-only run complete (no migrations applied)."
+            exit 0
+          fi
+
+          SELECTED_PENDING=()
+          for v in "${PENDING[@]}"; do
+            if [ "$v" \> "$APPLY_THROUGH" ]; then
+              break
+            fi
+            SELECTED_PENDING+=("$v")
+          done
+
+          echo "## Selected for apply (pending through $APPLY_THROUGH)"
+          if [ "${#SELECTED_PENDING[@]}" -eq 0 ]; then
+            echo "None — remote already satisfies apply_through_version $APPLY_THROUGH."
+          else
+            for v in "${SELECTED_PENDING[@]}"; do
+              echo "- $v"
+            done
+          fi
+
+          if [ "${#SELECTED_PENDING[@]}" -eq 0 ]; then
+            echo "apply_needed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for v in "${SELECTED_PENDING[@]}"; do
+            if requires_v4_003_ack "$v" && [ "$ACK_V4_003" != "true" ]; then
+              echo "::error title=Acknowledgement required::Applying $v requires acknowledge_v4_003_vault_schema=true after founder review of V3/V4 Vault compatibility."
+              exit 1
+            fi
+          done
+
+          baseline="${LOCAL_VERSIONS[0]}"
+          if [ "${SELECTED_PENDING[0]}" != "$baseline" ] && [ "${#REMOTE_VERSIONS[@]}" -eq 0 ]; then
+            echo "::error title=Missing migration history::Remote has no applied migrations but the next selected pending migration is ${SELECTED_PENDING[0]}. Apply $baseline first or repair supabase_migrations.schema_migrations to match reality."
+            exit 1
+          fi
+
+          : > "$MIG_SELECTED_PENDING_FILE"
+          printf '%s\n' "${SELECTED_PENDING[@]}" > "$MIG_SELECTED_PENDING_FILE"
+
+          : > "$MIG_REMOTE_APPLIED_BEFORE_FILE"
+          for v in "${LOCAL_VERSIONS[@]}"; do
+            if [ -n "${REMOTE_APPLIED[$v]+x}" ]; then
+              echo "$v" >> "$MIG_REMOTE_APPLIED_BEFORE_FILE"
+            fi
+          done
+
+          echo "apply_needed=true" >> "$GITHUB_OUTPUT"
+          echo "Pre-apply checks passed; bounded db push will apply ${#SELECTED_PENDING[@]} migration(s) through $APPLY_THROUGH."
+
+      - name: Apply selected migrations (bounded db push)
+        if: github.event.inputs.run_mode == 'apply' && steps.history.outputs.apply_needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t LOCAL_VERSIONS < "$MIG_VERSIONS_FILE"
+          mapfile -t SELECTED_PENDING < "$MIG_SELECTED_PENDING_FILE"
+          mapfile -t REMOTE_APPLIED_BEFORE < "$MIG_REMOTE_APPLIED_BEFORE_FILE"
+
+          declare -A BEFORE=()
+          for v in "${REMOTE_APPLIED_BEFORE[@]}"; do
+            BEFORE["$v"]=1
+          done
+
+          migration_is_applied() {
+            local ver="$1"
+            local list_file="$2"
+            local line
+            line="$(grep -E "^[[:space:]]*${ver}" "$list_file" || true)"
+            if [ -z "$line" ]; then
+              return 1
+            fi
+            mapfile -t nums < <(grep -oE '[0-9]{14}' <<< "$line")
+            [ "${#nums[@]}" -ge 2 ] && [ "${nums[0]}" = "${nums[1]}" ]
+          }
+
+          echo "## Build isolated Supabase project (migrations through $APPLY_THROUGH only)"
+          rm -rf "$BOUNDED_ROOT"
+          mkdir -p "$BOUNDED_ROOT/supabase/migrations"
+          cp supabase/config.toml "$BOUNDED_ROOT/supabase/"
+
+          copied=0
+          shopt -s nullglob
+          for f in supabase/migrations/*.sql; do
+            base="$(basename "$f")"
+            ver="${base:0:14}"
+            if [ "$ver" \<= "$APPLY_THROUGH" ]; then
+              cp "$f" "$BOUNDED_ROOT/supabase/migrations/"
+              copied=$((copied + 1))
+              echo "Included: $base"
+            fi
+          done
+          shopt -u nullglob
+
+          if [ "$copied" -eq 0 ]; then
+            echo "::error title=Bounded project empty::No migration files with version <= $APPLY_THROUGH."
+            exit 1
+          fi
+
+          shopt -s nullglob
+          bounded_files=( "$BOUNDED_ROOT/supabase/migrations"/*.sql )
+          shopt -u nullglob
+          for bf in "${bounded_files[@]}"; do
+            ver="${bf##*/}"
+            ver="${ver:0:14}"
+            if [ "$ver" \> "$APPLY_THROUGH" ]; then
+              echo "::error title=Bounded project leak::Found $ver > $APPLY_THROUGH in isolated directory."
+              exit 1
+            fi
+          done
+
+          cd "$BOUNDED_ROOT"
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          echo "Linked bounded project (redacted)."
+
+          echo "## Dry run (bounded — only migrations through $APPLY_THROUGH)"
+          supabase db push --dry-run --linked
+
+          echo "## Applying bounded migrations: supabase db push --linked"
+          supabase db push --linked
+
+          LIST_AFTER="$(mktemp)"
+          supabase migration list --linked > "$LIST_AFTER"
+
+          echo "## Remote migration history after apply"
+          cat "$LIST_AFTER"
+
+          for v in "${SELECTED_PENDING[@]}"; do
+            if ! migration_is_applied "$v" "$LIST_AFTER"; then
+              echo "::error title=Apply verification failed::Expected $v in remote history after db push."
+              exit 1
+            fi
+          done
+
+          for v in "${LOCAL_VERSIONS[@]}"; do
+            if [ "$v" \> "$APPLY_THROUGH" ]; then
+              if [ -z "${BEFORE[$v]+x}" ] && migration_is_applied "$v" "$LIST_AFTER"; then
+                echo "::error title=Out-of-scope migration applied::Version $v (> $APPLY_THROUGH) appears in remote history. Failing closed."
+                exit 1
+              fi
+            fi
+          done
+
+          newly_applied=()
+          for v in "${LOCAL_VERSIONS[@]}"; do
+            if [ -z "${BEFORE[$v]+x}" ] && migration_is_applied "$v" "$LIST_AFTER"; then
+              newly_applied+=("$v")
+            fi
+          done
+
+          for v in "${newly_applied[@]}"; do
+            if [ "$v" \> "$APPLY_THROUGH" ]; then
+              echo "::error title=Out-of-scope migration applied::Newly applied $v exceeds apply_through_version $APPLY_THROUGH."
+              exit 1
+            fi
+          done
+
+          echo "Verified: selected pending migrations are recorded; no migration newer than $APPLY_THROUGH was applied."
