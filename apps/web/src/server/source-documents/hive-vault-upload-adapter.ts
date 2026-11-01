@@ -963,11 +963,7 @@ export function createLiveHiveVaultUploadAdapterDeps(
   userClient: RpcCapableClient,
   correlationId: string,
 ): HiveVaultUploadAdapterDeps {
-  const adminEnv = loadSupabaseAdminEnv({
-    ...process.env,
-    SUPABASE_URL:
-      process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-  });
+  const adminEnv = loadSupabaseAdminEnv(process.env);
   const adminClient = createSupabaseAdminClient(adminEnv);
   const cid = correlationId as CorrelationId;
   const vault = new SupabaseVaultRepositories(adminClient, cid);

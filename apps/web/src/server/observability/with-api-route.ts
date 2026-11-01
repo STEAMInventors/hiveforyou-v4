@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 
 import { CORRELATION_HEADER, resolveCorrelationId } from "./correlation";
 import { emitStructuredEvent } from "./logger";
-import { mapExceptionToHiveError } from "./map-exception-to-hive-error";
+import { mapExceptionToHiveError, resolveFailureDiagnostics } from "./map-exception-to-hive-error";
 
 export type ApiRouteContext = {
   correlationId: string;
@@ -105,6 +105,7 @@ export function withApiRoute(
     } catch (error) {
       const durationMs = Date.now() - started;
       const hiveError = mapExceptionToHiveError(error, correlationId);
+      const failureDiagnostics = resolveFailureDiagnostics(error, hiveError);
 
       emitStructuredEvent({
         eventName: `${operation}.failed`,
@@ -118,7 +119,8 @@ export function withApiRoute(
         errorCode: hiveError.errorCode,
         retryable: hiveError.retryable,
         durationMs,
-        diagnosticReason: hiveError.diagnosticReason ?? "unexpected_exception",
+        diagnosticReason: failureDiagnostics.diagnosticReason,
+        exceptionType: failureDiagnostics.exceptionType,
       });
 
       return NextResponse.json(toPublicErrorResponse(hiveError), {

@@ -1,7 +1,9 @@
 import { createHiveError, toPublicErrorResponse } from "@hiveforyou/contracts";
 import { describe, expect, it } from "vitest";
 
-import { mapExceptionToHiveError } from "./map-exception-to-hive-error";
+import { VaultAdminConfigError } from "@/server/source-documents/v3-vault/persistence/vault-admin-config-error";
+
+import { mapExceptionToHiveError, resolveFailureDiagnostics } from "./map-exception-to-hive-error";
 
 const BOUNDARY_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
@@ -53,6 +55,25 @@ describe("mapExceptionToHiveError", () => {
     expect(mapped.safeMessage).not.toContain("hunter2");
     expect(JSON.stringify(toPublicErrorResponse(mapped))).not.toContain("hunter2");
     expect(JSON.stringify(toPublicErrorResponse(mapped))).not.toContain("app.ts");
+  });
+
+  it("maps VaultAdminConfigError to INTERNAL_ERROR with a safe diagnostic reason", () => {
+    const mapped = mapExceptionToHiveError(
+      new VaultAdminConfigError("vault_admin_secret_missing"),
+      BOUNDARY_ID,
+    );
+
+    expect(mapped.errorCode).toBe("INTERNAL_ERROR");
+    expect(mapped.diagnosticReason).toBe("vault_admin_secret_missing");
+    expect(mapped.safeMessage).not.toContain("SUPABASE");
+    expect(JSON.stringify(toPublicErrorResponse(mapped))).not.toContain("service");
+
+    const diagnostics = resolveFailureDiagnostics(
+      new VaultAdminConfigError("vault_admin_secret_missing"),
+      mapped,
+    );
+    expect(diagnostics.exceptionType).toBe("VaultAdminConfigError");
+    expect(diagnostics.diagnosticReason).toBe("vault_admin_secret_missing");
   });
 
   it("preserves HiveError fields and the boundary correlation id", () => {

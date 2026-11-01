@@ -89,6 +89,7 @@ describe("withApiRoute", () => {
       expect(logged.errorCode).toBe("INTERNAL_ERROR");
       expect(logged.status).toBe("FAILED");
       expect(logged.diagnosticReason).toBe("unexpected_exception");
+      expect(logged.exceptionType).toBe("Error");
       expect(logged.severity).toBe("ERROR");
 
       const combined = lines.join("\n");

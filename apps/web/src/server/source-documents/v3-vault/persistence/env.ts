@@ -3,6 +3,7 @@ import {
   DEFAULT_HIVE_OUTPUT_BUCKET,
   DEFAULT_HIVE_SOURCE_BUCKET,
 } from "./storage/buckets.js";
+import { VaultAdminConfigError } from "./vault-admin-config-error.js";
 
 export type DatabaseEnv = {
   readonly DATABASE_URL: string;
@@ -29,6 +30,18 @@ function required(source: NodeJS.ProcessEnv, key: string): string {
   return value;
 }
 
+function resolveSupabaseProjectUrl(source: NodeJS.ProcessEnv): string | undefined {
+  const primary = source.SUPABASE_URL?.trim();
+  if (primary !== undefined && primary.length > 0) {
+    return primary;
+  }
+  const publicUrl = source.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (publicUrl !== undefined && publicUrl.length > 0) {
+    return publicUrl;
+  }
+  return undefined;
+}
+
 function requiredSupabaseSecretKey(source: NodeJS.ProcessEnv): string {
   const preferred = source.SUPABASE_SECRET_KEY?.trim();
   if (preferred !== undefined && preferred.length > 0) {
@@ -38,9 +51,7 @@ function requiredSupabaseSecretKey(source: NodeJS.ProcessEnv): string {
   if (legacy !== undefined && legacy.length > 0) {
     return legacy;
   }
-  throw new Error(
-    "SUPABASE_SECRET_KEY is required for Hive Vault persistence adapters; SUPABASE_SERVICE_ROLE_KEY is accepted as a legacy fallback",
-  );
+  throw new VaultAdminConfigError("vault_admin_secret_missing");
 }
 
 export function loadDatabaseEnv(source: NodeJS.ProcessEnv = process.env): DatabaseEnv {
@@ -48,8 +59,12 @@ export function loadDatabaseEnv(source: NodeJS.ProcessEnv = process.env): Databa
 }
 
 export function loadSupabaseAdminEnv(source: NodeJS.ProcessEnv = process.env): SupabaseAdminEnv {
+  const supabaseUrl = resolveSupabaseProjectUrl(source);
+  if (supabaseUrl === undefined) {
+    throw new VaultAdminConfigError("vault_admin_url_missing");
+  }
   return {
-    SUPABASE_URL: required(source, "SUPABASE_URL"),
+    SUPABASE_URL: supabaseUrl,
     SUPABASE_SECRET_KEY: requiredSupabaseSecretKey(source),
   };
 }

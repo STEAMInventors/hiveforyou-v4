@@ -11,6 +11,7 @@ export const ALLOWLISTED_LOG_FIELDS = [
   "retryable",
   "durationMs",
   "diagnosticReason",
+  "exceptionType",
   "attempt",
   "hiveId",
   "processingRunId",
@@ -97,6 +98,17 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "scan_rate_limited",
   "storage_failed",
   "upload_failed",
+  "vault_admin_url_missing",
+  "vault_admin_secret_missing",
+]);
+
+const ALLOWED_EXCEPTION_TYPES = new Set([
+  "Error",
+  "HiveError",
+  "TypeError",
+  "RangeError",
+  "VaultAdminConfigError",
+  "Unknown",
 ]);
 
 const SENSITIVE_KEY_PATTERN =
@@ -131,6 +143,14 @@ export function buildStructuredLogRecord(
     if (key === "diagnosticReason" && typeof raw === "string") {
       if (!ALLOWED_DIAGNOSTIC_REASONS.has(raw)) {
         output[key] = "unexpected_exception";
+      } else {
+        output[key] = raw;
+      }
+      continue;
+    }
+    if (key === "exceptionType" && typeof raw === "string") {
+      if (!ALLOWED_EXCEPTION_TYPES.has(raw)) {
+        output[key] = "Error";
       } else {
         output[key] = raw;
       }
