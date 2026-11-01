@@ -15,7 +15,15 @@ function MoreIcon() {
   );
 }
 
-export function HiveCardMenu({ hiveId, hiveName }: { hiveId: string; hiveName: string }) {
+export function HiveCardMenu({
+  hiveId,
+  hiveName,
+  onDeleteHive,
+}: {
+  hiveId: string;
+  hiveName: string;
+  onDeleteHive: () => void;
+}) {
   const menuId = useId();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -90,6 +98,17 @@ export function HiveCardMenu({ hiveId, hiveName }: { hiveId: string; hiveName: s
           >
             Open Hive
           </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full px-3.5 py-2.5 text-left text-[14px] font-semibold text-coral-deep hover:bg-coral-wash"
+            onClick={() => {
+              setOpen(false);
+              onDeleteHive();
+            }}
+          >
+            Delete Hive
+          </button>
         </div>
       ) : null}
     </div>

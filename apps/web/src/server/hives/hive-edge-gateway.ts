@@ -4,6 +4,7 @@ import {
   normalizeHiveRecord,
   validateCreateHiveInput,
   type CreateHiveResponse,
+  type DeleteHiveResponse,
   type GetHiveResponse,
   type Hive,
   type ListHivesResponse,
@@ -21,6 +22,9 @@ export type { EdgeSupabaseClient } from "@/server/edge/invoke-edge-function";
 const EDGE_FUNCTION_NAME = "v1-hives";
 const SAVE_UNCONFIRMED_MESSAGE =
   "We could not confirm whether your Hive was saved. Try again with the same request.";
+const DELETE_UNCONFIRMED_MESSAGE =
+  "We could not confirm whether your Hive was deleted. Try again.";
+const HIVE_DELETE_INVOKE_TIMEOUT_MS = 35_000;
 
 function invokeHives(
   client: EdgeSupabaseClient,
@@ -188,4 +192,50 @@ export async function createHiveViaEdge(
 
   const created = result.data.created !== false;
   return { hive, created };
+}
+
+export async function deleteHiveViaEdge(
+  client: EdgeSupabaseClient,
+  hiveId: string,
+  correlationId: string,
+): Promise<DeleteHiveResponse> {
+  const trimmed = hiveId.trim().toLowerCase();
+  if (!isValidUuid(trimmed)) {
+    throw createHiveError({
+      errorCode: "INVALID_REQUEST",
+      category: "VALIDATION",
+      stage: "SHELL",
+      retryable: false,
+      safeMessage: "Invalid Hive identifier.",
+      correlationId,
+      diagnosticReason: "invalid_hive_id",
+    });
+  }
+
+  const result = await invokeEdgeFunction(client, {
+    functionName: EDGE_FUNCTION_NAME,
+    correlationId,
+    body: { op: "delete", hiveId: trimmed, hive_id: trimmed },
+    timeoutMs: HIVE_DELETE_INVOKE_TIMEOUT_MS,
+    timeoutMessage: DELETE_UNCONFIRMED_MESSAGE,
+    maxAttempts: 2,
+  });
+
+  if (!result.ok) {
+    throw result.error;
+  }
+
+  if (result.data.deleted !== true) {
+    throw createHiveError({
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "SHELL",
+      retryable: true,
+      safeMessage: DELETE_UNCONFIRMED_MESSAGE,
+      correlationId,
+      diagnosticReason: "delete_without_confirmation",
+    });
+  }
+
+  return { deleted: true };
 }

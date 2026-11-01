@@ -3,6 +3,7 @@
 import type {
   CreateHiveRequest,
   CreateHiveResponse,
+  DeleteHiveResponse,
   GetHiveResponse,
   ListHivesResponse,
   PublicErrorBody,
@@ -132,5 +133,19 @@ export async function createHive(
     response,
     correlationId,
     "Could not create your Hive. Please try again.",
+  );
+}
+
+export async function deleteHive(hiveId: string): Promise<DeleteHiveResponse> {
+  const correlationId = crypto.randomUUID();
+  const response = await fetch(`/api/v1/hives/${encodeURIComponent(hiveId)}`, {
+    method: "DELETE",
+    headers: { [CORRELATION_HEADER]: correlationId },
+    credentials: "same-origin",
+  });
+  return parseApiJson<DeleteHiveResponse>(
+    response,
+    correlationId,
+    "Could not delete this Hive. Try again.",
   );
 }

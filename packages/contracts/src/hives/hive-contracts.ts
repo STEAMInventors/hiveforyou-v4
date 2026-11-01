@@ -12,6 +12,12 @@ export type Hive = {
   clientRequestId: string;
   createdAt: string;
   updatedAt: string;
+  /** Set while permanent deletion is in progress (My Hives retry card). */
+  deletingAt?: string | null;
+};
+
+export type DeleteHiveResponse = {
+  deleted: true;
 };
 
 export type ListHivesResponse = {
@@ -107,6 +113,19 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
     description = trimmedDesc.length > 0 ? trimmedDesc : null;
   }
 
+  let deletingAt: string | null | undefined = undefined;
+  if ("deletingAt" in record || "deleting_at" in record) {
+    const raw =
+      record.deletingAt !== undefined ? record.deletingAt : record.deleting_at;
+    if (raw === null || raw === undefined) {
+      deletingAt = null;
+    } else if (typeof raw === "string" && raw.trim()) {
+      deletingAt = raw;
+    } else {
+      return null;
+    }
+  }
+
   return {
     id,
     hiveId,
@@ -115,6 +134,7 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
     clientRequestId,
     createdAt,
     updatedAt,
+    ...(deletingAt !== undefined ? { deletingAt } : {}),
   };
 }
 

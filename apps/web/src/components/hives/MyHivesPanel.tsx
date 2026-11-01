@@ -10,10 +10,11 @@ import {
   SECONDARY_BUTTON_CLASS,
 } from "@/components/button-classes";
 import { loadGuestDraft } from "@/lib/guest-draft";
-import { HiveClientError, fetchMyHives } from "@/lib/hives-client";
+import { HiveClientError, deleteHive, fetchMyHives } from "@/lib/hives-client";
 import { MY_HIVES_PATH, hiveDocumentsPath } from "@/lib/hive-routes";
 
 import { CreateHiveModal } from "./CreateHiveModal";
+import { DeleteHiveModal } from "./DeleteHiveModal";
 import { HiveCardGrid } from "./HiveCard";
 import { useCreateHive } from "./useCreateHive";
 
@@ -37,6 +38,9 @@ export function MyHivesPanel({
   const [hives, setHives] = useState<Hive[]>(initialHives);
   const [listError, setListError] = useState<ListError | null>(initialError);
   const [refreshing, setRefreshing] = useState(false);
+  const [hivePendingDelete, setHivePendingDelete] = useState<Hive | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleCreated = useCallback(
     (hive: Hive) => {
@@ -65,6 +69,33 @@ export function MyHivesPanel({
       cancelled = true;
     };
   }, [openCreateOnLoad, openModal, router]);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!hivePendingDelete) {
+      return;
+    }
+    const hiveId = hivePendingDelete.id;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteHive(hiveId);
+      setHivePendingDelete(null);
+      setHives((current) => current.filter((hive) => hive.id !== hiveId));
+    } catch (error) {
+      setDeleteError(
+        error instanceof HiveClientError
+          ? error.message
+          : "Could not delete this Hive. Try again.",
+      );
+    } finally {
+      setDeleteBusy(false);
+    }
+  }, [hivePendingDelete]);
+
+  const handleRetryDeletion = useCallback(async (hiveId: string) => {
+    await deleteHive(hiveId);
+    setHives((current) => current.filter((hive) => hive.id !== hiveId));
+  }, []);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -164,9 +195,30 @@ export function MyHivesPanel({
         </section>
       ) : null}
 
-      {hives.length > 0 ? <HiveCardGrid hives={hives} /> : null}
+      {hives.length > 0 ? (
+        <HiveCardGrid
+          hives={hives}
+          onRequestDelete={setHivePendingDelete}
+          onRetryDeletion={handleRetryDeletion}
+        />
+      ) : null}
 
       <CreateHiveModal {...createFlow.modalProps} />
+      <DeleteHiveModal
+        hiveName={hivePendingDelete?.name ?? ""}
+        open={hivePendingDelete !== null}
+        busy={deleteBusy}
+        errorMessage={deleteError}
+        onCancel={() => {
+          if (!deleteBusy) {
+            setHivePendingDelete(null);
+            setDeleteError(null);
+          }
+        }}
+        onConfirm={() => {
+          void handleDeleteConfirm();
+        }}
+      />
     </div>
   );
 }
