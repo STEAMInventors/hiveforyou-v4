@@ -1,6 +1,6 @@
 # HiveForYou V4 — Development plan
 
-**Version:** 0.1 | **Status:** V4-001 shell accepted locally; later tickets not started. | **Date:** 2026-10-26
+**Version:** 0.3 | **Status:** Execution roadmap; **V4-001 and V4-002 closed in Git**; **V4-003 active with local uncommitted implementation**; later tickets parked. | **Date:** 2026-10-31
 
 ## Development objective
 
@@ -19,9 +19,9 @@ Build the smallest real, pleasant **Documents → Study → Reports** experience
 
 | Phase / ticket | Work | User-visible proof | State |
 |---|---|---|---|
-| P0 · **V4-001** | New repo, code scaffold, brand-faithful stable application shell | Documents, Study, Reports tabs and true empty states locally | **CLOSED (`3ba9cd1`)** |
-| P1 · **V4-002** | Auth/My Hives/Create Hive + owner-only RLS, idempotent creation | User signs in, creates own empty Hive; cannot access another owner's Hive | **ACTIVE** |
-| P1 · V4-003 | Private file upload, quota, page-reading/viewer with real status | Synthetic PDF/PNG/JPEG/DOCX registered; exact page displayed; error/quota cases | PARKED |
+| P0 · V4-001 | New repo, code scaffold, brand-faithful stable application shell | Documents, Study, Reports tabs and true empty states locally | **DONE** (Git) |
+| P1 · V4-002 | Auth/My Hives/Create Hive + owner-only RLS, idempotent creation | User signs in, creates own Hive; cannot access another owner's Hive | **DONE** (Git) |
+| P1 · **V4-003** | Private file upload, registration, quota, intent at create; **read/view deferred** | Authenticated owner registers synthetic PDF/PNG/JPEG/DOCX; quota/malware/type failures honest; **not** page viewer yet | **ACTIVE** — local code; migration/Edge deploy and live upload verification pending |
 | P2 · V4-004 | Frontier pack-free extraction `hive-extract/1`, versioned candidates, bounded pages | Real synthetic receipt produces honest `hive.doc-extraction/1` candidate JSON | PARKED |
 | P2 · V4-005 | Verify evidence, candidate trust dispositions, merge accepted revision | Source page chips work and one verified Study is accepted; bad quote rejected | PARKED |
 | P3 · V4-006 | Study intent analysis and one dynamic A2UI slot | Two questions yield different validated views of same pinned Study | PARKED |
@@ -60,7 +60,7 @@ Build the smallest real, pleasant **Documents → Study → Reports** experience
 ## Decision gates before specific tickets
 
 - **V4-002:** use an independent V4 Supabase project/schema; approve SQL and RLS separately. No V3 live migration.
-- **V4-003:** choose server-side PDF/DOCX/image read libraries, reasonable file/page limits, storage retention and malware handling, physical page evidence semantics.
+- **V4-003:** malware hash-scan policy and registration RPC are **decided in D-027** and implemented locally; founder must still **approve migration deploy**, Edge deploy, and optional VirusTotal secret. **Page reading, OCR, and viewer** remain a gate before claiming F-007; choose read libraries and physical-page semantics then.
 - **V4-004:** approve model provider/gateway, structured JSON interface, costs, private-content policy, prompt contract clarifications; authorize paid synthetic test separately.
 - **V4-005:** approve verifier checks and data model; explain evidence quote acceptance vs real-world truth.
 - **V4-006:** pick supported A2UI wire schema/React integration, allowlist and model-safe actions.
@@ -74,3 +74,19 @@ Update as affected: `HiveForYou-PRODUCT-REQUIREMENTS.md`, `HiveForYou-FEATURES.m
 ## Explicitly parked
 
 Optional Domain Packs; cross-user professional membership; automated external filing; billing models beyond retained Free cap; source-data cross-Hive learning; broad infra rebuild; V3→V4 migration; large-scale multi-agent orchestration; claim of HIPAA operation; template-per-domain apps; release promotion/prod hardening (V4 is not in production).
+
+## Future analytical capability track (2026-10-31; parked until current ticket closure)
+
+The following are **proposed dependency-ordered future tickets, not active or approved implementation**. Preserve the single-ticket process in NEXT. Do not block earlier extraction → evidence → Study → basic view vertical slice for speculative analysis infrastructure.
+
+| Proposed ticket | Minimal vertical proof | Gate |
+|---|---|---|
+| **V4-A01 Opportunity Discovery** | Accepted synthetic Study yields 2–5 deduplicated useful candidate analyses with cited fact IDs; wrong refs rejected | After accepted Study (V4-005); approve discovery contract/cost |
+| **V4-A02 Trusted Analysis** | Execute one typed comparison/aggregation with reproducible result and source/method drilldown; unsupported option blocked | A01; validator/operator contracts |
+| **V4-A03 Proactive Study UI** | Suggested, running, supported, blocked cards in approved A2UI slot; output/history pinned to revision | A02; component allowlist |
+| **V4-A04 Scenario Overlay** | Hypothetical change compares to baseline without changing accepted fact values | A02; scenario contracts |
+| **V4-A05 Dynamic Scenario Model** | LLM proposes dependency graph; generic verifier rejects invalid refs/units/cycles/rules; supported arithmetic runs | A04; quality threshold |
+| **V4-A06 Optional Optimization** | One independently reviewed constrained problem compiled from safe model IR to approved solver and back; infeasible states explained | Demonstrated buyer need, cost and security approval |
+| **V4-A07 Incremental/Quality** | Re-run changed analyses only; test usefulness, correctness, cost, safety across synthetic financial/IEP/insurance examples | Earlier analytical track verified |
+
+**Minimum experiment before broad coding:** from one synthetic accepted Study, have the model propose analyses, select one useful plan, independently verify fact refs/method, run safe computation, and present a cited result. Track useful-opportunity precision, model-plan error rate, dollar cost and review time. Avoid expanding to full causal simulation before this is measured.

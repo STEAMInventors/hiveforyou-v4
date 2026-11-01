@@ -1,8 +1,8 @@
-# HiveForYou V4 — Naming conventions
+# HiveForYou V4 â€” Naming conventions
 
-**Version:** 0.1 · **Status:** PROPOSED — approval required before repository or database creation
+**Version:** 0.2 Â· **Status:** PROPOSED â€” approval required before repository or database creation
 **Applies to:** V4 code, programs, APIs, prompts, JSON contracts, A2UI components, database, object storage, migrations, tests, logs and documentation.
-**Design alignment:** Application-first Documents · Study · Reports; one Hive, one evolving Canonical Study; no mandatory Domain Pack; source-backed extraction using `hive-extract/1` and `hive.doc-extraction/1`.
+**Design alignment:** Application-first Documents Â· Study Â· Reports; one Hive, one evolving Canonical Study; no mandatory Domain Pack; source-backed extraction using `hive-extract/1` and `hive.doc-extraction/1`.
 **Scope:** Naming standard only. No V4 repository, database, migration or running service is created by this document.
 
 ## 1. Universal rules
@@ -15,7 +15,7 @@
 6. **Prefer one familiar convention per layer.** Avoid an extra prefix, suffix, service, table, configuration switch, or abbreviation unless it resolves a real collision.
 7. **Don't leak private data through names.** Storage keys, logs, IDs and generated filenames must not contain names, SSNs, student identifiers, account numbers or quoted document content.
 
-**Mandatory documentation filename prefix (V4 decision).** Every human-authored document in the repository—including root overview, governing docs, prompt source files, Cursor `.mdc` rules, design records, brand PDFs, and future generated/exported PDFs—must begin with `HiveForYou-`. Use `HiveForYou-NEXT.md` as the one-ticket source of truth and `HiveForYou-README.md` as the repository overview. The *internal* prompt IDs remain `hive-extract/1` and `hive-prep/1`, regardless of the Markdown filenames. This rule is intentionally stricter than the general avoidance of redundant prefixes in executable code, SQL and API routes. Framework-mandated program filenames such as `page.tsx` remain unchanged. GitHub may not automatically display the custom-named root README; do not create an unprefixed duplicate merely for discoverability.
+**Mandatory documentation filename prefix (V4 decision).** Every human-authored document in the repositoryâ€”including root overview, governing docs, prompt source files, Cursor `.mdc` rules, design records, brand PDFs, and future generated/exported PDFsâ€”must begin with `HiveForYou-`. Use `HiveForYou-NEXT.md` as the one-ticket source of truth and `HiveForYou-README.md` as the repository overview. The *internal* prompt IDs remain `hive-extract/1` and `hive-prep/1`, regardless of the Markdown filenames. This rule is intentionally stricter than the general avoidance of redundant prefixes in executable code, SQL and API routes. Framework-mandated program filenames such as `page.tsx` remain unchanged. GitHub may not automatically display the custom-named root README; do not create an unprefixed duplicate merely for discoverability.
 
 ## 2. Canonical vocabulary and identity mapping
 
@@ -40,7 +40,7 @@
 
 \* **Conditional:** The `a2ui_views` table is needed only if generated view specifications must be saved independently of reports. If specs belong exclusively to reports, store them as report artifacts and omit this table. Table names above are **reserved recommendations**, not an instruction to create them all now.
 
-**Cardinality invariant:** `hives (1) → canonical_studies (0..1) → study_revisions (many)`; a newly created Hive does not require a pre-created Canonical Study. Each saved report pins a `study_revision_id`; repeated Generate actions create distinct `report_runs`.
+**Cardinality invariant:** `hives (1) â†’ canonical_studies (0..1) â†’ study_revisions (many)`; a newly created Hive does not require a pre-created Canonical Study. Each saved report pins a `study_revision_id`; repeated Generate actions create distinct `report_runs`.
 
 ## 3. Naming patterns by artifact
 
@@ -68,11 +68,11 @@
 
 **Framework exceptions:** Keep Next.js reserved filenames exactly (`page.tsx`, `layout.tsx`, `route.ts`, `loading.tsx`, `error.tsx`, `not-found.tsx`); directory names use Next.js standard dynamic segment syntax (`[hiveId]`).
 
-**Data mapping:** Prefer camelCase in new V4 HTTP/model contracts, snake_case in PostgreSQL. Adapters at the database boundary map, e.g. `sourceDocumentId` ↔ `source_document_id`. **Do not silently rename user-approved JSON keys:** the exact `hive.doc-extraction/1` prompt contract uses `documentId`, `fileName`, `pageRange`, `valueAsWritten`, `printedPageLabel`, etc.; preserve those names inside that contract.
+**Data mapping:** Prefer camelCase in new V4 HTTP/model contracts, snake_case in PostgreSQL. Adapters at the database boundary map, e.g. `sourceDocumentId` â†” `source_document_id`. **Do not silently rename user-approved JSON keys:** the exact `hive.doc-extraction/1` prompt contract uses `documentId`, `fileName`, `pageRange`, `valueAsWritten`, `printedPageLabel`, etc.; preserve those names inside that contract.
 
 ## 4. Program/module names (backend and UI)
 
-Use **verb–object** filenames for single-purpose operations, and **noun** directories for capabilities. Do not add `Engine`, `Manager`, `Processor`, `Util`, `V4`, `New`, `Final` or `Service` everywhere.
+Use **verbâ€“object** filenames for single-purpose operations, and **noun** directories for capabilities. Do not add `Engine`, `Manager`, `Processor`, `Util`, `V4`, `New`, `Final` or `Service` everywhere.
 
 | Responsibility | Example module/function | Owner (proposed) |
 |---|---|---|
@@ -110,8 +110,8 @@ No separate `apps/worker`, Python application, or extra package is assumed in V4
 
 **Keep previously selected identifiers verbatim:**
 
-- Extraction prompt **`hive-extract/1`** → file `prompts/hive-extract/HiveForYou-Extract-v1.md`; output schema **`hive.doc-extraction/1`**.
-- Standalone meeting preparation **`hive-prep/1`** → `prompts/hive-prep/HiveForYou-Prep-v1.md`; IEP-specific quick-test experience, not the universal core.
+- Extraction prompt **`hive-extract/1`** â†’ file `prompts/hive-extract/HiveForYou-Extract-v1.md`; output schema **`hive.doc-extraction/1`**.
+- Standalone meeting preparation **`hive-prep/1`** â†’ `prompts/hive-prep/HiveForYou-Prep-v1.md`; IEP-specific quick-test experience, not the universal core.
 - Do **not** assume `hive-study/1`, `hive-writer/1` or A2UI contracts are approved merely because they were mentioned as future pipeline stages. When specified, use the same `name/major` / `hive.<name>/major` pattern.
 
 Each model-generated, persisted artifact should carry appropriate immutable metadata: `contractVersion`, `promptId`, `promptDigest`, `modelAlias`, `processingRunId`, `sourceDocumentId`, and `pageRange` where relevant. Do not force source-specific fields onto non-source artifacts; add `studyRevisionId` to analyses, views and reports. Prompt digest should be deterministic SHA-256 of the canonical approved prompt text. Keep prompt/contract revisions explicit; never edit the meaning of `/1` without compatibility consideration.
@@ -142,7 +142,7 @@ GET    /api/v1/hives/{hiveId}/reports/{reportId}
 
 Use **resource nouns**, HTTP verbs for intent, and single clear run IDs. No RPC-style routes such as `/startProcessingNow`, no provider names, and no fixed-domain route families such as `/iep/reports` in Hive Core.
 
-**A2UI naming:** Keep the application tabs **Documents · Study · Reports**; React components follow `Narrative`, `Metric`, `RecordTable`, `Comparison`, `Timeline`, `IssueList`, `QuestionList`, `EvidencePanel`, `Chart`, `Checklist` as in the V4 UX proposal. If an approved A2UI protocol is adopted, retain its exact wire type names/version. Otherwise, proposed app-local component IDs use PascalCase matching the React catalog, e.g. `{ "type": "EvidencePanel", "evidenceRefs": [...] }`. No arbitrary model-created component names or executable HTML/JS. `viewId`, `studyRevisionId`, `intentAnalysisId` and referenced evidence IDs must be validated and authorized by the server.
+**A2UI naming:** Keep the application tabs **Documents Â· Study Â· Reports**; React components follow `Narrative`, `Metric`, `RecordTable`, `Comparison`, `Timeline`, `IssueList`, `QuestionList`, `EvidencePanel`, `Chart`, `Checklist` as in the V4 UX proposal. If an approved A2UI protocol is adopted, retain its exact wire type names/version. Otherwise, proposed app-local component IDs use PascalCase matching the React catalog, e.g. `{ "type": "EvidencePanel", "evidenceRefs": [...] }`. No arbitrary model-created component names or executable HTML/JS. `viewId`, `studyRevisionId`, `intentAnalysisId` and referenced evidence IDs must be validated and authorized by the server.
 
 ## 7. Supabase PostgreSQL naming
 
@@ -169,7 +169,7 @@ Use **resource nouns**, HTTP verbs for intent, and single clear run IDs. No RPC-
 | Check constraint | `ck_<table>__<rule>` | `ck_document_pages__page_positive` |
 | Index | `idx_<table>__<columns_or_purpose>` | `idx_source_documents__hive_id` |
 | RLS policy | `pol_<table>__<operation>__<actor>` | `pol_hives__select__owner` |
-| SQL function / RPC | snake_case verb–object | `accept_study_revision(...)` |
+| SQL function / RPC | snake_case verbâ€“object | `accept_study_revision(...)` |
 | Trigger | `trg_<table>__<event_purpose>` | `trg_hives__set_updated_at` |
 | Enum type (only if needed) | `<concept>_status` | `verification_status` |
 | View | `v_<purpose>` | `v_hive_document_counts` |
@@ -195,7 +195,7 @@ The original human filename is kept as authorized metadata, **not embedded in ob
 - Background work/event name (if a queue is introduced): `hive.processing.requested` / `hive.processing.completed`. Do not name it after a specific queue vendor. Do not build a queue merely to adopt these names.
 - Event fields and structured log fields: `eventName`, `correlationId`, `hiveId`, `processingRunId`, `sourceDocumentId`, `stage`, `status`, `errorCode`, `durationMs` (only when applicable). Database fields remain snake_case.
 - Run states (reserved vocabulary, precise semantics to be finalized in contracts): `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`. Processing stages: `READ`, `EXTRACT`, `VERIFY`, `MERGE_STUDY`, `ANALYZE_INTENT`, `COMPOSE_VIEW`. A view can be produced without changing accepted Study state.
-- Fact-verification outcomes: `VERIFIED`, `REJECTED`, `UNRESOLVED` — not `VALID` as a synonym for trusted.
+- Fact-verification outcomes: `VERIFIED`, `REJECTED`, `UNRESOLVED` â€” not `VALID` as a synonym for trusted.
 - Error codes: stable UPPER_SNAKE_CASE, e.g. `INVALID_DOCUMENT`, `MODEL_OUTPUT_INVALID`, `QUOTE_NOT_FOUND`, `COVERAGE_INCOMPLETE`, `SOURCE_ACCESS_DENIED`.
 - Logs must not include source contents, exact quotes, prompt bodies, token maps, signed URLs, raw model responses or PII/PHI. Correlation IDs are opaque; never overload them as object IDs.
 - Retries of the same run share run identity and idempotency context; **new user Generate** actions create new `reportRunId` values and preserve previous reports.
@@ -225,3 +225,9 @@ Before approving any new artifact name, ask:
 6. Can the feature be implemented **without** adding a config variable or table just for naming symmetry?
 
 **Adoption decision pending:** Approve this standard first. New V4 architecture, exact table inventory, prompt contract and deployment choices are separate design approvals. V3 files and `hive3` tables remain untouched.
+
+## 13. Analytical Intelligence vocabulary and names (proposed, 2026-10-31)
+
+Use **Analysis Opportunity** (candidate question), **Analysis Plan** (typed method), **Analysis Result** (executed/checked finding), **Scenario Overlay** (hypothetical change), **Scenario Model** (proposed dependencies), **Scenario Run** (evaluation) and **Scenario Comparison** (baseline vs alternatives). Do not call opportunities verified insights or scenarios source facts.
+
+Suggested TypeScript forms `AnalysisOpportunity`, `AnalysisPlan`, `AnalysisResult`, `ScenarioOverlay`, `ScenarioModel`, `ScenarioRun`; JSON camelCase IDs (`studyRevisionId`, `factRefs`, `assumptionRefs`, `ruleRefs`, `methodVersion`); SQL snake_case entity/table names as reserved in `HiveForYou-DATA-MODEL.md`. Proposed functions `discoverOpportunities`, `planAnalysis`, `validateAnalysisPlan`, `executeAnalysis`, `compileScenarioModel`, `validateScenarioModel`, `evaluateScenario`. Names remain **proposals** until contracts are approved. Do not encode `medicaid`, `bankruptcy`, provider names, `v4` or OR-Tools in universal Core names. Keep all human-authored document filenames prefixed `HiveForYou-` and original prompt IDs unchanged.

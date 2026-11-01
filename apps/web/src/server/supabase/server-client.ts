@@ -1,3 +1,4 @@
+import { createHiveError } from "@hiveforyou/contracts";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
@@ -52,4 +53,24 @@ export async function requireAuthenticatedUser(): Promise<AuthenticatedSession> 
   } catch {
     return { ok: false, diagnosticReason: "no_session" };
   }
+}
+
+/** For API routes: returns the signed-in client or throws a public UNAUTHENTICATED error. */
+export async function requireApiSupabaseClient(
+  correlationId: string,
+  safeMessage: string,
+): Promise<SupabaseClient> {
+  const auth = await requireAuthenticatedUser();
+  if (!auth.ok) {
+    throw createHiveError({
+      errorCode: "UNAUTHENTICATED",
+      category: "SECURITY",
+      stage: "SHELL",
+      retryable: false,
+      safeMessage,
+      correlationId,
+      diagnosticReason: auth.diagnosticReason,
+    });
+  }
+  return auth.client;
 }

@@ -1,6 +1,6 @@
 # HiveForYou V4 — System architecture
 
-**Version:** 0.1 | **Status:** Proposed logical architecture and first development topology, **not** deployed. | **Date:** 2026-10-26
+**Version:** 0.3 | **Status:** Logical architecture; V4-001/002 implemented; V4-003 upload/register path implemented **locally**, **not deployed** to a live Supabase project. | **Date:** 2026-10-31
 
 ## 1. Principles
 
@@ -94,11 +94,31 @@ retaining exactly these portable libraries, contracts and database state transit
 
 ## 8. Phased physical realization
 
-1. **V4-001:** Local Next.js app shell, shared error contract, and sanitized request logging. No live auth, database, or model adapter.
-2. **V4-002/003:** Supabase Auth, Hives, source registration and page-aware document viewing.
-3. **V4-004:** one real frontier extraction from synthetic document with prompt/contract. Verify candidate persistence/output only; not yet trusted Study.
-4. **V4-005:** independent verification and first accepted Study with functional source-chip navigation.
-5. **V4-006/007:** analyze once and dynamically present; save Customer/Pro reports and independent run history.
-6. **V4-008+:** incremental multi-document processing, negative-path and privacy/data-lifecycle completion.
+1. **V4-001 (done):** Next.js app shell, brand, observability contract.
+2. **V4-002 (done):** Supabase Auth, owner Hives, Edge-backed Hive APIs, RLS on `hive.hives`.
+3. **V4-003 (in progress, local):** written intent at create (D-026), prepare/register upload with quota and hash scan (D-027), Documents tab list/status. **Not yet:** document read pipeline or page-aware viewer.
+4. **V4-003 completion gate:** deploy migration + `v1-source-documents`; verify live authenticated registration before closing ticket.
+5. **V4-004:** one real frontier extraction from synthetic document with prompt/contract. Verify candidate persistence/output only; not yet trusted Study.
+6. **V4-005:** independent verification and first accepted Study with functional source-chip navigation (requires read/viewer from V4-003 follow-on or same ticket extension when approved).
+7. **V4-006/007:** analyze once and dynamically present; save Customer/Pro reports and independent run history.
+8. **V4-008+:** incremental multi-document processing, negative-path and privacy/data-lifecycle completion.
 
 **Do not require an up-front platform/orchestration migration merely to start V4 development.** Select a durable executor when an actual workload shows it is needed, before claiming long-job reliability. See `HiveForYou-DEVELOPMENT-PLAN.md`, `HiveForYou-NEXT.md`, `HiveForYou-DECISIONS.md`.
+
+## 9. Analytical Intelligence extension (2026-10-31; proposed, not deployed)
+
+**New flow after acceptance:** `accepted Study revision → discoverOpportunities → qualifyOpportunities → planAnalysis → validateAnalysisPlan → executeAnalysis → verifyAnalysisResult → presentInsight`. Optional scenario path: `createScenarioOverlay → compileScenarioModel (LLM) → validateScenarioModel → evaluateScenario → compareScenarios`. These are logical functions, not new required services/packages or already-authorized identifiers.
+
+**Trust separation:** `source → untrusted extraction → verified facts → immutable Study revision → proposed analytical opportunities → validated analysis plan → executed result → evidence- and method-linked insight`. Scenario overlay extends a *pinned* Study revision without mutating it. Opportunity proposal, LLM causal edge, external rule, interpretation and computed value are separate kinds of claims.
+
+**LLM responsibility:** discover candidate analysis questions from existing fact/coverage manifests and user goal; propose typed inputs and dependency graph; reason qualitatively within bounds; identify needed outside rules, assumptions and unknowns; compose read-only presentation. **Trusted Core responsibility:** authorization, ref/coverage/subject/date/unit checks, deterministic arithmetic, plan validation, input-dependent rules/solver dispatch, provenance checks and transactional persistence. A solver's `OPTIMAL` is valid only for the formalized constraints—not proof the model describes reality.
+
+**Execution router:** `{aggregation, comparison, chronology, reconciliation, coverage_check, conditional_rule_evaluation, optimization, qualitative_synthesis}` are *proposed analysis kinds*, not a fixed domain ontology. Use the smallest supported operation. For rules: retrieve authoritative source + jurisdiction + effective version and check applicability; otherwise `BLOCKED`/qualified partial result. For optimization: constrain a typed intermediate representation to safe supported operators, compile to an approved backend (OR-Tools only if needed) in a sandboxed trusted service; never run unrestricted model-authored Python/JS/SQL. When mathematical formulation cannot be certified, display a question rather than a quantitative prediction.
+
+**Cost/reliability:** one bounded discovery pass per accepted revision (idempotent on revision + discovery version) with ranked top-N candidates; defer high-cost executions until approved by policy/user. Cache identical inputs/methods, invalidate affected analyses on new revisions, cap tokens/runtime/tool calls, log sanitized stage/cost/status. Always keep prior accepted Study/reports intact.
+
+**Presentation:** retain fixed Documents · Study · Reports shell. In Study add allowlisted `SuggestedAnalyses`, `AnalysisResult`, `ScenarioExplorer`, `DependencyView`, `ScenarioComparison` as proposed views/component families. Report artifacts pin analysis/scenario inputs and revision. A2UI is read-only/validated; user-initiated actions route through typed authorized application commands.
+
+**Example — conditional bankruptcy comparison:** ask whether individual/entity debtor; read dated asset, liability and income facts; retrieve applicable authoritative rules; propose Chapter 7/Chapter 11 paths and unresolved eligibility factors; compute only valid financial comparisons; present tradeoffs and questions for counsel. Avoid implied court-outcome probabilities or an authoritative chapter recommendation.
+
+**Contract gates:** names and JSON shapes for opportunity, plan, result, scenario and comparison need explicit schema design during their tickets. Keep `hive-extract/1` and `hive.doc-extraction/1` unchanged. No new auto-execution infrastructure approved by this document.

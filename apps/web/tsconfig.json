@@ -5,7 +5,18 @@
     "jsx": "preserve",
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@v3-auth/*": ["../../../hiveforyou-v3/apps/web/src/lib/auth/*"],
+      "@hives/contracts": ["../../../hiveforyou/packages/contracts/src/index.ts"],
+      "@hives/core": ["../../../hiveforyou/packages/core/src/index.ts"],
+      "@hives/security": ["../../../hiveforyou/packages/security/src/index.ts"],
+      "@hives/persistence/vault/*": ["../../../hiveforyou/packages/persistence/src/vault/*"],
+      "@hives/persistence/storage/*": ["../../../hiveforyou/packages/persistence/src/storage/*"],
+      "@hives/persistence/env": ["../../../hiveforyou/packages/persistence/src/env.ts"],
+      "@supabase/supabase-js": ["../../node_modules/@supabase/supabase-js"],
+      "@supabase/ssr": ["../../node_modules/@supabase/ssr"],
+      "next/*": ["../../node_modules/next/*"],
+      "server-only": ["../../node_modules/server-only"]
     },
     "allowJs": true,
     "incremental": true,

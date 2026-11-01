@@ -1,4 +1,5 @@
 import {
+  createHiveError,
   suggestedHttpStatus,
   toPublicErrorResponse,
 } from "@hiveforyou/contracts";
@@ -15,6 +16,29 @@ export type ApiRouteContext = {
 };
 
 type ApiRouteHandler = (context: ApiRouteContext) => Promise<Response> | Response;
+
+export async function readJsonBody(request: NextRequest, correlationId: string): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    throw createHiveError({
+      errorCode: "INVALID_REQUEST",
+      category: "VALIDATION",
+      stage: "SHELL",
+      retryable: false,
+      safeMessage: "Request body must be valid JSON.",
+      correlationId,
+      diagnosticReason: "invalid_json",
+    });
+  }
+}
+
+export function jsonWithCorrelation(body: unknown, status: number, correlationId: string): Response {
+  return NextResponse.json(body, {
+    status,
+    headers: { [CORRELATION_HEADER]: correlationId },
+  });
+}
 
 export function withApiRoute(
   component: string,
