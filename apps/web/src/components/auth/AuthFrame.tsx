@@ -15,18 +15,18 @@ export function AuthFrame({
   withLogo?: boolean;
 }) {
   const frame = (
-    <div className="mx-auto flex w-full max-w-[440px] flex-col gap-5 px-4 py-10">
+    <div className="mx-auto flex w-full max-w-[440px] flex-col gap-6 px-4 py-12">
       {withLogo ? (
         <div className="flex justify-center">
-          <HiveAppLogo linkHome display="lockup" />
+          <HiveAppLogo linkHome display="lockup" size="landing" />
         </div>
       ) : null}
-      <div className="flex flex-col gap-5 rounded-[20px] border border-line bg-paper px-6 py-8 shadow-[0_1px_2px_rgba(31,35,40,0.04),0_8px_28px_rgba(31,35,40,0.06)] sm:px-9 sm:py-9">
+      <div className="flex flex-col gap-5 rounded-card border border-line bg-paper px-6 py-8 sm:px-8 sm:py-9">
         {children}
       </div>
     </div>
   );
-  return withLogo ? <div className="min-h-dvh bg-mist">{frame}</div> : frame;
+  return withLogo ? <div className="min-h-dvh bg-paper text-ink">{frame}</div> : frame;
 }
 
 export function AuthNotice({
@@ -40,7 +40,7 @@ export function AuthNotice({
     return (
       <p
         role="status"
-        className="m-0 rounded-[10px] border border-cell-blue/30 bg-cell-blue-wash px-3.5 py-2.5 text-sm text-cell-blue-deep"
+        className="m-0 rounded-button bg-cell-blue-wash px-3.5 py-2.5 text-sm text-cell-blue-deep"
       >
         {children}
       </p>
@@ -49,7 +49,7 @@ export function AuthNotice({
   return (
     <p
       role="alert"
-      className="m-0 rounded-[10px] border border-coral bg-coral-wash px-3.5 py-2.5 text-sm text-coral-deep"
+      className="m-0 rounded-button bg-coral-wash px-3.5 py-2.5 text-sm text-coral-deep"
     >
       {children}
     </p>
@@ -59,10 +59,10 @@ export function AuthNotice({
 export function AuthHeading({ title, lede }: { title: string; lede: string }) {
   return (
     <div>
-      <h1 className="m-0 font-brand text-[28px] font-semibold tracking-[-0.02em] text-ink">
+      <h1 className="m-0 font-brand text-[30px] font-semibold leading-tight text-ink">
         {title}
       </h1>
-      <p className="mb-0 mt-1 text-[15px] leading-relaxed text-ink-muted">
+      <p className="mb-0 mt-1.5 text-[15px] leading-[1.55] text-ink-muted">
         {lede}
       </p>
     </div>
@@ -76,14 +76,14 @@ type AuthFieldProps = {
 
 export function AuthField({ label, hint, ...inputProps }: AuthFieldProps) {
   return (
-    <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
+    <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-ink-muted">
       {label}
       <input
         {...inputProps}
-        className="h-[46px] rounded-[10px] border border-line-strong bg-paper px-3.5 text-[15px] font-normal text-ink outline-none focus:border-cell-blue focus:ring-2 focus:ring-cell-blue-wash"
+        className="h-11 rounded-button border border-line bg-paper px-3.5 text-[15px] font-normal text-ink outline-none focus:border-cell-blue"
       />
       {hint ? (
-        <span className="text-xs font-normal text-ink-muted">{hint}</span>
+        <span className="text-[12.5px] font-normal text-ink-subtle">{hint}</span>
       ) : null}
     </label>
   );

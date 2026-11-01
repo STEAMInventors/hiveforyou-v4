@@ -31,6 +31,7 @@ export function toPublicErrorResponse(error: HiveError): PublicErrorBody {
 export function suggestedHttpStatus(errorCode: string): number {
   switch (errorCode) {
     case "INVALID_REQUEST":
+    case "INVALID_DOCUMENT":
       return 422;
     case "UNAUTHENTICATED":
       return 401;
@@ -39,6 +40,7 @@ export function suggestedHttpStatus(errorCode: string): number {
     case "NOT_FOUND":
       return 404;
     case "IDEMPOTENCY_CONFLICT":
+    case "QUOTA_EXCEEDED":
       return 409;
     case "PERSISTENCE_FAILED":
       return 503;

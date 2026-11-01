@@ -7,24 +7,28 @@ import "./globals.css";
 
 const outfit = Outfit({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-outfit",
   display: "swap",
 });
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-dm-sans",
   display: "swap",
 });
 
 const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
+  weight: ["400"],
   variable: "--font-source-serif",
   display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
+  weight: ["400", "500"],
   variable: "--font-jetbrains-mono",
   display: "swap",
 });
@@ -56,7 +60,7 @@ export default function RootLayout({
       lang="en"
       className={`${outfit.variable} ${dmSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="font-sans text-ink">{children}</body>
+      <body className="bg-paper font-sans text-ink">{children}</body>
     </html>
   );
 }

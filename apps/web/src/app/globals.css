@@ -5,30 +5,45 @@
 :root {
   --color-cell-blue: #3b7cf6;
   --color-cell-blue-deep: #1a56c4;
-  --color-cell-blue-wash: #eef4ff;
+  --color-cell-blue-hover: #164aa8;
+  --color-cell-blue-wash: #e8f0fe;
+  --color-cell-blue-tint: #f4f8ff;
   --color-coral: #ef5143;
   --color-coral-deep: #b33a2e;
   --color-coral-wash: #fdedeb;
   --color-honey: #f6b826;
   --color-honey-deep: #7a5200;
-  --color-honey-wash: #fbf4e2;
+  --color-honey-wash: #fef3d6;
+  --color-honey-chip: #fff6dc;
+  --color-honey-chip-border: #f3dfa2;
+  --color-honey-chip-hover: #feedb8;
   --color-leaf: #2fa35a;
   --color-leaf-deep: #197040;
+  --color-leaf-wash: #e6f4ea;
   --color-paper: #ffffff;
   --color-mist: #f4f6f8;
+  --color-surface-hover: #fafbfc;
   --color-ink: #1f2328;
-  --color-ink-muted: #5c6370;
-  --color-line: #e7e9ed;
-  --color-line-strong: #d9dde3;
-  --font-ui: var(--font-dm-sans), system-ui, sans-serif;
-  --font-display: var(--font-outfit), system-ui, sans-serif;
+  --color-ink-muted: #4a525c;
+  --color-ink-subtle: #6b737d;
+  --color-line: #e3e6ea;
+  --color-line-strong: #c9ced5;
+  --font-ui: var(--font-dm-sans), "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-outfit), "Helvetica Neue", Arial, sans-serif;
   --font-quote: var(--font-source-serif), Georgia, serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
 @layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
   html,
   body {
+    margin: 0;
     min-height: 100%;
     background: var(--color-paper);
     color: var(--color-ink);
@@ -37,10 +52,23 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+  }
+
+  ::selection {
+    background: var(--color-cell-blue-wash);
+  }
+
   a:focus-visible,
   button:focus-visible,
   input:focus-visible,
   textarea:focus-visible,
+  select:focus-visible,
+  label:focus-visible,
   [role="menuitem"]:focus-visible {
     outline: 2px solid var(--color-cell-blue);
     outline-offset: 2px;
@@ -50,15 +78,16 @@
 @layer components {
   .hive-composer {
     position: relative;
-    transition: box-shadow 0.25s ease;
+    border-radius: 20px;
+    transition: box-shadow 0.2s ease;
   }
 
   .hive-composer::before {
     content: "";
     position: absolute;
-    inset: -1px;
-    border-radius: 29px;
-    padding: 1.5px;
+    inset: -2px;
+    border-radius: 22px;
+    padding: 2px;
     background: conic-gradient(
       from 200deg,
       var(--color-cell-blue),
@@ -73,22 +102,12 @@
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     opacity: 0;
-    transition: opacity 0.25s ease;
+    transition: opacity 0.2s ease;
     pointer-events: none;
   }
 
-  .hive-composer:hover::before,
   .hive-composer:focus-within::before {
-    opacity: 0.85;
-  }
-
-  .hive-composer:hover,
-  .hive-composer:focus-within {
-    box-shadow:
-      0 1px 2px rgba(31, 35, 40, 0.04),
-      -10px 10px 30px rgba(59, 124, 246, 0.1),
-      10px 10px 30px rgba(47, 163, 90, 0.08),
-      0 -6px 24px rgba(246, 184, 38, 0.06);
+    opacity: 1;
   }
 
   @media (prefers-reduced-motion: reduce) {

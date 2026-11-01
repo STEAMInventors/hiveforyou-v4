@@ -2,6 +2,10 @@ import Link from "next/link";
 
 import { HiveAppLogo, HiveBrandMark } from "@/components/HiveWordmark";
 import { LandingStart } from "@/components/LandingStart";
+import {
+  COMPACT_PRIMARY_BUTTON_CLASS,
+  COMPACT_SECONDARY_BUTTON_CLASS,
+} from "@/components/button-classes";
 import { CREATE_HIVE_AFTER_SIGN_UP_PATH } from "@/lib/hive-routes";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
@@ -11,33 +15,21 @@ export default async function LandingPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-paper text-ink">
-      <header className="flex items-center justify-between gap-4 px-5 py-4">
-        <HiveAppLogo linkHome display="lockup" className="py-0.5" />
-        <nav aria-label="Account" className="flex items-center gap-1">
-          <Link
-            href="#how"
-            className="hidden rounded-md px-3 py-2.5 text-sm text-ink-muted no-underline transition-colors hover:text-ink sm:inline-flex"
-          >
-            How it works
-          </Link>
+      <header className="flex items-center justify-between gap-4 border-b border-line px-[clamp(20px,4vw,48px)] py-5">
+        <HiveAppLogo linkHome display="lockup" size="landing" />
+        <nav aria-label="Account" className="flex items-center gap-2">
           {signedIn ? (
-            <Link
-              href="/hives"
-              className="rounded-full bg-ink px-4 py-2.5 text-sm font-medium text-paper no-underline"
-            >
+            <Link href="/hives" className={COMPACT_PRIMARY_BUTTON_CLASS}>
               My Hives
             </Link>
           ) : (
             <>
-              <Link
-                href="/login"
-                className="rounded-md px-3 py-2.5 text-sm font-medium text-ink no-underline hover:bg-mist"
-              >
+              <Link href="/login" className={COMPACT_SECONDARY_BUTTON_CLASS}>
                 Sign in
               </Link>
               <Link
                 href={CREATE_HIVE_AFTER_SIGN_UP_PATH}
-                className="rounded-full bg-ink px-4 py-2.5 text-sm font-medium text-paper no-underline"
+                className={COMPACT_PRIMARY_BUTTON_CLASS}
               >
                 Get started
               </Link>
@@ -46,50 +38,64 @@ export default async function LandingPage() {
         </nav>
       </header>
 
-      <main className="flex flex-1 flex-col items-center justify-center px-5 pb-12 pt-6">
-        <div className="flex w-full max-w-[720px] flex-col items-center gap-7">
-          <div className="flex flex-col items-center gap-3.5">
-            <HiveBrandMark variant="hero" />
-            <h1 className="m-0 text-center font-brand text-[clamp(1.75rem,5vw,2.25rem)] font-semibold tracking-tight">
-              What are you working on?
-            </h1>
-          </div>
+      <main className="flex flex-1 flex-col">
+        <section className="mx-auto flex w-full max-w-hero flex-col items-center gap-5 px-[clamp(20px,4vw,48px)] pb-10 pt-[clamp(48px,9vw,112px)] text-center">
+          <HiveBrandMark variant="hero" />
+          <h1 className="m-0 font-brand text-[clamp(36px,6vw,60px)] font-semibold leading-[1.08] tracking-[-0.01em] text-ink [text-wrap:balance]">
+            What are you trying to get done?
+          </h1>
+          <p className="m-0 max-w-[560px] text-[18px] leading-[1.55] text-ink-muted [text-wrap:pretty]">
+            Give Hive the paperwork. Get the work done.
+          </p>
 
-          <LandingStart signedIn={signedIn} />
-
-          <div
-            id="how"
-            className="flex flex-wrap items-center justify-center gap-2.5 text-center text-sm text-ink-muted"
-          >
-            <span>Every answer points to its source</span>
-            <span
-              className="rounded-md border border-honey/40 bg-honey-wash px-2 py-1 font-mono text-xs text-honey-deep"
-              aria-label="Example source chip: receipt, page 2"
-            >
-              Receipt · p.2
-            </span>
-            <span>and says what&apos;s missing. Nothing invented.</span>
+          <div className="mt-3 w-full">
+            <LandingStart signedIn={signedIn} />
           </div>
-        </div>
+        </section>
+
+        <section className="mx-auto w-full max-w-landing px-[clamp(20px,4vw,48px)] pb-16 pt-6">
+          <div className="grid grid-cols-1 border-t border-line md:grid-cols-3">
+            <div className="flex flex-col gap-2 py-7 md:pr-6">
+              <div className="font-brand text-[21px] font-medium text-ink">
+                Upload whatever you have
+              </div>
+              <div className="text-[15px] leading-[1.55] text-ink-muted">
+                Statements, plans, letters, estimates. Duplicates and missing
+                pages are fine; Hive tells you about them.
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-line py-7 md:border-l md:border-t-0 md:px-6">
+              <div className="font-brand text-[21px] font-medium text-ink">
+                Hive does the work
+              </div>
+              <div className="text-[15px] leading-[1.55] text-ink-muted">
+                It checks coverage, matches records, calculates step by step and
+                names what&apos;s missing.
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 border-t border-line py-7 md:border-l md:border-t-0 md:pl-6">
+              <div className="font-brand text-[21px] font-medium text-ink">
+                You review, then receive
+              </div>
+              <div className="text-[15px] leading-[1.55] text-ink-muted">
+                Every line in the finished work links to the page it came from.
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
-      <footer className="flex items-center justify-center gap-2 px-5 pb-6 pt-4 text-center text-[13px] text-ink-muted">
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <rect x="4" y="10" width="16" height="11" rx="2" />
-          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-        </svg>
-        Your uploaded files stay private to your account. Not legal, financial or
-        medical advice.
+      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-line px-[clamp(20px,4vw,48px)] py-8">
+        <div className="flex flex-wrap items-center gap-4">
+          <HiveAppLogo display="lockup" size="footer" />
+          <span className="font-brand text-[17px] font-medium text-ink">
+            The complicated, made simple.
+          </span>
+        </div>
+        <span className="text-[12.5px] text-ink-subtle">
+          Your uploaded files stay private to your account. Not legal, financial
+          or medical advice.
+        </span>
       </footer>
     </div>
   );

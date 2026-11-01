@@ -8,7 +8,9 @@ export const BRAND_ASSETS = {
 } as const;
 
 export const BRAND_LOGO_SIZE = {
-  headerHeightPx: 34,
-  markStandalonePx: 28,
-  markHeroPx: 32,
+  headerHeightPx: 28,
+  landingHeaderHeightPx: 30,
+  footerHeightPx: 24,
+  markStandalonePx: 48,
+  markHeroPx: 64,
 } as const;

@@ -4,11 +4,12 @@ import type { Hive } from "@hiveforyou/contracts";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { HiveComposer } from "@/components/HiveComposer";
+import { HiveBrandMark } from "@/components/HiveWordmark";
 import {
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
 } from "@/components/button-classes";
+import { loadGuestDraft } from "@/lib/guest-draft";
 import { HiveClientError, fetchMyHives } from "@/lib/hives-client";
 import { MY_HIVES_PATH, hiveDocumentsPath } from "@/lib/hive-routes";
 
@@ -26,9 +27,6 @@ type MyHivesPanelProps = {
   initialError?: ListError | null;
   openCreateOnLoad?: boolean;
 };
-
-const CARD_SHADOW =
-  "shadow-[0_1px_2px_rgba(31,35,40,0.04),0_8px_28px_rgba(31,35,40,0.06)]";
 
 export function MyHivesPanel({
   initialHives,
@@ -53,10 +51,19 @@ export function MyHivesPanel({
   const { openModal } = createFlow;
 
   useEffect(() => {
-    if (openCreateOnLoad) {
-      router.replace(MY_HIVES_PATH, { scroll: false });
-      openModal();
+    if (!openCreateOnLoad) {
+      return;
     }
+    let cancelled = false;
+    router.replace(MY_HIVES_PATH, { scroll: false });
+    void loadGuestDraft().then((draft) => {
+      if (!cancelled) {
+        openModal(draft ?? undefined);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [openCreateOnLoad, openModal, router]);
 
   const handleRefresh = useCallback(async () => {
@@ -77,38 +84,48 @@ export function MyHivesPanel({
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-9 px-4 py-10 md:px-8 md:py-14">
+    <div className="mx-auto flex w-full max-w-workspace flex-col gap-7 px-[clamp(16px,3vw,32px)] pb-16 pt-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="m-0 font-brand text-[clamp(1.75rem,4vw,2.25rem)] font-semibold tracking-tight text-ink">
+        <div className="min-w-0">
+          <h1 className="m-0 font-brand text-[30px] font-semibold text-ink">
             My Hives
           </h1>
-          <p className="mb-0 mt-2 text-[15px] text-ink-muted">
-            Each Hive keeps one situation&apos;s documents and Study together.
+          <p className="mb-0 mt-1.5 text-[15px] leading-[1.5] text-ink-muted">
+            Each Hive holds one situation: its documents, what Hive understands, the
+            work and the result.
           </p>
         </div>
-        {hives.length > 0 ? (
-          <button
-            type="button"
-            className={PRIMARY_BUTTON_CLASS}
-            onClick={openModal}
-            disabled={createFlow.submitBusy}
+        <button
+          type="button"
+          className={PRIMARY_BUTTON_CLASS}
+          onClick={() => openModal()}
+          disabled={createFlow.submitBusy}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden
           >
-            New Hive
-          </button>
-        ) : null}
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
+          </svg>
+          New Hive
+        </button>
       </div>
-
-      <HiveComposer onSubmit={openModal} busy={createFlow.submitBusy} />
 
       {listError ? (
         <div
           role="alert"
-          className="rounded-[18px] border border-line bg-paper p-8 text-center"
+          className="rounded-card border border-line bg-paper p-8 text-center"
         >
           <p className="m-0 text-sm text-ink">{listError.message}</p>
           {listError.correlationId ? (
-            <p className="mb-0 mt-2 font-mono text-xs text-ink-muted">
+            <p className="mb-0 mt-2 font-mono text-xs text-ink-subtle">
               Support reference: {listError.correlationId}
             </p>
           ) : null}
@@ -126,22 +143,23 @@ export function MyHivesPanel({
       {!listError && hives.length === 0 ? (
         <section
           aria-labelledby="empty-hives-title"
-          className={`rounded-[18px] border border-line bg-paper px-6 py-12 text-center ${CARD_SHADOW}`}
+          className="flex flex-col items-center gap-4 rounded-card border border-dashed border-line-strong bg-paper px-[clamp(20px,4vw,32px)] py-16 text-center"
         >
-          <h2 id="empty-hives-title" className="m-0 text-xl font-semibold text-ink">
-            Create a hive to get started
+          <HiveBrandMark variant="standalone" />
+          <h2 id="empty-hives-title" className="m-0 font-brand text-[21px] font-medium text-ink">
+            No Hives yet
           </h2>
-          <p className="mx-auto mb-0 mt-3 max-w-md text-[15px] leading-relaxed text-ink-muted">
-            A Hive is a private space for one situation. Add the documents you
-            have, and build an evidence-backed Study from them.
+          <p className="mx-auto m-0 max-w-[420px] text-[15px] leading-[1.55] text-ink-muted">
+            Start with what you&apos;re trying to get done and at least one document
+            you have.
           </p>
           <button
             type="button"
-            className={`${PRIMARY_BUTTON_CLASS} mt-6`}
-            onClick={openModal}
+            className={PRIMARY_BUTTON_CLASS}
+            onClick={() => openModal()}
             disabled={createFlow.submitBusy}
           >
-            Create a Hive
+            Start your first Hive
           </button>
         </section>
       ) : null}

@@ -45,7 +45,9 @@ export class HiveClientError extends Error {
   }
 }
 
-async function parseApiJson<T>(
+export const CORRELATION_HEADER_NAME = CORRELATION_HEADER;
+
+export async function parseApiJson<T>(
   response: Response,
   fallbackCorrelationId: string,
   fallbackMessage: string,
