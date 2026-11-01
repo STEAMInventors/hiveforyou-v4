@@ -53,15 +53,22 @@ jobs:
       APPLY_THROUGH: ${{ github.event.inputs.apply_through_version }}
       ACK_V4_003: ${{ github.event.inputs.acknowledge_v4_003_vault_schema }}
       MIG_DIR: supabase/migrations
-      MIG_VERSIONS_FILE: ${{ runner.temp }}/hiveforyou-migration-versions.txt
-      MIG_V4_003_ACK_FILE: ${{ runner.temp }}/hiveforyou-v4-003-ack-versions.txt
-      MIG_SELECTED_PENDING_FILE: ${{ runner.temp }}/hiveforyou-selected-pending.txt
-      MIG_REMOTE_APPLIED_BEFORE_FILE: ${{ runner.temp }}/hiveforyou-remote-applied-before.txt
-      BOUNDED_ROOT: ${{ runner.temp }}/hiveforyou-bounded-supabase
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Initialize temporary job paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "MIG_VERSIONS_FILE=$RUNNER_TEMP/hiveforyou-migration-versions.txt"
+            echo "MIG_V4_003_ACK_FILE=$RUNNER_TEMP/hiveforyou-v4-003-ack-versions.txt"
+            echo "MIG_SELECTED_PENDING_FILE=$RUNNER_TEMP/hiveforyou-selected-pending.txt"
+            echo "MIG_REMOTE_APPLIED_BEFORE_FILE=$RUNNER_TEMP/hiveforyou-remote-applied-before.txt"
+            echo "BOUNDED_ROOT=$RUNNER_TEMP/hiveforyou-bounded-supabase"
+          } >> "$GITHUB_ENV"
 
       - name: Validate secrets and discover local migrations
         shell: bash
