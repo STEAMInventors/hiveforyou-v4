@@ -9,7 +9,7 @@ import {
   backToLoginFromRecoveryAction as v3BackToLoginFromRecoveryAction,
   changePasswordAction as v3ChangePasswordAction,
   type AuthActionState,
-} from "@v3-auth/index";
+} from "@/lib/auth/index";
 
 export type { AuthActionState };
 
