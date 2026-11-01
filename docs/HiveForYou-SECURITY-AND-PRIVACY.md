@@ -1,6 +1,6 @@
 # HiveForYou V4 — Security, privacy and tokenization design
 
-**Version:** 0.1 | **Status:** Proposed design and gates, not a security certification or authorization to process real sensitive records.
+**Version:** 0.2 | **Status:** Proposed design and gates, not a security certification or authorization to process real sensitive records.
 
 ## Objectives
 
@@ -11,6 +11,7 @@ Protect uploaded documents, page text, people named within them, identity mappin
 | Boundary | Required behavior |
 |---|---|
 | Browser → Next.js | Authenticate user; authorize Hive at every operation; validate size/type/method/input; never expose model/provider or Supabase service credentials |
+| Register (D-027) | After private upload, trusted service verifies bytes, MIME, SHA-256, and hash-based malware scan before `REGISTERED`; reject or leave `PENDING` with retry when scan unavailable; never count quota until honest registration |
 | Next.js → private Storage | Create time-limited scoped access or server-stream authorized pages; opaque private object keys; no public bucket for source documents |
 | Next.js → Postgres | Owner RLS + explicit server authorization; service credentials bypassing RLS must be guarded and not exposed to client |
 | Backend → frontier model | Approved provider, data retention/usage terms, necessary consent and least document scope; no real sensitive payload before approval |
@@ -59,3 +60,11 @@ Distinguish pending upload, original, derived page/OCR, candidate, verification 
 - [ ] Prior Study/report accepted state survives retries and partial failures.
 
 **Security is a feature of a working product, not proof it is operating in a compliant environment.** See `HiveForYou-DECISIONS.md` for open choices.
+
+## Analytical Intelligence privacy and high-impact boundaries (2026-10-31)
+
+Discovery uses least-necessary *authorized* accepted Study representations, ideally fact/coverage manifests before original pages. Only retrieve original excerpts through existing owner-checked pathways; do not automatically re-send entire uploaded files for each analysis. Apply existing frontier-provider approval, retention/consent and sensitive-data gates equally to discovery, optimization and scenario explanation.
+
+**Threats:** prompt injection inside quoted evidence; model-derived faux legislation; scenario input crafted to invoke tools; inferred protected information in logs; accidental conversion of a hypothetical into a verified fact; excessive background cost/denial-of-service; fabricated legal/health/financial outcome certainty. **Controls:** immutable pinned source revisions; distinct hypothetical namespace; input limits and budgets; typed read-only analysis tool contracts; authorized rule-source retrieval; deterministic verification; no model-authored executable code; approval for external actions; output scope/caveats.
+
+For legal/eligibility what-ifs (e.g., bankruptcy Chapters 7 and 11), identify jurisdiction/individual-vs-entity and relevant effective law; if missing, return conditional alternatives and professional-review questions, not a chapter recommendation. Retain all existing owner-only access, deletion, audit and source-chip restrictions. No unsanctioned real sensitive-data tests.

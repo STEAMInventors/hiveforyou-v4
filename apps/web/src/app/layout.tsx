@@ -56,7 +56,7 @@ export default function RootLayout({
       lang="en"
       className={`${outfit.variable} ${dmSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="font-sans text-ink">{children}</body>
+      <body className="bg-paper font-sans text-ink">{children}</body>
     </html>
   );
 }

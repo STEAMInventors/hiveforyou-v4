@@ -1,6 +1,6 @@
 # HiveForYou V4 — Prompt and model contract index
 
-**Version:** 0.1 | **Status:** Prompt text is selected by founder; parsers/validators not implemented in V4 yet.
+**Version:** 0.2 | **Status:** Prompt text is selected by founder; parsers/validators not implemented in V4 yet.
 
 ## Exact selected prompts
 
@@ -45,3 +45,14 @@ One approved server-side frontier-model adapter for V4, not a browser provider k
 4. Validate analysis citations and model-proposed A2UI view against accepted revision and allowed components.
 
 For direct-model experiments, the user can paste the prompt independently; a successful JSON response does **not** prove downstream verification or a working V4 pipeline.
+
+## Analytical Intelligence prompt and contract design reservation (2026-10-31)
+
+**Do not change the exact approved `hive-extract/1`, `hive.doc-extraction/1` or standalone `hive-prep/1`.** New prompts/contracts remain **proposed**, requiring separate explicit IDs/versions and approval before integration. Recommended *roles* (not approved prompt names):
+
+1. **Opportunity discovery:** input pinned Study fact/coverage manifest, user goal, safe capability catalog, budget; output candidate questions, relevance, prerequisites, evidence refs and missing inputs. No unsupported claim.
+2. **Analysis planning:** output a typed, bounded intermediate representation of operators, fact refs, dependencies, method, applicable rule refs, units, validation assertions and planned result shape. No executable free-form code.
+3. **Scenario compilation:** input immutable Study revision plus user assumptions; propose graph variables, conditional edges, equations/constraints, temporal assumptions, rules and unknowns; distinguish observational, legal/normative and causal dependencies.
+4. **Result explanation:** present executed/verifiable results with fact/method/rule/assumption refs; separate conditional interpretation from verified statement.
+
+**Boundary checks:** JSON schema/size/depth; owner and pinned revision refs; unit/type/date/subject compatibility; operator allowlist; cycles and missing graph nodes; externally sourced rule jurisdiction/effective date; unsafe goal/action screening; deterministic execution traces. Refusal or `BLOCKED` is an acceptable correct outcome. Model confidence is not proof. Distinct run identity/version and immutable input hashes for reproducibility. Adversarial fixtures must include invented facts, law without citation, coercive recommendations, unsatisfiable models and unsupported outcome prediction.

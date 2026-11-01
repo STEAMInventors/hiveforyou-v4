@@ -1,6 +1,6 @@
 # HiveForYou V4 — Repository structure and ownership
 
-**Version:** 0.1 | **Status:** Local repository and V4-001 shell exist. Database, model gateway, and deployment do not.
+**Version:** 0.2 | **Status:** Proposed paths only. The new repository and application code do not exist yet.
 
 ## Proposed minimum repository
 
@@ -26,9 +26,7 @@ hiveforyou-v4/
 ├── prompts/
 │   ├── hive-extract/HiveForYou-Extract-v1.md
 │   └── hive-prep/HiveForYou-Prep-v1.md
-├── apps/web/                       # Next.js shell from V4-001
-│   ├── public/                     # brand logo/mark, favicons, OG image
-│   ├── tailwind.config.ts          # theme mapped to brand CSS variables (D-024)
+├── apps/web/                       # Next.js app (V4-001+; auth, Hives, upload UI in progress)
 │   └── src/
 │       ├── app/                    # Next.js routes + server API handlers
 │       ├── components/             # brand shell, screens, approved renderer
@@ -71,4 +69,8 @@ Do not scaffold empty directories or multiple packages simply to match this illu
 
 Prompt ID and output schema are versioned (`hive-extract/1`, `hive.doc-extraction/1`). SQL tables, internal modules, functions and code packages are not suffixed V4. Persistent IDs are opaque UUIDs; `F001`, `R001`, `P1` are model-local references only. `docs/HiveForYou-NAMING-CONVENTIONS.md` governs concrete names.
 
-The local repository and Next.js shell exist. No live database schema, model gateway, or deployment exists.
+No V4 repository, live database schema, model gateway or frontend exists merely because this folder is distributed.
+
+## Analytical Intelligence logical ownership (future, not scaffolded)
+
+Retain the existing Web / contracts / pure Core / prompts / Supabase boundaries. When approved, implement discovery/LLM planning in `apps/web/src/server/` (or approved portable orchestration boundary); typed opportunity/scenario contracts in `packages/contracts/src/`; deterministic plan/evidence/unit/graph checks in `packages/core/src/`; allowlisted insight/scenario React components in `apps/web/src/components/`; persisted rows only under approved Supabase migrations. Do not create standalone domain engines, a new worker, a solver package or environment flags until workload and approved ticket justify them. The execution adapter for an eventual optimizer is a swappable service boundary; the model may propose the model IR but never inject executable code.

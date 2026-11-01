@@ -5,12 +5,19 @@ import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
 import { HiveComposer } from "@/components/HiveComposer";
-import { CreateHiveModal } from "@/components/hives/CreateHiveModal";
-import { useCreateHive } from "@/components/hives/useCreateHive";
+import { useCreateHive, useHiveComposer } from "@/components/hives/useCreateHive";
+import { saveGuestDraft, type GuestDraft } from "@/lib/guest-draft";
 import {
   CREATE_HIVE_AFTER_SIGN_UP_PATH,
   hiveDocumentsPath,
 } from "@/lib/hive-routes";
+
+const STARTER_SITUATIONS = [
+  "Prepare for an IEP meeting",
+  "Reconcile financial statements",
+  "Review an insurance claim",
+  "Organize an application package",
+] as const;
 
 export function LandingStart({ signedIn }: { signedIn: boolean }) {
   const router = useRouter();
@@ -22,19 +29,43 @@ export function LandingStart({ signedIn }: { signedIn: boolean }) {
   );
   const createFlow = useCreateHive(handleCreated);
 
+  const saveDraftAndSignUp = useCallback(
+    async (draft: GuestDraft) => {
+      try {
+        await saveGuestDraft(draft);
+      } catch {
+        // Without browser storage the visitor re-selects files after sign-up.
+      }
+      router.push(CREATE_HIVE_AFTER_SIGN_UP_PATH);
+    },
+    [router],
+  );
+  const guestComposer = useHiveComposer(saveDraftAndSignUp);
+
+  const composerProps = signedIn ? createFlow.composerProps : guestComposer.composerProps;
+
   return (
-    <>
-      <HiveComposer
-        busy={createFlow.submitBusy}
-        onSubmit={() => {
-          if (signedIn) {
-            createFlow.openModal();
-          } else {
-            router.push(CREATE_HIVE_AFTER_SIGN_UP_PATH);
-          }
-        }}
-      />
-      {signedIn ? <CreateHiveModal {...createFlow.modalProps} /> : null}
-    </>
+    <div className="flex w-full flex-col gap-5">
+      <HiveComposer {...composerProps} />
+      <div className="flex flex-wrap justify-center gap-2">
+        {STARTER_SITUATIONS.map((situation) => {
+          const active = composerProps.intentText === situation;
+          return (
+            <button
+              key={situation}
+              type="button"
+              aria-pressed={active}
+              disabled={composerProps.busy || composerProps.intentLocked}
+              className={`h-9 cursor-pointer rounded-full border px-3.5 text-[14px] transition-colors hover:border-cell-blue disabled:cursor-not-allowed disabled:opacity-45 ${
+                active ? "border-ink bg-ink text-paper" : "border-line bg-paper text-ink"
+              }`}
+              onClick={() => composerProps.onIntentTextChange(situation)}
+            >
+              {situation}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

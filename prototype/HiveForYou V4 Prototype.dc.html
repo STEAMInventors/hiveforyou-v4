@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600&family=Source+Serif+4:wght@400&display=swap">
+<script src="hive-data.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#fff;color:#1F2328;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#1A56C4}a:hover{color:#3B7CF6}
+button,input,textarea,select{font-family:inherit}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,label:focus-visible{outline:2px solid #3B7CF6;outline-offset:2px}
+textarea:focus,input:focus{outline:none}
+::selection{background:#E8F0FE}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#fff;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;color:#1F2328">
+
+<sc-if value="{{ notReady }}" hint-placeholder-val="{{ false }}">
+  <div style="padding:64px;color:#6B737D;font-size:14px">Loading sample data…</div>
+</sc-if>
+
+<sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
+  <header style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px clamp(20px,4vw,48px);border-bottom:1px solid #E3E6EA">
+    <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:30px;width:auto;display:block">
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onClick="{{ signIn }}" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;color:#1F2328;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#F4F6F8">Sign in</button>
+      <button onClick="{{ getStarted }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">Get started</button>
+    </div>
+  </header>
+
+  <section style="max-width:880px;margin:0 auto;padding:clamp(48px,9vw,112px) clamp(20px,4vw,48px) 40px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px">
+    <img src="assets/hiveforyou-mark.svg" alt="" style="width:64px;height:64px">
+    <h1 style="margin:0;font-family:Outfit,'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:clamp(36px,6vw,60px);line-height:1.08;letter-spacing:-0.01em;text-wrap:balance">What are you trying to get done?</h1>
+    <p style="margin:0;font-size:18px;line-height:1.55;color:#4A525C;max-width:560px;text-wrap:pretty">Give Hive the paperwork. Get the work done.</p>
+    <div style="width:100%;padding:2px;border-radius:22px;background:{{ ringBg }};margin-top:12px">
+      <div style="background:#fff;border-radius:20px;padding:16px 16px 12px 20px;display:flex;flex-direction:column;gap:10px;text-align:left">
+        <textarea value="{{ goalText }}" onChange="{{ onGoalInput }}" onFocus="{{ onGoalFocus }}" onBlur="{{ onGoalBlur }}" onKeyDown="{{ onGoalKey }}" rows="2" placeholder="Describe your situation, then add whatever documents you have…" aria-label="What are you trying to get done?" style="width:100%;border:none;resize:none;font-size:18px;line-height:1.5;color:#1F2328;background:transparent"></textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <span style="font-size:13px;color:#6B737D">Old, partial or out of order is fine.</span>
+          <button onClick="{{ submitGoal }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#164AA8">Show me how
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+      <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="4">
+        <button onClick="{{ ex.onClick }}" style="height:36px;padding:0 14px;border-radius:999px;border:1px solid {{ ex.bd }};background:{{ ex.bg }};color:{{ ex.fg }};font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">{{ ex.label }}</button>
+      </sc-for>
+    </div>
+  </section>
+
+  <sc-if value="{{ noMatch }}" hint-placeholder-val="{{ false }}">
+    <section style="max-width:880px;margin:0 auto;padding:0 clamp(20px,4vw,48px) 40px">
+      <div style="background:#F4F6F8;border-radius:20px;padding:24px;font-size:15px;line-height:1.6;color:#4A525C">Hive can work with paperwork like this. This prototype has three sample cases. Pick the closest one above to see how Hive would approach it.</div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{ hasIntent }}" hint-placeholder-val="{{ false }}">
+    <section style="max-width:1180px;margin:0 auto;padding:8px clamp(20px,4vw,48px) 64px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;border-top:1px solid #E3E6EA;padding-top:32px;margin-bottom:24px">
+        <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:30px">{{ it.label }}</h2>
+        <span style="font-size:13px;color:#6B737D">Examples come from a synthetic sample case</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+        <div style="background:#F4F6F8;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:13px;font-weight:600;color:#4A525C">Paperwork you can upload</div>
+          <sc-for list="{{ it.accepts }}" as="a" hint-placeholder-count="4"><div style="font-size:15px;line-height:1.4;padding-bottom:10px;border-bottom:1px solid #E3E6EA">{{ a.t }}</div></sc-for>
+        </div>
+        <div style="background:#F4F6F8;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:13px;font-weight:600;color:#4A525C">Work Hive does</div>
+          <sc-for list="{{ it.work }}" as="w" hint-placeholder-count="4">
+            <div style="display:flex;gap:12px;font-size:15px;line-height:1.4"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B737D;padding-top:3px">{{ w.n }}</span><span>{{ w.t }}</span></div>
+          </sc-for>
+        </div>
+        <div style="background:#F4F6F8;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:13px;font-weight:600;color:#4A525C">What you receive</div>
+          <div style="font-size:15px;line-height:1.55">{{ it.gets }}</div>
+        </div>
+        <div style="background:#fff;border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:13px;font-weight:600;color:#4A525C">A finding, with its source</div>
+          <div style="font-size:15px;line-height:1.55">{{ it.finding }}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <sc-for list="{{ it.chips }}" as="c" hint-placeholder-count="2"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for>
+          </div>
+          <div style="font-size:12.5px;color:#6B737D">Open a source chip to see the page it came from.</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:24px">
+        <button onClick="{{ startIntent }}" style="height:44px;padding:0 20px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#164AA8">Start this hive
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+        </button>
+        <button onClick="{{ seeSample }}" style="height:44px;padding:0 20px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;color:#1F2328;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#F4F6F8">Explore the sample case</button>
+      </div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{ noIntent }}" hint-placeholder-val="{{ true }}">
+    <section style="max-width:1180px;margin:0 auto;padding:24px clamp(20px,4vw,48px) 64px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0;border-top:1px solid #E3E6EA">
+        <div style="padding:28px 24px 28px 0;display:flex;flex-direction:column;gap:8px"><div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">Upload whatever you have</div><div style="font-size:15px;line-height:1.55;color:#4A525C">Statements, plans, letters, estimates. Duplicates and missing pages are fine; Hive tells you about them.</div></div>
+        <div style="padding:28px 24px;display:flex;flex-direction:column;gap:8px;border-left:1px solid #E3E6EA"><div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">Hive does the work</div><div style="font-size:15px;line-height:1.55;color:#4A525C">It checks coverage, matches records, calculates step by step and names what’s missing.</div></div>
+        <div style="padding:28px 0 28px 24px;display:flex;flex-direction:column;gap:8px;border-left:1px solid #E3E6EA"><div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">You review, then receive</div><div style="font-size:15px;line-height:1.55;color:#4A525C">Every line in the finished work links to the page it came from.</div></div>
+      </div>
+    </section>
+  </sc-if>
+
+  <footer style="border-top:1px solid #E3E6EA;padding:32px clamp(20px,4vw,48px);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:24px;width:auto">
+      <span style="font-family:Outfit,sans-serif;font-size:17px;font-weight:500">The complicated, made simple.</span>
+    </div>
+    <span style="font-size:12.5px;color:#6B737D">Prototype. All cases and documents are synthetic.</span>
+  </footer>
+</sc-if>
+
+<sc-if value="{{ isInner }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #E3E6EA">
+    <div style="display:flex;align-items:center;gap:20px;padding:0 clamp(16px,3vw,32px);height:64px">
+      <button onClick="{{ goHives }}" aria-label="My hives" style="border:none;background:none;padding:0;cursor:pointer;display:flex"><img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:28px;width:auto"></button>
+      <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#6B737D;min-width:0;flex:1 1 auto;overflow:hidden">
+          <button onClick="{{ goHives }}" style="border:none;background:none;padding:0;color:#4A525C;cursor:pointer;font-size:14px;white-space:nowrap" style-hover="color:#1A56C4">My hives</button>
+          <span>/</span>
+          <span style="color:#1F2328;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px">{{ hiveTitle }}</span>
+        </div>
+      </sc-if>
+      <div style="flex:1 1 0"></div>
+      <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#6B737D;white-space:nowrap;flex:none">
+          <select aria-label="Sample case" value="{{ scenValue }}" onChange="{{ onScen }}" style="height:34px;border:1px solid #E3E6EA;border-radius:12px;padding:0 10px;font-size:13px;color:#1F2328;background:#fff;cursor:pointer">
+            <sc-for list="{{ scenOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
+          </select>
+        </label>
+      </sc-if>
+      <span style="height:24px;padding:0 10px;border-radius:999px;background:#FEF3D6;color:#7A5200;font-size:12px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">Synthetic data</span>
+      <button onClick="{{ goLanding }}" style="border:none;background:none;color:#4A525C;font-size:14px;cursor:pointer;white-space:nowrap;flex:none" style-hover="color:#1A56C4">Sign out</button>
+    </div>
+    <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+      <nav style="display:flex;gap:4px;padding:0 clamp(16px,3vw,32px)">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+          <button onClick="{{ t.onClick }}" style="height:44px;padding:0 14px;border:none;background:none;border-bottom:2px solid {{ t.bd }};color:{{ t.fg }};font-weight:500;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:8px" style-hover="color:#1F2328">{{ t.label }}<span style="font-size:12px;color:#6B737D">{{ t.count }}</span></button>
+        </sc-for>
+      </nav>
+    </sc-if>
+  </header>
+</sc-if>
+
+<sc-if value="{{ isHives }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:1240px;margin:0 auto;padding:40px clamp(16px,3vw,32px) 64px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:28px">
+      <div>
+        <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px">My hives</h1>
+        <p style="margin:6px 0 0;color:#4A525C;font-size:15px">Each hive holds one situation: its documents, what Hive understands, the work and the result.</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onClick="{{ toggleEmpty }}" style="height:40px;padding:0 12px;border:none;background:none;color:#4A525C;font-size:13px;cursor:pointer;text-decoration:underline">{{ emptyToggleLabel }}</button>
+        <button onClick="{{ goCreate }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#164AA8">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>New hive</button>
+      </div>
+    </div>
+    <sc-if value="{{ showEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px dashed #C9CED5;border-radius:20px;padding:64px 32px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center">
+        <img src="assets/hiveforyou-mark.svg" alt="" style="width:48px;height:48px">
+        <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">No hives yet</div>
+        <div style="color:#4A525C;font-size:15px;max-width:420px;line-height:1.55">Start with what you’re trying to get done. You can add documents right after.</div>
+        <button onClick="{{ goCreate }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#164AA8">Start your first hive</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{ showCards }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
+        <sc-for list="{{ hiveCards }}" as="h" hint-placeholder-count="3">
+          <button onClick="{{ h.open }}" style="text-align:left;border:1px solid #E3E6EA;border-radius:20px;background:#fff;padding:24px;cursor:pointer;display:flex;flex-direction:column;gap:16px;color:#1F2328" style-hover="border-color:#3B7CF6;box-shadow:0 6px 24px rgba(31,35,40,.06)">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:12.5px;color:#6B737D">{{ h.last }}</div>
+              <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500;line-height:1.25">{{ h.title }}</div>
+              <div style="font-size:14px;color:#4A525C;line-height:1.5">{{ h.purpose }}</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <sc-for list="{{ h.bar }}" as="b" hint-placeholder-count="4"><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ b.bg }};color:{{ b.fg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center">{{ b.label }}</span></sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;justify-content:space-between;font-size:13px;color:#4A525C"><span>Work plan</span><span>{{ h.progress }}</span></div>
+              <div style="height:6px;border-radius:999px;background:#F4F6F8;overflow:hidden"><div style="height:100%;width:{{ h.pw }};background:#2FA35A"></div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;border-top:1px solid #E3E6EA;padding-top:14px;font-size:13px">
+              <div><div style="color:#6B737D;font-size:12px">Documents</div><div style="font-weight:500;margin-top:2px">{{ h.docs }}</div></div>
+              <div><div style="color:#6B737D;font-size:12px">Study</div><div style="font-weight:500;margin-top:2px">{{ h.rev }}</div></div>
+              <div><div style="color:#6B737D;font-size:12px">Latest deliverable</div><div style="font-weight:500;margin-top:2px">{{ h.rep }}</div></div>
+            </div>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isCreate }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:760px;margin:0 auto;padding:56px clamp(16px,3vw,32px) 80px;display:flex;flex-direction:column;gap:24px">
+    <div>
+      <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px">New hive</h1>
+      <p style="margin:8px 0 0;color:#4A525C;font-size:15px;line-height:1.55">Describe what you want done, in your own words. Hive suggests a goal and a plan; you can change any of it.</p>
+    </div>
+    <div style="padding:2px;border-radius:22px;background:{{ ringBg2 }}">
+      <div style="background:#fff;border-radius:20px;padding:16px 16px 12px 20px;display:flex;flex-direction:column;gap:10px">
+        <textarea value="{{ createText }}" onChange="{{ onCreateInput }}" onFocus="{{ onCreateFocus }}" onBlur="{{ onCreateBlur }}" rows="3" placeholder="I need to understand five years of bank statements for my mother’s Medicaid application." aria-label="Describe what you want done" style="width:100%;border:none;resize:none;font-size:17px;line-height:1.55;background:transparent;color:#1F2328"></textarea>
+        <div style="display:flex;justify-content:flex-end"><button onClick="{{ propose }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">Suggest a plan</button></div>
+      </div>
+    </div>
+    <sc-if value="{{ hasProposal }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <div style="padding:16px 24px;background:#F4F6F8;font-size:13px;color:#4A525C">Hive’s suggestion. Edit anything that isn’t right.</div>
+        <div style="padding:24px;display:flex;flex-direction:column;gap:18px">
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#4A525C">Goal
+            <input value="{{ prop.goal }}" onChange="{{ onPropGoal }}" style="height:44px;border:1px solid #E3E6EA;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#4A525C">Expected output
+            <input value="{{ prop.output }}" onChange="{{ onPropOutput }}" style="height:44px;border:1px solid #E3E6EA;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
+          </label>
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600;color:#4A525C">Likely work</div><div style="font-size:15px;line-height:1.55">{{ prop.work }}</div></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600;color:#4A525C">Next step</div><div style="font-size:15px">Upload available documents.</div></div>
+          <sc-if value="{{ prop.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:#7A5200;background:#FEF3D6;border-radius:12px;padding:10px 14px">{{ prop.note }}</div></sc-if>
+          <div style="font-size:12.5px;color:#6B737D;line-height:1.5">This plan is a starting point Hive suggested from your description. It isn’t legal or agency guidance on what’s required.</div>
+        </div>
+        <div style="padding:16px 24px;border-top:1px solid #E3E6EA;display:flex;justify-content:flex-end;gap:8px">
+          <button onClick="{{ goHives }}" style="height:44px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:15px;cursor:pointer" style-hover="background:#F4F6F8">Cancel</button>
+          <button onClick="{{ createHive }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#164AA8">Create hive and add documents</button>
+        </div>
+      </div>
+    </sc-if>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isDocs }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:1240px;margin:0 auto;padding:32px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px">Documents</h1><p style="margin:6px 0 0;font-size:15px;color:#4A525C">{{ docSummary }}</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="file" multiple="multiple" id="hv-file" onChange="{{ onFiles }}" style="display:none">
+        <label for="hv-file" tabindex="0" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#F4F6F8">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>Add files</label>
+        <sc-if value="{{ notLoaded }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ loadSample }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#164AA8">Load synthetic sample documents</button>
+        </sc-if>
+      </div>
+    </div>
+
+    <div onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="border:1.5px dashed {{ dropBd }};background:{{ dropBg }};border-radius:20px;padding:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:240px">
+        <div style="font-size:15px;font-weight:500">Upload whatever you have — old, partial or out of order is fine.</div>
+        <div style="font-size:13px;color:#6B737D">Drop files here. In this prototype, files you add stay in your browser and aren’t read.</div>
+      </div>
+    </div>
+
+    <sc-if value="{{ isProcessing }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:16px;background:#E8F0FE;border-radius:12px;padding:14px 18px;color:#1A56C4;font-size:14px;flex-wrap:wrap">
+        <span style="font-weight:500">Reading your documents. This usually takes about three minutes.</span>
+        <span>{{ procText }}</span>
+        <span style="color:#4A525C">Simulated and sped up for this prototype.</span>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasDocRows }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:860px">
+          <thead><tr style="background:#F4F6F8;text-align:left;color:#4A525C;font-size:12.5px">
+            <th style="padding:12px 16px;font-weight:500">File</th><th style="padding:12px 16px;font-weight:500">Identified as</th><th style="padding:12px 16px;font-weight:500">Period</th><th style="padding:12px 16px;font-weight:500">Pages</th><th style="padding:12px 16px;font-weight:500">Read</th><th style="padding:12px 16px;font-weight:500">Status</th><th style="padding:12px 16px;font-weight:500">Notes</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ docRows }}" as="d" hint-placeholder-count="6">
+              <tr onClick="{{ d.onClick }}" style="border-top:1px solid #E3E6EA;cursor:pointer;opacity:{{ d.op }}" style-hover="background:#FAFBFC">
+                <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg><span style="font-weight:500">{{ d.file }}</span></div></td>
+                <td style="padding:12px 16px;color:#4A525C">{{ d.type }}</td>
+                <td style="padding:12px 16px;color:#4A525C;white-space:nowrap">{{ d.period }}</td>
+                <td style="padding:12px 16px;color:#4A525C">{{ d.pages }}</td>
+                <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:8px"><div style="width:56px;height:4px;border-radius:999px;background:#E3E6EA;overflow:hidden"><div style="height:100%;width:{{ d.covW }};background:#2FA35A"></div></div><span style="font-size:12.5px;color:#4A525C">{{ d.cov }}</span></div></td>
+                <td style="padding:12px 16px"><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ d.sBg }};color:{{ d.sFg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">{{ d.status }}</span></td>
+                <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ d.flags }}" as="f" hint-placeholder-count="0"><span style="height:22px;padding:0 8px;border-radius:7px;background:{{ f.bg }};color:{{ f.fg }};font-size:12px;display:inline-flex;align-items:center;white-space:nowrap">{{ f.t }}</span></sc-for></div></td>
+              </tr>
+            </sc-for>
+            <sc-for list="{{ uploads }}" as="u" hint-placeholder-count="0">
+              <tr style="border-top:1px solid #E3E6EA">
+                <td style="padding:12px 16px;font-weight:500">{{ u.name }}</td>
+                <td style="padding:12px 16px;color:#6B737D" colspan="4">{{ u.size }}</td>
+                <td style="padding:12px 16px"><span style="height:24px;padding:0 10px;border-radius:999px;background:#F4F6F8;color:#4A525C;font-size:12px;display:inline-flex;align-items:center;white-space:nowrap">Not read</span></td>
+                <td style="padding:12px 16px;font-size:12.5px;color:#6B737D">This prototype doesn’t process real files.</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasMatrix }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <div><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">{{ mx.title }}</h2><div style="font-size:14px;color:#4A525C;margin-top:4px">{{ mx.sub }}. Select a cell to see the documents behind it.</div></div>
+        <div style="overflow:auto">
+          <div style="display:grid;grid-template-columns:{{ mx.grid }};gap:6px;min-width:620px">
+            <div style="font-size:12.5px;color:#6B737D;padding:8px 0">{{ mx.rowHead }}</div>
+            <sc-for list="{{ mx.cols }}" as="c" hint-placeholder-count="5"><div style="font-size:12.5px;color:#6B737D;padding:8px 10px">{{ c.t }}</div></sc-for>
+            <sc-for list="{{ mx.cells }}" as="c" hint-placeholder-count="12">
+              <sc-if value="{{ c.isHead }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;font-weight:500;display:flex;align-items:center">{{ c.t }}</div></sc-if>
+              <sc-if value="{{ c.isCell }}" hint-placeholder-val="{{ true }}"><button onClick="{{ c.onClick }}" style="height:48px;border-radius:12px;border:2px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }};font-size:13px;font-weight:500;text-align:left;padding:0 12px;cursor:pointer" style-hover="filter:brightness(0.97)">{{ c.t }}</button></sc-if>
+            </sc-for>
+          </div>
+        </div>
+        <sc-if value="{{ hasCell }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#F4F6F8;border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-weight:600">{{ cell.title }}</span><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ cell.bg }};color:{{ cell.fg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center">{{ cell.state }}</span></div>
+            <div style="font-size:14px;line-height:1.55;color:#1F2328">{{ cell.note }}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <span style="font-size:12.5px;color:#6B737D">{{ cell.docLabel }}</span>
+              <sc-for list="{{ cell.docs }}" as="d" hint-placeholder-count="1"><button onClick="{{ d.onClick }}" style="height:28px;padding:0 10px;border-radius:7px;border:1px solid #E3E6EA;background:#fff;font-size:13px;cursor:pointer" style-hover="border-color:#3B7CF6">{{ d.file }}</button></sc-for>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ cell.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+            <sc-if value="{{ cell.hasEx }}" hint-placeholder-val="{{ false }}"><div><button onClick="{{ cell.openEx }}" style="height:36px;padding:0 14px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">Open the related issue</button></div></sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isStudy }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:1240px;margin:0 auto;padding:32px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:20px">
+    <sc-if value="{{ studyEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px dashed #C9CED5;border-radius:20px;padding:56px 32px;display:flex;flex-direction:column;gap:14px;align-items:flex-start">
+        <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">Your Study builds once documents are read</div>
+        <div style="color:#4A525C;font-size:15px;line-height:1.55;max-width:560px">Goal: {{ goal }}</div>
+        <button onClick="{{ toDocs }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#164AA8">Go to Documents</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{ studyFull }}" hint-placeholder-val="{{ true }}">
+      <section style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <div style="padding:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:13px;font-weight:600;color:#4A525C">What we’re working toward</div>
+            <div style="font-family:Outfit,sans-serif;font-size:30px;font-weight:500;line-height:1.15;text-wrap:balance">{{ goal }}</div>
+            <div style="font-size:15px;color:#4A525C">Deliverable: {{ deliverable }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;justify-content:flex-end">
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="font-weight:500">Review readiness</span><span style="color:#4A525C">{{ readyLabel }}</span></div>
+            <div style="height:8px;border-radius:999px;background:#F4F6F8;overflow:hidden"><div style="height:100%;width:{{ readyW }};background:#2FA35A;transition:width .4s"></div></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <sc-for list="{{ bar }}" as="b" hint-placeholder-count="4"><button onClick="{{ b.onClick }}" style="height:30px;padding:0 12px;border-radius:999px;border:1px solid {{ b.bd }};background:{{ b.bg }};color:{{ b.fg }};font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:{{ b.dot }}"></span>{{ b.label }}</button></sc-for>
+            </div>
+            <div style="font-size:12.5px;color:#6B737D">Ready for your review means every item has a decision or a request. It isn’t a legal, agency or insurer determination.</div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #E3E6EA;background:#F4F6F8;padding:16px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <span style="font-size:13px;font-weight:600;color:#4A525C">Next</span>
+          <span style="font-size:15px;flex:1;min-width:240px">{{ nba.text }}</span>
+          <sc-if value="{{ nba.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nba.onClick }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nba.btn }}</button></sc-if>
+        </div>
+      </section>
+
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:14px;padding:0 4px">
+        <span style="font-weight:500">Accepted Study: {{ revLabel }}</span>
+        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}">
+          <span style="color:#7A5200;background:#FEF3D6;border-radius:999px;padding:3px 10px;font-size:13px">{{ pendingLabel }}</span>
+          <button onClick="{{ acceptStudy }}" style="height:32px;padding:0 12px;border-radius:12px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:#E8F0FE">{{ acceptLabel }}</button>
+        </sc-if>
+        <button onClick="{{ toggleRevs }}" style="border:none;background:none;color:#4A525C;font-size:13px;cursor:pointer;text-decoration:underline">{{ revsToggle }}</button>
+      </div>
+      <sc-if value="{{ showRevs }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid #E3E6EA;border-radius:20px;padding:20px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:13px;font-weight:600;color:#4A525C">Study revisions</div>
+            <sc-for list="{{ revs }}" as="r" hint-placeholder-count="3"><div style="display:flex;gap:12px;font-size:14px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B737D;width:48px;padding-top:2px">rev {{ r.rev }}</span><span style="color:#6B737D;width:56px">{{ r.date }}</span><span>{{ r.note }}</span></div></sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:13px;font-weight:600;color:#4A525C">Decisions and notes</div>
+            <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="0"><div style="display:flex;gap:12px;font-size:13.5px;line-height:1.45"><span style="color:#6B737D;white-space:nowrap">{{ d.t }}</span><span>{{ d.txt }}</span><span style="color:{{ d.fg }};font-size:12px;white-space:nowrap">{{ d.state }}</span></div></sc-for>
+            <sc-if value="{{ noDecisions }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;color:#6B737D">No decisions yet. Your decisions are recorded here and only change the Study when you accept them.</div></sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:20px;align-items:start">
+
+        <section style="order:{{ ord.plan }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+          <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:1px solid #E3E6EA">
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Work plan</h2>
+            <span style="font-size:13px;color:#4A525C">{{ planDone }}</span>
+          </div>
+          <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="6">
+            <button onClick="{{ t.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:{{ t.rowBg }};padding:16px 24px;cursor:pointer;display:grid;grid-template-columns:108px minmax(0,1fr);gap:14px;color:#1F2328" style-hover="background:#FAFBFC">
+              <span style="height:24px;padding:0 10px;border-radius:999px;background:{{ t.bBg }};color:{{ t.bFg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center;justify-self:start;white-space:nowrap">{{ t.badge }}</span>
+              <span style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                <span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-weight:500;font-size:15px">{{ t.title }}</span><span style="font-size:12px;color:#6B737D">{{ t.by }}</span></span>
+                <span style="font-size:13.5px;color:#4A525C;line-height:1.45">{{ t.line }}</span>
+                <sc-if value="{{ t.hasDeps }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#6B737D">{{ t.deps }}</span></sc-if>
+              </span>
+            </button>
+          </sc-for>
+        </section>
+
+        <section style="order:{{ ord.exceptions }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+          <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #E3E6EA">
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Exceptions and missing information</h2>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              <sc-for list="{{ exFilters }}" as="f" hint-placeholder-count="4"><button onClick="{{ f.onClick }}" style="height:28px;padding:0 10px;border-radius:999px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};font-size:12.5px;cursor:pointer">{{ f.label }}</button></sc-for>
+            </div>
+          </div>
+          <sc-for list="{{ exRows }}" as="x" hint-placeholder-count="5">
+            <div onClick="{{ x.onClick }}" style="border-bottom:1px solid #E3E6EA;padding:16px 24px;cursor:pointer;display:flex;flex-direction:column;gap:8px;opacity:{{ x.op }}" style-hover="background:#FAFBFC">
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <span style="height:22px;padding:0 8px;border-radius:999px;background:{{ x.kBg }};color:{{ x.kFg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center">{{ x.kind }}</span>
+                <span style="font-weight:500;font-size:15px;flex:1;min-width:200px">{{ x.title }}</span>
+                <sc-if value="{{ x.hasStatus }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#197040;display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>{{ x.status }}</span></sc-if>
+              </div>
+              <div style="font-size:13.5px;color:#4A525C;line-height:1.45">{{ x.why }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ x.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ exNone }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;font-size:14px;color:#6B737D">Nothing in this view.</div></sc-if>
+        </section>
+
+        <section style="order:{{ ord.compare }};grid-column:1 / -1;border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+          <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">{{ cmp.title }}</h2><div style="font-size:14px;color:#4A525C;margin-top:4px">{{ cmp.sub }}</div></div>
+          <div style="overflow:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:760px">
+              <thead><tr style="text-align:left;color:#4A525C;font-size:12.5px;background:#F4F6F8"><sc-for list="{{ cmp.headers }}" as="h" hint-placeholder-count="6"><th style="padding:10px 16px;font-weight:500">{{ h.t }}</th></sc-for></tr></thead>
+              <tbody>
+                <sc-for list="{{ cmp.rows }}" as="r" hint-placeholder-count="4">
+                  <tr onClick="{{ r.onClick }}" style="border-top:1px solid #E3E6EA;cursor:{{ r.cur }};font-weight:{{ r.fw }}" style-hover="background:#FAFBFC">
+                    <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4"><td style="padding:12px 16px">{{ c.t }}</td></sc-for>
+                    <td style="padding:12px 16px"><span style="padding:3px 10px;border-radius:999px;background:{{ r.rBg }};color:{{ r.rFg }};font-size:12.5px;font-weight:500;white-space:nowrap">{{ r.result }}</span></td>
+                    <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section style="order:{{ ord.understand }};grid-column:1 / -1;border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:20px">
+          <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">What Hive understands</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="3">
+              <div style="background:#F4F6F8;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:13px;color:#4A525C">{{ m.label }}</div>
+                <div style="font-family:Outfit,sans-serif;font-size:30px;font-weight:500;line-height:1.1">{{ m.value }}</div>
+                <div style="font-size:12.5px;color:#6B737D">{{ m.sub }}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ m.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px 32px">
+            <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:2px solid {{ g.bd }}">
+                <div style="font-size:13px;font-weight:600;color:{{ g.fg }}">{{ g.title }}</div>
+                <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="2">
+                  <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:14.5px;line-height:1.5;max-width:64ch">{{ i.text }}</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ i.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="order:{{ ord.timeline }};border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:4px">
+          <h2 style="margin:0 0 12px;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Timeline</h2>
+          <sc-for list="{{ timeline }}" as="e" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:112px 14px minmax(0,1fr);gap:12px;align-items:start">
+              <div style="font-size:13px;color:#4A525C;padding-top:1px">{{ e.date }}</div>
+              <div style="display:flex;flex-direction:column;align-items:center;align-self:stretch"><span style="width:10px;height:10px;border-radius:50%;border:2px solid #3B7CF6;background:#fff;margin-top:4px"></span><span style="flex:1;width:2px;background:#E3E6EA"></span></div>
+              <div style="display:flex;flex-direction:column;gap:6px;padding-bottom:16px"><div style="font-size:14.5px">{{ e.text }}</div><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ e.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></div>
+            </div>
+          </sc-for>
+        </section>
+
+        <section style="order:{{ ord.ops }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+          <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA;display:flex;justify-content:space-between;gap:12px;align-items:baseline"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Completed operations</h2><span style="font-size:12.5px;color:#6B737D">Simulated in this prototype</span></div>
+          <sc-for list="{{ ops }}" as="o" hint-placeholder-count="5">
+            <button onClick="{{ o.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:#fff;padding:14px 24px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;color:#1F2328" style-hover="background:#FAFBFC">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2FA35A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M20 6 9 17l-5-5"></path></svg>
+              <span style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:500;font-size:14.5px">{{ o.title }}</span><span style="font-size:13.5px;color:#4A525C;line-height:1.45">{{ o.output }}</span></span>
+            </button>
+          </sc-for>
+        </section>
+      </div>
+    </sc-if>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:1320px;margin:0 auto;padding:32px clamp(16px,3vw,32px) 64px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px;align-items:start">
+    <aside style="display:flex;flex-direction:column;gap:16px;max-width:380px">
+      <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px">Reports</h1>
+      <div style="border:1px solid #E3E6EA;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13px;font-weight:600;color:#4A525C">Work product</div>
+        <div style="font-family:Outfit,sans-serif;font-size:19px;font-weight:500;line-height:1.3">{{ deliverable }}</div>
+        <button onClick="{{ generate }}" disabled="{{ genDisabled }}" style="height:44px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer;text-align:left;opacity:{{ genOp }}" style-hover="background:#164AA8">Generate from accepted Study</button>
+        <sc-if value="{{ hasGenReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:#7A5200;line-height:1.45">{{ genReason }}</div></sc-if>
+        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}"><button onClick="{{ acceptStudy }}" style="height:36px;padding:0 12px;border-radius:12px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:13px;font-weight:500;cursor:pointer;text-align:left" style-hover="background:#E8F0FE">{{ acceptLabel }}</button></sc-if>
+      </div>
+      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <div style="padding:14px 20px;font-size:13px;font-weight:600;color:#4A525C;border-bottom:1px solid #E3E6EA">Report history</div>
+        <sc-for list="{{ repList }}" as="r" hint-placeholder-count="1">
+          <button onClick="{{ r.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;border-left:3px solid {{ r.bd }};background:{{ r.bg }};padding:12px 20px;cursor:pointer;display:flex;flex-direction:column;gap:4px;color:#1F2328" style-hover="background:#FAFBFC">
+            <span style="display:flex;gap:8px;align-items:center"><span style="font-family:'JetBrains Mono',monospace;font-size:12px">v{{ r.v }}</span><span style="padding:2px 8px;border-radius:999px;background:{{ r.sBg }};color:{{ r.sFg }};font-size:12px;font-weight:500">{{ r.state }}</span></span>
+            <span style="font-size:12.5px;color:#6B737D">{{ r.meta }}</span>
+          </button>
+        </sc-for>
+        <sc-if value="{{ noReports }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 20px;font-size:14px;color:#6B737D">No reports yet.</div></sc-if>
+      </div>
+    </aside>
+
+    <section style="grid-column:span 2;min-width:0;display:flex;flex-direction:column;gap:16px">
+      <sc-if value="{{ hasRep }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:inline-flex;padding:3px;border-radius:12px;background:#F4F6F8;gap:2px">
+              <sc-for list="{{ fmtOpts }}" as="f" hint-placeholder-count="2"><button onClick="{{ f.onClick }}" style="height:32px;padding:0 14px;border-radius:10px;border:none;background:{{ f.bg }};color:{{ f.fg }};font-size:13.5px;font-weight:500;cursor:pointer;box-shadow:{{ f.sh }}">{{ f.label }}</button></sc-for>
+            </div>
+            <span style="font-size:12px;color:#6B737D">Changes this report’s layout only. It doesn’t share your hive with anyone.</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12.5px;color:#6B737D">PDF export isn’t simulated</span>
+            <button disabled="disabled" style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;opacity:.45;cursor:not-allowed">Download PDF</button>
+            <button onClick="{{ markReviewed }}" disabled="{{ revDisabled }}" style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #2FA35A;background:#fff;color:#197040;font-size:14px;font-weight:500;cursor:pointer;opacity:{{ revOp }}" style-hover="background:#E6F4EA">Mark as reviewed</button>
+          </div>
+        </div>
+        <sc-if value="{{ hasRevReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:#4A525C;text-align:right">{{ revReason }}</div></sc-if>
+
+        <article style="background:#fff;border:1px solid #E3E6EA;border-radius:20px;box-shadow:0 12px 40px rgba(31,35,40,.06);padding:clamp(24px,4vw,48px);display:flex;flex-direction:column;gap:28px">
+          <header style="display:flex;flex-direction:column;gap:12px;border-bottom:2px solid #1F2328;padding-bottom:20px">
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:#4A525C"><span>{{ rep.kicker }}</span><span style="padding:2px 10px;border-radius:999px;background:{{ rep.sBg }};color:{{ rep.sFg }};font-weight:500;font-size:12px">{{ rep.state }}</span></div>
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:clamp(26px,3vw,34px);line-height:1.15">{{ rep.title }}</h2>
+            <div style="font-size:15px;color:#4A525C">{{ rep.hive }}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;background:#F4F6F8;border-radius:12px;padding:14px 16px;font-size:13px">
+              <sc-for list="{{ rep.scope }}" as="s" hint-placeholder-count="4"><div><div style="color:#6B737D;font-size:12px">{{ s.k }}</div><div style="font-weight:500;margin-top:2px">{{ s.v }}</div></div></sc-for>
+            </div>
+            <sc-if value="{{ rep.hasOpen }}" hint-placeholder-val="{{ false }}"><div style="font-size:13.5px;color:#B33A2E;background:#FDEDEB;border-radius:12px;padding:10px 14px;line-height:1.5">{{ rep.openText }}</div></sc-if>
+          </header>
+          <sc-for list="{{ rep.sections }}" as="sec" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:12px;align-items:baseline"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B737D">{{ sec.n }}</span><h3 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:19px">{{ sec.title }}</h3></div>
+              <div style="font-size:14px;color:#4A525C;line-height:1.5">{{ sec.lead }}</div>
+              <div style="overflow:auto;border:1px solid #E3E6EA;border-radius:12px">
+                <table style="width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px">
+                  <thead><tr style="background:#F4F6F8;text-align:left;color:#4A525C;font-size:12px"><sc-for list="{{ sec.headers }}" as="h" hint-placeholder-count="3"><th style="padding:9px 12px;font-weight:500">{{ h.t }}</th></sc-for></tr></thead>
+                  <tbody><sc-for list="{{ sec.rows }}" as="r" hint-placeholder-count="3"><tr style="border-top:1px solid #E3E6EA;vertical-align:top">
+                    <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="3"><td style="padding:9px 12px;line-height:1.45">{{ c.t }}</td></sc-for>
+                    <td style="padding:9px 12px"><div style="display:flex;flex-wrap:wrap;gap:4px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:22px;padding:0 7px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 11.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></td>
+                  </tr></sc-for></tbody>
+                </table>
+              </div>
+            </div>
+          </sc-for>
+          <footer style="display:flex;align-items:center;gap:8px;border-top:1px solid #E3E6EA;padding-top:16px;font-size:12.5px;color:#6B737D"><img src="assets/hiveforyou-mark.svg" alt="" style="width:16px;height:16px">Prepared with HiveForYou · synthetic sample data</footer>
+        </article>
+      </sc-if>
+      <sc-if value="{{ noRepView }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px dashed #C9CED5;border-radius:20px;padding:56px 32px;color:#4A525C;font-size:15px;line-height:1.55">{{ noRepText }}</div>
+      </sc-if>
+    </section>
+  </main>
+</sc-if>
+
+<sc-if value="{{ hasDrawer }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeDrawer }}" style="position:fixed;inset:0;background:rgba(31,35,40,.18);z-index:40"></div>
+  <aside style="position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);background:#fff;z-index:41;box-shadow:-12px 0 40px rgba(31,35,40,.12);display:flex;flex-direction:column">
+    <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA;display:flex;gap:12px;align-items:flex-start">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ dr.bBg }};color:{{ dr.bFg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center">{{ dr.badge }}</span><span style="font-size:12.5px;color:#6B737D">{{ dr.kicker }}</span></div>
+        <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:22px;line-height:1.25">{{ dr.title }}</h2>
+      </div>
+      <button onClick="{{ closeDrawer }}" aria-label="Close" style="width:36px;height:36px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#F4F6F8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+    </div>
+    <div style="flex:1;overflow:auto;padding:20px 24px;display:flex;flex-direction:column;gap:20px">
+      <sc-for list="{{ dr.fields }}" as="f" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:12.5px;font-weight:600;color:#4A525C">{{ f.k }}</div><div style="font-size:14.5px;line-height:1.55">{{ f.v }}</div></div>
+      </sc-for>
+      <sc-if value="{{ dr.hasChips }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:12.5px;font-weight:600;color:#4A525C">{{ dr.chipsLabel }}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ dr.chips }}" as="c" hint-placeholder-count="2"><button onClick="{{ c.open }}" style="height:26px;padding:0 9px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></div>
+      </sc-if>
+      <sc-if value="{{ dr.hasCalc }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid #E3E6EA;border-radius:12px;overflow:hidden">
+          <div style="padding:10px 14px;background:#F4F6F8;font-size:12.5px;font-weight:600;color:#4A525C">Calculation · {{ dr.calc.title }}</div>
+          <sc-for list="{{ dr.calc.rows }}" as="r" hint-placeholder-count="2"><button onClick="{{ r.onClick }}" style="width:100%;border:none;border-top:1px solid #E3E6EA;background:#fff;padding:10px 14px;display:flex;justify-content:space-between;gap:12px;font-size:13.5px;cursor:pointer;text-align:left;color:#1F2328" style-hover="background:#FFFBEF"><span>{{ r.label }}</span><span style="font-family:'JetBrains Mono',monospace;font-size:13px;white-space:nowrap">{{ r.val }}</span></button></sc-for>
+          <sc-for list="{{ dr.calc.excl }}" as="r" hint-placeholder-count="0"><div style="border-top:1px solid #E3E6EA;padding:10px 14px;font-size:13px;color:#6B737D">Not included: {{ r.label }}</div></sc-for>
+          <div style="border-top:2px solid #1F2328;padding:10px 14px;display:flex;justify-content:space-between;font-weight:600;font-size:14px"><span>Result</span><span style="font-family:'JetBrains Mono',monospace">{{ dr.calc.result }}</span></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ dr.hasDeps }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:12.5px;font-weight:600;color:#4A525C">Depends on</div>
+          <sc-for list="{{ dr.deps }}" as="d" hint-placeholder-count="1"><button onClick="{{ d.onClick }}" style="display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid #E3E6EA;border-radius:12px;background:#fff;padding:10px 14px;font-size:14px;cursor:pointer;text-align:left;color:#1F2328" style-hover="border-color:#3B7CF6"><span>{{ d.title }}</span><span style="padding:2px 8px;border-radius:999px;background:{{ d.bg }};color:{{ d.fg }};font-size:12px;white-space:nowrap">{{ d.state }}</span></button></sc-for></div>
+      </sc-if>
+      <sc-if value="{{ dr.hasLinked }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:12.5px;font-weight:600;color:#4A525C">Open items this task depends on</div>
+          <sc-for list="{{ dr.linked }}" as="x" hint-placeholder-count="1"><button onClick="{{ x.onClick }}" style="display:flex;gap:10px;align-items:center;border:1px solid #E3E6EA;border-radius:12px;background:#fff;padding:10px 14px;font-size:14px;cursor:pointer;text-align:left;color:#1F2328" style-hover="border-color:#3B7CF6"><span style="padding:2px 8px;border-radius:999px;background:{{ x.kBg }};color:{{ x.kFg }};font-size:12px;white-space:nowrap">{{ x.kind }}</span><span style="flex:1">{{ x.title }}</span><span style="font-size:12px;color:#197040">{{ x.status }}</span></button></sc-for></div>
+      </sc-if>
+      <sc-if value="{{ dr.hasNote }}" hint-placeholder-val="{{ false }}">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:600;color:#4A525C">{{ dr.noteLabel }}
+          <textarea value="{{ note }}" onChange="{{ onNote }}" rows="3" placeholder="{{ dr.notePh }}" style="border:1px solid #E3E6EA;border-radius:12px;padding:10px 12px;font-size:14.5px;line-height:1.5;font-weight:400;color:#1F2328;resize:vertical" style-focus="border-color:#3B7CF6"></textarea>
+        </label>
+      </sc-if>
+      <sc-if value="{{ dr.hasHistory }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:12.5px;font-weight:600;color:#4A525C">History</div>
+          <sc-for list="{{ dr.history }}" as="h" hint-placeholder-count="1"><div style="display:flex;gap:12px;font-size:13px;line-height:1.45"><span style="color:#6B737D;white-space:nowrap;min-width:110px">{{ h.t }}</span><span>{{ h.txt }}</span></div></sc-for></div>
+      </sc-if>
+      <div style="font-size:12.5px;color:#6B737D;line-height:1.5">{{ dr.footnote }}</div>
+    </div>
+    <div style="border-top:1px solid #E3E6EA;padding:16px 24px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <sc-for list="{{ dr.actions }}" as="a" hint-placeholder-count="2"><button onClick="{{ a.onClick }}" disabled="{{ a.dis }}" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid {{ a.bd }};background:{{ a.bg }};color:{{ a.fg }};font-size:14px;font-weight:500;cursor:pointer;opacity:{{ a.op }}">{{ a.label }}</button></sc-for>
+      </div>
+      <sc-if value="{{ dr.hasReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:12.5px;color:#4A525C">{{ dr.reason }}</div></sc-if>
+    </div>
+  </aside>
+</sc-if>
+
+<sc-if value="{{ hasViewer }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(31,35,40,.45);z-index:60;display:flex;align-items:stretch;justify-content:center;padding:clamp(0px,2vw,24px)">
+    <div style="background:#F4F6F8;border-radius:20px;overflow:hidden;width:100%;max-width:1280px;display:grid;grid-template-columns:minmax(0,1fr) min(400px,100%);box-shadow:0 24px 80px rgba(0,0,0,.25)">
+      <div style="display:flex;flex-direction:column;min-width:0;min-height:0">
+        <div style="background:#fff;border-bottom:1px solid #E3E6EA;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;min-width:0;flex:1"><span style="font-weight:600;font-size:15px">{{ vw.role }}</span><span style="font-size:12.5px;color:#6B737D">{{ vw.file }}</span></div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button onClick="{{ vw.prev }}" disabled="{{ vw.prevDis }}" aria-label="Previous page" style="width:34px;height:34px;border-radius:10px;border:1px solid #E3E6EA;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:{{ vw.prevOp }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:13px;min-width:96px;text-align:center">p.{{ vw.page }} of {{ vw.pages }}</span>
+            <button onClick="{{ vw.next }}" disabled="{{ vw.nextDis }}" aria-label="Next page" style="width:34px;height:34px;border-radius:10px;border:1px solid #E3E6EA;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:{{ vw.nextOp }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 20px;background:#fff;border-bottom:1px solid #E3E6EA;align-items:center">
+          <span style="font-size:12.5px;color:#6B737D">Cited pages</span>
+          <sc-for list="{{ vw.cited }}" as="p" hint-placeholder-count="2"><button onClick="{{ p.onClick }}" style="height:26px;padding:0 9px;border-radius:7px;border:1px solid {{ p.bd }};background:{{ p.bg }};color:#7A5200;font:500 12px 'JetBrains Mono',monospace;cursor:pointer">p.{{ p.p }}</button></sc-for>
+          <sc-if value="{{ vw.noCited }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#6B737D">None in this document</span></sc-if>
+        </div>
+        <div style="flex:1;overflow:auto;padding:28px 20px;display:flex;justify-content:center">
+          <div style="width:100%;max-width:640px;aspect-ratio:8.5 / 11;background:#fff;box-shadow:0 2px 12px rgba(31,35,40,.1);padding:48px 52px;display:flex;flex-direction:column;gap:10px;position:relative;font-family:'Source Serif 4',Georgia,serif">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#4A525C;border-bottom:1px solid #E3E6EA;padding-bottom:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif"><span>{{ vw.org }}</span><span>Page {{ vw.page }} of {{ vw.pages }}</span></div>
+            <div style="font-size:16px;font-weight:600;margin-bottom:6px">{{ vw.role }}</div>
+            <div style="display:flex;flex-direction:column;gap:9px;filter:{{ vw.blur }}">
+              <sc-for list="{{ vw.lines }}" as="ln" hint-placeholder-count="12">
+                <sc-if value="{{ ln.isBar }}" hint-placeholder-val="{{ true }}"><div style="height:9px;border-radius:3px;background:#E9ECEF;width:{{ ln.w }};margin:{{ ln.m }}"></div></sc-if>
+                <sc-if value="{{ ln.isAnchor }}" hint-placeholder-val="{{ false }}"><button onClick="{{ ln.onClick }}" style="text-align:left;border:none;border-left:3px solid {{ ln.bd }};background:{{ ln.bg }};padding:6px 10px;font-family:'Source Serif 4',Georgia,serif;font-size:14px;line-height:1.45;color:#1F2328;cursor:pointer;white-space:pre-wrap">{{ ln.text }}</button></sc-if>
+              </sc-for>
+            </div>
+            <sc-if value="{{ vw.unreadable }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px"><div style="background:#FDEDEB;color:#B33A2E;border-radius:12px;padding:14px 18px;font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.5;max-width:340px">Hive couldn’t read this page. Its contents aren’t part of any finding or calculation.</div></div></sc-if>
+            <div style="margin-top:auto;font-family:'DM Sans',sans-serif;font-size:11.5px;color:#6B737D;border-top:1px solid #E3E6EA;padding-top:8px">Synthetic page. Only the lines Hive cites are reproduced as text.</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#fff;border-left:1px solid #E3E6EA;display:flex;flex-direction:column;min-height:0">
+        <div style="padding:14px 20px;border-bottom:1px solid #E3E6EA;display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;font-size:15px">Evidence</span><button onClick="{{ closeViewer }}" aria-label="Close" style="width:34px;height:34px;border-radius:10px;border:1px solid #E3E6EA;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#F4F6F8"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></div>
+        <div style="flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:18px">
+          <sc-if value="{{ vw.hasFocus }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <span style="align-self:flex-start;height:26px;padding:0 9px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',monospace;display:inline-flex;align-items:center">{{ vw.f.chip }}</span>
+              <blockquote style="margin:0;font-family:'Source Serif 4',Georgia,serif;font-size:17px;line-height:1.5;border-left:3px solid #F6B826;padding:4px 0 4px 14px;white-space:pre-wrap">“{{ vw.f.quote }}”</blockquote>
+              <div style="display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px 12px;font-size:13.5px;line-height:1.45">
+                <span style="color:#6B737D">Supports</span><span>{{ vw.f.supports }}</span>
+                <span style="color:#6B737D">Source</span><span>{{ vw.f.source }}</span>
+                <span style="color:#6B737D">Physical page</span><span>{{ vw.f.page }}</span>
+                <span style="color:#6B737D">Verification</span><span><span style="padding:2px 8px;border-radius:999px;background:{{ vw.f.vBg }};color:{{ vw.f.vFg }};font-size:12px;font-weight:500">{{ vw.f.vLabel }}</span></span>
+              </div>
+              <sc-if value="{{ vw.f.hasUnc }}" hint-placeholder-val="{{ false }}"><div style="background:#FEF3D6;color:#7A5200;border-radius:12px;padding:10px 14px;font-size:13.5px;line-height:1.5"><strong style="font-weight:600">Uncertain:</strong> {{ vw.f.unc }}</div></sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ vw.noFocus }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#4A525C;line-height:1.55">{{ vw.noFocusText }}</div></sc-if>
+          <sc-if value="{{ vw.hasOthers }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:12.5px;font-weight:600;color:#4A525C">Cited on this page</div>
+              <sc-for list="{{ vw.others }}" as="o" hint-placeholder-count="1"><button onClick="{{ o.onClick }}" style="text-align:left;border:1px solid #E3E6EA;border-radius:12px;background:#fff;padding:10px 12px;font-size:13.5px;line-height:1.4;cursor:pointer;color:#1F2328" style-hover="border-color:#F6B826">{{ o.supports }}</button></sc-for></div>
+          </sc-if>
+          <sc-if value="{{ vw.hasCalc }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px solid #E3E6EA;border-radius:12px;overflow:hidden">
+              <div style="padding:10px 14px;background:#F4F6F8;font-size:12.5px;font-weight:600;color:#4A525C">Calculation · {{ vw.calc.title }}</div>
+              <div style="padding:10px 14px;font-size:13px;color:#4A525C;line-height:1.5">{{ vw.calc.method }}</div>
+              <sc-for list="{{ vw.calc.rows }}" as="r" hint-placeholder-count="2"><button onClick="{{ r.onClick }}" style="width:100%;border:none;border-top:1px solid #E3E6EA;background:{{ r.bg }};padding:10px 14px;display:flex;justify-content:space-between;gap:12px;font-size:13px;cursor:pointer;text-align:left;color:#1F2328"><span>{{ r.label }}</span><span style="font-family:'JetBrains Mono',monospace;white-space:nowrap">{{ r.val }}</span></button></sc-for>
+              <sc-for list="{{ vw.calc.excl }}" as="r" hint-placeholder-count="0"><div style="border-top:1px solid #E3E6EA;padding:10px 14px;font-size:12.5px;color:#6B737D">Not included: {{ r.label }}</div></sc-for>
+              <div style="border-top:2px solid #1F2328;padding:10px 14px;display:flex;justify-content:space-between;font-weight:600;font-size:14px"><span>Result</span><span style="font-family:'JetBrains Mono',monospace">{{ vw.calc.result }}</span></div>
+            </div>
+          </sc-if>
+          <div style="font-size:12px;color:#6B737D;line-height:1.5">Opening evidence never changes the original document. Verification labels are part of the synthetic sample.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasModal }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(31,35,40,.4);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="background:#fff;border-radius:20px;width:min(600px,100%);box-shadow:0 24px 80px rgba(0,0,0,.2);display:flex;flex-direction:column">
+      <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Draft a request</h2><div style="font-size:13.5px;color:#4A525C;margin-top:4px">{{ md.sub }}</div></div>
+      <div style="padding:20px 24px;display:flex;flex-direction:column;gap:10px">
+        <textarea value="{{ md.text }}" onChange="{{ md.onText }}" rows="10" style="border:1px solid #E3E6EA;border-radius:12px;padding:12px 14px;font-size:14.5px;line-height:1.55;resize:vertical;color:#1F2328" style-focus="border-color:#3B7CF6"></textarea>
+        <div style="font-size:12.5px;color:#6B737D">Hive doesn’t send anything. Copy this into an email or letter to whoever holds the records.</div>
+      </div>
+      <div style="padding:16px 24px;border-top:1px solid #E3E6EA;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button onClick="{{ md.cancel }}" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="background:#F4F6F8">Cancel</button>
+        <button onClick="{{ md.copy }}" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="background:#F4F6F8">{{ md.copyLabel }}</button>
+        <button onClick="{{ md.save }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#164AA8">Save draft request</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div role="status" style="position:fixed;left:24px;bottom:24px;z-index:80;background:#1F2328;color:#fff;border-radius:12px;padding:12px 16px;font-size:14px;max-width:420px;box-shadow:0 8px 24px rgba(0,0,0,.2)">{{ toast }}</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  TS = { PROPOSED: ['Suggested', '#F4F6F8', '#4A525C'], READY: ['Ready', '#E8F0FE', '#1A56C4'], RUNNING: ['Working…', '#E8F0FE', '#1A56C4'], BLOCKED: ['Waiting', '#F4F6F8', '#6B737D'], NEEDS_REVIEW: ['Needs you', '#E8F0FE', '#1A56C4'], COMPLETED: ['Done', '#E6F4EA', '#197040'], FAILED: ['Couldn’t finish', '#FDEDEB', '#B33A2E'], SKIPPED: ['Skipped', '#F4F6F8', '#6B737D'] };
+  KD = { needs: ['Needs you', '#E8F0FE', '#1A56C4', '#3B7CF6'], changed: ['Changed', '#FEF3D6', '#7A5200', '#F6B826'], missing: ['Missing', '#FDEDEB', '#B33A2E', '#EF5143'], checked: ['Checked', '#E6F4EA', '#197040', '#2FA35A'] };
+  MS = { complete: ['Complete', '#E6F4EA', '#197040'], gap: ['Missing months', '#FDEDEB', '#B33A2E'], missing: ['Missing', '#FDEDEB', '#B33A2E'], partial: ['Partial', '#FEF3D6', '#7A5200'], unknown: ['Unknown', '#F4F6F8', '#6B737D'] };
+  XS = { resolved: 'Explained by you', accepted: 'Accepted by you', rejected: 'Rejected by you', requested: 'Request drafted', na: 'Marked not available', questioned: 'Question added' };
+  RS = { DRAFT: ['Draft', '#F4F6F8', '#4A525C'], PARTIAL: ['Partial', '#FEF3D6', '#7A5200'], READY_FOR_REVIEW: ['Ready for review', '#E8F0FE', '#1A56C4'], REVIEWED: ['Reviewed', '#E6F4EA', '#197040'] };
+  VS = { verified: ['Text matched on page', '#E6F4EA', '#197040'], uncertain: ['Matched, with uncertainty', '#FEF3D6', '#7A5200'], unreadable: ['Unreadable', '#FDEDEB', '#B33A2E'] };
+  RING = 'conic-gradient(from 200deg, #3B7CF6, #EF5143, #F6B826, #2FA35A, #3B7CF6)';
+
+  state = { ready: false, screen: 'landing', goalText: '', goalFocus: false, intent: null, noMatch: false, hives: null, live: {}, hiveId: null, tab: 'study', drawer: null, viewer: null, cell: null, modal: null, note: '', createText: '', createFocus: false, proposal: null, emptyPreview: false, toast: null, fmt: 'customer', exFilter: 'all', showRevs: false, dragOver: false, copied: false };
+
+  componentDidMount() {
+    if (window.HIVE_DATA) this.init();
+    else this.poll = setInterval(() => { if (window.HIVE_DATA) { clearInterval(this.poll); this.init(); } }, 50);
+  }
+  componentWillUnmount() { clearInterval(this.poll); clearTimeout(this.tt); (this.timers || []).forEach(clearTimeout); }
+  D() { return window.HIVE_DATA; }
+  now() { return 'Today, ' + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
+
+  init() {
+    const D = this.D();
+    const hives = ['medicaid', 'iep', 'insurance'].map(s => ({ id: 'h-' + s, scen: s, title: D.S[s].hiveTitle, purpose: D.S[s].purpose, last: D.S[s].lastActivity }));
+    const live = {};
+    hives.forEach(h => {
+      const s = D.S[h.scen];
+      const l = this.fresh(h.scen, true);
+      const prev = s.studyRevs.length > 1 ? s.studyRevs[s.studyRevs.length - 2] : s.studyRevs[0];
+      l.reports.push(this.buildReport(h.scen, l, 'DRAFT', { date: prev.date, rev: prev.rev, fmt: 'Customer' }, s.goal));
+      live[h.id] = l;
+    });
+    this.setState({ ready: true, hives, live });
+  }
+
+  fresh(scen, loaded) {
+    const s = this.D().S[scen];
+    const tasks = {};
+    s.tasks.forEach(t => {
+      const h = [];
+      if (t.state === 'COMPLETED') h.push({ t: 'Earlier', txt: 'Completed by Hive' });
+      if (t.state === 'FAILED') h.push({ t: 'Earlier', txt: 'Attempt 1: couldn’t finish' });
+      if (t.state === 'PROPOSED') h.push({ t: 'Earlier', txt: 'Suggested by Hive' });
+      if (t.state === 'SKIPPED') h.push({ t: 'Oct 27', txt: 'Skipped by you' });
+      tasks[t.id] = { state: t.state, result: t.result || null, attempts: t.state === 'FAILED' ? 1 : 0, history: h };
+    });
+    const ex = {};
+    s.exceptions.forEach(x => { ex[x.id] = { status: 'open', note: '', history: [{ t: 'Earlier', txt: 'Found by Hive' }] }; });
+    const docStatus = {};
+    if (loaded) s.docs.forEach(d => { docStatus[d.id] = 'done'; });
+    return { loaded, docStatus, uploads: [], tasks, ex, revealed: {}, decisions: [], rev: s.studyRev, revs: s.studyRevs.slice(), pending: 0, reports: [], selReport: 0 };
+  }
+
+  hive() { return (this.state.hives || []).find(h => h.id === this.state.hiveId); }
+  liveFor(scen) { const h = this.hive(); if (h && h.scen === scen) return this.state.live[h.id]; return this.state.live['h-' + scen]; }
+  visX(s, l, id) { const x = s.exceptions.find(e => e.id === id); return !!x && (!x.hidden || !!l.revealed[id]); }
+  visEx(s, l) { return s.exceptions.filter(x => !x.hidden || l.revealed[x.id]); }
+  effState(s, l, id) {
+    const t = s.tasks.find(x => x.id === id); const st = l.tasks[id].state;
+    if (st === 'SKIPPED' || st === 'RUNNING') return st;
+    if (t.derive) { const xs = t.derive.filter(x => this.visX(s, l, x)); if (xs.length && xs.every(x => l.ex[x].status !== 'open')) return 'COMPLETED'; }
+    if (st === 'BLOCKED' && (t.deps || []).every(d => this.effState(s, l, d) === 'COMPLETED')) return 'READY';
+    return st;
+  }
+  fmtV(v, u) { if (u === 'min') return (v < 0 ? '−' : '') + Math.abs(v) + ' minutes a week'; return (v < 0 ? '−' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  calc(s, l, cid) {
+    const c = s.calcs[cid];
+    const ok = i => !i.when || l.ex[i.when.x].status === i.when.status;
+    const act = c.inputs.filter(ok); const exc = (c.excluded || []).filter(ok);
+    const v = act.reduce((a, i) => a + i.sign * i.value, 0);
+    return { c, act, exc, v, txt: this.fmtV(v, c.unit) };
+  }
+  hash(str) { let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h; }
+  stop(e) { if (e && e.stopPropagation) e.stopPropagation(); }
+
+  chips(scen, ids) {
+    const s = this.D().S[scen];
+    return (ids || []).map(id => {
+      if (s.ev[id]) { const e = s.ev[id]; const d = s.docs.find(x => x.id === e.doc); return { label: d.role + ' · p.' + e.page, open: ev => { this.stop(ev); this.openEv(scen, id); } }; }
+      const d = s.docs.find(x => x.id === id);
+      if (d) return { label: d.role, open: ev => { this.stop(ev); this.openDoc(scen, id, 1); } };
+      if (s.calcs[id]) return { label: 'Calculation · ' + s.calcs[id].title, open: ev => { this.stop(ev); this.openCalc(scen, id); } };
+      return null;
+    }).filter(Boolean);
+  }
+  openEv(scen, id) { const e = this.D().S[scen].ev[id]; this.setState(st => ({ viewer: { scen, doc: e.doc, page: e.page, ev: id, calc: st.viewer && st.viewer.calc && st.viewer.scen === scen ? st.viewer.calc : null } })); }
+  openDoc(scen, doc, page) { this.setState({ viewer: { scen, doc, page, ev: null, calc: null } }); }
+  openCalc(scen, cid) { const s = this.D().S[scen]; const first = s.calcs[cid].inputs[0].ev; const e = s.ev[first]; this.setState({ viewer: { scen, doc: e.doc, page: e.page, ev: first, calc: cid } }); }
+
+  updLive(hid, fn) { this.setState(st => { const live = { ...st.live }; const l = JSON.parse(JSON.stringify(live[hid])); fn(l); live[hid] = l; return { live }; }); }
+  toast(msg) { this.setState({ toast: msg }); clearTimeout(this.tt); this.tt = setTimeout(() => this.setState({ toast: null }), 2800); }
+  later(fn, ms) { this.timers = this.timers || []; this.timers.push(setTimeout(fn, ms)); }
+
+  openHive(hid) { const l = this.state.live[hid]; this.setState({ screen: 'hive', hiveId: hid, tab: l.loaded || Object.keys(l.docStatus).length ? 'study' : 'documents', drawer: null, cell: null, exFilter: 'all' }); }
+  classify(t) {
+    t = (t || '').toLowerCase();
+    if (/iep|school|daughter|son\b|special ed|evaluation|teacher/.test(t)) return 'iep';
+    if (/insur|claim|estimate|adjuster|contractor|damage|policy/.test(t)) return 'insurance';
+    if (/medicaid|bank|statement|financ|reconcil|invoice|payment|account|application|accountant|tax/.test(t)) return 'medicaid';
+    return null;
+  }
+
+  setEx(xid, status, note) {
+    const hid = this.state.hiveId; const s = this.D().S[this.hive().scen]; const x = s.exceptions.find(e => e.id === xid);
+    const lbl = status === 'open' ? 'Reopened' : (status === 'accepted' && x.acceptLabel) ? x.acceptLabel : (status === 'rejected' && x.rejectLabel) ? x.rejectLabel : this.XS[status];
+    this.updLive(hid, l => {
+      l.ex[xid].status = status; if (note != null) l.ex[xid].note = note;
+      l.ex[xid].history.push({ t: this.now(), txt: lbl + (note ? ': “' + note + '”' : '') });
+      l.decisions.push({ t: this.now(), txt: x.title + ' — ' + lbl + (note ? ': “' + note + '”' : ''), pending: true });
+      l.pending++;
+    });
+    this.toast(lbl + '. Recorded as a decision; the source documents are unchanged.');
+  }
+  setTask(tid, st, txt) {
+    this.updLive(this.state.hiveId, l => { l.tasks[tid].state = st; l.tasks[tid].history.push({ t: this.now(), txt }); });
+  }
+  runTask(tid) {
+    const hid = this.state.hiveId; const h = this.hive(); const s = this.D().S[h.scen]; const t = s.tasks.find(x => x.id === tid);
+    this.updLive(hid, l => { l.tasks[tid].state = 'RUNNING'; l.tasks[tid].history.push({ t: this.now(), txt: 'Started by you' }); });
+    this.later(() => {
+      this.updLive(hid, l => {
+        const lt = l.tasks[tid]; lt.attempts++;
+        if (t.failMsg) { lt.state = 'FAILED'; lt.result = t.failMsg; lt.history.push({ t: this.now(), txt: 'Attempt ' + lt.attempts + ': couldn’t finish' }); return; }
+        lt.state = 'COMPLETED'; lt.result = t.runResult; lt.history.push({ t: this.now(), txt: 'Completed by Hive' });
+        (t.reveals || []).forEach(x => { l.revealed[x] = true; });
+        if (t.revealsOp) l.revealed[t.revealsOp] = true;
+        if (t.makesReport) { l.reports.push(this.buildReport(h.scen, l, null, null, h.goal || s.goal)); l.selReport = l.reports.length - 1; }
+        else { l.decisions.push({ t: this.now(), txt: 'Hive: ' + t.title + ' — ' + t.runResult, pending: true }); l.pending++; }
+      });
+      this.toast(t.failMsg ? 'Couldn’t finish: ' + t.title : 'Done: ' + t.title);
+    }, 1700);
+  }
+  acceptStudy() {
+    const hid = this.state.hiveId;
+    this.updLive(hid, l => { const n = l.pending; l.rev++; l.revs.push({ rev: l.rev, date: 'Today', note: 'Accepted ' + n + (n === 1 ? ' decision' : ' decisions') }); l.pending = 0; l.decisions.forEach(d => { d.pending = false; }); });
+    this.toast('Study accepted as a new revision.');
+  }
+  generate() {
+    const h = this.hive(); const s = this.D().S[h.scen];
+    this.updLive(h.id, l => { l.reports.push(this.buildReport(h.scen, l, null, null, h.goal || s.goal)); l.selReport = l.reports.length - 1; });
+    this.toast('Work product generated from the accepted Study.');
+  }
+  loadSample() {
+    const h = this.hive(); const s = this.D().S[h.scen]; const hid = h.id;
+    this.updLive(hid, l => { s.docs.forEach(d => { l.docStatus[d.id] = 'queued'; }); });
+    s.docs.forEach((d, i) => {
+      this.later(() => this.updLive(hid, l => { l.docStatus[d.id] = 'reading'; }), 300 + i * 450);
+      this.later(() => this.updLive(hid, l => { l.docStatus[d.id] = 'done'; if (i === s.docs.length - 1) l.loaded = true; }), 900 + i * 450);
+    });
+    this.later(() => this.toast('Documents read. Your Study is ready.'), 1000 + s.docs.length * 450);
+  }
+  addFiles(files) {
+    const arr = Array.from(files || []).map(f => ({ name: f.name, size: f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB' }));
+    if (!arr.length) return;
+    this.updLive(this.state.hiveId, l => { l.uploads = l.uploads.concat(arr); });
+    this.toast(arr.length + (arr.length === 1 ? ' file added' : ' files added') + '. Not read in this prototype.');
+  }
+
+  buildReport(scen, l, forceState, meta, goal) {
+    const s = this.D().S[scen]; const vis = this.visEx(s, l); const open = vis.filter(x => l.ex[x.id].status === 'open');
+    const state = forceState || (open.length ? 'PARTIAL' : 'READY_FOR_REVIEW');
+    const stLabel = x => { const st = l.ex[x.id].status; return st === 'open' ? 'Open' : st === 'accepted' && x.acceptLabel ? x.acceptLabel : st === 'rejected' && x.rejectLabel ? x.rejectLabel : this.XS[st]; };
+    const cmpResult = r => { if (!r.x) return r.result; const st = l.ex[r.x].status; if (st === 'open') return r.result; if (st === 'accepted') return 'Matched (accepted by you)'; if (st === 'rejected') return 'Not a match, flagged'; if (st === 'resolved') return 'Explained by you'; return r.result + ' · ' + this.XS[st].toLowerCase(); };
+    const secs = s.reportSections.map(r => {
+      const o = { title: r.title, intro: r.intro, src: r.src, headers: [], rows: [] };
+      if (r.src === 'summary') { o.headers = ['Item', 'Detail']; o.rows = [
+        { cells: ['Goal', goal || s.goal] }, { cells: ['Prepared from', s.docs.length + ' files (' + s.docs.filter(d => !d.dup).length + ' unique)'] },
+        { cells: ['Study revision', 'rev ' + (meta ? meta.rev : l.rev)] }, { cells: ['Open items', open.length ? open.length + ' still open, listed below' : 'None. Every item has a decision or a request.'] },
+        { cells: ['Scope', 'This document organizes the records provided. It doesn’t decide eligibility, services or coverage.'] }]; }
+      if (r.src === 'inventory') { o.headers = ['File', 'Identified as', 'Period', 'Pages', 'Notes']; o.rows = s.docs.map(d => ({ cells: [d.file, d.type, d.period, String(d.pages), d.flags.map(f => f.t).join('; ') || '—'], ev: [d.id] })); }
+      if (r.src === 'matrix') { o.headers = [s.matrix.rowHead].concat(s.matrix.cols); o.rows = s.matrix.rows.map(row => ({ cells: [row.label].concat(row.cells.map(c => this.MS[c.s][0])), ev: Array.from(new Set([].concat(...row.cells.map(c => c.ev)))) })); }
+      if (r.src === 'compare') { o.headers = s.compare.cols.concat(['Result']); o.rows = s.compare.rows.map(row => ({ cells: row.cells.concat([cmpResult(row)]), ev: row.ev })); }
+      if (r.src === 'calc') { const c = this.calc(s, l, r.calc); o.headers = ['Input', 'Amount']; o.rows = c.act.map(i => ({ cells: [i.label, (i.sign < 0 ? '− ' : '') + this.fmtV(i.value, c.c.unit)], ev: [i.ev] })).concat(c.exc.map(i => ({ cells: ['Not included: ' + i.label, '—'], ev: [i.ev] }))).concat([{ cells: ['Result', c.txt] }]); o.intro = r.intro + ' Method: ' + c.c.method; }
+      if (r.src === 'static') { o.headers = r.headers; o.rows = r.rows; }
+      if (r.src === 'timeline') { o.headers = ['Date', 'Event']; o.rows = s.timeline.map(t => ({ cells: [t.date, t.text], ev: t.ev })); }
+      if (r.src === 'requests') { o.headers = ['Record', 'Status']; o.rows = vis.filter(x => x.kind === 'missing').map(x => ({ cells: [x.request || x.title, stLabel(x) + (l.ex[x.id].note && l.ex[x.id].status === 'na' ? ': ' + l.ex[x.id].note : '')], ev: x.ev })); }
+      if (r.src === 'questions') { const q = vis.filter(x => l.ex[x.id].status === 'questioned'); o.headers = ['Question', 'About']; o.rows = q.length ? q.map(x => ({ cells: [l.ex[x.id].note, x.title], ev: x.ev })) : [{ cells: ['No questions added yet.', 'Add them from the Study.'] }]; }
+      if (r.src === 'notes') { o.headers = ['When', 'Decision or note']; o.rows = l.decisions.length ? l.decisions.map(d => ({ cells: [d.t, d.txt] })) : [{ cells: ['—', 'No notes or decisions yet.'] }]; }
+      return o;
+    });
+    const cited = []; secs.forEach(o => o.rows.forEach(rw => (rw.ev || []).forEach(e => { if (s.ev[e] && cited.indexOf(e) < 0) cited.push(e); })));
+    secs.forEach(o => { if (o.src === 'evidence') { o.headers = ['Supports', 'Verification']; o.rows = cited.map(e => ({ cells: [s.ev[e].supports, this.VS[s.ev[e].status][0]], ev: [e] })); } });
+    return { v: l.reports.length + 1, state, date: meta ? meta.date : this.now(), rev: meta ? meta.rev : l.rev, fmt: meta ? meta.fmt : null, open: open.map(x => x.title), sections: secs };
+  }
+
+  exRow(scen, s, l, x) {
+    const k = this.KD[x.kind]; const st = l.ex[x.id].status;
+    const status = st === 'open' ? '' : st === 'accepted' && x.acceptLabel ? x.acceptLabel : st === 'rejected' && x.rejectLabel ? x.rejectLabel : this.XS[st];
+    return { title: x.title, why: x.why, kind: k[0], kBg: k[1], kFg: k[2], status, hasStatus: !!status, op: st === 'open' || st === 'requested' ? 1 : 0.72, chips: this.chips(scen, x.ev), onClick: () => this.setState({ drawer: { type: 'ex', id: x.id }, note: l.ex[x.id].note || x.question || '' }) };
+  }
+  btn(label, fn, kind, dis, reason) {
+    const p = kind === 'primary', g = kind === 'good';
+    return { label, onClick: dis ? () => {} : fn, dis: !!dis, op: dis ? 0.45 : 1, bg: p ? '#1A56C4' : '#fff', fg: p ? '#fff' : g ? '#197040' : '#1F2328', bd: p ? '#1A56C4' : g ? '#2FA35A' : '#E3E6EA', reason: dis ? reason : '' };
+  }
+
+  renderVals() {
+    const st = this.state;
+    if (!st.ready || !st.hives) return { notReady: true };
+    const D = this.D();
+    const v = { notReady: false };
+    v.isLanding = st.screen === 'landing'; v.isHives = st.screen === 'hives'; v.isCreate = st.screen === 'create'; v.isApp = st.screen === 'hive';
+    v.isInner = !v.isLanding;
+    v.goLanding = () => this.setState({ screen: 'landing', drawer: null });
+    v.goHives = () => this.setState({ screen: 'hives', drawer: null });
+    v.goCreate = () => this.setState({ screen: 'create', createText: '', proposal: null });
+    v.signIn = () => this.setState({ screen: 'hives' });
+    v.getStarted = () => this.setState({ screen: 'create', createText: st.goalText, proposal: null });
+
+    // Landing
+    v.goalText = st.goalText;
+    v.ringBg = st.goalFocus ? this.RING : '#E3E6EA';
+    v.onGoalInput = e => this.setState({ goalText: e.target.value });
+    v.onGoalFocus = () => this.setState({ goalFocus: true });
+    v.onGoalBlur = () => this.setState({ goalFocus: false });
+    const submit = () => { const sc = this.classify(st.goalText); if (!sc) { this.setState({ intent: null, noMatch: !!st.goalText.trim() }); return; } const it = D.intents.find(i => i.scen === sc && (sc !== 'medicaid' || /applica/i.test(st.goalText) ? true : i.id === 'fin')) || D.intents.find(i => i.scen === sc); this.setState({ intent: it.id, noMatch: false }); };
+    v.submitGoal = submit;
+    v.onGoalKey = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } };
+    v.examples = D.intents.map(i => { const a = st.intent === i.id; return { label: i.label, bg: a ? '#1F2328' : '#fff', fg: a ? '#fff' : '#1F2328', bd: a ? '#1F2328' : '#E3E6EA', onClick: () => this.setState({ intent: i.id, goalText: i.label, noMatch: false }) }; });
+    const it = D.intents.find(i => i.id === st.intent);
+    v.hasIntent = !!it; v.noIntent = !it && !st.noMatch; v.noMatch = st.noMatch;
+    if (it) {
+      v.it = { label: it.label, accepts: it.accepts.map(t => ({ t })), work: it.work.map((t, n) => ({ t, n: String(n + 1).padStart(2, '0') })), gets: it.gets, finding: it.finding.text, chips: this.chips(it.scen, it.finding.ev) };
+      v.startIntent = () => { const txt = st.goalText && st.goalText !== it.label ? st.goalText : D.S[it.scen].ask; this.setState({ screen: 'create', createText: txt }, () => this.propose()); };
+      v.seeSample = () => this.openHive('h-' + it.scen);
+    }
+
+    // My hives
+    v.showEmpty = st.emptyPreview; v.showCards = !st.emptyPreview;
+    v.emptyToggleLabel = st.emptyPreview ? 'Show sample hives' : 'Preview empty state';
+    v.toggleEmpty = () => this.setState({ emptyPreview: !st.emptyPreview });
+    v.hiveCards = st.hives.map(h => {
+      const s = D.S[h.scen]; const l = st.live[h.id];
+      const active = s.tasks.filter(t => this.effState(s, l, t.id) !== 'SKIPPED');
+      const done = active.filter(t => this.effState(s, l, t.id) === 'COMPLETED').length;
+      const vis = this.visEx(s, l); const cnt = k => vis.filter(x => x.kind === k && l.ex[x.id].status === 'open').length;
+      const loaded = l.loaded;
+      const bar = loaded ? [['needs', cnt('needs')], ['changed', cnt('changed')], ['missing', vis.filter(x => x.kind === 'missing' && ['open', 'requested'].includes(l.ex[x.id].status)).length]].filter(b => b[1] > 0).map(([k, n]) => ({ label: k === 'needs' ? (n === 1 ? '1 needs you' : n + ' need you') : n + ' ' + k, bg: this.KD[k][1], fg: this.KD[k][2] })) : [{ label: 'Waiting for documents', bg: '#F4F6F8', fg: '#4A525C' }];
+      const rep = l.reports[l.reports.length - 1];
+      return { title: h.title, purpose: h.purpose, last: h.last, bar, progress: loaded ? done + ' of ' + active.length + ' done' : 'Not started', pw: loaded ? Math.round(done / active.length * 100) + '%' : '0%', docs: String((loaded ? s.docs.length : 0) + l.uploads.length), rev: loaded ? 'rev ' + l.rev : '—', rep: rep ? 'v' + rep.v + ' ' + this.RS[rep.state][0].toLowerCase() : 'None yet', open: () => this.openHive(h.id) };
+    });
+
+    // Create
+    v.createText = st.createText;
+    v.ringBg2 = st.createFocus ? this.RING : '#E3E6EA';
+    v.onCreateInput = e => this.setState({ createText: e.target.value });
+    v.onCreateFocus = () => this.setState({ createFocus: true });
+    v.onCreateBlur = () => this.setState({ createFocus: false });
+    v.propose = () => this.propose();
+    v.hasProposal = !!st.proposal;
+    if (st.proposal) {
+      const p = st.proposal; const s = D.S[p.scen];
+      v.prop = { goal: p.goal, output: p.output, work: s.likelyWork, hasNote: !!p.note, note: p.note || '' };
+      v.onPropGoal = e => this.setState({ proposal: { ...p, goal: e.target.value } });
+      v.onPropOutput = e => this.setState({ proposal: { ...p, output: e.target.value } });
+      v.createHive = () => {
+        const id = 'h-new-' + Date.now();
+        const hv = { id, scen: p.scen, title: p.goal.replace(/\.$/, ''), purpose: st.createText || p.goal, last: this.now(), goal: p.goal, deliverable: p.output };
+        const live = { ...st.live, [id]: this.fresh(p.scen, false) };
+        this.setState({ hives: [hv].concat(st.hives), live, hiveId: id, screen: 'hive', tab: 'documents', proposal: null });
+      };
+    }
+
+    // App
+    const h = this.hive();
+    if (v.isApp && h) {
+      const scen = h.scen; const s = D.S[scen]; const l = st.live[h.id];
+      const goal = h.goal || s.goal; const deliverable = h.deliverable || s.deliverable;
+      const vis = this.visEx(s, l);
+      v.hiveTitle = h.title; v.goal = goal; v.deliverable = deliverable;
+      v.scenValue = scen; v.scenOpts = ['medicaid', 'iep', 'insurance'].map(k => ({ value: k, label: D.S[k].label }));
+      v.onScen = e => this.setState({ hiveId: 'h-' + e.target.value, drawer: null, cell: null, exFilter: 'all' });
+      const openN = vis.filter(x => l.ex[x.id].status === 'open').length;
+      v.tabs = [['documents', 'Documents', l.loaded ? String(s.docs.length + l.uploads.length) : (l.uploads.length ? String(l.uploads.length) : '')], ['study', 'Study', l.loaded && openN ? openN + ' open' : ''], ['reports', 'Reports', l.reports.length ? String(l.reports.length) : '']].map(([k, label, count]) => ({ label, count, bd: st.tab === k ? '#3B7CF6' : 'transparent', fg: st.tab === k ? '#1F2328' : '#4A525C', onClick: () => this.setState({ tab: k, drawer: null }) }));
+      v.isDocs = st.tab === 'documents'; v.isStudy = st.tab === 'study'; v.isReports = st.tab === 'reports';
+      v.hasPending = l.pending > 0;
+      v.pendingLabel = l.pending + (l.pending === 1 ? ' decision' : ' decisions') + ' not yet in the Study';
+      v.acceptLabel = 'Accept into Study (rev ' + (l.rev + 1) + ')';
+      v.acceptStudy = () => this.acceptStudy();
+      const openDrawer = (type, id) => this.setState({ drawer: { type, id }, note: '' });
+
+      // Documents
+      const total = s.docs.length; const doneDocs = s.docs.filter(d => l.docStatus[d.id] === 'done').length; const started = Object.keys(l.docStatus).length > 0;
+      v.notLoaded = !started; v.isProcessing = started && !l.loaded; v.procText = doneDocs + ' of ' + total + ' read';
+      v.docSummary = l.loaded ? total + ' files · ' + s.docs.filter(d => !d.dup).length + ' unique · read ' + h.last.replace('Today, ', 'today at ') : started ? 'Reading…' : 'No documents yet. Add files, or load the synthetic sample set for this case.';
+      const SS = { queued: ['Queued', '#F4F6F8', '#6B737D'], reading: ['Reading…', '#E8F0FE', '#1A56C4'], done: ['Read', '#E6F4EA', '#197040'] };
+      v.docRows = s.docs.filter(d => l.docStatus[d.id]).map(d => {
+        const ds = l.docStatus[d.id]; const done = ds === 'done'; const ss = d.dup && done ? ['Set aside', '#FEF3D6', '#7A5200'] : SS[ds];
+        return { file: d.file, type: done ? d.type : '—', period: done ? d.period : '—', pages: done ? String(d.pages) : '—', cov: done ? (d.cov == null ? 'n/a' : d.cov + '%') : '—', covW: done && d.cov ? d.cov + '%' : '0%', status: ss[0], sBg: ss[1], sFg: ss[2], op: done ? 1 : 0.6, flags: done ? d.flags.map(f => ({ t: f.t, bg: this.KD[f.k][1], fg: this.KD[f.k][2] })) : [], onClick: () => { if (done) this.openDoc(scen, d.id, 1); } };
+      });
+      v.uploads = l.uploads;
+      v.hasDocRows = v.docRows.length > 0 || l.uploads.length > 0;
+      v.loadSample = () => this.loadSample();
+      v.onFiles = e => { this.addFiles(e.target.files); e.target.value = ''; };
+      v.onDragOver = e => { e.preventDefault(); if (!st.dragOver) this.setState({ dragOver: true }); };
+      v.onDragLeave = () => this.setState({ dragOver: false });
+      v.onDrop = e => { e.preventDefault(); this.setState({ dragOver: false }); this.addFiles(e.dataTransfer && e.dataTransfer.files); };
+      v.dropBd = st.dragOver ? '#3B7CF6' : '#C9CED5'; v.dropBg = st.dragOver ? '#E8F0FE' : '#fff';
+      v.hasMatrix = l.loaded;
+      const m = s.matrix;
+      const cellStatus = c => { if (!c.x) return ''; const xs = l.ex[c.x] && l.ex[c.x].status; return xs === 'requested' ? ' · requested' : xs === 'na' ? ' · not available' : ''; };
+      const cells = [];
+      m.rows.forEach((row, ri) => { cells.push({ isHead: true, isCell: false, t: row.label }); row.cells.forEach((c, ci) => { const ms = this.MS[c.s]; const sel = st.cell && st.cell[0] === ri && st.cell[1] === ci; cells.push({ isHead: false, isCell: true, t: ms[0] + cellStatus(c), bg: ms[1], fg: ms[2], bd: sel ? '#1F2328' : ms[1], onClick: () => this.setState({ cell: [ri, ci] }) }); }); });
+      v.mx = { title: m.title, sub: m.sub, rowHead: m.rowHead, cols: m.cols.map(t => ({ t })), cells, grid: '160px repeat(' + m.cols.length + ', minmax(96px, 1fr))' };
+      v.hasCell = !!st.cell && l.loaded;
+      if (v.hasCell) {
+        const row = m.rows[st.cell[0]]; const c = row.cells[st.cell[1]]; const ms = this.MS[c.s];
+        v.cell = { title: row.label + ' · ' + m.cols[st.cell[1]], state: ms[0] + cellStatus(c), bg: ms[1], fg: ms[2], note: c.note, docLabel: c.docs.length ? 'Documents' : 'No documents for this period', docs: c.docs.map(id => { const d = s.docs.find(x => x.id === id); return { file: d.file, onClick: () => this.openDoc(scen, id, 1) }; }), chips: this.chips(scen, c.ev), hasEx: !!c.x && this.visX(s, l, c.x), openEx: () => this.setState({ tab: 'study', drawer: { type: 'ex', id: c.x }, note: l.ex[c.x].note || (s.exceptions.find(x => x.id === c.x).question || '') }) };
+      }
+
+      // Study
+      v.studyEmpty = !l.loaded; v.studyFull = l.loaded;
+      v.toDocs = () => this.setState({ tab: 'documents' });
+      if (l.loaded) {
+        const eff = id => this.effState(s, l, id);
+        const active = s.tasks.filter(t => eff(t.id) !== 'SKIPPED'); const doneT = active.filter(t => eff(t.id) === 'COMPLETED');
+        const settled = vis.filter(x => l.ex[x.id].status !== 'open');
+        const tot = vis.length + active.length; const ok = settled.length + doneT.length;
+        v.readyW = Math.round(ok / tot * 100) + '%';
+        v.readyLabel = openN ? openN + ' of ' + vis.length + ' items still open' : 'Ready for your review';
+        const cnt = { needs: vis.filter(x => x.kind === 'needs' && l.ex[x.id].status === 'open').length, changed: vis.filter(x => x.kind === 'changed' && l.ex[x.id].status === 'open').length, missing: vis.filter(x => x.kind === 'missing' && ['open', 'requested'].includes(l.ex[x.id].status)).length, checked: doneT.length + vis.filter(x => !['open', 'requested'].includes(l.ex[x.id].status)).length };
+        v.bar = ['needs', 'changed', 'missing', 'checked'].map(k => { const n = cnt[k]; const a = st.exFilter === k; return { label: k === 'needs' ? (n === 1 ? '1 needs you' : n + ' need you') : n + ' ' + k, bg: this.KD[k][1], fg: this.KD[k][2], dot: this.KD[k][3], bd: a ? this.KD[k][2] : this.KD[k][1], onClick: () => this.setState({ exFilter: a || k === 'checked' ? 'all' : k }) }; });
+        // next best action
+        const running = s.tasks.find(t => eff(t.id) === 'RUNNING');
+        const ox = vis.filter(x => l.ex[x.id].status === 'open');
+        const nx = ox.find(x => x.kind === 'needs') || ox.find(x => x.kind === 'changed');
+        const mx = ox.find(x => x.kind === 'missing');
+        const prop = s.tasks.find(t => eff(t.id) === 'PROPOSED');
+        const ready = s.tasks.find(t => t.by === 'hive' && eff(t.id) === 'READY');
+        const exOpen = x => this.setState({ drawer: { type: 'ex', id: x.id }, note: l.ex[x.id].note || x.question || '' });
+        if (running) v.nba = { text: 'Hive is working on “' + running.title + '”.', hasBtn: false };
+        else if (nx) v.nba = { text: 'Review “' + nx.title + '” before finalizing the ' + deliverable.toLowerCase() + '.', btn: 'Review', hasBtn: true, onClick: () => exOpen(nx) };
+        else if (mx) v.nba = { text: '“' + mx.title + '”: draft a request, or mark it not available.', btn: 'Open', hasBtn: true, onClick: () => exOpen(mx) };
+        else if (l.pending) v.nba = { text: 'Accept your ' + l.pending + (l.pending === 1 ? ' decision' : ' decisions') + ' into the Study so the deliverable can pin them.', btn: 'Accept into Study', hasBtn: true, onClick: () => this.acceptStudy() };
+        else if (ready) v.nba = { text: 'Ready to run: ' + ready.title + '.', btn: 'Open task', hasBtn: true, onClick: () => openDrawer('task', ready.id) };
+        else if (prop) v.nba = { text: 'Hive suggests one more task: ' + prop.title + '.', btn: 'See suggestion', hasBtn: true, onClick: () => openDrawer('task', prop.id) };
+        else v.nba = { text: 'Every item has a decision or a request. Prepare the ' + deliverable.toLowerCase() + ' for your review.', btn: 'Go to Reports', hasBtn: true, onClick: () => this.setState({ tab: 'reports' }) };
+        v.revLabel = 'rev ' + l.rev + ' · ' + l.revs[l.revs.length - 1].date;
+        v.showRevs = st.showRevs; v.revsToggle = st.showRevs ? 'Hide history' : 'Revision history';
+        v.toggleRevs = () => this.setState({ showRevs: !st.showRevs });
+        v.revs = l.revs.slice().reverse();
+        v.decisions = l.decisions.slice().reverse().map(d => ({ t: d.t, txt: d.txt, state: d.pending ? 'Pending' : d.note ? 'Note' : 'In Study', fg: d.pending ? '#7A5200' : '#197040' }));
+        v.noDecisions = !l.decisions.length;
+        v.ord = s.order;
+        v.planDone = doneT.length + ' of ' + active.length + ' done';
+        v.tasks = s.tasks.map(t => { const e = eff(t.id); const b = this.TS[e]; const lt = l.tasks[t.id]; const sel = st.drawer && st.drawer.type === 'task' && st.drawer.id === t.id;
+          const depsOpen = (t.deps || []).filter(d => eff(d) !== 'COMPLETED');
+          return { title: t.title, by: t.by === 'hive' ? 'Hive' : 'You', badge: b[0], bBg: b[1], bFg: b[2], line: e === 'COMPLETED' || e === 'FAILED' || e === 'SKIPPED' ? (lt.result || t.does) : t.does, hasDeps: e === 'BLOCKED' && depsOpen.length > 0, deps: 'Waiting on: ' + depsOpen.map(d => s.tasks.find(x => x.id === d).title).join(' · '), rowBg: sel ? '#F4F8FF' : '#fff', onClick: () => openDrawer('task', t.id) }; });
+        const f = st.exFilter;
+        v.exFilters = [['all', 'All'], ['needs', 'Needs you'], ['changed', 'Changed'], ['missing', 'Missing']].map(([k, label]) => ({ label, bg: f === k ? '#1F2328' : '#fff', fg: f === k ? '#fff' : '#4A525C', bd: f === k ? '#1F2328' : '#E3E6EA', onClick: () => this.setState({ exFilter: k }) }));
+        const order = x => (l.ex[x.id].status === 'open' ? 0 : 1);
+        v.exRows = vis.filter(x => f === 'all' || x.kind === f).slice().sort((a, b) => order(a) - order(b)).map(x => this.exRow(scen, s, l, x));
+        v.exNone = v.exRows.length === 0;
+        const RSC = { same: ['#E6F4EA', '#197040'], needs: ['#E8F0FE', '#1A56C4'], changed: ['#FEF3D6', '#7A5200'], total: ['#F4F6F8', '#1F2328'] };
+        v.cmp = { title: s.compare.title, sub: s.compare.sub, headers: s.compare.cols.concat(['Result', 'Sources']).map(t => ({ t })), rows: s.compare.rows.map(r => {
+          let res = r.result, c = RSC[r.rs];
+          if (r.x) { const xs = l.ex[r.x].status; if (xs === 'accepted') { res = 'Matched (accepted by you)'; c = RSC.same; } else if (xs === 'rejected') { res = 'Not a match, flagged'; c = RSC.needs; } else if (xs === 'resolved') { res = 'Explained by you'; c = RSC.same; } else if (xs !== 'open') { res = r.result + ' · ' + this.XS[xs].toLowerCase(); } }
+          return { cells: r.cells.map(t => ({ t })), result: res, rBg: c[0], rFg: c[1], chips: this.chips(scen, r.ev), cur: r.x ? 'pointer' : 'default', fw: r.rs === 'total' ? 600 : 400, onClick: () => { if (r.x) exOpen(s.exceptions.find(x => x.id === r.x)); } }; }) };
+        v.metrics = s.understand.metrics.map(mm => ({ label: mm.label, value: mm.calc ? this.calc(s, l, mm.calc).txt : mm.value, sub: mm.sub, chips: this.chips(scen, (mm.calc ? [mm.calc] : []).concat(mm.ev || [])) }));
+        v.groups = s.understand.groups.map(g => ({ title: g.title, bd: g.unc ? '#F6B826' : '#1F2328', fg: g.unc ? '#7A5200' : '#4A525C', items: g.items.map(i => ({ text: i.text, chips: this.chips(scen, i.ev) })) }));
+        v.timeline = s.timeline.map(t => ({ date: t.date, text: t.text, chips: this.chips(scen, t.ev) }));
+        v.ops = s.ops.filter(o => !o.hidden || l.revealed[o.id]).map(o => ({ title: o.title, output: o.calc ? this.calc(s, l, o.calc).txt + ' — ' + s.calcs[o.calc].title.toLowerCase() : o.output, onClick: () => openDrawer('op', o.id) }));
+      }
+
+      // Reports
+      v.genDisabled = !l.loaded || l.pending > 0;
+      v.genOp = v.genDisabled ? 0.45 : 1;
+      v.genReason = !l.loaded ? 'Add documents first. The work product is built from the accepted Study.' : l.pending ? 'You have ' + v.pendingLabel.replace(' not yet in the Study', '') + ' waiting. Accept them into the Study first, so the report pins one Study revision.' : '';
+      v.hasGenReason = !!v.genReason;
+      v.generate = () => { if (!v.genDisabled) this.generate(); };
+      v.repList = l.reports.map((r, i) => ({ r, i })).reverse().map(({ r, i }) => { const rs = this.RS[r.state]; const a = i === l.selReport; return { v: r.v, state: rs[0], sBg: rs[1], sFg: rs[2], meta: r.date + ' · Study rev ' + r.rev + (r.open.length ? ' · ' + r.open.length + ' open' : ''), bd: a ? '#3B7CF6' : 'transparent', bg: a ? '#F4F8FF' : '#fff', onClick: () => this.updLive(h.id, ll => { ll.selReport = i; }) }; });
+      v.noReports = !l.reports.length;
+      const rep = l.reports[l.selReport];
+      v.hasRep = !!rep; v.noRepView = !rep; v.noRepText = l.loaded ? 'No work product yet. Generate one from the accepted Study.' : 'Reports appear here once your documents are read and the Study is built.';
+      if (rep) {
+        const pro = st.fmt === 'pro'; const rs = this.RS[rep.state];
+        v.fmtOpts = [['customer', 'Customer format'], ['pro', 'Professional format']].map(([k, label]) => ({ label, bg: st.fmt === k ? '#fff' : 'transparent', fg: st.fmt === k ? '#1F2328' : '#4A525C', sh: st.fmt === k ? '0 1px 3px rgba(31,35,40,.12)' : 'none', onClick: () => this.setState({ fmt: k }) }));
+        const latest = l.selReport === l.reports.length - 1;
+        v.revDisabled = rep.state !== 'READY_FOR_REVIEW';
+        v.revOp = v.revDisabled ? 0.45 : 1;
+        v.revReason = rep.state === 'REVIEWED' ? 'You marked this version as reviewed.' : rep.state === 'READY_FOR_REVIEW' ? '' : rep.state === 'DRAFT' ? 'Drafts can’t be marked reviewed. Generate a new version.' : 'This version has open items. Resolve them in the Study, then generate a new version.';
+        v.hasRevReason = !!v.revReason;
+        v.markReviewed = () => { if (!v.revDisabled) { this.updLive(h.id, ll => { ll.reports[ll.selReport].state = 'REVIEWED'; ll.reports[ll.selReport].date += ' · reviewed'; }); this.toast('Marked as reviewed by you. This doesn’t submit or approve anything.'); } };
+        v.rep = {
+          kicker: (pro ? 'Professional format' : 'Customer format') + ' · v' + rep.v + (latest ? '' : ' (earlier version)'),
+          state: rs[0], sBg: rs[1], sFg: rs[2], title: deliverable, hive: h.title,
+          scope: [{ k: 'Evidence scope', v: s.docs.length + ' files, ' + s.docs.filter(d => !d.dup).length + ' unique' }, { k: 'Pinned Study', v: 'rev ' + rep.rev }, { k: 'Generated', v: rep.date }, { k: 'Unresolved', v: rep.open.length ? rep.open.length + ' items' : 'None' }],
+          hasOpen: rep.open.length > 0, openText: 'Still open in this version: ' + rep.open.join('; ') + '.',
+          sections: rep.sections.map((sec, i) => ({ n: String(i + 1).padStart(2, '0'), title: sec.title, lead: pro ? 'Source: Study rev ' + rep.rev + '. Each row links to a physical page in the original document.' + (sec.src === 'calc' ? ' ' + sec.intro.split('Method: ')[1] : '') : sec.intro, headers: (pro ? ['Ref'] : []).concat(sec.headers).concat(['Sources']).map(t => ({ t })), rows: sec.rows.map((r, j) => ({ cells: (pro ? [(i + 1) + '.' + (j + 1)] : []).concat(r.cells).map(t => ({ t })), chips: this.chips(scen, r.ev) })) }))
+        };
+      }
+
+      // Drawer
+      if (st.drawer) {
+        const d = st.drawer; let dr = null;
+        if (d.type === 'task') {
+          const t = s.tasks.find(x => x.id === d.id); const lt = l.tasks[t.id]; const e = this.effState(s, l, t.id); const b = this.TS[e];
+          const actions = [];
+          if (e === 'PROPOSED') { actions.push(this.btn('Add to plan', () => this.setTask(t.id, 'READY', 'Added to plan by you'), 'primary')); actions.push(this.btn('Skip', () => this.setTask(t.id, 'SKIPPED', 'Skipped by you'))); }
+          if (e === 'READY' && t.by === 'hive') actions.push(this.btn(t.makesReport ? 'Run: assemble from accepted Study' : 'Run operation', () => this.runTask(t.id), 'primary', t.makesReport && l.pending > 0, 'Accept your pending decisions into the Study first, so the packet pins one Study revision.'));
+          if (e === 'FAILED') actions.push(this.btn('Retry', () => this.runTask(t.id), 'primary'));
+          if (e === 'SKIPPED') actions.push(this.btn('Restore to plan', () => this.setTask(t.id, 'PROPOSED', 'Restored by you')));
+          if (e === 'COMPLETED' && t.makesReport) actions.push(this.btn('Open in Reports', () => this.setState({ tab: 'reports', drawer: null }), 'primary'));
+          if (e === 'COMPLETED' && t.op) actions.push(this.btn('Open operation', () => this.setState({ drawer: { type: 'op', id: t.op } })));
+          if (t.revealsOp && l.revealed[t.revealsOp]) actions.push(this.btn('Open operation', () => this.setState({ drawer: { type: 'op', id: t.revealsOp } })));
+          actions.push(this.btn('Add note', () => { const n = st.note.trim(); this.updLive(h.id, ll => { ll.tasks[t.id].history.push({ t: this.now(), txt: 'Note: ' + n }); ll.decisions.push({ t: this.now(), txt: t.title + ' — note: “' + n + '”', note: true }); }); this.setState({ note: '' }); this.toast('Note added.'); }, null, !st.note.trim(), ''));
+          const linked = (t.derive || []).concat(t.reveals || []).filter(x => this.visX(s, l, x)).map(x => this.exRow(scen, s, l, s.exceptions.find(y => y.id === x)));
+          const fields = [{ k: 'Purpose', v: t.does }, { k: 'Why Hive proposed it', v: t.why || '—' }, { k: 'Who does it', v: t.by === 'hive' ? 'Hive' : 'You. Hive records your decision; it doesn’t change the documents.' }];
+          if (t.method) fields.push({ k: 'Method', v: t.method });
+          fields.push({ k: 'Result', v: e === 'RUNNING' ? 'Working… (simulated)' : lt.result || (e === 'COMPLETED' && t.derive ? 'Every linked item has a decision.' : 'Not run yet.') });
+          fields.push({ k: 'Required review', v: t.by === 'you' ? 'Your decision on each linked item.' : e === 'COMPLETED' ? 'Check the result against the source pages before relying on it.' : 'None until it runs.' });
+          const reason = actions.find(a => a.dis && a.reason);
+          dr = { badge: b[0], bBg: b[1], bFg: b[2], kicker: 'Work item · ' + (t.by === 'hive' ? 'Hive' : 'You'), title: t.title, fields, hasChips: !!(t.inputs && t.inputs.length), chipsLabel: 'Input records and evidence', chips: this.chips(scen, t.inputs), hasCalc: false, deps: (t.deps || []).map(id => { const de = this.effState(s, l, id); return { title: s.tasks.find(x => x.id === id).title, state: this.TS[de][0], bg: this.TS[de][1], fg: this.TS[de][2], onClick: () => this.setState({ drawer: { type: 'task', id }, note: '' }) }; }), linked, hasLinked: linked.length > 0, hasNote: true, noteLabel: 'Annotation', notePh: 'Add a note to this work item', history: lt.history.slice().reverse(), hasHistory: lt.history.length > 0, actions, hasReason: !!reason, reason: reason ? reason.reason : '', footnote: 'Work item states change here. The accepted Study only changes when you accept decisions into a new revision.' };
+          dr.hasDeps = dr.deps.length > 0;
+        }
+        if (d.type === 'ex') {
+          const x = s.exceptions.find(y => y.id === d.id); const lx = l.ex[x.id]; const k = this.KD[x.kind]; const open = lx.status === 'open'; const n = st.note.trim();
+          const actions = []; let noteLabel = '', notePh = '';
+          if (open) {
+            x.acts.forEach(a => {
+              if (a === 'source') actions.push(this.btn('View source', () => this.openEv(scen, x.ev[0])));
+              if (a === 'coverage') actions.push(this.btn('See coverage', () => this.setState({ tab: 'documents', cell: x.cell, drawer: null })));
+              if (a === 'explain') { actions.push(this.btn('Save explanation', () => this.setEx(x.id, 'resolved', n), 'primary', !n, 'Write a short explanation first.')); noteLabel = 'Your explanation'; notePh = 'e.g. Gift to her son for a car; letter to follow.'; }
+              if (a === 'question') { actions.push(this.btn('Add to questions', () => this.setEx(x.id, 'questioned', n), 'primary', !n, 'Write the question first.')); noteLabel = 'Question to bring'; }
+              if (a === 'request') actions.push(this.btn('Draft request', () => this.setState({ modal: { xid: x.id, text: 'Hello,\n\nI’m gathering records for: ' + goal + '\n\nCould you please send:\n\n• ' + x.request + '\n\nThank you.' }, copied: false })));
+              if (a === 'na') { actions.push(this.btn('Mark not available', () => this.setEx(x.id, 'na', n), null, !n, 'Add a short reason before marking it not available.')); if (!noteLabel) { noteLabel = 'Why it isn’t available'; notePh = 'e.g. The bank says this account opened in January 2023.'; } }
+              if (a === 'accept') actions.push(this.btn(x.acceptLabel || 'Accept', () => this.setEx(x.id, 'accepted', n || null), 'good'));
+              if (a === 'reject') actions.push(this.btn(x.rejectLabel || 'Reject', () => this.setEx(x.id, 'rejected', n || null)));
+            });
+            if (!noteLabel) { noteLabel = 'Annotation (optional)'; notePh = 'Add context for your decision'; }
+          } else {
+            actions.push(this.btn('View source', () => this.openEv(scen, x.ev[0])));
+            actions.push(this.btn('Reopen', () => this.setEx(x.id, 'open', null)));
+          }
+          const status = open ? 'Open' : lx.status === 'accepted' && x.acceptLabel ? x.acceptLabel : lx.status === 'rejected' && x.rejectLabel ? x.rejectLabel : this.XS[lx.status];
+          const fields = [{ k: 'What the documents show', v: x.detail }, { k: 'Why it matters for the ' + deliverable.toLowerCase(), v: x.why }, { k: 'Status', v: status + (lx.note && !open ? ': “' + lx.note + '”' : '') }];
+          const reason = actions.find(a => a.dis && a.reason);
+          const usedBy = s.tasks.filter(t => (t.derive || []).concat(t.reveals || []).includes(x.id));
+          dr = { badge: k[0], bBg: k[1], bFg: k[2], kicker: 'Exception', title: x.title, fields, hasChips: true, chipsLabel: 'Supporting evidence', chips: this.chips(scen, x.ev), hasCalc: false, deps: usedBy.map(t => { const de = this.effState(s, l, t.id); return { title: t.title, state: this.TS[de][0], bg: this.TS[de][1], fg: this.TS[de][2], onClick: () => this.setState({ drawer: { type: 'task', id: t.id }, note: '' }) }; }), linked: [], hasLinked: false, hasNote: open, noteLabel, notePh, history: lx.history.slice().reverse(), hasHistory: true, actions, hasReason: !!reason, reason: reason ? reason.reason : '', footnote: 'Your decision is recorded against the Study. It never edits the original documents.' };
+          dr.hasDeps = dr.deps.length > 0;
+        }
+        if (d.type === 'op') {
+          const o = s.ops.find(y => y.id === d.id);
+          const fields = [{ k: 'Method', v: o.method }, { k: 'Output', v: o.calc ? this.calc(s, l, o.calc).txt : o.output }];
+          dr = { badge: 'Done', bBg: '#E6F4EA', bFg: '#197040', kicker: 'Completed operation · simulated', title: o.title, fields, hasChips: true, chipsLabel: 'Inputs and evidence', chips: this.chips(scen, o.inputs.concat(o.ev)), hasCalc: !!o.calc, deps: [], hasDeps: false, linked: [], hasLinked: false, hasNote: false, history: [], hasHistory: false, actions: o.calc ? [this.btn('Open calculation in viewer', () => this.openCalc(scen, o.calc), 'primary')] : [], hasReason: false, reason: '', footnote: 'Operations are deterministic: the same inputs give the same output.' };
+          if (o.calc) { const c = this.calc(s, l, o.calc); dr.calc = { title: c.c.title, result: c.txt, rows: c.act.map(i => ({ label: i.label, val: (i.sign < 0 ? '− ' : '+ ') + this.fmtV(i.value, c.c.unit), onClick: () => this.openEv(scen, i.ev) })), excl: c.exc.map(i => ({ label: i.label })) }; }
+        }
+        v.hasDrawer = !!dr; v.dr = dr;
+        v.note = st.note; v.onNote = e => this.setState({ note: e.target.value });
+        v.closeDrawer = () => this.setState({ drawer: null });
+      }
+
+      // Modal
+      if (st.modal) {
+        const x = s.exceptions.find(y => y.id === st.modal.xid);
+        v.hasModal = true;
+        v.md = { sub: x.title, text: st.modal.text, onText: e => this.setState({ modal: { ...st.modal, text: e.target.value } }), copyLabel: st.copied ? 'Copied' : 'Copy text', copy: () => { try { navigator.clipboard.writeText(st.modal.text); } catch (e) {} this.setState({ copied: true }); }, cancel: () => this.setState({ modal: null }), save: () => { const t = st.modal.text; this.setState({ modal: null }); this.setEx(x.id, 'requested', null); this.updLive(h.id, ll => { ll.ex[x.id].history.push({ t: this.now(), txt: 'Draft saved (not sent)' }); }); } };
+      }
+    }
+
+    // Viewer (works from landing too)
+    if (st.viewer) {
+      const vw0 = st.viewer; const s = D.S[vw0.scen]; const l = this.liveFor(vw0.scen); const doc = s.docs.find(d => d.id === vw0.doc);
+      const page = vw0.page; const anchors = Object.keys(s.ev).filter(k => s.ev[k].doc === doc.id && s.ev[k].page === page);
+      const lines = []; const N = 22; let ai = 0;
+      for (let i = 0; i < N; i++) {
+        const slot = 3 + ai * 5;
+        if (ai < anchors.length && i === slot) { const id = anchors[ai]; const act = vw0.ev === id; lines.push({ isBar: false, isAnchor: true, text: s.ev[id].quote, bg: act ? '#FFF6DC' : '#FFFBEF', bd: act ? '#F6B826' : '#F3DFA2', onClick: () => this.setState({ viewer: { ...vw0, ev: id } }) }); ai++; }
+        else { const hsh = this.hash(doc.id + ':' + page + ':' + i); lines.push({ isBar: true, isAnchor: false, w: (38 + hsh % 58) + '%', m: i % 6 === 5 ? '0 0 10px' : '0' }); }
+      }
+      const unread = (doc.unreadable || []).includes(page);
+      const citedPages = Array.from(new Set(Object.keys(s.ev).filter(k => s.ev[k].doc === doc.id).map(k => s.ev[k].page))).sort((a, b) => a - b);
+      const go = p => { const first = Object.keys(s.ev).find(k => s.ev[k].doc === doc.id && s.ev[k].page === p); this.setState({ viewer: { ...vw0, page: p, ev: first || null } }); };
+      const fe = vw0.ev && s.ev[vw0.ev] && s.ev[vw0.ev].doc === doc.id && s.ev[vw0.ev].page === page ? s.ev[vw0.ev] : null;
+      const vs = fe ? this.VS[fe.status] : null;
+      v.hasViewer = true;
+      v.closeViewer = () => this.setState({ viewer: null });
+      v.vw = {
+        role: doc.role, file: doc.file, org: doc.org, page, pages: doc.pages, lines, unreadable: unread, blur: unread ? 'blur(3px)' : 'none',
+        prev: () => { if (page > 1) go(page - 1); }, next: () => { if (page < doc.pages) go(page + 1); }, prevDis: page <= 1, nextDis: page >= doc.pages, prevOp: page <= 1 ? 0.4 : 1, nextOp: page >= doc.pages ? 0.4 : 1,
+        cited: citedPages.map(p => ({ p, bg: p === page ? '#FFF6DC' : '#fff', bd: p === page ? '#F6B826' : '#E3E6EA', onClick: () => go(p) })), noCited: citedPages.length === 0,
+        hasFocus: !!fe, noFocus: !fe, noFocusText: anchors.length ? 'Select a highlighted line to see what it supports.' : 'Hive doesn’t cite anything on this page.',
+        f: fe ? { chip: doc.role + ' · p.' + page, quote: fe.quote, supports: fe.supports, source: doc.role + ' (' + doc.file + ')', page: 'Page ' + page + ' of ' + doc.pages, vLabel: vs[0], vBg: vs[1], vFg: vs[2], hasUnc: !!fe.unc, unc: fe.unc || '' } : {},
+        others: anchors.filter(id => id !== vw0.ev).map(id => ({ supports: s.ev[id].supports, onClick: () => this.setState({ viewer: { ...vw0, ev: id } }) })),
+        hasCalc: !!vw0.calc
+      };
+      v.vw.hasOthers = v.vw.others.length > 0;
+      if (vw0.calc) { const c = this.calc(s, l, vw0.calc); v.vw.calc = { title: c.c.title, method: c.c.method, result: c.txt, rows: c.act.map(i => ({ label: i.label, val: (i.sign < 0 ? '− ' : '+ ') + this.fmtV(i.value, c.c.unit), bg: i.ev === vw0.ev ? '#FFF6DC' : '#fff', onClick: () => this.openEv(vw0.scen, i.ev) })), excl: c.exc.map(i => ({ label: i.label })) }; }
+    }
+
+    v.hasToast = !!st.toast; v.toast = st.toast || '';
+    return v;
+  }
+
+  propose() {
+    const D = this.D(); const t = this.state.createText.trim();
+    if (!t) { this.toast('Describe what you want done first.'); return; }
+    let sc = this.classify(t); let note = null;
+    if (!sc) { sc = 'medicaid'; note = 'This prototype has three sample cases. It used the closest one, a financial review; edit the goal to fit.'; }
+    const goals = { medicaid: 'Prepare a Medicaid financial review.', iep: 'Prepare for an IEP meeting.', insurance: 'Compare insurance estimates and list unresolved issues.' };
+    this.setState({ proposal: { scen: sc, goal: goals[sc], output: D.S[sc].deliverable, note } });
+  }
+}
+</script>
+</body>
+</html>

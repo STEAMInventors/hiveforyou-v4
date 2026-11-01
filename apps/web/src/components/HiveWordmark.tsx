@@ -3,26 +3,37 @@ import Link from "next/link";
 
 import { BRAND_ASSETS, BRAND_LOGO_SIZE } from "@/lib/brand-assets";
 
-const headerHeight = BRAND_LOGO_SIZE.headerHeightPx;
-
 type HiveAppLogoProps = {
   linkHome?: boolean;
   display?: "lockup" | "responsive";
+  size?: "header" | "landing" | "footer";
+  href?: string;
+  ariaLabel?: string;
   className?: string;
 };
 
 export function HiveAppLogo({
   linkHome = false,
   display = "responsive",
+  size = "header",
+  href = "/",
+  ariaLabel = "HiveForYou home",
   className = "",
 }: HiveAppLogoProps) {
+  const heightPx =
+    size === "landing"
+      ? BRAND_LOGO_SIZE.landingHeaderHeightPx
+      : size === "footer"
+        ? BRAND_LOGO_SIZE.footerHeightPx
+        : BRAND_LOGO_SIZE.headerHeightPx;
+
   const inner =
     display === "lockup" ? (
       <span className={`inline-flex items-center ${className}`.trim()}>
         <img
           src={BRAND_ASSETS.logo}
           alt="HiveForYou"
-          style={{ height: headerHeight, width: "auto" }}
+          style={{ height: heightPx, width: "auto" }}
           className="block"
         />
       </span>
@@ -31,13 +42,13 @@ export function HiveAppLogo({
         <img
           src={BRAND_ASSETS.logo}
           alt="HiveForYou"
-          style={{ height: headerHeight, width: "auto" }}
+          style={{ height: heightPx, width: "auto" }}
           className="hidden min-[400px]:block"
         />
         <img
           src={BRAND_ASSETS.mark}
           alt="HiveForYou"
-          style={{ height: headerHeight, width: headerHeight }}
+          style={{ height: heightPx, width: heightPx }}
           className="block min-[400px]:hidden"
         />
       </span>
@@ -48,8 +59,8 @@ export function HiveAppLogo({
   }
   return (
     <Link
-      href="/"
-      aria-label="HiveForYou home"
+      href={href}
+      aria-label={ariaLabel}
       className="inline-flex shrink-0 rounded-md no-underline"
     >
       {inner}

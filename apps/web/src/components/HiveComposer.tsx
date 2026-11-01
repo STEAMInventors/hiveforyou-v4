@@ -1,100 +1,182 @@
 "use client";
 
+import { INTENT_TEXT_MAX_LENGTH } from "@hiveforyou/contracts";
 import { useId, useState } from "react";
 
-const STARTER_SITUATIONS = [
-  { title: "Meeting prep", fill: "Help me prepare for an upcoming meeting." },
-  { title: "Understand spending", fill: "Help me understand where my money is going." },
-  { title: "Organize paperwork", fill: "Help me organize a stack of paperwork." },
-] as const;
+import type { CreateHiveFailure } from "@/components/hives/create-hive-flow";
+import { AddFilesButton, SelectedFileChips } from "@/components/hives/SourceFilePicker";
+import {
+  MAX_FILES_PER_BATCH,
+  type SelectedSourceFile,
+} from "@/components/hives/source-file-upload";
 
-type HiveComposerProps = {
-  onSubmit: () => void;
+const COUNTER_THRESHOLD = INTENT_TEXT_MAX_LENGTH - 200;
+
+export type HiveComposerProps = {
+  intentText: string;
+  files: SelectedSourceFile[];
+  intentError?: string | null;
+  filesError?: string | null;
+  failure?: CreateHiveFailure | null;
   busy?: boolean;
+  /** The intent is already saved with the Hive and can no longer change. */
+  intentLocked?: boolean;
+  onIntentTextChange: (value: string) => void;
+  onAddFiles: (files: File[]) => void;
+  onRemoveFile: (key: string) => void;
+  onSubmit: () => void;
 };
 
-function ArrowUpIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <line x1="12" y1="19" x2="12" y2="5" />
-      <polyline points="5 12 12 5 19 12" />
-    </svg>
-  );
-}
-
-export function HiveComposer({ onSubmit, busy = false }: HiveComposerProps) {
+export function HiveComposer({
+  intentText,
+  files,
+  intentError = null,
+  filesError = null,
+  failure = null,
+  busy = false,
+  intentLocked = false,
+  onIntentTextChange,
+  onAddFiles,
+  onRemoveFile,
+  onSubmit,
+}: HiveComposerProps) {
   const inputId = useId();
-  const helpId = useId();
-  const [intentText, setIntentText] = useState("");
-  const canSubmit = intentText.trim().length > 0 && !busy;
+  const hintId = useId();
+  const intentErrorId = useId();
+  const filesErrorId = useId();
+  const [dragActive, setDragActive] = useState(false);
+  const canAddFiles = !busy && files.length < MAX_FILES_PER_BATCH;
+  const invalid = Boolean(intentError || filesError);
+
+  const hint = intentLocked
+    ? "What you need is saved with your Hive."
+    : files.length === 0
+      ? "Attach PDF, PNG, JPG or DOCX. Old, partial or out of order is fine."
+      : "Old, partial or out of order is fine.";
+
+  const describedBy = [hintId, intentError ? intentErrorId : null, filesError ? filesErrorId : null]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <section
-      className="mx-auto flex w-full max-w-[720px] flex-col gap-4"
+    <form
+      noValidate
       aria-label="Start a Hive"
+      aria-busy={busy || undefined}
+      className="flex w-full flex-col gap-2 text-left"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!busy) {
+          onSubmit();
+        }
+      }}
     >
-      <form
-        className="hive-composer box-border w-full rounded-[28px] border border-line bg-paper px-3.5 pb-3 pl-[22px] pt-3.5 shadow-[0_1px_2px_rgba(31,35,40,0.04),0_8px_28px_rgba(31,35,40,0.06)]"
-        onSubmit={(event) => {
+      {failure ? (
+        <div
+          role="alert"
+          className="flex flex-col gap-1 rounded-button bg-coral-wash px-3.5 py-2.5 text-[14px] text-coral-deep"
+        >
+          <p className="m-0 font-semibold">{failure.headline}</p>
+          <p className="m-0">{failure.message}</p>
+          {failure.correlationId ? (
+            <p className="m-0 font-mono text-[12px] opacity-80">
+              Support reference: {failure.correlationId}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div
+        className={`hive-composer box-border flex w-full flex-col gap-2.5 rounded-card border-2 bg-paper pb-3 pl-5 pr-4 pt-4 transition-colors ${
+          dragActive
+            ? "border-cell-blue bg-cell-blue-wash"
+            : invalid
+              ? "border-coral-deep"
+              : "border-line"
+        }`}
+        onDragOver={(event) => {
+          if (!canAddFiles) {
+            return;
+          }
           event.preventDefault();
-          if (canSubmit) {
-            onSubmit();
+          setDragActive(true);
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setDragActive(false);
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragActive(false);
+          const dropped = Array.from(event.dataTransfer.files);
+          if (canAddFiles && dropped.length > 0) {
+            onAddFiles(dropped);
           }
         }}
       >
         <label htmlFor={inputId} className="sr-only">
-          Describe what you need
+          What are you trying to get done?
         </label>
         <textarea
           id={inputId}
-          rows={3}
-          aria-describedby={helpId}
-          className="w-full resize-none border-0 bg-transparent pb-0 pl-0 pr-2 pt-1.5 text-[17px] leading-normal text-ink placeholder:text-ink-muted focus:outline-none focus:ring-0 focus-visible:outline-none"
-          placeholder="Upload whatever you have — old, partial or out of order is fine. What do you need to understand?"
+          rows={2}
+          required
+          readOnly={intentLocked}
           value={intentText}
-          onChange={(event) => setIntentText(event.target.value)}
+          maxLength={INTENT_TEXT_MAX_LENGTH}
+          aria-invalid={intentError ? true : undefined}
+          aria-describedby={describedBy}
+          className="w-full resize-none border-0 bg-transparent p-0 text-[18px] leading-[1.5] text-ink placeholder:text-ink-subtle read-only:text-ink-muted focus:outline-none focus:ring-0 focus-visible:outline-none"
+          placeholder="Describe your situation, then add whatever documents you have…"
+          onChange={(event) => onIntentTextChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
         />
-        <div className="mt-2 flex items-center justify-between gap-2.5">
-          <p id={helpId} className="m-0 text-xs text-ink-muted">
-            Next, you&apos;ll name a private Hive for this situation.
-          </p>
+        {intentText.length > COUNTER_THRESHOLD ? (
+          <span className="self-end text-[12.5px] text-ink-subtle" aria-live="polite">
+            {intentText.length} / {INTENT_TEXT_MAX_LENGTH}
+          </span>
+        ) : null}
+
+        <SelectedFileChips files={files} onRemove={onRemoveFile} busy={busy} />
+
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex min-w-0 flex-1 basis-[200px] items-center gap-1.5">
+            <AddFilesButton
+              label="Attach documents"
+              disabled={!canAddFiles}
+              describedBy={hintId}
+              onAdd={onAddFiles}
+            />
+            <p id={hintId} className="m-0 text-[13px] text-ink-subtle">
+              {hint}
+            </p>
+          </div>
           <button
             type="submit"
-            disabled={!canSubmit}
-            aria-label="Start a Hive"
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 ${
-              canSubmit
-                ? "cursor-pointer bg-ink text-paper"
-                : "cursor-not-allowed bg-mist text-ink-muted"
-            }`}
+            disabled={busy}
+            className="ml-auto inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-button border-0 bg-cell-blue-deep px-4 text-[14px] font-medium text-paper transition-colors hover:bg-cell-blue-hover disabled:cursor-not-allowed disabled:opacity-45 max-sm:w-full max-sm:justify-center"
           >
-            <ArrowUpIcon />
+            {busy ? "Creating Hive…" : "Create Hive"}
           </button>
         </div>
-      </form>
-
-      <div className="flex flex-wrap justify-center gap-2">
-        {STARTER_SITUATIONS.map((situation) => (
-          <button
-            key={situation.title}
-            type="button"
-            className="min-h-10 cursor-pointer rounded-full border border-line bg-paper px-4 py-2 text-sm text-ink-muted transition-colors hover:border-line-strong hover:bg-mist hover:text-ink"
-            onClick={() => setIntentText(situation.fill)}
-          >
-            {situation.title}
-          </button>
-        ))}
       </div>
-    </section>
+
+      {intentError ? (
+        <p id={intentErrorId} className="m-0 text-[14px] text-coral-deep" role="alert">
+          {intentError}
+        </p>
+      ) : null}
+      {filesError ? (
+        <p id={filesErrorId} className="m-0 text-[14px] text-coral-deep" role="alert">
+          {filesError}
+        </p>
+      ) : null}
+    </form>
   );
 }

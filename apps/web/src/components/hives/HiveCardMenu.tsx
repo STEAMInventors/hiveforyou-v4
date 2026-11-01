@@ -15,7 +15,15 @@ function MoreIcon() {
   );
 }
 
-export function HiveCardMenu({ hiveId, hiveName }: { hiveId: string; hiveName: string }) {
+export function HiveCardMenu({
+  hiveId,
+  hiveName,
+  onDeleteHive,
+}: {
+  hiveId: string;
+  hiveName: string;
+  onDeleteHive: () => void;
+}) {
   const menuId = useId();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -70,7 +78,7 @@ export function HiveCardMenu({ hiveId, hiveName }: { hiveId: string; hiveName: s
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label={`Options for ${hiveName}`}
-        className="flex h-9 w-9 items-center justify-center rounded-[8px] text-ink-muted hover:bg-mist hover:text-ink"
+        className="flex h-9 w-9 items-center justify-center rounded-control text-ink-subtle transition-colors hover:bg-mist hover:text-ink"
         onClick={() => setOpen((value) => !value)}
       >
         <MoreIcon />
@@ -80,16 +88,27 @@ export function HiveCardMenu({ hiveId, hiveName }: { hiveId: string; hiveName: s
           ref={menuRef}
           id={menuId}
           role="menu"
-          className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-[10px] border border-line bg-paper py-1 shadow-[0_12px_32px_rgba(31,35,40,0.12)]"
+          className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-button border border-line bg-paper py-1 shadow-[0_12px_32px_rgba(31,35,40,0.12)]"
         >
           <Link
             href={hiveDocumentsPath(hiveId)}
             role="menuitem"
-            className="flex w-full px-3 py-2.5 text-left text-sm font-semibold text-ink no-underline hover:bg-mist"
+            className="flex w-full px-3.5 py-2.5 text-left text-[14px] font-medium text-ink no-underline hover:bg-mist"
             onClick={() => setOpen(false)}
           >
             Open Hive
           </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full px-3.5 py-2.5 text-left text-[14px] font-semibold text-coral-deep hover:bg-coral-wash"
+            onClick={() => {
+              setOpen(false);
+              onDeleteHive();
+            }}
+          >
+            Delete Hive
+          </button>
         </div>
       ) : null}
     </div>

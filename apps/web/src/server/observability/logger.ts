@@ -83,6 +83,20 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "recovery_cookie_missing",
   "session_missing",
   "unclassified",
+  "invalid_document_type",
+  "invalid_document_size",
+  "invalid_file_name",
+  "invalid_intent",
+  "invalid_source_document_id",
+  "quota_exceeded",
+  "source_type_mismatch",
+  "source_size_mismatch",
+  "source_object_missing",
+  "malware_detected",
+  "scan_unavailable",
+  "scan_rate_limited",
+  "storage_failed",
+  "upload_failed",
 ]);
 
 const SENSITIVE_KEY_PATTERN =

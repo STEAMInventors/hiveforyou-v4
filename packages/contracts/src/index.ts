@@ -5,3 +5,4 @@ export * from "./errors/hive-error";
 export * from "./errors/public-error-response";
 export * from "./errors/validate-correlation-id";
 export * from "./hives/hive-contracts";
+export * from "./source-documents/source-document-contracts";

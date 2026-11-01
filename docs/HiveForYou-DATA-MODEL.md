@@ -1,6 +1,6 @@
 # HiveForYou V4 — Data model (logical design)
 
-**Version:** 0.1 | **Status:** Proposed, **no SQL migration or schema created**. Names follow `HiveForYou-NAMING-CONVENTIONS.md`; this is an eventual inventory, not permission to build every table immediately.
+**Version:** 0.3 | **Status:** Logical design; **`hive.hives` migration applied in V4-002 Git history**; **V4-003 migration `20261030150000_create_source_documents.sql` exists locally and is not deployed**. Names follow `HiveForYou-NAMING-CONVENTIONS.md`.
 
 ## Trust and ownership
 
@@ -11,7 +11,7 @@ All owner-bound records live in one proposed PostgreSQL schema **`hive`** in a n
 | Table | Purpose | Key relations and invariants |
 |---|---|---|
 | `hive.hives` | User-owned workspace | `id`, `owner_user_id`, name/description, `client_request_id`, `study_locked_at` where needed; unique `(owner_user_id, client_request_id)` |
-| `hive.source_documents` | Registered immutable source identity | `hive_id`, hash, storage key, MIME, status, physical page count/metadata; no PII in key |
+| `hive.source_documents` | Registered immutable source identity | `hive_id`, `storage_key`, MIME, byte size, `status` (`PENDING`/`REGISTERED`/`REJECTED`), `source_sha256`, `scan_status`, `read_status` (read pipeline deferred), quota on register; D-027 |
 | `hive.document_pages` | Source text/anchors and read provenance | `source_document_id`, `page_number` (1-based), digest, extraction quality/method; may store secure text/refs according to privacy policy |
 | `hive.processing_runs` | Durable operation/status | `hive_id`, stage/status, correlation ID, error code, scope, timestamps, prompt/model info |
 | `hive.extraction_batches` | One document/page-range discovery operation | `processing_run_id`, `source_document_id`, page start/end, prompt/contract version/digest, read digest, coverage |
@@ -21,7 +21,7 @@ All owner-bound records live in one proposed PostgreSQL schema **`hive`** in a n
 | `hive.fact_evidence` | Multiple evidence anchors | Original physical page and quote/anchor; source digest; never free-floating |
 | `hive.canonical_studies` | Single logical Study per Hive | `hive_id UNIQUE`, `current_revision_id` nullable until first accepted revision |
 | `hive.study_revisions` | Immutable accepted history | `canonical_study_id`, revision sequence/digest, predecessors, accepted source coverage |
-| `hive.intent_requests` | User questions & versions | `hive_id`, owner, original text, created time |
+| `hive.intent_requests` | Owner goal at Hive start (write-once per client request) | `hive_id`, `intent_text` (1–2000 trimmed), `client_request_id`, owner; D-026 |
 | `hive.intent_analyses` | Question-specific findings | `intent_request_id`, pinned `study_revision_id`, supported fact refs, limitations |
 | `hive.report_runs` | Independent generation attempts | `hive_id`, pinned revision, audience, generated unique run ID, status/diagnostics |
 | `hive.reports` | Accepted saved output | `report_run_id`, pinned analysis/revision, declarative validated view artifact and history |
@@ -57,4 +57,22 @@ Source registration is idempotent for one client upload request. Candidate and e
 
 Proposed private Supabase bucket `hive-sources`; storage keys use opaque IDs, never filenames containing personal data. Any reversible token mapping belongs to a separate protected access boundary (exact tables/encryption unresolved) and is not automatically readable by end users or models. RLS is not a substitute for server authorization. Account deletion's previously approved 30-day recovery window applies when implemented under its own ticket.
 
-**Implementation sequence:** V4-002 creates only auth/Hive tables/policies; V4-003 adds source/page structures; V4-004 candidate/run; V4-005 verification/revision; later analysis/report structures. No giant initial migration.
+**Implementation sequence:** V4-002 created auth/Hive tables/policies; V4-003 adds `intent_requests`, `source_documents`, private bucket, quota/registration RPCs (**local SQL, not deployed**); **`document_pages` and read pipeline deferred** within V4-003 closure scope as documented in NEXT; V4-004 candidate/run; V4-005 verification/revision; later analysis/report structures.
+
+## Analytical Intelligence persistence extension (proposed; no migrations authorized)
+
+Keep existing one-Hive/one-Study cardinality and immutable revisions. New *logical* entities should be created only as required by an approved ticket:
+
+| Proposed entity | Purpose / minimum keys | Trust invariant |
+|---|---|---|
+| `analysis_discovery_runs` | `hive_id`, `study_revision_id`, discovery version, goal context, status/budget | Idempotent per equivalent revision/version; never a Study revision |
+| `analysis_opportunities` | discovery run, question/kind, evidence refs, prerequisites, value/rank, disposition | Proposed insight ≠ finding |
+| `analysis_plans` | opportunity, pinned revision, typed inputs, operator/dependency model, validation | Model proposal immutable; validated status separate |
+| `analysis_execution_runs` | plan, run ID, status, evaluator/method version, costs/errors | Each attempt auditable; preserve prior result |
+| `analysis_results` | execution run, derived values, evidence/rule links, coverage, confidence/limitations | Supported/partial/blocked/rejected, never asserted as raw source |
+| `scenario_overlays` | owner/Hive, pinned Study revision, user assumption set, horizon, parent scenario | No hypothetical overwrites verified facts |
+| `scenario_models` | overlay, proposed dependency graph, rules, units, model validation | Edge provenance and rule version mandatory if applied |
+| `scenario_runs` | scenario/model, execution method, status, results, versions | Deterministic method and input trace |
+| `scenario_comparisons` | baseline, selected scenario run IDs, delta summary, caveats | Avoid cross-scope invalid comparisons |
+
+These table names are *reservations for review*, not an instruction to create all nine or to split objects unnecessarily; reuse existing `intent_analyses`/`processing_runs` where lifecycles align. Explicitly separate stable source fact IDs, model-proposed dependencies, fetched rule authority, and hypothetical assumptions. Store no unsourced rule as a verified fact. Revised Study creates new analysis pointers and marks earlier outputs historical/stale, never deletes them. Owner-path RLS and server permission checks apply to all entities. `source_sha256`/physical-page provenance remains authoritative for document claims.

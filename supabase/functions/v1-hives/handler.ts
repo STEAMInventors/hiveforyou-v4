@@ -26,6 +26,7 @@ export type EdgeHivePayload = {
   clientRequestId: string;
   createdAt: string;
   updatedAt: string;
+  deletingAt: string | null;
 };
 
 export type EdgeOperation =
@@ -37,7 +38,8 @@ export type EdgeOperation =
       name: string;
       description: string | null;
       clientRequestId: string;
-    };
+    }
+  | { op: "delete"; hiveId: string };
 
 export type EdgeUserSupabaseClient = {
   auth: {
@@ -109,6 +111,30 @@ export function parseEdgeOperation(
       };
     }
     return { ok: true, operation: { op: "get", hiveId: rawId.toLowerCase() } };
+  }
+
+  if (op === "delete") {
+    const rawId =
+      typeof record.hiveId === "string"
+        ? record.hiveId.trim()
+        : typeof record.hive_id === "string"
+          ? record.hive_id.trim()
+          : "";
+    if (!isValidUuid(rawId)) {
+      return {
+        ok: false,
+        error: {
+          errorCode: "INVALID_REQUEST",
+          category: "VALIDATION",
+          stage: "SHELL",
+          message: "Invalid Hive identifier.",
+          retryable: false,
+          diagnosticReason: "invalid_hive_id",
+          status: 422,
+        },
+      };
+    }
+    return { ok: true, operation: { op: "delete", hiveId: rawId.toLowerCase() } };
   }
 
   if (op === "get_by_client_request_id") {
@@ -318,6 +344,17 @@ function normalizeEdgeHive(raw: unknown): EdgeHivePayload | null {
       ? row.description.trim()
       : null;
 
+  const deletingAt =
+    row.deletingAt === null || row.deletingAt === undefined
+      ? row.deleting_at === null || row.deleting_at === undefined
+        ? null
+        : typeof row.deleting_at === "string"
+          ? row.deleting_at
+          : null
+      : typeof row.deletingAt === "string"
+        ? row.deletingAt
+        : null;
+
   return {
     id,
     hiveId,
@@ -326,6 +363,7 @@ function normalizeEdgeHive(raw: unknown): EdgeHivePayload | null {
     clientRequestId,
     createdAt,
     updatedAt,
+    deletingAt,
   };
 }
 
@@ -449,6 +487,67 @@ export function mapRpcFailure(error: unknown): EdgeErrorPayload {
         "We could not confirm whether your Hive was saved. Try again with the same request.",
       retryable: true,
       diagnosticReason: "timeout",
+      status: 503,
+    };
+  }
+
+  if (/storage_list_failed|storage_remove_failed/i.test(message)) {
+    return {
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "SHELL",
+      message: "Storage is temporarily unavailable. Please try again.",
+      retryable: true,
+      diagnosticReason: "storage_unavailable",
+      status: 503,
+    };
+  }
+
+  if (/storage_cleanup_incomplete/i.test(message)) {
+    return {
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "SHELL",
+      message: "We could not finish removing this Hive's files. Try again.",
+      retryable: true,
+      diagnosticReason: "storage_cleanup_incomplete",
+      status: 503,
+    };
+  }
+
+  if (
+    message === "begin_without_prefix" ||
+    message === "db_finalize_failed" ||
+    lowered.includes("begin_without_prefix") ||
+    lowered.includes("db_finalize_failed")
+  ) {
+    return {
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "SHELL",
+      message: "We could not finish deleting this Hive. Try again.",
+      retryable: true,
+      diagnosticReason:
+        message === "db_finalize_failed" || lowered.includes("db_finalize_failed")
+          ? "db_finalize_failed"
+          : "begin_without_prefix",
+      status: 503,
+    };
+  }
+
+  if (
+    code === "PGRST202" ||
+    lowered.includes("begin_hive_deletion") ||
+    lowered.includes("complete_hive_deletion")
+  ) {
+    return {
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "SHELL",
+      message:
+        "Hive deletion is not available on this project yet. Try again later or contact support.",
+      retryable: false,
+      diagnosticReason: "deletion_rpc_missing",
       status: 503,
     };
   }
@@ -665,6 +764,11 @@ export async function handleV1HivesRequest(
       return jsonResponse({ hive }, 200, correlationId);
     }
 
+    if (operation.op === "delete") {
+      const { deleteHiveWithCleanup } = await import("./delete-cleanup.ts");
+      return await deleteHiveWithCleanup(supabase, correlationId, operation.hiveId);
+    }
+
     const { data, error } = await withTimeout(
       supabase.rpc("create_hive", {
         p_name: operation.name,
@@ -711,6 +815,17 @@ export async function handleV1HivesRequest(
       durationMs: Date.now() - started,
       diagnosticReason: mapped.diagnosticReason,
     });
-    return jsonResponse(mapped, mapped.status, correlationId);
+    return jsonResponse(
+      buildPublicErrorBody({
+        errorCode: mapped.errorCode,
+        category: mapped.category,
+        message: mapped.message,
+        stage: mapped.stage,
+        retryable: mapped.retryable,
+        correlationId,
+      }),
+      mapped.status,
+      correlationId,
+    );
   }
 }

@@ -1,6 +1,6 @@
 # HiveForYou V4 — Product requirements
 
-**Version:** 0.1 | **Date:** 2026-10-26 | **Status:** Proposed V4 source-of-truth document; product direction decided, implementation not authorized.
+**Version:** 0.3 | **Date:** 2026-10-31 | **Status:** Product strategy expansion proposed for founder approval; existing R01–R44 and previously approved decisions retained. No implementation authorization.
 
 **Mission:** One Hive holds a person's documents and one continuously enriched, evidence-backed Canonical Study; the user can ask different questions and receive useful, customized, trustworthy outputs. **The complicated, made simple.**
 
@@ -73,7 +73,7 @@ The IDs and capabilities below are retained for traceability. Only infrastructur
 ## Retained approved product policies
 
 - **Owner-only initial access.** Cross-user professional invitation, collaboration, sharing and attributed corrections require separate policy and SQL approvals.
-- **Create Hive:** name required, at most **100 characters**; description optional, at most **500 characters**; each intended creation gets a distinct client request UUID and repeated submission is idempotent. A new Hive has no accepted Study until the first verified acceptance.
+- **Create Hive:** the owner does not type a name; a provisional name (at most **100 characters**) is taken from the written intent and may be renamed later (D-037); description optional at the API, at most **500 characters**, not asked for in the primary UX; each intended creation gets a distinct client request UUID and repeated submission is idempotent. **Primary UX (D-026):** written intent (1–2000 characters) and at least one supported document in the same flow; intent is persisted write-once per request. A new Hive has no accepted Study until the first verified acceptance.
 - **Supported initial uploads:** PDF, PNG, JPG/JPEG, DOCX; file size limits are approved when coded, not invented here. A successful upload is private storage registration plus source metadata, not proof of successful extraction.
 - **Free uploads:** **10 successful registered uploads per UTC calendar month across owner Hives** (retained V3 decision). Server-side enforcement and honest quota UI. Billing above that threshold not specified.
 - **Full Study:** account for **all eligible documents** in its declared scope; targeted enrichment must explicitly label source/page/attribute scope. Unreadable/missing is not equivalent to absent facts.
@@ -82,7 +82,7 @@ The IDs and capabilities below are retained for traceability. Only infrastructur
 
 ## End-to-end acceptance scenarios (synthetic only in development)
 
-1. **New Hive, one receipt:** sign in; create empty Hive; upload synthetic receipt; frontier extraction produces `hive.doc-extraction/1` candidate facts and evidence; independent verification accepts/rejects with reasons; first accepted Study revision appears; citation opens exact page.
+1. **New Hive, one receipt:** sign in; start a Hive with written intent and upload a synthetic receipt in the create flow (D-026); after registration (D-027), frontier extraction produces `hive.doc-extraction/1` candidate facts and evidence; independent verification accepts/rejects with reasons; first accepted Study revision appears; citation opens exact page.
 2. **Repeat questions, one Study:** questions about purchases, comparisons, and missing item attributes lead to different A2UI output regions/report layouts pinned to same Study revision; no re-reading unchanged pages merely for a new presentation.
 3. **Incremental grocery:** add ten receipts to twenty, produce next revision preserving former information and histories; purchase is **not** assumed to mean consumption; unknown organic classification stays unknown.
 4. **Synthetic IEP L001 eight-document case:** document chronology, goals/services, evaluations, conflicts and gaps retain exact source provenance; customer and professional output share accepted study; no legal verdicts or invented needs.
@@ -97,3 +97,120 @@ The IDs and capabilities below are retained for traceability. Only infrastructur
 - Prior V3 requirement to route models through **Oracle LiteLLM** was an infrastructure constraint, **not** a V4 product feature. V4 keeps one approved server-side model boundary; gateway selection is separate.
 
 **Related authority:** `HiveForYou-FEATURES.md` for screen behavior; `HiveForYou-UX-A2UI-DESIGN.md` for UI; `HiveForYou-ARCHITECTURE.md` for data flow; `HiveForYou-PROMPTS-AND-CONTRACTS.md` and `prompts/` for exact AI inputs; `HiveForYou-NEXT.md` for the only active engineering ticket.
+
+
+---
+
+## V4 product expansion: intelligence to completed work (R45–R64) — proposed 2026-10-30
+
+### Positioning and design contract
+
+**Product promise:** *Give Hive the paperwork. Get the work done.* Hive transforms unstructured document collections into **review-ready, evidence-linked work products**, not just summaries or chat answers. This is a proposed positioning test, not a replacement for the approved brand slogan, *The complicated, made simple.*
+
+**Value model:** LLMs propose document meaning, intent, relationships, work plans, and explanations. Deterministic software owns validation, calculations, state, workflow execution, and permissions. A human approves consequential findings, changes, and external actions. A generated plan is not proof that its tasks were performed.
+
+**Product structure:** Retain the fixed **Documents · Study · Reports** navigation and one evolving Canonical Study. Introduce **Work Plan**, **Work Item**, **Work Result**, and **Deliverable** as logical outcome-specific records/artifacts *only when actually required by an approved implementation*. They are not a second fact store, domain-specific application fork, additional mandatory navigation tab, or authorization bypass. The Work Plan is displayed contextually within Study; reviewable deliverables and history live under Reports.
+
+**Scope discipline:** The first product wedge and supported work recipes are *not yet selected*. Demonstrations for Medicaid financial preflight, IEP meeting prep, and financial/contract reconciliation are illustrative, not launched offers or claims of regulated readiness. Domain-free intake stays available; optional reviewed domain rulebooks can define specialist requirements without embedding domain branching in Core. A universal autonomously executing agent is not part of MVP.
+
+### New requirements
+
+| ID | Capability | Acceptance behavior | Priority |
+|---|---|---|---|
+| **R45** | Outcome-first goal capture | Capture the user's desired *deliverable* and intended use in natural language, before or after upload; preserve their original words and optionally clarify only materially ambiguous objectives. No required domain selector. | P0 |
+| **R46** | Work-product definition | Propose a structured, inspectable definition of done: expected artifact, coverage/scope, inputs, review needs and blocking unknowns. Distinguish model-suggested criteria from authoritative external requirements. | P0 |
+| **R47** | Goal-specific work plan | Produce an ordered, versioned set of evidence-linked work items from an accepted Study and pinned goal; each has a type, rationale, dependencies, source scope and machine/human ownership. No fabricated completion. | P0 |
+| **R48** | Work-item lifecycle | Support `PROPOSED`, `READY`, `RUNNING`, `BLOCKED`, `NEEDS_REVIEW`, `COMPLETED`, `FAILED`, `SKIPPED`; status derives from actual operation/review results, with timestamps, attempts and reason codes. | P0 |
+| **R49** | Document inventory and coverage matrix | Inventory sources by inferred role, subject and period; show verified overlaps, duplicates, unreadable periods and *scoped* absences. Do not infer a missing month/account from an unreviewed corpus. | P0 |
+| **R50** | Cross-document reconciliation | Match supported identities, dates, record rows, values and versions; preserve competing assertions and propose match candidates separately from verified matches. Unresolved conflicts generate review items. | P0 |
+| **R51** | Deterministic task execution | Perform reusable trusted operations—sort, group, compare, calculate, check coverage, detect duplicates—using typed, validated inputs. Never treat a model-calculated figure as an accepted result without independent method/input validation. | P0 |
+| **R52** | Exception and gap register | Create actionable exception records (missing, conflicting, unexplained, unreadable, insufficient support) with reason, exact source/coverage context, severity based on explicit criteria, and a clear next step. No invented legal/compliance breaches. | P0 |
+| **R53** | Evidence-bound deliverable builder | Assemble a purpose-specific review-ready output (e.g., inventory, chronology, comparison, reconciliation, meeting brief or case packet) with scope, revision, method, status and source links. Incomplete work must be labeled. | P0 |
+| **R54** | Human review and sign-off | Present machine results, uncertain associations and exception resolutions for owner review. Record accept/reject/annotate decisions with actor/time/rationale, without changing original evidence or granting professional access. | P1 |
+| **R55** | Work plan refresh after new evidence | When new documents create an accepted Study revision, recompute affected work only, retain the prior plan/result history and surface why an item changed; do not silently mark previously blocked work complete. | P1 |
+| **R56** | Missing-document request drafting | Generate a precise, editable request identifying the required document, period, subject, reason and supporting evidence/criteria; user decides whether and where to send it. No automatic outbound contact. | P1 |
+| **R57** | Export and handoff packaging | Produce authorized, stable exports of deliverables and supporting evidence index, with manifest, revision, exceptions, and provenance; redaction/access policy and formats require separate approval. | P1 |
+| **R58** | Repeatable work recipes | Parameterize reusable sequences of generic operators, review gates and deliverable compositions. Recipe version and originating criteria are explicit; specialist overlays are optional and cannot declare compliance without verified rule authority. | P1 |
+| **R59** | Task-level audit and recoverability | Each work operation has immutable input references, processor/method version, output, state/error and retry identity; failures do not corrupt accepted Study, prior work or reports. | P0 |
+| **R60** | Cost and time-to-value instrumentation | With appropriate privacy safeguards, record processing cost, work completion time, task counts, human interventions and optionally user-provided baseline time. Never present estimated savings as measured results. | P1 |
+| **R61** | Safe external actions and connectors | Future outbound email, document requests, third-party writes or submissions require a separately approved integration, least-privilege authorization, explicit user confirmation and auditable status; MVP is draft-only. | Future |
+| **R62** | Goal-specific dynamic application view | Within existing Study/Reports slots, render allowed progress, exception, task, evidence and deliverable components tailored to the goal; server validates schema and references, and provides a usable non-AI fallback. | P0 |
+| **R63** | No unsupported readiness claim | Display distinct states such as `DRAFT`, `PARTIAL`, `READY_FOR_REVIEW`, and `REVIEWED`; never call an output submission-ready, legally sufficient, complete or approved without defined checks and authorized human decision. | P0 |
+| **R64** | Workflow evaluation against manual alternative | For each market wedge, test real or synthetic representative files and document baseline human steps, verified accuracy, exceptions caught, minutes to review-ready output, and total variable cost. Market launch only after measurable willingness-to-pay validation. | P0 |
+
+### Initial reusable operator catalogue (implementation candidates, not new model engines)
+
+- **Inventory and coverage:** fingerprint, classify, group, period coverage, detect overlaps/duplicates and cited referenced documents.
+- **Reconcile and compute:** subject/entity alignment proposals, record matching, before/after differences, totals and typed unit-safe arithmetic.
+- **Exceptions:** contradictions, missing support, out-of-scope material, unreadable sections and unresolved association queues.
+- **Prepare:** source-linked chronology, evidence matrix, checklist, request draft, formatted review packet and manifest.
+- **Review:** accept/reject an interpretation or task result with attribution; no change to originals or trust dispositions through presentation commands.
+
+### Product-first release sequence (not a change to the active engineering ticket)
+
+| Release slice | Demonstrable outcome | Exit criterion |
+|---|---|---|
+| **W0 — Find paying workflow** | Interview ~10 reachable practitioners in one narrow segment; gather 3–5 representative anonymized/synthetic-equivalent cases and the manually produced deliverables | At least three buyers corroborate a repeated costly activity and agree to pilot terms or provide a concrete buying signal; record substitutes and objections |
+| **W1 — Evidence operations** | First accepted Study plus document inventory, scoped coverage and one cross-source reconciliation | Input-to-output source chips work; wrong associations and unreadable periods stay unresolved |
+| **W2 — Work completion** | One goal generates a task plan, live exception register and one concrete review-ready deliverable | A real reviewer can use the output and resolve/trace every material exception |
+| **W3 — Repeat and improve** | Incremental evidence refresh, human sign-off, saved deliverable history and handoff | Same case can be updated without rebuilding everything; prior accepted states remain intact |
+| **W4 — Expansion** | Second workflow uses the same reusable operators and Study core | No duplicated domain processing path; demonstrated paid demand before additional build-out |
+
+**Engineering sequencing:** W0 runs as product discovery alongside the separately authorized V4 plan. No changes to the current **`V4-003`** ticket, new tables beyond approved upload scope, integrations, migrations, paid calls, or UI code are approved by this Intelligence-to-Work specification alone. Add work-plan implementation tickets only following explicit reprioritization and review of the existing dependency chain.
+
+### Explicitly open decisions
+
+1. First paying persona and narrow workflow (e.g., small elder-law practice financial preflight versus a lower-regulation alternative); verify buyer economics and competition rather than assume a winner.
+2. What constitutes a completed work product for that buyer; required inputs, review authority and exact export format.
+3. Work-item schema, status transition authority, recipe format and versioning; no schema or contract name is preapproved here.
+4. Whether criteria are user-specified, derived from evidence, or maintained in reviewed specialist guidance; do not disguise model suggestions as law or policy.
+5. Privacy, regulated information, provider terms, external actions, sharing and billing/usage pricing remain separately gated.
+
+## V4 analytical intelligence expansion (R65–R84) — 2026-10-31
+
+**Founder product direction:** Once a Canonical Study revision has been accepted, Hive should proactively discover what analyses the available evidence can support, run appropriately validated analyses, and offer useful insights, next actions and optional what-if exploration. This extends R45–R64 (Intelligence-to-Work); it does **not** convert a model response into accepted source truth, require a Domain Pack, introduce a fourth global tab, or authorize external actions.
+
+**Distinguish three capabilities:** (1) *Automatic Analytical Discovery* proposes analyses suggested by the accepted evidence, even without a question; (2) *Analytical Execution* evaluates approved/supported operations; (3) *Scenario Intelligence* explores explicitly hypothetical alterations, keeping assumptions separate from source facts. An analysis can be valuable even when it is qualitative or returns a gap, provided scope and confidence are honest. An optimization solver is optional and appropriate only for well-defined optimization problems.
+
+| ID | Capability | Acceptance requirement | Suggested sequencing |
+|---|---|---|---|
+| **R65** | Revision-triggered opportunity discovery | On an accepted Study revision, enqueue or offer a bounded asynchronous discovery run pinned to that immutable revision. No trigger from unverified candidates or failed merges; avoid duplicate equivalent runs. | A0 |
+| **R66** | Generic analytical opportunity proposal | LLM proposes question, user value, analysis kind, required fact IDs, dependencies, relevant scope, limitations and expected output; no hardcoded domain-specific branching or obligatory Pack. | A0 |
+| **R67** | Opportunity qualification/ranking | Score proposals on relevance to expressed goal (if present), evidence availability, actionability, duplication, cost, risk and user effort; label rankings as heuristics, never verified truth. Suppress trivial, unsupported and redundant opportunities. | A0 |
+| **R68** | Explicit analysis plan | Generate inspectable typed plan with inputs, transformations, outputs, calculation/rule methods, assumption slots and validation criteria; every accepted source reference must resolve in the pinned revision. | A0 |
+| **R69** | Analysis execution routing | Choose supported tools by problem type: deterministic arithmetic/joins/comparisons first; bounded LLM interpretation for supported qualitative work; retrieved verified rules for rule-dependent cases; optional solver for optimization/feasibility. No unrestricted model-authored code execution. | A0 |
+| **R70** | Analysis trust and evidence checks | Independently verify source IDs, scope, types/units/dates, computations, rule identity/effective dates and declared dependencies. Persist `SUPPORTED`, `PARTIAL`, `BLOCKED`, or `REJECTED` with reason and uncertainty. A plausible model narrative is not validation. | A0 |
+| **R71** | Proactive analysis results | Display prioritized evidence-bound findings, relevant comparisons, noteworthy conflicts, key unknowns and next actions within Study; distinguish generated insight from accepted source facts; do not overwhelm users with low-value analysis. | A0 |
+| **R72** | Coverage-aware analysis | Describe exact analyzed sources/periods, unreadable/unreviewed material, failed prerequisites and potential bias; no global absence claim from partial scope. | A0 |
+| **R73** | Incremental re-analysis | On a new accepted revision, identify affected analyses, rerun only relevant work where possible, preserve prior outputs and explain changes; stale pinned analyses remain viewable as historical. | A1 |
+| **R74** | Natural-language what-if request | User can ask an alternative-question against a pinned Study and optionally an existing finding; LLM clarifies only missing material variables. | A1 |
+| **R75** | Isolated scenario overlays | Represent assumption overrides, proposed interpretations, selected rule sets and time horizons as a separate immutable scenario overlay; never write hypothetical values to source facts or Canonical Study. | A1 |
+| **R76** | LLM-generated dependency models | LLM may synthesize variables, dependency links, equations, conditions, objectives and prerequisites from the Study and available rules. Label them *proposed* until validated; explicitly capture missing assumptions and unsupported causal assertions. | A1 |
+| **R77** | Typed scenario model validation | Validate allowed variable types, units, data provenance, dependency referential integrity, cycles, formula/operator allowlist, constraint satisfiability where applicable and rule source/version/effective jurisdiction. Reject or limit unsafe models; explain blocked outcomes. | A1 |
+| **R78** | Controlled scenario evaluation | Evaluate formulas using deterministic operators; use rule evaluators only with verified rules; optionally translate supported integer/linear constraint models to OR-Tools or another approved solver. Never claim solver optimality implies real-world or legal correctness. | A1 |
+| **R79** | Baseline versus alternatives | Present baseline and multiple scenarios side-by-side, changed assumptions, calculated deltas, sensitivity, constraints, tradeoffs, unsupported outcomes, and evidence/rule links. | A1 |
+| **R80** | Scenario-guided discovery | When material, suggest bounded, useful what-if questions derived from accepted facts and unresolved decisions, clearly marked as exploration rather than recommendations or predictions. | A1 |
+| **R81** | Scenario/analysis history | Store independently identified runs, model/prompt/method versions, inputs, assumptions, pinned Study revision, verification status and saved comparisons; failures must not erase prior accepted analyses/reports. | A0 for analysis; A1 for scenarios |
+| **R82** | High-impact outcome boundaries | For legal, education, healthcare, eligibility and finance, separate documented facts, authoritative rules, user hypotheticals, computations, interpretations and professional decisions. No unsupported eligibility, discharge, court, school-performance or causal prediction claims. | A0 |
+| **R83** | Reusable validated analytical recipes | Retain generic operator/model patterns with explicit provenance, tests, version and approval; reuse only within compatible types/contexts. No automatic cross-customer private-fact learning or silent domain rule creation. | A2 |
+| **R84** | Analytical quality and economics gate | Evaluate discovery precision/usefulness, missing and hallucinated dependencies, reproducibility, numeric correctness, rule grounding, blocked-rate, compute cost, time-to-result and user action taken against representative synthetic goldens; gate rollout by task-specific thresholds selected later. | A0 |
+
+### Analytical result lifecycle and UX
+
+- Proposed opportunity is not a finding. Store discovery status separately from execution outcome; suggested lifecycle: `PROPOSED → QUALIFIED → READY → RUNNING → SUPPORTED | PARTIAL | BLOCKED | REJECTED`, with `STALE` a view/history marker after newer revisions. These are **proposed logical states**, not authorized SQL enums.
+- Trigger discovery automatically only after accepted revision and within approved token, cost and concurrency budgets. Initial user-facing UI can show a modest **Suggested analyses** section rather than automatically execute every proposal.
+- A scenario result contains a *baseline* (pinned accepted Study), *overlay assumptions* (hypothetical), *execution trace* (method), and *comparison* (conditional result); never imply a hypothetical is part of the Study.
+- Every analysis and scenario must be reviewable, interruptible where possible, safely retryable, owner-scoped and explainable at the evidence and method levels.
+
+### Representative synthetic acceptance tests
+
+1. **Financial records:** Identify debt composition and a statement-coverage analysis without user asking; compute totals from typed entries, show conflicting balances and periods, reject arithmetic on mixed currencies.
+2. **IEP documents:** Identify plan-versus-evaluation comparison and timing questions; distinguish recommendations from provided services, block claimed educational outcomes without outcome evidence.
+3. **Bankruptcy:** Propose a conditional Chapter 7 versus Chapter 11 analytical opportunity, request debtor type/jurisdiction, verify rule source/effective date, never pronounce eligibility or chapter superiority from incomplete facts.
+4. **What-if:** Change a hypothetical income or asset valuation; keep original facts unchanged, reproducibly calculate supported deltas and label downstream legal conclusions as conditional/unresolved.
+5. **Adversarial:** Reject nonexistent fact IDs, circular dependency graph, unsupported legal rule, wrong-unit formula, model-authored executable code, unauthorized source or invented citation; retain prior accepted Study/reports.
+6. **Cost/duplication:** Equivalent accepted revision/repeated trigger does not spawn unbounded runs; irrelevant proposals are filtered; re-analysis records exactly what changed.
+
+### Open design gates (not implementation approval)
+
+Specific LLM orchestration, JSON contracts/validators, analysis quality thresholds, rule-source retrieval/versioning, optional solver/backends, user consent for auto-execution, token budgets, billing impact, persistence tables and scheduling mechanism require ticket-level design and approval. Do not assume all queries are optimizations or causal inference problems.

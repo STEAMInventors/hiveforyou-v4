@@ -1,63 +1,70 @@
-# HiveForYou V4 — NEXT (single active engineering ticket)
+# HiveForYou V4 — NEXT (one active engineering ticket)
 
-**Date:** 2026-10-30 | **Status:** **V4-002 CLOSED** — V4-003 next, read-only plan awaiting founder approval | **Repository:** `hiveforyou-v4` (`main` tracking `origin/main`)
+**Date:** 2026-11-01 | **Status:** V4-003 in progress (local implementation; deployment and live upload verification pending; Preview create flow diagnosed as failing — see below) | **Repository:** `hiveforyou-v4`
 
-> **No ticket in implementation.** V4-001 (`3ba9cd1`) and V4-002 (`092252d` plus the look-and-feel commit) are closed. V4-003 starts only after its plan is approved. Do not apply SQL migrations, deploy Edge Functions, modify Supabase infrastructure, commit, or push without separate authorization.
+> **Exactly one active engineering ticket: V4-003 — Upload, register and quota-enforce supported source documents (read/view deferred).** No extraction pipeline, paid model calls, tokenization, document reading/OCR, page viewer, or A2UI-generated Study content as a side effect of this ticket.
 
-## Closed ticket record — V4-002 — Port Authentication + Hives from V3
+## Active ticket — V4-003
 
-**Status:** Closed by founder decision on 2026-10-30. **Verification:** typecheck, lint, 58 unit tests (11 contracts, 47 web), production build and `git diff --check` passed. Browser checks (signed out): landing parity, guest composer hand-off to `/register?next=/hives?create=1`, styled auth pages, `/hives` redirects to login, sanitized `signIn.failed` log with correlation id, no horizontal overflow at 375 px. **Not run:** signed-in browser checks (My Hives cards, Create Hive modal, card menu, workspace tabs, password recovery email) because no local `apps/web/.env.local` was available.
+**Objective:** Owner can attach supported documents to a Hive through a honest prepare → private upload → server registration flow, with Free monthly quota, malware hash scanning policy, and written intent captured at Hive creation in the primary UX.
 
-**Objective:** Reuse the working V3 authentication and Hive functionality in V4 with minimum changes, following all approved V4 engineering standards.
+**Context (verified in repository, not deployed):** V4-001 (application shell, observability) and V4-002 (Supabase Auth, My Hives, Hive CRUD via Edge Function, owner RLS on `hive.hives`) are implemented in Git history. V4-003 work exists as **uncommitted** application code, contracts, SQL migration, and Edge Function handler; **migration and `v1-source-documents` are not deployed**; **end-to-end authenticated uploads against a live project are not yet verified**.
 
-**Approved scope:**
-1. Retain Next.js SSR authentication, session management, signup, login, logout, PKCE/OTP callback, and password recovery.
-2. Route Hive CRUD (`create`, `list`, `get`) through the authenticated `v1-hives` Supabase Edge Function (`verify_jwt = true`) and `SECURITY INVOKER` public RPCs (`list_hives`, `get_hive`, `get_hive_by_client_request_id`, `create_hive`) over private `hive.hives` with owner-only RLS (`ENABLE` + `FORCE`).
-3. Enforce complete authorization, validation (name 1–100 chars trimmed, description ≤500 chars trimmed, UUID `client_request_id`), and atomic idempotency (`(owner_user_id, client_request_id)`) in the RPC/database boundary as well as application contracts.
-4. Do not grant general `UPDATE` or `DELETE` permissions on `hive.hives` in V4-002; implement only `create`, `list`, and `get`.
-5. Map idempotency conflicts to `409 IDEMPOTENCY_CONFLICT` without treating unrelated uniqueness failures as the same error.
-6. Connect My Hives and Create/Open Hive to the V4 branded shell (`Documents · Study · Reports`) and remove demo Hive data once replaced with functioning persistence.
+**Completed in working tree (proposed, pending ticket closure):**
 
-**Progress (2026-10-30) — V3 look-and-feel port (item 6):** Landing, auth, app header, My Hives (cards, composer, Create Hive modal, `?create=1` hand-off after sign-up) and the workspace header/tabs/empty states reuse V3 layouts on Tailwind 3 mapped to brand tokens (D-024). No contract, Edge Function, SQL, middleware or auth-action changes. Hive archive/deletion is a **proposed design only** (D-025, F-004); it is outside V4-002 item 4 and needs separate approval before SQL or Edge work.
+1. **D-026 / D-027 / D-036** reflected in contracts, migration comment, V3 Vault upload adapter, and UI adoption mapping (see `HiveForYou-DECISIONS.md` and `HiveForYou-UX-A2UI-DESIGN.md` §17).
+2. **V3 Authentication reused as-is:** `apps/web/src/server/auth/auth-actions.ts` delegates directly to V3's `apps/web/src/lib/auth/*` (`session-actions.ts`, `otp-actions.ts`, `recovery-actions.ts`, `action-outcome.ts`) without changing user sessions, cookies, or login behavior.
+3. **V3 Vault Document Uploader reused as-is:** `apps/web/src/server/source-documents/hive-vault-upload-adapter.ts` connects V4 Hive identity (`hive.hives`) 1:1 to V3's `Case` contract (`caseId === hive.id` via `createCase`), runs the pre-registration SHA-256 malware hash scan and 10/month quota check, and invokes V3's `registerSourceDocument` and `reconcileUploadOperation` unchanged against private bucket `hive-source-documents`.
+4. **Surgical DOCX addition in `@hives/security`:** `files.ts` and `page-count.ts` accept `.docx` (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`, PK ZIP + `word/document.xml` magic-byte check) alongside PDF, PNG, and JPG up to 25 MB.
+5. **One shared `HiveComposer` (D-037):** Landing and the Create Hive dialog use the same composer — intent textarea, paperclip, removable document chips, single **Create Hive**. Signed-out visitors keep a guest draft through sign-up; signed-in owners create directly.
+6. **Create Hive flow (`create-hive-flow.ts`):** validates intent (1–2000 chars) and at least one uploadable PDF/PNG/JPG/DOCX (≤ 25 MB); generates a provisional Hive name from the intent; runs `createHive` → `createIntentRequest` → `uploadSelectedSourceFiles` as named stages with per-stage errors and support reference; completed stages are skipped on retry.
+7. **Documents tab `DocumentsPanel` (D-036 prototype alignment scope):** list, quota display, drag-and-drop + button upload with status states (uploading, registered, failed), and inventory table layout mapped from `prototype/HiveForYou V4 Prototype.dc.html` (`isDocs`) without synthetic sample loaders, coverage matrix (`hasMatrix`), or page viewer (`hasViewer`).
+8. **Migration `20261030150000_create_source_documents.sql`:** `hive.intent_requests`, 1:1 `hive.cases` (`FOREIGN KEY (id, owner_user_id) REFERENCES hive.hives (id, owner_user_id)`), V3's `hive.source_documents`, `hive.upload_operations`, `hive.audit_events`, `hive.storage_orphans`, `hive.apply_vault_transaction`, private `hive-source-documents` bucket, and monthly quota RPC. No second signed-upload or custom registration Edge Function (`v1-source-documents` retired).
+9. **Focused tests:** source-document contracts, client upload batch orchestration, V3 Vault upload adapter (1:1 Case creation, PDF/DOCX registration, idempotent `clientRequestId` replay via `reconcileUploadOperation`, owner isolation, malware/magic-byte rejection, and 10/month quota).
 
-## Closed ticket record — V4-001
+10. **Restored API routes (2026-11-01):** `api/v1/hives/[hiveId]/intent-requests`, `api/v1/hives/[hiveId]/source-documents` (GET list, POST multipart upload) and `api/v1/upload-quota`, wired to the existing adapter. These were removed by an earlier `git clean` before commit `d7137c0`, so commits up to `7f48779` call routes that do not exist.
 
-**Status:** Closed and committed (`3ba9cd1 chore(v4): establish application foundation and observability`).
-**Verification (2026-10-26):** typecheck, lint, unit tests, and production build passed. Documents, Study, and Reports show distinct empty states. Unknown hive ids render the hive not-found screen; other unknown addresses render the root not-found screen. `GET /api/health` returns `x-correlation-id` on the header and body, regenerates invalid ids without logging them, and writes the same id on the structured completion event. Unexpected failures through `withApiRoute` return `INTERNAL_ERROR` with that same correlation id, stage, and error code in the failure log, and without stacks, paths, or nested sensitive values.
+**Preview failure diagnosis (2026-11-01, `Could not save what you need`):**
 
-**Objective:** Establish a minimal Next.js V4 codebase and brand-faithful application shell using these governing documents, without importing V3 implementation complexity.
+- **Failing operation:** `createIntentRequest` → `POST /api/v1/hives/{id}/intent-requests`. `createHive` succeeds first, so each failed attempt leaves one Hive with no intent or documents (existing records left untouched).
+- **Response:** HTML `404` from Next.js `/_not-found` (verified on `hiveforyou-v4.vercel.app`; the branch Preview is behind Vercel Authentication and built from the same commit). `parseApiJson` cannot read JSON and substitutes the fallback message with `PERSISTENCE_FAILED`. The correlation ID is generated in the browser per request and echoed by middleware; no route handler runs, so no server log line exists for it.
+- **Blockers behind the route fix (unverified against the live project — no credentials available locally):** migration `20261030150000` (`public.create_intent_request`, `public.get_upload_quota`, `hive.cases`/`source_documents`/…, bucket) is recorded as not applied; the V3 Vault adapter calls PostgREST `schema("hive")` with the service key, but `hive` is intentionally unexposed (config + tests), which would return `PGRST106`; `SUPABASE_SECRET_KEY` must exist in Vercel; Vercel Functions reject request bodies over 4.5 MB, below the 25 MB upload limit; the live adapter has no persistent `clientRequestId` registry, so a lost-response retry can register a duplicate document.
+- **Documents tab:** committed `documents/page.tsx` renders the static "No documents yet" empty state, not `DocumentsPanel` (item 7), so registered uploads would not be shown.
 
-**Read-only first:** Inspect whether `hiveforyou-v4` repository exists, its actual branch/status, any existing scaffolding and dependencies, and these documents. Provide a concrete minimal proposed file list and commands. Wait for explicit approval to create/edit code, repository, dependencies or services.
+**Explicitly deferred (still V4-003 scope boundaries or later tickets):**
 
-**Approved scope *after* implementation authorization:**
+- **Document reading** (`read_status` beyond `PENDING`), page text/OCR, and **`document_pages`** population.
+- **Source page viewer** (F-007 physical-page navigation).
+- Frontier extraction, verification, Study acceptance (V4-004+).
 
-1. Initialize one TypeScript Next.js application, a small pure core/contracts boundary only if needed, and a repeatable local test/build command.
-2. Add fixed Documents / Study / Reports workspace tabs and empty states with approved branding; navigation stable; no generated A2UI yet.
-3. Add a landing/My Hives UI scaffold **without claiming functional auth, persisted Hives or ingestion** until those are separately implemented/verified.
-4. Define only necessary lint/typecheck/test tools and scripts; do not add feature flags or unnecessary environment variables.
-5. Keep this documentation and scoped Cursor rules intact; report any conflicts rather than silently altering them.
+**Excluded:** Applying SQL to a live Supabase project, deploying Edge Functions, production VirusTotal keys, PDF/DOCX parsing libraries, Canonical Study, reports, A2UI dynamic Study, paid model usage.
 
-**Excluded:** Real Supabase integration, schema creation, uploads, PDF parsing, frontier model, prompt execution, persistence, source verification, Canonical Study acceptance, report generation, provider keys, migration, production deployment, paid model runs.
+**Verification / done when (for V4-003):**
 
-**Verification / done when (for V4-001 only):**
-- New clean repo structure opens; tests/typecheck/build pass with actual command outputs.
-- Documents/Study/Reports tabs and distinct honest empty states work in local browser.
-- Brand typography/usage and keyboard navigation conform to brand baseline; no fake study or source evidence.
-- Changes limited to agreed files; no unrelated work deleted; `git diff --check` clean.
-- Report exact files and command results; submit for ticket closure. **Do not automatically start V4-002.**
+- Founder approves and migration is applied to the V4 Supabase project; `v1-source-documents` deployed; web app configured for that project.
+- Signed-in owner: landing or My Hives → Create Hive with intent + file → at least one document reaches **REGISTERED** with stored hash and scan status; quota decrements honestly; rejected type/size/malware/quota paths fail closed without false “done”.
+- Idempotent client request IDs replay safely; unauthorized cross-Hive access denied.
+- Documents tab reflects registration states; no claim of readable pages or Study content.
+- Automated tests for touched packages still pass; `git diff --check` clean on documentation.
+- Report exact files, commands, and live-test evidence; submit for ticket closure. **Do not automatically start V4-004.**
 
 ## Next tickets (parked, not simultaneously active)
 
 | Ticket | Scope | Unlock |
 |---|---|---|
-| V4-003 | Upload/register/read/view PDF, image and DOCX with page-aware provenance; Free quota | After V4-002 |
-| V4-004 | Pack-free `hive-extract/1` one real synthetic document; bounded pages, candidate JSON and statuses | After V4-003; approve model route/cost |
+| V4-004 | Pack-free `hive-extract/1` one real synthetic document; bounded pages, candidate JSON and statuses | After V4-003 closure; approve model route/cost |
 | V4-005 | Independent candidate verification, immutable accepted Study revision, source chip to original page | After V4-004 |
 | V4-006 | Intent analysis from pinned Study; dynamic validated A2UI section in Study | After V4-005 |
 | V4-007 | Independent Customer/Pro report runs and history; prior good results survive failure | After V4-006 |
 | V4-008 | Add documents / multi-intent incremental merge and full coverage test (receipt 20→30, eight-document synthetic L001) | After V4-007 |
 | V4-009 | Retention/account deletion, permissions/security verification and sensitive-data readiness gates | Before sensitive-data rollout |
 
-**Parking lot:** Real-world provider data/BAAs; tokenization mechanics; alternative durable executor; professional cross-user permissions; export format/pricing; optional Domain Packs; historical V3/P2.3/P3.1 migrations; V3→V4 data migration; deep semantic domain rules.
+**Completed tickets (closed in Git, not re-opened here):** V4-001 application foundation; V4-002 authentication and owner Hives.
+
+**Parking lot:** Real-world provider data/BAAs; tokenization mechanics; alternative durable executor; professional cross-user permissions; export format/pricing; optional Domain Packs; historical V3/P2.3/P3.1 migrations; V3→V4 data migration; deep semantic domain rules; analytical track V4-A01–V4-A07 (see `HiveForYou-DEVELOPMENT-PLAN.md`).
 
 **Rule:** One ticket only. Significant work follows **inspect → plan → approve → implement → verify success/failure → synchronize documents/rules → close**. No commits, pushes, deployments, SQL migrations, destructive data changes, or paid calls without authorization.
+
+## Analytical Intelligence parking-lot note — 2026-10-31
+
+Product requirements **R65–R84** and features **F-045–F-064** add **proactive analysis discovery and scenario what-if** to the long-term V4 product direction. Decisions **D-028–D-035** record that product direction. This documentation change does **not** authorize code, schema, background jobs, LLM calls, or a new active ticket. Preserve **V4-003 as the only active ticket**. Proposed future sequence **V4-A01–V4-A07** requires explicit ticket activation after prerequisites are met.

@@ -3,6 +3,7 @@ import Link from "next/link";
 type HiveTabNavProps = {
   hiveId: string;
   active: "documents" | "study" | "reports";
+  documentCount?: number;
 };
 
 const tabs = [
@@ -11,14 +12,18 @@ const tabs = [
   { key: "reports" as const, label: "Reports", href: (id: string) => `/hives/${id}/reports` },
 ];
 
-export function HiveTabNav({ hiveId, active }: HiveTabNavProps) {
+export function HiveTabNav({ hiveId, active, documentCount }: HiveTabNavProps) {
   return (
     <nav
       aria-label="Hive workspace"
-      className="mb-8 flex gap-6 overflow-x-auto border-b border-line"
+      className="flex gap-1 overflow-x-auto"
     >
       {tabs.map((tab) => {
         const isActive = active === tab.key;
+        const count =
+          tab.key === "documents" && typeof documentCount === "number" && documentCount > 0
+            ? String(documentCount)
+            : null;
         return (
           <Link
             key={tab.key}
@@ -26,11 +31,14 @@ export function HiveTabNav({ hiveId, active }: HiveTabNavProps) {
             aria-current={isActive ? "page" : undefined}
             className={
               isActive
-                ? "-mb-px whitespace-nowrap border-b-2 border-cell-blue-deep pb-3 text-sm font-semibold text-cell-blue-deep no-underline"
-                : "whitespace-nowrap border-b-2 border-transparent pb-3 text-sm font-medium text-ink-muted no-underline hover:text-ink"
+                ? "-mb-px inline-flex h-11 items-center gap-2 whitespace-nowrap border-b-2 border-cell-blue px-3.5 text-[15px] font-medium text-ink no-underline"
+                : "-mb-px inline-flex h-11 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[15px] font-medium text-ink-muted no-underline transition-colors hover:text-ink"
             }
           >
-            {tab.label}
+            <span>{tab.label}</span>
+            {count ? (
+              <span className="text-[12px] font-normal text-ink-subtle">{count}</span>
+            ) : null}
           </Link>
         );
       })}

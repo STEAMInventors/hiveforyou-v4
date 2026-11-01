@@ -1,6 +1,6 @@
 # HiveForYou V4 — Cursor development standards
 
-**Version:** 0.1 | **Status:** Proposed repo instruction set; effective after owner approves this package for the new repo. | **Date:** 2026-10-26
+**Version:** 0.2 | **Status:** Proposed repo instruction set; effective after owner approves this package for the new repo. | **Date:** 2026-10-26
 
 ## 1. Source-of-truth priority
 
@@ -57,3 +57,7 @@ An approved change updates affected `HiveForYou-DECISIONS.md`, PRD, FEATURES, UX
 ## 8. Testing posture during development
 
 Unit tests and typechecking are useful evidence, not the whole user experience. Work toward a **fresh synthetic browser-to-evidence-to-Study-to-output** vertical slice; do not spend cycles chasing historical V3 run counts unless they identify a new V4 defect. Once features are functional, cover relevant failure/recovery paths rather than full production-readiness certification. V4's production designation comes only from the founder.
+
+## 9. Analytical Intelligence implementation discipline (2026-10-31)
+
+Treat R65–R84/F-045–F-064 as future product scope, not an instruction to exceed the current NEXT ticket. When activated: (1) inspect actual repository, (2) preserve acceptance snapshots and source refs, (3) use schemas for candidate opportunities/plans/scenarios, (4) independently validate references, calculations and rule authority, (5) route only allowlisted typed operations, (6) test hallucinated graph edges/rules, cycles, units, stale revisions, duplicate triggers, blocked/failed runs and user-access denial, (7) capture sanitized cost and reproducibility data, (8) report real runtime evidence and defer unsupported cases. No unrestricted execution of LLM-authored solver source or automatic alteration of Study facts.
