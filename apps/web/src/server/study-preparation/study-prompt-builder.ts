@@ -4,7 +4,7 @@ import {
   domainIsUncertain,
   EXECUTION_MANIFEST_SCHEMA,
   type ExecutionManifest,
-  type IntentDecomposition,
+  type IntentAnalysis,
   type IntentIntelligence,
   type InvestigationPlan,
   PLANNER_TASKS,
@@ -33,7 +33,7 @@ const SOURCE_PAGES_BINDING_RULE =
 export type StudyPromptInputs = {
   readonly processingRunId: string;
   readonly catalog: PromptCatalog;
-  readonly decomposition: IntentDecomposition;
+  readonly analysis: IntentAnalysis;
   readonly intelligence: IntentIntelligence;
   readonly domain: DomainProposal;
   readonly plan: InvestigationPlan;
@@ -84,8 +84,8 @@ function pageList(pages: readonly number[]): string {
   return pages.length === 0 ? "none" : pages.join(", ");
 }
 
-function renderIntents(decomposition: IntentDecomposition): string {
-  return decomposition.intents
+function renderIntents(analysis: IntentAnalysis): string {
+  return analysis.intents
     .map((intent, index) => {
       const quoted = inert(intent.verbatimText)
         .split("\n")
@@ -147,49 +147,55 @@ function optionalLine(label: string, value: string | null): string[] {
   return value ? [`- ${label}: ${inert(value)}`] : [];
 }
 
-function renderObjectives(
-  decomposition: IntentDecomposition,
+function renderGoals(
+  analysis: IntentAnalysis,
   intelligence: IntentIntelligence,
   plan: InvestigationPlan,
   fileNames: ReadonlyMap<string, string>,
 ): string {
-  const requestNumber = new Map(decomposition.intents.map((intent, index) => [intent.intentRequestId, index + 1]));
-  const blocks = decomposition.objectives.map((objective) => {
+  const requestNumber = new Map(analysis.intents.map((intent, index) => [intent.intentRequestId, index + 1]));
+  const blocks = analysis.goals.map((goal) => {
     const lines = [
-      `### ${objective.id} — ${inert(objective.title)} (from request ${requestNumber.get(objective.intentRequestId) ?? "?"})`,
+      `### ${goal.goalId} — ${inert(goal.goal)} (from request ${requestNumber.get(goal.intentRequestId) ?? "?"})`,
       "",
-      inert(objective.description),
+      `Stated as: "${inert(goal.statedAs)}"`,
       "",
       "What the person needs to find out:",
     ];
-    for (const question of objective.questions) {
+    for (const question of goal.questions) {
       lines.push(
-        `- ${question.id} [${question.answerType}] ${inert(question.text)}`,
-        `  - Evidence needed: ${question.requiredEvidence.map(inert).join("; ")}`,
-        ...(question.comparisons.length > 0 ? [`  - Compare: ${question.comparisons.map(inert).join("; ")}`] : []),
+        `- ${question.questionId} [${question.answerForm}] ${inert(question.question)}`,
+        ...(question.needsJudgment ? ["  - Needs an assessment (criterion comes from specialist planning)."] : []),
         ...(question.dependsOn.length > 0 ? [`  - After: ${question.dependsOn.join(", ")}`] : []),
-        `  - Expected answer: ${inert(question.expectedOutput)}`,
       );
     }
+    if (goal.unclear.length > 0) {
+      lines.push("", "Ambiguities (do not resolve by guessing):");
+      for (const unclear of goal.unclear) {
+        lines.push(
+          `- ${unclear.unclearId} about "${inert(unclear.about)}": ${unclear.possibleMeanings.map(inert).join("; ")}`,
+          ...(unclear.likelyReading ? [`  - Likely reading (${unclear.likelyReadingBasis}): ${inert(unclear.likelyReading)}`] : []),
+          `  - Ask the person: ${inert(unclear.askThePerson)}`,
+        );
+      }
+    }
     lines.push("", "What a specialist would investigate to fulfil it:");
-    for (const specialist of intelligence.questions.filter((question) => question.objectiveId === objective.id)) {
+    for (const specialist of intelligence.questions.filter((question) => question.goalId === goal.goalId)) {
       lines.push(
         `- ${specialist.id}${specialist.requiresJudgment ? " [needs assessment]" : ""} ${inert(specialist.question)}`,
         `  - Why it matters: ${inert(specialist.whyItMatters)}`,
         `  - Supports: ${inert(specialist.supportsOutcome)}`,
         ...(specialist.judgmentBasis ? [`  - Assessment criterion: ${inert(specialist.judgmentBasis)}`] : []),
-        ...(specialist.decompositionQuestionIds.length > 0
-          ? [`  - Covers: ${specialist.decompositionQuestionIds.join(", ")}`]
-          : []),
+        ...(specialist.analysisQuestionIds.length > 0 ? [`  - Covers: ${specialist.analysisQuestionIds.join(", ")}`] : []),
         ...(specialist.dependsOn.length > 0 ? [`  - After: ${specialist.dependsOn.join(", ")}`] : []),
       );
     }
-    const review = intelligence.completenessReview.find((item) => item.objectiveId === objective.id);
+    const review = intelligence.completenessReview.find((item) => item.goalId === goal.goalId);
     if (review && review.remainingLimits.length > 0) {
       lines.push("", "What the documents alone may not settle:", ...review.remainingLimits.map((item) => `- ${inert(item)}`));
     }
     lines.push("", "Investigation questions:");
-    for (const planQuestion of plan.questions.filter((question) => question.objectiveId === objective.id)) {
+    for (const planQuestion of plan.questions.filter((question) => question.goalId === goal.goalId)) {
       lines.push(
         "",
         `#### ${planQuestion.id} [${planQuestion.answerType}] answers ${planQuestion.specialistQuestionIds.join(", ")}`,
@@ -211,17 +217,19 @@ function renderObjectives(
     return lines.join("\n");
   });
 
-  const tail: string[] = ["", "### Overall expected outputs", ...decomposition.expectedOutputs.map((item) => `- ${inert(item)}`)];
-  if (decomposition.ambiguities.length > 0) {
-    tail.push("", "### Ambiguities in the request (do not resolve by guessing)");
-    for (const ambiguity of decomposition.ambiguities) {
-      tail.push(`- ${ambiguity.id} (affects ${ambiguity.affects.join(", ") || "all"}): ${inert(ambiguity.description)}`);
+  const tail: string[] = [];
+  if (analysis.reservedDecisions.length > 0) {
+    tail.push("", "### Decisions reserved for others (do not decide here)");
+    for (const reserved of analysis.reservedDecisions) {
+      tail.push(
+        `- ${reserved.questionId}: ${inert(reserved.decision)}${reserved.decidedBy ? ` (decided by ${inert(reserved.decidedBy)})` : ""}`,
+      );
     }
   }
-  if (decomposition.missingContext.length > 0) {
-    tail.push("", "### Context the person did not give", ...decomposition.missingContext.map((item) => `- ${inert(item)}`));
+  if (analysis.instructionsIgnored.length > 0) {
+    tail.push("", "### Instructions ignored in the request text", ...analysis.instructionsIgnored.map((item) => `- ${inert(item)}`));
   }
-  return [...blocks, tail.join("\n")].join("\n\n");
+  return tail.length > 0 ? [...blocks, tail.join("\n")].join("\n\n") : blocks.join("\n\n");
 }
 
 function renderCoverage(snapshot: SourceSnapshot, coverageDigest: string): string {
@@ -320,13 +328,13 @@ function manifestDocuments(snapshot: SourceSnapshot): ManifestSourceDocument[] {
 }
 
 export function buildStudyPrompt(inputs: StudyPromptInputs): BuiltStudyPrompt {
-  const { catalog, decomposition, intelligence, domain, plan, sourceSnapshot, processingRunId } = inputs;
+  const { catalog, analysis, intelligence, domain, plan, sourceSnapshot, processingRunId } = inputs;
   const fileNames = new Map(sourceSnapshot.documents.map((document) => [document.sourceDocumentId, document.fileName]));
   const slots: Record<string, string> = {
     PROMPT_ID: catalog.studyTemplate.id,
-    INTENTS: renderIntents(decomposition),
+    INTENTS: renderIntents(analysis),
     DOMAIN: renderDomain(domain, plan, fileNames),
-    OBJECTIVES: renderObjectives(decomposition, intelligence, plan, fileNames),
+    OBJECTIVES: renderGoals(analysis, intelligence, plan, fileNames),
     COVERAGE: renderCoverage(sourceSnapshot, inputs.coverageDigest),
     OUTPUT_CONTRACT: renderOutputContract(plan, processingRunId, catalog.outputSchema.digest),
   };

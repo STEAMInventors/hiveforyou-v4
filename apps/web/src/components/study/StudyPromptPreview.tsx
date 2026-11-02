@@ -158,33 +158,45 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
         <TextList label="Notes" items={domain.ambiguityNotes} />
       </Section>
 
-      <Section id="study-objectives" title="Objectives">
+      <Section id="study-objectives" title="Goals">
         <ol className="m-0 flex list-none flex-col gap-5 p-0">
-          {intent.objectives.map((objective) => {
-            const planQuestions = plan.questions.filter((question) => question.objectiveId === objective.id);
-            const specialist = specialistQuestions.filter((question) => question.objectiveId === objective.id);
-            const remainingLimits = reviews.find((review) => review.objectiveId === objective.id)?.remainingLimits ?? [];
+          {intent.goals.map((goal) => {
+            const planQuestions = plan.questions.filter((question) => question.goalId === goal.goalId);
+            const specialist = specialistQuestions.filter((question) => question.goalId === goal.goalId);
+            const remainingLimits = reviews.find((review) => review.goalId === goal.goalId)?.remainingLimits ?? [];
             return (
-              <li key={objective.id} className="flex flex-col gap-3 border-t border-line pt-4 first:border-t-0 first:pt-0">
+              <li key={goal.goalId} className="flex flex-col gap-3 border-t border-line pt-4 first:border-t-0 first:pt-0">
                 <div className="flex flex-col gap-1">
-                  <span className="font-mono text-[12px] text-ink-subtle">{objective.id}</span>
-                  <span className="text-[16px] font-semibold text-ink">{objective.title}</span>
-                  <span className="text-[14.5px] leading-[1.55] text-ink-muted">{objective.description}</span>
+                  <span className="font-mono text-[12px] text-ink-subtle">{goal.goalId}</span>
+                  <span className="text-[16px] font-semibold text-ink">{goal.goal}</span>
+                  <span className="text-[14px] italic text-ink-muted">&ldquo;{goal.statedAs}&rdquo;</span>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">
                     What you asked, broken down
                   </span>
                   <ul className="m-0 flex list-none flex-col gap-1 p-0">
-                    {objective.questions.map((question) => (
-                      <li key={question.id} className="text-[14.5px] leading-[1.5] text-ink">
-                        <span className="font-mono text-[12px] text-ink-subtle">{question.id}</span> {question.text}
+                    {goal.questions.map((question) => (
+                      <li key={question.questionId} className="text-[14.5px] leading-[1.5] text-ink">
+                        <span className="font-mono text-[12px] text-ink-subtle">{question.questionId}</span> {question.question}
+                        {question.needsJudgment ? (
+                          <span className="ml-2 text-[12px] text-ink-subtle">(needs assessment)</span>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
                 </div>
+                {goal.unclear.length > 0 ? (
+                  <TextList
+                    label="Unclear in your request"
+                    items={goal.unclear.map(
+                      (item) =>
+                        `${item.about}: ${item.possibleMeanings.join("; ")}${item.likelyReading ? ` — likely: ${item.likelyReading}` : ""}`,
+                    )}
+                  />
+                ) : null}
                 {specialist.length > 0 ? (
-                  <div className="flex flex-col gap-2" data-testid={`specialist-questions-${objective.id}`}>
+                  <div className="flex flex-col gap-2" data-testid={`specialist-questions-${goal.goalId}`}>
                     <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">
                       What a specialist would ask
                     </span>
@@ -244,12 +256,14 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
             );
           })}
         </ol>
-        <TextList label="Expected outputs" items={intent.expectedOutputs} />
-        <TextList
-          label="Open points"
-          items={intent.ambiguities.map((ambiguity) => `${ambiguity.description} — ${ambiguity.clarificationQuestion}`)}
-        />
-        <TextList label="Context not provided" items={intent.missingContext} />
+        {intent.reservedDecisions.length > 0 ? (
+          <TextList
+            label="Decisions reserved for others"
+            items={intent.reservedDecisions.map(
+              (item) => `${item.decision}${item.decidedBy ? ` (${item.decidedBy})` : ""}`,
+            )}
+          />
+        ) : null}
       </Section>
 
       <Section id="study-coverage" title="Document coverage">

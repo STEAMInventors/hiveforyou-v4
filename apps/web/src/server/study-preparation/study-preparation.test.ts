@@ -177,7 +177,7 @@ describe("processStudyPreparation", () => {
     expect(toDomain!.details.stage_metric).toMatchObject({
       stage: "UNDERSTANDING_REQUEST",
       outcome: "SUCCEEDED",
-      promptId: "hive-intent/1",
+      promptId: "hive.intent-analysis/1",
       modelAliasRequested: "sorter",
       resolvedModel: "gpt-4o-mini",
       totalTokens: 150,
@@ -198,7 +198,25 @@ describe("processStudyPreparation", () => {
     });
   });
 
-  it("gives the intelligence stage the intents with audience, the decomposition, the domain and the sample", async () => {
+  it("sends processingRunId, requests and provisional domainContext to the intent stage", async () => {
+    const db = fakeDatabase();
+    const planner = fakePlanner();
+    await processStudyPreparation(deps(db, planner), RUN_ID);
+
+    const intentBody = (planner.deps.fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![1] as RequestInit;
+    const intentRequest = JSON.parse(String(intentBody.body)) as {
+      system_prompt: string;
+      user_payload: Record<string, unknown>;
+    };
+    expect(intentRequest.user_payload).toMatchObject({
+      processingRunId: RUN_ID,
+      domainContext: { label: "Unknown", glossary: null },
+    });
+    expect(intentRequest.system_prompt).toContain("Domain label: `Unknown`");
+    expect(intentRequest.system_prompt).toContain("(No glossary supplied.)");
+  });
+
+  it("gives the intelligence stage the intents with audience, the analysis, the domain and the sample", async () => {
     const db = fakeDatabase();
     const planner = fakePlanner();
     await processStudyPreparation(deps(db, planner), RUN_ID);
@@ -219,7 +237,7 @@ describe("processStudyPreparation", () => {
       { intentRequestId: INTENTS[0]!.id, intentText: INTENTS[0]!.intentText, audience: "Our finance lead" },
       { intentRequestId: INTENTS[1]!.id, intentText: INTENTS[1]!.intentText, audience: null },
     ]);
-    expect(payload.intentDecomposition).toMatchObject({ schema: "hive.intent-decomposition/1" });
+    expect(payload.intentDecomposition).toMatchObject({ schema: "hive.intent-analysis/1" });
     expect(payload.domain).toMatchObject({ primary: { label: "Procurement" } });
     expect((payload.samples as unknown[]).length).toBe(6);
     expect(bodies[3]!.user_payload.intentIntelligence).toMatchObject({ schema: "hive.intent-intelligence/1" });
@@ -228,7 +246,7 @@ describe("processStudyPreparation", () => {
   it("fails the run at DEVELOPING_QUESTIONS when a decomposed question is not covered", async () => {
     const db = fakeDatabase();
     const partial = intelligenceOutput();
-    partial.questions = partial.questions.filter((question) => question.objectiveId === "O1");
+    partial.questions = partial.questions.filter((question) => question.goalId === "G1");
     const planner = fakePlanner({
       intelligence: () => new Response(JSON.stringify(completion("intelligence", partial)), { status: 200 }),
     });
@@ -375,39 +393,41 @@ type Scenario = {
   outputs: Record<PlannerTask, unknown>;
 };
 
-type ScenarioQuestion = { id: string; objectiveId: string; question: string; requiresJudgment: boolean };
+type ScenarioQuestion = { id: string; goalId: string; question: string; requiresJudgment: boolean };
 
 function ref(sourceDocumentId: string, pageNumber: number) {
   return { sourceDocumentId, pageNumber };
 }
 
-function decomposedQuestion(id: string, text: string, answerType: string, dependsOn: string[] = []) {
-  return {
-    id,
-    text,
-    answerType,
-    dependsOn,
-    requiredEvidence: ["The pages that state it"],
-    comparisons: answerType === "COMPARISON" ? ["Earlier document against later document"] : [],
-    expectedOutput: "A short sourced answer.",
-  };
+function analysisQuestion(id: string, question: string, answerForm: string, dependsOn: string[] = []) {
+  return { questionId: id, question, answerForm, needsJudgment: false, dependsOn };
+}
+
+function goal(
+  goalId: string,
+  intentRequestId: string,
+  statedAs: string,
+  goalText: string,
+  questions: unknown[],
+) {
+  return { goalId, intentRequestId, statedAs, goal: goalText, questions, unclear: [] };
 }
 
 function specialist(
   id: string,
-  objectiveId: string,
-  decompositionQuestionIds: string[],
+  goalId: string,
+  analysisQuestionIds: string[],
   question: string,
   judgmentBasis: string | null = null,
   dependsOn: string[] = [],
 ) {
   return {
     id,
-    objectiveId,
-    decompositionQuestionIds,
+    goalId,
+    analysisQuestionIds,
     question,
     whyItMatters: `Without ${id} the answer would be incomplete.`,
-    supportsOutcome: `The decision behind ${objectiveId}.`,
+    supportsOutcome: `The decision behind ${goalId}.`,
     dependsOn,
     requiresJudgment: judgmentBasis !== null,
     judgmentBasis,
@@ -415,20 +435,20 @@ function specialist(
   };
 }
 
-function review(objectiveId: string, remainingLimits: string[] = []) {
-  return { objectiveId, wouldFulfilIntent: true, gapsFound: [], revisions: [], remainingLimits };
+function review(goalId: string, remainingLimits: string[] = []) {
+  return { goalId, wouldFulfilIntent: true, gapsFound: [], revisions: [], remainingLimits };
 }
 
 function planItem(
   id: string,
-  objectiveId: string,
+  goalId: string,
   specialistQuestionIds: string[],
   answerType: string,
   logic: { comparison?: string; chronology?: string; calculation?: string; evaluation?: string } = {},
 ) {
   return {
     id,
-    objectiveId,
+    goalId,
     specialistQuestionIds,
     establish: `What the documents show for ${specialistQuestionIds.join(" and ")}.`,
     requiredEvidence: ["The pages that state it"],
@@ -484,65 +504,69 @@ function mayaScenario(): Scenario {
     }),
     outputs: {
       intent: {
-        objectives: [
-          {
-            id: "O1",
-            intentRequestId: MAYA_INTENT_1,
-            title: "Changes between the two plans",
-            description: "Every change in services and goals.",
-            questions: [
-              decomposedQuestion("Q1", "Which services changed in minutes, frequency or setting?", "COMPARISON"),
-              decomposedQuestion("Q2", "Which annual goals were added, removed or rewritten?", "COMPARISON"),
+        schema: "hive.intent-analysis/1",
+        processingRunId: RUN_ID,
+        subjects: [],
+        goals: [
+          goal(
+            "G1",
+            MAYA_INTENT_1,
+            "Compare the draft plan with last year's plan and tell me what changed in her services and goals.",
+            "Compare draft and prior plan for service and goal changes",
+            [
+              analysisQuestion("Q1", "Which services changed in minutes, frequency or setting?", "COMPARISON"),
+              analysisQuestion("Q2", "Which annual goals were added, removed or rewritten?", "COMPARISON"),
             ],
-          },
-          {
-            id: "O2",
-            intentRequestId: MAYA_INTENT_2,
-            title: "Basis for the speech reduction",
-            description: "Whether the evaluation supports the reduced service.",
-            questions: [decomposedQuestion("Q3", "What do the evaluation findings say about speech needs?", "FACT")],
-          },
-          {
-            id: "O3",
-            intentRequestId: MAYA_INTENT_3,
-            title: "Questions for the meeting",
-            description: "Questions grounded in the changes and gaps.",
-            questions: [decomposedQuestion("Q4", "Which changes or gaps are unexplained in the documents?", "FACT", ["Q1", "Q2", "Q3"])],
-          },
+          ),
+          goal(
+            "G2",
+            MAYA_INTENT_2,
+            "Is cutting her speech therapy supported by her latest evaluation?",
+            "Determine whether the speech reduction is supported by the evaluation",
+            [analysisQuestion("Q3", "What do the evaluation findings say about speech needs?", "EXPLANATION")],
+          ),
+          goal(
+            "G3",
+            MAYA_INTENT_3,
+            "What should I ask the school team at the November meeting?",
+            "Prepare questions for the November school team meeting",
+            [
+              analysisQuestion("Q4", "Which changes or gaps are unexplained in the documents?", "LIST", ["Q1", "Q2", "Q3"]),
+            ],
+          ),
         ],
-        expectedOutputs: ["Change table", "Assessment of the speech reduction", "Meeting questions"],
-        ambiguities: [],
-        missingContext: [],
+        reservedDecisions: [],
+        instructionsIgnored: [],
       },
       domain: domain("Special education", "Annual plan review"),
       intelligence: {
         questions: [
-          specialist("I1", "O1", ["Q1"], "For each service, what are the minutes, frequency and setting in each plan, and what is the net change?"),
-          specialist("I2", "O1", ["Q2"], "Which goals are carried over unchanged despite progress data showing they were not met?", "Progress reports against each goal's stated measure.", ["I3"]),
-          specialist("I3", "O1", ["Q2"], "What progress is reported on each prior goal, and by what measure?"),
-          specialist("I4", "O2", ["Q3"], "Which evaluation scores and recommendations concern expressive and receptive language?"),
-          specialist("I5", "O2", ["Q3"], "Does the reduction in speech minutes follow from the evaluation's findings and recommendations?", "Consistency between the evaluation recommendation and the draft service minutes.", ["I1", "I4"]),
-          specialist("I6", "O3", ["Q4"], "Which changes have no stated reason anywhere in the documents?", null, ["I1", "I2", "I5"]),
-          specialist("I7", "O3", ["Q4"], "Which records are referred to but not provided, such as progress reports or evaluations?"),
+          specialist("I1", "G1", ["Q1"], "For each service, what are the minutes, frequency and setting in each plan, and what is the net change?"),
+          specialist("I2", "G1", ["Q2"], "Which goals are carried over unchanged despite progress data showing they were not met?", "Progress reports against each goal's stated measure.", ["I3"]),
+          specialist("I3", "G1", ["Q2"], "What progress is reported on each prior goal, and by what measure?"),
+          specialist("I4", "G2", ["Q3"], "Which evaluation scores and recommendations concern expressive and receptive language?"),
+          specialist("I5", "G2", ["Q3"], "Does the reduction in speech minutes follow from the evaluation's findings and recommendations?", "Consistency between the evaluation recommendation and the draft service minutes.", ["I1", "I4"]),
+          specialist("I6", "G3", ["Q4"], "Which changes have no stated reason anywhere in the documents?", null, ["I1", "I2", "I5"]),
+          specialist("I7", "G3", ["Q4"], "Which records are referred to but not provided, such as progress reports or evaluations?"),
         ],
         completenessReview: [
-          review("O1"),
-          review("O2", ["The evaluator's full report may hold reasoning not in the summary."]),
-          review("O3"),
+          review("G1"),
+          review("G2", ["The evaluator's full report may hold reasoning not in the summary."]),
+          review("G3"),
         ],
       },
       plan: {
         domainBasis: { primaryDomain: "Special education", uncertain: false, considerations: [] },
         questions: [
-          planItem("P1", "O1", ["I1"], "COMPARISON", { comparison: "Prior plan services against draft plan services" }),
-          planItem("P2", "O1", ["I2", "I3"], "COMPARISON", {
+          planItem("P1", "G1", ["I1"], "COMPARISON", { comparison: "Prior plan services against draft plan services" }),
+          planItem("P2", "G1", ["I2", "I3"], "COMPARISON", {
             comparison: "Prior goals against draft goals",
             evaluation: "Whether unmet goals were carried over, judged against reported progress.",
           }),
-          planItem("P3", "O2", ["I4", "I5"], "FACT", {
+          planItem("P3", "G2", ["I4", "I5"], "FACT", {
             evaluation: "Whether the draft minutes follow the evaluation recommendation.",
           }),
-          planItem("P4", "O3", ["I6", "I7"], "FACT"),
+          planItem("P4", "G3", ["I6", "I7"], "FACT"),
         ],
       },
     },
@@ -563,43 +587,45 @@ function neutralScenario(): Scenario {
     }),
     outputs: {
       intent: {
-        objectives: [
-          {
-            id: "O1",
-            intentRequestId: NEUTRAL_INTENT_1,
-            title: "Settlement against the policy",
-            description: "Whether the payment matches what the policy covers.",
-            questions: [decomposedQuestion("Q1", "How was the settlement amount calculated?", "CALCULATION")],
-          },
-          {
-            id: "O2",
-            intentRequestId: NEUTRAL_INTENT_2,
-            title: "Outstanding obligations",
-            description: "Documents and deadlines the policyholder must meet.",
-            questions: [decomposedQuestion("Q2", "Which documents and dates does the insurer require?", "CHRONOLOGY")],
-          },
+        schema: "hive.intent-analysis/1",
+        processingRunId: RUN_ID,
+        subjects: [],
+        goals: [
+          goal(
+            "G1",
+            NEUTRAL_INTENT_1,
+            "Was my water damage claim underpaid?",
+            "Determine whether the water damage claim was underpaid",
+            [analysisQuestion("Q1", "How was the settlement amount calculated?", "VALUE")],
+          ),
+          goal(
+            "G2",
+            NEUTRAL_INTENT_2,
+            "What do I need to send the insurer, and by when?",
+            "Identify required submissions and deadlines for the insurer",
+            [analysisQuestion("Q2", "Which documents and dates does the insurer require?", "LIST")],
+          ),
         ],
-        expectedOutputs: ["Settlement reconciliation", "Dated checklist"],
-        ambiguities: [],
-        missingContext: [],
+        reservedDecisions: [],
+        instructionsIgnored: [],
       },
       domain: domain("Property insurance", "Water damage claim"),
       intelligence: {
         questions: [
-          specialist("I1", "O1", ["Q1"], "Which line items, deductible and depreciation make up the settlement amount?"),
-          specialist("I2", "O1", ["Q1"], "Do any exclusions or sublimits the insurer cites match the policy wording?", "The policy's exclusion and sublimit clauses as written.", ["I1"]),
-          specialist("I3", "O2", ["Q2"], "Which proof-of-loss documents and dates does the letter or policy require?"),
+          specialist("I1", "G1", ["Q1"], "Which line items, deductible and depreciation make up the settlement amount?"),
+          specialist("I2", "G1", ["Q1"], "Do any exclusions or sublimits the insurer cites match the policy wording?", "The policy's exclusion and sublimit clauses as written.", ["I1"]),
+          specialist("I3", "G2", ["Q2"], "Which proof-of-loss documents and dates does the letter or policy require?"),
         ],
-        completenessReview: [review("O1", ["Repair costs are not in the documents."]), review("O2")],
+        completenessReview: [review("G1", ["Repair costs are not in the documents."]), review("G2")],
       },
       plan: {
         domainBasis: { primaryDomain: "Property insurance", uncertain: false, considerations: [] },
         questions: [
-          planItem("P1", "O1", ["I1", "I2"], "CALCULATION", {
+          planItem("P1", "G1", ["I1", "I2"], "CALCULATION", {
             calculation: "Sum of line items less deductible and depreciation",
             evaluation: "Whether each cited exclusion matches the policy clause.",
           }),
-          planItem("P2", "O2", ["I3"], "CHRONOLOGY", { chronology: "Order each required item by its due date" }),
+          planItem("P2", "G2", ["I3"], "CHRONOLOGY", { chronology: "Order each required item by its due date" }),
         ],
       },
     },

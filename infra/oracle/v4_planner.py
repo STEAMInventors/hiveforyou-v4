@@ -35,7 +35,7 @@ logger = logging.getLogger("hive_planner")
 CONTRACT_VERSION = "planner-completion@1"
 ERROR_CONTRACT_VERSION = "planner-error@1"
 TASK_PROMPT_IDS: dict[str, str] = {
-    "intent": "hive-intent/1",
+    "intent": "hive.intent-analysis/1",
     "domain": "hive-domain/1",
     "intelligence": "hive-intent-intelligence/1",
     "plan": "hive-plan/1",

@@ -68,18 +68,46 @@ function promptsRoot(cwd: string): string {
   throw new Error("prompt_files_missing");
 }
 
+function readPromptId(markdown: string, expectedId: string): void {
+  const escaped = expectedId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = [
+    new RegExp(`Prompt id:\\s*\`${escaped}\``, "i"),
+    new RegExp(`\\*\\*Prompt ID:\\*\\*\\s*\`${escaped}\``, "i"),
+  ];
+  if (!patterns.some((pattern) => pattern.test(markdown))) {
+    throw new Error(`prompt_id_mismatch:${expectedId}`);
+  }
+}
+
+/** Intent analysis prompt uses numbered sections instead of `## System`. */
+export function extractIntentAnalysisSystemPrompt(markdown: string): string {
+  const normalized = normalize(markdown);
+  const start = normalized.indexOf("## 1. Your job");
+  if (start < 0) {
+    throw new Error("prompt_section_missing:intent");
+  }
+  const exampleStart = normalized.indexOf("## 7. Example");
+  const finalStart = normalized.indexOf("## 8. Final self-check");
+  const beforeExample = exampleStart >= 0 ? normalized.slice(start, exampleStart).trim() : normalized.slice(start).trim();
+  const finalCheck = finalStart >= 0 ? normalized.slice(finalStart).trim() : "";
+  const combined = finalCheck ? `${beforeExample}\n\n${finalCheck}` : beforeExample;
+  if (!combined) {
+    throw new Error("prompt_section_empty:intent");
+  }
+  return combined;
+}
+
 export function buildPromptCatalog(readText: (relativePath: string) => string): PromptCatalog {
   const planner = {} as Record<PlannerTask, PlannerPrompt>;
   for (const task of Object.keys(PROMPT_FILES) as PlannerTask[]) {
     const file = normalize(readText(PROMPT_FILES[task]));
-    if (!file.includes(`Prompt id: \`${PLANNER_TASK_PROMPT_IDS[task]}\``)) {
-      throw new Error(`prompt_id_mismatch:${task}`);
-    }
+    const expectedId = PLANNER_TASK_PROMPT_IDS[task];
+    readPromptId(file, expectedId);
     planner[task] = {
       task,
-      id: PLANNER_TASK_PROMPT_IDS[task],
+      id: expectedId,
       digest: sha256Digest(file),
-      systemPrompt: extractSection(file, "System"),
+      systemPrompt: task === "intent" ? extractIntentAnalysisSystemPrompt(file) : extractSection(file, "System"),
     };
   }
   const template = normalize(readText(STUDY_TEMPLATE_FILE));
@@ -100,6 +128,10 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
 }
 
 let cached: PromptCatalog | null = null;
+
+export function resetPromptCatalogCache(): void {
+  cached = null;
+}
 
 export function loadPromptCatalog(cwd: string = process.cwd()): PromptCatalog {
   if (!cached) {

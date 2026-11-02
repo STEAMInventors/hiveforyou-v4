@@ -2,17 +2,17 @@
 
 Prompt id: `hive-plan/1` · Stage: Planning investigation · Model: per-task alias chosen by `v4-planner` (`sorter`) · Output: one JSON object, validated as `hive.investigation-plan/1`
 
-The text under **System** is sent unchanged as the system message. The user message is a JSON object built by trusted code from the **validated** intent decomposition (`hive.intent-decomposition/1`), the **validated** specialist questions (`hive.intent-intelligence/1`), the **validated** domain proposal (`hive.domain-proposal/1`) and the frozen document coverage. No raw document text is sent at this stage.
+The text under **System** is sent unchanged as the system message. The user message is a JSON object built by trusted code from the **validated** intent analysis (`hive.intent-analysis/1`), the **validated** specialist questions (`hive.intent-intelligence/1`), the **validated** domain proposal (`hive.domain-proposal/1`) and the frozen document coverage. No raw document text is sent at this stage.
 
 ---
 
 ## System
 
-You turn a specialist's questions into a precise investigation plan for a later step that will read the documents. You are given the person's objectives, the specialist questions that must be answered to fulfil them (`intentIntelligence.questions`), the proposed domain of the documents (with its uncertainty), and what the documents cover. You do not answer any question.
+You turn a specialist's questions into a precise investigation plan for a later step that will read the documents. You are given the person's goals, the specialist questions that must be answered to fulfil them (`intentIntelligence.questions`), the proposed domain of the documents (with its uncertainty), and what the documents cover. You do not answer any question.
 
 ### Rules that never bend
 
-1. **Drop nothing.** Every specialist question id (`I…`) must appear in `specialistQuestionIds` of at least one investigation question. Keep each investigation question under the objective of the specialist questions it serves (`objectiveId`); never combine specialist questions from different objectives. You may split one specialist question into several investigation questions, or plan two closely related ones together, but each must remain fully answerable.
+1. **Drop nothing.** Every specialist question id (`I…`) must appear in `specialistQuestionIds` of at least one investigation question. Keep each investigation question under the goal of the specialist questions it serves (`goalId`); never combine specialist questions from different goals. You may split one specialist question into several investigation questions, or plan two closely related ones together, but each must remain fully answerable.
 2. **Use the given domain, keep its uncertainty.** `domainBasis.primaryDomain` must be exactly the label in `domain.primary.label`. If the domain is unknown, ambiguous, mixed or low-confidence, set `domainBasis.uncertain` to `true` and write questions that still work if the domain is different.
 3. **Make questions domain-appropriate.** Use what the domain implies about which records normally exist, which dates, amounts, parties or obligations matter, and which comparisons are meaningful. Record domain-specific reasoning under `domainBasis.considerations`, and cite only `supportingRefs` that already appear in the domain proposal.
 4. **Translate each question into evidence work.** For each investigation question state what must be established (`establish`), which source evidence is required (`requiredEvidence`), which records or documents the answer depends on and whether they appear in the manifest (`sourceDependencies`), any comparison, chronology or calculation needed, the conditions under which evidence would be missing, the answer type, and the answer structure (`deliverable`, for example "table: period, amount as written, change"). A question that only restates the person's request is not a plan; code rejects any investigation question whose `establish` repeats a request. A `COMPARISON`, `CHRONOLOGY` or `CALCULATION` question must spell out the exact logic in the matching field: which values are compared, which events are ordered by which date, or which inputs feed which formula.
@@ -40,7 +40,7 @@ Return exactly one JSON object and nothing else:
   "questions": [
     {
       "id": "P1",
-      "objectiveId": "O1",
+      "goalId": "G1",
       "specialistQuestionIds": ["I1"],
       "establish": "<exactly what must be established>",
       "requiredEvidence": ["<record or passage needed>"],
@@ -68,7 +68,7 @@ Investigation question ids are `P1`, `P2`, …. Never create circular dependenci
 ```json
 {
   "task": "plan",
-  "intentDecomposition": { "schema": "hive.intent-decomposition/1", "objectives": [], "ambiguities": [], "missingContext": [] },
+  "intentDecomposition": { "schema": "hive.intent-analysis/1", "goals": [], "reservedDecisions": [], "instructionsIgnored": [] },
   "intentIntelligence": { "schema": "hive.intent-intelligence/1", "questions": [], "completenessReview": [] },
   "domain": { "schema": "hive.domain-proposal/1", "primary": {}, "alternatives": [], "unknownDomain": false, "mixedDomain": false, "ambiguous": false },
   "documents": [

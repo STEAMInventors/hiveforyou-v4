@@ -7,15 +7,17 @@ describe("loadPromptCatalog", () => {
   it("loads the versioned preparation prompts from the repository", () => {
     const catalog = loadPromptCatalog();
     expect(Object.values(catalog.planner).map((prompt) => prompt.id)).toEqual([
-      "hive-intent/1",
+      "hive.intent-analysis/1",
       "hive-domain/1",
       "hive-intent-intelligence/1",
       "hive-plan/1",
     ]);
-    for (const prompt of Object.values(catalog.planner)) {
+    for (const [task, prompt] of Object.entries(catalog.planner) as [keyof typeof catalog.planner, (typeof catalog.planner)["intent"]][]) {
       expect(prompt.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
       expect(prompt.systemPrompt.length).toBeGreaterThan(200);
-      expect(prompt.systemPrompt).not.toMatch(/^## /m);
+      if (task !== "intent") {
+        expect(prompt.systemPrompt).not.toMatch(/^## /m);
+      }
     }
     expect(catalog.studyTemplate.id).toBe("hive-study-preview/1");
     expect(catalog.studyTemplate.text.split(SOURCE_PAGES_PLACEHOLDER)).toHaveLength(2);
@@ -27,7 +29,16 @@ describe("buildPromptCatalog", () => {
   const files = (eol: string): Record<string, string> => {
     const planner = (id: string) => ["# Prompt", `Prompt id: \`${id}\``, "", "## System", "", "Be exact.", "", "---", "Notes"].join(eol);
     return {
-      "hive-intent/HiveForYou-Intent-v1.md": planner("hive-intent/1"),
+      "hive-intent/HiveForYou-Intent-v1.md": [
+        "# Hive Intent Analysis",
+        "**Prompt ID:** `hive.intent-analysis/1`",
+        "## 1. Your job",
+        "Analyze faithfully.",
+        "## 7. Example",
+        "skip",
+        "## 8. Final self-check",
+        "Check.",
+      ].join(eol),
       "hive-domain/HiveForYou-Domain-v1.md": planner("hive-domain/1"),
       "hive-intent-intelligence/HiveForYou-Intent-Intelligence-v1.md": planner("hive-intent-intelligence/1"),
       "hive-plan/HiveForYou-Plan-v1.md": planner("hive-plan/1"),
@@ -41,12 +52,15 @@ describe("buildPromptCatalog", () => {
     const crlf = buildPromptCatalog((file) => files("\r\n")[file]!);
     expect(crlf.planner.intent.digest).toBe(lf.planner.intent.digest);
     expect(crlf.studyTemplate.digest).toBe(lf.studyTemplate.digest);
-    expect(lf.planner.intent.systemPrompt).toBe("Be exact.");
+    expect(lf.planner.intent.systemPrompt).toContain("Analyze faithfully.");
   });
 
   it("fails closed when a prompt file carries the wrong id", () => {
-    const wrong = { ...files("\n"), "hive-plan/HiveForYou-Plan-v1.md": "Prompt id: `hive-plan/2`\n## System\nx" };
-    expect(() => buildPromptCatalog((file) => wrong[file]!)).toThrow("prompt_id_mismatch:plan");
+    const wrong = {
+      ...files("\n"),
+      "hive-plan/HiveForYou-Plan-v1.md": "Prompt id: `hive-plan/2`\n## System\nx",
+    };
+    expect(() => buildPromptCatalog((file) => wrong[file]!)).toThrow("prompt_id_mismatch:hive-plan/1");
   });
 });
 

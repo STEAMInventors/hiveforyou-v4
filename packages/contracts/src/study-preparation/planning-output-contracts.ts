@@ -6,7 +6,9 @@ import type { ContractValidation } from "../source-documents/source-document-con
  * a stage output is saved. Validators never repair output; they accept it or reject it.
  */
 
-export const INTENT_DECOMPOSITION_SCHEMA = "hive.intent-decomposition/1";
+export const INTENT_ANALYSIS_SCHEMA = "hive.intent-analysis/1";
+/** Stored preview field name; JSON conforms to {@link INTENT_ANALYSIS_SCHEMA}. */
+export const INTENT_DECOMPOSITION_SCHEMA = INTENT_ANALYSIS_SCHEMA;
 export const DOMAIN_PROPOSAL_SCHEMA = "hive.domain-proposal/1";
 export const INTENT_INTELLIGENCE_SCHEMA = "hive.intent-intelligence/1";
 export const INVESTIGATION_PLAN_SCHEMA = "hive.investigation-plan/1";
@@ -26,8 +28,26 @@ export type AnswerType = (typeof ANSWER_TYPES)[number];
 export const ADVISORY_CONFIDENCE_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
 export type AdvisoryConfidence = (typeof ADVISORY_CONFIDENCE_LEVELS)[number];
 
-export const MAX_OBJECTIVES = 12;
-export const MAX_QUESTIONS_PER_OBJECTIVE = 12;
+export const MAX_GOALS = 12;
+export const MAX_QUESTIONS_PER_GOAL = 12;
+/** @deprecated Use {@link MAX_GOALS}. */
+export const MAX_OBJECTIVES = MAX_GOALS;
+/** @deprecated Use {@link MAX_QUESTIONS_PER_GOAL}. */
+export const MAX_QUESTIONS_PER_OBJECTIVE = MAX_QUESTIONS_PER_GOAL;
+
+export const ANSWER_FORMS = [
+  "EXPLANATION",
+  "LIST",
+  "VALUE",
+  "COMPARISON",
+  "YES_NO_WITH_REASONS",
+  "PREPARATION",
+  "OTHER",
+] as const;
+export type AnswerForm = (typeof ANSWER_FORMS)[number];
+
+export const LIKELY_READING_BASES = ["GLOSSARY", "NONE"] as const;
+export type LikelyReadingBasis = (typeof LIKELY_READING_BASES)[number];
 export const MAX_SPECIALIST_QUESTIONS = 48;
 export const MAX_PLAN_QUESTIONS = 60;
 export const MAX_LIST_ITEMS = 12;
@@ -41,40 +61,58 @@ export type SourcePageRef = { sourceDocumentId: string; pageNumber: number };
 
 export type StoredIntent = { id: string; intentText: string; audience?: string | null };
 
-export type DecomposedQuestion = {
-  id: string;
-  text: string;
-  answerType: AnswerType;
-  dependsOn: string[];
-  requiredEvidence: string[];
-  comparisons: string[];
-  expectedOutput: string;
-};
-
-export type IntentObjective = {
-  id: string;
+export type IntentSubject = {
+  name: string;
+  statedAs: string;
   intentRequestId: string;
-  title: string;
-  description: string;
-  questions: DecomposedQuestion[];
 };
 
-export type IntentAmbiguity = {
-  id: string;
-  description: string;
-  affects: string[];
-  clarificationQuestion: string;
+export type IntentAnalysisQuestion = {
+  questionId: string;
+  question: string;
+  answerForm: AnswerForm;
+  needsJudgment: boolean;
+  dependsOn: string[];
 };
 
-export type IntentDecomposition = {
-  schema: typeof INTENT_DECOMPOSITION_SCHEMA;
+export type IntentUnclear = {
+  unclearId: string;
+  about: string;
+  possibleMeanings: string[];
+  likelyReading: string | null;
+  likelyReadingBasis: LikelyReadingBasis;
+  askThePerson: string;
+  blocksAnswer: boolean;
+};
+
+export type IntentGoal = {
+  goalId: string;
+  intentRequestId: string;
+  statedAs: string;
+  goal: string;
+  questions: IntentAnalysisQuestion[];
+  unclear: IntentUnclear[];
+};
+
+export type ReservedDecision = {
+  questionId: string;
+  decision: string;
+  decidedBy: string | null;
+};
+
+export type IntentAnalysis = {
+  schema: typeof INTENT_ANALYSIS_SCHEMA;
+  processingRunId: string;
   /** Verbatim stored intents and audiences, injected by trusted code (never taken from model output). */
   intents: { intentRequestId: string; verbatimText: string; audience?: string | null }[];
-  objectives: IntentObjective[];
-  expectedOutputs: string[];
-  ambiguities: IntentAmbiguity[];
-  missingContext: string[];
+  subjects: IntentSubject[];
+  goals: IntentGoal[];
+  reservedDecisions: ReservedDecision[];
+  instructionsIgnored: string[];
 };
+
+/** @deprecated Use {@link IntentAnalysis}. */
+export type IntentDecomposition = IntentAnalysis;
 
 export type DomainCandidate = {
   label: string;
@@ -97,8 +135,8 @@ export type DomainProposal = {
 
 export type SpecialistQuestion = {
   id: string;
-  objectiveId: string;
-  decompositionQuestionIds: string[];
+  goalId: string;
+  analysisQuestionIds: string[];
   question: string;
   whyItMatters: string;
   supportsOutcome: string;
@@ -108,23 +146,26 @@ export type SpecialistQuestion = {
   contextRefs: SourcePageRef[];
 };
 
-export type ObjectiveCompletenessReview = {
-  objectiveId: string;
+export type GoalCompletenessReview = {
+  goalId: string;
   wouldFulfilIntent: true;
   gapsFound: string[];
   revisions: string[];
   remainingLimits: string[];
 };
 
+/** @deprecated Use {@link GoalCompletenessReview}. */
+export type ObjectiveCompletenessReview = GoalCompletenessReview;
+
 export type IntentIntelligence = {
   schema: typeof INTENT_INTELLIGENCE_SCHEMA;
   questions: SpecialistQuestion[];
-  completenessReview: ObjectiveCompletenessReview[];
+  completenessReview: GoalCompletenessReview[];
 };
 
 export type PlanQuestion = {
   id: string;
-  objectiveId: string;
+  goalId: string;
   specialistQuestionIds: string[];
   establish: string;
   requiredEvidence: string[];
@@ -250,6 +291,16 @@ function readId(record: Record<string, unknown>, key: string, path: string, pref
   return value;
 }
 
+function readIdField(record: Record<string, unknown>, key: string, path: string, prefix: string): string {
+  return readId(record, key, path, prefix);
+}
+
+function assertExactSubstring(source: string, substring: string, path: string): void {
+  if (!source.includes(substring)) {
+    fail("quotation_mismatch", `${path} must be an exact consecutive substring of the originating request.`);
+  }
+}
+
 function readIdList(
   record: Record<string, unknown>,
   key: string,
@@ -369,112 +420,157 @@ export function sourcePageRefKey(ref: SourcePageRef): string {
 }
 
 // ---------------------------------------------------------------------------
-// Stage 1 — hive-intent/1
+// Stage 1 — hive.intent-analysis/1
 // ---------------------------------------------------------------------------
-export function validateIntentDecomposition(
+export function validateIntentAnalysis(
   raw: unknown,
-  context: { intents: readonly StoredIntent[] },
-): ContractValidation<IntentDecomposition> {
+  context: { intents: readonly StoredIntent[]; processingRunId: string },
+): ContractValidation<IntentAnalysis> {
   return run(() => {
     if (context.intents.length === 0) {
-      fail("intent_missing", "There is no stored intent to decompose.");
+      fail("intent_missing", "There is no stored intent to analyze.");
     }
     const root = asRecord(raw, "output");
-    const intentIds = new Set(context.intents.map((intent) => intent.id.toLowerCase()));
+    if (root.schema !== INTENT_ANALYSIS_SCHEMA) {
+      fail("schema_mismatch", "Intent analysis output has the wrong schema.");
+    }
+    const runId = readText(root, "processingRunId", "output", MAX_SHORT_TEXT).toLowerCase();
+    if (runId !== context.processingRunId.trim().toLowerCase()) {
+      fail("run_id_mismatch", "Intent analysis processingRunId does not match the active run.");
+    }
 
-    const objectives = readArray(root, "objectives", "objectives", MAX_OBJECTIVES).map(
-      (item, index): IntentObjective => {
-        const path = `objectives[${index}]`;
-        const record = asRecord(item, path);
-        const intentRequestId =
-          typeof record.intentRequestId === "string" ? record.intentRequestId.trim().toLowerCase() : "";
-        if (!intentIds.has(intentRequestId)) {
-          fail("intent_ref_invalid", `${path}.intentRequestId must refer to a stored intent.`);
+    const intentById = new Map(context.intents.map((intent) => [intent.id.toLowerCase(), intent]));
+    const intentIds = new Set(intentById.keys());
+
+    const subjects = readArray(root, "subjects", "subjects", MAX_LIST_ITEMS).map((item, index): IntentSubject => {
+      const path = `subjects[${index}]`;
+      const record = asRecord(item, path);
+      const intentRequestId =
+        typeof record.intentRequestId === "string" ? record.intentRequestId.trim().toLowerCase() : "";
+      if (!intentIds.has(intentRequestId)) {
+        fail("intent_ref_invalid", `${path}.intentRequestId must refer to a stored intent.`);
+      }
+      const statedAs = readText(record, "statedAs", path, MAX_LONG_TEXT);
+      assertExactSubstring(intentById.get(intentRequestId)!.intentText, statedAs, `${path}.statedAs`);
+      return {
+        name: readText(record, "name", path, MAX_SHORT_TEXT),
+        statedAs,
+        intentRequestId,
+      };
+    });
+
+    const goals = readArray(root, "goals", "goals", MAX_GOALS).map((item, index): IntentGoal => {
+      const path = `goals[${index}]`;
+      const record = asRecord(item, path);
+      const intentRequestId =
+        typeof record.intentRequestId === "string" ? record.intentRequestId.trim().toLowerCase() : "";
+      if (!intentIds.has(intentRequestId)) {
+        fail("intent_ref_invalid", `${path}.intentRequestId must refer to a stored intent.`);
+      }
+      const intentText = intentById.get(intentRequestId)!.intentText;
+      const statedAs = readText(record, "statedAs", path, MAX_LONG_TEXT);
+      assertExactSubstring(intentText, statedAs, `${path}.statedAs`);
+
+      const questions = readArray(record, "questions", path, MAX_QUESTIONS_PER_GOAL).map(
+        (questionItem, questionIndex): IntentAnalysisQuestion => {
+          const questionPath = `${path}.questions[${questionIndex}]`;
+          const question = asRecord(questionItem, questionPath);
+          return {
+            questionId: readIdField(question, "questionId", questionPath, "Q"),
+            question: readText(question, "question", questionPath, MAX_LONG_TEXT),
+            answerForm: readEnum(question, "answerForm", questionPath, ANSWER_FORMS),
+            needsJudgment: readBoolean(question, "needsJudgment", questionPath),
+            dependsOn: readIdList(question, "dependsOn", questionPath, "Q", MAX_LIST_ITEMS),
+          };
+        },
+      );
+      if (questions.length === 0) {
+        fail("missing_items", `${path} needs at least one question.`);
+      }
+
+      const unclear = readArray(record, "unclear", path, MAX_LIST_ITEMS).map((unclearItem, unclearIndex): IntentUnclear => {
+        const unclearPath = `${path}.unclear[${unclearIndex}]`;
+        const unclearRecord = asRecord(unclearItem, unclearPath);
+        const possibleMeanings = readTextList(unclearRecord, "possibleMeanings", unclearPath, { min: 1 });
+        const likelyReading = readNullableText(unclearRecord, "likelyReading", unclearPath, MAX_LONG_TEXT);
+        const likelyReadingBasis = readEnum(unclearRecord, "likelyReadingBasis", unclearPath, LIKELY_READING_BASES);
+        if (likelyReading !== null && !possibleMeanings.includes(likelyReading)) {
+          fail("likely_reading_invalid", `${unclearPath}.likelyReading must be one of possibleMeanings or null.`);
         }
-        const questions = readArray(record, "questions", path, MAX_QUESTIONS_PER_OBJECTIVE).map(
-          (questionItem, questionIndex): DecomposedQuestion => {
-            const questionPath = `${path}.questions[${questionIndex}]`;
-            const question = asRecord(questionItem, questionPath);
-            return {
-              id: readId(question, "id", questionPath, "Q"),
-              text: readText(question, "text", questionPath, MAX_LONG_TEXT),
-              answerType: readEnum(question, "answerType", questionPath, ANSWER_TYPES),
-              dependsOn: readIdList(question, "dependsOn", questionPath, "Q", MAX_LIST_ITEMS),
-              requiredEvidence: readTextList(question, "requiredEvidence", questionPath, { min: 1 }),
-              comparisons: readTextList(question, "comparisons", questionPath),
-              expectedOutput: readText(question, "expectedOutput", questionPath, MAX_SHORT_TEXT),
-            };
-          },
-        );
-        if (questions.length === 0) {
-          fail("missing_items", `${path} needs at least one question.`);
+        if (likelyReading === null && likelyReadingBasis !== "NONE") {
+          fail("likely_reading_basis_invalid", `${unclearPath}.likelyReadingBasis must be NONE when likelyReading is null.`);
+        }
+        if (likelyReading !== null && likelyReadingBasis !== "GLOSSARY") {
+          fail("likely_reading_basis_invalid", `${unclearPath}.likelyReadingBasis must be GLOSSARY when likelyReading is set.`);
         }
         return {
-          id: readId(record, "id", path, "O"),
-          intentRequestId,
-          title: readText(record, "title", path, MAX_SHORT_TEXT),
-          description: readText(record, "description", path, MAX_LONG_TEXT),
-          questions,
+          unclearId: readIdField(unclearRecord, "unclearId", unclearPath, "U"),
+          about: readText(unclearRecord, "about", unclearPath, MAX_SHORT_TEXT),
+          possibleMeanings,
+          likelyReading,
+          likelyReadingBasis,
+          askThePerson: readText(unclearRecord, "askThePerson", unclearPath, MAX_SHORT_TEXT),
+          blocksAnswer: readBoolean(unclearRecord, "blocksAnswer", unclearPath),
         };
-      },
-    );
-    if (objectives.length === 0) {
-      fail("missing_items", "At least one objective is required.");
-    }
-    assertUnique(objectives.map((objective) => objective.id), "objectives");
+      });
+      assertUnique(unclear.map((entry) => entry.unclearId), `${path}.unclear`);
 
-    const allQuestions = objectives.flatMap((objective) => objective.questions);
-    assertUnique(allQuestions.map((question) => question.id), "questions");
-    const intentTexts = context.intents.map((intent) => intent.intentText);
-    for (const question of allQuestions) {
-      if (restatesIntent(question.text, intentTexts)) {
-        fail("question_restates_intent", `${question.id} repeats the request instead of asking something specific.`);
-      }
+      return {
+        goalId: readIdField(record, "goalId", path, "G"),
+        intentRequestId,
+        statedAs,
+        goal: readText(record, "goal", path, MAX_LONG_TEXT),
+        questions,
+        unclear,
+      };
+    });
+    if (goals.length === 0) {
+      fail("missing_items", "At least one goal is required.");
     }
+    assertUnique(goals.map((goal) => goal.goalId), "goals");
+
+    const allQuestions = goals.flatMap((goal) => goal.questions);
+    assertUnique(allQuestions.map((question) => question.questionId), "questions");
     assertAcyclic(
-      new Map(allQuestions.map((question) => [question.id, question.dependsOn])),
+      new Map(allQuestions.map((question) => [question.questionId, question.dependsOn])),
       "questions",
     );
 
-    // Multiple intents are never collapsed: every stored intent keeps its own objective(s).
     for (const intent of context.intents) {
-      if (!objectives.some((objective) => objective.intentRequestId === intent.id.toLowerCase())) {
-        fail("intent_not_covered", "Every stored request needs at least one objective.");
+      if (!goals.some((goal) => goal.intentRequestId === intent.id.toLowerCase())) {
+        fail("intent_not_covered", "Every stored request needs at least one goal.");
       }
     }
 
-    const knownIds = new Set([...objectives.map((o) => o.id), ...allQuestions.map((q) => q.id)]);
-    const ambiguities = readArray(root, "ambiguities", "ambiguities", MAX_LIST_ITEMS).map(
-      (item, index): IntentAmbiguity => {
-        const path = `ambiguities[${index}]`;
+    const questionIds = new Set(allQuestions.map((question) => question.questionId));
+    const reservedDecisions = readArray(root, "reservedDecisions", "reservedDecisions", MAX_LIST_ITEMS).map(
+      (item, index): ReservedDecision => {
+        const path = `reservedDecisions[${index}]`;
         const record = asRecord(item, path);
-        const affects = readArray(record, "affects", path, MAX_LIST_ITEMS).map((ref) => {
-          if (typeof ref !== "string" || !knownIds.has(ref)) {
-            fail("dependency_unknown", `${path}.affects must refer to known objectives or questions.`);
-          }
-          return ref;
-        });
+        const questionId = readIdField(record, "questionId", path, "Q");
+        if (!questionIds.has(questionId)) {
+          fail("question_unknown", `${path}.questionId must refer to a goal question.`);
+        }
         return {
-          id: readId(record, "id", path, "A"),
-          description: readText(record, "description", path, MAX_LONG_TEXT),
-          affects,
-          clarificationQuestion: readText(record, "clarificationQuestion", path, MAX_SHORT_TEXT),
+          questionId,
+          decision: readText(record, "decision", path, MAX_LONG_TEXT),
+          decidedBy: readNullableText(record, "decidedBy", path, MAX_SHORT_TEXT),
         };
       },
     );
-    assertUnique(ambiguities.map((ambiguity) => ambiguity.id), "ambiguities");
 
     return {
-      schema: INTENT_DECOMPOSITION_SCHEMA,
+      schema: INTENT_ANALYSIS_SCHEMA,
+      processingRunId: runId,
       intents: context.intents.map((intent) => ({
         intentRequestId: intent.id.toLowerCase(),
         verbatimText: intent.intentText,
         audience: intent.audience ?? null,
       })),
-      objectives,
-      expectedOutputs: readTextList(root, "expectedOutputs", "output", { min: 1 }),
-      ambiguities,
-      missingContext: readTextList(root, "missingContext", "output"),
+      subjects,
+      goals,
+      reservedDecisions,
+      instructionsIgnored: readTextList(root, "instructionsIgnored", "output"),
     };
   });
 }
@@ -552,31 +648,28 @@ const REVIEW_TEXT_MAX = 400;
  */
 export function validateIntentIntelligence(
   raw: unknown,
-  context: { decomposition: IntentDecomposition; sampledRefs: readonly SourcePageRef[] },
+  context: { analysis: IntentAnalysis; sampledRefs: readonly SourcePageRef[] },
 ): ContractValidation<IntentIntelligence> {
   return run(() => {
-    const { decomposition } = context;
+    const { analysis } = context;
     const root = asRecord(raw, "output");
     const allowedRefs = new Set(context.sampledRefs.map(sourcePageRefKey));
-    const questionsByObjective = new Map(
-      decomposition.objectives.map((objective) => [
-        objective.id,
-        new Set(objective.questions.map((question) => question.id)),
-      ]),
+    const questionsByGoal = new Map(
+      analysis.goals.map((goal) => [goal.goalId, new Set(goal.questions.map((question) => question.questionId))]),
     );
 
     const questions = readArray(root, "questions", "output", MAX_SPECIALIST_QUESTIONS).map(
       (item, index): SpecialistQuestion => {
         const path = `questions[${index}]`;
         const record = asRecord(item, path);
-        const objectiveId = readId(record, "objectiveId", path, "O");
-        const objectiveQuestions = questionsByObjective.get(objectiveId);
-        if (!objectiveQuestions) {
-          fail("objective_unknown", `${path}.objectiveId must refer to a decomposed objective.`);
+        const goalId = readIdField(record, "goalId", path, "G");
+        const goalQuestions = questionsByGoal.get(goalId);
+        if (!goalQuestions) {
+          fail("goal_unknown", `${path}.goalId must refer to an analyzed goal.`);
         }
-        const decompositionQuestionIds = readIdList(record, "decompositionQuestionIds", path, "Q", MAX_LIST_ITEMS);
-        if (decompositionQuestionIds.some((id) => !objectiveQuestions.has(id))) {
-          fail("question_unknown", `${path}.decompositionQuestionIds must refer to questions of ${objectiveId}.`);
+        const analysisQuestionIds = readIdList(record, "analysisQuestionIds", path, "Q", MAX_LIST_ITEMS);
+        if (analysisQuestionIds.some((id) => !goalQuestions.has(id))) {
+          fail("question_unknown", `${path}.analysisQuestionIds must refer to questions of ${goalId}.`);
         }
         const requiresJudgment = readBoolean(record, "requiresJudgment", path);
         const judgmentBasis = readNullableText(record, "judgmentBasis", path, MAX_LONG_TEXT);
@@ -585,8 +678,8 @@ export function validateIntentIntelligence(
         }
         return {
           id: readId(record, "id", path, "I"),
-          objectiveId,
-          decompositionQuestionIds,
+          goalId,
+          analysisQuestionIds,
           question: readText(record, "question", path, MAX_LONG_TEXT),
           whyItMatters: readText(record, "whyItMatters", path, MAX_LONG_TEXT),
           supportsOutcome: readText(record, "supportsOutcome", path, MAX_LONG_TEXT),
@@ -600,38 +693,38 @@ export function validateIntentIntelligence(
     assertUnique(questions.map((question) => question.id), "questions");
     assertAcyclic(new Map(questions.map((question) => [question.id, question.dependsOn])), "questions");
 
-    const intentTexts = decomposition.intents.map((intent) => intent.verbatimText);
+    const intentTexts = analysis.intents.map((intent) => intent.verbatimText);
     for (const question of questions) {
       if (restatesIntent(question.question, intentTexts)) {
         fail("question_restates_intent", `${question.id} repeats the request instead of asking something specific.`);
       }
     }
 
-    const covered = new Set(questions.flatMap((question) => question.decompositionQuestionIds));
-    for (const objective of decomposition.objectives) {
-      if (!questions.some((question) => question.objectiveId === objective.id)) {
-        fail("objective_not_covered", `Objective ${objective.id} has no specialist question.`);
+    const covered = new Set(questions.flatMap((question) => question.analysisQuestionIds));
+    for (const goal of analysis.goals) {
+      if (!questions.some((question) => question.goalId === goal.goalId)) {
+        fail("goal_not_covered", `Goal ${goal.goalId} has no specialist question.`);
       }
-      for (const question of objective.questions) {
-        if (!covered.has(question.id)) {
-          fail("question_not_covered", `Decomposed question ${question.id} has no specialist question.`);
+      for (const question of goal.questions) {
+        if (!covered.has(question.questionId)) {
+          fail("question_not_covered", `Analysis question ${question.questionId} has no specialist question.`);
         }
       }
     }
 
-    const completenessReview = readArray(root, "completenessReview", "output", MAX_OBJECTIVES).map(
-      (item, index): ObjectiveCompletenessReview => {
+    const completenessReview = readArray(root, "completenessReview", "output", MAX_GOALS).map(
+      (item, index): GoalCompletenessReview => {
         const path = `completenessReview[${index}]`;
         const record = asRecord(item, path);
-        const objectiveId = readId(record, "objectiveId", path, "O");
-        if (!questionsByObjective.has(objectiveId)) {
-          fail("objective_unknown", `${path}.objectiveId must refer to a decomposed objective.`);
+        const goalId = readIdField(record, "goalId", path, "G");
+        if (!questionsByGoal.has(goalId)) {
+          fail("goal_unknown", `${path}.goalId must refer to an analyzed goal.`);
         }
         if (!readBoolean(record, "wouldFulfilIntent", path)) {
-          fail("outcome_incomplete", `${path}: the questions for ${objectiveId} would not fulfil the request.`);
+          fail("outcome_incomplete", `${path}: the questions for ${goalId} would not fulfil the request.`);
         }
         return {
-          objectiveId,
+          goalId,
           wouldFulfilIntent: true,
           gapsFound: readTextList(record, "gapsFound", path, { maxLength: REVIEW_TEXT_MAX }),
           revisions: readTextList(record, "revisions", path, { maxLength: REVIEW_TEXT_MAX }),
@@ -639,10 +732,10 @@ export function validateIntentIntelligence(
         };
       },
     );
-    assertUnique(completenessReview.map((review) => review.objectiveId), "completenessReview");
-    for (const objective of decomposition.objectives) {
-      if (!completenessReview.some((review) => review.objectiveId === objective.id)) {
-        fail("completeness_review_missing", `Objective ${objective.id} has no completeness review.`);
+    assertUnique(completenessReview.map((review) => review.goalId), "completenessReview");
+    for (const goal of analysis.goals) {
+      if (!completenessReview.some((review) => review.goalId === goal.goalId)) {
+        fail("completeness_review_missing", `Goal ${goal.goalId} has no completeness review.`);
       }
     }
 
@@ -655,10 +748,10 @@ export function validateIntentIntelligence(
 // ---------------------------------------------------------------------------
 export function validateInvestigationPlan(
   raw: unknown,
-  context: { decomposition: IntentDecomposition; intelligence: IntentIntelligence; domain: DomainProposal },
+  context: { analysis: IntentAnalysis; intelligence: IntentIntelligence; domain: DomainProposal },
 ): ContractValidation<InvestigationPlan> {
   return run(() => {
-    const { decomposition, intelligence, domain } = context;
+    const { analysis, intelligence, domain } = context;
     const root = asRecord(raw, "output");
 
     const domainRefs = new Set(
@@ -687,27 +780,27 @@ export function validateInvestigationPlan(
       },
     );
 
-    const objectiveIds = new Set(decomposition.objectives.map((objective) => objective.id));
-    const specialistObjective = new Map(intelligence.questions.map((question) => [question.id, question.objectiveId]));
+    const goalIds = new Set(analysis.goals.map((goal) => goal.goalId));
+    const specialistGoal = new Map(intelligence.questions.map((question) => [question.id, question.goalId]));
 
     const questions = readArray(root, "questions", "output", MAX_PLAN_QUESTIONS).map(
       (item, index): PlanQuestion => {
         const path = `questions[${index}]`;
         const record = asRecord(item, path);
-        const objectiveId = readId(record, "objectiveId", path, "O");
-        if (!objectiveIds.has(objectiveId)) {
-          fail("objective_unknown", `${path}.objectiveId must refer to a decomposed objective.`);
+        const goalId = readIdField(record, "goalId", path, "G");
+        if (!goalIds.has(goalId)) {
+          fail("goal_unknown", `${path}.goalId must refer to an analyzed goal.`);
         }
         const specialistQuestionIds = readIdList(record, "specialistQuestionIds", path, "I", MAX_LIST_ITEMS);
         if (
           specialistQuestionIds.length === 0 ||
-          specialistQuestionIds.some((id) => specialistObjective.get(id) !== objectiveId)
+          specialistQuestionIds.some((id) => specialistGoal.get(id) !== goalId)
         ) {
-          fail("question_unknown", `${path}.specialistQuestionIds must refer to specialist questions of ${objectiveId}.`);
+          fail("question_unknown", `${path}.specialistQuestionIds must refer to specialist questions of ${goalId}.`);
         }
         return {
           id: readId(record, "id", path, "P"),
-          objectiveId,
+          goalId,
           specialistQuestionIds,
           establish: readText(record, "establish", path, MAX_LONG_TEXT),
           requiredEvidence: readTextList(record, "requiredEvidence", path, { min: 1 }),
@@ -727,7 +820,7 @@ export function validateInvestigationPlan(
     if (questions.length === 0) {
       fail("missing_items", "The plan needs at least one investigation question.");
     }
-    const intentTexts = decomposition.intents.map((intent) => intent.verbatimText);
+    const intentTexts = analysis.intents.map((intent) => intent.verbatimText);
     for (const question of questions) {
       if (restatesIntent(question.establish, intentTexts)) {
         fail("question_restates_intent", `${question.id} repeats the request instead of stating what to establish.`);

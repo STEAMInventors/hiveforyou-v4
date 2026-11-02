@@ -10,7 +10,7 @@ export const PLANNER_TASKS = ["intent", "domain", "intelligence", "plan"] as con
 export type PlannerTask = (typeof PLANNER_TASKS)[number];
 
 export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask, string> = {
-  intent: "hive-intent/1",
+  intent: "hive.intent-analysis/1",
   domain: "hive-domain/1",
   intelligence: "hive-intent-intelligence/1",
   plan: "hive-plan/1",

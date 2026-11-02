@@ -3,7 +3,7 @@ import type { ContractValidation } from "../source-documents/source-document-con
 import type { ExecutionManifest } from "./execution-manifest-contracts";
 import type {
   DomainProposal,
-  IntentDecomposition,
+  IntentAnalysis,
   IntentIntelligence,
   InvestigationPlan,
 } from "./planning-output-contracts";
@@ -38,7 +38,7 @@ export const STUDY_PREPARATION_STAGES = [
   {
     key: "UNDERSTANDING_REQUEST",
     label: "Understanding your request",
-    description: "Separating what you asked into distinct objectives and answerable questions.",
+    description: "Understanding what you asked for in your own words, without reading the documents.",
   },
   {
     key: "IDENTIFYING_DOMAIN",
@@ -161,7 +161,7 @@ export type StudyPromptPreview = {
   processingRunId: string;
   hiveId: string;
   intentRequestIds: string[];
-  intentDecomposition: IntentDecomposition;
+  intentDecomposition: IntentAnalysis;
   domainProposal: DomainProposal;
   /** Null on previews prepared before the specialist-question stage existed. */
   intentIntelligence: IntentIntelligence | null;

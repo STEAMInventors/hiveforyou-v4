@@ -34,7 +34,7 @@ def body(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "contract_version": "planner-completion@1",
         "task": "intent",
-        "prompt_id": "hive-intent/1",
+        "prompt_id": "hive.intent-analysis/1",
         "prompt_digest": DIGEST,
         "system_prompt": "You turn requests into objectives.",
         "user_payload": {"task": "intent", "intents": [{"intentRequestId": "x", "intentText": "Compare"}]},

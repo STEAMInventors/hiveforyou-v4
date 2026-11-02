@@ -51,47 +51,52 @@ export function samplePages(id: string) {
   };
 }
 
-export function intentOutput() {
+export function intentOutput(
+  processingRunId: string = RUN_ID,
+  intents: readonly { id: string; intentText: string }[] = INTENTS,
+) {
+  const intentA = intents[0]!.intentText;
+  const intentB = intents[1]!.intentText;
   return {
-    objectives: [
+    schema: "hive.intent-analysis/1",
+    processingRunId,
+    subjects: [],
+    goals: [
       {
-        id: "O1",
+        goalId: "G1",
         intentRequestId: INTENT_A,
-        title: "Compare the two supplier quotes",
-        description: "Find which quote costs less in total for the same scope.",
+        statedAs: intentA,
+        goal: "Determine which supplier quote is the better deal",
         questions: [
           {
-            id: "Q1",
-            text: "What is the total price, including fees, in each quote?",
-            answerType: "COMPARISON",
+            questionId: "Q1",
+            question: "Which quote offers the better deal overall?",
+            answerForm: "COMPARISON",
+            needsJudgment: false,
             dependsOn: [],
-            requiredEvidence: ["Price table in each quote"],
-            comparisons: ["Quote A total versus Quote B total"],
-            expectedOutput: "Both totals and the difference.",
           },
         ],
+        unclear: [],
       },
       {
-        id: "O2",
+        goalId: "G2",
         intentRequestId: INTENT_B,
-        title: "Deadlines",
-        description: "Every date by which the buyer must act.",
+        statedAs: intentB,
+        goal: "Identify deadlines that must be met",
         questions: [
           {
-            id: "Q2",
-            text: "By which dates must the buyer accept, pay or respond?",
-            answerType: "CHRONOLOGY",
+            questionId: "Q2",
+            question: "What deadlines must be met?",
+            answerForm: "LIST",
+            needsJudgment: false,
             dependsOn: [],
-            requiredEvidence: ["Validity and payment terms"],
-            comparisons: [],
-            expectedOutput: "Dated list in order.",
           },
         ],
+        unclear: [],
       },
     ],
-    expectedOutputs: ["Cost comparison table", "Deadline list"],
-    ambiguities: [],
-    missingContext: [],
+    reservedDecisions: [],
+    instructionsIgnored: [],
   };
 }
 
@@ -124,8 +129,8 @@ export function intelligenceOutput() {
     questions: [
       {
         id: "I1",
-        objectiveId: "O1",
-        decompositionQuestionIds: ["Q1"],
+        goalId: "G1",
+        analysisQuestionIds: ["Q1"],
         question: "What is the all-in delivered cost of each quote once fees, freight and taxes are included?",
         whyItMatters: "Headline prices hide fees that change which supplier is cheaper.",
         supportsOutcome: "Choosing the supplier with the lower true cost.",
@@ -136,8 +141,8 @@ export function intelligenceOutput() {
       },
       {
         id: "I2",
-        objectiveId: "O1",
-        decompositionQuestionIds: ["Q1"],
+        goalId: "G1",
+        analysisQuestionIds: ["Q1"],
         question: "Do the two quotes cover the same scope, quantities and service terms?",
         whyItMatters: "A cheaper quote for less scope is not a better deal.",
         supportsOutcome: "Deciding whether the totals are comparable.",
@@ -148,8 +153,8 @@ export function intelligenceOutput() {
       },
       {
         id: "I3",
-        objectiveId: "O2",
-        decompositionQuestionIds: ["Q2"],
+        goalId: "G2",
+        analysisQuestionIds: ["Q2"],
         question: "By which dates must the buyer accept, pay or respond, and what happens if a date is missed?",
         whyItMatters: "A lapsed quote or missed payment changes the price or the deal.",
         supportsOutcome: "Acting before any offer expires.",
@@ -161,14 +166,14 @@ export function intelligenceOutput() {
     ],
     completenessReview: [
       {
-        objectiveId: "O1",
+        goalId: "G1",
         wouldFulfilIntent: true,
         gapsFound: ["Scope equivalence was not asked."],
         revisions: ["Added I2 on scope equivalence."],
         remainingLimits: ["Market prices outside the quotes cannot be checked from these documents."],
       },
       {
-        objectiveId: "O2",
+        goalId: "G2",
         wouldFulfilIntent: true,
         gapsFound: [],
         revisions: [],
@@ -190,7 +195,7 @@ export function planOutput() {
     questions: [
       {
         id: "P1",
-        objectiveId: "O1",
+        goalId: "G1",
         specialistQuestionIds: ["I1", "I2"],
         establish: "The all-in price of each quote for the same delivered scope.",
         requiredEvidence: ["Line items and fees in each quote"],
@@ -207,7 +212,7 @@ export function planOutput() {
       },
       {
         id: "P2",
-        objectiveId: "O2",
+        goalId: "G2",
         specialistQuestionIds: ["I3"],
         establish: "Each acceptance, payment and response date stated in either quote.",
         requiredEvidence: ["Validity period and payment terms"],

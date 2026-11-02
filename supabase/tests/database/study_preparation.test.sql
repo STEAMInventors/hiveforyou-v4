@@ -286,7 +286,7 @@ SELECT throws_ok(
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
        (SELECT id FROM hive.processing_runs LIMIT 1), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
-       '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-decomposition/1"}},
+       '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-analysis/1"}},
          "stage_metric":{"stage":"UNDERSTANDING_REQUEST","errorCode":"the user wants to know"}}'::jsonb) $$,
   '22023',
   'invalid_request',
@@ -295,8 +295,8 @@ SELECT throws_ok(
 SELECT is(
   (public.transition_processing_run(
      (SELECT id FROM hive.processing_runs LIMIT 1), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
-     '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-decomposition/1"}},
-       "stage_metric":{"stage":"UNDERSTANDING_REQUEST","outcome":"SUCCEEDED","promptId":"hive-intent/1",
+     '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-analysis/1"}},
+       "stage_metric":{"stage":"UNDERSTANDING_REQUEST","outcome":"SUCCEEDED","promptId":"hive.intent-analysis/1",
                        "modelAliasRequested":"sorter","resolvedModel":"gpt-4o-mini-2024-07-18",
                        "promptTokens":812,"completionTokens":240,"totalTokens":1052,"latencyMs":1830,
                        "finishReason":"stop","retryable":null}}'::jsonb)

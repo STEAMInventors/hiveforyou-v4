@@ -3,7 +3,7 @@ import {
   type DomainProposal,
   type GetStudyPreparationResponse,
   type HiveError,
-  type IntentDecomposition,
+  type IntentAnalysis,
   type IntentIntelligence,
   type InvestigationPlan,
   isValidUuid,
@@ -20,7 +20,7 @@ import {
   type StoredIntent,
   validateDomainProposal,
   validateExecutionManifest,
-  validateIntentDecomposition,
+  validateIntentAnalysis,
   validateIntentIntelligence,
   validateInvestigationPlan,
   validateStartStudyPreparationInput,
@@ -32,6 +32,11 @@ import type { DocumentPageRpcClient } from "@/server/source-documents/document-p
 import { loadFrozenSampleDocuments, selectDomainSamples } from "./page-sampling";
 import { callPlanner, type PlannerCallResult, type PlannerDeps } from "./planner-client";
 import { loadPromptCatalog, type PromptCatalog, sha256Digest } from "./prompt-catalog";
+import {
+  applyProvisionalDomainToIntentSystemPrompt,
+  type ProvisionalDomainContext,
+  parseProvisionalDomainContextFromInputs,
+} from "./provisional-domain-context";
 import { buildStudyPrompt } from "./study-prompt-builder";
 
 export type StudyPreparationRpcClient = DocumentPageRpcClient;
@@ -189,7 +194,7 @@ export async function getStudyPreparation(
 // Worker (service-role client, inside `after()`)
 // ---------------------------------------------------------------------------
 type StageOutputs = {
-  intentDecomposition?: IntentDecomposition;
+  intentDecomposition?: IntentAnalysis;
   domainProposal?: DomainProposal;
   sampleCoverage?: SampleCoverage;
   intentIntelligence?: IntentIntelligence;
@@ -214,6 +219,7 @@ type PreparationInputs = {
   intentSnapshotDigest: string;
   coverageDigest: string;
   intents: StoredIntent[];
+  provisionalDomain: ProvisionalDomainContext;
 };
 
 /** Internal failure carrying the stage metric for a failed model stage. */
@@ -269,12 +275,14 @@ async function loadInputs(client: StudyPreparationRpcClient, runId: string): Pro
     throw new Error("unexpected_inputs_shape");
   }
   if (payload?.snapshotCurrent === false) throw new SourceChanged(false);
+  const payloadRecord = payload ?? {};
   return {
     run,
     sourceSnapshot: snapshot,
     sourceSnapshotDigest: String(payload?.sourceSnapshotDigest),
     intentSnapshotDigest: String(payload?.intentSnapshotDigest),
     coverageDigest: String(payload?.coverageDigest),
+    provisionalDomain: parseProvisionalDomainContextFromInputs(payloadRecord),
     intents: intents
       .filter((intent) => typeof intent.id === "string" && typeof intent.intentText === "string")
       .map((intent) => ({
@@ -382,8 +390,10 @@ export async function processStudyPreparation(
     catalog: PromptCatalog,
     userPayload: Record<string, unknown>,
     validate: (raw: unknown) => { ok: true; value: T } | { ok: false; message: string; diagnosticReason: string },
+    options: { readonly systemPrompt?: string } = {},
   ): Promise<{ value: T; metric: StageMetric }> => {
-    const prompt = catalog.planner[task];
+    const basePrompt = catalog.planner[task];
+    const prompt = options.systemPrompt ? { ...basePrompt, systemPrompt: options.systemPrompt } : basePrompt;
     const stageStartedAt = now().toISOString();
     const baseMetric: StageMetric = {
       stage,
@@ -460,24 +470,39 @@ export async function processStudyPreparation(
         correlationId,
       );
     }
-    const intentPayload = inputs.intents.map((intent) => ({ intentRequestId: intent.id, intentText: intent.intentText }));
+    const intentPayload = inputs.intents.map((intent) => ({
+      intentRequestId: intent.id,
+      intentText: intent.intentText,
+      audience: intent.audience,
+    }));
+    const provisionalDomain = inputs.provisionalDomain;
     const documents = documentSummaries(inputs.sourceSnapshot);
     const sampleCoverageSummary = {
       complete: inputs.sourceSnapshot.coverageComplete,
       excludedDocumentCount: inputs.sourceSnapshot.excluded.length,
     };
 
-    // 1. Understanding your request — hive-intent/1 (no document text).
-    const decomposition = await modelStage(
+    // 1. Understanding your request — hive.intent-analysis/1 (no document text).
+    const intentSystemPrompt = applyProvisionalDomainToIntentSystemPrompt(
+      catalog.planner.intent.systemPrompt,
+      provisionalDomain,
+    );
+    const analysis = await modelStage(
       "UNDERSTANDING_REQUEST",
       "intent",
       catalog,
-      { task: "intent", intents: intentPayload },
-      (raw) => validateIntentDecomposition(raw, { intents: inputs.intents }),
+      {
+        task: "intent",
+        processingRunId: runId,
+        requests: intentPayload,
+        domainContext: provisionalDomain,
+      },
+      (raw) => validateIntentAnalysis(raw, { intents: inputs.intents, processingRunId: runId }),
+      { systemPrompt: intentSystemPrompt },
     );
     await advance("IDENTIFYING_DOMAIN", {
-      stage_outputs: { intentDecomposition: decomposition.value },
-      stage_metric: decomposition.metric,
+      stage_outputs: { intentDecomposition: analysis.value },
+      stage_metric: analysis.metric,
     });
 
     // 2. Identifying the domain — hive-domain/1 over a deterministic sample of frozen pages.
@@ -513,13 +538,13 @@ export async function processStudyPreparation(
           intentText: intent.intentText,
           audience: intent.audience,
         })),
-        intentDecomposition: decomposition.value,
+        intentDecomposition: analysis.value,
         domain: domain.value,
         documents,
         samples,
         coverage: sampleCoverageSummary,
       },
-      (raw) => validateIntentIntelligence(raw, { decomposition: decomposition.value, sampledRefs }),
+      (raw) => validateIntentIntelligence(raw, { analysis: analysis.value, sampledRefs }),
     );
     await advance("PLANNING_INVESTIGATION", {
       stage_outputs: { intentIntelligence: intelligence.value },
@@ -533,7 +558,7 @@ export async function processStudyPreparation(
       catalog,
       {
         task: "plan",
-        intentDecomposition: decomposition.value,
+        intentDecomposition: analysis.value,
         intentIntelligence: intelligence.value,
         domain: domain.value,
         documents,
@@ -547,7 +572,7 @@ export async function processStudyPreparation(
       },
       (raw) =>
         validateInvestigationPlan(raw, {
-          decomposition: decomposition.value,
+          analysis: analysis.value,
           intelligence: intelligence.value,
           domain: domain.value,
         }),
@@ -558,7 +583,7 @@ export async function processStudyPreparation(
     const built = buildStudyPrompt({
       processingRunId: runId,
       catalog,
-      decomposition: decomposition.value,
+      analysis: analysis.value,
       intelligence: intelligence.value,
       domain: domain.value,
       plan: plan.value,
