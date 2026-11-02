@@ -4,9 +4,11 @@
  * glossary; the intent intelligence stage may refine it from document context. Trusted code derives the
  * authoritative `hive.audience-configuration/1` used by planning, the Canonical Study and the Writer.
  *
- * Structural validation only: schema shape, enums, bounds and sampled page refs. Role/status semantics
- * are normalized when inconsistent so plausible model interpretations do not fail the Analyze workflow.
- * Strict quotation and evidence rules apply to goals, study findings and report claims — not audience roles.
+ * Structural validation only: schema shape, enums and bounds. Role/status semantics and basis kinds are
+ * normalized when inconsistent so plausible model interpretations do not fail the Analyze workflow.
+ * Optional page refs on audience bases and change records are kept only when sampled; missing or invalid
+ * refs leave `DOCUMENT_CONTEXT` unspecified (`NONE`) without inventing glossary provenance. Strict evidence
+ * rules apply to study findings and specialist-question refs — not advisory audience roles.
  */
 
 export const AUDIENCE_CONFIGURATION_SCHEMA = "hive.audience-configuration/1";
@@ -161,21 +163,23 @@ export function audienceRefKey(ref: AudiencePageRef): string {
   return `${ref.sourceDocumentId.toLowerCase()}#${ref.pageNumber}`;
 }
 
-function refs(source: Record<string, unknown>, path: string, allowed: ReadonlySet<string> | undefined): AudiencePageRef[] {
-  const value = source.contextRefs ?? [];
-  if (!Array.isArray(value) || value.length > 12) fail("invalid_shape", `${path}.contextRefs must be a short list.`);
-  return value.map((item, index) => {
-    const ref = record(item, `${path}.contextRefs[${index}]`);
+/** Keeps only well-formed refs that appear in `allowed`; drops the rest without failing the workflow. */
+function filterAudienceRefs(rawRefs: unknown, allowed: ReadonlySet<string> | undefined): AudiencePageRef[] {
+  if (!Array.isArray(rawRefs) || rawRefs.length > 12) return [];
+  const kept: AudiencePageRef[] = [];
+  for (const item of rawRefs) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const ref = item as Record<string, unknown>;
     const sourceDocumentId = typeof ref.sourceDocumentId === "string" ? ref.sourceDocumentId.trim().toLowerCase() : "";
     const pageNumber = ref.pageNumber;
-    if (typeof pageNumber !== "number" || !Number.isInteger(pageNumber) || pageNumber < 1) {
-      fail("evidence_ref_invalid", `${path}.contextRefs[${index}] has an invalid page number.`);
+    if (typeof pageNumber !== "number" || !Number.isInteger(pageNumber) || pageNumber < 1 || !sourceDocumentId) {
+      continue;
     }
-    if (!allowed || !allowed.has(audienceRefKey({ sourceDocumentId, pageNumber }))) {
-      fail("evidence_ref_invalid", `${path}.contextRefs[${index}] refers to a page that was not provided.`);
-    }
-    return { sourceDocumentId, pageNumber };
-  });
+    const key = audienceRefKey({ sourceDocumentId, pageNumber });
+    if (allowed && !allowed.has(key)) continue;
+    kept.push({ sourceDocumentId, pageNumber });
+  }
+  return kept;
 }
 
 const NONE_BASIS: AudienceBasis = { kind: "NONE", statedAs: null, intentRequestId: null, contextRefs: [] };
@@ -194,9 +198,10 @@ function readBasis(raw: unknown, path: string, context: AudienceParseContext): A
   if (kind === "DOCUMENT_CONTEXT" && context.stage === "INTENT") {
     fail("audience_basis_invalid", `${path}: the request stage cannot rely on document context.`);
   }
-  const contextRefs = kind === "DOCUMENT_CONTEXT" ? refs(source, path, context.allowedRefs) : [];
+  let contextRefs = kind === "DOCUMENT_CONTEXT" ? filterAudienceRefs(source.contextRefs, context.allowedRefs) : [];
   if (kind === "DOCUMENT_CONTEXT" && contextRefs.length === 0) {
-    fail("evidence_ref_missing", `${path}: a document-context basis needs at least one sampled page.`);
+    kind = "NONE";
+    contextRefs = [];
   }
 
   if (kind === "STATED_AUDIENCE" || kind === "REQUEST_WORDING") {
@@ -248,7 +253,7 @@ function normalizeCustomerAudience(
     return { role: null, status: "UNKNOWN", confidence: "LOW", basis: NONE_BASIS };
   }
 
-  if (basis.kind === "NONE") {
+  if (basis.kind === "NONE" && stage === "INTENT") {
     basis = glossaryBasis();
   }
 
@@ -266,6 +271,7 @@ function normalizeCustomerAudience(
 
 function normalizeProAudience(
   input: Omit<ProAudience, "tone" | "detailLevel">,
+  stage: AudienceParseContext["stage"],
 ): Pick<ProAudience, "primaryRole" | "alternativeRoles" | "status" | "confidence" | "basis"> {
   let { primaryRole, alternativeRoles, status, confidence, basis } = input;
 
@@ -298,7 +304,7 @@ function normalizeProAudience(
     };
   }
 
-  if (basis.kind === "NONE") {
+  if (basis.kind === "NONE" && stage === "INTENT") {
     basis = glossaryBasis();
   }
 
@@ -329,7 +335,7 @@ function readPro(raw: unknown, context: AudienceParseContext): ProAudience {
   const confidence = oneOf(source, "confidence", path, AUDIENCE_CONFIDENCE_LEVELS);
   const basis = readBasis(source.basis, `${path}.basis`, context);
   const alternativeRoles = textList(source, "alternativeRoles", path, ALTERNATIVE_ROLES, ROLE_MAX);
-  const normalized = normalizeProAudience({ primaryRole, alternativeRoles, status, confidence, basis });
+  const normalized = normalizeProAudience({ primaryRole, alternativeRoles, status, confidence, basis }, context.stage);
   return {
     ...normalized,
     tone: text(source, "tone", path, TONE_MAX),
@@ -380,7 +386,7 @@ export function parseAudienceChanges(raw: unknown, allowedRefs: ReadonlySet<stri
         audience: oneOf(source, "audience", path, ["customer", "pro"] as const),
         change: text(source, "change", path, GUIDANCE_MAX),
         reason: text(source, "reason", path, GUIDANCE_MAX),
-        contextRefs: refs({ contextRefs: source.contextRefs ?? [] }, path, allowedRefs),
+        contextRefs: filterAudienceRefs(source.contextRefs, allowedRefs),
       };
     });
   });

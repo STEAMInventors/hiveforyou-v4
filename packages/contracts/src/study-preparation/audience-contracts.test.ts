@@ -257,7 +257,59 @@ describe("parseAudienceAnalysis", () => {
       { role: null, status: "UNKNOWN", confidence: "LOW", basis: none },
       { ...pro, basis: { ...pro.basis, contextRefs: [{ sourceDocumentId: DOC, pageNumber: 9 }] } },
     );
-    expect(intelligenceStage(MAYA, unsampled)).toMatchObject({ ok: false, diagnosticReason: "evidence_ref_invalid" });
+    const droppedRefs = intelligenceStage(MAYA, unsampled);
+    expect(droppedRefs.ok).toBe(true);
+    if (!droppedRefs.ok) return;
+    expect(droppedRefs.value.pro.basis).toMatchObject({ kind: "NONE", contextRefs: [] });
+    expect(droppedRefs.value.pro.primaryRole).toBe("Special education advocate");
+    expect(droppedRefs.value.pro.status).toBe("INFERRED");
+  });
+
+  it("keeps LLM roles when DOCUMENT_CONTEXT has no valid refs without inventing glossary basis (regression)", () => {
+    const emptyDocContext = {
+      kind: "DOCUMENT_CONTEXT" as const,
+      statedAs: null,
+      intentRequestId: null,
+      contextRefs: [] as { sourceDocumentId: string; pageNumber: number }[],
+    };
+    const result = intelligenceStage(
+      MAYA,
+      audience(
+        { role: "Parent or guardian", status: "PROVISIONAL", confidence: "MEDIUM", basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null } },
+        {
+          primaryRole: "Special education advocate",
+          alternativeRoles: ["Special education attorney"],
+          status: "INFERRED",
+          confidence: "MEDIUM",
+          basis: emptyDocContext,
+        },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.pro).toMatchObject({
+      primaryRole: "Special education advocate",
+      alternativeRoles: ["Special education attorney"],
+      status: "INFERRED",
+      basis: { kind: "NONE", statedAs: null, intentRequestId: null, contextRefs: [] },
+    });
+
+    const invalidRefs = intelligenceStage(
+      MAYA,
+      audience(
+        { role: "Parent or guardian", status: "PROVISIONAL", confidence: "MEDIUM", basis: emptyDocContext },
+        {
+          primaryRole: "Special education advocate",
+          status: "INFERRED",
+          confidence: "MEDIUM",
+          basis: { kind: "DOCUMENT_CONTEXT", statedAs: null, intentRequestId: null, contextRefs: [{ sourceDocumentId: DOC, pageNumber: 99 }] },
+        },
+      ),
+    );
+    expect(invalidRefs.ok).toBe(true);
+    if (!invalidRefs.ok) return;
+    expect(invalidRefs.value.customer.role).toBe("Parent or guardian");
+    expect(invalidRefs.value.pro.basis.kind).toBe("NONE");
   });
 
   it("deduplicates an ambiguous pro list that repeats the primary role", () => {
@@ -273,9 +325,12 @@ describe("parseAudienceAnalysis", () => {
 });
 
 describe("audience changes and configuration", () => {
-  it("validates change references against sampled pages", () => {
+  it("keeps audience change refs when sampled and drops refs that were not provided", () => {
     expect(parseAudienceChanges([{ audience: "pro", change: "Narrowed to advocate", reason: "Page 2 is an IEP", contextRefs: [{ sourceDocumentId: DOC, pageNumber: 2 }] }], sampled).ok).toBe(true);
-    expect(parseAudienceChanges([{ audience: "pro", change: "x", reason: "y", contextRefs: [{ sourceDocumentId: DOC, pageNumber: 5 }] }], sampled).ok).toBe(false);
+    const unsampled = parseAudienceChanges([{ audience: "pro", change: "x", reason: "y", contextRefs: [{ sourceDocumentId: DOC, pageNumber: 5 }] }], sampled);
+    expect(unsampled.ok).toBe(true);
+    if (!unsampled.ok) return;
+    expect(unsampled.value[0]!.contextRefs).toEqual([]);
   });
 
   it("prefers the refined audience, then the intent proposal, then a labelled fallback", () => {
