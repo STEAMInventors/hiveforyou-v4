@@ -8,6 +8,9 @@ const workspaceRoot = path.join(currentDir, "../..");
 const nextConfig: NextConfig = {
   transpilePackages: ["@hiveforyou/contracts"],
   outputFileTracingRoot: workspaceRoot,
+  outputFileTracingIncludes: {
+    "/api/v1/hives/[hiveId]/study-preparation": ["../../prompts/**/*"],
+  },
   eslint: {
     dirs: ["src"],
   },

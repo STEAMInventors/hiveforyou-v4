@@ -46,9 +46,14 @@ export function suggestedHttpStatus(errorCode: string): number {
     case "IDEMPOTENCY_CONFLICT":
     case "QUOTA_EXCEEDED":
       return 409;
+    case "MODEL_OUTPUT_INVALID":
+      return 502;
     case "PERSISTENCE_FAILED":
     case "STORAGE_UNAVAILABLE":
+    case "MODEL_UNAVAILABLE":
       return 503;
+    case "MODEL_TIMEOUT":
+      return 504;
     case "INTERNAL_ERROR":
     default:
       return 500;

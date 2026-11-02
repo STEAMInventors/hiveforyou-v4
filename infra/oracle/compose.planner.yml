@@ -1,0 +1,46 @@
+# HiveForYou V4 Planner only (D-039) — does not start, modify or restart V3 Reader or hive-litellm.
+# Bridge network: joins the existing `oracle_default` network to reach LiteLLM privately at
+# http://hive-litellm:4000. Published only on host loopback 127.0.0.1:8083 for the TLS proxy.
+
+name: hiveforyou-v4-planner
+
+services:
+  v4-planner:
+    image: ${V4_PLANNER_IMAGE:-hiveforyou-v4-planner:local}
+    build:
+      context: .
+      dockerfile: Dockerfile.planner
+      platforms:
+        - linux/arm64
+    ports:
+      - "127.0.0.1:8083:8083"
+    networks:
+      - oracle_default
+    env_file:
+      - path: v4-planner.env
+        required: true
+    restart: unless-stopped
+    mem_limit: ${V4_PLANNER_MEM_LIMIT:-512m}
+    cpus: ${V4_PLANNER_CPU_LIMIT:-1}
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8083/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  oracle_default:
+    external: true

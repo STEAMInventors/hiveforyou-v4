@@ -21,13 +21,14 @@ Build the smallest real, pleasant **Documents → Study → Reports** experience
 |---|---|---|---|
 | P0 · V4-001 | New repo, code scaffold, brand-faithful stable application shell | Documents, Study, Reports tabs and true empty states locally | **DONE** (Git) |
 | P1 · V4-002 | Auth/My Hives/Create Hive + owner-only RLS, idempotent creation | User signs in, creates own Hive; cannot access another owner's Hive | **DONE** (Git) |
-| P1 · **V4-003** | Private file upload, registration, quota, intent at create; **read/view deferred** | Authenticated owner registers synthetic PDF/PNG/JPEG/DOCX; quota/malware/type failures honest; **not** page viewer yet | **ACTIVE** — local code; migration/Edge deploy and live upload verification pending |
-| P2 · V4-004 | Frontier pack-free extraction `hive-extract/1`, versioned candidates, bounded pages | Real synthetic receipt produces honest `hive.doc-extraction/1` candidate JSON | PARKED |
-| P2 · V4-005 | Verify evidence, candidate trust dispositions, merge accepted revision | Source page chips work and one verified Study is accepted; bad quote rejected | PARKED |
-| P3 · V4-006 | Study intent analysis and one dynamic A2UI slot | Two questions yield different validated views of same pinned Study | PARKED |
-| P3 · V4-007 | Customer/Pro report runs, history and pinned revisions | New Generate creates new report; failure doesn't erase prior accepted result | PARKED |
-| P4 · V4-008 | Incremental sources, conflict/currentness, full-scope and targeted extraction | Add 10 receipts to 20 in same Hive; eight synthetic L001 docs; reuse Study | PARKED |
-| P4 · V4-009 | Sensitive-data readiness and account/Hive deletion/recovery mechanics | Synthetic negative cases, authorized cleanup, complete safe retention policy | PARKED |
+| P1 · **V4-003** | Private file upload, registration, quota, intent at create; **read/view deferred** | Authenticated owner registers synthetic PDF/PNG/JPEG/DOCX; quota/malware/type failures honest; **not** page viewer yet | **PAUSED** — local code incl. Read Documents; migration deploy and live upload/read verification pending |
+| P2 · **V4-004** | Analyze / Prompt Preview (D-039): intent decomposition, generic domain proposal, investigation plan and versioned Canonical Study prompt via Oracle planner (`sorter`) | Owner clicks Analyze after reads and reaches a persisted Prompt Preview labelled *Prepared — Canonical Study not yet executed* | **ACTIVE** |
+| P2 · V4-005 | Frontier pack-free extraction `hive-extract/1`, versioned candidates, bounded pages | Real synthetic receipt produces honest `hive.doc-extraction/1` candidate JSON | PARKED |
+| P2 · V4-006 | Verify evidence, candidate trust dispositions, merge accepted revision | Source page chips work and one verified Study is accepted; bad quote rejected | PARKED |
+| P3 · V4-007 | Study intent analysis and one dynamic A2UI slot | Two questions yield different validated views of same pinned Study | PARKED |
+| P3 · V4-008 | Customer/Pro report runs, history and pinned revisions | New Generate creates new report; failure doesn't erase prior accepted result | PARKED |
+| P4 · V4-009 | Incremental sources, conflict/currentness, full-scope and targeted extraction | Add 10 receipts to 20 in same Hive; eight synthetic L001 docs; reuse Study | PARKED |
+| P4 · V4-010 | Sensitive-data readiness and account/Hive deletion/recovery mechanics | Synthetic negative cases, authorized cleanup, complete safe retention policy | PARKED |
 
 ## Ticket template (mandatory for Cursor)
 
@@ -49,21 +50,22 @@ Build the smallest real, pleasant **Documents → Study → Reports** experience
 
 | Scenario | First relevant ticket | Expected proof |
 |---|---|---|
-| One synthetic receipt unknown to the code | V4-004/005 | Dynamic model candidates; verified fact trace to correct page and row |
-| Two different questions and views | V4-006 | Same pinned Study; different grounded A2UI; no silent re-extraction |
-| Report revision independence | V4-007 | Unique run, pinned inputs, accepted earlier output survives failure |
-| Receipt corpus twenty → thirty | V4-008 | Incremental coverage and source identities maintained; known/unknown clear |
-| IEP eight docs L001 | V4-008 | Chronology/goal/service provenance; no unsupported currentness/legal findings |
+| One synthetic receipt unknown to the code | V4-005/006 | Dynamic model candidates; verified fact trace to correct page and row |
+| Two different questions and views | V4-007 | Same pinned Study; different grounded A2UI; no silent re-extraction |
+| Report revision independence | V4-008 | Unique run, pinned inputs, accepted earlier output survives failure |
+| Receipt corpus twenty → thirty | V4-009 | Incremental coverage and source identities maintained; known/unknown clear |
+| IEP eight docs L001 | V4-009 | Chronology/goal/service provenance; no unsupported currentness/legal findings |
 | Wrong owner, injected instructions, wrong quote, partial page | Each boundary's ticket | Denied/rejected/explicit incomplete; no accepted trust state changes |
-| Regulated sensitive inputs | V4-009 or earlier gate if attempted | Stop until provider, contracts, tokenization/data-use policy approved |
+| Regulated sensitive inputs | V4-010 or earlier gate if attempted | Stop until provider, contracts, tokenization/data-use policy approved |
 
 ## Decision gates before specific tickets
 
 - **V4-002:** use an independent V4 Supabase project/schema; approve SQL and RLS separately. No V3 live migration.
 - **V4-003:** malware hash-scan policy and registration RPC are **decided in D-027** and implemented locally; founder must still **approve migration deploy**, Edge deploy, and optional VirusTotal secret. **Page reading, OCR, and viewer** remain a gate before claiming F-007; choose read libraries and physical-page semantics then.
-- **V4-004:** approve model provider/gateway, structured JSON interface, costs, private-content policy, prompt contract clarifications; authorize paid synthetic test separately.
-- **V4-005:** approve verifier checks and data model; explain evidence quote acceptance vs real-world truth.
-- **V4-006:** pick supported A2UI wire schema/React integration, allowlist and model-safe actions.
+- **V4-004:** gateway route decided in D-039 (Oracle `v4-planner` → private LiteLLM `sorter`); founder approves the migration, scoped virtual key, Oracle deployment and the first paid `sorter` run separately.
+- **V4-005:** approve frontier provider/gateway, structured JSON interface, costs, private-content policy, prompt contract clarifications; authorize paid synthetic test separately.
+- **V4-006:** approve verifier checks and data model; explain evidence quote acceptance vs real-world truth.
+- **V4-007:** pick supported A2UI wire schema/React integration, allowlist and model-safe actions.
 - **Before large corpora:** validate backend runtime/durable execution and interruption recovery within actual limits.
 - **Before real personal documents:** resolve `HiveForYou-SECURITY-AND-PRIVACY.md` safeguards and applicable provider/BAA/consent requirements.
 
@@ -81,7 +83,7 @@ The following are **proposed dependency-ordered future tickets, not active or ap
 
 | Proposed ticket | Minimal vertical proof | Gate |
 |---|---|---|
-| **V4-A01 Opportunity Discovery** | Accepted synthetic Study yields 2–5 deduplicated useful candidate analyses with cited fact IDs; wrong refs rejected | After accepted Study (V4-005); approve discovery contract/cost |
+| **V4-A01 Opportunity Discovery** | Accepted synthetic Study yields 2–5 deduplicated useful candidate analyses with cited fact IDs; wrong refs rejected | After accepted Study (V4-006); approve discovery contract/cost |
 | **V4-A02 Trusted Analysis** | Execute one typed comparison/aggregation with reproducible result and source/method drilldown; unsupported option blocked | A01; validator/operator contracts |
 | **V4-A03 Proactive Study UI** | Suggested, running, supported, blocked cards in approved A2UI slot; output/history pinned to revision | A02; component allowlist |
 | **V4-A04 Scenario Overlay** | Hypothetical change compares to baseline without changing accepted fact values | A02; scenario contracts |

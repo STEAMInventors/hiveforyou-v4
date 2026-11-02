@@ -1,10 +1,37 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-**Date:** 2026-11-01 | **Status:** V4-003 in progress (local implementation including Read Documents; migrations not applied; deployment and live upload/read verification pending; Preview create flow diagnosed as failing — see below) | **Repository:** `hiveforyou-v4`
+**Date:** 2026-11-01 | **Status:** V4-004 active (implemented locally, uncommitted; migration applied; `v4-planner` and Vercel planner settings not deployed; first paid `sorter` run not performed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
 
-> **Exactly one active engineering ticket: V4-003 — Upload, register, quota-enforce and read supported source documents (view deferred).** Founder-approved scope change 2026-11-01: **Read Documents** (V4 Oracle Reader → verified `hive.document_pages`) is now part of V4-003. No extraction pipeline, LiteLLM/paid model calls, Canonical Study, tokenization, page viewer, or A2UI-generated Study content as a side effect of this ticket.
+> **Exactly one active engineering ticket: V4-004 — Analyze / Prompt Preview (D-039).** Founder-approved 2026-11-01. V4-003 is paused, not closed: its live verification items below still have to pass before it closes. No Opus execution, extraction, verification, merge, Canonical Study acceptance, reports or A2UI as a side effect of V4-004.
 
-## Active ticket — V4-003
+## Active ticket — V4-004 Analyze / Prompt Preview
+
+**Objective:** After document reads are verified, the owner clicks **Analyze** on the Documents page and reaches a persisted Study **Prompt Preview**. The preview contains the real stored intent, an evidence-referenced domain proposal, specific investigation questions grouped by objective, and complete prompt instructions labelled **Prepared — Canonical Study not yet executed**.
+
+**Scope (D-039):**
+
+1. **Analyze button.** Enabled when at least one document has a verified `SUCCEEDED`/`PARTIAL` read and no read or preparation is active. Partial coverage (excluded documents, `PARTIAL` reads, missing or empty pages) is disclosed and requires acknowledging the exact server-computed coverage digest. Idempotent on `clientRequestId`; one active run per Hive.
+2. **Durable run.** `hive.processing_runs` (`kind = STUDY_PREPARATION`), `after()` + lease as in D-038. Stages: Understanding request (`hive-intent/1`), Identifying domain (`hive-domain/1`), Planning investigation (`hive-plan/1`, from the validated intent and domain), Building prompt (deterministic `hive-study-preview/1`). Each model output is validated by trusted code before it is saved. No stored intent leads to `NEEDS_CLARIFICATION` with zero model calls.
+3. **Frozen sources.** Each run freezes sha256, read fingerprint and page-set digest per document plus the intent request IDs. A change mid-run fails the run (`source_changed`); completed previews report staleness reasons.
+4. **Preview.** Immutable `hive.study_prompt_previews`: prompt text, `hive.study-execution-manifest/1`, source snapshot, output contract `hive.study-investigation/1`, per-stage model metadata (alias, tokens, latency, errors; never text or credentials). `SUCCEEDED` requires its readback.
+5. **Model access.** Only through `v4-planner` on Oracle (bearer token, loopback bind behind the Reader's TLS proxy, fixed alias `sorter`, scoped LiteLLM virtual key held on Oracle). V3 LiteLLM is not modified or restarted.
+
+**Implementation order:** (1) docs, migration + pgTAP test, contracts, prompts; (2) Oracle planner; (3) web server pipeline; (4) UI. Report after each step.
+
+**Approval stops (not performed by the agent):** applying `20261102090000_create_study_preparation.sql`; creating the scoped LiteLLM virtual key; deploying `v4-planner` and its TLS proxy route; setting Vercel `PLANNER_BASE_URL` / `PLANNER_SERVICE_TOKEN`; the first paid `sorter` smoke run.
+
+**Done when:** a user completes reading, clicks Analyze, sees persisted stage progress, and reaches a persisted Prompt Preview as described above; automated tests, typecheck, lint and production build pass; failure, retry, duplicate-click, stale-source, partial-coverage and cross-Hive paths are tested.
+
+**Implementation status (2026-11-01, local working tree):**
+
+- **Oracle planner:** `infra/oracle/v4_planner.py` (FastAPI, `GET /health`, `POST /v1/plan-completion`, constant-time bearer check, fails closed without a token, forced alias, `temperature 0`, JSON-object output, 90 s LiteLLM timeout, `planner-error@1` envelope), `Dockerfile.planner`, `compose.planner.yml` (bridge network attached to external `oracle_default`, LiteLLM at `http://hive-litellm:4000`, published only on `127.0.0.1:8083`, read-only root, no host networking), `v4-planner.env.example`, `PLANNER-DOCKER.md`. 21 pytest cases pass.
+- **Web server:** `apps/web/src/server/study-preparation/` — `prompt-catalog.ts` (LF-normalized sha256 digests; prompts traced into the route via `outputFileTracingIncludes`), `planner-client.ts`, `page-sampling.ts` (deterministic first/last/even-interior sample, round-robin across documents, 2,500 chars/page, 24,000 total), `study-prompt-builder.ts` (deterministic `hive-study-preview/1` + manifest), `study-preparation.ts` (owner start/get; worker with validated stages, read-back before `SUCCEEDED`). Route `GET|POST /api/v1/hives/{id}/study-preparation` (`after()`, `maxDuration` 300).
+- **Outcome-oriented planning (founder refinement):** validators reject questions that restate a request (`question_restates_intent`) and `COMPARISON`/`CHRONOLOGY`/`CALCULATION` plan questions without their logic (`answer_logic_missing`); `hive-intent/1` and `hive-plan/1` texts were edited to state this. No domain-specific code or question sets.
+- **Contracts:** error codes `MODEL_TIMEOUT` (504), `MODEL_UNAVAILABLE` (503), `MODEL_OUTPUT_INVALID` (502); stage labels "Understanding your request", "Identifying the domain", "Planning the investigation", "Constructing your study prompt".
+- **UI:** Documents **Analyze** button + hint, `AnalyzeModal` (coverage-gap confirmation, four persisted stages, failure with support reference and Try again), 3 s polling only while active, automatic navigation to Study on success. Study tab renders `StudyPromptPreview` (verbatim requests, domain with advisory confidence and page chips, objectives, investigation questions, coverage, staleness, full prompt, **Copy Prompt**).
+- **Remaining approval stops:** scoped LiteLLM virtual key; `v4-planner` deployment and TLS route `/planner/*`; Vercel `PLANNER_BASE_URL` / `PLANNER_SERVICE_TOKEN`; first paid `sorter` smoke run; commit.
+
+## Paused ticket — V4-003 (awaiting live verification)
 
 **Objective:** Owner can attach supported documents to a Hive through a honest prepare → private upload → server registration flow, with Free monthly quota, malware hash scanning policy, and written intent captured at Hive creation in the primary UX.
 
@@ -36,7 +63,7 @@
 
 - ~~Document reading~~ — moved into V4-003 (item 11). Still deferred: a durable job queue beyond `after()` + lease, and reading documents larger than one 300 s function invocation allows.
 - **Source page viewer** (F-007 physical-page navigation).
-- Frontier extraction, verification, Study acceptance (V4-004+).
+- Frontier extraction, verification, Study acceptance (V4-005+).
 
 **Excluded:** Applying SQL to a live Supabase project, deploying Edge Functions, production VirusTotal keys, PDF/DOCX parsing libraries, Canonical Study, reports, A2UI dynamic Study, paid model usage.
 
@@ -49,18 +76,20 @@
 - Founder approves and migrations `20261101190000_create_document_pages.sql` and `20261101200000_create_document_reads.sql` are applied; Vercel has `READER_BASE_URL`, `READER_SERVICE_TOKEN` and `SUPABASE_SECRET_KEY`; the Oracle Reader is reachable over HTTPS.
 - Clicking **Read Documents** on a synthetic document starts genuine reading; the modal shows the recorded statuses; `SUCCEEDED` appears only after pages are read back from `hive.document_pages` and verified; repeated clicks create no duplicate attempt; a failed attempt can be retried; `supabase test db` (`supabase/tests/database/document_reads.test.sql`) passes locally.
 - Automated tests for touched packages still pass; `git diff --check` clean on documentation.
-- Report exact files, commands, and live-test evidence; submit for ticket closure. **Do not automatically start V4-004.**
+- Report exact files, commands, and live-test evidence; submit for ticket closure.
 
 ## Next tickets (parked, not simultaneously active)
 
+Renumbered 2026-11-01 when Analyze / Prompt Preview became V4-004 (D-039).
+
 | Ticket | Scope | Unlock |
 |---|---|---|
-| V4-004 | Pack-free `hive-extract/1` one real synthetic document; bounded pages, candidate JSON and statuses | After V4-003 closure; approve model route/cost |
-| V4-005 | Independent candidate verification, immutable accepted Study revision, source chip to original page | After V4-004 |
-| V4-006 | Intent analysis from pinned Study; dynamic validated A2UI section in Study | After V4-005 |
-| V4-007 | Independent Customer/Pro report runs and history; prior good results survive failure | After V4-006 |
-| V4-008 | Add documents / multi-intent incremental merge and full coverage test (receipt 20→30, eight-document synthetic L001) | After V4-007 |
-| V4-009 | Retention/account deletion, permissions/security verification and sensitive-data readiness gates | Before sensitive-data rollout |
+| V4-005 | Pack-free `hive-extract/1` one real synthetic document; bounded pages, candidate JSON and statuses | After V4-003 and V4-004 closure; approve model route/cost |
+| V4-006 | Independent candidate verification, immutable accepted Study revision, source chip to original page | After V4-005 |
+| V4-007 | Intent analysis from pinned Study; dynamic validated A2UI section in Study | After V4-006 |
+| V4-008 | Independent Customer/Pro report runs and history; prior good results survive failure | After V4-007 |
+| V4-009 | Add documents / multi-intent incremental merge and full coverage test (receipt 20→30, eight-document synthetic L001) | After V4-008 |
+| V4-010 | Retention/account deletion, permissions/security verification and sensitive-data readiness gates | Before sensitive-data rollout |
 
 **Completed tickets (closed in Git, not re-opened here):** V4-001 application foundation; V4-002 authentication and owner Hives.
 
@@ -70,4 +99,4 @@
 
 ## Analytical Intelligence parking-lot note — 2026-10-31
 
-Product requirements **R65–R84** and features **F-045–F-064** add **proactive analysis discovery and scenario what-if** to the long-term V4 product direction. Decisions **D-028–D-035** record that product direction. This documentation change does **not** authorize code, schema, background jobs, LLM calls, or a new active ticket. Preserve **V4-003 as the only active ticket**. Proposed future sequence **V4-A01–V4-A07** requires explicit ticket activation after prerequisites are met.
+Product requirements **R65–R84** and features **F-045–F-064** add **proactive analysis discovery and scenario what-if** to the long-term V4 product direction. Decisions **D-028–D-035** record that product direction. This documentation change does **not** authorize code, schema, background jobs, LLM calls, or a new active ticket. Preserve the single active ticket (now **V4-004**). Proposed future sequence **V4-A01–V4-A07** requires explicit ticket activation after prerequisites are met.

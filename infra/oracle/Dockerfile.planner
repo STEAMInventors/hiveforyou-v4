@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1.7
+# HiveForYou V4 Planner — ARM64-compatible image (Oracle host), D-039.
+# Forwards planning requests to the private LiteLLM gateway with a fixed alias.
+
+ARG PYTHON_IMAGE=python:3.12-slim-bookworm
+
+FROM ${PYTHON_IMAGE} AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN useradd --create-home --uid 10002 --shell /usr/sbin/nologin hiveplanner
+
+WORKDIR /app
+
+RUN pip install \
+    'fastapi>=0.115,<1' \
+    'uvicorn[standard]>=0.32,<1' \
+    'pydantic>=2,<3' \
+    'httpx>=0.27,<1'
+
+COPY v4_planner.py /app/v4_planner.py
+
+USER hiveplanner
+
+EXPOSE 8083
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8083/health', timeout=3)"
+
+# 0.0.0.0 inside the container only; compose publishes the port on host loopback.
+CMD ["uvicorn", "v4_planner:app", "--host", "0.0.0.0", "--port", "8083", "--no-access-log"]

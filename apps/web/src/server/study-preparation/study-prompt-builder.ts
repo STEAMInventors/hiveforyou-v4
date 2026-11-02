@@ -1,0 +1,357 @@
+import {
+  type DomainCandidate,
+  type DomainProposal,
+  domainIsUncertain,
+  EXECUTION_MANIFEST_SCHEMA,
+  type ExecutionManifest,
+  type IntentDecomposition,
+  type InvestigationPlan,
+  type ManifestSourceDocument,
+  SOURCE_PAGES_FORMAT,
+  SOURCE_PAGES_PLACEHOLDER,
+  type SourcePageRef,
+  type SourceSnapshot,
+  STUDY_INVESTIGATION_SCHEMA,
+} from "@hiveforyou/contracts";
+
+import { type PromptCatalog, sha256Digest } from "./prompt-catalog";
+
+/**
+ * Deterministic `hive-study-preview/1` assembly: the same validated inputs always produce the same
+ * prompt text and digest. No model call, clock or randomness. `{{SOURCE_PAGES}}` stays in place for a
+ * future Canonical Study execution, bound by the manifest.
+ */
+
+export const MAX_OUTPUT_TOKENS_ADVISORY = 16_000;
+const SOURCE_PAGES_BINDING_RULE =
+  "Replace the single placeholder under '## 9. Source pages' with every authorized page of every listed document, " +
+  "in manifest order, after checking each document's sha256, readFingerprint and pageSetDigest against this manifest. " +
+  "Format each page as '### <sourceDocumentId> · page <pageNumber>' followed by its stored text. Refuse to execute on any mismatch.";
+
+export type StudyPromptInputs = {
+  readonly processingRunId: string;
+  readonly catalog: PromptCatalog;
+  readonly decomposition: IntentDecomposition;
+  readonly domain: DomainProposal;
+  readonly plan: InvestigationPlan;
+  readonly sourceSnapshot: SourceSnapshot;
+  readonly sourceSnapshotDigest: string;
+  readonly intentSnapshotDigest: string;
+  readonly coverageDigest: string;
+  readonly intentRequestIds: readonly string[];
+};
+
+export type BuiltStudyPrompt = {
+  readonly promptId: string;
+  readonly promptVersion: string;
+  readonly promptTemplateDigest: string;
+  readonly promptText: string;
+  readonly promptDigest: string;
+  readonly executionManifest: ExecutionManifest;
+};
+
+/** Stable JSON (sorted object keys) so digests do not depend on property order. */
+export function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value as Record<string, unknown>)
+      .sort()
+      .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/** Derived content must never introduce a second template slot. */
+function inert(text: string): string {
+  return text.replace(/\{\{/g, "{ {").replace(/\}\}/g, "} }");
+}
+
+function authorizedPages(document: SourceSnapshot["documents"][number]): number[] {
+  const missing = new Set(document.missingPageNumbers);
+  const pages: number[] = [];
+  for (let page = 1; page <= document.totalPhysicalPages; page += 1) {
+    if (!missing.has(page)) pages.push(page);
+  }
+  return pages;
+}
+
+function pageList(pages: readonly number[]): string {
+  return pages.length === 0 ? "none" : pages.join(", ");
+}
+
+function renderIntents(decomposition: IntentDecomposition): string {
+  return decomposition.intents
+    .map((intent, index) => {
+      const quoted = inert(intent.verbatimText)
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n");
+      return `Request ${index + 1} (intentRequestId \`${intent.intentRequestId}\`):\n\n${quoted}`;
+    })
+    .join("\n\n");
+}
+
+function renderRefs(refs: readonly SourcePageRef[], fileNames: ReadonlyMap<string, string>): string {
+  if (refs.length === 0) return "none";
+  return refs
+    .map((ref) => `${inert(fileNames.get(ref.sourceDocumentId) ?? "document")} (\`${ref.sourceDocumentId}\`) page ${ref.pageNumber}`)
+    .join("; ");
+}
+
+function renderCandidate(candidate: DomainCandidate, fileNames: ReadonlyMap<string, string>): string[] {
+  return [
+    `${inert(candidate.label)}${candidate.subdomain ? ` — ${inert(candidate.subdomain)}` : ""}`,
+    `  - Basis: ${inert(candidate.reasoning)}`,
+    `  - Supporting sample pages: ${renderRefs(candidate.supportingRefs, fileNames)}`,
+  ];
+}
+
+function renderDomain(domain: DomainProposal, plan: InvestigationPlan, fileNames: ReadonlyMap<string, string>): string {
+  const [primaryLine, ...primaryDetails] = renderCandidate(domain.primary, fileNames);
+  const lines = [
+    `- Primary domain: ${primaryLine} (advisory confidence: ${domain.primary.confidence})`,
+    ...primaryDetails,
+  ];
+  if (domain.alternatives.length > 0) {
+    lines.push("- Alternative domains:");
+    for (const alternative of domain.alternatives) {
+      const [line, ...details] = renderCandidate(alternative, fileNames);
+      lines.push(`  - ${line}`, ...details.map((detail) => `  ${detail}`));
+    }
+  }
+  const flags = [
+    domain.unknownDomain ? "domain unknown" : null,
+    domain.mixedDomain ? "documents span more than one domain" : null,
+    domain.ambiguous ? "classification is ambiguous" : null,
+  ].filter((flag): flag is string => flag !== null);
+  lines.push(
+    `- Certainty: ${domainIsUncertain(domain) ? `uncertain${flags.length > 0 ? ` (${flags.join("; ")})` : ""}` : "no uncertainty recorded"}`,
+  );
+  for (const note of domain.ambiguityNotes) lines.push(`  - ${inert(note)}`);
+  if (plan.domainBasis.considerations.length > 0) {
+    lines.push("- What this domain implies for the investigation:");
+    for (const consideration of plan.domainBasis.considerations) {
+      lines.push(`  - ${inert(consideration.text)} (pages: ${renderRefs(consideration.supportingRefs, fileNames)})`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function optionalLine(label: string, value: string | null): string[] {
+  return value ? [`- ${label}: ${inert(value)}`] : [];
+}
+
+function renderObjectives(
+  decomposition: IntentDecomposition,
+  plan: InvestigationPlan,
+  fileNames: ReadonlyMap<string, string>,
+): string {
+  const requestNumber = new Map(decomposition.intents.map((intent, index) => [intent.intentRequestId, index + 1]));
+  const blocks = decomposition.objectives.map((objective) => {
+    const lines = [
+      `### ${objective.id} — ${inert(objective.title)} (from request ${requestNumber.get(objective.intentRequestId) ?? "?"})`,
+      "",
+      inert(objective.description),
+      "",
+      "What the person needs to find out:",
+    ];
+    for (const question of objective.questions) {
+      lines.push(
+        `- ${question.id} [${question.answerType}] ${inert(question.text)}`,
+        `  - Evidence needed: ${question.requiredEvidence.map(inert).join("; ")}`,
+        ...(question.comparisons.length > 0 ? [`  - Compare: ${question.comparisons.map(inert).join("; ")}`] : []),
+        ...(question.dependsOn.length > 0 ? [`  - After: ${question.dependsOn.join(", ")}`] : []),
+        `  - Expected answer: ${inert(question.expectedOutput)}`,
+      );
+    }
+    lines.push("", "Investigation questions:");
+    for (const planQuestion of plan.questions.filter((question) => question.objectiveId === objective.id)) {
+      lines.push(
+        "",
+        `#### ${planQuestion.id} [${planQuestion.answerType}] answers ${planQuestion.sourceQuestionIds.join(", ")}`,
+        `- Establish: ${inert(planQuestion.establish)}`,
+        `- Required evidence: ${planQuestion.requiredEvidence.map(inert).join("; ")}`,
+        ...optionalLine("Comparison", planQuestion.comparison),
+        ...optionalLine("Chronology", planQuestion.chronology),
+        ...optionalLine("Calculation", planQuestion.calculation),
+        `- If the evidence is missing: ${planQuestion.missingEvidenceConditions.map(inert).join("; ")}`,
+        `- Answer structure: ${inert(planQuestion.deliverable)}`,
+        ...(planQuestion.dependsOn.length > 0 ? [`- Answer after: ${planQuestion.dependsOn.join(", ")}`] : []),
+        ...(planQuestion.domainConsiderationRefs.length > 0
+          ? [`- Domain context pages: ${renderRefs(planQuestion.domainConsiderationRefs, fileNames)}`]
+          : []),
+      );
+    }
+    return lines.join("\n");
+  });
+
+  const tail: string[] = ["", "### Overall expected outputs", ...decomposition.expectedOutputs.map((item) => `- ${inert(item)}`)];
+  if (decomposition.ambiguities.length > 0) {
+    tail.push("", "### Ambiguities in the request (do not resolve by guessing)");
+    for (const ambiguity of decomposition.ambiguities) {
+      tail.push(`- ${ambiguity.id} (affects ${ambiguity.affects.join(", ") || "all"}): ${inert(ambiguity.description)}`);
+    }
+  }
+  if (decomposition.missingContext.length > 0) {
+    tail.push("", "### Context the person did not give", ...decomposition.missingContext.map((item) => `- ${inert(item)}`));
+  }
+  return [...blocks, tail.join("\n")].join("\n\n");
+}
+
+function renderCoverage(snapshot: SourceSnapshot, coverageDigest: string): string {
+  const lines = [
+    snapshot.coverageComplete
+      ? "Coverage: complete — every page of every listed document was read and verified."
+      : `Coverage: partial — the person reviewed and accepted these gaps before preparing (coverage digest \`${coverageDigest}\`).`,
+    "",
+    "Authorized documents (use only these, only these pages):",
+    "",
+    "| # | sourceDocumentId | File | Read | Physical pages | Authorized pages | Missing pages | Blank pages |",
+    "|---|---|---|---|---|---|---|---|",
+  ];
+  snapshot.documents.forEach((document, index) => {
+    lines.push(
+      `| ${index + 1} | \`${document.sourceDocumentId}\` | ${inert(document.fileName).replace(/\|/g, "/")} | ${document.readStatus} | ${document.totalPhysicalPages} | ${pageList(authorizedPages(document))} | ${pageList(document.missingPageNumbers)} | ${pageList(document.emptyPageNumbers)} |`,
+    );
+  });
+  if (snapshot.excluded.length > 0) {
+    lines.push("", "Excluded documents (not available; do not assume their content):");
+    for (const document of snapshot.excluded) {
+      lines.push(`- ${inert(document.fileName)} (\`${document.sourceDocumentId}\`): ${document.reason}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function renderOutputContract(plan: InvestigationPlan, processingRunId: string, schemaDigest: string): string {
+  const example = {
+    schema: STUDY_INVESTIGATION_SCHEMA,
+    processingRunId,
+    answers: [
+      {
+        planQuestionId: plan.questions[0]?.id ?? "P1",
+        status: "ANSWERED | PARTIALLY_ANSWERED | MISSING_EVIDENCE | CONFLICTING",
+        answer: "<answer in the structure the question asks for>",
+        evidence: [{ sourceDocumentId: "<uuid>", pageNumber: 1, quote: "<verbatim run of words from that page>" }],
+        conflicts: [],
+        limitations: [],
+      },
+    ],
+    coverageNotes: [],
+    instructionsIgnored: [],
+  };
+  return [
+    `Return exactly one JSON object conforming to \`${STUDY_INVESTIGATION_SCHEMA}\` (schema digest \`${schemaDigest}\`) and nothing else:`,
+    "",
+    "```json",
+    JSON.stringify(example, null, 2),
+    "```",
+    "",
+    `- Include exactly one answer for each investigation question: ${plan.questions.map((question) => question.id).join(", ")}.`,
+    `- \`processingRunId\` must be \`${processingRunId}\`.`,
+    "- Status values must be one of the four listed exactly. Use `[]` for empty lists.",
+  ].join("\n");
+}
+
+function manifestDocuments(snapshot: SourceSnapshot): ManifestSourceDocument[] {
+  return snapshot.documents.map((document) => ({
+    sourceDocumentId: document.sourceDocumentId,
+    fileName: document.fileName,
+    sha256: document.sha256,
+    readFingerprint: document.readFingerprint,
+    pageSetDigest: document.pageSetDigest,
+    readStatus: document.readStatus,
+    totalPhysicalPages: document.totalPhysicalPages,
+    authorizedPageNumbers: authorizedPages(document),
+  }));
+}
+
+export function buildStudyPrompt(inputs: StudyPromptInputs): BuiltStudyPrompt {
+  const { catalog, decomposition, domain, plan, sourceSnapshot, processingRunId } = inputs;
+  const fileNames = new Map(sourceSnapshot.documents.map((document) => [document.sourceDocumentId, document.fileName]));
+  const slots: Record<string, string> = {
+    PROMPT_ID: catalog.studyTemplate.id,
+    INTENTS: renderIntents(decomposition),
+    DOMAIN: renderDomain(domain, plan, fileNames),
+    OBJECTIVES: renderObjectives(decomposition, plan, fileNames),
+    COVERAGE: renderCoverage(sourceSnapshot, inputs.coverageDigest),
+    OUTPUT_CONTRACT: renderOutputContract(plan, processingRunId, catalog.outputSchema.digest),
+  };
+
+  const promptText = catalog.studyTemplate.text.replace(/\{\{([A-Z_]+)\}\}/g, (match, name: string) => {
+    if (match === SOURCE_PAGES_PLACEHOLDER) return match;
+    const value = slots[name];
+    if (value === undefined) throw new Error(`prompt_slot_unknown:${name}`);
+    return value;
+  });
+  if (promptText.split(SOURCE_PAGES_PLACEHOLDER).length !== 2) {
+    throw new Error("prompt_source_pages_binding_invalid");
+  }
+
+  const promptDigest = sha256Digest(promptText);
+  const documents = manifestDocuments(sourceSnapshot);
+  const executionManifest: ExecutionManifest = {
+    schema: EXECUTION_MANIFEST_SCHEMA,
+    prompt: {
+      id: catalog.studyTemplate.id,
+      version: catalog.studyTemplate.version,
+      templateDigest: catalog.studyTemplate.digest,
+      promptDigest,
+      componentPrompts: (["intent", "domain", "plan"] as const).map((task) => ({
+        id: catalog.planner[task].id,
+        digest: catalog.planner[task].digest,
+      })),
+    },
+    outputContract: { id: STUDY_INVESTIGATION_SCHEMA, schemaDigest: catalog.outputSchema.digest },
+    processingRunId,
+    requiredInputs: {
+      intentRequests: {
+        intentRequestIds: [...inputs.intentRequestIds],
+        intentSnapshotDigest: inputs.intentSnapshotDigest,
+      },
+      sourceDocuments: { sourceSnapshotDigest: inputs.sourceSnapshotDigest, documents },
+      investigationPlan: {
+        schema: plan.schema,
+        planDigest: sha256Digest(canonicalJson(plan)),
+        questionIds: plan.questions.map((question) => question.id),
+      },
+    },
+    bindings: [
+      {
+        placeholder: SOURCE_PAGES_PLACEHOLDER,
+        input: "sourceDocuments",
+        format: SOURCE_PAGES_FORMAT,
+        rule: SOURCE_PAGES_BINDING_RULE,
+      },
+    ],
+    coverage: {
+      complete: sourceSnapshot.coverageComplete,
+      coverageDigest: inputs.coverageDigest,
+      excludedDocuments: sourceSnapshot.excluded.map((document) => ({
+        sourceDocumentId: document.sourceDocumentId,
+        reason: document.reason,
+      })),
+      missingPages: sourceSnapshot.documents
+        .filter((document) => document.missingPageNumbers.length > 0)
+        .map((document) => ({ sourceDocumentId: document.sourceDocumentId, pageNumbers: document.missingPageNumbers })),
+      emptyPages: sourceSnapshot.documents
+        .filter((document) => document.emptyPageNumbers.length > 0)
+        .map((document) => ({ sourceDocumentId: document.sourceDocumentId, pageNumbers: document.emptyPageNumbers })),
+    },
+    limits: {
+      authorizedPageCount: documents.reduce((total, document) => total + document.authorizedPageNumbers.length, 0),
+      maxOutputTokensAdvisory: MAX_OUTPUT_TOKENS_ADVISORY,
+    },
+  };
+
+  return {
+    promptId: catalog.studyTemplate.id,
+    promptVersion: catalog.studyTemplate.version,
+    promptTemplateDigest: catalog.studyTemplate.digest,
+    promptText,
+    promptDigest,
+    executionManifest,
+  };
+}

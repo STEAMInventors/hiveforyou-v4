@@ -12,8 +12,10 @@ import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/butto
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchSourceDocuments, fetchUploadQuota } from "@/lib/source-documents-client";
 
+import { AnalyzeModal } from "./AnalyzeModal";
 import { readStatusPresentation, retryableFailedReads } from "./document-read-progress";
 import { ReadDocumentsModal } from "./ReadDocumentsModal";
+import { analyzeHint } from "./study-preparation-progress";
 import { AddFilesButton, SelectedFileList } from "./SourceFilePicker";
 import {
   MAX_FILES_PER_BATCH,
@@ -23,6 +25,7 @@ import {
   type SelectedSourceFile,
 } from "./source-file-upload";
 import { useDocumentReads } from "./useDocumentReads";
+import { useStudyPreparation } from "./useStudyPreparation";
 
 type LoadError = { message: string; correlationId: string | null };
 
@@ -143,7 +146,12 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
       .catch(() => setQuota(null));
   }, []);
 
-  const reading = useDocumentReads(hiveId, () => void refresh());
+  const analysis = useStudyPreparation(hiveId);
+  const refreshAnalysis = analysis.refresh;
+  const reading = useDocumentReads(hiveId, () => {
+    void refresh();
+    void refreshAnalysis();
+  });
   const latestReadByDocument = useMemo(
     () => new Map(reading.reads.map((read) => [read.sourceDocumentId, read])),
     [reading.reads],
@@ -157,6 +165,8 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
   );
   const readDisabled = needsReading.length === 0 || reading.active || reading.starting || busy;
   const retryable = retryableFailedReads(reading.reads);
+  const analyzeDisabled =
+    !analysis.availability?.canAnalyze || reading.active || reading.starting || analysis.starting || busy;
 
   const addFiles = async (picked: File[]) => {
     const selected = toSelectedSourceFiles(picked).slice(0, MAX_FILES_PER_BATCH);
@@ -167,6 +177,7 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
         setBatch((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item))),
       );
       await refresh();
+      void refreshAnalysis();
     } finally {
       setBusy(false);
     }
@@ -214,7 +225,7 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
             ) : (
               <button
                 type="button"
-                className={PRIMARY_BUTTON_CLASS}
+                className={needsReading.length > 0 ? PRIMARY_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}
                 disabled={readDisabled}
                 aria-describedby="documents-read-hint"
                 onClick={(event) => {
@@ -223,6 +234,32 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
                 }}
               >
                 {reading.starting ? "Starting…" : "Read Documents"}
+              </button>
+            )}
+            {analysis.active ? (
+              <button
+                type="button"
+                className={SECONDARY_BUTTON_CLASS}
+                onClick={(event) => {
+                  analysis.returnFocusRef.current = event.currentTarget;
+                  analysis.openModal();
+                }}
+              >
+                Show analysis progress
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={needsReading.length > 0 ? SECONDARY_BUTTON_CLASS : PRIMARY_BUTTON_CLASS}
+                disabled={analyzeDisabled}
+                aria-describedby="documents-analyze-hint"
+                data-testid="analyze-button"
+                onClick={(event) => {
+                  analysis.returnFocusRef.current = event.currentTarget;
+                  analysis.analyze();
+                }}
+              >
+                {analysis.starting ? "Starting…" : "Analyze"}
               </button>
             )}
           </div>
@@ -236,7 +273,23 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
             : needsReading.length > 0
               ? `${needsReading.length} document${needsReading.length === 1 ? " needs" : "s need"} reading.`
               : "Every added document has been read."}
+          {analysis.availability ? (
+            <span id="documents-analyze-hint" className="block">
+              {analyzeHint(analysis.availability)}
+            </span>
+          ) : null}
         </p>
+      ) : null}
+
+      {analysis.startError && !analysis.modalMode ? (
+        <div role="alert" className="rounded-card border border-line bg-paper px-4 py-3 text-sm text-coral-deep">
+          {analysis.startError.message}
+          {analysis.startError.correlationId ? (
+            <span className="mt-1 block font-mono text-xs text-ink-subtle">
+              Support reference: {analysis.startError.correlationId}
+            </span>
+          ) : null}
+        </div>
       ) : null}
 
       {reading.startError && !reading.modalOpen ? (
@@ -328,6 +381,18 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
         }
         retryBusy={reading.starting}
         retryError={reading.startError}
+      />
+      <AnalyzeModal
+        mode={analysis.modalMode}
+        run={analysis.run}
+        eligibility={analysis.state?.eligibility ?? null}
+        pollState={analysis.pollState}
+        starting={analysis.starting}
+        startError={analysis.startError}
+        returnFocusRef={analysis.returnFocusRef}
+        onClose={analysis.closeModal}
+        onConfirm={analysis.confirmCoverage}
+        onRetry={analysis.retry}
       />
     </section>
   );

@@ -9,3 +9,7 @@ export const CREATE_HIVE_AFTER_SIGN_UP_PATH = `/register?next=${encodeURICompone
 export function hiveDocumentsPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/documents`;
 }
+
+export function hiveStudyPath(hiveId: string): string {
+  return `${MY_HIVES_PATH}/${hiveId}/study`;
+}

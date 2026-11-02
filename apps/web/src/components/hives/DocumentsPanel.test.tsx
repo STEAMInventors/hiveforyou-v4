@@ -6,8 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DOCUMENT_READ_POLL_INTERVAL_MS } from "./document-read-progress";
 import { DocumentsPanel } from "./DocumentsPanel";
 
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 const READS_URL = `/api/v1/hives/${HIVE_ID}/document-reads`;
+const STUDY_URL = `/api/v1/hives/${HIVE_ID}/study-preparation`;
 const DOCUMENTS_URL = `/api/v1/hives/${HIVE_ID}/source-documents`;
 const TERMINAL = new Set<DocumentReadStatus>(["SUCCEEDED", "PARTIAL", "UNREADABLE", "FAILED"]);
 
@@ -67,7 +71,58 @@ type FakeServer = {
   reads: DocumentRead[];
   posts: Record<string, unknown>[];
   respondToStart: (body: Record<string, unknown>) => Response;
+  analysisRunStatus: string | null;
+  analysisPosts: Record<string, unknown>[];
+  eligibleDocuments: number;
 };
+
+const RUN_ID = "88888888-8888-4888-8888-888888888888";
+
+function analysisRun(status: string) {
+  return {
+    id: RUN_ID,
+    hiveId: HIVE_ID,
+    kind: "STUDY_PREPARATION",
+    requestId: "99999999-9999-4999-8999-999999999999",
+    attemptNumber: 1,
+    status,
+    authorizedSourceDocumentIds: [docId(0)],
+    intentRequestIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+    coverageComplete: true,
+    coverageAcknowledged: false,
+    stageMetrics: [],
+    errorCode: null,
+    errorMessageSafe: null,
+    retryable: null,
+    correlationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    createdAt: "2026-11-01T22:00:00.000Z",
+    startedAt: null,
+    updatedAt: "2026-11-01T22:00:00.000Z",
+    finishedAt: null,
+  };
+}
+
+function studyPreparationBody() {
+  return {
+    processingRun: server.analysisRunStatus ? analysisRun(server.analysisRunStatus) : null,
+    preview: null,
+    previewSummary: null,
+    staleness: null,
+    eligibility: {
+      documents: Array.from({ length: server.eligibleDocuments }, (_, index) => ({
+        sourceDocumentId: docId(index),
+        fileName: `synthetic-${index}.pdf`,
+        readStatus: "SUCCEEDED",
+        missingPageNumbers: [],
+        emptyPageNumbers: [],
+      })),
+      excluded: [],
+      coverageComplete: true,
+      activeReadCount: 0,
+      coverageDigest: `sha256:${"e".repeat(64)}`,
+    },
+  };
+}
 
 let server: FakeServer;
 
@@ -109,7 +164,11 @@ describe("DocumentsPanel — Read Documents", () => {
       reads: [],
       posts: [],
       respondToStart: () => json({ documentReads: server.reads, created: false }, 202),
+      analysisRunStatus: null,
+      analysisPosts: [],
+      eligibleDocuments: 0,
     };
+    router.push.mockReset();
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -121,6 +180,14 @@ describe("DocumentsPanel — Read Documents", () => {
         }
         if (url === READS_URL) {
           return json({ documentReads: server.reads });
+        }
+        if (url === STUDY_URL && init?.method === "POST") {
+          server.analysisPosts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+          server.analysisRunStatus = "QUEUED";
+          return json({ processingRun: analysisRun("QUEUED"), created: true }, 202);
+        }
+        if (url === STUDY_URL) {
+          return json(studyPreparationBody());
         }
         if (url === DOCUMENTS_URL) {
           return json({ sourceDocuments: server.documents });
@@ -287,5 +354,88 @@ describe("DocumentsPanel — Read Documents", () => {
     await poll();
     await within(modal()).findByText(/trouble reaching HiveForYou/);
     expect(within(modal()).getAllByTestId("read-document-row")[0]!.getAttribute("data-status")).toBe("READING");
+  });
+});
+
+describe("DocumentsPanel — Analyze", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    sessionStorage.clear();
+    router.push.mockReset();
+    server = {
+      documents: [makeDocument(0, "SUCCEEDED")],
+      reads: [makeRead("SUCCEEDED", 0)],
+      posts: [],
+      respondToStart: () => json({ documentReads: server.reads, created: false }, 202),
+      analysisRunStatus: null,
+      analysisPosts: [],
+      eligibleDocuments: 1,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === READS_URL) return json({ documentReads: server.reads });
+        if (url === STUDY_URL && init?.method === "POST") {
+          server.analysisPosts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+          server.analysisRunStatus = "QUEUED";
+          return json({ processingRun: analysisRun("QUEUED"), created: true }, 202);
+        }
+        if (url === STUDY_URL) return json(studyPreparationBody());
+        if (url === DOCUMENTS_URL) return json({ sourceDocuments: server.documents });
+        return json({ error: { errorCode: "NOT_FOUND", message: "Not found" } }, 404);
+      }),
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("is unavailable until a document has been read", async () => {
+    server.documents = [makeDocument(0)];
+    server.reads = [];
+    server.eligibleDocuments = 0;
+    renderPanel();
+    await screen.findByText("Read your documents first, then analyze.");
+    expect((screen.getByTestId("analyze-button") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("starts one analysis, follows the recorded stages and opens the Study tab on success", async () => {
+    renderPanel();
+    await screen.findByText("Ready to analyze every read document.");
+    const analyze = screen.getByTestId("analyze-button") as HTMLButtonElement;
+    expect(analyze.disabled).toBe(false);
+
+    fireEvent.click(analyze);
+    const dialog = await screen.findByTestId("analyze-modal");
+    await within(dialog).findByRole("heading", { name: "Getting ready…" });
+    expect(server.analysisPosts).toHaveLength(1);
+    expect(server.analysisPosts[0]!.clientRequestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(server.analysisPosts[0]).not.toHaveProperty("coverageAcknowledgementDigest");
+
+    server.analysisRunStatus = "IDENTIFYING_DOMAIN";
+    await poll();
+    await within(screen.getByTestId("analyze-modal")).findByRole("heading", { name: "Identifying the domain…" });
+    expect(router.push).not.toHaveBeenCalled();
+
+    server.analysisRunStatus = "SUCCEEDED";
+    await poll();
+    await vi.waitFor(() => expect(router.push).toHaveBeenCalledWith(`/hives/${HIVE_ID}/study`));
+  });
+
+  it("reopens progress for an analysis that is still running after a refresh", async () => {
+    server.analysisRunStatus = "PLANNING_INVESTIGATION";
+    renderPanel();
+    const dialog = await screen.findByTestId("analyze-modal");
+    await within(dialog).findByRole("heading", { name: "Planning the investigation…" });
+    expect(screen.queryByTestId("analyze-button")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Run in background" }));
+    expect(screen.queryByTestId("analyze-modal")).toBeNull();
+    screen.getByRole("button", { name: "Show analysis progress" });
   });
 });

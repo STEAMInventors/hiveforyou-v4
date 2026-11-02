@@ -11,7 +11,24 @@
 
 These prompt files reproduce the user-selected specification rather than modifying it to fit legacy code. Never substitute prior `source-fact-discovery-output@1` or Pack fact catalog for `hive.doc-extraction/1`.
 
-## Implementation integration (future V4-004)
+## Study preparation prompts (V4-004, D-039)
+
+Planning prompts for Analyze / Prompt Preview. They run on the inexpensive planning model (`sorter`) through the Oracle `v4-planner` endpoint; they never extract facts and never replace `hive-extract/1`.
+
+| ID | File | Stage | Output (validated by trusted code) |
+|---|---|---|---|
+| **`hive-intent/1`** | [`../prompts/hive-intent/HiveForYou-Intent-v1.md`](../prompts/hive-intent/HiveForYou-Intent-v1.md) | Understanding request | `hive.intent-decomposition/1` JSON: verbatim intents, distinct objectives, independently answerable questions, dependencies, evidence, comparisons, expected outputs, ambiguities |
+| **`hive-domain/1`** | [`../prompts/hive-domain/HiveForYou-Domain-v1.md`](../prompts/hive-domain/HiveForYou-Domain-v1.md) | Identifying domain | `hive.domain-proposal/1` JSON: open-vocabulary primary domain/subdomain, alternatives, `{sourceDocumentId, pageNumber}` refs checked against sampled persisted pages, reasoning, mixed/ambiguous flags, advisory confidence |
+| **`hive-plan/1`** | [`../prompts/hive-plan/HiveForYou-Plan-v1.md`](../prompts/hive-plan/HiveForYou-Plan-v1.md) | Planning investigation | `hive.investigation-plan/1` JSON from the validated decomposition *and* domain proposal; every question links an objective and source question; domain basis must match the validated domain |
+| **`hive-study-preview/1`** | [`../prompts/hive-study/HiveForYou-Study-Preview-v1.md`](../prompts/hive-study/HiveForYou-Study-Preview-v1.md) | Building prompt (deterministic template, no model call) | Eight-section Canonical Study prompt plus a `{{SOURCE_PAGES}}` binding section filled only at future execution, + `hive.study-execution-manifest/1`; future output contract `hive.study-investigation/1` ([schema](../prompts/hive-study/hive.study-investigation-1.schema.json)), referenced, not executed in V4-004 |
+
+Rules: uploaded text is untrusted data delimited in the user message and never placed in the system role; instructions found in documents are ignored. Prompt files are digested (sha256 over LF-normalized text) at load time; each stage records prompt ID, digest, model alias, token usage, latency and error code, never prompt or page text. There is no domain switch statement; unknown domains stay supported and uncertain classifications are preserved.
+
+Outcome-oriented planning (founder refinement, 2026-11-01): `hive-intent/1` rule 3 and `hive-plan/1` rule 4 were edited to forbid restating the request and to require spelled-out comparison/chronology/calculation logic, evidence limits (`missingEvidenceConditions`) and answer structure (`deliverable`). Trusted code enforces this: `question_restates_intent` (word-set similarity ≥ 0.85 with any verbatim request) and `answer_logic_missing`. Prompt digests changed accordingly; previews record the digests they were built with.
+
+Implementation status: implemented locally (uncommitted); planner not yet deployed; no paid model run performed.
+
+## Implementation integration (future V4-005)
 
 - Load/version controlled `hive-extract/1` prompt, substitute `documentId`, `fileName`, `pageRange` and supplied source pages, ensuring system text and user payload stay separate and document bytes remain *data*.
 - Use strict JSON parsing/schema validation and model-output budget/coverage reporting; require `schema: hive.doc-extraction/1` and a single source ID. No fallback to a domain-based default when unset.
@@ -20,7 +37,7 @@ These prompt files reproduce the user-selected specification rather than modifyi
 - Constrain allowed entity/fact/evidence fields and records; separate `facts`, `emptyFields`, `referencedDocuments`, `glossary`, `instructionsIgnored` and coverage as different trust categories.
 - Preserve repeated records and grouped row properties, as well as `modality`, `attributedTo`, `valueAsWritten`, numeric units and effective/as-of dates.
 - **No candidate is promoted** without independently checking quote, source/page identity, claimed value and record relationship. Derivations and glossary general knowledge never become document claims merely because present in output.
-- Later Study/Writer/A2UI prompts must be separately specified and approved; do not invent their IDs or output schema as implemented here.
+- Later Study/Writer/A2UI prompts must be separately specified and approved; do not invent their IDs or output schema as implemented here. (V4-004's preparation prompts and `hive.study-investigation/1` are approved under D-039; execution remains a later ticket.)
 
 ## Known contract issues to decide explicitly before implementation
 
@@ -35,7 +52,9 @@ These prompt files reproduce the user-selected specification rather than modifyi
 
 ## Model routing and configuration
 
-One approved server-side frontier-model adapter for V4, not a browser provider key. The specific provider/gateway, aliases, structured output support, quotas and contracts are an **OPEN** technical/data-use gate. Do not create a new environment flag per extraction capability. No new V4 configuration variable is approved by this document.
+One approved server-side frontier-model adapter for V4, not a browser provider key. The specific frontier provider/gateway, aliases, structured output support, quotas and contracts are an **OPEN** technical/data-use gate. Do not create a new environment flag per extraction capability.
+
+**Planning model (decided, D-039):** the web server calls only `v4-planner` (`planner-completion@1`, bearer `PLANNER_SERVICE_TOKEN`, `PLANNER_BASE_URL`). The planner forces alias `PLANNER_LITELLM_ALIAS` (`sorter`) against private LiteLLM with a scoped virtual key held only on Oracle; callers cannot choose a model.
 
 ## Validation layers
 

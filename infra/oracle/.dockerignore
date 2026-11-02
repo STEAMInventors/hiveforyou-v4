@@ -2,6 +2,7 @@
 .env
 .env.*
 v4-reader.env
+v4-planner.env
 *.pem
 *.key
 credentials.json
@@ -21,6 +22,7 @@ venv/
 
 # Tests and dev-only (wrapper tests run on the host against a V3 checkout)
 test_v4_reader_wrapper.py
+test_v4_planner.py
 
 # Host systemd unit (not used inside the container)
 hiveforyou-v4-reader.service

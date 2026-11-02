@@ -98,10 +98,11 @@ retaining exactly these portable libraries, contracts and database state transit
 2. **V4-002 (done):** Supabase Auth, owner Hives, Edge-backed Hive APIs, RLS on `hive.hives`.
 3. **V4-003 (in progress, local):** written intent at create (D-026), prepare/register upload with quota and hash scan (D-027), Documents tab list/status. **Not yet:** document read pipeline or page-aware viewer.
 4. **V4-003 completion gate:** deploy migration + `v1-source-documents`; verify live authenticated registration before closing ticket.
-5. **V4-004:** one real frontier extraction from synthetic document with prompt/contract. Verify candidate persistence/output only; not yet trusted Study.
-6. **V4-005:** independent verification and first accepted Study with functional source-chip navigation (requires read/viewer from V4-003 follow-on or same ticket extension when approved).
-7. **V4-006/007:** analyze once and dynamically present; save Customer/Pro reports and independent run history.
-8. **V4-008+:** incremental multi-document processing, negative-path and privacy/data-lifecycle completion.
+5. **V4-004 (active, D-039):** Analyze / Prompt Preview — durable `processing_runs` preparation run; planning calls only through the authenticated Oracle `v4-planner` (loopback, behind the Reader's TLS proxy) to private LiteLLM `sorter`; immutable `study_prompt_previews`. No frontier extraction or Study acceptance.
+6. **V4-005:** one real frontier extraction from synthetic document with prompt/contract. Verify candidate persistence/output only; not yet trusted Study.
+7. **V4-006:** independent verification and first accepted Study with functional source-chip navigation (requires read/viewer from V4-003 follow-on or same ticket extension when approved).
+8. **V4-007/008:** analyze once and dynamically present; save Customer/Pro reports and independent run history.
+9. **V4-009+:** incremental multi-document processing, negative-path and privacy/data-lifecycle completion.
 
 **Do not require an up-front platform/orchestration migration merely to start V4 development.** Select a durable executor when an actual workload shows it is needed, before claiming long-job reliability. See `HiveForYou-DEVELOPMENT-PLAN.md`, `HiveForYou-NEXT.md`, `HiveForYou-DECISIONS.md`.
 

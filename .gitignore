@@ -16,3 +16,5 @@ __pycache__/
 
 # Oracle V4 Reader runtime secrets (use v4-reader.env.example)
 infra/oracle/v4-reader.env
+# Oracle V4 Planner runtime secrets (use v4-planner.env.example)
+infra/oracle/v4-planner.env
