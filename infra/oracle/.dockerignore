@@ -1,0 +1,30 @@
+# Credentials and local secrets (never in the image)
+.env
+.env.*
+v4-reader.env
+*.pem
+*.key
+credentials.json
+
+# Git and VCS
+.git
+.gitignore
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv/
+venv/
+
+# Tests and dev-only (wrapper tests run on the host against a V3 checkout)
+test_v4_reader_wrapper.py
+
+# Host systemd unit (not used inside the container)
+hiveforyou-v4-reader.service
+
+# Documentation (not needed at runtime)
+*.md
+!README*

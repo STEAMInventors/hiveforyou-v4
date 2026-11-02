@@ -13,3 +13,6 @@ npm-debug.log*
 # Python generated files
 __pycache__/
 *.pyc
+
+# Oracle V4 Reader runtime secrets (use v4-reader.env.example)
+infra/oracle/v4-reader.env

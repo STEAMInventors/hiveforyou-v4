@@ -1,0 +1,47 @@
+# HiveForYou V4 Reader only — does not start or modify V3 Reader or hive-litellm.
+# Bind on the Oracle host loopback; reverse-proxy TLS separately if needed.
+
+name: hiveforyou-v4-reader
+
+services:
+  v4-reader:
+    image: ${V4_READER_IMAGE:-hiveforyou-v4-reader:local}
+    build:
+      context: .
+      dockerfile: Dockerfile.reader
+      target: ${V4_READER_BUILD_TARGET:-runtime-local}
+      platforms:
+        - linux/arm64
+      args:
+        FETCH_V3_FROM_GIT: ${FETCH_V3_FROM_GIT:-0}
+        HIVE_READER_V3_GIT_URL: ${HIVE_READER_V3_GIT_URL:-}
+        HIVE_READER_V3_GIT_REF: ${HIVE_READER_V3_GIT_REF:-}
+      additional_contexts:
+        # Sibling checkout: ../hiveforyou-v3/apps/reader (override with HIVE_READER_V3_LOCAL_PATH)
+        v3_reader: ${HIVE_READER_V3_LOCAL_PATH:-../../../hiveforyou-v3/apps/reader}
+    ports:
+      - "127.0.0.1:8082:8082"
+    env_file:
+      - path: v4-reader.env
+        required: true
+    restart: unless-stopped
+    mem_limit: ${V4_READER_MEM_LIMIT:-2g}
+    cpus: ${V4_READER_CPU_LIMIT:-2}
+    pids_limit: 256
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
