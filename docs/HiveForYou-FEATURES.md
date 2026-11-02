@@ -15,7 +15,7 @@
 | F-003 | My Hives / Landing | Show owned Hives; create from one shared composer with **written intent** and **≥1 supported document**; Hive name is provisional, taken from the intent (D-037) | Provisional name ≤100 chars, intent 1–2000 chars, D-026/D-037; idempotent client requests; route after at least one registered upload in create flow |
 | F-004 | My Hives | Archive / delete Hive with explicit confirmation | Pre/post Study deletion safeguards and recoverable failures; do not silently hard-delete evidence |
 | F-005 | Documents | Upload PDF/PNG/JPEG/DOCX, register with private source metadata (D-027 prepare/register + hash scan) | Free 10 successful registered uploads per UTC month; server validates type/size/malware; bad file clearly fails |
-| F-006 | Documents | See ordered document list and registration/read states | Registration/uploading/failed/rejected shown honestly; **read_status beyond PENDING not claimed until read slice ships** |
+| F-006 | Documents | See ordered document list and registration/read states | Registration/uploading/failed/rejected shown honestly; **read_status beyond PENDING shown only from verified Read Documents attempts (D-038)** |
 | F-007 | Documents | Open exact original document and page | **Deferred past current V4-003 slice.** Accessible viewer; physically numbered pages; source authorization checked on each request |
 | F-008 | Documents | Inspect document detail, provenance/read coverage | Date, hash/metadata and any source limitations; no raw secrets in UI/logs |
 | F-009 | All Hive tabs | Natural-language goal/question input | No mandatory domain question or ontology selection; user can ask before/after upload |

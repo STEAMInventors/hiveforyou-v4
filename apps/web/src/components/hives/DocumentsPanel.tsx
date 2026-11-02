@@ -1,12 +1,19 @@
 "use client";
 
-import type { SourceDocument, UploadQuota } from "@hiveforyou/contracts";
-import { useCallback, useEffect, useState } from "react";
+import {
+  type DocumentRead,
+  documentNeedsReading,
+  type SourceDocument,
+  type UploadQuota,
+} from "@hiveforyou/contracts";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
+import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchSourceDocuments, fetchUploadQuota } from "@/lib/source-documents-client";
 
+import { readStatusPresentation, retryableFailedReads } from "./document-read-progress";
+import { ReadDocumentsModal } from "./ReadDocumentsModal";
 import { AddFilesButton, SelectedFileList } from "./SourceFilePicker";
 import {
   MAX_FILES_PER_BATCH,
@@ -15,6 +22,7 @@ import {
   uploadSelectedSourceFiles,
   type SelectedSourceFile,
 } from "./source-file-upload";
+import { useDocumentReads } from "./useDocumentReads";
 
 type LoadError = { message: string; correlationId: string | null };
 
@@ -38,7 +46,18 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-function statusOf(document: SourceDocument): { label: string; detail: string; className: string } {
+const READ_STATUS_DETAIL: Record<SourceDocument["readStatus"], string> = {
+  PENDING: "Not read yet.",
+  SUCCEEDED: "Every page is saved and checked.",
+  PARTIAL: "Some pages had no readable text.",
+  UNREADABLE: "No readable text was found.",
+  FAILED: "Reading didn't finish. You can try again.",
+};
+
+function statusOf(
+  document: SourceDocument,
+  latestRead: DocumentRead | undefined,
+): { label: string; detail: string; className: string } {
   if (document.status === "REJECTED") {
     return {
       label: "Not accepted",
@@ -53,10 +72,22 @@ function statusOf(document: SourceDocument): { label: string; detail: string; cl
       className: "bg-honey-wash text-honey-deep",
     };
   }
+  if (latestRead && latestRead.status !== "SUCCEEDED" && latestRead.status !== "PARTIAL") {
+    const presentation = readStatusPresentation(latestRead.status);
+    const finished = latestRead.status === "UNREADABLE" || latestRead.status === "FAILED";
+    return {
+      ...presentation,
+      detail: finished
+        ? (latestRead.errorMessageSafe ?? READ_STATUS_DETAIL[document.readStatus])
+        : "Reading in progress.",
+    };
+  }
+  if (document.readStatus === "PENDING") {
+    return { label: "Added", detail: READ_STATUS_DETAIL.PENDING, className: "bg-mist text-ink-muted" };
+  }
   return {
-    label: "Added",
-    detail: "Not read yet — page reading comes next.",
-    className: "bg-leaf-wash text-leaf-deep",
+    ...readStatusPresentation(document.readStatus),
+    detail: READ_STATUS_DETAIL[document.readStatus],
   };
 }
 
@@ -112,6 +143,21 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
       .catch(() => setQuota(null));
   }, []);
 
+  const reading = useDocumentReads(hiveId, () => void refresh());
+  const latestReadByDocument = useMemo(
+    () => new Map(reading.reads.map((read) => [read.sourceDocumentId, read])),
+    [reading.reads],
+  );
+  const fileNames = useMemo(
+    () => new Map(documents.map((document) => [document.id, document.fileName])),
+    [documents],
+  );
+  const needsReading = documents.filter((document) =>
+    documentNeedsReading(document, latestReadByDocument.get(document.id)),
+  );
+  const readDisabled = needsReading.length === 0 || reading.active || reading.starting || busy;
+  const retryable = retryableFailedReads(reading.reads);
+
   const addFiles = async (picked: File[]) => {
     const selected = toSelectedSourceFiles(picked).slice(0, MAX_FILES_PER_BATCH);
     setBatch(selected);
@@ -147,14 +193,62 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
           </p>
         </div>
         {documents.length > 0 ? (
-          <AddFilesButton
-            showLabel
-            disabled={addDisabled}
-            describedBy="documents-quota"
-            onAdd={(picked) => void addFiles(picked)}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <AddFilesButton
+              showLabel
+              disabled={addDisabled}
+              describedBy="documents-quota"
+              onAdd={(picked) => void addFiles(picked)}
+            />
+            {reading.active ? (
+              <button
+                type="button"
+                className={SECONDARY_BUTTON_CLASS}
+                onClick={(event) => {
+                  reading.returnFocusRef.current = event.currentTarget;
+                  reading.openModal();
+                }}
+              >
+                Show reading progress
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={PRIMARY_BUTTON_CLASS}
+                disabled={readDisabled}
+                aria-describedby="documents-read-hint"
+                onClick={(event) => {
+                  reading.returnFocusRef.current = event.currentTarget;
+                  void reading.start();
+                }}
+              >
+                {reading.starting ? "Starting…" : "Read Documents"}
+              </button>
+            )}
+          </div>
         ) : null}
       </div>
+
+      {documents.length > 0 ? (
+        <p id="documents-read-hint" className="-mt-3 mb-0 text-[13px] text-ink-subtle" aria-live="polite">
+          {reading.active
+            ? "Reading is in progress. You can leave this page; it keeps going."
+            : needsReading.length > 0
+              ? `${needsReading.length} document${needsReading.length === 1 ? " needs" : "s need"} reading.`
+              : "Every added document has been read."}
+        </p>
+      ) : null}
+
+      {reading.startError && !reading.modalOpen ? (
+        <div role="alert" className="rounded-card border border-line bg-paper px-4 py-3 text-sm text-coral-deep">
+          {reading.startError.message}
+          {reading.startError.correlationId ? (
+            <span className="mt-1 block font-mono text-xs text-ink-subtle">
+              Support reference: {reading.startError.correlationId}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {loadError ? (
         <div role="alert" className="rounded-card border border-line bg-paper p-6 text-center">
@@ -193,7 +287,7 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
       {documents.length > 0 ? (
         <ul aria-label="Documents in this Hive" className="m-0 flex list-none flex-col gap-2.5 p-0">
           {documents.map((document) => {
-            const status = statusOf(document);
+            const status = statusOf(document, latestReadByDocument.get(document.id));
             return (
               <li
                 key={document.id}
@@ -218,6 +312,23 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
           })}
         </ul>
       ) : null}
+
+      <ReadDocumentsModal
+        open={reading.modalOpen}
+        reads={reading.reads}
+        fileNames={fileNames}
+        pollState={reading.pollState}
+        arrival={reading.arrival}
+        returnFocusRef={reading.returnFocusRef}
+        onClose={reading.closeModal}
+        onRetry={
+          retryable.length > 0
+            ? () => void reading.start(retryable.map((read) => read.sourceDocumentId))
+            : null
+        }
+        retryBusy={reading.starting}
+        retryError={reading.startError}
+      />
     </section>
   );
 }

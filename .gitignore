@@ -9,3 +9,7 @@ dist/
 !.env.example
 npm-debug.log*
 .DS_Store
+
+# Python generated files
+__pycache__/
+*.pyc

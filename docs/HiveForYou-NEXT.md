@@ -1,8 +1,8 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-**Date:** 2026-11-01 | **Status:** V4-003 in progress (local implementation; deployment and live upload verification pending; Preview create flow diagnosed as failing — see below) | **Repository:** `hiveforyou-v4`
+**Date:** 2026-11-01 | **Status:** V4-003 in progress (local implementation including Read Documents; migrations not applied; deployment and live upload/read verification pending; Preview create flow diagnosed as failing — see below) | **Repository:** `hiveforyou-v4`
 
-> **Exactly one active engineering ticket: V4-003 — Upload, register and quota-enforce supported source documents (read/view deferred).** No extraction pipeline, paid model calls, tokenization, document reading/OCR, page viewer, or A2UI-generated Study content as a side effect of this ticket.
+> **Exactly one active engineering ticket: V4-003 — Upload, register, quota-enforce and read supported source documents (view deferred).** Founder-approved scope change 2026-11-01: **Read Documents** (V4 Oracle Reader → verified `hive.document_pages`) is now part of V4-003. No extraction pipeline, LiteLLM/paid model calls, Canonical Study, tokenization, page viewer, or A2UI-generated Study content as a side effect of this ticket.
 
 ## Active ticket — V4-003
 
@@ -23,6 +23,7 @@
 9. **Focused tests:** source-document contracts, client upload batch orchestration, V3 Vault upload adapter (1:1 Case creation, PDF/DOCX registration, idempotent `clientRequestId` replay via `reconcileUploadOperation`, owner isolation, malware/magic-byte rejection, and 10/month quota).
 
 10. **Restored API routes (2026-11-01):** `api/v1/hives/[hiveId]/intent-requests`, `api/v1/hives/[hiveId]/source-documents` (GET list, POST multipart upload) and `api/v1/upload-quota`, wired to the existing adapter. These were removed by an earlier `git clean` before commit `d7137c0`, so commits up to `7f48779` call routes that do not exist.
+11. **Read Documents (2026-11-01, D-038):** Documents tab **Read Documents** button (enabled when a registered document is `PENDING`/`FAILED` and no read is active) → `POST /api/v1/hives/{id}/document-reads` (authenticated owner; `start_document_reads` queues one durable `hive.document_reads` attempt per eligible document, idempotent on `clientRequestId`) → Next.js `after()` runs the V4 Reader adapter with a Supabase lease → `put_document_pages` → `list_document_pages` readback + hash/digest verification → terminal status. Statuses `QUEUED · READING · SAVING · VERIFYING · SUCCEEDED · PARTIAL · UNREADABLE · FAILED`; the database refuses `SUCCEEDED`/`PARTIAL` unless the verified page rows exist. `ReadDocumentsModal` (V3 processing-modal pattern, V4 brand) polls `GET …/document-reads` every 3 s only while a read is active; closing, refreshing or reconnecting resumes from the durable rows. Reader-only contracts moved to `@hiveforyou/contracts/document-read` so `node:crypto` stays out of middleware/client bundles.
 
 **Preview failure diagnosis (2026-11-01, `Could not save what you need`):**
 
@@ -33,7 +34,7 @@
 
 **Explicitly deferred (still V4-003 scope boundaries or later tickets):**
 
-- **Document reading** (`read_status` beyond `PENDING`), page text/OCR, and **`document_pages`** population.
+- ~~Document reading~~ — moved into V4-003 (item 11). Still deferred: a durable job queue beyond `after()` + lease, and reading documents larger than one 300 s function invocation allows.
 - **Source page viewer** (F-007 physical-page navigation).
 - Frontier extraction, verification, Study acceptance (V4-004+).
 
@@ -44,7 +45,9 @@
 - Founder approves and migration is applied to the V4 Supabase project; `v1-source-documents` deployed; web app configured for that project.
 - Signed-in owner: landing or My Hives → Create Hive with intent + file → at least one document reaches **REGISTERED** with stored hash and scan status; quota decrements honestly; rejected type/size/malware/quota paths fail closed without false “done”.
 - Idempotent client request IDs replay safely; unauthorized cross-Hive access denied.
-- Documents tab reflects registration states; no claim of readable pages or Study content.
+- Documents tab reflects registration and read states; no claim of Study content.
+- Founder approves and migrations `20261101190000_create_document_pages.sql` and `20261101200000_create_document_reads.sql` are applied; Vercel has `READER_BASE_URL`, `READER_SERVICE_TOKEN` and `SUPABASE_SECRET_KEY`; the Oracle Reader is reachable over HTTPS.
+- Clicking **Read Documents** on a synthetic document starts genuine reading; the modal shows the recorded statuses; `SUCCEEDED` appears only after pages are read back from `hive.document_pages` and verified; repeated clicks create no duplicate attempt; a failed attempt can be retried; `supabase test db` (`supabase/tests/database/document_reads.test.sql`) passes locally.
 - Automated tests for touched packages still pass; `git diff --check` clean on documentation.
 - Report exact files, commands, and live-test evidence; submit for ticket closure. **Do not automatically start V4-004.**
 

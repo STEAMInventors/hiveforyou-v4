@@ -1,6 +1,6 @@
 # HiveForYou V4 — Product requirements
 
-**Version:** 0.3 | **Date:** 2026-10-31 | **Status:** Product strategy expansion proposed for founder approval; existing R01–R44 and previously approved decisions retained. No implementation authorization.
+**Version:** 0.4 | **Date:** 2026-11-01 | **Status:** Product strategy expansion proposed for founder approval; existing R01–R84 and previously approved decisions retained; **R85** (V3 LiteLLM reuse) documented. No implementation authorization.
 
 **Mission:** One Hive holds a person's documents and one continuously enriched, evidence-backed Canonical Study; the user can ask different questions and receive useful, customized, trustworthy outputs. **The complicated, made simple.**
 
@@ -53,7 +53,7 @@ The IDs and capabilities below are retained for traceability. Only infrastructur
 | **R31** | Explainable incompleteness | Show useful partial answers where safe; explicitly indicate missing material, unreadable sections, unsupported capabilities, conflicting claims and needed follow-up, not fabricated completeness. |
 | **R32** | Multimodal follow-up | From accepted facts, the model may request only authorized, selected original page/visual content to resolve context; returned proposals must pass the same verifier and budget gates. No default whole-corpus resend on every question. |
 | **R33** | Operational recoverability | User can see honest status, actionable failure/retry options and accepted prior results. Support can identify stage, cause, commit/uncertainty and whether retry is safe without reproducing customer data. |
-| **R34** | Controlled provider/model access | No direct model calls from browser. Server calls use one approved provider/gateway adapter and permitted retention/contract/consent. Neither LiteLLM nor any specific provider is mandated by V4 yet. |
+| **R34** | Controlled provider/model access | No direct model calls from browser. Server calls use one domain-agnostic, approved provider/gateway adapter with permitted retention/contract/consent. Prefer reuse of V3 LiteLLM infrastructure per **R85**; do not introduce parallel gateways, provider-specific business logic in application layers, or unnecessary configuration variables. |
 | **R35** | Working V4 end-to-end acceptance | Fresh browser → private source → model candidate → independent verification → accepted Study → A2UI/report with working page chip; test real workflow and negative paths using synthetic data, not historical V3 runs. |
 | **R36** | Intent changes do not overwrite observations | Different questions may produce different analyses and layouts, but do not silently alter existing observations/accepted assertions or omit material supported findings without disclosed scope. |
 
@@ -94,7 +94,7 @@ The IDs and capabilities below are retained for traceability. Only infrastructur
 - No automatic cross-user professional access, autonomous legal/financial action, arbitrary-generated program execution, mandatory Domain Packs, domain-specific UI app implementations, or cross-Hive private learning.
 - Runtime topology (Vercel function duration vs durable job executor), provider/gateway, regulated-data agreements, reversible tokenization, sharing/exports/billing and final A2UI wire protocol remain open in `HiveForYou-DECISIONS.md`.
 - **Compliance cannot be inferred** from use of Supabase, Vercel, tokenization or an external model; operate on synthetic documents until data-use approvals and safeguards are settled.
-- Prior V3 requirement to route models through **Oracle LiteLLM** was an infrastructure constraint, **not** a V4 product feature. V4 keeps one approved server-side model boundary; gateway selection is separate.
+- Prior V3 routing through **Oracle LiteLLM** is the **preferred** V4 gateway path when inventory and compatibility checks pass (**R85**). That reuse is infrastructure strategy, not a substitute for V4's single domain-agnostic server-side model boundary, authorization, provenance, or verification gates.
 
 **Related authority:** `HiveForYou-FEATURES.md` for screen behavior; `HiveForYou-UX-A2UI-DESIGN.md` for UI; `HiveForYou-ARCHITECTURE.md` for data flow; `HiveForYou-PROMPTS-AND-CONTRACTS.md` and `prompts/` for exact AI inputs; `HiveForYou-NEXT.md` for the only active engineering ticket.
 
@@ -214,3 +214,11 @@ The IDs and capabilities below are retained for traceability. Only infrastructur
 ### Open design gates (not implementation approval)
 
 Specific LLM orchestration, JSON contracts/validators, analysis quality thresholds, rule-source retrieval/versioning, optional solver/backends, user consent for auto-execution, token budgets, billing impact, persistence tables and scheduling mechanism require ticket-level design and approval. Do not assume all queries are optimizations or causal inference problems.
+
+## V4 model gateway reuse (R85) — 2026-11-01
+
+HiveForYou V4 shall preferentially reuse V3's existing LiteLLM deployment, provider configurations, model aliases, routing, environment variables, structured-output compatibility, error handling, and safe observability conventions.
+
+| ID | Capability | Acceptance behavior |
+|---|---|---|
+| **R85** | Reuse existing V3 LiteLLM infrastructure | **(1)** Inventory the actual V3 LiteLLM implementation and deployed configuration before integration. **(2)** Reuse existing gateway infrastructure and model routing wherever compatible. **(3)** Provide one domain-agnostic, server-side model-access boundary in V4. **(4)** Preserve privacy, authorization, provenance, bounded timeouts, typed errors, and safe retries. **(5)** Avoid duplicate infrastructure, provider-specific business logic, and unnecessary configuration variables. **(6)** Adapt only what V4's architecture and approved model contracts require. **(7)** Verify structured JSON compatibility and provider behavior before enabling V4 extraction. |

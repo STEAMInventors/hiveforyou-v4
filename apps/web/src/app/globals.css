@@ -116,4 +116,32 @@
       transition: none;
     }
   }
+
+  /* Read Documents counter: lifts in the arriving cell's colour when a document finishes. */
+  .hfy-lh-count {
+    display: inline-block;
+    transform-origin: left center;
+  }
+
+  .hfy-lh-count--pulse {
+    animation: hfy-lh-count 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hfy-lh-count--pulse {
+      animation: none;
+    }
+  }
+
+  @keyframes hfy-lh-count {
+    0%,
+    100% {
+      transform: scale(1);
+      color: var(--color-ink);
+    }
+    30% {
+      transform: scale(1.14);
+      color: var(--lh-pulse, var(--color-cell-blue));
+    }
+  }
 }

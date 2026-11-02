@@ -11,8 +11,9 @@ All owner-bound records live in one proposed PostgreSQL schema **`hive`** in a n
 | Table | Purpose | Key relations and invariants |
 |---|---|---|
 | `hive.hives` | User-owned workspace | `id`, `owner_user_id`, name/description, `client_request_id`, `study_locked_at` where needed; unique `(owner_user_id, client_request_id)` |
-| `hive.source_documents` | Registered immutable source identity | `hive_id`, `storage_key`, MIME, byte size, `status` (`PENDING`/`REGISTERED`/`REJECTED`), `source_sha256`, `scan_status`, `read_status` (read pipeline deferred), quota on register; D-027 |
-| `hive.document_pages` | Source text/anchors and read provenance | `source_document_id`, `page_number` (1-based), digest, extraction quality/method; may store secure text/refs according to privacy policy |
+| `hive.source_documents` | Registered immutable source identity | `hive_id`, `storage_key`, MIME, byte size, `status` (`PENDING`/`REGISTERED`/`REJECTED`), `source_sha256`, `scan_status`, `read_status` (`PENDING`/`SUCCEEDED`/`PARTIAL`/`UNREADABLE`/`FAILED`, set only by a terminal `document_reads` transition) and `page_count`, quota on register; D-027, D-038 |
+| `hive.document_pages` | Source text/anchors and read provenance | `source_document_id`, `hive_id`, `page_number` (1-based), `page_text` (≤ 64 KiB), `page_text_sha256`, `read_fingerprint`, `page_set_digest`, extraction method, `provenance_json`; insert-only via service-role `put_document_pages`; unique `(source_document_id, page_set_digest, page_number)`; owner-read RLS |
+| `hive.document_reads` | Durable read attempt and status (D-038) | `hive_id`, `owner_user_id`, `source_document_id`, `request_id`, `attempt_number`, `status` (`QUEUED`→`READING`→`SAVING`→`VERIFYING`→`SUCCEEDED`/`PARTIAL`/`UNREADABLE`, or `FAILED`), `lease_expires_at`, page counts, `page_set_digest`, safe `error_code`/`error_message_safe`/`retryable`, `correlation_id`; unique `(hive_id, request_id, source_document_id)` and one active attempt per document; trigger-enforced transitions; terminal rows immutable; owner-read RLS; writes only via `start_document_reads` (owner) and `transition_document_read` (service role) |
 | `hive.processing_runs` | Durable operation/status | `hive_id`, stage/status, correlation ID, error code, scope, timestamps, prompt/model info |
 | `hive.extraction_batches` | One document/page-range discovery operation | `processing_run_id`, `source_document_id`, page start/end, prompt/contract version/digest, read digest, coverage |
 | `hive.fact_candidates` | Untrusted model observations | FK batch; local `F001` mapped to UUID, category, subject/attribute, raw/normalized value, modality, confidence |
@@ -30,7 +31,8 @@ All owner-bound records live in one proposed PostgreSQL schema **`hive`** in a n
 ## Relation sketch
 
 ```text
-user → hives ─── source_documents ─── document_pages
+user → hives ─── source_documents ─┬─ document_pages
+         │                         └─ document_reads (attempts)
          │                └── extraction_batches ─── fact_candidates
          │                                               └── fact_verifications
          │                                                   └── verified_facts ── fact_evidence
@@ -57,7 +59,7 @@ Source registration is idempotent for one client upload request. Candidate and e
 
 Proposed private Supabase bucket `hive-sources`; storage keys use opaque IDs, never filenames containing personal data. Any reversible token mapping belongs to a separate protected access boundary (exact tables/encryption unresolved) and is not automatically readable by end users or models. RLS is not a substitute for server authorization. Account deletion's previously approved 30-day recovery window applies when implemented under its own ticket.
 
-**Implementation sequence:** V4-002 created auth/Hive tables/policies; V4-003 adds `intent_requests`, `source_documents`, private bucket, quota/registration RPCs (**local SQL, not deployed**); **`document_pages` and read pipeline deferred** within V4-003 closure scope as documented in NEXT; V4-004 candidate/run; V4-005 verification/revision; later analysis/report structures.
+**Implementation sequence:** V4-002 created auth/Hive tables/policies; V4-003 adds `intent_requests`, `source_documents`, private bucket, quota/registration RPCs (**local SQL, not deployed**), then `document_pages` (`20261101190000`) and `document_reads` (`20261101200000`) for Read Documents (**local SQL, not applied**; D-038); V4-004 candidate/run; V4-005 verification/revision; later analysis/report structures.
 
 ## Analytical Intelligence persistence extension (proposed; no migrations authorized)
 

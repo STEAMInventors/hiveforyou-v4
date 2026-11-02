@@ -1,0 +1,19 @@
+[Unit]
+Description=HiveForYou V4 Document Reader Wrapper (isolated from V3 Reader)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hiveforyou
+WorkingDirectory=/opt/hiveforyou/hiveforyou-v4/infra/oracle
+EnvironmentFile=/etc/hiveforyou/v4-reader.env
+Environment="PYTHONPATH=/opt/hiveforyou/hiveforyou-v3/apps/reader/src:/opt/hiveforyou/hiveforyou-v4/infra/oracle"
+ExecStart=/opt/hiveforyou/hiveforyou-v3/apps/reader/.venv/bin/uvicorn v4_reader_wrapper:app --host 127.0.0.1 --port 8082 --no-access-log
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

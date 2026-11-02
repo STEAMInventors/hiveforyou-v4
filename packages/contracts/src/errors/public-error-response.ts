@@ -32,10 +32,14 @@ export function suggestedHttpStatus(errorCode: string): number {
   switch (errorCode) {
     case "INVALID_REQUEST":
     case "INVALID_DOCUMENT":
+    case "DOCUMENT_UNREADABLE":
+    case "COVERAGE_INCOMPLETE":
+    case "PAGE_READ_FAILED":
       return 422;
     case "UNAUTHENTICATED":
       return 401;
     case "ACCESS_DENIED":
+    case "SOURCE_ACCESS_DENIED":
       return 403;
     case "NOT_FOUND":
       return 404;
@@ -43,6 +47,7 @@ export function suggestedHttpStatus(errorCode: string): number {
     case "QUOTA_EXCEEDED":
       return 409;
     case "PERSISTENCE_FAILED":
+    case "STORAGE_UNAVAILABLE":
       return 503;
     case "INTERNAL_ERROR":
     default:
