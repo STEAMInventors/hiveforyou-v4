@@ -29,7 +29,17 @@ Outcome-oriented planning (founder refinement, 2026-11-01): `hive-intent/1` rule
 
 Intent intelligence and assessments (founder refinement, 2026-11-02, D-040): new prompt `hive-intent-intelligence/1`; `hive-plan/1` and `hive-study-preview/1` and the `hive.study-investigation/1` schema were edited in place (ids stay `/1`; no accepted Study existed). The blanket "no verdicts" rule is replaced by evidence-backed assessment rules: judgments only on cited facts, a declared criterion, written reasoning and a stated strength; professional/legal determinations are left to the named professional. Trusted code enforces `objective_not_covered`, `question_not_covered`, `judgment_basis_missing`, `outcome_incomplete`, `completeness_review_missing` and, for the plan, `question_not_covered` over specialist questions and `evaluation_missing`.
 
-Implementation status: implemented locally (uncommitted); planner not yet deployed; no paid model run performed.
+Audiences, Study execution and Writers (founder-approved end-to-end plan, 2026-11-02, D-041). Edits to accepted prompt texts, made at the founder's request (ids stay `/1`; no accepted Study or report existed):
+
+- **`hive-intent/1`:** new rule 14 and Section 6A — the output gains `audienceAnalysis` (Customer role with `STATED`/`INFERRED` only on an exact quotation of the request or stated audience, `PROVISIONAL` from the glossary, otherwise `UNKNOWN`; Pro `primaryRole` plus up to four `alternativeRoles`; tone, `detailLevel`, `studyGuidance`, `writerGuidance`). Never infers personal characteristics; never changes goals.
+- **`hive-intent-intelligence/1`:** rule 8 now refines both audiences into `audience` and records each change in `audienceChanges`; document context may raise a Customer role at most to `PROVISIONAL` with sampled-page `contextRefs`.
+- **`hive-plan/1`:** rule 9 — one neutral investigation serves both audiences; input carries `audienceConfiguration` (`hive.audience-configuration/1`); audiences may widen coverage, never lower evidence requirements.
+- **`hive-study-preview/1`:** new `{{AUDIENCES}}` section ("Who this investigation serves"); `{{SOURCE_PAGES}}` is now filled by the `INVESTIGATING` stage (planner task `study`). **`hive.study-investigation/1` schema:** each calculation may carry a `formula` tree (`input`, `value`, `+ - * / min max round`); code recomputes it, and a calculation without a reproducible formula is shown as unverified.
+- **New `hive-writer/1`** ([prompt](../prompts/hive-writer/HiveForYou-Writer-v1.md), [schema `hive.writer-report/1`](../prompts/hive-writer/hive.writer-report-1.schema.json)): one call per audience over one accepted revision's claim catalog. Prose may cite only catalog claim ids and bind numbers through `{{calc:…}}` / `{{result:…}}`; scenarios name catalog inputs and assumptions, and code recomputes them; the A2UI view is checked against the allowlisted component catalog. Validators accept or reject; nothing is repaired.
+
+Model routing for execution: planner task `study` uses `PLANNER_STUDY_LITELLM_ALIAS` (approved `heavy_lifter`) and task `writer` uses `PLANNER_WRITER_LITELLM_ALIAS` (approved `harvester`); both fail closed when unset and never fall back to `sorter`. Model timeout 270 s within the 300 s function limit.
+
+Implementation status: implemented locally (uncommitted); planner not yet redeployed; no paid model run performed.
 
 ## Implementation integration (future V4-005)
 
@@ -57,7 +67,7 @@ Implementation status: implemented locally (uncommitted); planner not yet deploy
 
 One approved server-side frontier-model adapter for V4, not a browser provider key. The specific frontier provider/gateway, aliases, structured output support, quotas and contracts are an **OPEN** technical/data-use gate. Do not create a new environment flag per extraction capability.
 
-**Planning model (decided, D-039):** the web server calls only `v4-planner` (`planner-completion@1`, bearer `PLANNER_SERVICE_TOKEN`, `PLANNER_BASE_URL`). The planner forces alias `PLANNER_LITELLM_ALIAS` (`sorter`) against private LiteLLM with a scoped virtual key held only on Oracle; callers cannot choose a model. Per-task overrides live in the planner's `TASK_MODEL_ALIASES` code constant (D-040: `intelligence` starts on `sorter` and can be switched to `harvester` for comparison by a reviewed code change).
+**Planning model (decided, D-039):** the web server calls only `v4-planner` (`planner-completion@1`, bearer `PLANNER_SERVICE_TOKEN`, `PLANNER_BASE_URL`). The planner forces alias `PLANNER_LITELLM_ALIAS` (`sorter`) against private LiteLLM with a scoped virtual key held only on Oracle; callers cannot choose a model. Per-task overrides live in the planner's `TASK_MODEL_ALIASES` code constant (D-040: `intelligence` starts on `sorter` and can be switched to `harvester` for comparison by a reviewed code change). D-041 adds `study` → `PLANNER_STUDY_LITELLM_ALIAS` and `writer` → `PLANNER_WRITER_LITELLM_ALIAS`, which are required and have no default.
 
 ## Validation layers
 

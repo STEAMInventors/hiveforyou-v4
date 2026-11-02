@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { PLANNER_TASK_PROMPT_IDS, type PlannerTask } from "@hiveforyou/contracts";
+import { PLANNER_TASK_PROMPT_IDS, type PlannerTask, type PreparationPlannerTask } from "@hiveforyou/contracts";
 
 /**
  * Loads the versioned preparation prompts from the repository `prompts/` folder (bundled with the
@@ -13,7 +13,7 @@ import { PLANNER_TASK_PROMPT_IDS, type PlannerTask } from "@hiveforyou/contracts
 export const STUDY_PREVIEW_PROMPT_ID = "hive-study-preview/1";
 export const STUDY_PREVIEW_PROMPT_VERSION = "1";
 
-const PROMPT_FILES: Record<PlannerTask, string> = {
+const PROMPT_FILES: Record<PreparationPlannerTask, string> = {
   intent: "hive-intent/HiveForYou-Intent-v1.md",
   domain: "hive-domain/HiveForYou-Domain-v1.md",
   intelligence: "hive-intent-intelligence/HiveForYou-Intent-Intelligence-v1.md",
@@ -21,6 +21,8 @@ const PROMPT_FILES: Record<PlannerTask, string> = {
 };
 const STUDY_TEMPLATE_FILE = "hive-study/HiveForYou-Study-Preview-v1.md";
 const OUTPUT_SCHEMA_FILE = "hive-study/hive.study-investigation-1.schema.json";
+const WRITER_PROMPT_FILE = "hive-writer/HiveForYou-Writer-v1.md";
+const WRITER_SCHEMA_FILE = "hive-writer/hive.writer-report-1.schema.json";
 
 export type PlannerPrompt = {
   readonly task: PlannerTask;
@@ -30,9 +32,10 @@ export type PlannerPrompt = {
 };
 
 export type PromptCatalog = {
-  readonly planner: Record<PlannerTask, PlannerPrompt>;
+  readonly planner: Record<PreparationPlannerTask, PlannerPrompt>;
   readonly studyTemplate: { readonly id: string; readonly version: string; readonly digest: string; readonly text: string };
   readonly outputSchema: { readonly digest: string; readonly text: string };
+  readonly writer: PlannerPrompt & { readonly schemaDigest: string };
 };
 
 export function sha256Digest(text: string): string {
@@ -98,8 +101,8 @@ export function extractIntentAnalysisSystemPrompt(markdown: string): string {
 }
 
 export function buildPromptCatalog(readText: (relativePath: string) => string): PromptCatalog {
-  const planner = {} as Record<PlannerTask, PlannerPrompt>;
-  for (const task of Object.keys(PROMPT_FILES) as PlannerTask[]) {
+  const planner = {} as Record<PreparationPlannerTask, PlannerPrompt>;
+  for (const task of Object.keys(PROMPT_FILES) as PreparationPlannerTask[]) {
     const file = normalize(readText(PROMPT_FILES[task]));
     const expectedId = PLANNER_TASK_PROMPT_IDS[task];
     readPromptId(file, expectedId);
@@ -115,8 +118,18 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
     throw new Error("prompt_id_mismatch:study");
   }
   const schema = normalize(readText(OUTPUT_SCHEMA_FILE));
+  const writerFile = normalize(readText(WRITER_PROMPT_FILE));
+  readPromptId(writerFile, PLANNER_TASK_PROMPT_IDS.writer);
+  const writerSchema = normalize(readText(WRITER_SCHEMA_FILE));
   return {
     planner,
+    writer: {
+      task: "writer",
+      id: PLANNER_TASK_PROMPT_IDS.writer,
+      digest: sha256Digest(writerFile),
+      systemPrompt: `${extractSection(writerFile, "System")}\n\n## Output schema\n\n${writerSchema}`,
+      schemaDigest: sha256Digest(writerSchema),
+    },
     studyTemplate: {
       id: STUDY_PREVIEW_PROMPT_ID,
       version: STUDY_PREVIEW_PROMPT_VERSION,

@@ -1,4 +1,6 @@
 import {
+  type AudienceConfiguration,
+  audienceRoleLabel,
   type DomainCandidate,
   type DomainProposal,
   domainIsUncertain,
@@ -7,7 +9,8 @@ import {
   type IntentAnalysis,
   type IntentIntelligence,
   type InvestigationPlan,
-  PLANNER_TASKS,
+  PLANNER_MAX_OUTPUT_TOKENS,
+  PREPARATION_PLANNER_TASKS,
   type ManifestSourceDocument,
   SOURCE_PAGES_FORMAT,
   SOURCE_PAGES_PLACEHOLDER,
@@ -20,11 +23,11 @@ import { type PromptCatalog, sha256Digest } from "./prompt-catalog";
 
 /**
  * Deterministic `hive-study-preview/1` assembly: the same validated inputs always produce the same
- * prompt text and digest. No model call, clock or randomness. `{{SOURCE_PAGES}}` stays in place for a
- * future Canonical Study execution, bound by the manifest.
+ * prompt text and digest. No model call, clock or randomness. `{{SOURCE_PAGES}}` stays in place for the
+ * Canonical Study execution, bound by the manifest.
  */
 
-export const MAX_OUTPUT_TOKENS_ADVISORY = 16_000;
+export const MAX_OUTPUT_TOKENS_ADVISORY = PLANNER_MAX_OUTPUT_TOKENS.study;
 const SOURCE_PAGES_BINDING_RULE =
   "Replace the single placeholder under '## 9. Source pages' with every authorized page of every listed document, " +
   "in manifest order, after checking each document's sha256, readFingerprint and pageSetDigest against this manifest. " +
@@ -37,6 +40,7 @@ export type StudyPromptInputs = {
   readonly intelligence: IntentIntelligence;
   readonly domain: DomainProposal;
   readonly plan: InvestigationPlan;
+  readonly audience: AudienceConfiguration;
   readonly sourceSnapshot: SourceSnapshot;
   readonly sourceSnapshotDigest: string;
   readonly intentSnapshotDigest: string;
@@ -95,6 +99,22 @@ function renderIntents(analysis: IntentAnalysis): string {
       return `Request ${index + 1} (intentRequestId \`${intent.intentRequestId}\`):\n\n${quoted}${audience}`;
     })
     .join("\n\n");
+}
+
+function renderAudiences(audience: AudienceConfiguration): string {
+  const customer = audience.customer;
+  const pro = audience.pro;
+  const lines = [
+    `- Customer: ${inert(audienceRoleLabel("CUSTOMER", audience))} (${customer.status.toLowerCase()}, advisory confidence ${customer.confidence}; ${customer.detailLevel.toLowerCase()} detail)`,
+    `- Pro: ${inert(audienceRoleLabel("PRO", audience))} (${pro.status.toLowerCase()}, advisory confidence ${pro.confidence}; ${pro.detailLevel.toLowerCase()} detail)`,
+  ];
+  if (pro.alternativeRoles.length > 0) {
+    lines.push(`  - Other relevant professionals: ${pro.alternativeRoles.map(inert).join("; ")}`);
+  }
+  if (audience.studyGuidance.length > 0) {
+    lines.push("- Coverage both reports need:", ...audience.studyGuidance.map((item) => `  - ${inert(item)}`));
+  }
+  return lines.join("\n");
 }
 
 function renderRefs(refs: readonly SourcePageRef[], fileNames: ReadonlyMap<string, string>): string {
@@ -273,7 +293,8 @@ function renderOutputContract(plan: InvestigationPlan, processingRunId: string, 
             description: "<what is computed>",
             inputs: [{ label: "<input>", valueAsWritten: "<value exactly as written>", evidence: [evidence] }],
             arithmetic: "<the arithmetic, step by step>",
-            result: "<result>",
+            result: "<result as one number, optionally with its unit>",
+            formula: { op: "*", args: [{ input: 0 }, { value: "2" }] },
           },
         ],
         assessments: [
@@ -311,6 +332,7 @@ function renderOutputContract(plan: InvestigationPlan, processingRunId: string, 
     `- \`processingRunId\` must be \`${processingRunId}\`.`,
     "- Status values must be one of the four listed exactly. Use `[]` for empty lists.",
     "- `factIndexes` and `bearingFacts` are positions in the same answer's `facts` list. `criterionEvidence` is required when `criterionSource` is `DOCUMENT`.",
+    "- Each calculation's `formula` repeats its arithmetic as a tree: leaves `{\"input\": <index into inputs>}` or `{\"value\": \"<plain number>\"}`; nodes `{\"op\": \"+\" | \"-\" | \"*\" | \"/\" | \"min\" | \"max\", \"args\": [...]}` or `{\"op\": \"round\", \"args\": [<one node>], \"places\": <0-6>}`. Each `valueAsWritten` must contain exactly one number and appear in its quote. Code recomputes every formula; a result it cannot reproduce is shown as unverified, so use `null` only when the arithmetic cannot be written this way.",
   ].join("\n");
 }
 
@@ -333,6 +355,7 @@ export function buildStudyPrompt(inputs: StudyPromptInputs): BuiltStudyPrompt {
   const slots: Record<string, string> = {
     PROMPT_ID: catalog.studyTemplate.id,
     INTENTS: renderIntents(analysis),
+    AUDIENCES: renderAudiences(inputs.audience),
     DOMAIN: renderDomain(domain, plan, fileNames),
     OBJECTIVES: renderGoals(analysis, intelligence, plan, fileNames),
     COVERAGE: renderCoverage(sourceSnapshot, inputs.coverageDigest),
@@ -358,7 +381,7 @@ export function buildStudyPrompt(inputs: StudyPromptInputs): BuiltStudyPrompt {
       version: catalog.studyTemplate.version,
       templateDigest: catalog.studyTemplate.digest,
       promptDigest,
-      componentPrompts: PLANNER_TASKS.map((task) => ({
+      componentPrompts: PREPARATION_PLANNER_TASKS.map((task) => ({
         id: catalog.planner[task].id,
         digest: catalog.planner[task].digest,
       })),
@@ -380,6 +403,11 @@ export function buildStudyPrompt(inputs: StudyPromptInputs): BuiltStudyPrompt {
         schema: plan.schema,
         planDigest: sha256Digest(canonicalJson(plan)),
         questionIds: plan.questions.map((question) => question.id),
+      },
+      audienceConfiguration: {
+        schema: inputs.audience.schema,
+        source: inputs.audience.source,
+        audienceDigest: sha256Digest(canonicalJson(inputs.audience)),
       },
     },
     bindings: [

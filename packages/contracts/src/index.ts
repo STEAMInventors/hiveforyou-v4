@@ -9,6 +9,12 @@ export * from "./source-documents/source-document-contracts";
 export * from "./source-documents/document-read-status-contracts";
 export * from "./study-preparation/study-preparation-contracts";
 export * from "./study-preparation/planning-output-contracts";
+export * from "./study-preparation/audience-contracts";
+export * from "./analysis/decimal-formula";
+export * from "./analysis/study-verification";
+export * from "./reports/writer-report-contracts";
+export * from "./reports/application-view-contracts";
+export * from "./reports/report-contracts";
 export * from "./study-preparation/planner-wire-contracts";
 export * from "./study-preparation/execution-manifest-contracts";
 // Reader contracts use node:crypto and are server-only: import from "@hiveforyou/contracts/document-read".

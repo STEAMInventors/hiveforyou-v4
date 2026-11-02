@@ -8,15 +8,21 @@ import type {
   InvestigationPlan,
 } from "./planning-output-contracts";
 
-/** Mirrored in supabase/migrations/20261102120000_add_intent_intelligence_stage.sql. */
+/** Mirrored in supabase/migrations/20261102150000_analysis_workflow.sql. */
 export const PROCESSING_RUN_STATUSES = [
   "QUEUED",
+  "READING_DOCUMENTS",
+  /** Reading found material gaps not acknowledged before; the run waits for the owner (B5). */
+  "AWAITING_ACKNOWLEDGEMENT",
   "UNDERSTANDING_REQUEST",
   "IDENTIFYING_DOMAIN",
   "DEVELOPING_QUESTIONS",
   "PLANNING_INVESTIGATION",
   "BUILDING_PROMPT",
   "SAVING",
+  "INVESTIGATING",
+  "VERIFYING_EVIDENCE",
+  "ACCEPTING_STUDY",
   "SUCCEEDED",
   "NEEDS_CLARIFICATION",
   "FAILED",
@@ -30,11 +36,17 @@ export const MODEL_STAGE_STATUSES = [
   "IDENTIFYING_DOMAIN",
   "DEVELOPING_QUESTIONS",
   "PLANNING_INVESTIGATION",
+  "INVESTIGATING",
 ] as const;
 export type ModelStageStatus = (typeof MODEL_STAGE_STATUSES)[number];
 
-/** The five stages shown to the owner. SAVING is the final step of "Building prompt". */
+/** Stages shown to the owner. SAVING ends "Constructing", ACCEPTING_STUDY ends "Checking". */
 export const STUDY_PREPARATION_STAGES = [
+  {
+    key: "READING_DOCUMENTS",
+    label: "Reading your documents",
+    description: "Reading every page of documents not read yet. Pages already verified are reused.",
+  },
   {
     key: "UNDERSTANDING_REQUEST",
     label: "Understanding your request",
@@ -60,11 +72,49 @@ export const STUDY_PREPARATION_STAGES = [
     label: "Constructing your study prompt",
     description: "Assembling and saving the versioned Study prompt, then checking it was saved.",
   },
+  {
+    key: "INVESTIGATING",
+    label: "Investigating your documents",
+    description: "Answering every planned question from your pages, with a source for each claim.",
+  },
+  {
+    key: "VERIFYING_EVIDENCE",
+    label: "Checking the evidence",
+    description: "Matching every quote to its page and recomputing every calculation before accepting the study.",
+  },
 ] as const;
 export type StudyPreparationStageKey = (typeof STUDY_PREPARATION_STAGES)[number]["key"];
 
 export const DOCUMENT_EXCLUSION_REASONS = ["NOT_READ", "READ_FAILED", "UNREADABLE", "READ_ACTIVE"] as const;
 export type DocumentExclusionReason = (typeof DOCUMENT_EXCLUSION_REASONS)[number];
+
+/** Classified in the database (hive.classify_coverage_gaps); the UI only displays them. */
+export const COVERAGE_GAP_REASONS = [
+  ...DOCUMENT_EXCLUSION_REASONS,
+  "PARTIAL_READ",
+  "PAGES_NOT_READ",
+  "PAGES_WITHOUT_TEXT",
+  "NO_TEXT",
+] as const;
+export type CoverageGapReason = (typeof COVERAGE_GAP_REASONS)[number];
+
+export type CoverageGap = {
+  /** Bound to the read it describes; acknowledgements are stored per key and reused in the Hive. */
+  key: string;
+  sourceDocumentId: string;
+  fileName: string;
+  reason: CoverageGapReason;
+  pageNumbers: number[];
+  /** Material gaps need an acknowledgement; nonmaterial ones proceed as visible limitations. */
+  material: boolean;
+  /** Present on eligibility gaps: acknowledged before in this Hive. */
+  acknowledged?: boolean;
+};
+
+export type CoverageStatus = "COMPLETE" | "NONMATERIAL_GAPS" | "MATERIAL_GAPS";
+export type CoverageAcknowledgement = "NOT_REQUIRED" | "PENDING" | "PRIOR" | "OWNER";
+const COVERAGE_STATUSES: readonly CoverageStatus[] = ["COMPLETE", "NONMATERIAL_GAPS", "MATERIAL_GAPS"];
+const COVERAGE_ACKNOWLEDGEMENTS: readonly CoverageAcknowledgement[] = ["NOT_REQUIRED", "PENDING", "PRIOR", "OWNER"];
 
 export const STALENESS_REASONS = [
   "DOCUMENT_ADDED",
@@ -75,7 +125,8 @@ export const STALENESS_REASONS = [
 export type StalenessReasonKind = (typeof STALENESS_REASONS)[number];
 
 export type StageMetric = {
-  stage: ModelStageStatus;
+  stage: ModelStageStatus | "WRITING";
+  attempt?: number | null;
   outcome?: "SUCCEEDED" | "FAILED" | null;
   promptId?: string | null;
   promptDigest?: string | null;
@@ -124,6 +175,7 @@ export type SourceSnapshot = {
 export type StudyPreparationEligibility = SourceSnapshot & {
   activeReadCount: number;
   coverageDigest: string;
+  gaps: CoverageGap[];
 };
 
 export type ProcessingRun = {
@@ -137,6 +189,15 @@ export type ProcessingRun = {
   intentRequestIds: string[];
   coverageComplete: boolean;
   coverageAcknowledged: boolean;
+  /** Null until the snapshot is frozen. */
+  coverageDigest: string | null;
+  coverageStatus: CoverageStatus | null;
+  coverageGaps: CoverageGap[];
+  coverageAcknowledgement: CoverageAcknowledgement | null;
+  coverageAcknowledgedAt: string | null;
+  /** False while documents are still being read. */
+  snapshotFrozen: boolean;
+  stageAttempt: number;
   stageMetrics: StageMetric[];
   errorCode: string | null;
   errorMessageSafe: string | null;
@@ -187,17 +248,67 @@ export type PreviewStaleness = {
   reasons: { kind: StalenessReasonKind; sourceDocumentId: string | null }[];
 };
 
+export const REPORT_RUN_STATUSES = ["QUEUED", "WRITING", "VALIDATING", "SAVING", "SUCCEEDED", "FAILED"] as const;
+export type ReportRunStatus = (typeof REPORT_RUN_STATUSES)[number];
+
+export type StudyRevisionSummary = {
+  id: string;
+  canonicalStudyId: string;
+  revisionNumber: number;
+  predecessorRevisionId: string | null;
+  processingRunId: string;
+  coverageComplete: boolean;
+  coverageStatus: CoverageStatus;
+  coverageGaps: CoverageGap[];
+  coverageAcknowledgement: CoverageAcknowledgement;
+  createdAt: string;
+};
+
+/** One Writer run for one audience over one accepted revision (D-041). */
+export type ReportRun = {
+  id: string;
+  hiveId: string;
+  studyRevisionId: string;
+  audience: "CUSTOMER" | "PRO";
+  trigger: "STUDY_ACCEPTED" | "OWNER_GENERATE";
+  status: ReportRunStatus;
+  attemptCount: number;
+  maxAttempts: number;
+  errorCode: string | null;
+  errorMessageSafe: string | null;
+  retryable: boolean | null;
+  correlationId: string;
+  reportId: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+};
+
 export type GetStudyPreparationResponse = {
   processingRun: ProcessingRun | null;
   preview: StudyPromptPreview | null;
   previewSummary: { id: string; processingRunId: string; createdAt: string } | null;
   staleness: PreviewStaleness | null;
   eligibility: StudyPreparationEligibility;
+  /** The Hive's current accepted Canonical Study revision. */
+  studyRevision: StudyRevisionSummary | null;
+  /** Latest Writer run per audience for that revision. */
+  reportRuns: ReportRun[];
 };
 
 export type StartStudyPreparationRequest = {
   clientRequestId: string;
   coverageAcknowledgementDigest?: string;
+};
+
+export type AcknowledgeStudyCoverageRequest = {
+  processingRunId: string;
+  coverageDigest: string;
+};
+
+export type AcknowledgeStudyCoverageResponse = {
+  processingRun: ProcessingRun;
+  /** False when the run had already continued (a replay). */
+  resumed: boolean;
 };
 
 export type StartStudyPreparationResponse = {
@@ -221,19 +332,57 @@ export function isActiveProcessingRunStatus(value: unknown): boolean {
 
 /** Index into STUDY_PREPARATION_STAGES for the run's current status (-1 while queued). */
 export function stageIndexForStatus(status: ProcessingRunStatus): number {
-  if (status === "SAVING") return STUDY_PREPARATION_STAGES.length - 1;
-  return STUDY_PREPARATION_STAGES.findIndex((stage) => stage.key === status);
+  const key =
+    status === "SAVING"
+      ? "BUILDING_PROMPT"
+      : status === "ACCEPTING_STUDY"
+        ? "VERIFYING_EVIDENCE"
+        : status === "AWAITING_ACKNOWLEDGEMENT"
+          ? "READING_DOCUMENTS"
+          : status;
+  return STUDY_PREPARATION_STAGES.findIndex((stage) => stage.key === key);
 }
 
-export function validateStartStudyPreparationInput(
+const START_FIELDS = new Set(["clientRequestId", "coverageAcknowledgementDigest"]);
+const ACKNOWLEDGE_FIELDS = new Set(["processingRunId", "coverageDigest"]);
+
+export function validateAcknowledgeStudyCoverageInput(
   body: unknown,
-): ContractValidation<{ clientRequestId: string; coverageAcknowledgementDigest: string | null }> {
+): ContractValidation<{ processingRunId: string; coverageDigest: string }> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, message: "Request body must be a JSON object.", diagnosticReason: "invalid_payload_shape" };
   }
   const record = body as Record<string, unknown>;
   for (const key of Object.keys(record)) {
-    if (key !== "clientRequestId" && key !== "coverageAcknowledgementDigest") {
+    if (!ACKNOWLEDGE_FIELDS.has(key)) {
+      return { ok: false, message: `Unexpected field: ${key}.`, diagnosticReason: "unexpected_field" };
+    }
+  }
+  const processingRunId = typeof record.processingRunId === "string" ? record.processingRunId.trim().toLowerCase() : "";
+  if (!isValidUuid(processingRunId)) {
+    return { ok: false, message: "processingRunId must be a valid UUID.", diagnosticReason: "invalid_processing_run_id" };
+  }
+  const coverageDigest = typeof record.coverageDigest === "string" ? record.coverageDigest.trim().toLowerCase() : "";
+  if (!DIGEST.test(coverageDigest)) {
+    return {
+      ok: false,
+      message: "coverageDigest must be the coverage digest you were shown.",
+      diagnosticReason: "invalid_coverage_digest",
+    };
+  }
+  return { ok: true, value: { processingRunId, coverageDigest } };
+}
+
+export function validateStartStudyPreparationInput(body: unknown): ContractValidation<{
+  clientRequestId: string;
+  coverageAcknowledgementDigest: string | null;
+}> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, message: "Request body must be a JSON object.", diagnosticReason: "invalid_payload_shape" };
+  }
+  const record = body as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!START_FIELDS.has(key)) {
       return { ok: false, message: `Unexpected field: ${key}.`, diagnosticReason: "unexpected_field" };
     }
   }
@@ -320,6 +469,18 @@ export function normalizeProcessingRun(raw: unknown): ProcessingRun | null {
     intentRequestIds,
     coverageComplete: record.coverageComplete,
     coverageAcknowledged: record.coverageAcknowledged,
+    coverageDigest: typeof record.coverageDigest === "string" && DIGEST.test(record.coverageDigest) ? record.coverageDigest : null,
+    coverageStatus: includes(COVERAGE_STATUSES, record.coverageStatus) ? record.coverageStatus : null,
+    coverageGaps: normalizeCoverageGaps(record.coverageGaps),
+    coverageAcknowledgement: includes(COVERAGE_ACKNOWLEDGEMENTS, record.coverageAcknowledgement)
+      ? record.coverageAcknowledgement
+      : null,
+    coverageAcknowledgedAt: typeof record.coverageAcknowledgedAt === "string" ? record.coverageAcknowledgedAt : null,
+    snapshotFrozen: record.snapshotFrozen !== false,
+    stageAttempt:
+      typeof record.stageAttempt === "number" && Number.isInteger(record.stageAttempt) && record.stageAttempt >= 1
+        ? record.stageAttempt
+        : 1,
     stageMetrics: record.stageMetrics as StageMetric[],
     errorCode,
     errorMessageSafe,
@@ -353,6 +514,7 @@ function normalizeEligibility(raw: unknown): StudyPreparationEligibility | null 
     coverageComplete: record.coverageComplete,
     activeReadCount: record.activeReadCount,
     coverageDigest: record.coverageDigest,
+    gaps: normalizeCoverageGaps(record.gaps),
   };
 }
 
@@ -371,66 +533,155 @@ export function normalizeGetStudyPreparationResponse(raw: unknown): GetStudyPrep
     record.previewSummary && typeof record.previewSummary === "object"
       ? (record.previewSummary as GetStudyPreparationResponse["previewSummary"])
       : null;
-  return { processingRun, preview, previewSummary, staleness, eligibility };
+  const studyRevision = normalizeStudyRevisionSummary(record.studyRevision);
+  const reportRuns = Array.isArray(record.reportRuns)
+    ? record.reportRuns.map(normalizeReportRun).filter((run): run is ReportRun => run !== null)
+    : [];
+  return { processingRun, preview, previewSummary, staleness, eligibility, studyRevision, reportRuns };
+}
+
+export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummary | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const ids = [record.id, record.canonicalStudyId, record.processingRunId];
+  if (ids.some((id) => typeof id !== "string" || !isValidUuid(id.toLowerCase()))) return null;
+  if (typeof record.revisionNumber !== "number" || typeof record.createdAt !== "string") return null;
+  return {
+    id: (record.id as string).toLowerCase(),
+    canonicalStudyId: (record.canonicalStudyId as string).toLowerCase(),
+    revisionNumber: record.revisionNumber,
+    predecessorRevisionId: typeof record.predecessorRevisionId === "string" ? record.predecessorRevisionId.toLowerCase() : null,
+    processingRunId: (record.processingRunId as string).toLowerCase(),
+    coverageComplete: record.coverageComplete === true,
+    coverageStatus: includes(COVERAGE_STATUSES, record.coverageStatus)
+      ? record.coverageStatus
+      : record.coverageComplete === true
+        ? "COMPLETE"
+        : "MATERIAL_GAPS",
+    coverageGaps: normalizeCoverageGaps(record.coverageGaps),
+    coverageAcknowledgement: includes(COVERAGE_ACKNOWLEDGEMENTS, record.coverageAcknowledgement)
+      ? record.coverageAcknowledgement
+      : "NOT_REQUIRED",
+    createdAt: record.createdAt,
+  };
+}
+
+export function normalizeReportRun(raw: unknown): ReportRun | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const ids = [record.id, record.hiveId, record.studyRevisionId, record.correlationId];
+  if (ids.some((id) => typeof id !== "string" || !isValidUuid(id.toLowerCase()))) return null;
+  if (
+    (record.audience !== "CUSTOMER" && record.audience !== "PRO") ||
+    (record.trigger !== "STUDY_ACCEPTED" && record.trigger !== "OWNER_GENERATE") ||
+    !includes(REPORT_RUN_STATUSES, record.status) ||
+    typeof record.attemptCount !== "number" ||
+    typeof record.maxAttempts !== "number" ||
+    typeof record.createdAt !== "string"
+  ) {
+    return null;
+  }
+  const errorCode = nullableString(record.errorCode);
+  const errorMessageSafe = nullableString(record.errorMessageSafe);
+  const finishedAt = nullableString(record.finishedAt);
+  if (errorCode === undefined || errorMessageSafe === undefined || finishedAt === undefined) return null;
+  return {
+    id: (record.id as string).toLowerCase(),
+    hiveId: (record.hiveId as string).toLowerCase(),
+    studyRevisionId: (record.studyRevisionId as string).toLowerCase(),
+    audience: record.audience,
+    trigger: record.trigger,
+    status: record.status,
+    attemptCount: record.attemptCount,
+    maxAttempts: record.maxAttempts,
+    errorCode,
+    errorMessageSafe,
+    retryable: typeof record.retryable === "boolean" ? record.retryable : null,
+    correlationId: (record.correlationId as string).toLowerCase(),
+    reportId: typeof record.reportId === "string" && isValidUuid(record.reportId.toLowerCase()) ? record.reportId.toLowerCase() : null,
+    createdAt: record.createdAt,
+    finishedAt,
+  };
+}
+
+export function isActiveReportRunStatus(status: ReportRunStatus): boolean {
+  return status !== "SUCCEEDED" && status !== "FAILED";
+}
+
+export function normalizeCoverageGaps(raw: unknown): CoverageGap[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item): CoverageGap[] => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    if (
+      typeof record.key !== "string" ||
+      typeof record.sourceDocumentId !== "string" ||
+      typeof record.fileName !== "string" ||
+      !includes(COVERAGE_GAP_REASONS, record.reason) ||
+      typeof record.material !== "boolean"
+    ) {
+      return [];
+    }
+    const pageNumbers = Array.isArray(record.pageNumbers)
+      ? record.pageNumbers.filter((page): page is number => Number.isInteger(page))
+      : [];
+    return [
+      {
+        key: record.key,
+        sourceDocumentId: record.sourceDocumentId.toLowerCase(),
+        fileName: record.fileName,
+        reason: record.reason,
+        pageNumbers,
+        material: record.material,
+        ...(typeof record.acknowledged === "boolean" ? { acknowledged: record.acknowledged } : {}),
+      },
+    ];
+  });
 }
 
 export type AnalyzeAvailability =
   | { canAnalyze: true; requiresCoverageAcknowledgement: boolean }
-  | { canAnalyze: false; reason: "NO_ELIGIBLE_DOCUMENTS" | "READ_ACTIVE" | "PREPARATION_ACTIVE" };
+  | { canAnalyze: false; reason: "NO_DOCUMENTS" | "PREPARATION_ACTIVE" | "AWAITING_ACKNOWLEDGEMENT" };
 
-/** Analyze needs one verified read, no active read and no active preparation run. */
+/**
+ * Analyze is the single entry point: it reads whatever is not yet read, so it only needs one
+ * uploaded document and no active run. Starting is not consent to gaps: only known material gaps
+ * the owner has not acknowledged before need an acknowledgement here.
+ */
 export function analyzeAvailability(
   eligibility: StudyPreparationEligibility,
   run: Pick<ProcessingRun, "status"> | null,
 ): AnalyzeAvailability {
+  if (run?.status === "AWAITING_ACKNOWLEDGEMENT") {
+    return { canAnalyze: false, reason: "AWAITING_ACKNOWLEDGEMENT" };
+  }
   if (run && isActiveProcessingRunStatus(run.status)) {
     return { canAnalyze: false, reason: "PREPARATION_ACTIVE" };
   }
-  if (eligibility.activeReadCount > 0) {
-    return { canAnalyze: false, reason: "READ_ACTIVE" };
+  if (eligibility.documents.length === 0 && eligibility.excluded.length === 0) {
+    return { canAnalyze: false, reason: "NO_DOCUMENTS" };
   }
-  if (eligibility.documents.length === 0) {
-    return { canAnalyze: false, reason: "NO_ELIGIBLE_DOCUMENTS" };
-  }
-  return { canAnalyze: true, requiresCoverageAcknowledgement: !eligibility.coverageComplete };
+  return { canAnalyze: true, requiresCoverageAcknowledgement: knownGapsToAcknowledge(eligibility).length > 0 };
 }
 
-export type CoverageGap = {
-  sourceDocumentId: string;
-  fileName: string;
-  kind: "EXCLUDED" | "PARTIAL_READ" | "MISSING_PAGES" | "EMPTY_PAGES";
-  reason?: DocumentExclusionReason;
-  pageNumbers?: number[];
-};
+const TO_READ_REASONS: readonly DocumentExclusionReason[] = ["NOT_READ", "READ_FAILED", "READ_ACTIVE"];
 
-/** Every coverage gap the owner must see before acknowledging partial coverage. */
-export function describeCoverageGaps(snapshot: Pick<SourceSnapshot, "documents" | "excluded">): CoverageGap[] {
-  const gaps: CoverageGap[] = snapshot.excluded.map((document) => ({
-    sourceDocumentId: document.sourceDocumentId,
-    fileName: document.fileName,
-    kind: "EXCLUDED",
-    reason: document.reason,
-  }));
-  for (const document of snapshot.documents) {
-    if (document.readStatus === "PARTIAL") {
-      gaps.push({ sourceDocumentId: document.sourceDocumentId, fileName: document.fileName, kind: "PARTIAL_READ" });
-    }
-    if (document.missingPageNumbers.length > 0) {
-      gaps.push({
-        sourceDocumentId: document.sourceDocumentId,
-        fileName: document.fileName,
-        kind: "MISSING_PAGES",
-        pageNumbers: document.missingPageNumbers,
-      });
-    }
-    if (document.emptyPageNumbers.length > 0) {
-      gaps.push({
-        sourceDocumentId: document.sourceDocumentId,
-        fileName: document.fileName,
-        kind: "EMPTY_PAGES",
-        pageNumbers: document.emptyPageNumbers,
-      });
-    }
-  }
-  return gaps;
+/** Documents Analyze will read before it starts (never read, previously failed, or being read). */
+export function documentsToRead(eligibility: Pick<StudyPreparationEligibility, "excluded">): ExcludedDocument[] {
+  return eligibility.excluded.filter((document) => TO_READ_REASONS.includes(document.reason));
+}
+
+function knownGaps(eligibility: Pick<StudyPreparationEligibility, "excluded" | "gaps">): CoverageGap[] {
+  const toRead = new Set(documentsToRead(eligibility).map((document) => document.sourceDocumentId));
+  return eligibility.gaps.filter((gap) => !toRead.has(gap.sourceDocumentId));
+}
+
+/** Material gaps already known (not waiting on a read) that were never acknowledged in this Hive. */
+export function knownGapsToAcknowledge(eligibility: Pick<StudyPreparationEligibility, "excluded" | "gaps">): CoverageGap[] {
+  return knownGaps(eligibility).filter((gap) => gap.material && gap.acknowledged !== true);
+}
+
+/** Known gaps that need no acknowledgement but are shown as limitations. */
+export function knownLimitations(eligibility: Pick<StudyPreparationEligibility, "excluded" | "gaps">): CoverageGap[] {
+  return knownGaps(eligibility).filter((gap) => !gap.material);
 }

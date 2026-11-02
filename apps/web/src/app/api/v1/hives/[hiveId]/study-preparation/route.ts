@@ -1,16 +1,12 @@
-import { loadSupabaseAdminEnv } from "@hives/persistence/env";
-import { createSupabaseAdminClient } from "@hives/persistence/storage/supabase-client";
 import { after, type NextRequest } from "next/server";
 
+import { resolveAppOrigin } from "@/server/config/app-origin";
 import { jsonWithCorrelation, readJsonBody, withApiRoute } from "@/server/observability/with-api-route";
 import { loadPlannerServiceConfig } from "@/server/study-preparation/planner-client";
-import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
-import {
-  getStudyPreparation,
-  processStudyPreparationSafely,
-  startStudyPreparation,
-} from "@/server/study-preparation/study-preparation";
+import { getStudyPreparation, startStudyPreparation } from "@/server/study-preparation/study-preparation";
 import { requireApiSupabaseClient } from "@/server/supabase/server-client";
+import { processAnalysisRunSafely } from "@/server/workflow/analysis-workflow";
+import { createWorkerDeps, requireWorkerDispatch } from "@/server/workflow/worker";
 
 export const maxDuration = 300;
 
@@ -29,25 +25,23 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
   return run(request);
 }
 
+/** Analyze: starts the whole chain. Later stages hand off server-side; the sweeper resumes stalls. */
 export async function POST(request: NextRequest, context: RouteContext): Promise<Response> {
   const run = withApiRoute("studyPreparation", "startStudyPreparation", async ({ correlationId, request }) => {
     const { hiveId } = await context.params;
     const client = await requireApiSupabaseClient(correlationId, "Sign in to analyze your documents.");
     const rawBody = await readJsonBody(request, correlationId);
-
-    const plannerConfig = loadPlannerServiceConfig(process.env, correlationId);
-    const catalog = loadPromptCatalog();
-    const serviceClient = createSupabaseAdminClient(loadSupabaseAdminEnv(process.env));
+    loadPlannerServiceConfig(process.env, correlationId);
+    requireWorkerDispatch(process.env, correlationId);
 
     const started = await startStudyPreparation(client, { hiveId, rawBody, correlationId });
     const { response } = started;
     if (started.process) {
-      after(() =>
-        processStudyPreparationSafely(
-          { client: serviceClient, planner: { getConfig: () => plannerConfig }, loadCatalog: () => catalog },
-          response.processingRun.id,
-        ),
-      );
+      const deps = createWorkerDeps(process.env, {
+        origin: resolveAppOrigin({ requestUrl: request.url }),
+        correlationId,
+      });
+      after(() => processAnalysisRunSafely(deps, response.processingRun.id));
     }
     return jsonWithCorrelation(response, 202, correlationId);
   });

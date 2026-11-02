@@ -12,11 +12,17 @@ import type { PlannerPrompt } from "./prompt-catalog";
 
 /** Above the planner's own 150 s LiteLLM timeout and below the 180 s stage lease. */
 export const PLANNER_HTTP_TIMEOUT_MS = 160_000;
+/**
+ * Study and Writer calls: above the planner's 270 s model timeout and below the 300 s Vercel
+ * function limit, so a planner timeout arrives as MODEL_TIMEOUT rather than a killed function.
+ */
+export const PLANNER_LONG_HTTP_TIMEOUT_MS = 280_000;
 
 export type PlannerServiceConfig = {
   readonly baseUrl: string;
   readonly serviceToken: string;
   readonly timeoutMs: number;
+  readonly longTimeoutMs?: number;
 };
 
 export type PlannerDeps = {
@@ -61,7 +67,7 @@ export function loadPlannerServiceConfig(
       diagnosticReason: "planner_unconfigured",
     });
   }
-  return { baseUrl, serviceToken, timeoutMs: PLANNER_HTTP_TIMEOUT_MS };
+  return { baseUrl, serviceToken, timeoutMs: PLANNER_HTTP_TIMEOUT_MS, longTimeoutMs: PLANNER_LONG_HTTP_TIMEOUT_MS };
 }
 
 type PlannerErrorEnvelope = { error_code?: unknown; retryable?: unknown };
@@ -141,7 +147,11 @@ export async function callPlanner(
         "x-study-run-id": input.processingRunId,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(config.timeoutMs),
+      signal: AbortSignal.timeout(
+        input.prompt.task === "study" || input.prompt.task === "writer"
+          ? (config.longTimeoutMs ?? PLANNER_LONG_HTTP_TIMEOUT_MS)
+          : config.timeoutMs,
+      ),
     });
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");

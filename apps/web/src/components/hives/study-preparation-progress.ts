@@ -1,37 +1,52 @@
 import {
   type AnalyzeAvailability,
+  type CoverageGap,
+  type CoverageGapReason,
   isActiveProcessingRunStatus,
+  isActiveReportRunStatus,
   type ProcessingRun,
+  type ReportRun,
   STUDY_PREPARATION_STAGES,
   stageIndexForStatus,
 } from "@hiveforyou/contracts";
 
 export type PreparationStepState = "done" | "active" | "stopped" | "pending";
 export type PreparationStep = { key: string; label: string; description: string; state: PreparationStepState };
-export type PreparationOutcome = "idle" | "active" | "succeeded" | "failed" | "needs_clarification";
+export type PreparationOutcome = "idle" | "active" | "awaiting" | "succeeded" | "failed" | "needs_clarification";
 
 export function preparationOutcome(run: Pick<ProcessingRun, "status"> | null): PreparationOutcome {
   if (!run) return "idle";
+  if (run.status === "AWAITING_ACKNOWLEDGEMENT") return "awaiting";
   if (isActiveProcessingRunStatus(run.status)) return "active";
   if (run.status === "SUCCEEDED") return "succeeded";
   if (run.status === "NEEDS_CLARIFICATION") return "needs_clarification";
   return "failed";
 }
 
-/** Model stages that recorded a successful output (a failed run stopped at the next one). */
-function completedStageCount(run: Pick<ProcessingRun, "stageMetrics">): number {
-  return run.stageMetrics.filter((metric) => metric.outcome === "SUCCEEDED").length;
+/** The stage a stopped run stopped at, from what it persisted (frozen snapshot, stage metrics). */
+function stoppedStageIndex(run: Pick<ProcessingRun, "snapshotFrozen" | "stageMetrics">): number {
+  let index = run.snapshotFrozen ? 1 : 0;
+  for (const metric of run.stageMetrics) {
+    if (metric.stage === "WRITING") continue;
+    const stage = stageIndexForStatus(metric.stage);
+    if (stage < 0) continue;
+    index = Math.max(index, metric.outcome === "SUCCEEDED" ? stage + 1 : stage);
+  }
+  return Math.min(index, STUDY_PREPARATION_STAGES.length - 1);
 }
 
-/** The five visible stages, derived only from the persisted run. */
-export function preparationSteps(run: Pick<ProcessingRun, "status" | "stageMetrics"> | null): PreparationStep[] {
+/** The visible stages, derived only from the persisted run. */
+export function preparationSteps(
+  run: Pick<ProcessingRun, "status" | "stageMetrics" | "snapshotFrozen"> | null,
+): PreparationStep[] {
   const outcome = preparationOutcome(run);
   const activeIndex = run ? stageIndexForStatus(run.status) : -1;
-  const stoppedIndex = run && outcome === "failed" ? Math.min(completedStageCount(run), STUDY_PREPARATION_STAGES.length - 1) : -1;
+  const stoppedIndex = run && (outcome === "failed" || outcome === "needs_clarification") ? stoppedStageIndex(run) : -1;
   return STUDY_PREPARATION_STAGES.map((stage, index) => {
     let state: PreparationStepState = "pending";
     if (outcome === "succeeded") state = "done";
-    else if (outcome === "failed") state = index < stoppedIndex ? "done" : index === stoppedIndex ? "stopped" : "pending";
+    else if (outcome === "awaiting") state = index === 0 ? "done" : "pending";
+    else if (stoppedIndex >= 0) state = index < stoppedIndex ? "done" : index === stoppedIndex ? "stopped" : "pending";
     else if (outcome === "active") state = index < activeIndex ? "done" : index === activeIndex ? "active" : "pending";
     return { key: stage.key, label: stage.label, description: stage.description, state };
   });
@@ -40,21 +55,27 @@ export function preparationSteps(run: Pick<ProcessingRun, "status" | "stageMetri
 export function preparationCopy(run: ProcessingRun | null): { title: string; sub: string } {
   const outcome = preparationOutcome(run);
   if (!run || outcome === "idle") {
-    return { title: "Analyze your documents", sub: "We'll turn your request into a precise study prompt." };
+    return { title: "Analyze your documents", sub: "We'll study your documents and write two reports from the same evidence." };
+  }
+  if (outcome === "awaiting") {
+    return {
+      title: "Some content couldn't be read",
+      sub: "Review what's missing. If you continue, the analysis uses only what was read and your reports say what's missing.",
+    };
   }
   if (outcome === "succeeded") {
-    return { title: "Your study prompt is ready", sub: "Opening the Study tab." };
+    return { title: "Your study is complete", sub: "Every claim was checked against its page. Your reports are being written." };
   }
   if (outcome === "needs_clarification") {
     return {
-      title: "We need your request first",
+      title: run.errorCode === "COVERAGE_INCOMPLETE" ? "Some content couldn't be read" : "We need your request first",
       sub: run.errorMessageSafe ?? "Tell us what you want to understand from these documents, then analyze again.",
     };
   }
   if (outcome === "failed") {
     return {
       title: "Analysis stopped",
-      sub: run.errorMessageSafe ?? "Preparation stopped before it finished. You can try again.",
+      sub: run.errorMessageSafe ?? "The analysis stopped before it finished. You can try again.",
     };
   }
   const index = stageIndexForStatus(run.status);
@@ -65,18 +86,60 @@ export function preparationCopy(run: ProcessingRun | null): { title: string; sub
   };
 }
 
+export type ReportRowState = "pending" | "active" | "retrying" | "ready" | "failed";
+export type ReportRow = { audience: ReportRun["audience"]; label: string; state: ReportRowState; detail: string };
+
+const AUDIENCE_LABEL: Record<ReportRun["audience"], string> = { CUSTOMER: "Customer report", PRO: "Pro report" };
+
+/** One row per audience. Each Writer run has its own status; a failed one never affects the other. */
+export function reportRows(reportRuns: readonly ReportRun[]): ReportRow[] {
+  return (["CUSTOMER", "PRO"] as const).map((audience) => {
+    const run = reportRuns.find((candidate) => candidate.audience === audience);
+    const label = AUDIENCE_LABEL[audience];
+    if (!run) return { audience, label, state: "pending", detail: "Waiting for the study." };
+    if (run.status === "SUCCEEDED") return { audience, label, state: "ready", detail: "Ready to read." };
+    if (run.status === "FAILED") {
+      return { audience, label, state: "failed", detail: run.errorMessageSafe ?? "This report couldn't be written. You can generate it again." };
+    }
+    if (isActiveReportRunStatus(run.status) && run.attemptCount > 0 && run.status === "QUEUED") {
+      return { audience, label, state: "retrying", detail: `Trying again (attempt ${run.attemptCount + 1} of ${run.maxAttempts}).` };
+    }
+    return { audience, label, state: "active", detail: run.status === "QUEUED" ? "Starting…" : "Writing…" };
+  });
+}
+
+const GAP_TEXT: Record<CoverageGapReason, string> = {
+  NOT_READ: "Not included — not read.",
+  READ_FAILED: "Not included — reading didn't finish.",
+  UNREADABLE: "Not included — no readable text.",
+  READ_ACTIVE: "Not included — still being read.",
+  PARTIAL_READ: "Only partly readable.",
+  PAGES_NOT_READ: "Some pages weren't read",
+  PAGES_WITHOUT_TEXT: "Pages with no text",
+  NO_TEXT: "No readable text on any page.",
+};
+
+/** Owner-facing description of one coverage gap (never document text). */
+export function coverageGapText(gap: Pick<CoverageGap, "reason" | "pageNumbers">): string {
+  const base = GAP_TEXT[gap.reason];
+  if (gap.reason === "PAGES_NOT_READ" || gap.reason === "PAGES_WITHOUT_TEXT") {
+    return gap.pageNumbers.length > 0 ? `${base}: ${gap.pageNumbers.join(", ")}.` : `${base}.`;
+  }
+  return base;
+}
+
 export function analyzeHint(availability: AnalyzeAvailability): string {
   if (availability.canAnalyze) {
     return availability.requiresCoverageAcknowledgement
-      ? "Ready to analyze. Some pages or documents are missing; you'll review them first."
-      : "Ready to analyze every read document.";
+      ? "Ready to analyze. Some content is missing; you'll review it first."
+      : "Ready to analyze. Documents not read yet are read first.";
   }
   switch (availability.reason) {
     case "PREPARATION_ACTIVE":
       return "Analysis is in progress. You can leave this page; it keeps going.";
-    case "READ_ACTIVE":
-      return "Analyze becomes available when reading finishes.";
-    case "NO_ELIGIBLE_DOCUMENTS":
-      return "Read your documents first, then analyze.";
+    case "AWAITING_ACKNOWLEDGEMENT":
+      return "Your analysis is waiting for you to review what couldn't be read.";
+    case "NO_DOCUMENTS":
+      return "Upload a document, then analyze.";
   }
 }

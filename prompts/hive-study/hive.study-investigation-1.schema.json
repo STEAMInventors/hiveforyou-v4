@@ -65,7 +65,11 @@
                   }
                 },
                 "arithmetic": { "type": "string", "maxLength": 600 },
-                "result": { "type": "string", "maxLength": 200 }
+                "result": { "type": "string", "maxLength": 200 },
+                "formula": {
+                  "description": "The same arithmetic as a formula tree over this calculation's inputs. Code recomputes it; a calculation without a formula, or whose formula does not reproduce the result, is shown as unverified.",
+                  "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/formula" }]
+                }
               }
             }
           },
@@ -143,6 +147,22 @@
     }
   },
   "$defs": {
+    "formula": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["input"], "properties": { "input": { "type": "integer", "minimum": 0 } } },
+        { "type": "object", "additionalProperties": false, "required": ["value"], "properties": { "value": { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?$" } } },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "args"],
+          "properties": {
+            "op": { "enum": ["+", "-", "*", "/", "min", "max", "round"] },
+            "args": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/formula" } },
+            "places": { "type": "integer", "minimum": 0, "maximum": 6 }
+          }
+        }
+      ]
+    },
     "evidence": {
       "type": "object",
       "additionalProperties": false,

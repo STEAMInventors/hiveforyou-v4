@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  type AcknowledgeStudyCoverageRequest,
+  type AcknowledgeStudyCoverageResponse,
   type GetStudyPreparationResponse,
   normalizeGetStudyPreparationResponse,
   normalizeProcessingRun,
@@ -47,4 +49,22 @@ export async function startStudyPreparation(
   const processingRun = normalizeProcessingRun(body?.processingRun);
   if (!processingRun) throw unexpected(correlationId, message);
   return { processingRun, created: body.created === true };
+}
+
+export async function acknowledgeStudyCoverage(
+  hiveId: string,
+  payload: AcknowledgeStudyCoverageRequest,
+): Promise<AcknowledgeStudyCoverageResponse> {
+  const correlationId = crypto.randomUUID();
+  const response = await fetch(`${studyPreparationPath(hiveId)}/acknowledge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", [CORRELATION_HEADER_NAME]: correlationId },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  const message = "Could not continue the analysis. Try again.";
+  const body = await parseApiJson<{ processingRun?: unknown; resumed?: unknown }>(response, correlationId, message);
+  const processingRun = normalizeProcessingRun(body?.processingRun);
+  if (!processingRun) throw unexpected(correlationId, message);
+  return { processingRun, resumed: body.resumed === true };
 }

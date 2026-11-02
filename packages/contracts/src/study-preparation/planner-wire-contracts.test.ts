@@ -4,15 +4,31 @@ import {
   normalizePlannerCompletion,
   PLANNER_CONTRACT_VERSION,
   PLANNER_MAX_OUTPUT_TOKENS,
+  PLANNER_MAX_REQUEST_BYTES_BY_TASK,
   PLANNER_TASK_PROMPT_IDS,
   PLANNER_TASKS,
+  PREPARATION_PLANNER_TASKS,
 } from "./planner-wire-contracts";
 
 describe("planner tasks", () => {
   it("runs intent intelligence between domain and plan with its own prompt and output budget", () => {
-    expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "plan"]);
+    expect(PREPARATION_PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "plan"]);
+    expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "plan", "study", "writer"]);
     expect(PLANNER_TASK_PROMPT_IDS.intelligence).toBe("hive-intent-intelligence/1");
-    expect(PLANNER_MAX_OUTPUT_TOKENS).toEqual({ intent: 4000, domain: 4000, intelligence: 12000, plan: 12000 });
+    expect(PLANNER_MAX_OUTPUT_TOKENS).toEqual({
+      intent: 4000,
+      domain: 4000,
+      intelligence: 12000,
+      plan: 12000,
+      study: 32000,
+      writer: 16000,
+    });
+  });
+
+  it("gives the study and writer their own prompts and larger request limits", () => {
+    expect(PLANNER_TASK_PROMPT_IDS.study).toBe("hive-study-preview/1");
+    expect(PLANNER_TASK_PROMPT_IDS.writer).toBe("hive-writer/1");
+    expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.study).toBeGreaterThan(PLANNER_MAX_REQUEST_BYTES_BY_TASK.plan);
   });
 });
 

@@ -208,12 +208,94 @@ def test_unconfigured_litellm_is_unavailable(client: TestClient, monkeypatch: py
     assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
 
 
-def test_health_reveals_no_secrets(client: TestClient) -> None:
+def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
     data = client.get("/health").json()
     assert data == {
         "status": "ok",
         "model_alias": "sorter",
-        "task_model_aliases": {"intent": "sorter", "domain": "sorter", "intelligence": "sorter", "plan": "sorter"},
+        "task_model_aliases": {
+            "intent": "sorter",
+            "domain": "sorter",
+            "intelligence": "sorter",
+            "plan": "sorter",
+            "study": "heavy_lifter",
+            "writer": "harvester",
+        },
+        "task_aliases_configured": True,
         "litellm_configured": True,
         "service_token_configured": True,
     }
+
+
+def study_body(**overrides: object) -> dict[str, object]:
+    return body(
+        task="study",
+        prompt_id="hive-study-preview/1",
+        system_prompt="Investigate the pages.",
+        user_payload={"task": "study"},
+        max_output_tokens=32000,
+    ) | overrides
+
+
+def writer_body(**overrides: object) -> dict[str, object]:
+    return body(
+        task="writer",
+        prompt_id="hive-writer/1",
+        system_prompt="Write the report.",
+        user_payload={"task": "writer", "audience": "CUSTOMER"},
+        max_output_tokens=16000,
+    ) | overrides
+
+
+def test_study_and_writer_use_their_configured_aliases(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"answers": []}')))
+    study = post(client, study_body())
+    writer = post(client, writer_body())
+    assert study.status_code == 200 and study.json()["model_alias"] == "heavy_lifter"
+    assert writer.status_code == 200 and writer.json()["model_alias"] == "harvester"
+    assert [json.loads(request.content)["model"] for request in seen] == ["heavy_lifter", "harvester"]
+    assert json.loads(seen[0].content)["max_tokens"] == 32000
+
+
+@pytest.mark.parametrize("task_body", [study_body, writer_body])
+def test_study_and_writer_fail_closed_without_alias(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, task_body: Callable[..., dict[str, object]]
+) -> None:
+    monkeypatch.delenv("PLANNER_STUDY_LITELLM_ALIAS", raising=False)
+    monkeypatch.delenv("PLANNER_WRITER_LITELLM_ALIAS", raising=False)
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, task_body())
+    assert response.status_code == 503
+    assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
+    assert response.json()["retryable"] is False
+    assert seen == []
+    assert client.get("/health").json()["task_aliases_configured"] is False
+
+
+def test_study_accepts_large_pages_but_preparation_does_not(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+    use_litellm(lambda _: httpx.Response(200, json=completion('{"answers": []}')))
+    pages = "p" * (400 * 1024)
+    assert post(client, study_body(system_prompt=pages)).status_code == 200
+    assert post(client, body(user_payload={"blob": pages})).status_code == 413
+    assert post(client, study_body(max_output_tokens=32001)).status_code == 400
+
+
+def test_study_timeout_is_longer_and_retryable(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+    timeouts: list[object] = []
+
+    def timeout(request: httpx.Request) -> httpx.Response:
+        timeouts.append(request.extensions.get("timeout"))
+        raise httpx.ReadTimeout("slow")
+
+    use_litellm(timeout)
+    response = post(client, study_body())
+    assert response.status_code == 504
+    assert response.json()["error_code"] == "MODEL_TIMEOUT"
+    assert response.json()["retryable"] is True
+    assert timeouts[0]["read"] == 270.0

@@ -1,8 +1,8 @@
 # Hive Canonical Study prompt — preview template v1
 
-Prompt id: `hive-study-preview/1` · Stage: Building prompt (deterministic; **no model call**) · Output: the Canonical Study prompt text stored in `hive.study_prompt_previews`, plus `hive.study-execution-manifest/1` · Future execution output: `hive.study-investigation/1` ([schema](hive.study-investigation-1.schema.json))
+Prompt id: `hive-study-preview/1` · Stage: Building prompt (deterministic; **no model call**) · Output: the Canonical Study prompt text stored in `hive.study_prompt_previews`, plus `hive.study-execution-manifest/1` · Execution output: `hive.study-investigation/1` ([schema](hive.study-investigation-1.schema.json))
 
-Trusted code fills the `{{…}}` slots below from validated, persisted inputs only. Every slot except `{{SOURCE_PAGES}}` is filled at preparation time. `{{SOURCE_PAGES}}` is filled by a future Canonical Study execution with the frozen page rows listed in the manifest, in the `hive.source-pages/1` format, and must be verified against the manifest's fingerprints and digests first. This prompt prepares the investigation; it does not replace `hive-extract/1`, which stays the intent-independent extraction contract.
+Trusted code fills the `{{…}}` slots below from validated, persisted inputs only. Every slot except `{{SOURCE_PAGES}}` is filled at preparation time. `{{SOURCE_PAGES}}` is filled by the Canonical Study execution stage (`INVESTIGATING`, planner task `study`) with the frozen page rows listed in the manifest, in the `hive.source-pages/1` format, and must be verified against the manifest's fingerprints and digests first. This prompt prepares the investigation; it does not replace `hive-extract/1`, which stays the intent-independent extraction contract.
 
 Everything between the `## Template` heading and the end of the file is the template.
 
@@ -34,6 +34,12 @@ You are a specialist investigating a fixed set of documents for one person, to a
 ## 2. What the person asked (verbatim)
 
 {{INTENTS}}
+
+### Who this investigation serves
+
+{{AUDIENCES}}
+
+This is **one** shared, neutral, evidence-first investigation. Two separate reports are written from it later: a plain-language report for the Customer and an evidence-dense report for the Pro. Gather enough facts, calculations, assessments, uncertainties and provenance for both. The audiences may widen what you cover; they never relax the rules in section 1 and never justify a claim the pages do not support. Do not write for either audience here.
 
 ## 3. Proposed domain and context
 

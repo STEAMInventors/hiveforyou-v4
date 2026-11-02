@@ -1,4 +1,5 @@
 import {
+  resolveAudienceConfiguration,
   SOURCE_PAGES_PLACEHOLDER,
   validateDomainProposal,
   validateExecutionManifest,
@@ -47,6 +48,7 @@ function inputs(overrides: { intents?: typeof INTENTS; snapshot?: StudyPromptInp
     intelligence,
     domain,
     plan,
+    audience: resolveAudienceConfiguration({ analysis, intelligence }),
     sourceSnapshot: overrides.snapshot ?? sourceSnapshot(),
     sourceSnapshotDigest: `sha256:${"c".repeat(64)}`,
     intentSnapshotDigest: `sha256:${"d".repeat(64)}`,

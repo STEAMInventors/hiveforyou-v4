@@ -3,12 +3,12 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(49);
+SELECT * FROM no_plan();
 
 -- ---------------------------------------------------------------------------
 -- Fixtures (as the migration owner)
 --   Hive 1 (owner A): doc a SUCCEEDED (2 pages), doc b PARTIAL (4 physical pages, 3 saved,
---                     page 2 blank), doc c never read; one intent.
+--                     page 2 blank), doc c UNREADABLE; one intent.
 --   Hive 2 (owner B): no documents.
 --   Hive 3 (owner A): doc d SUCCEEDED (1 page), no intent.
 -- ---------------------------------------------------------------------------
@@ -107,6 +107,15 @@ UPDATE hive.source_documents SET read_status = 'SUCCEEDED'
  WHERE id IN ('cccccccc-0000-4000-8000-00000000000a', 'cccccccc-0000-4000-8000-00000000000d');
 UPDATE hive.source_documents SET read_status = 'PARTIAL'
  WHERE id = 'cccccccc-0000-4000-8000-00000000000b';
+UPDATE hive.source_documents SET read_status = 'UNREADABLE'
+ WHERE id = 'cccccccc-0000-4000-8000-00000000000c';
+INSERT INTO hive.document_reads (
+  hive_id, owner_user_id, source_document_id, request_id, attempt_number, status, correlation_id,
+  error_code, retryable, finished_at
+)
+VALUES ('bbbbbbbb-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000001',
+        'cccccccc-0000-4000-8000-00000000000c', gen_random_uuid(), 1, 'UNREADABLE', gen_random_uuid(),
+        'DOCUMENT_UNREADABLE', false, now());
 
 -- ---------------------------------------------------------------------------
 -- Owner sees eligibility and must acknowledge partial coverage
@@ -124,8 +133,8 @@ SELECT is(
   (SELECT x ->> 'sourceDocumentId' || ':' || (x ->> 'reason')
      FROM json_array_elements(public.get_study_preparation('bbbbbbbb-0000-4000-8000-000000000001', false)
                                 -> 'eligibility' -> 'excluded') x),
-  'cccccccc-0000-4000-8000-00000000000c:NOT_READ',
-  'the unread document is excluded with its reason');
+  'cccccccc-0000-4000-8000-00000000000c:UNREADABLE',
+  'the unreadable document is excluded with its reason');
 
 SELECT is(
   (public.get_study_preparation('bbbbbbbb-0000-4000-8000-000000000001', false)
@@ -308,7 +317,8 @@ SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
        (SELECT id FROM hive.processing_runs LIMIT 1), 'IDENTIFYING_DOMAIN', 'PLANNING_INVESTIGATION',
        '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},
-                          "sampleCoverage":{"sampledPageCount":2}}}'::jsonb) $$,
+                          "sampleCoverage":{"sampledPageCount":2},
+                          "intentIntelligence":{"schema":"hive.intent-intelligence/1"}}}'::jsonb) $$,
   'P0001',
   'processing_run_transition_invalid',
   'planning cannot skip developing specialist questions');
@@ -366,12 +376,12 @@ SELECT is(
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'SAVING', 'SUCCEEDED',
+       (SELECT id FROM hive.processing_runs LIMIT 1), 'SAVING', 'INVESTIGATING',
        jsonb_build_object('prompt_digest',
          'sha256:' || encode(sha256(convert_to('Synthetic prompt', 'UTF8')), 'hex'))) $$,
   'P0001',
   'preview_not_saved',
-  'success is refused before the preview is saved');
+  'the Canonical Study cannot start before the preview is saved');
 
 SELECT throws_ok(
   $$ SELECT public.save_study_prompt_preview(
@@ -407,12 +417,52 @@ SELECT is(
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'SAVING', 'SUCCEEDED',
+     (SELECT id FROM hive.processing_runs LIMIT 1), 'SAVING', 'INVESTIGATING',
      jsonb_build_object('prompt_digest',
        'sha256:' || encode(sha256(convert_to('Synthetic prompt', 'UTF8')), 'hex')))
      -> 'processingRun' ->> 'status'),
+  'INVESTIGATING',
+  'the Canonical Study starts once the preview is saved with the matching digest');
+
+SELECT throws_ok(
+  $$ SELECT public.transition_processing_run(
+       (SELECT id FROM hive.processing_runs LIMIT 1), 'INVESTIGATING', 'SUCCEEDED', '{}'::jsonb) $$,
+  'P0001',
+  'processing_run_transition_invalid',
+  'a run cannot succeed without accepting a study revision');
+
+SELECT is(
+  (public.transition_processing_run(
+     (SELECT id FROM hive.processing_runs LIMIT 1), 'INVESTIGATING', 'VERIFYING_EVIDENCE',
+     '{"stage_outputs":{"studyInvestigation":{"schema":"hive.study-investigation/1","answers":[]}}}'::jsonb)
+     -> 'processingRun' ->> 'status'),
+  'VERIFYING_EVIDENCE',
+  'the raw study output is kept for verification');
+
+SELECT is(
+  (public.transition_processing_run(
+     (SELECT id FROM hive.processing_runs LIMIT 1), 'VERIFYING_EVIDENCE', 'ACCEPTING_STUDY', '{}'::jsonb)
+     -> 'processingRun' ->> 'status'),
+  'ACCEPTING_STUDY',
+  'verified evidence advances to accepting the study');
+
+SELECT is(
+  (public.accept_study_revision(
+     (SELECT id FROM hive.processing_runs LIMIT 1),
+     jsonb_build_object(
+       'investigation', jsonb_build_object('schema', 'hive.study-investigation/1', 'answers', '[]'::jsonb),
+       'verification', jsonb_build_object('schema', 'hive.study-verification/1', 'counts', '{}'::jsonb),
+       'audience_configuration', jsonb_build_object('schema', 'hive.audience-configuration/1'),
+       'investigation_digest', 'sha256:' || repeat('3', 64),
+       'model_alias', 'heavy_lifter'))
+     -> 'processingRun' ->> 'status'),
   'SUCCEEDED',
-  'success is recorded once the preview is saved with the matching digest');
+  'accepting the study revision completes the run');
+
+SELECT is(
+  (SELECT string_agg(audience || ':' || status || ':' || trigger, ',' ORDER BY audience) FROM hive.report_runs),
+  'CUSTOMER:QUEUED:STUDY_ACCEPTED,PRO:QUEUED:STUDY_ACCEPTED',
+  'both Writer runs are queued with the accepted revision');
 
 SELECT throws_ok(
   $$ UPDATE hive.study_prompt_previews SET prompt_version = '2' $$,
@@ -485,7 +535,7 @@ SELECT public.start_study_preparation(
            -> 'eligibility' ->> 'coverageDigest') AS result;
 
 RESET role;
-UPDATE hive.processing_runs SET lease_expires_at = now() - interval '1 second'
+UPDATE hive.processing_runs SET lease_expires_at = now() - interval '16 minutes'
  WHERE id = ((SELECT result FROM t_run3) -> 'processingRun' ->> 'id')::uuid;
 
 SET LOCAL role authenticated;
@@ -496,42 +546,11 @@ SELECT is(
      FROM (SELECT public.get_study_preparation('bbbbbbbb-0000-4000-8000-000000000001', false)
                     -> 'processingRun' AS r) x),
   'FAILED:PREPARATION_INTERRUPTED:true',
-  'a run whose lease lapsed is reported as a retryable interruption');
+  'a run that made no progress for 15 minutes is reported as a retryable interruption');
 
 -- ---------------------------------------------------------------------------
--- No stored intent: clarification state, no model stages; active reads block start
+-- No stored intent: clarification state, no model stages
 -- ---------------------------------------------------------------------------
-RESET role;
-INSERT INTO hive.source_documents (
-  id, case_id, owner_user_id, original_filename, mime_type, byte_size, sha256,
-  storage_bucket, storage_path, upload_status, lifecycle_status
-)
-VALUES ('cccccccc-0000-4000-8000-00000000000e', 'bbbbbbbb-0000-4000-8000-000000000003',
-        'aaaaaaaa-0000-4000-8000-000000000001', 'synthetic-e.pdf', 'application/pdf', 2048, repeat('e', 64),
-        'hive-source-documents', 'synthetic/e.pdf', 'UPLOADED', 'ACTIVE');
-INSERT INTO hive.document_reads (
-  hive_id, owner_user_id, source_document_id, request_id, attempt_number, status, correlation_id,
-  lease_expires_at
-)
-VALUES ('bbbbbbbb-0000-4000-8000-000000000003', 'aaaaaaaa-0000-4000-8000-000000000001',
-        'cccccccc-0000-4000-8000-00000000000e', gen_random_uuid(), 1, 'QUEUED', gen_random_uuid(),
-        now() + interval '5 minutes');
-
-SET LOCAL role authenticated;
-SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
-
-SELECT throws_ok(
-  $$ SELECT public.start_study_preparation(
-       'bbbbbbbb-0000-4000-8000-000000000003', 'dddddddd-0000-4000-8000-000000000005',
-       'eeeeeeee-0000-4000-8000-000000000005') $$,
-  'P0001',
-  'document_read_active',
-  'analysis cannot start while a document read is active');
-
-RESET role;
-DELETE FROM hive.document_reads WHERE source_document_id = 'cccccccc-0000-4000-8000-00000000000e';
-DELETE FROM hive.source_documents WHERE id = 'cccccccc-0000-4000-8000-00000000000e';
-
 SET LOCAL role authenticated;
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
 

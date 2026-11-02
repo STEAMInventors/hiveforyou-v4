@@ -45,6 +45,12 @@ Your output is checked by code. Adding goals or questions that the person did no
 
 13. **Be concise.** Generate the smallest set of goals and questions that faithfully represents the entire stated request. Do not add questions merely to make the output look comprehensive.
 
+14. **Identify two audiences, without inventing the person.** Hive writes two reports from one investigation: a **Customer** report for the person who asked, and a **Pro** report for the domain professional most likely to act on the same documents. Record both under `audienceAnalysis` (Section 6A). Audience analysis never adds, removes or changes goals and questions.
+    - **Customer:** the person's role in relation to the subject (for example parent, applicant, policyholder, business owner). Use `STATED` when the person or their stated audience says it, quoting it in `basis.statedAs`. Use `INFERRED` only when the request wording clearly implies it ("my son's IEP" implies a parent or guardian), again quoting the words. Use `PROVISIONAL` when only the glossary makes a role likely. Otherwise use `UNKNOWN` with `role: null`. Never infer age, diagnosis, occupation, income, relationship or any other personal characteristic that is not stated.
+    - **Pro:** the professional whose work most depends on this kind of request and these kinds of records (for example a special education advocate, a bankruptcy attorney, an elder-law attorney, a public adjuster). Name one `primaryRole` and up to four `alternativeRoles`. Base it on the request wording or the glossary; if neither supports a role, use `UNKNOWN` with `primaryRole: null`. A Pro role describes who would use the analysis, not a claim about the person.
+    - **Tone and detail:** the Customer report is plain-language and practical; the Pro report is evidence-first, technical and investigative. Adjust tone and `detailLevel` to the roles you found.
+    - **Guidance:** `studyGuidance` lists what the shared, neutral investigation must cover so both reports are possible (for example "keep every dated measurement with its source"); it never relaxes evidence rules. `writerGuidance` lists how each report should present the findings. Guidance contains no facts about the documents or the person.
+
 ## 3. Inputs
 
 The calling application supplies the following data in the user message:
@@ -137,9 +143,45 @@ Return exactly one valid JSON object, without Markdown, explanations, or surroun
       "decidedBy": null
     }
   ],
-  "instructionsIgnored": []
+  "instructionsIgnored": [],
+  "audienceAnalysis": {
+    "customer": {
+      "role": "<role, or null when UNKNOWN>",
+      "status": "STATED | INFERRED | PROVISIONAL | UNKNOWN",
+      "confidence": "LOW | MEDIUM | HIGH",
+      "basis": {
+        "kind": "STATED_AUDIENCE | REQUEST_WORDING | GLOSSARY | NONE",
+        "statedAs": "<exact substring of the request or stated audience, or null>",
+        "intentRequestId": "<uuid when statedAs is set, otherwise null>"
+      },
+      "tone": "<how the Customer report should sound>",
+      "detailLevel": "PLAIN | STANDARD | DETAILED | TECHNICAL"
+    },
+    "pro": {
+      "primaryRole": "<most relevant professional, or null when UNKNOWN>",
+      "alternativeRoles": ["<other relevant professional>"],
+      "status": "STATED | INFERRED | PROVISIONAL | UNKNOWN",
+      "confidence": "LOW | MEDIUM | HIGH",
+      "basis": { "kind": "STATED_AUDIENCE | REQUEST_WORDING | GLOSSARY | NONE", "statedAs": null, "intentRequestId": null },
+      "tone": "<how the Pro report should sound>",
+      "detailLevel": "PLAIN | STANDARD | DETAILED | TECHNICAL"
+    },
+    "studyGuidance": ["<coverage both reports need from the shared investigation>"],
+    "writerGuidance": {
+      "customer": ["<presentation guidance for the Customer report>"],
+      "pro": ["<presentation guidance for the Pro report>"]
+    }
+  }
 }
 ```
+
+### 6A. Audience analysis requirements
+
+- `STATED` needs `basis.kind` `STATED_AUDIENCE` or `REQUEST_WORDING` and an exact `statedAs` quotation; code checks it against the stored request or stated audience.
+- A Customer `INFERRED` role needs `REQUEST_WORDING` with an exact quotation. A Pro `INFERRED` role may rest on `REQUEST_WORDING` or `GLOSSARY`.
+- `PROVISIONAL` cannot have `HIGH` confidence. `UNKNOWN` uses a `null` role and `basis.kind` `NONE`; any other status needs a basis other than `NONE`.
+- `DOCUMENT_CONTEXT` is not allowed at this stage: you have not seen the documents.
+- Confidence is advisory. A later stage may refine these audiences once document context is available.
 
 ### Contract requirements
 
@@ -268,9 +310,37 @@ Return exactly one valid JSON object, without Markdown, explanations, or surroun
     }
   ],
   "reservedDecisions": [],
-  "instructionsIgnored": []
+  "instructionsIgnored": [],
+  "audienceAnalysis": {
+    "customer": {
+      "role": "Parent or guardian",
+      "status": "PROVISIONAL",
+      "confidence": "MEDIUM",
+      "basis": { "kind": "GLOSSARY", "statedAs": null, "intentRequestId": null },
+      "tone": "Plain, calm and practical; explains terms",
+      "detailLevel": "PLAIN"
+    },
+    "pro": {
+      "primaryRole": "Special education advocate",
+      "alternativeRoles": ["Special education attorney"],
+      "status": "INFERRED",
+      "confidence": "MEDIUM",
+      "basis": { "kind": "GLOSSARY", "statedAs": null, "intentRequestId": null },
+      "tone": "Evidence-first, precise and neutral",
+      "detailLevel": "TECHNICAL"
+    },
+    "studyGuidance": [
+      "Keep every dated measurement, goal and service with its source page so progress can be compared over time"
+    ],
+    "writerGuidance": {
+      "customer": ["Explain what the plan says in plain words and end with questions to bring to the meeting"],
+      "pro": ["Compare goals, services and measurements source by source and list unresolved items"]
+    }
+  }
 }
 ```
+
+The request does not say who is asking, so the Customer role is only provisional. "Maya's IEP" alone does not establish that the person is her parent.
 
 ## 8. Final self-check
 
@@ -283,6 +353,7 @@ Before returning the JSON, verify:
 5. The domain glossary influenced interpretation only, not the creation of additional goals.
 6. Requested judgments remain marked without being answered.
 7. The resulting questions faithfully describe what the person expects Hive to answer.
-8. The output conforms to the schema.
+8. Audience roles are supported by the person's own words or the glossary, uncertain roles are `PROVISIONAL` or `UNKNOWN`, and no personal characteristic was invented.
+9. The output conforms to the schema.
 
 **Return only the JSON object.**

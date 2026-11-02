@@ -1,7 +1,7 @@
 # HiveForYou V4 — local Supabase database verification (pgTAP).
 # Uses an isolated `supabase db start` stack only; never links to or reads production secrets.
 #
-# V4-004 Batch 1: apply the full migration chain, then run study_preparation.test.sql (41 assertions).
+# V4-004: apply the full migration chain, then run every pgTAP file under supabase/tests/database.
 
 name: HiveForYou Database Tests
 
@@ -88,32 +88,34 @@ jobs:
           echo "## Local migration history after reset"
           supabase migration list --local
 
-      - name: Run study_preparation pgTAP (41 planned assertions)
+      - name: Run pgTAP (document reads, study preparation, analysis workflow)
         shell: bash
         run: |
           set -euo pipefail
-          TEST_FILE=supabase/tests/database/study_preparation.test.sql
-          if [ ! -f "$TEST_FILE" ]; then
-            echo "::error title=Missing test file::Expected $TEST_FILE."
-            exit 1
-          fi
-          if ! grep -q 'SELECT plan(41);' "$TEST_FILE"; then
-            echo "::error title=Assertion count mismatch::$TEST_FILE must contain SELECT plan(41);"
-            exit 1
-          fi
-          echo "## Running pgTAP: $TEST_FILE"
+          TEST_FILES=(
+            supabase/tests/database/document_reads.test.sql
+            supabase/tests/database/study_preparation.test.sql
+            supabase/tests/database/analysis_workflow.test.sql
+          )
+          for f in "${TEST_FILES[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "::error title=Missing test file::Expected $f."
+              exit 1
+            fi
+          done
+          echo "## Running pgTAP: ${TEST_FILES[*]}"
           set +e
-          supabase test db "$TEST_FILE" 2>&1 | tee "$RUNNER_TEMP/pgtap-study-preparation.log"
+          supabase test db "${TEST_FILES[@]}" 2>&1 | tee "$RUNNER_TEMP/pgtap.log"
           test_exit=${PIPESTATUS[0]}
           set -e
           echo "## pgTAP summary"
-          grep -E '^(ok|not ok|# Looks like|All tests successful|Files=|Result:)' "$RUNNER_TEMP/pgtap-study-preparation.log" || true
+          grep -E '^(ok|not ok|# Looks like|All tests successful|Files=|Result:)' "$RUNNER_TEMP/pgtap.log" || true
           if [ "$test_exit" -ne 0 ]; then
-            echo "::error title=pgTAP failed::study_preparation.test.sql did not pass (exit $test_exit). Failing assertions and migration errors are in the job log above."
+            echo "::error title=pgTAP failed::pgTAP did not pass (exit $test_exit). Failing assertions and migration errors are in the job log above."
             exit "$test_exit"
           fi
-          if ! grep -q 'All tests successful' "$RUNNER_TEMP/pgtap-study-preparation.log"; then
+          if ! grep -q 'All tests successful' "$RUNNER_TEMP/pgtap.log"; then
             echo "::error title=pgTAP incomplete::Expected 'All tests successful' in test output."
             exit 1
           fi
-          echo "Verified: all 41 planned pgTAP assertions passed on commit ${GITHUB_SHA}."
+          echo "Verified: all pgTAP files passed on commit ${GITHUB_SHA}."

@@ -44,6 +44,24 @@ export function sourceSnapshot(overrides: Partial<SourceSnapshot> = {}): SourceS
   };
 }
 
+const NO_BASIS = { kind: "NONE", statedAs: null, intentRequestId: null };
+
+/** Neither audience stated: the configuration falls back to the conservative defaults. */
+export const UNKNOWN_AUDIENCE = {
+  customer: { role: null, status: "UNKNOWN", confidence: "LOW", basis: NO_BASIS, tone: "Plain", detailLevel: "PLAIN" },
+  pro: {
+    primaryRole: null,
+    alternativeRoles: [],
+    status: "UNKNOWN",
+    confidence: "LOW",
+    basis: NO_BASIS,
+    tone: "Evidence-first",
+    detailLevel: "TECHNICAL",
+  },
+  studyGuidance: [],
+  writerGuidance: { customer: [], pro: [] },
+};
+
 export function samplePages(id: string) {
   return {
     sourceDocumentId: id,
@@ -97,6 +115,7 @@ export function intentOutput(
     ],
     reservedDecisions: [],
     instructionsIgnored: [],
+    audienceAnalysis: UNKNOWN_AUDIENCE,
   };
 }
 
@@ -180,6 +199,8 @@ export function intelligenceOutput() {
         remainingLimits: [],
       },
     ],
+    audience: UNKNOWN_AUDIENCE,
+    audienceChanges: [],
   };
 }
 

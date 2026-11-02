@@ -1,20 +1,14 @@
 "use client";
 
-import {
-  type DocumentRead,
-  documentNeedsReading,
-  type SourceDocument,
-  type UploadQuota,
-} from "@hiveforyou/contracts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type SourceDocument, type UploadQuota } from "@hiveforyou/contracts";
+import { useCallback, useEffect, useState } from "react";
 
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchSourceDocuments, fetchUploadQuota } from "@/lib/source-documents-client";
 
 import { AnalyzeModal } from "./AnalyzeModal";
-import { readStatusPresentation, retryableFailedReads } from "./document-read-progress";
-import { ReadDocumentsModal } from "./ReadDocumentsModal";
+import { readStatusPresentation } from "./document-read-progress";
 import { analyzeHint } from "./study-preparation-progress";
 import { AddFilesButton, SelectedFileList } from "./SourceFilePicker";
 import {
@@ -24,7 +18,6 @@ import {
   uploadSelectedSourceFiles,
   type SelectedSourceFile,
 } from "./source-file-upload";
-import { useDocumentReads } from "./useDocumentReads";
 import { useStudyPreparation } from "./useStudyPreparation";
 
 type LoadError = { message: string; correlationId: string | null };
@@ -54,13 +47,10 @@ const READ_STATUS_DETAIL: Record<SourceDocument["readStatus"], string> = {
   SUCCEEDED: "Every page is saved and checked.",
   PARTIAL: "Some pages had no readable text.",
   UNREADABLE: "No readable text was found.",
-  FAILED: "Reading didn't finish. You can try again.",
+  FAILED: "Reading didn't finish. Analyze tries again.",
 };
 
-function statusOf(
-  document: SourceDocument,
-  latestRead: DocumentRead | undefined,
-): { label: string; detail: string; className: string } {
+function statusOf(document: SourceDocument): { label: string; detail: string; className: string } {
   if (document.status === "REJECTED") {
     return {
       label: "Not accepted",
@@ -75,18 +65,8 @@ function statusOf(
       className: "bg-honey-wash text-honey-deep",
     };
   }
-  if (latestRead && latestRead.status !== "SUCCEEDED" && latestRead.status !== "PARTIAL") {
-    const presentation = readStatusPresentation(latestRead.status);
-    const finished = latestRead.status === "UNREADABLE" || latestRead.status === "FAILED";
-    return {
-      ...presentation,
-      detail: finished
-        ? (latestRead.errorMessageSafe ?? READ_STATUS_DETAIL[document.readStatus])
-        : "Reading in progress.",
-    };
-  }
   if (document.readStatus === "PENDING") {
-    return { label: "Added", detail: READ_STATUS_DETAIL.PENDING, className: "bg-mist text-ink-muted" };
+    return { label: "Added", detail: "Analyze reads it first.", className: "bg-mist text-ink-muted" };
   }
   return {
     ...readStatusPresentation(document.readStatus),
@@ -148,25 +128,12 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
 
   const analysis = useStudyPreparation(hiveId);
   const refreshAnalysis = analysis.refresh;
-  const reading = useDocumentReads(hiveId, () => {
-    void refresh();
-    void refreshAnalysis();
-  });
-  const latestReadByDocument = useMemo(
-    () => new Map(reading.reads.map((read) => [read.sourceDocumentId, read])),
-    [reading.reads],
-  );
-  const fileNames = useMemo(
-    () => new Map(documents.map((document) => [document.id, document.fileName])),
-    [documents],
-  );
-  const needsReading = documents.filter((document) =>
-    documentNeedsReading(document, latestReadByDocument.get(document.id)),
-  );
-  const readDisabled = needsReading.length === 0 || reading.active || reading.starting || busy;
-  const retryable = retryableFailedReads(reading.reads);
-  const analyzeDisabled =
-    !analysis.availability?.canAnalyze || reading.active || reading.starting || analysis.starting || busy;
+  const analysisStatus = analysis.run?.status ?? null;
+  useEffect(() => {
+    if (analysisStatus) void refresh();
+  }, [analysisStatus, refresh]);
+  const toRead = analysis.toRead.length;
+  const analyzeDisabled = !analysis.availability?.canAnalyze || analysis.starting || busy;
 
   const addFiles = async (picked: File[]) => {
     const selected = toSelectedSourceFiles(picked).slice(0, MAX_FILES_PER_BATCH);
@@ -211,31 +178,6 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
               describedBy="documents-quota"
               onAdd={(picked) => void addFiles(picked)}
             />
-            {reading.active ? (
-              <button
-                type="button"
-                className={SECONDARY_BUTTON_CLASS}
-                onClick={(event) => {
-                  reading.returnFocusRef.current = event.currentTarget;
-                  reading.openModal();
-                }}
-              >
-                Show reading progress
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={needsReading.length > 0 ? PRIMARY_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}
-                disabled={readDisabled}
-                aria-describedby="documents-read-hint"
-                onClick={(event) => {
-                  reading.returnFocusRef.current = event.currentTarget;
-                  void reading.start();
-                }}
-              >
-                {reading.starting ? "Starting…" : "Read Documents"}
-              </button>
-            )}
             {analysis.active ? (
               <button
                 type="button"
@@ -245,12 +187,12 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
                   analysis.openModal();
                 }}
               >
-                Show analysis progress
+                {analysis.awaiting ? "Review missing content" : "Show analysis progress"}
               </button>
             ) : (
               <button
                 type="button"
-                className={needsReading.length > 0 ? SECONDARY_BUTTON_CLASS : PRIMARY_BUTTON_CLASS}
+                className={PRIMARY_BUTTON_CLASS}
                 disabled={analyzeDisabled}
                 aria-describedby="documents-analyze-hint"
                 data-testid="analyze-button"
@@ -268,11 +210,9 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
 
       {documents.length > 0 ? (
         <p id="documents-read-hint" className="-mt-3 mb-0 text-[13px] text-ink-subtle" aria-live="polite">
-          {reading.active
-            ? "Reading is in progress. You can leave this page; it keeps going."
-            : needsReading.length > 0
-              ? `${needsReading.length} document${needsReading.length === 1 ? " needs" : "s need"} reading.`
-              : "Every added document has been read."}
+          {toRead > 0
+            ? `${toRead} document${toRead === 1 ? " isn't" : "s aren't"} read yet. Analyze reads ${toRead === 1 ? "it" : "them"} first.`
+            : "Every added document has been read."}
           {analysis.availability ? (
             <span id="documents-analyze-hint" className="block">
               {analyzeHint(analysis.availability)}
@@ -287,17 +227,6 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
           {analysis.startError.correlationId ? (
             <span className="mt-1 block font-mono text-xs text-ink-subtle">
               Support reference: {analysis.startError.correlationId}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
-      {reading.startError && !reading.modalOpen ? (
-        <div role="alert" className="rounded-card border border-line bg-paper px-4 py-3 text-sm text-coral-deep">
-          {reading.startError.message}
-          {reading.startError.correlationId ? (
-            <span className="mt-1 block font-mono text-xs text-ink-subtle">
-              Support reference: {reading.startError.correlationId}
             </span>
           ) : null}
         </div>
@@ -340,7 +269,7 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
       {documents.length > 0 ? (
         <ul aria-label="Documents in this Hive" className="m-0 flex list-none flex-col gap-2.5 p-0">
           {documents.map((document) => {
-            const status = statusOf(document, latestReadByDocument.get(document.id));
+            const status = statusOf(document);
             return (
               <li
                 key={document.id}
@@ -366,25 +295,11 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
         </ul>
       ) : null}
 
-      <ReadDocumentsModal
-        open={reading.modalOpen}
-        reads={reading.reads}
-        fileNames={fileNames}
-        pollState={reading.pollState}
-        arrival={reading.arrival}
-        returnFocusRef={reading.returnFocusRef}
-        onClose={reading.closeModal}
-        onRetry={
-          retryable.length > 0
-            ? () => void reading.start(retryable.map((read) => read.sourceDocumentId))
-            : null
-        }
-        retryBusy={reading.starting}
-        retryError={reading.startError}
-      />
       <AnalyzeModal
+        hiveId={hiveId}
         mode={analysis.modalMode}
         run={analysis.run}
+        reportRuns={analysis.reportRuns}
         eligibility={analysis.state?.eligibility ?? null}
         pollState={analysis.pollState}
         starting={analysis.starting}
@@ -392,6 +307,7 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
         returnFocusRef={analysis.returnFocusRef}
         onClose={analysis.closeModal}
         onConfirm={analysis.confirmCoverage}
+        onAcknowledge={() => void analysis.acknowledge()}
         onRetry={analysis.retry}
       />
     </section>

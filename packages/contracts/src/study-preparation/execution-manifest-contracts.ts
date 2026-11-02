@@ -1,10 +1,9 @@
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 
 /**
- * `hive.study-execution-manifest/1` (D-039): the formal list of inputs a future Canonical Study
- * execution needs, each with an integrity field the executor must check before running.
- * The output contract `hive.study-investigation/1` is referenced here; nothing executes it in
- * V4-004.
+ * `hive.study-execution-manifest/1` (D-039): the formal list of inputs the Canonical Study
+ * execution needs, each with an integrity field the executor checks before running (D-041).
+ * Output contract: `hive.study-investigation/1`, verified by `verifyStudyInvestigation`.
  */
 export const EXECUTION_MANIFEST_SCHEMA = "hive.study-execution-manifest/1";
 export const STUDY_INVESTIGATION_SCHEMA = "hive.study-investigation/1";
@@ -39,6 +38,8 @@ export type ExecutionManifest = {
     investigationPlan: { schema: string; planDigest: string; questionIds: string[] };
     /** Absent on previews prepared before the specialist-question stage existed. */
     intentIntelligence?: { schema: string; intelligenceDigest: string; questionIds: string[] };
+    /** Absent on previews prepared before audiences existed (D-041). */
+    audienceConfiguration?: { schema: string; source: string; audienceDigest: string };
   };
   bindings: {
     placeholder: typeof SOURCE_PAGES_PLACEHOLDER;
@@ -56,7 +57,7 @@ export type ExecutionManifest = {
   limits: { authorizedPageCount: number; maxOutputTokensAdvisory: number };
 };
 
-/** `hive.study-investigation/1` answer shape (future execution output; untrusted until verified). */
+/** `hive.study-investigation/1` answer shape (model output; untrusted until verified). */
 export const INVESTIGATION_ANSWER_STATUSES = [
   "ANSWERED",
   "PARTIALLY_ANSWERED",
@@ -80,6 +81,8 @@ export type StudyInvestigationOutput = {
       inputs: { label: string; valueAsWritten: string; evidence: InvestigationEvidence[] }[];
       arithmetic: string;
       result: string;
+      /** Restricted formula tree over `inputs` (D-041); recomputed by `verifyStudyInvestigation`. */
+      formula?: unknown;
     }[];
     assessments: {
       judgment: string;

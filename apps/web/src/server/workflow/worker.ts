@@ -1,0 +1,46 @@
+import { createHiveError } from "@hiveforyou/contracts";
+import { loadSupabaseAdminEnv } from "@hives/persistence/env";
+import { createSupabaseAdminClient } from "@hives/persistence/storage/supabase-client";
+
+import { processDocumentRead } from "@/server/source-documents/document-reads";
+import { loadReaderServiceConfig } from "@/server/source-documents/read-document";
+import { loadPlannerServiceConfig } from "@/server/study-preparation/planner-client";
+
+import { type AnalysisWorkflowDeps, processAnalysisRun } from "./analysis-workflow";
+import { createHttpDispatch, loadInternalWorkerToken, type WorkItem } from "./dispatch";
+import { processReportRun } from "./report-generation";
+
+/** Owner routes refuse to queue work that could never be handed off between invocations. */
+export function requireWorkerDispatch(env: NodeJS.ProcessEnv, correlationId: string): void {
+  if (loadInternalWorkerToken(env)) return;
+  throw createHiveError({
+    errorCode: "MODEL_UNAVAILABLE",
+    category: "DEPENDENCY",
+    stage: "ANALYZE",
+    retryable: true,
+    safeMessage: "Analysis is temporarily unavailable. Please try again later.",
+    correlationId,
+    diagnosticReason: "dispatch_unconfigured",
+  });
+}
+
+/** Service-role dependencies for one invocation. Configuration is read lazily, when a stage needs it. */
+export function createWorkerDeps(env: NodeJS.ProcessEnv, input: { origin: string; correlationId: string }): AnalysisWorkflowDeps {
+  return {
+    client: createSupabaseAdminClient(loadSupabaseAdminEnv(env)),
+    planner: { getConfig: () => loadPlannerServiceConfig(env, input.correlationId) },
+    reader: { getReaderConfig: () => loadReaderServiceConfig(env, input.correlationId) },
+    dispatch: createHttpDispatch({ token: loadInternalWorkerToken(env), origin: input.origin }),
+  };
+}
+
+/** Runs one dispatched work item. Never throws, so it is safe inside `after()`. */
+export async function runWorkItem(deps: AnalysisWorkflowDeps, item: WorkItem): Promise<void> {
+  try {
+    if (item.kind === "analysis") await processAnalysisRun(deps, item.id);
+    else if (item.kind === "report") await processReportRun(deps, item.id);
+    else await processDocumentRead({ client: deps.client, reader: deps.reader }, item.id);
+  } catch {
+    // Leases lapse and the sweeper dispatches the item again.
+  }
+}

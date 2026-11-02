@@ -44,6 +44,8 @@ describe("buildPromptCatalog", () => {
       "hive-plan/HiveForYou-Plan-v1.md": planner("hive-plan/1"),
       "hive-study/HiveForYou-Study-Preview-v1.md": ["Prompt id: `hive-study-preview/1`", "## Template", "Body {{SOURCE_PAGES}}"].join(eol),
       "hive-study/hive.study-investigation-1.schema.json": "{}",
+      "hive-writer/HiveForYou-Writer-v1.md": planner("hive-writer/1"),
+      "hive-writer/hive.writer-report-1.schema.json": "{}",
     };
   };
 

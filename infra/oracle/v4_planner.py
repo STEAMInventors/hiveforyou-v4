@@ -1,13 +1,14 @@
 """
 HiveForYou V4 — Planner (D-039).
 
-Authenticated planning endpoint for Analyze / Prompt Preview. The web server sends one
-`planner-completion@1` request per planning stage (intent, domain, intelligence, plan); the planner
-forwards it to the private LiteLLM gateway with a fixed model alias and a scoped virtual key that
-never leaves Oracle, and returns the parsed JSON completion plus usage metadata.
+Authenticated planning endpoint for Analyze. The web server sends one `planner-completion@1`
+request per model stage (intent, domain, intelligence, plan, study, writer); the planner forwards it
+to the private LiteLLM gateway with a fixed model alias and a scoped virtual key that never leaves
+Oracle, and returns the parsed JSON completion plus usage metadata.
 
-- Callers cannot choose the model: each task uses `TASK_MODEL_ALIASES[task]` when set, otherwise
-  `PLANNER_LITELLM_ALIAS` (`sorter`). Switching one stage's model is a change here only.
+- Callers cannot choose the model. Preparation tasks use `TASK_MODEL_ALIASES[task]` when set,
+  otherwise `PLANNER_LITELLM_ALIAS` (`sorter`). `study` and `writer` use
+  `PLANNER_STUDY_LITELLM_ALIAS` / `PLANNER_WRITER_LITELLM_ALIAS` and fail closed when unset.
 - Bearer `PLANNER_SERVICE_TOKEN` is compared in constant time; an unset token fails closed.
 - Logs carry identifiers, codes, token counts and latency only — never prompts, page text,
   completions or credentials.
@@ -39,22 +40,50 @@ TASK_PROMPT_IDS: dict[str, str] = {
     "domain": "hive-domain/1",
     "intelligence": "hive-intent-intelligence/1",
     "plan": "hive-plan/1",
+    "study": "hive-study-preview/1",
+    "writer": "hive-writer/1",
 }
 DEFAULT_MODEL_ALIAS = "sorter"
-# Per-task model override; tasks not listed use PLANNER_LITELLM_ALIAS.
+# Per-task model override; preparation tasks not listed use PLANNER_LITELLM_ALIAS.
 TASK_MODEL_ALIASES: dict[str, str] = {
     "intelligence": "sorter",
+}
+# Study and Writer need deep-analysis models: each must be configured explicitly (D-041) and never
+# falls back to the classification alias. Unset fails closed with MODEL_UNAVAILABLE.
+REQUIRED_TASK_ALIAS_ENV: dict[str, str] = {
+    "study": "PLANNER_STUDY_LITELLM_ALIAS",
+    "writer": "PLANNER_WRITER_LITELLM_ALIAS",
 }
 TASK_MAX_OUTPUT_TOKENS: dict[str, int] = {
     "intent": 4000,
     "domain": 4000,
     "intelligence": 12000,
     "plan": 12000,
+    "study": 32000,
+    "writer": 16000,
 }
 MAX_OUTPUT_TOKENS = max(TASK_MAX_OUTPUT_TOKENS.values())
-MAX_REQUEST_BYTES = 256 * 1024
-MAX_SYSTEM_PROMPT_CHARS = 64_000
+TASK_MAX_REQUEST_BYTES: dict[str, int] = {
+    "intent": 256 * 1024,
+    "domain": 256 * 1024,
+    "intelligence": 256 * 1024,
+    "plan": 256 * 1024,
+    "study": 1536 * 1024,
+    "writer": 768 * 1024,
+}
+MAX_REQUEST_BYTES = max(TASK_MAX_REQUEST_BYTES.values())
+TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {
+    "intent": 64_000,
+    "domain": 64_000,
+    "intelligence": 64_000,
+    "plan": 64_000,
+    "study": 1_400_000,
+    "writer": 96_000,
+}
+MAX_SYSTEM_PROMPT_CHARS = max(TASK_MAX_SYSTEM_PROMPT_CHARS.values())
 LITELLM_TIMEOUT_SECONDS = 150.0
+# Below the web server's 280 s client timeout and the 300 s Vercel function limit.
+TASK_LITELLM_TIMEOUT_SECONDS: dict[str, float] = {"study": 270.0, "writer": 270.0}
 
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]{1,128}$")
@@ -67,7 +96,7 @@ class PlannerCompletionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["planner-completion@1"]
-    task: Literal["intent", "domain", "intelligence", "plan"]
+    task: Literal["intent", "domain", "intelligence", "plan", "study", "writer"]
     prompt_id: str = Field(min_length=1, max_length=64)
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=MAX_SYSTEM_PROMPT_CHARS)
@@ -92,6 +121,10 @@ def _settings() -> dict[str, str]:
         "litellm_api_key": os.environ.get("PLANNER_LITELLM_API_KEY", "").strip(),
         "litellm_alias": os.environ.get("PLANNER_LITELLM_ALIAS", DEFAULT_MODEL_ALIAS).strip()
         or DEFAULT_MODEL_ALIAS,
+        **{
+            f"{task}_alias": os.environ.get(env_name, "").strip()
+            for task, env_name in REQUIRED_TASK_ALIAS_ENV.items()
+        },
     }
 
 
@@ -137,10 +170,17 @@ def _parse_request(body: bytes) -> PlannerCompletionRequest:
         raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Prompt digest is invalid.")
     if parsed.max_output_tokens > TASK_MAX_OUTPUT_TOKENS[parsed.task]:
         raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Output limit is too high for the task.")
+    if len(body) > TASK_MAX_REQUEST_BYTES[parsed.task]:
+        raise PlannerError(413, "INVALID_REQUEST", "validation", False, "Planner request is too large.")
+    if len(parsed.system_prompt) > TASK_MAX_SYSTEM_PROMPT_CHARS[parsed.task]:
+        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Planner request is invalid.")
     return parsed
 
 
-def _model_alias(task: str, settings: dict[str, str]) -> str:
+def _model_alias(task: str, settings: dict[str, str]) -> str | None:
+    if task in REQUIRED_TASK_ALIAS_ENV:
+        alias = settings.get(f"{task}_alias", "")
+        return alias if alias and SAFE_TOKEN_RE.match(alias) else None
     return TASK_MODEL_ALIASES.get(task) or settings["litellm_alias"]
 
 
@@ -165,6 +205,8 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
         raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "Planning model is not configured.")
 
     alias = _model_alias(request.task, settings)
+    if alias is None:
+        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "The model for this task is not configured.")
     payload = {
         "model": alias,
         "messages": [
@@ -177,7 +219,8 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
     }
     started = time.monotonic()
     try:
-        async with httpx.AsyncClient(transport=_transport, timeout=LITELLM_TIMEOUT_SECONDS) as client:
+        timeout = TASK_LITELLM_TIMEOUT_SECONDS.get(request.task, LITELLM_TIMEOUT_SECONDS)
+        async with httpx.AsyncClient(transport=_transport, timeout=timeout) as client:
             response = await client.post(
                 f"{settings['litellm_base_url']}/v1/chat/completions",
                 json=payload,
@@ -243,6 +286,7 @@ async def health() -> dict[str, object]:
         "status": "ok",
         "model_alias": settings["litellm_alias"],
         "task_model_aliases": {task: _model_alias(task, settings) for task in TASK_PROMPT_IDS},
+        "task_aliases_configured": all(_model_alias(task, settings) for task in TASK_PROMPT_IDS),
         "litellm_configured": bool(settings["litellm_base_url"] and settings["litellm_api_key"]),
         "service_token_configured": bool(settings["service_token"]),
     }

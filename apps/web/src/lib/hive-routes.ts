@@ -13,3 +13,7 @@ export function hiveDocumentsPath(hiveId: string): string {
 export function hiveStudyPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/study`;
 }
+
+export function hiveReportsPath(hiveId: string): string {
+  return `${MY_HIVES_PATH}/${hiveId}/reports`;
+}

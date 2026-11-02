@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: workspaceRoot,
   outputFileTracingIncludes: {
     "/api/v1/hives/[hiveId]/study-preparation": ["../../prompts/**/*"],
+    "/api/internal/workflow": ["../../prompts/**/*"],
   },
   eslint: {
     dirs: ["src"],

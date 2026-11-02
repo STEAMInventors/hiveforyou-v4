@@ -1,0 +1,971 @@
+import { PLANNER_CONTRACT_VERSION, type PlannerTask, SOURCE_PAGES_PLACEHOLDER, type SourceSnapshot } from "@hiveforyou/contracts";
+import {
+  MAYA_DOCS,
+  MAYA_FILE_NAMES,
+  MAYA_INTENT_ID,
+  MAYA_INTENT_TEXT,
+  MAYA_PAGES,
+  MAYA_RUN_ID,
+  mayaStudyOutput,
+} from "@hiveforyou/contracts/testing";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { loadPromptCatalog, sha256Digest } from "@/server/study-preparation/prompt-catalog";
+import {
+  DOC_1,
+  DOC_2,
+  domainOutput,
+  INTENTS,
+  intelligenceOutput,
+  intentOutput,
+  planOutput,
+  RUN_ID,
+  runJson,
+  samplePages,
+  snapshotDocument,
+  sourceSnapshot,
+  UNKNOWN_AUDIENCE,
+} from "@/server/study-preparation/study-preparation.fixtures";
+
+import { type AnalysisWorkflowDeps, processAnalysisRun, renderSourcePages } from "./analysis-workflow";
+import type { WorkItem } from "./dispatch";
+
+const loadFrozen = vi.hoisted(() => vi.fn());
+vi.mock("@/server/study-preparation/page-sampling", async (importActual) => ({
+  ...(await importActual<typeof import("@/server/study-preparation/page-sampling")>()),
+  loadFrozenSampleDocuments: loadFrozen,
+}));
+vi.mock("@/server/observability/logger", () => ({ emitStructuredEvent: vi.fn() }));
+
+const TERMINAL = new Set(["SUCCEEDED", "FAILED", "NEEDS_CLARIFICATION"]);
+const REPORT_RUN_IDS = ["cccccccc-0000-4000-8000-000000000001", "cccccccc-0000-4000-8000-000000000002"];
+
+type Transition = { from: string; to: string; details: Record<string, unknown> };
+
+/**
+ * In-memory stand-in for the V4-004 workflow RPCs: compare-and-set transitions, claims and leases,
+ * stage retries (three attempts), persisted stage outputs, the saved preview and frozen pages.
+ */
+function fakeDatabase(
+  options: {
+    runId?: string;
+    status?: string;
+    intents?: { id: string; intentText: string; audience: string | null }[];
+    snapshot?: SourceSnapshot;
+    snapshotCurrent?: boolean;
+    tamperReadback?: boolean;
+    sourceChangedOn?: string;
+    pages?: Record<string, string>;
+    tamperPage?: boolean;
+    readsWaiting?: boolean;
+    /** Reading finished with material gaps never acknowledged in this Hive. */
+    readsFoundGaps?: boolean;
+    leased?: boolean;
+  } = {},
+) {
+  const runId = options.runId ?? RUN_ID;
+  const snapshot = options.snapshot ?? sourceSnapshot();
+  let status = options.status ?? "QUEUED";
+  let leased = options.leased ?? false;
+  let stageAttempt = 1;
+  const stageMetrics: Record<string, unknown>[] = [];
+  const stageOutputs: Record<string, unknown> = {};
+  const transitions: Transition[] = [];
+  const releases: { status: string; delay: number }[] = [];
+  const retries: { status: string; details: Record<string, unknown> }[] = [];
+  let saved: Record<string, unknown> | null = null;
+  let accepted: Record<string, unknown> | null = null;
+  const run = () => runJson(status, { id: runId, stageAttempt, stageMetrics: [...stageMetrics], snapshotFrozen: true });
+
+  const rpc = vi.fn(async (fn: string, args: Record<string, unknown> = {}) => {
+    switch (fn) {
+      case "claim_processing_run":
+        if (leased || TERMINAL.has(status) || status === "AWAITING_ACKNOWLEDGEMENT") {
+          return { data: { claimed: false, processingRun: run() }, error: null };
+        }
+        leased = true;
+        return { data: { claimed: true, processingRun: run() }, error: null };
+      case "release_processing_run":
+        leased = false;
+        releases.push({ status: String(args.p_status), delay: Number(args.p_delay_seconds) });
+        return { data: { released: true }, error: null };
+      case "retry_processing_run_stage": {
+        const details = args.p_details as Record<string, unknown>;
+        retries.push({ status: String(args.p_status), details });
+        if (details.stage_metric) stageMetrics.push(details.stage_metric as Record<string, unknown>);
+        leased = false;
+        if (stageAttempt < 3) {
+          stageAttempt += 1;
+          return { data: { retried: true, processingRun: run() }, error: null };
+        }
+        status = "FAILED";
+        return { data: { retried: false, processingRun: run() }, error: null };
+      }
+      case "transition_processing_run": {
+        if (args.p_from_status !== status) {
+          return { data: { applied: false, sourceChanged: false, processingRun: run() }, error: null };
+        }
+        if (options.sourceChangedOn === args.p_to_status) {
+          status = "FAILED";
+          return { data: { applied: false, sourceChanged: true, processingRun: run() }, error: null };
+        }
+        if (status === "READING_DOCUMENTS" && options.readsWaiting) {
+          return { data: { applied: false, waiting: true, processingRun: run() }, error: null };
+        }
+        if (status === "READING_DOCUMENTS" && options.readsFoundGaps) {
+          status = "AWAITING_ACKNOWLEDGEMENT";
+          leased = false;
+          return { data: { applied: false, awaitingAcknowledgement: true, processingRun: run() }, error: null };
+        }
+        const details = (args.p_details ?? {}) as Record<string, unknown>;
+        transitions.push({ from: String(args.p_from_status), to: String(args.p_to_status), details });
+        Object.assign(stageOutputs, details.stage_outputs ?? {});
+        if (details.stage_metric) stageMetrics.push(details.stage_metric as Record<string, unknown>);
+        status = String(args.p_to_status);
+        stageAttempt = 1;
+        return { data: { applied: true, sourceChanged: false, processingRun: run() }, error: null };
+      }
+      case "get_processing_run_queued_reads":
+        return { data: { readIds: [] }, error: null };
+      case "get_study_preparation_inputs":
+        return {
+          data: {
+            processingRun: run(),
+            sourceSnapshot: snapshot,
+            sourceSnapshotDigest: `sha256:${"c".repeat(64)}`,
+            intentSnapshotDigest: `sha256:${"d".repeat(64)}`,
+            coverageDigest: `sha256:${"e".repeat(64)}`,
+            snapshotCurrent: options.snapshotCurrent ?? true,
+            stageOutputs: { ...stageOutputs },
+            intents: options.intents ?? INTENTS,
+          },
+          error: null,
+        };
+      case "save_study_prompt_preview":
+        saved = args.p_preview as Record<string, unknown>;
+        return { data: { saved: true }, error: null };
+      case "read_study_prompt_preview":
+        return {
+          data: {
+            found: saved !== null,
+            preview: saved && {
+              processingRunId: runId,
+              promptId: saved.prompt_id,
+              promptText: options.tamperReadback ? `${String(saved.prompt_text)} ` : saved.prompt_text,
+              promptDigest: saved.prompt_digest,
+              executionManifest: saved.execution_manifest,
+            },
+          },
+          error: null,
+        };
+      case "get_study_source_pages": {
+        const pages = Object.entries(options.pages ?? {}).map(([key, text], index) => {
+          const [sourceDocumentId, pageNumber] = key.split(":");
+          const document = snapshot.documents.find((d) => d.sourceDocumentId === sourceDocumentId);
+          const stored = options.tamperPage && index === 0 ? `${text} (edited)` : text;
+          return {
+            sourceDocumentId,
+            pageNumber: Number(pageNumber),
+            pageText: stored,
+            pageTextSha256: sha256Digest(text),
+            pageSetDigest: document?.pageSetDigest,
+          };
+        });
+        return { data: { snapshotCurrent: true, pages }, error: null };
+      }
+      case "accept_study_revision":
+        accepted = args.p_revision as Record<string, unknown>;
+        status = "SUCCEEDED";
+        return {
+          data: {
+            created: true,
+            processingRun: run(),
+            reportRuns: REPORT_RUN_IDS.map((id) => ({ id, status: "QUEUED" })),
+          },
+          error: null,
+        };
+      default:
+        throw new Error(`unexpected rpc ${fn}`);
+    }
+  });
+  return {
+    client: { rpc },
+    transitions,
+    releases,
+    retries,
+    saved: () => saved,
+    accepted: () => accepted,
+    status: () => status,
+    stageOutputs,
+  };
+}
+
+function completion(task: PlannerTask, content: unknown) {
+  return {
+    contract_version: PLANNER_CONTRACT_VERSION,
+    task,
+    model_alias: task === "study" ? "heavy_lifter" : "sorter",
+    resolved_model: "synthetic-model",
+    content_json: content,
+    usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+    latency_ms: 900,
+    finish_reason: "stop",
+  };
+}
+
+function timeout() {
+  return new Response(JSON.stringify({ contract_version: "planner-error@1", error_code: "MODEL_TIMEOUT", retryable: true }), {
+    status: 504,
+  });
+}
+
+type PlannerBody = { task: PlannerTask; prompt_id: string; system_prompt: string; user_payload: Record<string, unknown> };
+
+function fakePlanner(
+  overrides: Partial<Record<PlannerTask, (call: number) => Response | null>> = {},
+  outputs: Partial<Record<PlannerTask, unknown>> = {},
+) {
+  const all: Partial<Record<PlannerTask, unknown>> = {
+    intent: intentOutput(),
+    domain: domainOutput(),
+    intelligence: intelligenceOutput(),
+    plan: planOutput(),
+    ...outputs,
+  };
+  const calls: PlannerTask[] = [];
+  const bodies: PlannerBody[] = [];
+  const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as PlannerBody;
+    calls.push(body.task);
+    bodies.push(body);
+    const override = overrides[body.task]?.(calls.filter((task) => task === body.task).length);
+    if (override) return override;
+    return new Response(JSON.stringify(completion(body.task, all[body.task])), { status: 200 });
+  });
+  return {
+    calls,
+    bodies,
+    deps: {
+      getConfig: () => ({ baseUrl: "https://reader.example.test/planner", serviceToken: "t", timeoutMs: 1000 }),
+      fetchFn: fetchFn as unknown as typeof fetch,
+    },
+  };
+}
+
+function harness(db: ReturnType<typeof fakeDatabase>, planner: ReturnType<typeof fakePlanner>) {
+  const dispatched: WorkItem[] = [];
+  const deps: AnalysisWorkflowDeps = {
+    client: db.client,
+    planner: planner.deps,
+    dispatch: vi.fn(async (item: WorkItem) => {
+      dispatched.push(item);
+      return true;
+    }),
+    loadCatalog: () => loadPromptCatalog(),
+  };
+  return { deps, dispatched };
+}
+
+/** Plays dispatcher and sweeper: a fresh invocation after every hand-off or stage retry. */
+async function drive(
+  db: ReturnType<typeof fakeDatabase>,
+  planner: ReturnType<typeof fakePlanner>,
+  runId = RUN_ID,
+  until?: string,
+) {
+  const h = harness(db, planner);
+  const modelCallsPerInvocation: number[] = [];
+  for (let invocation = 0; invocation < 30; invocation += 1) {
+    const callsBefore = planner.calls.length;
+    const dispatchedBefore = h.dispatched.length;
+    const retriesBefore = db.retries.length;
+    await processAnalysisRun(h.deps, runId);
+    modelCallsPerInvocation.push(planner.calls.length - callsBefore);
+    if (until && db.status() === until) break;
+    const handedOff = h.dispatched.slice(dispatchedBefore).some((item) => item.kind === "analysis");
+    const retried = db.retries.length > retriesBefore && !TERMINAL.has(db.status());
+    if (!handedOff && !retried) break;
+  }
+  return { ...h, modelCallsPerInvocation };
+}
+
+beforeEach(() => {
+  loadFrozen.mockReset();
+  loadFrozen.mockResolvedValue([samplePages(DOC_1), samplePages(DOC_2)]);
+});
+
+describe("processAnalysisRun: planning stages", () => {
+  it("runs one model stage per invocation, persists each output and hands off until the Study stage", async () => {
+    const db = fakeDatabase();
+    const planner = fakePlanner();
+
+    const { dispatched, modelCallsPerInvocation } = await drive(db, planner, RUN_ID, "INVESTIGATING");
+
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "plan"]);
+    expect(modelCallsPerInvocation.every((count) => count <= 1)).toBe(true);
+    expect(db.transitions.map((t) => t.to)).toEqual([
+      "UNDERSTANDING_REQUEST",
+      "IDENTIFYING_DOMAIN",
+      "DEVELOPING_QUESTIONS",
+      "PLANNING_INVESTIGATION",
+      "BUILDING_PROMPT",
+      "SAVING",
+      "INVESTIGATING",
+    ]);
+    expect(db.releases.map((r) => r.status)).toEqual([
+      "IDENTIFYING_DOMAIN",
+      "DEVELOPING_QUESTIONS",
+      "PLANNING_INVESTIGATION",
+      "INVESTIGATING",
+    ]);
+    expect(dispatched.every((item) => item.kind === "analysis" && item.id === RUN_ID)).toBe(true);
+
+    const [, toDomain, toQuestions, toPlan, toBuild] = db.transitions;
+    expect(Object.keys(toDomain!.details.stage_outputs as object)).toEqual(["intentDecomposition"]);
+    expect(Object.keys(toQuestions!.details.stage_outputs as object).sort()).toEqual(["domainProposal", "sampleCoverage"]);
+    expect(Object.keys(toPlan!.details.stage_outputs as object)).toEqual(["intentIntelligence"]);
+    expect(toPlan!.details.stage_metric).toMatchObject({
+      stage: "DEVELOPING_QUESTIONS",
+      outcome: "SUCCEEDED",
+      attempt: 1,
+      promptId: "hive-intent-intelligence/1",
+    });
+    expect(Object.keys(toBuild!.details.stage_outputs as object)).toEqual(["investigationPlan"]);
+
+    const saved = db.saved()!;
+    const promptText = String(saved.prompt_text);
+    expect(db.transitions.at(-1)!.details).toEqual({ prompt_digest: saved.prompt_digest });
+    expect(promptText).toContain(INTENTS[0]!.intentText);
+    expect(promptText).toContain("Procurement");
+    expect(promptText).toContain("#### P1 [COMPARISON] answers I1, I2");
+    expect(promptText).toContain(`- I2 [needs assessment] ${intelligenceOutput().questions[1]!.question}`);
+  });
+
+  it("sends the planning stage the resolved audience configuration", async () => {
+    const db = fakeDatabase();
+    const planner = fakePlanner();
+    await drive(db, planner, RUN_ID, "INVESTIGATING");
+    const plan = planner.bodies.find((body) => body.task === "plan")!;
+    expect(plan.user_payload.audienceConfiguration).toMatchObject({ customer: { status: "UNKNOWN" }, pro: { status: "UNKNOWN" } });
+  });
+
+  it("sends the domain stage only sampled page text, and the intent stage no document text", async () => {
+    const db = fakeDatabase();
+    const planner = fakePlanner();
+    await drive(db, planner, RUN_ID, "INVESTIGATING");
+    expect(JSON.stringify(planner.bodies[0]!.user_payload)).not.toContain("Supplier quotation");
+    expect(planner.bodies[0]!.user_payload).toMatchObject({ processingRunId: RUN_ID, domainContext: { label: "Unknown" } });
+    const samples = planner.bodies[1]!.user_payload.samples as { sourceDocumentId: string; pageNumber: number }[];
+    expect(samples.map((s) => `${s.sourceDocumentId}:${s.pageNumber}`)).toEqual([
+      `${DOC_1}:1`,
+      `${DOC_2}:1`,
+      `${DOC_1}:3`,
+      `${DOC_2}:3`,
+      `${DOC_1}:2`,
+      `${DOC_2}:2`,
+    ]);
+  });
+
+  it("fails the run at DEVELOPING_QUESTIONS when a decomposed question is not covered", async () => {
+    const db = fakeDatabase();
+    const partial = intelligenceOutput();
+    partial.questions = partial.questions.filter((question) => question.goalId === "G1");
+    const planner = fakePlanner({}, { intelligence: partial });
+
+    await drive(db, planner);
+    expect(db.status()).toBe("FAILED");
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence"]);
+    expect(db.transitions.at(-1)).toMatchObject({
+      from: "DEVELOPING_QUESTIONS",
+      to: "FAILED",
+      details: { error_code: "MODEL_OUTPUT_INVALID", stage_metric: { stage: "DEVELOPING_QUESTIONS", outcome: "FAILED" } },
+    });
+    expect(db.retries).toEqual([]);
+    expect(db.saved()).toBeNull();
+  });
+
+  it("fails the run with MODEL_OUTPUT_INVALID when the plan restates the request", async () => {
+    const db = fakeDatabase();
+    const restating = planOutput();
+    restating.questions[0]!.establish = INTENTS[0]!.intentText;
+    const planner = fakePlanner({}, { plan: restating });
+
+    await drive(db, planner);
+    expect(db.transitions.at(-1)).toMatchObject({
+      from: "PLANNING_INVESTIGATION",
+      to: "FAILED",
+      details: { error_code: "MODEL_OUTPUT_INVALID", stage_metric: { stage: "PLANNING_INVESTIGATION", outcome: "FAILED" } },
+    });
+    expect(db.saved()).toBeNull();
+  });
+
+  it("retries the same stage after a model timeout, then continues", async () => {
+    const db = fakeDatabase();
+    const planner = fakePlanner({ domain: (call) => (call === 1 ? timeout() : null) });
+
+    await drive(db, planner, RUN_ID, "INVESTIGATING");
+    expect(planner.calls).toEqual(["intent", "domain", "domain", "intelligence", "plan"]);
+    expect(db.retries).toHaveLength(1);
+    expect(db.retries[0]).toMatchObject({
+      status: "IDENTIFYING_DOMAIN",
+      details: { error_code: "MODEL_TIMEOUT", stage_metric: { stage: "IDENTIFYING_DOMAIN", outcome: "FAILED", attempt: 1 } },
+    });
+    expect(db.status()).toBe("INVESTIGATING");
+  });
+
+  it("fails after three timed-out attempts of one stage, without later stages", async () => {
+    const db = fakeDatabase();
+    const planner = fakePlanner({ domain: () => timeout() });
+
+    await drive(db, planner);
+    expect(planner.calls).toEqual(["intent", "domain", "domain", "domain"]);
+    expect(db.retries).toHaveLength(3);
+    expect(db.status()).toBe("FAILED");
+  });
+
+  it("fails with SOURCE_CHANGED before any model call when the frozen snapshot is stale", async () => {
+    const db = fakeDatabase({ snapshotCurrent: false });
+    const planner = fakePlanner();
+    await drive(db, planner);
+    expect(planner.calls).toEqual([]);
+    expect(db.transitions.at(-1)).toMatchObject({ to: "FAILED", details: { error_code: "SOURCE_CHANGED" } });
+  });
+
+  it("stops without its own FAILED transition when the database already failed the run as SOURCE_CHANGED", async () => {
+    const db = fakeDatabase({ sourceChangedOn: "PLANNING_INVESTIGATION" });
+    const planner = fakePlanner();
+    await drive(db, planner);
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence"]);
+    expect(db.transitions.some((t) => t.to === "FAILED")).toBe(false);
+    expect(db.status()).toBe("FAILED");
+  });
+
+  it("makes no model call when the run has no stored request", async () => {
+    const db = fakeDatabase({ intents: [] });
+    const planner = fakePlanner();
+    await drive(db, planner);
+    expect(planner.calls).toEqual([]);
+    expect(db.transitions.at(-1)!.details).toMatchObject({ error_code: "INVALID_REQUEST", retryable: false });
+  });
+
+  it("does nothing when another invocation holds the lease", async () => {
+    const db = fakeDatabase({ status: "UNDERSTANDING_REQUEST", leased: true });
+    const planner = fakePlanner();
+    const { dispatched } = await drive(db, planner);
+    expect(planner.calls).toEqual([]);
+    expect(db.transitions).toEqual([]);
+    expect(dispatched).toEqual([]);
+  });
+
+  it("never reaches the Study stage when the saved prompt does not read back identically", async () => {
+    const db = fakeDatabase({ tamperReadback: true });
+    const planner = fakePlanner();
+    await drive(db, planner);
+    expect(db.transitions.at(-1)).toMatchObject({ from: "SAVING", to: "FAILED", details: { error_code: "PERSISTENCE_FAILED" } });
+    expect(planner.calls).not.toContain("study");
+  });
+});
+
+describe("processAnalysisRun: reading documents", () => {
+  it("waits without a model call while reads are still running, and checks again later", async () => {
+    const db = fakeDatabase({ status: "READING_DOCUMENTS", readsWaiting: true });
+    const planner = fakePlanner();
+    const { dispatched } = await drive(db, planner);
+    expect(planner.calls).toEqual([]);
+    expect(db.releases).toEqual([{ status: "READING_DOCUMENTS", delay: 15 }]);
+    expect(dispatched).toEqual([]);
+  });
+
+  it("hands the request stage to a fresh invocation once reading is done", async () => {
+    const db = fakeDatabase({ status: "READING_DOCUMENTS" });
+    const planner = fakePlanner();
+    const h = harness(db, planner);
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("UNDERSTANDING_REQUEST");
+    expect(planner.calls).toEqual([]);
+    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID }]);
+  });
+
+  it("pauses for the owner when reading found new material gaps: no model call, no handoff, nothing to claim", async () => {
+    const db = fakeDatabase({ status: "READING_DOCUMENTS", readsFoundGaps: true });
+    const planner = fakePlanner();
+    const h = harness(db, planner);
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("AWAITING_ACKNOWLEDGEMENT");
+    expect(planner.calls).toEqual([]);
+    expect(h.dispatched).toEqual([]);
+    expect(db.releases).toEqual([]);
+    expect(db.transitions).toEqual([]);
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("AWAITING_ACKNOWLEDGEMENT");
+    expect(planner.calls).toEqual([]);
+    expect(h.dispatched).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Full chain over the synthetic Maya records: planning → Study → accepted revision → Writers queued.
+// ---------------------------------------------------------------------------
+const MAYA_DOC_IDS = Object.values(MAYA_DOCS);
+const MAYA_SHA = `sha256:${"f".repeat(64)}`;
+
+function mayaSnapshot(): SourceSnapshot {
+  return sourceSnapshot({
+    documents: MAYA_DOC_IDS.map((id) =>
+      snapshotDocument(id, MAYA_FILE_NAMES[id]!, {
+        pageSetDigest: MAYA_SHA,
+        totalPhysicalPages: id === MAYA_DOCS.iep2025 ? 2 : 1,
+        verifiedPageCount: id === MAYA_DOCS.iep2025 ? 2 : 1,
+      }),
+    ),
+  });
+}
+
+function mayaOutputs() {
+  const question = (id: string, text: string) => ({ questionId: id, question: text, answerForm: "EXPLANATION", needsJudgment: false, dependsOn: [] });
+  const specialistQuestion = (id: string, q: string, text: string) => ({
+    id,
+    goalId: "G1",
+    analysisQuestionIds: [q],
+    question: text,
+    whyItMatters: `Without ${id} the answer would be incomplete.`,
+    supportsOutcome: "Preparing for the meeting.",
+    dependsOn: [],
+    requiresJudgment: false,
+    judgmentBasis: null,
+    contextRefs: [],
+  });
+  const planQuestion = (id: string, specialistId: string, answerType: string) => ({
+    id,
+    goalId: "G1",
+    specialistQuestionIds: [specialistId],
+    establish: `What the records show for ${specialistId}.`,
+    requiredEvidence: ["The pages that state it"],
+    sourceDependencies: ["The records named in the documents"],
+    comparison: null,
+    chronology: null,
+    calculation: answerType === "CALCULATION" ? "Measured values against the stated targets" : null,
+    evaluation: null,
+    missingEvidenceConditions: ["No page states it"],
+    answerType,
+    deliverable: "A sourced answer with page references.",
+    dependsOn: [],
+    domainConsiderationRefs: [],
+  });
+  return {
+    intent: {
+      schema: "hive.intent-analysis/1",
+      processingRunId: MAYA_RUN_ID,
+      subjects: [],
+      goals: [
+        {
+          goalId: "G1",
+          intentRequestId: MAYA_INTENT_ID,
+          statedAs: MAYA_INTENT_TEXT,
+          goal: "Understand the plan, prepare for the meeting and judge progress",
+          questions: [
+            question("Q1", "Is reading progressing toward the goal?"),
+            question("Q2", "Are the planned services being delivered?"),
+            question("Q3", "What evidence is missing before the meeting?"),
+          ],
+          unclear: [],
+        },
+      ],
+      reservedDecisions: [],
+      instructionsIgnored: [],
+      audienceAnalysis: UNKNOWN_AUDIENCE,
+    },
+    domain: {
+      primary: {
+        label: "Special education",
+        subdomain: "Annual plan review",
+        confidence: "MEDIUM",
+        reasoning: "Sampled page headings.",
+        supportingRefs: [{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1 }],
+      },
+      alternatives: [],
+      unknownDomain: false,
+      mixedDomain: false,
+      ambiguous: false,
+      ambiguityNotes: [],
+    },
+    intelligence: {
+      questions: [
+        specialistQuestion("I1", "Q1", "How far has each measured skill moved from baseline toward its target?"),
+        specialistQuestion("I2", "Q2", "How many service minutes were delivered against the minutes required?"),
+        specialistQuestion("I3", "Q3", "Which assessments or scores are referred to but missing?"),
+      ],
+      completenessReview: [{ goalId: "G1", wouldFulfilIntent: true, gapsFound: [], revisions: [], remainingLimits: [] }],
+      audience: UNKNOWN_AUDIENCE,
+      audienceChanges: [],
+    },
+    plan: {
+      domainBasis: { primaryDomain: "Special education", uncertain: false, considerations: [] },
+      questions: [planQuestion("P1", "I1", "CALCULATION"), planQuestion("P2", "I2", "CALCULATION"), planQuestion("P3", "I3", "FACT")],
+    },
+    study: mayaStudyOutput(),
+  };
+}
+
+function mayaDatabase(overrides: Parameters<typeof fakeDatabase>[0] = {}) {
+  return fakeDatabase({
+    runId: MAYA_RUN_ID,
+    intents: [{ id: MAYA_INTENT_ID, intentText: MAYA_INTENT_TEXT, audience: null }],
+    snapshot: mayaSnapshot(),
+    pages: MAYA_PAGES,
+    ...overrides,
+  });
+}
+
+describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
+  beforeEach(() => {
+    loadFrozen.mockResolvedValue(
+      MAYA_DOC_IDS.map((id) => ({
+        sourceDocumentId: id,
+        pages: Object.entries(MAYA_PAGES)
+          .filter(([key]) => key.startsWith(`${id}:`))
+          .map(([key, text]) => ({ pageNumber: Number(key.split(":")[1]), text })),
+      })),
+    );
+  });
+
+  it("runs the whole chain once, accepts one validated Study and queues both Writers", async () => {
+    const db = mayaDatabase();
+    const planner = fakePlanner({}, mayaOutputs());
+
+    const { dispatched, modelCallsPerInvocation } = await drive(db, planner, MAYA_RUN_ID);
+
+    expect(db.status()).toBe("SUCCEEDED");
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "plan", "study"]);
+    expect(modelCallsPerInvocation.every((count) => count <= 1)).toBe(true);
+    expect(db.transitions.map((t) => t.to).slice(-3)).toEqual(["INVESTIGATING", "VERIFYING_EVIDENCE", "ACCEPTING_STUDY"]);
+
+    const study = planner.bodies.find((body) => body.task === "study")!;
+    const saved = db.saved()!;
+    expect(study.prompt_id).toBe(saved.prompt_id);
+    expect(study.system_prompt).toContain(MAYA_PAGES[`${MAYA_DOCS.serviceLog}:1`]);
+    expect(study.system_prompt).toContain(`### ${MAYA_DOCS.iep2025} · page 2`);
+    expect(study.system_prompt).not.toContain(SOURCE_PAGES_PLACEHOLDER);
+
+    const revision = db.accepted()!;
+    expect(revision.investigation_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(revision.model_alias).toBe("heavy_lifter");
+    expect(revision.audience_configuration).toMatchObject({ customer: { status: "UNKNOWN" } });
+    expect(revision.verification).toBeTruthy();
+
+    expect(dispatched.filter((item) => item.kind === "report")).toEqual(REPORT_RUN_IDS.map((id) => ({ kind: "report", id })));
+  });
+
+  it("fails the run and accepts nothing when a Study quote is not on its page", async () => {
+    const outputs = mayaOutputs();
+    outputs.study.answers[0]!.facts[0]!.evidence[0]!.quote = "Baseline: 61 words correct per minute.";
+    const db = mayaDatabase();
+    const planner = fakePlanner({}, outputs);
+
+    await drive(db, planner, MAYA_RUN_ID);
+
+    expect(db.status()).toBe("FAILED");
+    expect(db.transitions.at(-1)).toMatchObject({
+      from: "INVESTIGATING",
+      to: "FAILED",
+      details: { error_code: "MODEL_OUTPUT_INVALID", stage_metric: { stage: "INVESTIGATING", outcome: "FAILED" } },
+    });
+    expect(db.accepted()).toBeNull();
+  });
+
+  it("never sends pages to the model when a stored page no longer matches its hash", async () => {
+    const db = mayaDatabase({ tamperPage: true });
+    const planner = fakePlanner({}, mayaOutputs());
+
+    await drive(db, planner, MAYA_RUN_ID);
+
+    expect(planner.calls).not.toContain("study");
+    expect(db.transitions.at(-1)).toMatchObject({ from: "INVESTIGATING", to: "FAILED" });
+    expect(db.accepted()).toBeNull();
+  });
+
+  it("retries a timed-out Study call without rerunning the planning stages", async () => {
+    const db = mayaDatabase();
+    const planner = fakePlanner({ study: (call) => (call === 1 ? timeout() : null) }, mayaOutputs());
+
+    await drive(db, planner, MAYA_RUN_ID);
+
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "plan", "study", "study"]);
+    expect(db.status()).toBe("SUCCEEDED");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression scenarios (synthetic). The specialist questions are model output supplied by the
+// fake planner; the assertions are structural so no domain wording lives in production code.
+// ---------------------------------------------------------------------------
+type Scenario = {
+  intents: { id: string; intentText: string; audience: string | null }[];
+  snapshot: SourceSnapshot;
+  outputs: Partial<Record<PlannerTask, unknown>>;
+};
+
+type ScenarioQuestion = { id: string; goalId: string; question: string; requiresJudgment: boolean };
+
+function ref(sourceDocumentId: string, pageNumber: number) {
+  return { sourceDocumentId, pageNumber };
+}
+
+function analysisQuestion(id: string, question: string, answerForm: string, dependsOn: string[] = []) {
+  return { questionId: id, question, answerForm, needsJudgment: false, dependsOn };
+}
+
+function goal(goalId: string, intentRequestId: string, statedAs: string, goalText: string, questions: unknown[]) {
+  return { goalId, intentRequestId, statedAs, goal: goalText, questions, unclear: [] };
+}
+
+function specialist(
+  id: string,
+  goalId: string,
+  analysisQuestionIds: string[],
+  question: string,
+  judgmentBasis: string | null = null,
+  dependsOn: string[] = [],
+) {
+  return {
+    id,
+    goalId,
+    analysisQuestionIds,
+    question,
+    whyItMatters: `Without ${id} the answer would be incomplete.`,
+    supportsOutcome: `The decision behind ${goalId}.`,
+    dependsOn,
+    requiresJudgment: judgmentBasis !== null,
+    judgmentBasis,
+    contextRefs: [],
+  };
+}
+
+function review(goalId: string, remainingLimits: string[] = []) {
+  return { goalId, wouldFulfilIntent: true, gapsFound: [], revisions: [], remainingLimits };
+}
+
+function planItem(
+  id: string,
+  goalId: string,
+  specialistQuestionIds: string[],
+  answerType: string,
+  logic: { comparison?: string; chronology?: string; calculation?: string; evaluation?: string } = {},
+) {
+  return {
+    id,
+    goalId,
+    specialistQuestionIds,
+    establish: `What the documents show for ${specialistQuestionIds.join(" and ")}.`,
+    requiredEvidence: ["The pages that state it"],
+    sourceDependencies: ["The source records named in the documents"],
+    comparison: logic.comparison ?? null,
+    chronology: logic.chronology ?? null,
+    calculation: logic.calculation ?? null,
+    evaluation: logic.evaluation ?? null,
+    missingEvidenceConditions: ["No page states it"],
+    answerType,
+    deliverable: "A sourced answer with page references.",
+    dependsOn: [],
+    domainConsiderationRefs: [],
+  };
+}
+
+function domainProposal(label: string, subdomain: string) {
+  return {
+    primary: { label, subdomain, confidence: "MEDIUM", reasoning: "Sampled page headings.", supportingRefs: [ref(DOC_1, 1)] },
+    alternatives: [],
+    unknownDomain: false,
+    mixedDomain: false,
+    ambiguous: false,
+    ambiguityNotes: [],
+  };
+}
+
+const PLAN_INTENT_1 = "aaaaaaaa-1111-4111-8111-000000000001";
+const PLAN_INTENT_2 = "aaaaaaaa-1111-4111-8111-000000000002";
+const PLAN_INTENT_3 = "aaaaaaaa-1111-4111-8111-000000000003";
+
+function planReviewScenario(): Scenario {
+  return {
+    intents: [
+      {
+        id: PLAN_INTENT_1,
+        intentText: "Compare the draft plan with last year's plan and tell me what changed in her services and goals.",
+        audience: "My husband and me, before the meeting",
+      },
+      { id: PLAN_INTENT_2, intentText: "Is cutting her speech therapy supported by her latest evaluation?", audience: null },
+      { id: PLAN_INTENT_3, intentText: "What should I ask the school team at the November meeting?", audience: "The school team" },
+    ],
+    snapshot: sourceSnapshot({
+      documents: [snapshotDocument(DOC_1, "Prior plan.pdf"), snapshotDocument(DOC_2, "Draft plan.pdf")],
+    }),
+    outputs: {
+      intent: {
+        schema: "hive.intent-analysis/1",
+        processingRunId: RUN_ID,
+        subjects: [],
+        goals: [
+          goal(
+            "G1",
+            PLAN_INTENT_1,
+            "Compare the draft plan with last year's plan and tell me what changed in her services and goals.",
+            "Compare draft and prior plan for service and goal changes",
+            [
+              analysisQuestion("Q1", "Which services changed in minutes, frequency or setting?", "COMPARISON"),
+              analysisQuestion("Q2", "Which annual goals were added, removed or rewritten?", "COMPARISON"),
+            ],
+          ),
+          goal(
+            "G2",
+            PLAN_INTENT_2,
+            "Is cutting her speech therapy supported by her latest evaluation?",
+            "Determine whether the speech reduction is supported by the evaluation",
+            [analysisQuestion("Q3", "What do the evaluation findings say about speech needs?", "EXPLANATION")],
+          ),
+          goal(
+            "G3",
+            PLAN_INTENT_3,
+            "What should I ask the school team at the November meeting?",
+            "Prepare questions for the November school team meeting",
+            [analysisQuestion("Q4", "Which changes or gaps are unexplained in the documents?", "LIST", ["Q1", "Q2", "Q3"])],
+          ),
+        ],
+        reservedDecisions: [],
+        instructionsIgnored: [],
+        audienceAnalysis: UNKNOWN_AUDIENCE,
+      },
+      domain: domainProposal("Special education", "Annual plan review"),
+      intelligence: {
+        questions: [
+          specialist("I1", "G1", ["Q1"], "For each service, what are the minutes, frequency and setting in each plan, and what is the net change?"),
+          specialist("I2", "G1", ["Q2"], "Which goals are carried over unchanged despite progress data showing they were not met?", "Progress reports against each goal's stated measure.", ["I3"]),
+          specialist("I3", "G1", ["Q2"], "What progress is reported on each prior goal, and by what measure?"),
+          specialist("I4", "G2", ["Q3"], "Which evaluation scores and recommendations concern expressive and receptive language?"),
+          specialist("I5", "G2", ["Q3"], "Does the reduction in speech minutes follow from the evaluation's findings and recommendations?", "Consistency between the evaluation recommendation and the draft service minutes.", ["I1", "I4"]),
+          specialist("I6", "G3", ["Q4"], "Which changes have no stated reason anywhere in the documents?", null, ["I1", "I2", "I5"]),
+          specialist("I7", "G3", ["Q4"], "Which records are referred to but not provided, such as progress reports or evaluations?"),
+        ],
+        completenessReview: [
+          review("G1"),
+          review("G2", ["The evaluator's full report may hold reasoning not in the summary."]),
+          review("G3"),
+        ],
+        audience: UNKNOWN_AUDIENCE,
+        audienceChanges: [],
+      },
+      plan: {
+        domainBasis: { primaryDomain: "Special education", uncertain: false, considerations: [] },
+        questions: [
+          planItem("P1", "G1", ["I1"], "COMPARISON", { comparison: "Prior plan services against draft plan services" }),
+          planItem("P2", "G1", ["I2", "I3"], "COMPARISON", {
+            comparison: "Prior goals against draft goals",
+            evaluation: "Whether unmet goals were carried over, judged against reported progress.",
+          }),
+          planItem("P3", "G2", ["I4", "I5"], "FACT", { evaluation: "Whether the draft minutes follow the evaluation recommendation." }),
+          planItem("P4", "G3", ["I6", "I7"], "FACT"),
+        ],
+      },
+    },
+  };
+}
+
+const NEUTRAL_INTENT_1 = "bbbbbbbb-2222-4222-8222-000000000001";
+const NEUTRAL_INTENT_2 = "bbbbbbbb-2222-4222-8222-000000000002";
+
+function neutralScenario(): Scenario {
+  return {
+    intents: [
+      { id: NEUTRAL_INTENT_1, intentText: "Was my water damage claim underpaid?", audience: null },
+      { id: NEUTRAL_INTENT_2, intentText: "What do I need to send the insurer, and by when?", audience: "My contractor" },
+    ],
+    snapshot: sourceSnapshot({
+      documents: [snapshotDocument(DOC_1, "Policy.pdf"), snapshotDocument(DOC_2, "Settlement letter.pdf")],
+    }),
+    outputs: {
+      intent: {
+        schema: "hive.intent-analysis/1",
+        processingRunId: RUN_ID,
+        subjects: [],
+        goals: [
+          goal("G1", NEUTRAL_INTENT_1, "Was my water damage claim underpaid?", "Determine whether the water damage claim was underpaid", [
+            analysisQuestion("Q1", "How was the settlement amount calculated?", "VALUE"),
+          ]),
+          goal(
+            "G2",
+            NEUTRAL_INTENT_2,
+            "What do I need to send the insurer, and by when?",
+            "Identify required submissions and deadlines for the insurer",
+            [analysisQuestion("Q2", "Which documents and dates does the insurer require?", "LIST")],
+          ),
+        ],
+        reservedDecisions: [],
+        instructionsIgnored: [],
+        audienceAnalysis: UNKNOWN_AUDIENCE,
+      },
+      domain: domainProposal("Property insurance", "Water damage claim"),
+      intelligence: {
+        questions: [
+          specialist("I1", "G1", ["Q1"], "Which line items, deductible and depreciation make up the settlement amount?"),
+          specialist("I2", "G1", ["Q1"], "Do any exclusions or sublimits the insurer cites match the policy wording?", "The policy's exclusion and sublimit clauses as written.", ["I1"]),
+          specialist("I3", "G2", ["Q2"], "Which proof-of-loss documents and dates does the letter or policy require?"),
+        ],
+        completenessReview: [review("G1", ["Repair costs are not in the documents."]), review("G2")],
+        audience: UNKNOWN_AUDIENCE,
+        audienceChanges: [],
+      },
+      plan: {
+        domainBasis: { primaryDomain: "Property insurance", uncertain: false, considerations: [] },
+        questions: [
+          planItem("P1", "G1", ["I1", "I2"], "CALCULATION", {
+            calculation: "Sum of line items less deductible and depreciation",
+            evaluation: "Whether each cited exclusion matches the policy clause.",
+          }),
+          planItem("P2", "G2", ["I3"], "CHRONOLOGY", { chronology: "Order each required item by its due date" }),
+        ],
+      },
+    },
+  };
+}
+
+describe.each([
+  ["multi-intent plan review", planReviewScenario],
+  ["domain-neutral insurance claim", neutralScenario],
+])("regression: %s", (_name, build) => {
+  it("carries every specialist question through planning into the Study Prompt Preview", async () => {
+    const scenario = build();
+    const db = fakeDatabase({ intents: scenario.intents, snapshot: scenario.snapshot });
+    const planner = fakePlanner({}, scenario.outputs);
+    await drive(db, planner, RUN_ID, "INVESTIGATING");
+    expect(db.status()).toBe("INVESTIGATING");
+
+    const saved = db.saved()!;
+    const promptText = String(saved.prompt_text);
+    const intelligence = scenario.outputs.intelligence as { questions: ScenarioQuestion[] };
+    const plan = scenario.outputs.plan as { questions: { id: string; specialistQuestionIds: string[]; evaluation: string | null }[] };
+
+    expect(db.transitions[3]!.details.stage_outputs).toMatchObject({ intentIntelligence: { schema: "hive.intent-intelligence/1" } });
+    for (const intent of scenario.intents) {
+      expect(promptText).toContain(intent.intentText);
+      if (intent.audience) expect(promptText).toContain(`For: ${intent.audience}`);
+    }
+    for (const question of intelligence.questions) {
+      expect(promptText).toContain(`- ${question.id}${question.requiresJudgment ? " [needs assessment]" : ""} ${question.question}`);
+      const serving = plan.questions.filter((p) => p.specialistQuestionIds.includes(question.id));
+      expect(serving.length).toBeGreaterThan(0);
+      if (question.requiresJudgment) expect(serving.some((p) => p.evaluation !== null)).toBe(true);
+    }
+    expect(saved.execution_manifest).toMatchObject({
+      requiredInputs: { intentIntelligence: { questionIds: intelligence.questions.map((q) => q.id) } },
+    });
+    expect(promptText).toContain("What the documents alone may not settle:");
+  });
+});
+
+describe("renderSourcePages", () => {
+  it("renders one heading per page followed by its stored text", () => {
+    expect(
+      renderSourcePages([
+        { sourceDocumentId: DOC_1, pageNumber: 1, text: "First" },
+        { sourceDocumentId: DOC_1, pageNumber: 2, text: "Second" },
+      ]),
+    ).toBe(`### ${DOC_1} · page 1\n\nFirst\n\n### ${DOC_1} · page 2\n\nSecond`);
+  });
+});

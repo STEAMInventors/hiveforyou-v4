@@ -3,16 +3,16 @@
 import {
   analyzeAvailability,
   type AnalyzeAvailability,
+  documentsToRead,
   type GetStudyPreparationResponse,
   isActiveProcessingRunStatus,
+  isActiveReportRunStatus,
   type ProcessingRun,
 } from "@hiveforyou/contracts";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { hiveStudyPath } from "@/lib/hive-routes";
 import { HiveClientError } from "@/lib/hives-client";
-import { fetchStudyPreparation, startStudyPreparation } from "@/lib/study-preparation-client";
+import { acknowledgeStudyCoverage, fetchStudyPreparation, startStudyPreparation } from "@/lib/study-preparation-client";
 
 import { DOCUMENT_READ_POLL_INTERVAL_MS, pollStateFromFailures } from "./document-read-progress";
 
@@ -21,6 +21,21 @@ export type AnalyzeModalMode = "confirm" | "progress";
 
 function isActive(run: ProcessingRun | null | undefined): boolean {
   return !!run && isActiveProcessingRunStatus(run.status);
+}
+
+function isAwaiting(run: ProcessingRun | null | undefined): boolean {
+  return run?.status === "AWAITING_ACKNOWLEDGEMENT";
+}
+
+/**
+ * Work still moving for this Hive: the analysis run, or a Writer run of the accepted Study. A run
+ * waiting for the owner's coverage review is not moving, so it is not polled.
+ */
+function isWorking(state: Pick<GetStudyPreparationResponse, "processingRun" | "reportRuns"> | null): boolean {
+  if (!state) return false;
+  if (isAwaiting(state.processingRun)) return false;
+  if (isActive(state.processingRun)) return true;
+  return state.processingRun?.status === "SUCCEEDED" && state.reportRuns.some((run) => isActiveReportRunStatus(run.status));
 }
 
 function minimizedKey(hiveId: string): string {
@@ -47,11 +62,10 @@ function writeMinimized(hiveId: string, runId: string | null): void {
 
 /**
  * Durable Analyze progress for one Hive: state always comes from `GET …/study-preparation`, so
- * closing the modal, refreshing or reconnecting never loses progress. Polls only while a run is
- * active, and opens the Study tab when the run it watched succeeds.
+ * closing the modal, refreshing or reconnecting never loses progress. Polls while the analysis or
+ * either Writer run is still moving, so the modal follows every stage through to both reports.
  */
 export function useStudyPreparation(hiveId: string) {
-  const router = useRouter();
   const [state, setState] = useState<GetStudyPreparationResponse | null>(null);
   const [modalMode, setModalMode] = useState<AnalyzeModalMode | null>(null);
   const [starting, setStarting] = useState(false);
@@ -60,6 +74,7 @@ export function useStudyPreparation(hiveId: string) {
   const [authExpired, setAuthExpired] = useState(false);
 
   const runRef = useRef<ProcessingRun | null>(null);
+  const stateRef = useRef<GetStudyPreparationResponse | null>(null);
   const startingRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const requestSeqRef = useRef(0);
@@ -76,18 +91,16 @@ export function useStudyPreparation(hiveId: string) {
 
   const apply = useCallback(
     (next: GetStudyPreparationResponse) => {
-      const previous = runRef.current;
+      const wasWorking = isWorking(stateRef.current);
       runRef.current = next.processingRun;
+      stateRef.current = next;
       setState(next);
-      if (isActive(previous) && !isActive(next.processingRun)) {
+      if (wasWorking && !isWorking(next)) {
         stopPolling();
         writeMinimized(hiveId, null);
-        if (next.processingRun?.status === "SUCCEEDED" && next.processingRun.id === previous?.id) {
-          router.push(hiveStudyPath(hiveId));
-        }
       }
     },
-    [hiveId, router, stopPolling],
+    [hiveId, stopPolling],
   );
 
   const refresh = useCallback(async () => {
@@ -121,11 +134,10 @@ export function useStudyPreparation(hiveId: string) {
       .then((result) => {
         if (cancelled || settledSeqRef.current > 0) return;
         runRef.current = result.processingRun;
+        stateRef.current = result;
         setState(result);
-        if (isActive(result.processingRun)) {
-          startPolling();
-          if (readMinimized(hiveId) !== result.processingRun?.id) setModalMode("progress");
-        }
+        if (isWorking(result)) startPolling();
+        if (isActive(result.processingRun) && readMinimized(hiveId) !== result.processingRun?.id) setModalMode("progress");
       })
       .catch(() => undefined);
     return () => {
@@ -136,14 +148,14 @@ export function useStudyPreparation(hiveId: string) {
 
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible" && isActive(runRef.current)) void refresh();
+      if (document.visibilityState === "visible" && isWorking(stateRef.current)) void refresh();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refresh]);
 
   const start = useCallback(
-    async (coverageAcknowledgementDigest?: string) => {
+    async (consent?: { coverageAcknowledgementDigest: string }) => {
       if (startingRef.current) return;
       startingRef.current = true;
       setStarting(true);
@@ -151,10 +163,14 @@ export function useStudyPreparation(hiveId: string) {
       try {
         const result = await startStudyPreparation(hiveId, {
           clientRequestId: crypto.randomUUID(),
-          ...(coverageAcknowledgementDigest ? { coverageAcknowledgementDigest } : {}),
+          ...(consent ? { coverageAcknowledgementDigest: consent.coverageAcknowledgementDigest } : {}),
         });
         runRef.current = result.processingRun;
-        setState((current) => (current ? { ...current, processingRun: result.processingRun } : current));
+        setState((current) => {
+          const next = current ? { ...current, processingRun: result.processingRun, reportRuns: [] } : current;
+          stateRef.current = next;
+          return next;
+        });
         writeMinimized(hiveId, null);
         setModalMode("progress");
         if (isActive(result.processingRun)) startPolling();
@@ -177,9 +193,19 @@ export function useStudyPreparation(hiveId: string) {
     ? analyzeAvailability(state.eligibility, state.processingRun)
     : null;
 
-  /** Analyze click: review coverage gaps first when coverage is partial, otherwise start. */
+  /**
+   * Analyze click: starts directly unless material gaps already known now were never acknowledged
+   * in this Hive; then the owner reviews them first. Gaps that reading discovers later pause the
+   * run (AWAITING_ACKNOWLEDGEMENT) for `acknowledge`.
+   */
   const analyze = useCallback(() => {
-    if (!availability?.canAnalyze) return;
+    if (!availability?.canAnalyze) {
+      if (availability?.reason === "AWAITING_ACKNOWLEDGEMENT") {
+        setStartError(null);
+        setModalMode("progress");
+      }
+      return;
+    }
     if (availability.requiresCoverageAcknowledgement) {
       setStartError(null);
       setModalMode("confirm");
@@ -189,8 +215,41 @@ export function useStudyPreparation(hiveId: string) {
   }, [availability, start]);
 
   const confirmCoverage = useCallback(() => {
-    if (state) void start(state.eligibility.coverageDigest);
+    if (state) void start({ coverageAcknowledgementDigest: state.eligibility.coverageDigest });
   }, [start, state]);
+
+  /** The owner continues a paused run with what was read; no document is read again. */
+  const acknowledge = useCallback(async () => {
+    const run = runRef.current;
+    if (!isAwaiting(run) || !run?.coverageDigest || startingRef.current) return;
+    startingRef.current = true;
+    setStarting(true);
+    setStartError(null);
+    try {
+      const result = await acknowledgeStudyCoverage(hiveId, {
+        processingRunId: run.id,
+        coverageDigest: run.coverageDigest,
+      });
+      runRef.current = result.processingRun;
+      setState((current) => {
+        const next = current ? { ...current, processingRun: result.processingRun } : current;
+        stateRef.current = next;
+        return next;
+      });
+      if (isActive(result.processingRun) && !isAwaiting(result.processingRun)) startPolling();
+      void refresh();
+    } catch (error) {
+      setStartError(
+        error instanceof HiveClientError
+          ? { message: error.message, correlationId: error.correlationId || null }
+          : { message: "Could not continue the analysis. Try again.", correlationId: null },
+      );
+      void refresh();
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
+    }
+  }, [hiveId, refresh, startPolling]);
 
   const closeModal = useCallback(() => {
     if (isActive(runRef.current)) writeMinimized(hiveId, runRef.current?.id ?? null);
@@ -205,8 +264,11 @@ export function useStudyPreparation(hiveId: string) {
   return {
     state,
     run: state?.processingRun ?? null,
+    reportRuns: state?.reportRuns ?? [],
+    toRead: state ? documentsToRead(state.eligibility) : [],
     availability,
     active: isActive(state?.processingRun),
+    awaiting: isAwaiting(state?.processingRun),
     modalMode,
     starting,
     startError,
@@ -214,6 +276,7 @@ export function useStudyPreparation(hiveId: string) {
     returnFocusRef,
     analyze,
     confirmCoverage,
+    acknowledge,
     retry: analyze,
     refresh,
     openModal,

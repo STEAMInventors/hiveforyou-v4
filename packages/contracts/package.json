@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./errors/v1": "./src/errors/v1/index.ts",
-    "./document-read": "./src/source-documents/document-read-contracts.ts"
+    "./document-read": "./src/source-documents/document-read-contracts.ts",
+    "./testing": "./src/testing/maya-fixture.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

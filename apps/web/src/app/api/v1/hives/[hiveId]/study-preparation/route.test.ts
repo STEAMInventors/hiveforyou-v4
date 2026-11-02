@@ -4,16 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const nextServer = vi.hoisted(() => ({ after: vi.fn() }));
 const auth = vi.hoisted(() => ({ requireApiSupabaseClient: vi.fn() }));
-const preparation = vi.hoisted(() => ({
-  getStudyPreparation: vi.fn(),
-  startStudyPreparation: vi.fn(),
-  processStudyPreparationSafely: vi.fn(async () => undefined),
-}));
+const preparation = vi.hoisted(() => ({ getStudyPreparation: vi.fn(), startStudyPreparation: vi.fn() }));
 const planner = vi.hoisted(() => ({ loadPlannerServiceConfig: vi.fn() }));
-const catalog = vi.hoisted(() => ({ loadPromptCatalog: vi.fn(() => ({ kind: "catalog" })) }));
-const admin = vi.hoisted(() => ({
-  loadSupabaseAdminEnv: vi.fn(() => ({ SUPABASE_URL: "https://db.test", SUPABASE_SECRET_KEY: "synthetic" })),
-  createSupabaseAdminClient: vi.fn(() => ({ kind: "service" })),
+const workflow = vi.hoisted(() => ({ processAnalysisRunSafely: vi.fn(async () => undefined) }));
+const worker = vi.hoisted(() => ({
+  createWorkerDeps: vi.fn(() => ({ kind: "worker-deps" })),
+  requireWorkerDispatch: vi.fn(),
 }));
 
 vi.mock("next/server", async (importOriginal) => ({
@@ -23,11 +19,8 @@ vi.mock("next/server", async (importOriginal) => ({
 vi.mock("@/server/supabase/server-client", () => auth);
 vi.mock("@/server/study-preparation/study-preparation", () => preparation);
 vi.mock("@/server/study-preparation/planner-client", () => planner);
-vi.mock("@/server/study-preparation/prompt-catalog", () => catalog);
-vi.mock("@hives/persistence/env", () => ({ loadSupabaseAdminEnv: admin.loadSupabaseAdminEnv }));
-vi.mock("@hives/persistence/storage/supabase-client", () => ({
-  createSupabaseAdminClient: admin.createSupabaseAdminClient,
-}));
+vi.mock("@/server/workflow/analysis-workflow", () => workflow);
+vi.mock("@/server/workflow/worker", () => worker);
 
 import { GET, POST } from "./route";
 
@@ -38,7 +31,6 @@ const RUN_ID = "22222222-2222-4222-8222-222222222222";
 const URL = `http://localhost/api/v1/hives/${HIVE_ID}/study-preparation`;
 const params = { params: Promise.resolve({ hiveId: HIVE_ID }) };
 const userClient = { kind: "user" };
-const plannerConfig = { baseUrl: "https://reader.test/planner", serviceToken: "synthetic", timeoutMs: 1 };
 
 function post(body: unknown): NextRequest {
   return new NextRequest(URL, {
@@ -70,7 +62,8 @@ describe("/api/v1/hives/[hiveId]/study-preparation", () => {
     vi.clearAllMocks();
     logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     auth.requireApiSupabaseClient.mockResolvedValue(userClient);
-    planner.loadPlannerServiceConfig.mockReturnValue(plannerConfig);
+    planner.loadPlannerServiceConfig.mockReturnValue({ baseUrl: "https://reader.test/planner", serviceToken: "s", timeoutMs: 1 });
+    worker.requireWorkerDispatch.mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -98,37 +91,38 @@ describe("/api/v1/hives/[hiveId]/study-preparation", () => {
     const res = await POST(post({ clientRequestId: REQUEST_ID }), params);
     expect(res.status).toBe(503);
     expect(preparation.startStudyPreparation).not.toHaveBeenCalled();
+  });
+
+  it("POST fails before starting a run when stages cannot be handed off", async () => {
+    worker.requireWorkerDispatch.mockImplementation(() => {
+      throw hiveError("MODEL_UNAVAILABLE");
+    });
+    const res = await POST(post({ clientRequestId: REQUEST_ID }), params);
+    expect(res.status).toBe(503);
+    expect(preparation.startStudyPreparation).not.toHaveBeenCalled();
     expect(nextServer.after).not.toHaveBeenCalled();
   });
 
   it("POST surfaces unacknowledged partial coverage without queueing work", async () => {
     preparation.startStudyPreparation.mockRejectedValue(hiveError("COVERAGE_INCOMPLETE"));
     const res = await POST(post({ clientRequestId: REQUEST_ID }), params);
-    expect(res.status).toBeGreaterThanOrEqual(400);
     expect((await res.json()).error).toMatchObject({ errorCode: "COVERAGE_INCOMPLETE" });
     expect(nextServer.after).not.toHaveBeenCalled();
   });
 
-  it("POST returns 202 and prepares a newly queued run after the response", async () => {
+  it("POST returns 202 and runs the first workflow invocation after the response", async () => {
     preparation.startStudyPreparation.mockResolvedValue({
-      response: { processingRun: { id: RUN_ID, status: "QUEUED" }, created: true },
+      response: { processingRun: { id: RUN_ID, status: "READING_DOCUMENTS" }, created: true },
       process: true,
     });
     const res = await POST(post({ clientRequestId: REQUEST_ID }), params);
     expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({ processingRun: { id: RUN_ID, status: "QUEUED" }, created: true });
-    expect(preparation.processStudyPreparationSafely).not.toHaveBeenCalled();
+    expect(workflow.processAnalysisRunSafely).not.toHaveBeenCalled();
     expect(nextServer.after).toHaveBeenCalledTimes(1);
 
     await nextServer.after.mock.calls[0]![0]();
-    const [deps, runId] = preparation.processStudyPreparationSafely.mock.calls[0] as unknown as [
-      { client: unknown; planner: { getConfig: () => unknown }; loadCatalog: () => unknown },
-      string,
-    ];
-    expect(runId).toBe(RUN_ID);
-    expect(deps.client).toEqual({ kind: "service" });
-    expect(deps.planner.getConfig()).toBe(plannerConfig);
-    expect(deps.loadCatalog()).toEqual({ kind: "catalog" });
+    expect(workflow.processAnalysisRunSafely).toHaveBeenCalledWith({ kind: "worker-deps" }, RUN_ID);
+    expect(worker.createWorkerDeps).toHaveBeenCalledWith(process.env, expect.objectContaining({ correlationId: CORRELATION_ID }));
   });
 
   it("POST schedules nothing when the request replays an existing run", async () => {

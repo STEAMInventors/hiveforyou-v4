@@ -51,6 +51,22 @@ function goal(id: string, intentRequestId: string, statedAs: string, questions: 
   };
 }
 
+const NO_BASIS = { kind: "NONE", statedAs: null, intentRequestId: null };
+const UNKNOWN_AUDIENCE = {
+  customer: { role: null, status: "UNKNOWN", confidence: "LOW", basis: NO_BASIS, tone: "Plain", detailLevel: "PLAIN" },
+  pro: {
+    primaryRole: null,
+    alternativeRoles: [],
+    status: "UNKNOWN",
+    confidence: "LOW",
+    basis: NO_BASIS,
+    tone: "Evidence-first",
+    detailLevel: "TECHNICAL",
+  },
+  studyGuidance: [],
+  writerGuidance: { customer: [], pro: [] },
+};
+
 function analysisOutput(goals: unknown[], extra: Record<string, unknown> = {}) {
   return {
     schema: "hive.intent-analysis/1",
@@ -59,6 +75,7 @@ function analysisOutput(goals: unknown[], extra: Record<string, unknown> = {}) {
     goals,
     reservedDecisions: [],
     instructionsIgnored: [],
+    audienceAnalysis: UNKNOWN_AUDIENCE,
     ...extra,
   };
 }
@@ -128,7 +145,7 @@ function completenessReview(goalId: string, overrides = {}) {
 }
 
 function intelligenceOutput(questions: unknown[], reviews: unknown[] = [completenessReview("G1"), completenessReview("G2")]) {
-  return { questions, completenessReview: reviews };
+  return { questions, completenessReview: reviews, audience: UNKNOWN_AUDIENCE, audienceChanges: [] };
 }
 
 function defaultSpecialistQuestions() {

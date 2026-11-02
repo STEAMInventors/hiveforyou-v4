@@ -6,7 +6,10 @@ import type { ContractValidation } from "../source-documents/source-document-con
  */
 export const PLANNER_CONTRACT_VERSION = "planner-completion@1";
 
-export const PLANNER_TASKS = ["intent", "domain", "intelligence", "plan"] as const;
+export const PREPARATION_PLANNER_TASKS = ["intent", "domain", "intelligence", "plan"] as const;
+export type PreparationPlannerTask = (typeof PREPARATION_PLANNER_TASKS)[number];
+/** `study` runs the Canonical Study; `writer` writes one audience report (D-041). */
+export const PLANNER_TASKS = [...PREPARATION_PLANNER_TASKS, "study", "writer"] as const;
 export type PlannerTask = (typeof PLANNER_TASKS)[number];
 
 export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask, string> = {
@@ -14,6 +17,8 @@ export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask, string> = {
   domain: "hive-domain/1",
   intelligence: "hive-intent-intelligence/1",
   plan: "hive-plan/1",
+  study: "hive-study-preview/1",
+  writer: "hive-writer/1",
 };
 
 /** Per-task output caps; the planner enforces the same limits. */
@@ -22,8 +27,19 @@ export const PLANNER_MAX_OUTPUT_TOKENS: Record<PlannerTask, number> = {
   domain: 4000,
   intelligence: 12000,
   plan: 12000,
+  study: 32000,
+  writer: 16000,
 };
-export const PLANNER_MAX_REQUEST_BYTES = 256 * 1024;
+/** Per-task request caps; the study request carries every authorized page. */
+export const PLANNER_MAX_REQUEST_BYTES_BY_TASK: Record<PlannerTask, number> = {
+  intent: 256 * 1024,
+  domain: 256 * 1024,
+  intelligence: 256 * 1024,
+  plan: 256 * 1024,
+  study: 1536 * 1024,
+  writer: 768 * 1024,
+};
+export const PLANNER_MAX_REQUEST_BYTES = PLANNER_MAX_REQUEST_BYTES_BY_TASK.intent;
 
 export type PlannerCompletionRequest = {
   contract_version: typeof PLANNER_CONTRACT_VERSION;

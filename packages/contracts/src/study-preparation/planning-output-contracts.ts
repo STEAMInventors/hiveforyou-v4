@@ -1,4 +1,10 @@
 import type { ContractValidation } from "../source-documents/source-document-contracts";
+import {
+  type AudienceAnalysis,
+  type AudienceChange,
+  parseAudienceAnalysis,
+  parseAudienceChanges,
+} from "./audience-contracts";
 
 /**
  * Deterministic validators for the four planning-model outputs (D-039, D-040). Model output is
@@ -109,6 +115,8 @@ export type IntentAnalysis = {
   goals: IntentGoal[];
   reservedDecisions: ReservedDecision[];
   instructionsIgnored: string[];
+  /** Initial Customer/Pro audiences (D-041). Absent on analyses saved before audiences existed. */
+  audienceAnalysis?: AudienceAnalysis;
 };
 
 /** @deprecated Use {@link IntentAnalysis}. */
@@ -161,6 +169,9 @@ export type IntentIntelligence = {
   schema: typeof INTENT_INTELLIGENCE_SCHEMA;
   questions: SpecialistQuestion[];
   completenessReview: GoalCompletenessReview[];
+  /** Audiences refined with document context (D-041). Absent on outputs saved before audiences existed. */
+  audience?: AudienceAnalysis;
+  audienceChanges?: AudienceChange[];
 };
 
 export type PlanQuestion = {
@@ -559,6 +570,9 @@ export function validateIntentAnalysis(
       },
     );
 
+    const audience = parseAudienceAnalysis(root.audienceAnalysis, { intents: context.intents, stage: "INTENT" });
+    if (!audience.ok) fail(audience.diagnosticReason, audience.message);
+
     return {
       schema: INTENT_ANALYSIS_SCHEMA,
       processingRunId: runId,
@@ -571,6 +585,7 @@ export function validateIntentAnalysis(
       goals,
       reservedDecisions,
       instructionsIgnored: readTextList(root, "instructionsIgnored", "output"),
+      audienceAnalysis: audience.value,
     };
   });
 }
@@ -739,7 +754,27 @@ export function validateIntentIntelligence(
       }
     }
 
-    return { schema: INTENT_INTELLIGENCE_SCHEMA, questions, completenessReview };
+    const storedIntents = analysis.intents.map((intent) => ({
+      id: intent.intentRequestId,
+      intentText: intent.verbatimText,
+      audience: intent.audience ?? null,
+    }));
+    const audience = parseAudienceAnalysis(root.audience, {
+      intents: storedIntents,
+      stage: "INTELLIGENCE",
+      allowedRefs,
+    });
+    if (!audience.ok) fail(audience.diagnosticReason, audience.message);
+    const audienceChanges = parseAudienceChanges(root.audienceChanges, allowedRefs);
+    if (!audienceChanges.ok) fail(audienceChanges.diagnosticReason, audienceChanges.message);
+
+    return {
+      schema: INTENT_INTELLIGENCE_SCHEMA,
+      questions,
+      completenessReview,
+      audience: audience.value,
+      audienceChanges: audienceChanges.value,
+    };
   });
 }
 
