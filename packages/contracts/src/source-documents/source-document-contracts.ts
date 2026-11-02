@@ -141,7 +141,7 @@ export type CreateIntentRequestResponse = {
 
 export type ContractValidation<T> =
   | { ok: true; value: T }
-  | { ok: false; message: string; diagnosticReason: string };
+  | { ok: false; message: string; diagnosticReason: string; diagnosticField?: string };
 
 function includes<T extends string>(list: readonly T[], value: unknown): value is T {
   return typeof value === "string" && (list as readonly string[]).includes(value);

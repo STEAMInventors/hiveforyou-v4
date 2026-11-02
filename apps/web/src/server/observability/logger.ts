@@ -11,6 +11,7 @@ export const ALLOWLISTED_LOG_FIELDS = [
   "retryable",
   "durationMs",
   "diagnosticReason",
+  "diagnosticField",
   "exceptionType",
   "attempt",
   "hiveId",

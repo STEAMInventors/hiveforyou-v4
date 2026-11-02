@@ -67,6 +67,31 @@ const UNKNOWN_AUDIENCE = {
   writerGuidance: { customer: [], pro: [] },
 };
 
+const MAYA_AUDIENCE = {
+  customer: {
+    role: "Parent or guardian",
+    status: "PROVISIONAL",
+    confidence: "MEDIUM",
+    basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null },
+    tone: "Plain, calm and practical; explains terms",
+    detailLevel: "PLAIN",
+  },
+  pro: {
+    primaryRole: "Special education advocate",
+    alternativeRoles: ["Special education attorney"],
+    status: "PROVISIONAL",
+    confidence: "MEDIUM",
+    basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null },
+    tone: "Evidence-first, precise and neutral",
+    detailLevel: "TECHNICAL",
+  },
+  studyGuidance: ["Keep every dated measurement, goal and service with its source page so progress can be compared over time"],
+  writerGuidance: {
+    customer: ["Explain what the plan says in plain words and end with questions to bring to the meeting"],
+    pro: ["Compare goals, services and measurements source by source and list unresolved items"],
+  },
+};
+
 function analysisOutput(goals: unknown[], extra: Record<string, unknown> = {}) {
   return {
     schema: "hive.intent-analysis/1",
@@ -259,6 +284,27 @@ describe("validateIntentAnalysis", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.goals).toHaveLength(3);
+  });
+
+  it("accepts Maya intent analysis with provisional audiences from the hive-intent example", () => {
+    const mayaIntent = [{ id: INTENT_A, intentText: MAYA_INTENT, audience: null as string | null }];
+    const result = validateIntentAnalysis(
+      analysisOutput(
+        [
+          goal("G1", INTENT_A, "understand Maya's IEP", [analysisQuestion("Q1", { answerForm: "EXPLANATION" })]),
+          goal("G2", INTENT_A, "Prep for the IEP meeting", [analysisQuestion("Q2", { answerForm: "PREPARATION" })]),
+          goal("G3", INTENT_A, "want to know if Maya is progressing", [
+            analysisQuestion("Q3", { answerForm: "YES_NO_WITH_REASONS", needsJudgment: true }),
+          ]),
+        ],
+        { audienceAnalysis: MAYA_AUDIENCE },
+      ),
+      context(mayaIntent),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.audienceAnalysis?.pro.status).toBe("PROVISIONAL");
+    expect(result.value.audienceAnalysis?.customer.status).toBe("PROVISIONAL");
   });
 
   it("records unclear terms and glossary-based likely readings", () => {

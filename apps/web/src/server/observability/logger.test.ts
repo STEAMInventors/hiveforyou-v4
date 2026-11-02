@@ -20,6 +20,23 @@ describe("buildStructuredLogRecord", () => {
     expect(record).not.toHaveProperty("extraField");
     expect(record).not.toHaveProperty("documentText");
   });
+
+  it("allows diagnosticField without logging request text", () => {
+    const record = buildStructuredLogRecord({
+      eventName: "analysis.failed",
+      severity: "ERROR",
+      timestamp: "2026-11-02T21:00:00Z",
+      component: "analysis",
+      operation: "analyze",
+      correlationId: "2eb8421a-b784-4bf8-ac2b-540299b61d13",
+      diagnosticReason: "audience_role_invalid",
+      diagnosticField: "audience.customer",
+      intentText: "I want to understand Maya's IEP",
+    });
+
+    expect(record.diagnosticField).toBe("audience.customer");
+    expect(record).not.toHaveProperty("intentText");
+  });
 });
 
 describe("emitStructuredEvent", () => {

@@ -149,7 +149,10 @@ function isHiveError(value: unknown): value is HiveError {
 }
 
 function analysisError(
-  input: Pick<HiveError, "errorCode" | "retryable" | "safeMessage" | "correlationId" | "diagnosticReason"> & {
+  input: Pick<
+    HiveError,
+    "errorCode" | "retryable" | "safeMessage" | "correlationId" | "diagnosticReason" | "diagnosticField"
+  > & {
     category?: HiveError["category"];
     cause?: unknown;
   },
@@ -251,7 +254,12 @@ function log(run: Pick<ProcessingRun, "id" | "hiveId" | "correlationId" | "attem
     status,
     durationMs: Date.now() - startedAt,
     ...(error
-      ? { errorCode: error.errorCode, retryable: error.retryable, diagnosticReason: error.diagnosticReason ?? "unexpected_exception" }
+      ? {
+          errorCode: error.errorCode,
+          retryable: error.retryable,
+          diagnosticReason: error.diagnosticReason ?? "unexpected_exception",
+          ...(typeof error.diagnosticField === "string" ? { diagnosticField: error.diagnosticField } : {}),
+        }
       : {}),
   });
 }
@@ -273,7 +281,11 @@ async function modelStage<T>(
   stage: ModelStageStatus,
   prompt: PlannerPrompt,
   userPayload: Record<string, unknown>,
-  validate: (raw: unknown) => { ok: true; value: T } | { ok: false; message: string; diagnosticReason: string },
+  validate: (
+    raw: unknown,
+  ) =>
+    | { ok: true; value: T }
+    | { ok: false; message: string; diagnosticReason: string; diagnosticField?: string },
 ): Promise<{ value: T; metric: StageMetric; completion: PlannerCallResult }> {
   const { correlationId } = context;
   const baseMetric: StageMetric = {
@@ -329,6 +341,7 @@ async function modelStage<T>(
         safeMessage: MODEL_OUTPUT_MESSAGE,
         correlationId,
         diagnosticReason: validated.diagnosticReason,
+        diagnosticField: validated.diagnosticField,
       }),
       { ...metric, outcome: "FAILED", errorCode: "MODEL_OUTPUT_INVALID", retryable: true },
     );

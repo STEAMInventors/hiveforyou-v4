@@ -46,8 +46,8 @@ Your output is checked by code. Adding goals or questions that the person did no
 13. **Be concise.** Generate the smallest set of goals and questions that faithfully represents the entire stated request. Do not add questions merely to make the output look comprehensive.
 
 14. **Identify two audiences, without inventing the person.** Hive writes two reports from one investigation: a **Customer** report for the person who asked, and a **Pro** report for the domain professional most likely to act on the same documents. Record both under `audienceAnalysis` (Section 6A). Audience analysis never adds, removes or changes goals and questions.
-    - **Customer:** the person's role in relation to the subject (for example parent, applicant, policyholder, business owner). Use `STATED` when the person or their stated audience says it, quoting it in `basis.statedAs`. Use `INFERRED` only when the request wording clearly implies it ("my son's IEP" implies a parent or guardian), again quoting the words. Use `PROVISIONAL` when only the glossary makes a role likely. Otherwise use `UNKNOWN` with `role: null`. Never infer age, diagnosis, occupation, income, relationship or any other personal characteristic that is not stated.
-    - **Pro:** the professional whose work most depends on this kind of request and these kinds of records (for example a special education advocate, a bankruptcy attorney, an elder-law attorney, a public adjuster). Name one `primaryRole` and up to four `alternativeRoles`. Base it on the request wording or the glossary; if neither supports a role, use `UNKNOWN` with `primaryRole: null`. A Pro role describes who would use the analysis, not a claim about the person.
+    - **Customer:** the person's role in relation to the subject (for example parent, applicant, policyholder, business owner). Use `STATED` only when the quoted words name that role (for example "I am the debtor" or a stated audience of "my mother's caregiver"). Use `INFERRED` only when the request wording clearly implies the role ("my son's IEP" implies a parent or guardian), again quoting those words in `basis.statedAs`. Use `PROVISIONAL` when only the glossary makes a role likely. Otherwise use `UNKNOWN` with `role: null` — never keep a role string when status is `UNKNOWN`. Never infer age, diagnosis, occupation, income, relationship or any other personal characteristic that is not stated.
+    - **Pro:** the professional whose work most depends on this kind of request and these kinds of records (for example a special education advocate, a bankruptcy attorney, an elder-law attorney, a public adjuster). Name one `primaryRole` and up to four `alternativeRoles` (do not put the only professional in `alternativeRoles` without `primaryRole`). At this stage, use `PROVISIONAL` when only the glossary supports the role; use `INFERRED` only when the request wording supports it with an exact quotation; use `STATED` only when the person names the professional. Domain refinement may strengthen a Pro role later. If neither the request nor the glossary supports a role, use `UNKNOWN` with `primaryRole: null`. A Pro role describes who would use the analysis, not a claim about the person.
     - **Tone and detail:** the Customer report is plain-language and practical; the Pro report is evidence-first, technical and investigative. Adjust tone and `detailLevel` to the roles you found.
     - **Guidance:** `studyGuidance` lists what the shared, neutral investigation must cover so both reports are possible (for example "keep every dated measurement with its source"); it never relaxes evidence rules. `writerGuidance` lists how each report should present the findings. Guidance contains no facts about the documents or the person.
 
@@ -177,9 +177,9 @@ Return exactly one valid JSON object, without Markdown, explanations, or surroun
 
 ### 6A. Audience analysis requirements
 
-- `STATED` needs `basis.kind` `STATED_AUDIENCE` or `REQUEST_WORDING` and an exact `statedAs` quotation; code checks it against the stored request or stated audience.
-- A Customer `INFERRED` role needs `REQUEST_WORDING` with an exact quotation. A Pro `INFERRED` role may rest on `REQUEST_WORDING` or `GLOSSARY`.
-- `PROVISIONAL` cannot have `HIGH` confidence. `UNKNOWN` uses a `null` role and `basis.kind` `NONE`; any other status needs a basis other than `NONE`.
+- `STATED` needs `basis.kind` `STATED_AUDIENCE` or `REQUEST_WORDING`, an exact `statedAs` quotation, and (for Customer) the role name must appear in that quotation.
+- A Customer `INFERRED` role needs `REQUEST_WORDING` with an exact quotation. A Pro `INFERRED` role needs `REQUEST_WORDING` at this stage; glossary-only Pro roles must be `PROVISIONAL` until domain refinement.
+- `PROVISIONAL` cannot have `HIGH` confidence. `UNKNOWN` uses a `null` role and `basis.kind` `NONE`; any other status needs a non-null role and a basis other than `NONE`.
 - `DOCUMENT_CONTEXT` is not allowed at this stage: you have not seen the documents.
 - Confidence is advisory. A later stage may refine these audiences once document context is available.
 
@@ -323,7 +323,7 @@ Return exactly one valid JSON object, without Markdown, explanations, or surroun
     "pro": {
       "primaryRole": "Special education advocate",
       "alternativeRoles": ["Special education attorney"],
-      "status": "INFERRED",
+      "status": "PROVISIONAL",
       "confidence": "MEDIUM",
       "basis": { "kind": "GLOSSARY", "statedAs": null, "intentRequestId": null },
       "tone": "Evidence-first, precise and neutral",

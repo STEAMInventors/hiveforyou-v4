@@ -2,6 +2,7 @@ import type { ContractValidation } from "../source-documents/source-document-con
 import {
   type AudienceAnalysis,
   type AudienceChange,
+  audienceDiagnosticField,
   parseAudienceAnalysis,
   parseAudienceChanges,
 } from "./audience-contracts";
@@ -206,13 +207,17 @@ export type InvestigationPlan = {
 // Primitive readers (throw PlanningOutputError; the public validators convert)
 // ---------------------------------------------------------------------------
 class PlanningOutputError extends Error {
-  constructor(readonly diagnosticReason: string, message: string) {
+  constructor(
+    readonly diagnosticReason: string,
+    message: string,
+    readonly diagnosticField?: string,
+  ) {
     super(message);
   }
 }
 
 function fail(reason: string, message: string): never {
-  throw new PlanningOutputError(reason, message);
+  throw new PlanningOutputError(reason, message, audienceDiagnosticField(message));
 }
 
 function asRecord(value: unknown, path: string): Record<string, unknown> {
@@ -392,7 +397,12 @@ function run<T>(validate: () => T): ContractValidation<T> {
     return { ok: true, value: validate() };
   } catch (error) {
     if (error instanceof PlanningOutputError) {
-      return { ok: false, message: error.message, diagnosticReason: error.diagnosticReason };
+      return {
+        ok: false,
+        message: error.message,
+        diagnosticReason: error.diagnosticReason,
+        ...(error.diagnosticField ? { diagnosticField: error.diagnosticField } : {}),
+      };
     }
     throw error;
   }
@@ -571,7 +581,9 @@ export function validateIntentAnalysis(
     );
 
     const audience = parseAudienceAnalysis(root.audienceAnalysis, { intents: context.intents, stage: "INTENT" });
-    if (!audience.ok) fail(audience.diagnosticReason, audience.message);
+    if (!audience.ok) {
+      throw new PlanningOutputError(audience.diagnosticReason, audience.message, audience.diagnosticField);
+    }
 
     return {
       schema: INTENT_ANALYSIS_SCHEMA,

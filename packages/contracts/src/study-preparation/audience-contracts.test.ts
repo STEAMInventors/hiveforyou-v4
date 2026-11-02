@@ -41,7 +41,7 @@ describe("parseAudienceAnalysis", () => {
         {
           primaryRole: "Special education advocate",
           alternativeRoles: ["Special education attorney"],
-          status: "INFERRED",
+          status: "PROVISIONAL",
           confidence: "MEDIUM",
           basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null },
         },
@@ -50,7 +50,67 @@ describe("parseAudienceAnalysis", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.customer).toMatchObject({ role: "Parent or guardian", status: "PROVISIONAL" });
+    expect(result.value.pro).toMatchObject({ primaryRole: "Special education advocate", status: "PROVISIONAL" });
+  });
+
+  it("accepts a stated customer role even when the quotation does not name that role (no MODEL_OUTPUT_INVALID)", () => {
+    const result = intentStage(
+      MAYA,
+      audience(
+        {
+          role: "Parent or guardian",
+          status: "STATED",
+          confidence: "HIGH",
+          basis: { kind: "REQUEST_WORDING", statedAs: "Maya's IEP", intentRequestId: INTENT },
+        },
+        { primaryRole: null, status: "UNKNOWN", confidence: "LOW", basis: none },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.customer.role).toBe("Parent or guardian");
+    expect(result.value.customer.status).toBe("STATED");
+  });
+
+  it("accepts an inferred professional role from the glossary at the intent stage", () => {
+    const result = intentStage(
+      MAYA,
+      audience(
+        { role: null, status: "UNKNOWN", confidence: "LOW", basis: none },
+        {
+          primaryRole: "Special education advocate",
+          status: "INFERRED",
+          confidence: "MEDIUM",
+          basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null },
+        },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.value.pro.primaryRole).toBe("Special education advocate");
+  });
+
+  it("promotes a professional role listed only under alternativeRoles", () => {
+    const result = intentStage(
+      MAYA,
+      audience(
+        { role: null, status: "UNKNOWN", confidence: "LOW", basis: none },
+        {
+          primaryRole: null,
+          alternativeRoles: ["Special education advocate"],
+          status: "INFERRED",
+          confidence: "MEDIUM",
+          basis: { kind: "REQUEST_WORDING", statedAs: "IEP meeting", intentRequestId: INTENT },
+        },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.pro).toMatchObject({
+      primaryRole: "Special education advocate",
+      alternativeRoles: [],
+      status: "INFERRED",
+    });
   });
 
   it("accepts a stated bankruptcy debtor quoted from the request", () => {
@@ -75,14 +135,20 @@ describe("parseAudienceAnalysis", () => {
       "Explain what this Medicaid denial means.",
       audience(
         { role: "Adult child helping a parent", status: "STATED", confidence: "HIGH", basis: { kind: "STATED_AUDIENCE", statedAs: "my mother's caregiver", intentRequestId: INTENT } },
-        { primaryRole: "Elder-law attorney", alternativeRoles: ["Medicaid planner"], status: "INFERRED", confidence: "MEDIUM", basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null } },
+        {
+          primaryRole: "Elder-law attorney",
+          alternativeRoles: ["Medicaid planner"],
+          status: "PROVISIONAL",
+          confidence: "MEDIUM",
+          basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null },
+        },
       ),
       "my mother's caregiver",
     );
     expect(result.ok).toBe(true);
   });
 
-  it("rejects a quotation the person never wrote", () => {
+  it("accepts a quotation the person never wrote without failing the workflow", () => {
     const result = intentStage(
       "Why was my insurance claim denied?",
       audience(
@@ -90,10 +156,12 @@ describe("parseAudienceAnalysis", () => {
         { primaryRole: "Public adjuster", status: "INFERRED", confidence: "MEDIUM", basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null } },
       ),
     );
-    expect(result).toMatchObject({ ok: false, diagnosticReason: "quotation_mismatch" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.customer.role).toBe("Policyholder");
   });
 
-  it("rejects an inferred customer role without the person's words", () => {
+  it("accepts an inferred customer role from the glossary", () => {
     const result = intentStage(
       "Why was my insurance claim denied?",
       audience(
@@ -101,33 +169,63 @@ describe("parseAudienceAnalysis", () => {
         { primaryRole: null, status: "UNKNOWN", confidence: "LOW", basis: none },
       ),
     );
-    expect(result).toMatchObject({ ok: false, diagnosticReason: "audience_unsupported" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.customer).toMatchObject({ role: "Policyholder", status: "INFERRED" });
   });
 
-  it("accepts unknown roles and rejects an unknown role that still names someone", () => {
+  it("allows unknown customer while a pro audience is identified", () => {
+    const result = intentStage(
+      "Why was my insurance claim denied?",
+      audience(
+        { role: null, status: "UNKNOWN", confidence: "LOW", basis: none },
+        {
+          primaryRole: "Public adjuster",
+          status: "INFERRED",
+          confidence: "MEDIUM",
+          basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null },
+        },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.customer.status).toBe("UNKNOWN");
+    expect(result.value.pro.primaryRole).toBe("Public adjuster");
+  });
+
+  it("normalizes unknown status with a named role and provisional overconfidence", () => {
     const unknown = audience(
       { role: null, status: "UNKNOWN", confidence: "LOW", basis: none },
       { primaryRole: null, status: "UNKNOWN", confidence: "LOW", basis: none },
     );
     expect(intentStage("Summarize these documents.", unknown).ok).toBe(true);
-    const named = audience(
+
+    const namedUnknown = audience(
       { role: "Tenant", status: "UNKNOWN", confidence: "LOW", basis: none },
       { primaryRole: null, status: "UNKNOWN", confidence: "LOW", basis: none },
     );
-    expect(intentStage("Summarize these documents.", named)).toMatchObject({ ok: false, diagnosticReason: "audience_role_invalid" });
-  });
+    const cleared = intentStage("Summarize these documents.", namedUnknown);
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) return;
+    expect(cleared.value.customer).toMatchObject({ role: null, status: "UNKNOWN" });
 
-  it("rejects a role with no basis and a provisional role with high confidence", () => {
     const noBasis = audience(
       { role: "Parent", status: "PROVISIONAL", confidence: "LOW", basis: none },
       { primaryRole: null, status: "UNKNOWN", confidence: "LOW", basis: none },
     );
-    expect(intentStage(MAYA, noBasis)).toMatchObject({ ok: false, diagnosticReason: "audience_unsupported" });
+    const withBasis = intentStage(MAYA, noBasis);
+    expect(withBasis.ok).toBe(true);
+    if (!withBasis.ok) return;
+    expect(withBasis.value.customer.basis.kind).toBe("GLOSSARY");
+
     const overconfident = audience(
       { role: "Parent", status: "PROVISIONAL", confidence: "HIGH", basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null } },
       { primaryRole: null, status: "UNKNOWN", confidence: "LOW", basis: none },
     );
-    expect(intentStage(MAYA, overconfident)).toMatchObject({ ok: false, diagnosticReason: "audience_confidence_invalid" });
+    const clamped = intentStage(MAYA, overconfident);
+    expect(clamped.ok).toBe(true);
+    if (!clamped.ok) return;
+    expect(clamped.value.customer.confidence).toBe("MEDIUM");
   });
 
   it("forbids document context before the documents are seen", () => {
@@ -138,18 +236,23 @@ describe("parseAudienceAnalysis", () => {
     expect(intentStage(MAYA, raw)).toMatchObject({ ok: false, diagnosticReason: "audience_basis_invalid" });
   });
 
-  it("lets document context make a customer role provisional only, on sampled pages only", () => {
+  it("lets document context refine audiences on sampled pages only", () => {
     const pro = { primaryRole: "Special education advocate", status: "INFERRED", confidence: "MEDIUM", basis: { kind: "DOCUMENT_CONTEXT", statedAs: null, intentRequestId: null, contextRefs: [{ sourceDocumentId: DOC, pageNumber: 2 }] } };
     const provisional = audience(
       { role: "Parent or guardian", status: "PROVISIONAL", confidence: "MEDIUM", basis: { kind: "DOCUMENT_CONTEXT", statedAs: null, intentRequestId: null, contextRefs: [{ sourceDocumentId: DOC, pageNumber: 2 }] } },
       pro,
     );
     expect(intelligenceStage(MAYA, provisional).ok).toBe(true);
-    const inferred = audience(
+
+    const inferredCustomer = audience(
       { role: "Parent", status: "INFERRED", confidence: "MEDIUM", basis: { kind: "DOCUMENT_CONTEXT", statedAs: null, intentRequestId: null, contextRefs: [{ sourceDocumentId: DOC, pageNumber: 2 }] } },
       pro,
     );
-    expect(intelligenceStage(MAYA, inferred)).toMatchObject({ ok: false, diagnosticReason: "audience_unsupported" });
+    const normalized = intelligenceStage(MAYA, inferredCustomer);
+    expect(normalized.ok).toBe(true);
+    if (!normalized.ok) return;
+    expect(normalized.value.customer.status).toBe("PROVISIONAL");
+
     const unsampled = audience(
       { role: null, status: "UNKNOWN", confidence: "LOW", basis: none },
       { ...pro, basis: { ...pro.basis, contextRefs: [{ sourceDocumentId: DOC, pageNumber: 9 }] } },
@@ -157,12 +260,15 @@ describe("parseAudienceAnalysis", () => {
     expect(intelligenceStage(MAYA, unsampled)).toMatchObject({ ok: false, diagnosticReason: "evidence_ref_invalid" });
   });
 
-  it("rejects an ambiguous pro list that repeats the primary role", () => {
+  it("deduplicates an ambiguous pro list that repeats the primary role", () => {
     const raw = audience(
       { role: null, status: "UNKNOWN", confidence: "LOW", basis: none },
       { primaryRole: "Insurance attorney", alternativeRoles: ["insurance attorney"], status: "PROVISIONAL", confidence: "LOW", basis: { kind: "GLOSSARY", statedAs: null, intentRequestId: null } },
     );
-    expect(intentStage("Why was my claim denied?", raw)).toMatchObject({ ok: false, diagnosticReason: "duplicate_id" });
+    const result = intentStage("Why was my claim denied?", raw);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.pro.alternativeRoles).toEqual([]);
   });
 });
 

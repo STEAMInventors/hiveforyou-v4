@@ -11,6 +11,8 @@ export type HiveError = {
   correlationId: string;
   operationId?: string;
   diagnosticReason?: string;
+  /** Safe validator path for logs (no quotations, roles or request text). */
+  diagnosticField?: string;
   cause?: unknown;
 };
 
@@ -31,6 +33,14 @@ export function createHiveError(input: HiveError): HiveError {
   if (typeof input.diagnosticReason === "string" && input.diagnosticReason.length > 0) {
     Object.defineProperty(error, "diagnosticReason", {
       value: input.diagnosticReason,
+      enumerable: false,
+      configurable: true,
+    });
+  }
+
+  if (typeof input.diagnosticField === "string" && input.diagnosticField.length > 0) {
+    Object.defineProperty(error, "diagnosticField", {
+      value: input.diagnosticField,
       enumerable: false,
       configurable: true,
     });

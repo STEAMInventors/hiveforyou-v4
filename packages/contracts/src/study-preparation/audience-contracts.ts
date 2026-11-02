@@ -4,9 +4,9 @@
  * glossary; the intent intelligence stage may refine it from document context. Trusted code derives the
  * authoritative `hive.audience-configuration/1` used by planning, the Canonical Study and the Writer.
  *
- * A role is only `STATED` or `INFERRED` when an exact quotation from the person supports it. Document
- * context can make a Customer role at most `PROVISIONAL`: a document that mentions a parent does not
- * prove the person asking is that parent.
+ * Structural validation only: schema shape, enums, bounds and sampled page refs. Role/status semantics
+ * are normalized when inconsistent so plausible model interpretations do not fail the Analyze workflow.
+ * Strict quotation and evidence rules apply to goals, study findings and report claims — not audience roles.
  */
 
 export const AUDIENCE_CONFIGURATION_SCHEMA = "hive.audience-configuration/1";
@@ -33,7 +33,7 @@ export type AudiencePageRef = { sourceDocumentId: string; pageNumber: number };
 
 export type AudienceBasis = {
   kind: AudienceBasisKind;
-  /** Exact quotation from the request (`REQUEST_WORDING`) or the stated audience (`STATED_AUDIENCE`). */
+  /** Quotation the model associated with the basis; not verified as an exact substring here. */
   statedAs: string | null;
   intentRequestId: string | null;
   /** Sampled pages behind a `DOCUMENT_CONTEXT` basis. */
@@ -90,7 +90,7 @@ export type AudienceParseContext = {
 
 export type AudienceParseResult<T> =
   | { ok: true; value: T }
-  | { ok: false; diagnosticReason: string; message: string };
+  | { ok: false; diagnosticReason: string; message: string; diagnosticField?: string };
 
 const ROLE_MAX = 120;
 const TONE_MAX = 200;
@@ -99,13 +99,23 @@ const GUIDANCE_ITEMS = 8;
 const ALTERNATIVE_ROLES = 4;
 
 class AudienceError extends Error {
-  constructor(readonly diagnosticReason: string, message: string) {
+  constructor(
+    readonly diagnosticReason: string,
+    message: string,
+    readonly diagnosticField?: string,
+  ) {
     super(message);
   }
 }
 
+/** Safe log field derived from validator paths (no role text or quotations). */
+export function audienceDiagnosticField(message: string): string | undefined {
+  const match = /^([\w[\].]+):/.exec(message);
+  return match?.[1];
+}
+
 function fail(reason: string, message: string): never {
-  throw new AudienceError(reason, message);
+  throw new AudienceError(reason, message, audienceDiagnosticField(message));
 }
 
 function record(value: unknown, path: string): Record<string, unknown> {
@@ -168,12 +178,18 @@ function refs(source: Record<string, unknown>, path: string, allowed: ReadonlySe
   });
 }
 
+const NONE_BASIS: AudienceBasis = { kind: "NONE", statedAs: null, intentRequestId: null, contextRefs: [] };
+
+function glossaryBasis(): AudienceBasis {
+  return { kind: "GLOSSARY", statedAs: null, intentRequestId: null, contextRefs: [] };
+}
+
 function readBasis(raw: unknown, path: string, context: AudienceParseContext): AudienceBasis {
   const source = record(raw, path);
-  const kind = oneOf(source, "kind", path, AUDIENCE_BASIS_KINDS);
-  const statedAs = nullableText(source, "statedAs", path, 400);
+  let kind = oneOf(source, "kind", path, AUDIENCE_BASIS_KINDS);
+  let statedAs = nullableText(source, "statedAs", path, 400);
   const intentRequestIdRaw = nullableText(source, "intentRequestId", path, 64);
-  const intentRequestId = intentRequestIdRaw ? intentRequestIdRaw.toLowerCase() : null;
+  let intentRequestId = intentRequestIdRaw ? intentRequestIdRaw.toLowerCase() : null;
 
   if (kind === "DOCUMENT_CONTEXT" && context.stage === "INTENT") {
     fail("audience_basis_invalid", `${path}: the request stage cannot rely on document context.`);
@@ -184,48 +200,110 @@ function readBasis(raw: unknown, path: string, context: AudienceParseContext): A
   }
 
   if (kind === "STATED_AUDIENCE" || kind === "REQUEST_WORDING") {
-    const intent = context.intents.find((candidate) => candidate.id.toLowerCase() === intentRequestId);
-    if (!intent) fail("intent_ref_invalid", `${path}.intentRequestId must refer to a stored request.`);
-    const quoted = kind === "STATED_AUDIENCE" ? (intent.audience ?? "") : intent.intentText;
-    if (!statedAs || !quoted.includes(statedAs)) {
-      fail("quotation_mismatch", `${path}.statedAs must be an exact substring of the person's words.`);
+    const intent = intentRequestId ? context.intents.find((candidate) => candidate.id.toLowerCase() === intentRequestId) : undefined;
+    if (!intent) {
+      kind = "GLOSSARY";
+      statedAs = null;
+      intentRequestId = null;
     }
   }
-  return {
-    kind,
-    statedAs: kind === "STATED_AUDIENCE" || kind === "REQUEST_WORDING" ? statedAs : null,
-    intentRequestId: kind === "STATED_AUDIENCE" || kind === "REQUEST_WORDING" ? intentRequestId : null,
-    contextRefs,
-  };
+
+  if (kind === "STATED_AUDIENCE" || kind === "REQUEST_WORDING") {
+    return {
+      kind,
+      statedAs,
+      intentRequestId,
+      contextRefs: [],
+    };
+  }
+  if (kind === "DOCUMENT_CONTEXT") {
+    return { kind, statedAs: null, intentRequestId: null, contextRefs };
+  }
+  if (kind === "GLOSSARY") {
+    return glossaryBasis();
+  }
+  return NONE_BASIS;
 }
 
-/** Status rules shared by both audiences: claims about the person need the person's own words. */
-function checkStatus(
-  status: AudienceRoleStatus,
-  role: string | null,
-  basis: AudienceBasis,
-  confidence: AudienceConfidence,
-  path: string,
-  audience: "customer" | "pro",
-): void {
+function clampConfidence(status: AudienceRoleStatus, confidence: AudienceConfidence): AudienceConfidence {
+  if (status === "PROVISIONAL" && confidence === "HIGH") return "MEDIUM";
+  if (status === "UNKNOWN") return "LOW";
+  return confidence;
+}
+
+function normalizeCustomerAudience(
+  input: Omit<CustomerAudience, "tone" | "detailLevel">,
+  stage: AudienceParseContext["stage"],
+): Pick<CustomerAudience, "role" | "status" | "confidence" | "basis"> {
+  let { role, status, confidence, basis } = input;
+
   if (status === "UNKNOWN") {
-    if (role !== null) fail("audience_role_invalid", `${path}: an unknown role must be null.`);
-    return;
+    role = null;
+    basis = NONE_BASIS;
+    confidence = "LOW";
+    return { role, status, confidence, basis };
   }
-  if (role === null) fail("audience_role_invalid", `${path}: a ${status} role needs a role.`);
-  const quoted = basis.kind === "STATED_AUDIENCE" || basis.kind === "REQUEST_WORDING";
-  if (status === "STATED" && !quoted) {
-    fail("audience_unsupported", `${path}: a stated role must quote the person.`);
+
+  if (role === null) {
+    return { role: null, status: "UNKNOWN", confidence: "LOW", basis: NONE_BASIS };
   }
-  if (status === "INFERRED" && audience === "customer" && basis.kind !== "REQUEST_WORDING" && basis.kind !== "STATED_AUDIENCE") {
-    fail("audience_unsupported", `${path}: an inferred customer role must quote the request.`);
-  }
-  if (status === "PROVISIONAL" && confidence === "HIGH") {
-    fail("audience_confidence_invalid", `${path}: a provisional role cannot have high confidence.`);
-  }
+
   if (basis.kind === "NONE") {
-    fail("audience_unsupported", `${path}: a role without a basis must be unknown.`);
+    basis = glossaryBasis();
   }
+
+  if (basis.kind === "DOCUMENT_CONTEXT" && status !== "PROVISIONAL") {
+    status = "PROVISIONAL";
+  }
+
+  if (stage === "INTELLIGENCE" && basis.kind === "DOCUMENT_CONTEXT") {
+    status = "PROVISIONAL";
+  }
+
+  confidence = clampConfidence(status, confidence);
+  return { role, status, confidence, basis };
+}
+
+function normalizeProAudience(
+  input: Omit<ProAudience, "tone" | "detailLevel">,
+): Pick<ProAudience, "primaryRole" | "alternativeRoles" | "status" | "confidence" | "basis"> {
+  let { primaryRole, alternativeRoles, status, confidence, basis } = input;
+
+  alternativeRoles = alternativeRoles.filter(
+    (role) => !primaryRole || role.toLowerCase() !== primaryRole.toLowerCase(),
+  );
+
+  if (status === "UNKNOWN") {
+    return {
+      primaryRole: null,
+      alternativeRoles: [],
+      status: "UNKNOWN",
+      confidence: "LOW",
+      basis: NONE_BASIS,
+    };
+  }
+
+  if (primaryRole === null && alternativeRoles.length > 0) {
+    primaryRole = alternativeRoles[0] ?? null;
+    alternativeRoles = alternativeRoles.slice(1);
+  }
+
+  if (primaryRole === null) {
+    return {
+      primaryRole: null,
+      alternativeRoles: [],
+      status: "UNKNOWN",
+      confidence: "LOW",
+      basis: NONE_BASIS,
+    };
+  }
+
+  if (basis.kind === "NONE") {
+    basis = glossaryBasis();
+  }
+
+  confidence = clampConfidence(status, confidence);
+  return { primaryRole, alternativeRoles, status, confidence, basis };
 }
 
 function readCustomer(raw: unknown, context: AudienceParseContext): CustomerAudience {
@@ -235,15 +313,9 @@ function readCustomer(raw: unknown, context: AudienceParseContext): CustomerAudi
   const status = oneOf(source, "status", path, AUDIENCE_ROLE_STATUSES);
   const confidence = oneOf(source, "confidence", path, AUDIENCE_CONFIDENCE_LEVELS);
   const basis = readBasis(source.basis, `${path}.basis`, context);
-  checkStatus(status, role, basis, confidence, path, "customer");
-  if (basis.kind === "DOCUMENT_CONTEXT" && status !== "PROVISIONAL") {
-    fail("audience_unsupported", `${path}: document context can make a customer role provisional only.`);
-  }
+  const normalized = normalizeCustomerAudience({ role, status, confidence, basis }, context.stage);
   return {
-    role,
-    status,
-    confidence,
-    basis,
+    ...normalized,
     tone: text(source, "tone", path, TONE_MAX),
     detailLevel: oneOf(source, "detailLevel", path, AUDIENCE_DETAIL_LEVELS),
   };
@@ -256,17 +328,10 @@ function readPro(raw: unknown, context: AudienceParseContext): ProAudience {
   const status = oneOf(source, "status", path, AUDIENCE_ROLE_STATUSES);
   const confidence = oneOf(source, "confidence", path, AUDIENCE_CONFIDENCE_LEVELS);
   const basis = readBasis(source.basis, `${path}.basis`, context);
-  checkStatus(status, primaryRole, basis, confidence, path, "pro");
   const alternativeRoles = textList(source, "alternativeRoles", path, ALTERNATIVE_ROLES, ROLE_MAX);
-  if (primaryRole && alternativeRoles.some((role) => role.toLowerCase() === primaryRole.toLowerCase())) {
-    fail("duplicate_id", `${path}.alternativeRoles must not repeat the primary role.`);
-  }
+  const normalized = normalizeProAudience({ primaryRole, alternativeRoles, status, confidence, basis });
   return {
-    primaryRole,
-    alternativeRoles,
-    status,
-    confidence,
-    basis,
+    ...normalized,
     tone: text(source, "tone", path, TONE_MAX),
     detailLevel: oneOf(source, "detailLevel", path, AUDIENCE_DETAIL_LEVELS),
   };
@@ -277,7 +342,12 @@ function run<T>(parse: () => T): AudienceParseResult<T> {
     return { ok: true, value: parse() };
   } catch (error) {
     if (error instanceof AudienceError) {
-      return { ok: false, diagnosticReason: error.diagnosticReason, message: error.message };
+      return {
+        ok: false,
+        diagnosticReason: error.diagnosticReason,
+        message: error.message,
+        ...(error.diagnosticField ? { diagnosticField: error.diagnosticField } : {}),
+      };
     }
     throw error;
   }
