@@ -1,5 +1,8 @@
 import type { ContractValidation } from "../source-documents/source-document-contracts";
-import { buildDeterministicInvestigationQuestion } from "./investigation-plan-deterministic";
+import {
+  buildDeterministicInvestigationQuestion,
+  domainEvidenceRefTokens,
+} from "./investigation-plan-deterministic";
 import {
   type DomainProposal,
   domainIsUncertain,
@@ -161,13 +164,16 @@ export function validateInvestigationPlanWithSupplement(
   }
 
   const existingPlanIds = planQuestionIdsFromRaw(payload);
+  const domainRefs = domainEvidenceRefTokens(context.domain);
   const supplements: Record<string, unknown>[] = [];
   const allocatedIds = [...existingPlanIds];
   for (const specialistId of missing) {
     const specialist = context.intelligence.questions.find((question) => question.id === specialistId);
     if (!specialist) continue;
     const planQuestionId = nextPlanQuestionId(allocatedIds);
-    supplements.push(buildDeterministicInvestigationQuestion(specialist, context.analysis, planQuestionId, []));
+    supplements.push(
+      buildDeterministicInvestigationQuestion(specialist, context.analysis, planQuestionId, [], domainRefs),
+    );
     allocatedIds.push(planQuestionId);
   }
   if (supplements.length === 0) return first;

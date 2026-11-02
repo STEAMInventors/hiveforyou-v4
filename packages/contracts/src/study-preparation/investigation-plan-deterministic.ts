@@ -6,9 +6,27 @@ import {
   type IntentAnalysis,
   type IntentIntelligence,
   type InvestigationPlan,
+  type SourcePageRef,
   type SpecialistQuestion,
+  sourcePageRefKey,
   validateInvestigationPlan,
 } from "./planning-output-contracts";
+
+/** Plan questions may cite domain evidence pages only, not every sampled advisory context page. */
+export function domainEvidenceRefTokens(domain: DomainProposal): ReadonlySet<string> {
+  return new Set(
+    [domain.primary, ...domain.alternatives].flatMap((candidate) =>
+      candidate.supportingRefs.map(sourcePageRefKey),
+    ),
+  );
+}
+
+function domainConsiderationRefsFromContext(
+  specialist: SpecialistQuestion,
+  domainRefs: ReadonlySet<string>,
+): SourcePageRef[] {
+  return specialist.contextRefs.filter((ref) => domainRefs.has(sourcePageRefKey(ref)));
+}
 
 function analysisQuestionForSpecialist(specialist: SpecialistQuestion, analysis: IntentAnalysis) {
   const goal = analysis.goals.find((item) => item.goalId === specialist.goalId);
@@ -96,6 +114,7 @@ export function buildDeterministicInvestigationQuestion(
   analysis: IntentAnalysis,
   planQuestionId: string,
   dependsOnPlanIds: readonly string[],
+  domainRefs: ReadonlySet<string>,
 ): Record<string, unknown> {
   const answerType = inferAnswerType(specialist, analysis);
   return {
@@ -113,7 +132,7 @@ export function buildDeterministicInvestigationQuestion(
     answerType,
     deliverable: deliverableFor(answerType),
     dependsOn: [...dependsOnPlanIds],
-    domainConsiderationRefs: [...specialist.contextRefs],
+    domainConsiderationRefs: domainConsiderationRefsFromContext(specialist, domainRefs),
   };
 }
 
@@ -127,6 +146,7 @@ export function buildDeterministicInvestigationPlan(context: {
   domain: DomainProposal;
 }): ContractValidation<InvestigationPlan> {
   const { analysis, intelligence, domain } = context;
+  const domainRefs = domainEvidenceRefTokens(domain);
   const specialistToPlan = new Map<string, string>();
   intelligence.questions.forEach((question, index) => {
     specialistToPlan.set(question.id, `P${index + 1}`);
@@ -136,7 +156,7 @@ export function buildDeterministicInvestigationPlan(context: {
     const dependsOnPlanIds = specialist.dependsOn
       .map((id) => specialistToPlan.get(id))
       .filter((id): id is string => typeof id === "string");
-    return buildDeterministicInvestigationQuestion(specialist, analysis, planQuestionId, dependsOnPlanIds);
+    return buildDeterministicInvestigationQuestion(specialist, analysis, planQuestionId, dependsOnPlanIds, domainRefs);
   });
   const raw = {
     domainBasis: defaultDomainBasis(domain),

@@ -676,7 +676,11 @@ describe("validateInvestigationPlan", () => {
         ]),
         { analysis, intelligence, domain },
       ),
-    ).toMatchObject({ ok: false, diagnosticReason: "evidence_ref_invalid" });
+    ).toMatchObject({
+      ok: false,
+      diagnosticReason: "evidence_ref_invalid",
+      diagnosticField: "questions[0].domainConsiderationRefs[0]",
+    });
   });
 
   it("rejects investigation questions that only restate the request", () => {

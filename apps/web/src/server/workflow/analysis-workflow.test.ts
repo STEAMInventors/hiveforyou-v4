@@ -522,7 +522,12 @@ function mayaSnapshot(): SourceSnapshot {
 
 function mayaOutputs() {
   const question = (id: string, text: string) => ({ questionId: id, question: text, answerForm: "EXPLANATION", needsJudgment: false, dependsOn: [] });
-  const specialistQuestion = (id: string, q: string, text: string) => ({
+  const specialistQuestion = (
+    id: string,
+    q: string,
+    text: string,
+    overrides: { contextRefs?: { sourceDocumentId: string; pageNumber: number }[] } = {},
+  ) => ({
     id,
     goalId: "G1",
     analysisQuestionIds: [q],
@@ -532,7 +537,7 @@ function mayaOutputs() {
     dependsOn: [],
     requiresJudgment: false,
     judgmentBasis: null,
-    contextRefs: [],
+    contextRefs: overrides.contextRefs ?? [],
   });
   return {
     intent: {
@@ -574,7 +579,9 @@ function mayaOutputs() {
     intelligence: {
       questions: [
         specialistQuestion("I1", "Q1", "How far has each measured skill moved from baseline toward its target?"),
-        specialistQuestion("I2", "Q2", "How many service minutes were delivered against the minutes required?"),
+        specialistQuestion("I2", "Q2", "How many service minutes were delivered against the minutes required?", {
+          contextRefs: [{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 2 }],
+        }),
         specialistQuestion("I3", "Q3", "Which assessments or scores are referred to but missing?"),
       ],
       completenessReview: [{ goalId: "G1", wouldFulfilIntent: true, gapsFound: [], revisions: [], remainingLimits: [] }],
@@ -605,6 +612,16 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
           .map(([key, text]) => ({ pageNumber: Number(key.split(":")[1]), text })),
       })),
     );
+  });
+
+  it("builds the investigation plan when intelligence cites advisory pages outside domain evidence (regression bbadfd5)", async () => {
+    const db = mayaDatabase();
+    const planner = fakePlanner({}, mayaOutputs());
+    await drive(db, planner, MAYA_RUN_ID, "INVESTIGATING");
+    expect(db.status()).toBe("INVESTIGATING");
+    expect(db.transitions.some((t) => t.to === "FAILED")).toBe(false);
+    const toPrompt = db.transitions.find((t) => t.to === "BUILDING_PROMPT");
+    expect(toPrompt?.details.stage_outputs).toMatchObject({ investigationPlan: { schema: "hive.investigation-plan/1" } });
   });
 
   it("runs the whole chain once, accepts one validated Study and queues both Writers", async () => {

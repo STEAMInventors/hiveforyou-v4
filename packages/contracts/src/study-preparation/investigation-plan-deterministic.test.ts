@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { MAYA_INTENT_ID, MAYA_INTENT_TEXT, MAYA_RUN_ID } from "../testing/maya-fixture";
+import { MAYA_DOCS, MAYA_INTENT_ID, MAYA_INTENT_TEXT, MAYA_RUN_ID } from "../testing/maya-fixture";
 import { buildDeterministicInvestigationPlan } from "./investigation-plan-deterministic";
 import {
   type DomainProposal,
@@ -128,6 +128,86 @@ function mayaContext() {
 }
 
 describe("buildDeterministicInvestigationPlan", () => {
+  it("does not copy sampled advisory contextRefs onto domainConsiderationRefs when they are outside domain evidence", () => {
+    const analysis = validateIntentAnalysis(
+      {
+        schema: "hive.intent-analysis/1",
+        processingRunId: MAYA_RUN_ID,
+        subjects: [],
+        goals: [
+          {
+            goalId: "G1",
+            intentRequestId: MAYA_INTENT_ID,
+            statedAs: "understand Maya's IEP",
+            goal: "Understand the current IEP",
+            questions: [{ questionId: "Q1", question: "What does the IEP require?", answerForm: "EXPLANATION", needsJudgment: false, dependsOn: [] }],
+            unclear: [],
+          },
+        ],
+        reservedDecisions: [],
+        instructionsIgnored: [],
+        audienceAnalysis: UNKNOWN_AUDIENCE,
+      },
+      { intents: [{ id: MAYA_INTENT_ID, intentText: MAYA_INTENT_TEXT, audience: null }], processingRunId: MAYA_RUN_ID },
+    );
+    if (!analysis.ok) throw new Error(analysis.message);
+    const sampledRefs = [
+      { sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1 },
+      { sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 2 },
+    ];
+    const domain = validateDomainProposal(
+      {
+        primary: {
+          label: "Special education",
+          subdomain: null,
+          confidence: "MEDIUM",
+          reasoning: "IEP cover page.",
+          supportingRefs: [{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1 }],
+        },
+        alternatives: [],
+        unknownDomain: false,
+        mixedDomain: false,
+        ambiguous: false,
+        ambiguityNotes: [],
+      },
+      { sampledRefs },
+    );
+    if (!domain.ok) throw new Error(domain.message);
+    const intelligence = validateIntentIntelligence(
+      {
+        questions: [
+          {
+            id: "I1",
+            goalId: "G1",
+            analysisQuestionIds: ["Q1"],
+            question: "Which services are listed on the plan?",
+            whyItMatters: "Services appear on an inner page.",
+            supportsOutcome: "Understanding the IEP.",
+            dependsOn: [],
+            requiresJudgment: false,
+            judgmentBasis: null,
+            contextRefs: [{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 2 }],
+          },
+        ],
+        completenessReview: [{ goalId: "G1", wouldFulfilIntent: true, gapsFound: [], revisions: [], remainingLimits: [] }],
+        audience: UNKNOWN_AUDIENCE,
+        audienceChanges: [],
+      },
+      { analysis: analysis.value, sampledRefs },
+    );
+    if (!intelligence.ok) throw new Error(intelligence.message);
+
+    const result = buildDeterministicInvestigationPlan({
+      analysis: analysis.value,
+      domain: domain.value,
+      intelligence: intelligence.value,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(intelligence.value.questions[0]!.contextRefs).toEqual([{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 2 }]);
+    expect(result.value.questions[0]!.domainConsiderationRefs).toEqual([]);
+  });
+
   it("assigns stable P# ids in specialist order and maps dependsOn to plan ids", () => {
     const context = mayaContext();
     const result = buildDeterministicInvestigationPlan(context);

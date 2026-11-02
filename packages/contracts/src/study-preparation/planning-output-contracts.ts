@@ -349,14 +349,11 @@ function readRefs(
       typeof ref.sourceDocumentId === "string" ? ref.sourceDocumentId.trim().toLowerCase() : "";
     const pageNumber = ref.pageNumber;
     if (typeof pageNumber !== "number" || !Number.isInteger(pageNumber) || pageNumber < 1) {
-      fail("evidence_ref_invalid", `${path}.${key}[${index}] has an invalid page number.`);
+      fail("evidence_ref_invalid", `${path}.${key}[${index}]: invalid page number.`);
     }
     const token = sourcePageRefKey({ sourceDocumentId, pageNumber });
     if (!allowed.has(token)) {
-      fail(
-        "evidence_ref_invalid",
-        `${path}.${key}[${index}] refers to a document page that was not provided.`,
-      );
+      fail("evidence_ref_invalid", `${path}.${key}[${index}]: page not in allowed set.`);
     }
     if (!seen.has(token)) {
       seen.add(token);

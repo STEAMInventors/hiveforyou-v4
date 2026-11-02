@@ -511,6 +511,7 @@ async function developQuestions(context: Context): Promise<StepResult> {
         safeMessage: MODEL_OUTPUT_MESSAGE,
         correlationId: context.correlationId,
         diagnosticReason: plan.diagnosticReason,
+        ...(plan.diagnosticField ? { diagnosticField: plan.diagnosticField } : {}),
       }),
       intelligence.metric,
     );
@@ -538,6 +539,7 @@ async function resolveLegacyPlanning(context: Context): Promise<StepResult> {
         safeMessage: MODEL_OUTPUT_MESSAGE,
         correlationId: context.correlationId,
         diagnosticReason: plan.diagnosticReason,
+        ...(plan.diagnosticField ? { diagnosticField: plan.diagnosticField } : {}),
       }),
       null,
     );
