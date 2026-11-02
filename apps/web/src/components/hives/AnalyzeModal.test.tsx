@@ -149,21 +149,11 @@ describe("AnalyzeModal", () => {
       "Understanding your request",
       "Identifying the domain",
       "Developing specialist questions",
-      "Planning the investigation",
       "Constructing your study prompt",
       "Investigating your documents",
       "Checking the evidence",
     ]);
-    expect(steps.map((step) => step.dataset.state)).toEqual([
-      "done",
-      "done",
-      "done",
-      "active",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-    ]);
+    expect(steps.map((step) => step.dataset.state)).toEqual(["done", "done", "done", "active", "pending", "pending", "pending"]);
     expect(screen.getByRole("heading").textContent).toBe("Developing specialist questions…");
     expect(screen.getByRole("button", { name: "Run in background" })).toBeTruthy();
   });
@@ -257,7 +247,6 @@ describe("AnalyzeModal", () => {
       "done",
       "done",
       "stopped",
-      "pending",
       "pending",
       "pending",
       "pending",

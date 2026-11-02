@@ -17,7 +17,6 @@ const PROMPT_FILES: Record<PreparationPlannerTask, string> = {
   intent: "hive-intent/HiveForYou-Intent-v1.md",
   domain: "hive-domain/HiveForYou-Domain-v1.md",
   intelligence: "hive-intent-intelligence/HiveForYou-Intent-Intelligence-v1.md",
-  plan: "hive-plan/HiveForYou-Plan-v1.md",
 };
 const STUDY_TEMPLATE_FILE = "hive-study/HiveForYou-Study-Preview-v1.md";
 const OUTPUT_SCHEMA_FILE = "hive-study/hive.study-investigation-1.schema.json";

@@ -276,7 +276,6 @@ describe("stages", () => {
       "Understanding your request",
       "Identifying the domain",
       "Developing specialist questions",
-      "Planning the investigation",
       "Constructing your study prompt",
       "Investigating your documents",
       "Checking the evidence",
@@ -284,9 +283,9 @@ describe("stages", () => {
     expect(stageIndexForStatus("QUEUED")).toBe(-1);
     expect(stageIndexForStatus("READING_DOCUMENTS")).toBe(0);
     expect(stageIndexForStatus("DEVELOPING_QUESTIONS")).toBe(3);
-    expect(stageIndexForStatus("SAVING")).toBe(5);
-    expect(stageIndexForStatus("INVESTIGATING")).toBe(6);
-    expect(stageIndexForStatus("ACCEPTING_STUDY")).toBe(7);
+    expect(stageIndexForStatus("SAVING")).toBe(4);
+    expect(stageIndexForStatus("INVESTIGATING")).toBe(5);
+    expect(stageIndexForStatus("ACCEPTING_STUDY")).toBe(6);
   });
 });
 

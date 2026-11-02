@@ -127,7 +127,7 @@ describe("/api/v1/hives/[hiveId]/study-preparation", () => {
 
   it("POST schedules nothing when the request replays an existing run", async () => {
     preparation.startStudyPreparation.mockResolvedValue({
-      response: { processingRun: { id: RUN_ID, status: "PLANNING_INVESTIGATION" }, created: false },
+      response: { processingRun: { id: RUN_ID, status: "BUILDING_PROMPT" }, created: false },
       process: false,
     });
     const res = await POST(post({ clientRequestId: REQUEST_ID }), params);

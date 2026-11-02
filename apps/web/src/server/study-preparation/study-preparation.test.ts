@@ -30,7 +30,7 @@ describe("startStudyPreparation", () => {
   });
 
   it("does not process a replayed run", async () => {
-    const db = client({ data: { processingRun: runJson("PLANNING_INVESTIGATION"), created: false } });
+    const db = client({ data: { processingRun: runJson("BUILDING_PROMPT"), created: false } });
     const started = await startStudyPreparation(db, {
       hiveId: HIVE_ID,
       rawBody: { clientRequestId: REQUEST_ID },

@@ -6,7 +6,8 @@ import type { ContractValidation } from "../source-documents/source-document-con
  */
 export const PLANNER_CONTRACT_VERSION = "planner-completion@1";
 
-export const PREPARATION_PLANNER_TASKS = ["intent", "domain", "intelligence", "plan"] as const;
+/** Model stages before deterministic prompt construction (investigation questions are derived in code). */
+export const PREPARATION_PLANNER_TASKS = ["intent", "domain", "intelligence"] as const;
 export type PreparationPlannerTask = (typeof PREPARATION_PLANNER_TASKS)[number];
 /** `study` runs the Canonical Study; `writer` writes one audience report (D-041). */
 export const PLANNER_TASKS = [...PREPARATION_PLANNER_TASKS, "study", "writer"] as const;
@@ -16,7 +17,6 @@ export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask, string> = {
   intent: "hive.intent-analysis/1",
   domain: "hive-domain/1",
   intelligence: "hive-intent-intelligence/1",
-  plan: "hive-plan/1",
   study: "hive-study-preview/1",
   writer: "hive-writer/1",
 };
@@ -26,7 +26,6 @@ export const PLANNER_MAX_OUTPUT_TOKENS: Record<PlannerTask, number> = {
   intent: 4000,
   domain: 4000,
   intelligence: 12000,
-  plan: 12000,
   study: 32000,
   writer: 16000,
 };
@@ -35,7 +34,6 @@ export const PLANNER_MAX_REQUEST_BYTES_BY_TASK: Record<PlannerTask, number> = {
   intent: 256 * 1024,
   domain: 256 * 1024,
   intelligence: 256 * 1024,
-  plan: 256 * 1024,
   study: 1536 * 1024,
   writer: 768 * 1024,
 };

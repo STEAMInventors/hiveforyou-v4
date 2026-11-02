@@ -9,6 +9,8 @@ export * from "./source-documents/source-document-contracts";
 export * from "./source-documents/document-read-status-contracts";
 export * from "./study-preparation/study-preparation-contracts";
 export * from "./study-preparation/planning-output-contracts";
+export * from "./study-preparation/investigation-plan-supplement";
+export * from "./study-preparation/investigation-plan-deterministic";
 export * from "./study-preparation/audience-contracts";
 export * from "./analysis/decimal-formula";
 export * from "./analysis/study-verification";

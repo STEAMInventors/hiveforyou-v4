@@ -35,7 +35,6 @@ export const MODEL_STAGE_STATUSES = [
   "UNDERSTANDING_REQUEST",
   "IDENTIFYING_DOMAIN",
   "DEVELOPING_QUESTIONS",
-  "PLANNING_INVESTIGATION",
   "INVESTIGATING",
 ] as const;
 export type ModelStageStatus = (typeof MODEL_STAGE_STATUSES)[number];
@@ -63,14 +62,9 @@ export const STUDY_PREPARATION_STAGES = [
     description: "Working out everything a specialist in this field would ask to fulfil your request.",
   },
   {
-    key: "PLANNING_INVESTIGATION",
-    label: "Planning the investigation",
-    description: "Turning each specialist question into the evidence, comparisons and calculations it needs.",
-  },
-  {
     key: "BUILDING_PROMPT",
     label: "Constructing your study prompt",
-    description: "Assembling and saving the versioned Study prompt, then checking it was saved.",
+    description: "Turning each specialist question into investigation instructions and saving the versioned Study prompt.",
   },
   {
     key: "INVESTIGATING",

@@ -321,10 +321,10 @@ describe("DocumentsPanel — Analyze", () => {
   });
 
   it("reopens progress for an analysis that is still running after a refresh", async () => {
-    server.analysisRunStatus = "PLANNING_INVESTIGATION";
+    server.analysisRunStatus = "BUILDING_PROMPT";
     renderPanel();
     const dialog = await screen.findByTestId("analyze-modal");
-    await within(dialog).findByRole("heading", { name: "Planning the investigation…" });
+    await within(dialog).findByRole("heading", { name: "Constructing your study prompt…" });
     expect(screen.queryByTestId("analyze-button")).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "Run in background" }));
     expect(screen.queryByTestId("analyze-modal")).toBeNull();

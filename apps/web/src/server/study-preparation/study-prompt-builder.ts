@@ -185,7 +185,7 @@ function renderGoals(
     for (const question of goal.questions) {
       lines.push(
         `- ${question.questionId} [${question.answerForm}] ${inert(question.question)}`,
-        ...(question.needsJudgment ? ["  - Needs an assessment (criterion comes from specialist planning)."] : []),
+        ...(question.needsJudgment ? ["  - Needs an assessment (criterion comes from the specialist questions)."] : []),
         ...(question.dependsOn.length > 0 ? [`  - After: ${question.dependsOn.join(", ")}`] : []),
       );
     }

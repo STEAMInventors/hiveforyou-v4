@@ -62,6 +62,18 @@ Return exactly one JSON object and nothing else:
 
 Investigation question ids are `P1`, `P2`, …. Never create circular dependencies. Use `[]` for empty lists and `null` for absent comparison, chronology, calculation or evaluation.
 
+### Final self-check
+
+Before returning the JSON, verify:
+
+1. **Every specialist id is planned.** Each `id` in `intentIntelligence.questions` appears in `specialistQuestionIds` of at least one entry in your top-level `questions` array (not in another field). Count them; none may be left out.
+2. **Goals stay separate.** Each investigation question's `goalId` matches every specialist question it lists; never mix ids from different goals on one investigation question.
+3. **Required lists are non-empty.** Every investigation question has at least one `requiredEvidence`, `sourceDependencies`, and `missingEvidenceConditions` entry.
+4. **Judgment is planned.** For every specialist question with `requiresJudgment: true`, at least one investigation question that serves it has a non-null `evaluation` drawn from its `judgmentBasis`.
+5. **Shape matches the schema.** `domainBasis` and `questions` are top-level keys on the object you return; do not nest the plan under another property or leave `questions` empty when specialist questions were provided.
+
+**Return only the JSON object.**
+
 ---
 
 ## User message (built by code, not part of the system prompt)

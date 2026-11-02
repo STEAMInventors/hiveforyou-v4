@@ -23,7 +23,7 @@ import {
   validateExecutionManifest,
   validateIntentAnalysis,
   validateIntentIntelligence,
-  validateInvestigationPlan,
+  buildDeterministicInvestigationPlan,
   type VerifiedStudy,
   verifyStudyInvestigation,
 } from "@hiveforyou/contracts";
@@ -497,42 +497,53 @@ async function developQuestions(context: Context): Promise<StepResult> {
     },
     (raw) => validateIntentIntelligence(raw, { analysis, sampledRefs }),
   );
-  await advance(context, "DEVELOPING_QUESTIONS", "PLANNING_INVESTIGATION", {
-    stage_outputs: { intentIntelligence: intelligence.value },
+  const plan = buildDeterministicInvestigationPlan({
+    analysis,
+    intelligence: intelligence.value,
+    domain,
+  });
+  if (!plan.ok) {
+    throw new StageFailure(
+      analysisError({
+        errorCode: "MODEL_OUTPUT_INVALID",
+        category: "MODEL",
+        retryable: false,
+        safeMessage: MODEL_OUTPUT_MESSAGE,
+        correlationId: context.correlationId,
+        diagnosticReason: plan.diagnosticReason,
+      }),
+      intelligence.metric,
+    );
+  }
+  const run = await advance(context, "DEVELOPING_QUESTIONS", "BUILDING_PROMPT", {
+    stage_outputs: { intentIntelligence: intelligence.value, investigationPlan: plan.value },
     stage_metric: intelligence.metric,
   });
-  return { next: "handoff", status: "PLANNING_INVESTIGATION", delaySeconds: 0 };
+  return { next: "continue", run };
 }
 
-async function planInvestigation(context: Context): Promise<StepResult> {
+/** In-flight runs that stopped at the retired planning status: derive the plan in code and continue. */
+async function resolveLegacyPlanning(context: Context): Promise<StepResult> {
   const inputs = await loadInputs(context.deps.client, context.runId);
   const analysis = requireOutput(inputs.stageOutputs.intentDecomposition, context);
   const domain = requireOutput(inputs.stageOutputs.domainProposal, context);
   const intelligence = requireOutput(inputs.stageOutputs.intentIntelligence, context);
-  const plan = await modelStage(
-    context,
-    "PLANNING_INVESTIGATION",
-    context.catalog().planner.plan,
-    {
-      task: "plan",
-      intentDecomposition: analysis,
-      intentIntelligence: intelligence,
-      domain,
-      audienceConfiguration: resolveAudienceConfiguration({ analysis, intelligence }),
-      documents: documentSummaries(inputs.sourceSnapshot),
-      coverage: {
-        complete: inputs.sourceSnapshot.coverageComplete,
-        excludedDocuments: inputs.sourceSnapshot.excluded.map((document) => ({
-          sourceDocumentId: document.sourceDocumentId,
-          reason: document.reason,
-        })),
-      },
-    },
-    (raw) => validateInvestigationPlan(raw, { analysis, intelligence, domain }),
-  );
+  const plan = buildDeterministicInvestigationPlan({ analysis, intelligence, domain });
+  if (!plan.ok) {
+    throw new StageFailure(
+      analysisError({
+        errorCode: "MODEL_OUTPUT_INVALID",
+        category: "MODEL",
+        retryable: false,
+        safeMessage: MODEL_OUTPUT_MESSAGE,
+        correlationId: context.correlationId,
+        diagnosticReason: plan.diagnosticReason,
+      }),
+      null,
+    );
+  }
   const run = await advance(context, "PLANNING_INVESTIGATION", "BUILDING_PROMPT", {
     stage_outputs: { investigationPlan: plan.value },
-    stage_metric: plan.metric,
   });
   return { next: "continue", run };
 }
@@ -780,7 +791,7 @@ async function runStage(context: Context, run: ProcessingRun): Promise<StepResul
     case "DEVELOPING_QUESTIONS":
       return developQuestions(context);
     case "PLANNING_INVESTIGATION":
-      return planInvestigation(context);
+      return resolveLegacyPlanning(context);
     case "BUILDING_PROMPT":
     case "SAVING":
       return buildAndSavePrompt(context, run.status);

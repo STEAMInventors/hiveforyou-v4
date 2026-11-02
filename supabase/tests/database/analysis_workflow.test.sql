@@ -336,10 +336,8 @@ SELECT is(
 
 SELECT public.transition_processing_run((SELECT id FROM t_id), 'IDENTIFYING_DOMAIN', 'DEVELOPING_QUESTIONS',
   '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},"sampleCoverage":{"sampledPageCount":2}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_id), 'DEVELOPING_QUESTIONS', 'PLANNING_INVESTIGATION',
-  '{"stage_outputs":{"intentIntelligence":{"schema":"hive.intent-intelligence/1"}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_id), 'PLANNING_INVESTIGATION', 'BUILDING_PROMPT',
-  '{"stage_outputs":{"investigationPlan":{"schema":"hive.investigation-plan/1"}}}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_id), 'DEVELOPING_QUESTIONS', 'BUILDING_PROMPT',
+  '{"stage_outputs":{"intentIntelligence":{"schema":"hive.intent-intelligence/1"},"investigationPlan":{"schema":"hive.investigation-plan/1"}}}'::jsonb);
 SELECT public.transition_processing_run((SELECT id FROM t_id), 'BUILDING_PROMPT', 'SAVING', '{}'::jsonb);
 SELECT public.save_study_prompt_preview((SELECT id FROM t_id), jsonb_build_object(
   'prompt_id', 'hive-study-preview/1', 'prompt_version', '1',

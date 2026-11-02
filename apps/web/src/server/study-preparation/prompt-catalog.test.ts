@@ -10,7 +10,6 @@ describe("loadPromptCatalog", () => {
       "hive.intent-analysis/1",
       "hive-domain/1",
       "hive-intent-intelligence/1",
-      "hive-plan/1",
     ]);
     for (const [task, prompt] of Object.entries(catalog.planner) as [keyof typeof catalog.planner, (typeof catalog.planner)["intent"]][]) {
       expect(prompt.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
@@ -41,7 +40,6 @@ describe("buildPromptCatalog", () => {
       ].join(eol),
       "hive-domain/HiveForYou-Domain-v1.md": planner("hive-domain/1"),
       "hive-intent-intelligence/HiveForYou-Intent-Intelligence-v1.md": planner("hive-intent-intelligence/1"),
-      "hive-plan/HiveForYou-Plan-v1.md": planner("hive-plan/1"),
       "hive-study/HiveForYou-Study-Preview-v1.md": ["Prompt id: `hive-study-preview/1`", "## Template", "Body {{SOURCE_PAGES}}"].join(eol),
       "hive-study/hive.study-investigation-1.schema.json": "{}",
       "hive-writer/HiveForYou-Writer-v1.md": planner("hive-writer/1"),
@@ -60,9 +58,9 @@ describe("buildPromptCatalog", () => {
   it("fails closed when a prompt file carries the wrong id", () => {
     const wrong = {
       ...files("\n"),
-      "hive-plan/HiveForYou-Plan-v1.md": "Prompt id: `hive-plan/2`\n## System\nx",
+      "hive-domain/HiveForYou-Domain-v1.md": "Prompt id: `hive-domain/2`\n## System\nx",
     };
-    expect(() => buildPromptCatalog((file) => wrong[file]!)).toThrow("prompt_id_mismatch:hive-plan/1");
+    expect(() => buildPromptCatalog((file) => wrong[file]!)).toThrow("prompt_id_mismatch:hive-domain/1");
   });
 });
 

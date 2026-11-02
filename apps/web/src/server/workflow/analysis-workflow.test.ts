@@ -1,4 +1,13 @@
-import { PLANNER_CONTRACT_VERSION, type PlannerTask, SOURCE_PAGES_PLACEHOLDER, type SourceSnapshot } from "@hiveforyou/contracts";
+import {
+  buildDeterministicInvestigationPlan,
+  PLANNER_CONTRACT_VERSION,
+  type PlannerTask,
+  SOURCE_PAGES_PLACEHOLDER,
+  type SourceSnapshot,
+  validateDomainProposal,
+  validateIntentAnalysis,
+  validateIntentIntelligence,
+} from "@hiveforyou/contracts";
 import {
   MAYA_DOCS,
   MAYA_FILE_NAMES,
@@ -18,7 +27,6 @@ import {
   INTENTS,
   intelligenceOutput,
   intentOutput,
-  planOutput,
   RUN_ID,
   runJson,
   samplePages,
@@ -229,7 +237,6 @@ function fakePlanner(
     intent: intentOutput(),
     domain: domainOutput(),
     intelligence: intelligenceOutput(),
-    plan: planOutput(),
     ...outputs,
   };
   const calls: PlannerTask[] = [];
@@ -307,52 +314,37 @@ describe("processAnalysisRun: planning stages", () => {
 
     const { dispatched, modelCallsPerInvocation } = await drive(db, planner, RUN_ID, "INVESTIGATING");
 
-    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "plan"]);
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence"]);
     expect(modelCallsPerInvocation.every((count) => count <= 1)).toBe(true);
     expect(db.transitions.map((t) => t.to)).toEqual([
       "UNDERSTANDING_REQUEST",
       "IDENTIFYING_DOMAIN",
       "DEVELOPING_QUESTIONS",
-      "PLANNING_INVESTIGATION",
       "BUILDING_PROMPT",
       "SAVING",
       "INVESTIGATING",
     ]);
-    expect(db.releases.map((r) => r.status)).toEqual([
-      "IDENTIFYING_DOMAIN",
-      "DEVELOPING_QUESTIONS",
-      "PLANNING_INVESTIGATION",
-      "INVESTIGATING",
-    ]);
+    expect(db.releases.map((r) => r.status)).toEqual(["IDENTIFYING_DOMAIN", "DEVELOPING_QUESTIONS", "INVESTIGATING"]);
     expect(dispatched.every((item) => item.kind === "analysis" && item.id === RUN_ID)).toBe(true);
 
-    const [, toDomain, toQuestions, toPlan, toBuild] = db.transitions;
-    expect(Object.keys(toDomain!.details.stage_outputs as object)).toEqual(["intentDecomposition"]);
-    expect(Object.keys(toQuestions!.details.stage_outputs as object).sort()).toEqual(["domainProposal", "sampleCoverage"]);
-    expect(Object.keys(toPlan!.details.stage_outputs as object)).toEqual(["intentIntelligence"]);
-    expect(toPlan!.details.stage_metric).toMatchObject({
+    const toDeveloping = db.transitions[2];
+    const toPrompt = db.transitions[3];
+    expect(Object.keys(toDeveloping!.details.stage_outputs as object).sort()).toEqual(["domainProposal", "sampleCoverage"]);
+    expect(Object.keys(toPrompt!.details.stage_outputs as object).sort()).toEqual(["intentIntelligence", "investigationPlan"]);
+    expect(toPrompt!.details.stage_metric).toMatchObject({
       stage: "DEVELOPING_QUESTIONS",
       outcome: "SUCCEEDED",
       attempt: 1,
       promptId: "hive-intent-intelligence/1",
     });
-    expect(Object.keys(toBuild!.details.stage_outputs as object)).toEqual(["investigationPlan"]);
 
     const saved = db.saved()!;
     const promptText = String(saved.prompt_text);
     expect(db.transitions.at(-1)!.details).toEqual({ prompt_digest: saved.prompt_digest });
     expect(promptText).toContain(INTENTS[0]!.intentText);
     expect(promptText).toContain("Procurement");
-    expect(promptText).toContain("#### P1 [COMPARISON] answers I1, I2");
+    expect(promptText).toContain("#### P1 [COMPARISON] answers I1");
     expect(promptText).toContain(`- I2 [needs assessment] ${intelligenceOutput().questions[1]!.question}`);
-  });
-
-  it("sends the planning stage the resolved audience configuration", async () => {
-    const db = fakeDatabase();
-    const planner = fakePlanner();
-    await drive(db, planner, RUN_ID, "INVESTIGATING");
-    const plan = planner.bodies.find((body) => body.task === "plan")!;
-    expect(plan.user_payload.audienceConfiguration).toMatchObject({ customer: { status: "UNKNOWN" }, pro: { status: "UNKNOWN" } });
   });
 
   it("sends the domain stage only sampled page text, and the intent stage no document text", async () => {
@@ -390,21 +382,6 @@ describe("processAnalysisRun: planning stages", () => {
     expect(db.saved()).toBeNull();
   });
 
-  it("fails the run with MODEL_OUTPUT_INVALID when the plan restates the request", async () => {
-    const db = fakeDatabase();
-    const restating = planOutput();
-    restating.questions[0]!.establish = INTENTS[0]!.intentText;
-    const planner = fakePlanner({}, { plan: restating });
-
-    await drive(db, planner);
-    expect(db.transitions.at(-1)).toMatchObject({
-      from: "PLANNING_INVESTIGATION",
-      to: "FAILED",
-      details: { error_code: "MODEL_OUTPUT_INVALID", stage_metric: { stage: "PLANNING_INVESTIGATION", outcome: "FAILED" } },
-    });
-    expect(db.saved()).toBeNull();
-  });
-
   it("schedules delayed continuation after a retryable model timeout on the same stage", async () => {
     const db = fakeDatabase({ status: "IDENTIFYING_DOMAIN" });
     stageOutputsSeed(db);
@@ -420,7 +397,7 @@ describe("processAnalysisRun: planning stages", () => {
     const planner = fakePlanner({ domain: (call) => (call === 1 ? timeout() : null) });
 
     await drive(db, planner, RUN_ID, "INVESTIGATING");
-    expect(planner.calls).toEqual(["intent", "domain", "domain", "intelligence", "plan"]);
+    expect(planner.calls).toEqual(["intent", "domain", "domain", "intelligence"]);
     expect(db.retries).toHaveLength(1);
     expect(db.retries[0]).toMatchObject({
       status: "IDENTIFYING_DOMAIN",
@@ -448,7 +425,7 @@ describe("processAnalysisRun: planning stages", () => {
   });
 
   it("stops without its own FAILED transition when the database already failed the run as SOURCE_CHANGED", async () => {
-    const db = fakeDatabase({ sourceChangedOn: "PLANNING_INVESTIGATION" });
+    const db = fakeDatabase({ sourceChangedOn: "BUILDING_PROMPT" });
     const planner = fakePlanner();
     await drive(db, planner);
     expect(planner.calls).toEqual(["intent", "domain", "intelligence"]);
@@ -557,23 +534,6 @@ function mayaOutputs() {
     judgmentBasis: null,
     contextRefs: [],
   });
-  const planQuestion = (id: string, specialistId: string, answerType: string) => ({
-    id,
-    goalId: "G1",
-    specialistQuestionIds: [specialistId],
-    establish: `What the records show for ${specialistId}.`,
-    requiredEvidence: ["The pages that state it"],
-    sourceDependencies: ["The records named in the documents"],
-    comparison: null,
-    chronology: null,
-    calculation: answerType === "CALCULATION" ? "Measured values against the stated targets" : null,
-    evaluation: null,
-    missingEvidenceConditions: ["No page states it"],
-    answerType,
-    deliverable: "A sourced answer with page references.",
-    dependsOn: [],
-    domainConsiderationRefs: [],
-  });
   return {
     intent: {
       schema: "hive.intent-analysis/1",
@@ -621,10 +581,6 @@ function mayaOutputs() {
       audience: UNKNOWN_AUDIENCE,
       audienceChanges: [],
     },
-    plan: {
-      domainBasis: { primaryDomain: "Special education", uncertain: false, considerations: [] },
-      questions: [planQuestion("P1", "I1", "CALCULATION"), planQuestion("P2", "I2", "CALCULATION"), planQuestion("P3", "I3", "FACT")],
-    },
     study: mayaStudyOutput(),
   };
 }
@@ -658,7 +614,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     const { dispatched, modelCallsPerInvocation } = await drive(db, planner, MAYA_RUN_ID);
 
     expect(db.status()).toBe("SUCCEEDED");
-    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "plan", "study"]);
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "study"]);
     expect(modelCallsPerInvocation.every((count) => count <= 1)).toBe(true);
     expect(db.transitions.map((t) => t.to).slice(-3)).toEqual(["INVESTIGATING", "VERIFYING_EVIDENCE", "ACCEPTING_STUDY"]);
 
@@ -714,7 +670,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
 
     await drive(db, planner, MAYA_RUN_ID);
 
-    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "plan", "study", "study"]);
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "study", "study"]);
     expect(db.status()).toBe("SUCCEEDED");
   });
 });
@@ -956,7 +912,7 @@ describe.each([
   ["multi-intent plan review", planReviewScenario],
   ["domain-neutral insurance claim", neutralScenario],
 ])("regression: %s", (_name, build) => {
-  it("carries every specialist question through planning into the Study Prompt Preview", async () => {
+  it("carries every specialist question through deterministic planning into the Study Prompt Preview", async () => {
     const scenario = build();
     const db = fakeDatabase({ intents: scenario.intents, snapshot: scenario.snapshot });
     const planner = fakePlanner({}, scenario.outputs);
@@ -966,7 +922,24 @@ describe.each([
     const saved = db.saved()!;
     const promptText = String(saved.prompt_text);
     const intelligence = scenario.outputs.intelligence as { questions: ScenarioQuestion[] };
-    const plan = scenario.outputs.plan as { questions: { id: string; specialistQuestionIds: string[]; evaluation: string | null }[] };
+    const analysis = validateIntentAnalysis(scenario.outputs.intent, {
+      intents: scenario.intents,
+      processingRunId: RUN_ID,
+    });
+    const domain = validateDomainProposal(scenario.outputs.domain, {
+      sampledRefs: [{ sourceDocumentId: DOC_1, pageNumber: 1 }],
+    });
+    const validatedIntelligence = validateIntentIntelligence(scenario.outputs.intelligence, {
+      analysis: analysis.ok ? analysis.value : (() => { throw new Error("analysis"); })(),
+      sampledRefs: [{ sourceDocumentId: DOC_1, pageNumber: 1 }],
+    });
+    const plan = buildDeterministicInvestigationPlan({
+      analysis: analysis.ok ? analysis.value : (() => { throw new Error("analysis"); })(),
+      intelligence: validatedIntelligence.ok ? validatedIntelligence.value : (() => { throw new Error("intelligence"); })(),
+      domain: domain.ok ? domain.value : (() => { throw new Error("domain"); })(),
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
 
     expect(db.transitions[3]!.details.stage_outputs).toMatchObject({ intentIntelligence: { schema: "hive.intent-intelligence/1" } });
     for (const intent of scenario.intents) {
@@ -975,9 +948,10 @@ describe.each([
     }
     for (const question of intelligence.questions) {
       expect(promptText).toContain(`- ${question.id}${question.requiresJudgment ? " [needs assessment]" : ""} ${question.question}`);
-      const serving = plan.questions.filter((p) => p.specialistQuestionIds.includes(question.id));
-      expect(serving.length).toBeGreaterThan(0);
-      if (question.requiresJudgment) expect(serving.some((p) => p.evaluation !== null)).toBe(true);
+      const serving = plan.value.questions.filter((p) => p.specialistQuestionIds.includes(question.id));
+      expect(serving).toHaveLength(1);
+      if (question.requiresJudgment) expect(serving[0]!.evaluation).not.toBeNull();
+      expect(promptText).toContain(`#### ${serving[0]!.id}`);
     }
     expect(saved.execution_manifest).toMatchObject({
       requiredInputs: { intentIntelligence: { questionIds: intelligence.questions.map((q) => q.id) } },

@@ -1,11 +1,11 @@
 import {
+  buildDeterministicInvestigationPlan,
   resolveAudienceConfiguration,
   SOURCE_PAGES_PLACEHOLDER,
   validateDomainProposal,
   validateExecutionManifest,
   validateIntentAnalysis,
   validateIntentIntelligence,
-  validateInvestigationPlan,
 } from "@hiveforyou/contracts";
 import { describe, expect, it } from "vitest";
 
@@ -19,7 +19,6 @@ import {
   INTENTS,
   intelligenceOutput,
   intentOutput,
-  planOutput,
   RUN_ID,
   snapshotDocument,
   sourceSnapshot,
@@ -40,7 +39,7 @@ function inputs(overrides: { intents?: typeof INTENTS; snapshot?: StudyPromptInp
   ];
   const domain = unwrap(validateDomainProposal(domainOutput(), { sampledRefs }));
   const intelligence = unwrap(validateIntentIntelligence(intelligenceOutput(), { analysis, sampledRefs }));
-  const plan = unwrap(validateInvestigationPlan(planOutput(), { analysis, intelligence, domain }));
+  const plan = unwrap(buildDeterministicInvestigationPlan({ analysis, intelligence, domain }));
   return {
     processingRunId: RUN_ID,
     catalog: loadPromptCatalog(),
@@ -90,15 +89,12 @@ describe("buildStudyPrompt", () => {
 
   it("includes every investigation question with its logic, limits and answer structure", () => {
     const { promptText } = buildStudyPrompt(inputs());
-    expect(promptText).toContain("#### P1 [COMPARISON] answers I1, I2");
-    expect(promptText).toContain("- Comparison: Quote A all-in total against Quote B all-in total");
-    expect(promptText).toContain("- Depends on records: Price table in each quote; Scope and warranty terms in each quote");
-    expect(promptText).toContain("- Evaluation: Whether the scopes are equivalent, judged line by line against both quotes.");
-    expect(promptText).toContain("#### P2 [CHRONOLOGY] answers I3");
-    expect(promptText).toContain("- Chronology: Order every stated date from earliest to latest");
-    expect(promptText).toContain("- If the evidence is missing: No dates or validity period on any page");
-    expect(promptText).toContain("- Answer structure: Dated list with the source page for each date");
-    expect(promptText).toContain("Include exactly one answer for each investigation question: P1, P2.");
+    expect(promptText).toContain("#### P1 [COMPARISON] answers I1");
+    expect(promptText).toContain("- Comparison: Compare the values, versions or terms the specialist question names across the authorized source records.");
+    expect(promptText).toContain("#### P2 [COMPARISON] answers I2");
+    expect(promptText).toContain("- Evaluation: Apply: Equivalence of line items");
+    expect(promptText).toContain("#### P3 [LIST] answers I3");
+    expect(promptText).toContain("Include exactly one answer for each investigation question: P1, P2, P3.");
   });
 
   it("states the domain with alternatives and advisory confidence", () => {
@@ -147,9 +143,8 @@ describe("buildStudyPrompt", () => {
       "hive.intent-analysis/1",
       "hive-domain/1",
       "hive-intent-intelligence/1",
-      "hive-plan/1",
     ]);
-    expect(built.executionManifest.requiredInputs.investigationPlan.questionIds).toEqual(["P1", "P2"]);
+    expect(built.executionManifest.requiredInputs.investigationPlan.questionIds).toEqual(["P1", "P2", "P3"]);
     expect(built.executionManifest.requiredInputs.intentIntelligence).toEqual({
       schema: "hive.intent-intelligence/1",
       intelligenceDigest: sha256Digest(canonicalJson(inputs().intelligence)),
