@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizePlannerCompletion, PLANNER_CONTRACT_VERSION } from "./planner-wire-contracts";
+import {
+  normalizePlannerCompletion,
+  PLANNER_CONTRACT_VERSION,
+  PLANNER_MAX_OUTPUT_TOKENS,
+  PLANNER_TASK_PROMPT_IDS,
+  PLANNER_TASKS,
+} from "./planner-wire-contracts";
+
+describe("planner tasks", () => {
+  it("runs intent intelligence between domain and plan with its own prompt and output budget", () => {
+    expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "plan"]);
+    expect(PLANNER_TASK_PROMPT_IDS.intelligence).toBe("hive-intent-intelligence/1");
+    expect(PLANNER_MAX_OUTPUT_TOKENS).toEqual({ intent: 4000, domain: 4000, intelligence: 12000, plan: 12000 });
+  });
+});
 
 function response(overrides: Record<string, unknown> = {}) {
   return {

@@ -900,6 +900,7 @@ export async function createIntentRequestForOwnedHive(
     p_hive_id: safeHiveId,
     p_intent_text: validated.value.intentText,
     p_client_request_id: validated.value.clientRequestId,
+    ...(validated.value.audience ? { p_audience: validated.value.audience } : {}),
   });
 
   if (error) {

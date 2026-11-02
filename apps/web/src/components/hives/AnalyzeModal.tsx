@@ -169,7 +169,7 @@ function AnalyzeDialog({
               ))}
             </ul>
           ) : (
-            <ol className="m-0 grid list-none grid-cols-4 gap-2 border-t border-line p-0 pt-1" data-testid="analyze-steps">
+            <ol className="m-0 grid list-none grid-cols-5 gap-2 border-t border-line p-0 pt-1" data-testid="analyze-steps">
               {steps.map((step) => (
                 <li
                   key={step.key}

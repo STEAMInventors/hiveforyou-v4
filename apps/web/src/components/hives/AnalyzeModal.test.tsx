@@ -85,17 +85,18 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("AnalyzeModal", () => {
-  it("shows the four stages with the current one in progress", () => {
-    renderModal({ run: makeRun("PLANNING_INVESTIGATION") });
+  it("shows the five stages with the current one in progress", () => {
+    renderModal({ run: makeRun("DEVELOPING_QUESTIONS") });
     const steps = within(screen.getByTestId("analyze-steps")).getAllByRole("listitem");
     expect(steps.map((step) => step.textContent?.replace(/ \(.*\)$/, ""))).toEqual([
       "Understanding your request",
       "Identifying the domain",
+      "Developing specialist questions",
       "Planning the investigation",
       "Constructing your study prompt",
     ]);
-    expect(steps.map((step) => step.dataset.state)).toEqual(["done", "done", "active", "pending"]);
-    expect(screen.getByRole("heading").textContent).toBe("Planning the investigation…");
+    expect(steps.map((step) => step.dataset.state)).toEqual(["done", "done", "active", "pending", "pending"]);
+    expect(screen.getByRole("heading").textContent).toBe("Developing specialist questions…");
     expect(screen.getByRole("button", { name: "Run in background" })).toBeTruthy();
   });
 
@@ -121,7 +122,7 @@ describe("AnalyzeModal", () => {
       }),
     });
     const steps = within(screen.getByTestId("analyze-steps")).getAllByRole("listitem");
-    expect(steps.map((step) => step.dataset.state)).toEqual(["done", "stopped", "pending", "pending"]);
+    expect(steps.map((step) => step.dataset.state)).toEqual(["done", "stopped", "pending", "pending", "pending"]);
     expect(screen.getByText("The analysis model took too long to answer. You can try again.")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("66666666-6666-4666-8666-666666666666");
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));

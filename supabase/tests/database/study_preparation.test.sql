@@ -3,7 +3,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-SELECT plan(41);
+SELECT plan(49);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures (as the migration owner)
@@ -44,10 +44,11 @@ VALUES
    'aaaaaaaa-0000-4000-8000-000000000001', 'synthetic-d.pdf', 'application/pdf', 2048, repeat('d', 64),
    'hive-source-documents', 'synthetic/d.pdf', 'UPLOADED', 'ACTIVE');
 
-INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, client_request_id)
+INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, client_request_id, audience)
 VALUES ('99999999-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000001',
         'aaaaaaaa-0000-4000-8000-000000000001',
-        'Compare the two statements and tell me what changed.', '99999999-0000-4000-8000-0000000000f1');
+        'Compare the two statements and tell me what changed.', '99999999-0000-4000-8000-0000000000f1',
+        'Our household accountant');
 
 CREATE TEMP TABLE t_page_sets AS
 WITH raw (doc, sha, n, t) AS (
@@ -268,6 +269,12 @@ SELECT is(
   '1:true',
   'the worker receives the frozen intent and a current snapshot');
 
+SELECT is(
+  (public.get_study_preparation_inputs((SELECT id FROM hive.processing_runs LIMIT 1)) -> 'intents' -> 0
+     ->> 'audience'),
+  'Our household accountant',
+  'the worker receives the audience saved with the intent');
+
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
        (SELECT id FROM hive.processing_runs LIMIT 1), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
@@ -297,13 +304,41 @@ SELECT is(
   1052,
   'validated output and per-stage token usage are recorded');
 
+SELECT throws_ok(
+  $$ SELECT public.transition_processing_run(
+       (SELECT id FROM hive.processing_runs LIMIT 1), 'IDENTIFYING_DOMAIN', 'PLANNING_INVESTIGATION',
+       '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},
+                          "sampleCoverage":{"sampledPageCount":2}}}'::jsonb) $$,
+  'P0001',
+  'processing_run_transition_invalid',
+  'planning cannot skip developing specialist questions');
+
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'IDENTIFYING_DOMAIN', 'PLANNING_INVESTIGATION',
+     (SELECT id FROM hive.processing_runs LIMIT 1), 'IDENTIFYING_DOMAIN', 'DEVELOPING_QUESTIONS',
      '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},
                         "sampleCoverage":{"sampledPageCount":2}}}'::jsonb) ->> 'applied')::boolean,
   true,
-  'domain proposal and sample coverage advance to planning');
+  'domain proposal and sample coverage advance to developing specialist questions');
+
+SELECT throws_ok(
+  $$ SELECT public.transition_processing_run(
+       (SELECT id FROM hive.processing_runs LIMIT 1), 'DEVELOPING_QUESTIONS', 'PLANNING_INVESTIGATION',
+       '{}'::jsonb) $$,
+  'P0001',
+  'stage_output_missing',
+  'planning cannot start before the specialist questions are saved');
+
+SELECT is(
+  (public.transition_processing_run(
+     (SELECT id FROM hive.processing_runs LIMIT 1), 'DEVELOPING_QUESTIONS', 'PLANNING_INVESTIGATION',
+     '{"stage_outputs":{"intentIntelligence":{"schema":"hive.intent-intelligence/1"}},
+       "stage_metric":{"stage":"DEVELOPING_QUESTIONS","outcome":"SUCCEEDED",
+                       "promptId":"hive-intent-intelligence/1","modelAliasRequested":"sorter",
+                       "totalTokens":4100}}'::jsonb)
+     -> 'processingRun' -> 'stageMetrics' -> 1 ->> 'stage'),
+  'DEVELOPING_QUESTIONS',
+  'validated specialist questions and their metric advance to planning');
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
@@ -363,6 +398,12 @@ SELECT is(
      -> 'preview' -> 'sourceSnapshot' -> 'documents' -> 1 ->> 'sourceDocumentId'),
   'cccccccc-0000-4000-8000-00000000000b',
   'the saved preview carries the frozen source snapshot from the run');
+
+SELECT is(
+  (public.read_study_prompt_preview((SELECT id FROM hive.processing_runs LIMIT 1))
+     -> 'preview' -> 'intentIntelligence' ->> 'schema'),
+  'hive.intent-intelligence/1',
+  'the saved preview carries the specialist questions from the run');
 
 SELECT is(
   (public.transition_processing_run(
@@ -513,6 +554,37 @@ SELECT is(
      FROM hive.processing_runs WHERE hive_id = 'bbbbbbbb-0000-4000-8000-000000000003'),
   '0:true',
   'the clarification run made no model stage');
+
+-- ---------------------------------------------------------------------------
+-- Intent audience is optional, bounded and part of the idempotent request
+-- ---------------------------------------------------------------------------
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000002","role":"authenticated"}';
+
+SELECT public.create_intent_request(
+         'bbbbbbbb-0000-4000-8000-000000000002', 'What should we ask at the next meeting?',
+         '99999999-0000-4000-8000-0000000000f3', '  The   school team  ');
+
+SELECT is(
+  (SELECT audience FROM hive.intent_requests
+    WHERE client_request_id = '99999999-0000-4000-8000-0000000000f3'),
+  'The school team',
+  'an intent saves its audience with whitespace collapsed');
+
+SELECT throws_ok(
+  $$ SELECT public.create_intent_request(
+       'bbbbbbbb-0000-4000-8000-000000000002', 'What should we ask at the next meeting?',
+       '99999999-0000-4000-8000-0000000000f3', 'Someone else') $$,
+  '23505',
+  'idempotency_conflict',
+  'replaying an intent with a different audience is a conflict');
+
+SELECT throws_ok(
+  $$ SELECT public.create_intent_request(
+       'bbbbbbbb-0000-4000-8000-000000000002', 'Another question.',
+       '99999999-0000-4000-8000-0000000000f4', repeat('x', 201)) $$,
+  '22023',
+  'invalid_request:audience_length',
+  'an audience over 200 characters is refused');
 
 SELECT * FROM finish();
 ROLLBACK;

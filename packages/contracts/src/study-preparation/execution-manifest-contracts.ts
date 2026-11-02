@@ -37,6 +37,8 @@ export type ExecutionManifest = {
     intentRequests: { intentRequestIds: string[]; intentSnapshotDigest: string };
     sourceDocuments: { sourceSnapshotDigest: string; documents: ManifestSourceDocument[] };
     investigationPlan: { schema: string; planDigest: string; questionIds: string[] };
+    /** Absent on previews prepared before the specialist-question stage existed. */
+    intentIntelligence?: { schema: string; intelligenceDigest: string; questionIds: string[] };
   };
   bindings: {
     placeholder: typeof SOURCE_PAGES_PLACEHOLDER;
@@ -63,6 +65,8 @@ export const INVESTIGATION_ANSWER_STATUSES = [
 ] as const;
 export type InvestigationAnswerStatus = (typeof INVESTIGATION_ANSWER_STATUSES)[number];
 
+type InvestigationEvidence = { sourceDocumentId: string; pageNumber: number; quote: string };
+
 export type StudyInvestigationOutput = {
   schema: typeof STUDY_INVESTIGATION_SCHEMA;
   processingRunId: string;
@@ -70,8 +74,27 @@ export type StudyInvestigationOutput = {
     planQuestionId: string;
     status: InvestigationAnswerStatus;
     answer: string;
-    evidence: { sourceDocumentId: string; pageNumber: number; quote: string }[];
-    conflicts: { description: string; evidence: { sourceDocumentId: string; pageNumber: number; quote: string }[] }[];
+    facts: { statement: string; evidence: InvestigationEvidence[] }[];
+    calculations: {
+      description: string;
+      inputs: { label: string; valueAsWritten: string; evidence: InvestigationEvidence[] }[];
+      arithmetic: string;
+      result: string;
+    }[];
+    assessments: {
+      judgment: string;
+      criterion: string;
+      criterionSource: "DOCUMENT" | "GENERAL_KNOWLEDGE";
+      criterionEvidence: InvestigationEvidence[];
+      factIndexes: number[];
+      reasoning: string;
+      strength: "STRONG" | "MODERATE" | "TENTATIVE";
+      wouldChangeIf: string[];
+    }[];
+    uncertainties: string[];
+    professionalDeterminations: { determination: string; bearingFacts: number[]; decidedBy: string }[];
+    evidence: InvestigationEvidence[];
+    conflicts: { description: string; evidence: InvestigationEvidence[] }[];
     limitations: string[];
   }[];
   coverageNotes: string[];

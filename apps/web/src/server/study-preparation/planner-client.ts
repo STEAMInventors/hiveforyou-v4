@@ -10,8 +10,8 @@ import {
 
 import type { PlannerPrompt } from "./prompt-catalog";
 
-/** Above the planner's own 90 s LiteLLM timeout and below the 180 s stage lease. */
-export const PLANNER_HTTP_TIMEOUT_MS = 100_000;
+/** Above the planner's own 150 s LiteLLM timeout and below the 180 s stage lease. */
+export const PLANNER_HTTP_TIMEOUT_MS = 160_000;
 
 export type PlannerServiceConfig = {
   readonly baseUrl: string;
@@ -127,7 +127,7 @@ export async function callPlanner(
     prompt_digest: input.prompt.digest,
     system_prompt: input.prompt.systemPrompt,
     user_payload: input.userPayload,
-    max_output_tokens: PLANNER_MAX_OUTPUT_TOKENS,
+    max_output_tokens: PLANNER_MAX_OUTPUT_TOKENS[input.prompt.task],
   };
   const started = Date.now();
   let response: Response;

@@ -9,6 +9,7 @@ describe("loadPromptCatalog", () => {
     expect(Object.values(catalog.planner).map((prompt) => prompt.id)).toEqual([
       "hive-intent/1",
       "hive-domain/1",
+      "hive-intent-intelligence/1",
       "hive-plan/1",
     ]);
     for (const prompt of Object.values(catalog.planner)) {
@@ -28,6 +29,7 @@ describe("buildPromptCatalog", () => {
     return {
       "hive-intent/HiveForYou-Intent-v1.md": planner("hive-intent/1"),
       "hive-domain/HiveForYou-Domain-v1.md": planner("hive-domain/1"),
+      "hive-intent-intelligence/HiveForYou-Intent-Intelligence-v1.md": planner("hive-intent-intelligence/1"),
       "hive-plan/HiveForYou-Plan-v1.md": planner("hive-plan/1"),
       "hive-study/HiveForYou-Study-Preview-v1.md": ["Prompt id: `hive-study-preview/1`", "## Template", "Body {{SOURCE_PAGES}}"].join(eol),
       "hive-study/hive.study-investigation-1.schema.json": "{}",

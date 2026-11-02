@@ -23,7 +23,7 @@ function completedStageCount(run: Pick<ProcessingRun, "stageMetrics">): number {
   return run.stageMetrics.filter((metric) => metric.outcome === "SUCCEEDED").length;
 }
 
-/** The four visible stages, derived only from the persisted run. */
+/** The five visible stages, derived only from the persisted run. */
 export function preparationSteps(run: Pick<ProcessingRun, "status" | "stageMetrics"> | null): PreparationStep[] {
   const outcome = preparationOutcome(run);
   const activeIndex = run ? stageIndexForStatus(run.status) : -1;

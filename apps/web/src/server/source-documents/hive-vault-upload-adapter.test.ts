@@ -310,6 +310,43 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
     expect(second.intentRequest.id).toBe(first.intentRequest.id);
   });
 
+  it("passes the audience to the intent RPC only when one is given", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const client = {
+      rpc: async (_fn: string, args: Record<string, unknown> = {}) => {
+        calls.push(args);
+        const id = crypto.randomUUID();
+        return {
+          data: {
+            intentRequest: {
+              id,
+              intentRequestId: id,
+              hiveId: HIVE_A,
+              clientRequestId: args.p_client_request_id,
+              createdAt: "2026-11-02T10:00:00.000Z",
+            },
+            created: true,
+          },
+          error: null,
+        };
+      },
+    };
+    await createIntentRequestForOwnedHive(
+      client as never,
+      HIVE_A,
+      { intentText: "Prepare for the meeting", clientRequestId: crypto.randomUUID(), audience: "The school team" },
+      CORR_ID,
+    );
+    await createIntentRequestForOwnedHive(
+      client as never,
+      HIVE_A,
+      { intentText: "Prepare for the meeting", clientRequestId: crypto.randomUUID() },
+      CORR_ID,
+    );
+    expect(calls[0]).toMatchObject({ p_audience: "The school team" });
+    expect(calls[1]).not.toHaveProperty("p_audience");
+  });
+
   it("migration defines 1:1 Hive-to-Case FK, V3 Vault tables, RLS, and private bucket hive-source-documents", async () => {
     const repoRoot = path.resolve(process.cwd(), "../..");
     const sql = await readFile(

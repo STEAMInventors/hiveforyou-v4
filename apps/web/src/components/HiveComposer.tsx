@@ -1,6 +1,6 @@
 "use client";
 
-import { INTENT_TEXT_MAX_LENGTH } from "@hiveforyou/contracts";
+import { INTENT_AUDIENCE_MAX_LENGTH, INTENT_TEXT_MAX_LENGTH } from "@hiveforyou/contracts";
 import { useId, useState } from "react";
 
 import type { CreateHiveFailure } from "@/components/hives/create-hive-flow";
@@ -14,6 +14,8 @@ const COUNTER_THRESHOLD = INTENT_TEXT_MAX_LENGTH - 200;
 
 export type HiveComposerProps = {
   intentText: string;
+  /** Optional: who the result is for, in the owner's words. */
+  audience?: string;
   files: SelectedSourceFile[];
   intentError?: string | null;
   filesError?: string | null;
@@ -22,6 +24,7 @@ export type HiveComposerProps = {
   /** The intent is already saved with the Hive and can no longer change. */
   intentLocked?: boolean;
   onIntentTextChange: (value: string) => void;
+  onAudienceChange?: (value: string) => void;
   onAddFiles: (files: File[]) => void;
   onRemoveFile: (key: string) => void;
   onSubmit: () => void;
@@ -29,6 +32,7 @@ export type HiveComposerProps = {
 
 export function HiveComposer({
   intentText,
+  audience = "",
   files,
   intentError = null,
   filesError = null,
@@ -36,11 +40,13 @@ export function HiveComposer({
   busy = false,
   intentLocked = false,
   onIntentTextChange,
+  onAudienceChange,
   onAddFiles,
   onRemoveFile,
   onSubmit,
 }: HiveComposerProps) {
   const inputId = useId();
+  const audienceId = useId();
   const hintId = useId();
   const intentErrorId = useId();
   const filesErrorId = useId();
@@ -141,6 +147,25 @@ export function HiveComposer({
           <span className="self-end text-[12.5px] text-ink-subtle" aria-live="polite">
             {intentText.length} / {INTENT_TEXT_MAX_LENGTH}
           </span>
+        ) : null}
+
+        {onAudienceChange ? (
+          <div className="flex items-center gap-2 border-t border-line pt-2">
+            <label htmlFor={audienceId} className="shrink-0 text-[13px] font-medium text-ink-muted">
+              For
+            </label>
+            <input
+              id={audienceId}
+              type="text"
+              readOnly={intentLocked}
+              value={audience}
+              maxLength={INTENT_AUDIENCE_MAX_LENGTH}
+              aria-label="Who is this for? (optional)"
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] text-ink placeholder:text-ink-subtle read-only:text-ink-muted focus:outline-none focus:ring-0 focus-visible:outline-none"
+              placeholder="Who is this for? Optional, for example the school team or my accountant"
+              onChange={(event) => onAudienceChange(event.target.value)}
+            />
+          </div>
         ) : null}
 
         <SelectedFileChips files={files} onRemove={onRemoveFile} busy={busy} />

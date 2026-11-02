@@ -4,10 +4,12 @@ import {
   type GetStudyPreparationResponse,
   type HiveError,
   type IntentDecomposition,
+  type IntentIntelligence,
   type InvestigationPlan,
   isValidUuid,
   type ModelStageStatus,
   normalizeGetStudyPreparationResponse,
+  type PlannerTask,
   normalizeProcessingRun,
   type ProcessingRun,
   type ProcessingRunStatus,
@@ -19,6 +21,7 @@ import {
   validateDomainProposal,
   validateExecutionManifest,
   validateIntentDecomposition,
+  validateIntentIntelligence,
   validateInvestigationPlan,
   validateStartStudyPreparationInput,
 } from "@hiveforyou/contracts";
@@ -189,6 +192,7 @@ type StageOutputs = {
   intentDecomposition?: IntentDecomposition;
   domainProposal?: DomainProposal;
   sampleCoverage?: SampleCoverage;
+  intentIntelligence?: IntentIntelligence;
   investigationPlan?: InvestigationPlan;
 };
 
@@ -273,7 +277,11 @@ async function loadInputs(client: StudyPreparationRpcClient, runId: string): Pro
     coverageDigest: String(payload?.coverageDigest),
     intents: intents
       .filter((intent) => typeof intent.id === "string" && typeof intent.intentText === "string")
-      .map((intent) => ({ id: (intent.id as string).toLowerCase(), intentText: intent.intentText as string })),
+      .map((intent) => ({
+        id: (intent.id as string).toLowerCase(),
+        intentText: intent.intentText as string,
+        audience: typeof intent.audience === "string" && intent.audience.trim() ? intent.audience : null,
+      })),
   };
 }
 
@@ -370,7 +378,7 @@ export async function processStudyPreparation(
 
   const modelStage = async <T>(
     stage: ModelStageStatus,
-    task: "intent" | "domain" | "plan",
+    task: PlannerTask,
     catalog: PromptCatalog,
     userPayload: Record<string, unknown>,
     validate: (raw: unknown) => { ok: true; value: T } | { ok: false; message: string; diagnosticReason: string },
@@ -381,7 +389,7 @@ export async function processStudyPreparation(
       stage,
       promptId: prompt.id,
       promptDigest: prompt.digest,
-      modelAliasRequested: "sorter",
+      modelAliasRequested: null,
       startedAt: stageStartedAt,
     };
     let completion: PlannerCallResult;
@@ -412,6 +420,7 @@ export async function processStudyPreparation(
     }
     const metric: StageMetric = {
       ...baseMetric,
+      modelAliasRequested: completion.modelAlias,
       resolvedModel: completion.resolvedModel,
       promptTokens: completion.usage.promptTokens,
       completionTokens: completion.usage.completionTokens,
@@ -453,6 +462,10 @@ export async function processStudyPreparation(
     }
     const intentPayload = inputs.intents.map((intent) => ({ intentRequestId: intent.id, intentText: intent.intentText }));
     const documents = documentSummaries(inputs.sourceSnapshot);
+    const sampleCoverageSummary = {
+      complete: inputs.sourceSnapshot.coverageComplete,
+      excludedDocumentCount: inputs.sourceSnapshot.excluded.length,
+    };
 
     // 1. Understanding your request — hive-intent/1 (no document text).
     const decomposition = await modelStage(
@@ -474,31 +487,46 @@ export async function processStudyPreparation(
       correlationId,
     });
     const { samples, coverage } = selectDomainSamples(sampleDocuments);
+    const sampledRefs = samples.map((sample) => ({ sourceDocumentId: sample.sourceDocumentId, pageNumber: sample.pageNumber }));
     const domain = await modelStage(
       "IDENTIFYING_DOMAIN",
       "domain",
       catalog,
-      {
-        task: "domain",
-        intents: intentPayload,
-        documents,
-        samples,
-        coverage: {
-          complete: inputs.sourceSnapshot.coverageComplete,
-          excludedDocumentCount: inputs.sourceSnapshot.excluded.length,
-        },
-      },
-      (raw) =>
-        validateDomainProposal(raw, {
-          sampledRefs: samples.map((sample) => ({ sourceDocumentId: sample.sourceDocumentId, pageNumber: sample.pageNumber })),
-        }),
+      { task: "domain", intents: intentPayload, documents, samples, coverage: sampleCoverageSummary },
+      (raw) => validateDomainProposal(raw, { sampledRefs }),
     );
-    await advance("PLANNING_INVESTIGATION", {
+    await advance("DEVELOPING_QUESTIONS", {
       stage_outputs: { domainProposal: domain.value, sampleCoverage: coverage },
       stage_metric: domain.metric,
     });
 
-    // 3. Planning the investigation — hive-plan/1 from the validated intent AND domain.
+    // 3. Developing specialist questions — hive-intent-intelligence/1 from the validated intent,
+    //    domain and the same page sample.
+    const intelligence = await modelStage(
+      "DEVELOPING_QUESTIONS",
+      "intelligence",
+      catalog,
+      {
+        task: "intelligence",
+        intents: inputs.intents.map((intent) => ({
+          intentRequestId: intent.id,
+          intentText: intent.intentText,
+          audience: intent.audience,
+        })),
+        intentDecomposition: decomposition.value,
+        domain: domain.value,
+        documents,
+        samples,
+        coverage: sampleCoverageSummary,
+      },
+      (raw) => validateIntentIntelligence(raw, { decomposition: decomposition.value, sampledRefs }),
+    );
+    await advance("PLANNING_INVESTIGATION", {
+      stage_outputs: { intentIntelligence: intelligence.value },
+      stage_metric: intelligence.metric,
+    });
+
+    // 4. Planning the investigation — hive-plan/1 from the validated intent, specialist questions and domain.
     const plan = await modelStage(
       "PLANNING_INVESTIGATION",
       "plan",
@@ -506,6 +534,7 @@ export async function processStudyPreparation(
       {
         task: "plan",
         intentDecomposition: decomposition.value,
+        intentIntelligence: intelligence.value,
         domain: domain.value,
         documents,
         coverage: {
@@ -516,15 +545,21 @@ export async function processStudyPreparation(
           })),
         },
       },
-      (raw) => validateInvestigationPlan(raw, { decomposition: decomposition.value, domain: domain.value }),
+      (raw) =>
+        validateInvestigationPlan(raw, {
+          decomposition: decomposition.value,
+          intelligence: intelligence.value,
+          domain: domain.value,
+        }),
     );
     await advance("BUILDING_PROMPT", { stage_outputs: { investigationPlan: plan.value }, stage_metric: plan.metric });
 
-    // 4. Constructing your study prompt — deterministic hive-study-preview/1, saved and read back.
+    // 5. Constructing your study prompt — deterministic hive-study-preview/1, saved and read back.
     const built = buildStudyPrompt({
       processingRunId: runId,
       catalog,
       decomposition: decomposition.value,
+      intelligence: intelligence.value,
       domain: domain.value,
       plan: plan.value,
       sourceSnapshot: inputs.sourceSnapshot,

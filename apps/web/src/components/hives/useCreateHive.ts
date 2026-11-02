@@ -30,6 +30,7 @@ const EMPTY_PROGRESS: CreateHiveProgress = { hive: null, intentSaved: false };
 /** Intent + attachments state and D-026 validation shared by every Hive composer. */
 export function useHiveComposer(onValidSubmit: (draft: GuestDraft) => void | Promise<void>) {
   const [intentText, setIntentText] = useState("");
+  const [audience, setAudience] = useState("");
   const [files, setFiles] = useState<SelectedSourceFile[]>([]);
   const [intentError, setIntentError] = useState<string | null>(null);
   const [filesError, setFilesError] = useState<string | null>(null);
@@ -38,11 +39,13 @@ export function useHiveComposer(onValidSubmit: (draft: GuestDraft) => void | Pro
 
   const load = useCallback((draft: GuestDraft) => {
     setIntentText(draft.intentText);
+    setAudience(draft.audience ?? "");
     setFiles(toSelectedSourceFiles(draft.files).slice(0, MAX_FILES_PER_BATCH));
   }, []);
 
   const reset = useCallback(() => {
     setIntentText("");
+    setAudience("");
     setFiles([]);
     setIntentError(null);
     setFilesError(null);
@@ -56,7 +59,7 @@ export function useHiveComposer(onValidSubmit: (draft: GuestDraft) => void | Pro
   }, []);
 
   const submit = useCallback(async () => {
-    const validation = validateComposerDraft({ intentText, files });
+    const validation = validateComposerDraft({ intentText, audience, files });
     setIntentError(validation.intentError);
     setFilesError(validation.filesError);
     if (!validation.ok) {
@@ -65,14 +68,19 @@ export function useHiveComposer(onValidSubmit: (draft: GuestDraft) => void | Pro
     setFailure(null);
     setBusy(true);
     try {
-      await onValidSubmit({ intentText: intentText.trim(), files: files.map((item) => item.file) });
+      await onValidSubmit({
+        intentText: intentText.trim(),
+        audience: audience.trim(),
+        files: files.map((item) => item.file),
+      });
     } finally {
       setBusy(false);
     }
-  }, [files, intentText, onValidSubmit]);
+  }, [audience, files, intentText, onValidSubmit]);
 
   const composerProps: HiveComposerProps = {
     intentText,
+    audience,
     files,
     intentError,
     filesError,
@@ -80,6 +88,11 @@ export function useHiveComposer(onValidSubmit: (draft: GuestDraft) => void | Pro
     busy,
     onIntentTextChange: (value) => {
       setIntentText(value);
+      setIntentError(null);
+      setFailure(null);
+    },
+    onAudienceChange: (value) => {
+      setAudience(value);
       setIntentError(null);
       setFailure(null);
     },
@@ -159,7 +172,7 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
   );
 
   const runPersist = useCallback(
-    async (confirmedName: string, intentText: string) => {
+    async (confirmedName: string, intentText: string, audience: string) => {
       ensureRequestIds();
       composer.setBusy(true);
       setNamingFailure(null);
@@ -174,6 +187,7 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
             progress: progressRef.current,
             hiveName: confirmedName,
             intentText,
+            audience,
             hiveRequestId: hiveRequestIdRef.current,
             intentRequestId: intentRequestIdRef.current,
             files: composer.files,
@@ -215,8 +229,12 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
       return;
     }
     setNameError(null);
-    await runPersist(validated.value, composer.composerProps.intentText.trim());
-  }, [composer.composerProps.intentText, hiveName, runPersist]);
+    await runPersist(
+      validated.value,
+      composer.composerProps.intentText.trim(),
+      (composer.composerProps.audience ?? "").trim(),
+    );
+  }, [composer.composerProps.audience, composer.composerProps.intentText, hiveName, runPersist]);
 
   const openModal = useCallback(
     (draft?: GuestDraft) => {
@@ -260,6 +278,13 @@ export function useCreateHive(onCreated: (hive: Hive) => void) {
       }
       intentRequestIdRef.current = "";
       composer.composerProps.onIntentTextChange(value);
+    },
+    onAudienceChange: (value) => {
+      if (progress.intentSaved) {
+        return;
+      }
+      intentRequestIdRef.current = "";
+      composer.composerProps.onAudienceChange?.(value);
     },
   };
 

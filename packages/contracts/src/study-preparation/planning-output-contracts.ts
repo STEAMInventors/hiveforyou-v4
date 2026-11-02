@@ -1,13 +1,14 @@
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 
 /**
- * Deterministic validators for the three planning-model outputs (D-039). Model output is
+ * Deterministic validators for the four planning-model outputs (D-039, D-040). Model output is
  * untrusted: every identifier, cross-reference and evidence reference is checked here before
  * a stage output is saved. Validators never repair output; they accept it or reject it.
  */
 
 export const INTENT_DECOMPOSITION_SCHEMA = "hive.intent-decomposition/1";
 export const DOMAIN_PROPOSAL_SCHEMA = "hive.domain-proposal/1";
+export const INTENT_INTELLIGENCE_SCHEMA = "hive.intent-intelligence/1";
 export const INVESTIGATION_PLAN_SCHEMA = "hive.investigation-plan/1";
 
 export const ANSWER_TYPES = [
@@ -27,6 +28,7 @@ export type AdvisoryConfidence = (typeof ADVISORY_CONFIDENCE_LEVELS)[number];
 
 export const MAX_OBJECTIVES = 12;
 export const MAX_QUESTIONS_PER_OBJECTIVE = 12;
+export const MAX_SPECIALIST_QUESTIONS = 48;
 export const MAX_PLAN_QUESTIONS = 60;
 export const MAX_LIST_ITEMS = 12;
 export const MAX_SHORT_TEXT = 200;
@@ -37,7 +39,7 @@ export const MAX_LONG_TEXT = 1200;
 // ---------------------------------------------------------------------------
 export type SourcePageRef = { sourceDocumentId: string; pageNumber: number };
 
-export type StoredIntent = { id: string; intentText: string };
+export type StoredIntent = { id: string; intentText: string; audience?: string | null };
 
 export type DecomposedQuestion = {
   id: string;
@@ -66,8 +68,8 @@ export type IntentAmbiguity = {
 
 export type IntentDecomposition = {
   schema: typeof INTENT_DECOMPOSITION_SCHEMA;
-  /** Verbatim stored intents, injected by trusted code (never taken from model output). */
-  intents: { intentRequestId: string; verbatimText: string }[];
+  /** Verbatim stored intents and audiences, injected by trusted code (never taken from model output). */
+  intents: { intentRequestId: string; verbatimText: string; audience?: string | null }[];
   objectives: IntentObjective[];
   expectedOutputs: string[];
   ambiguities: IntentAmbiguity[];
@@ -93,15 +95,44 @@ export type DomainProposal = {
   confidenceIsAdvisory: true;
 };
 
+export type SpecialistQuestion = {
+  id: string;
+  objectiveId: string;
+  decompositionQuestionIds: string[];
+  question: string;
+  whyItMatters: string;
+  supportsOutcome: string;
+  dependsOn: string[];
+  requiresJudgment: boolean;
+  judgmentBasis: string | null;
+  contextRefs: SourcePageRef[];
+};
+
+export type ObjectiveCompletenessReview = {
+  objectiveId: string;
+  wouldFulfilIntent: true;
+  gapsFound: string[];
+  revisions: string[];
+  remainingLimits: string[];
+};
+
+export type IntentIntelligence = {
+  schema: typeof INTENT_INTELLIGENCE_SCHEMA;
+  questions: SpecialistQuestion[];
+  completenessReview: ObjectiveCompletenessReview[];
+};
+
 export type PlanQuestion = {
   id: string;
   objectiveId: string;
-  sourceQuestionIds: string[];
+  specialistQuestionIds: string[];
   establish: string;
   requiredEvidence: string[];
+  sourceDependencies: string[];
   comparison: string | null;
   chronology: string | null;
   calculation: string | null;
+  evaluation: string | null;
   missingEvidenceConditions: string[];
   answerType: AnswerType;
   deliverable: string;
@@ -183,11 +214,11 @@ function readTextList(
   record: Record<string, unknown>,
   key: string,
   path: string,
-  options: { max?: number; min?: number } = {},
+  options: { max?: number; min?: number; maxLength?: number } = {},
 ): string[] {
   const items = readArray(record, key, path, options.max ?? MAX_LIST_ITEMS);
   const texts = items.map((item, index) => {
-    if (typeof item !== "string" || item.trim().length === 0 || item.length > MAX_SHORT_TEXT) {
+    if (typeof item !== "string" || item.trim().length === 0 || item.length > (options.maxLength ?? MAX_SHORT_TEXT)) {
       fail("invalid_text", `${path}.${key}[${index}] must be short non-empty text.`);
     }
     return item.trim();
@@ -438,6 +469,7 @@ export function validateIntentDecomposition(
       intents: context.intents.map((intent) => ({
         intentRequestId: intent.id.toLowerCase(),
         verbatimText: intent.intentText,
+        audience: intent.audience ?? null,
       })),
       objectives,
       expectedOutputs: readTextList(root, "expectedOutputs", "output", { min: 1 }),
@@ -509,14 +541,124 @@ export function domainIsUncertain(domain: DomainProposal): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Stage 3 — hive-plan/1 (from the validated decomposition AND domain proposal)
+// Stage 3 — hive-intent-intelligence/1 (from the validated decomposition, domain and sample)
+// ---------------------------------------------------------------------------
+const REVIEW_TEXT_MAX = 400;
+
+/**
+ * Specialist questions must cover every objective and every decomposed question, carry a
+ * judgment basis wherever judgment is needed, and come with a passed completeness review per
+ * objective. `sampledRefs` are the page references actually sent to the model.
+ */
+export function validateIntentIntelligence(
+  raw: unknown,
+  context: { decomposition: IntentDecomposition; sampledRefs: readonly SourcePageRef[] },
+): ContractValidation<IntentIntelligence> {
+  return run(() => {
+    const { decomposition } = context;
+    const root = asRecord(raw, "output");
+    const allowedRefs = new Set(context.sampledRefs.map(sourcePageRefKey));
+    const questionsByObjective = new Map(
+      decomposition.objectives.map((objective) => [
+        objective.id,
+        new Set(objective.questions.map((question) => question.id)),
+      ]),
+    );
+
+    const questions = readArray(root, "questions", "output", MAX_SPECIALIST_QUESTIONS).map(
+      (item, index): SpecialistQuestion => {
+        const path = `questions[${index}]`;
+        const record = asRecord(item, path);
+        const objectiveId = readId(record, "objectiveId", path, "O");
+        const objectiveQuestions = questionsByObjective.get(objectiveId);
+        if (!objectiveQuestions) {
+          fail("objective_unknown", `${path}.objectiveId must refer to a decomposed objective.`);
+        }
+        const decompositionQuestionIds = readIdList(record, "decompositionQuestionIds", path, "Q", MAX_LIST_ITEMS);
+        if (decompositionQuestionIds.some((id) => !objectiveQuestions.has(id))) {
+          fail("question_unknown", `${path}.decompositionQuestionIds must refer to questions of ${objectiveId}.`);
+        }
+        const requiresJudgment = readBoolean(record, "requiresJudgment", path);
+        const judgmentBasis = readNullableText(record, "judgmentBasis", path, MAX_LONG_TEXT);
+        if (requiresJudgment && judgmentBasis === null) {
+          fail("judgment_basis_missing", `${path} needs judgment but names no criterion.`);
+        }
+        return {
+          id: readId(record, "id", path, "I"),
+          objectiveId,
+          decompositionQuestionIds,
+          question: readText(record, "question", path, MAX_LONG_TEXT),
+          whyItMatters: readText(record, "whyItMatters", path, MAX_LONG_TEXT),
+          supportsOutcome: readText(record, "supportsOutcome", path, MAX_LONG_TEXT),
+          dependsOn: readIdList(record, "dependsOn", path, "I", MAX_LIST_ITEMS),
+          requiresJudgment,
+          judgmentBasis,
+          contextRefs: readRefs(record, "contextRefs", path, allowedRefs),
+        };
+      },
+    );
+    assertUnique(questions.map((question) => question.id), "questions");
+    assertAcyclic(new Map(questions.map((question) => [question.id, question.dependsOn])), "questions");
+
+    const intentTexts = decomposition.intents.map((intent) => intent.verbatimText);
+    for (const question of questions) {
+      if (restatesIntent(question.question, intentTexts)) {
+        fail("question_restates_intent", `${question.id} repeats the request instead of asking something specific.`);
+      }
+    }
+
+    const covered = new Set(questions.flatMap((question) => question.decompositionQuestionIds));
+    for (const objective of decomposition.objectives) {
+      if (!questions.some((question) => question.objectiveId === objective.id)) {
+        fail("objective_not_covered", `Objective ${objective.id} has no specialist question.`);
+      }
+      for (const question of objective.questions) {
+        if (!covered.has(question.id)) {
+          fail("question_not_covered", `Decomposed question ${question.id} has no specialist question.`);
+        }
+      }
+    }
+
+    const completenessReview = readArray(root, "completenessReview", "output", MAX_OBJECTIVES).map(
+      (item, index): ObjectiveCompletenessReview => {
+        const path = `completenessReview[${index}]`;
+        const record = asRecord(item, path);
+        const objectiveId = readId(record, "objectiveId", path, "O");
+        if (!questionsByObjective.has(objectiveId)) {
+          fail("objective_unknown", `${path}.objectiveId must refer to a decomposed objective.`);
+        }
+        if (!readBoolean(record, "wouldFulfilIntent", path)) {
+          fail("outcome_incomplete", `${path}: the questions for ${objectiveId} would not fulfil the request.`);
+        }
+        return {
+          objectiveId,
+          wouldFulfilIntent: true,
+          gapsFound: readTextList(record, "gapsFound", path, { maxLength: REVIEW_TEXT_MAX }),
+          revisions: readTextList(record, "revisions", path, { maxLength: REVIEW_TEXT_MAX }),
+          remainingLimits: readTextList(record, "remainingLimits", path, { maxLength: REVIEW_TEXT_MAX }),
+        };
+      },
+    );
+    assertUnique(completenessReview.map((review) => review.objectiveId), "completenessReview");
+    for (const objective of decomposition.objectives) {
+      if (!completenessReview.some((review) => review.objectiveId === objective.id)) {
+        fail("completeness_review_missing", `Objective ${objective.id} has no completeness review.`);
+      }
+    }
+
+    return { schema: INTENT_INTELLIGENCE_SCHEMA, questions, completenessReview };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Stage 4 — hive-plan/1 (from the validated decomposition, specialist questions and domain)
 // ---------------------------------------------------------------------------
 export function validateInvestigationPlan(
   raw: unknown,
-  context: { decomposition: IntentDecomposition; domain: DomainProposal },
+  context: { decomposition: IntentDecomposition; intelligence: IntentIntelligence; domain: DomainProposal },
 ): ContractValidation<InvestigationPlan> {
   return run(() => {
-    const { decomposition, domain } = context;
+    const { decomposition, intelligence, domain } = context;
     const root = asRecord(raw, "output");
 
     const domainRefs = new Set(
@@ -545,35 +687,35 @@ export function validateInvestigationPlan(
       },
     );
 
-    const questionsByObjective = new Map(
-      decomposition.objectives.map((objective) => [
-        objective.id,
-        new Set(objective.questions.map((question) => question.id)),
-      ]),
-    );
+    const objectiveIds = new Set(decomposition.objectives.map((objective) => objective.id));
+    const specialistObjective = new Map(intelligence.questions.map((question) => [question.id, question.objectiveId]));
 
     const questions = readArray(root, "questions", "output", MAX_PLAN_QUESTIONS).map(
       (item, index): PlanQuestion => {
         const path = `questions[${index}]`;
         const record = asRecord(item, path);
         const objectiveId = readId(record, "objectiveId", path, "O");
-        const objectiveQuestions = questionsByObjective.get(objectiveId);
-        if (!objectiveQuestions) {
+        if (!objectiveIds.has(objectiveId)) {
           fail("objective_unknown", `${path}.objectiveId must refer to a decomposed objective.`);
         }
-        const sourceQuestionIds = readIdList(record, "sourceQuestionIds", path, "Q", MAX_LIST_ITEMS);
-        if (sourceQuestionIds.length === 0 || sourceQuestionIds.some((id) => !objectiveQuestions.has(id))) {
-          fail("question_unknown", `${path}.sourceQuestionIds must refer to questions of ${objectiveId}.`);
+        const specialistQuestionIds = readIdList(record, "specialistQuestionIds", path, "I", MAX_LIST_ITEMS);
+        if (
+          specialistQuestionIds.length === 0 ||
+          specialistQuestionIds.some((id) => specialistObjective.get(id) !== objectiveId)
+        ) {
+          fail("question_unknown", `${path}.specialistQuestionIds must refer to specialist questions of ${objectiveId}.`);
         }
         return {
           id: readId(record, "id", path, "P"),
           objectiveId,
-          sourceQuestionIds,
+          specialistQuestionIds,
           establish: readText(record, "establish", path, MAX_LONG_TEXT),
           requiredEvidence: readTextList(record, "requiredEvidence", path, { min: 1 }),
+          sourceDependencies: readTextList(record, "sourceDependencies", path, { min: 1 }),
           comparison: readNullableText(record, "comparison", path, MAX_LONG_TEXT),
           chronology: readNullableText(record, "chronology", path, MAX_LONG_TEXT),
           calculation: readNullableText(record, "calculation", path, MAX_LONG_TEXT),
+          evaluation: readNullableText(record, "evaluation", path, MAX_LONG_TEXT),
           missingEvidenceConditions: readTextList(record, "missingEvidenceConditions", path, { min: 1 }),
           answerType: readEnum(record, "answerType", path, ANSWER_TYPES),
           deliverable: readText(record, "deliverable", path, MAX_SHORT_TEXT),
@@ -598,12 +740,13 @@ export function validateInvestigationPlan(
     assertUnique(questions.map((question) => question.id), "questions");
     assertAcyclic(new Map(questions.map((question) => [question.id, question.dependsOn])), "questions");
 
-    const covered = new Set(questions.flatMap((question) => question.sourceQuestionIds));
-    for (const objective of decomposition.objectives) {
-      for (const question of objective.questions) {
-        if (!covered.has(question.id)) {
-          fail("question_not_covered", `Decomposed question ${question.id} has no investigation question.`);
-        }
+    for (const specialist of intelligence.questions) {
+      const serving = questions.filter((question) => question.specialistQuestionIds.includes(specialist.id));
+      if (serving.length === 0) {
+        fail("question_not_covered", `Specialist question ${specialist.id} has no investigation question.`);
+      }
+      if (specialist.requiresJudgment && !serving.some((question) => question.evaluation !== null)) {
+        fail("evaluation_missing", `Specialist question ${specialist.id} needs judgment but no evaluation is planned.`);
       }
     }
 

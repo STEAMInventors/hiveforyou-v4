@@ -5,6 +5,8 @@ Container for `v4_planner.py` (D-039): the only path from the web server to the 
 - **Network:** Docker bridge `oracle_default` (external, already used by `hive-litellm`). LiteLLM is reached privately at `http://hive-litellm:4000`. No host networking.
 - **Host bind:** `127.0.0.1:8083` only. The existing Reader TLS proxy routes a path on the same HTTPS host to it.
 - **Credentials:** `v4-planner.env` (gitignored, `chmod 600`). `PLANNER_SERVICE_TOKEN` is distinct from `READER_SERVICE_TOKEN`; `PLANNER_LITELLM_API_KEY` is a scoped virtual key, never the master key.
+- **Per-task model (D-040):** `TASK_MODEL_ALIASES` in `v4_planner.py` overrides the alias for one task (code constant, no new variable). All four tasks (`intent`, `domain`, `intelligence`, `plan`) currently use `sorter`; to compare `harvester` for `intelligence`, change that entry, add `harvester` to the virtual key's `models`, rebuild and redeploy. `/health` reports `task_model_aliases`.
+- **Timeouts:** LiteLLM 150 s per call; the web client waits 160 s; the proxy below must allow at least that.
 
 ## 1. Create the scoped LiteLLM virtual key (founder approval)
 
@@ -43,7 +45,7 @@ docker compose -f compose.planner.yml build
 docker compose -f compose.planner.yml up -d
 docker compose -f compose.planner.yml ps
 curl -sS http://127.0.0.1:8083/health
-# Expect: status ok, model_alias sorter, litellm_configured true, service_token_configured true
+# Expect: status ok, model_alias sorter, task_model_aliases (all sorter), litellm_configured true, service_token_configured true
 ```
 
 ## 4. TLS proxy route
@@ -61,7 +63,7 @@ Example (nginx):
 ```nginx
 location /planner/ {
     proxy_pass http://127.0.0.1:8083/;
-    proxy_read_timeout 120s;
+    proxy_read_timeout 170s;
     client_max_body_size 300k;
 }
 ```

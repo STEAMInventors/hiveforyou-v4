@@ -5,7 +5,9 @@ import {
   EXECUTION_MANIFEST_SCHEMA,
   type ExecutionManifest,
   type IntentDecomposition,
+  type IntentIntelligence,
   type InvestigationPlan,
+  PLANNER_TASKS,
   type ManifestSourceDocument,
   SOURCE_PAGES_FORMAT,
   SOURCE_PAGES_PLACEHOLDER,
@@ -32,6 +34,7 @@ export type StudyPromptInputs = {
   readonly processingRunId: string;
   readonly catalog: PromptCatalog;
   readonly decomposition: IntentDecomposition;
+  readonly intelligence: IntentIntelligence;
   readonly domain: DomainProposal;
   readonly plan: InvestigationPlan;
   readonly sourceSnapshot: SourceSnapshot;
@@ -88,7 +91,8 @@ function renderIntents(decomposition: IntentDecomposition): string {
         .split("\n")
         .map((line) => `> ${line}`)
         .join("\n");
-      return `Request ${index + 1} (intentRequestId \`${intent.intentRequestId}\`):\n\n${quoted}`;
+      const audience = intent.audience ? `\n\nFor: ${inert(intent.audience)}` : "";
+      return `Request ${index + 1} (intentRequestId \`${intent.intentRequestId}\`):\n\n${quoted}${audience}`;
     })
     .join("\n\n");
 }
@@ -145,6 +149,7 @@ function optionalLine(label: string, value: string | null): string[] {
 
 function renderObjectives(
   decomposition: IntentDecomposition,
+  intelligence: IntentIntelligence,
   plan: InvestigationPlan,
   fileNames: ReadonlyMap<string, string>,
 ): string {
@@ -166,16 +171,35 @@ function renderObjectives(
         `  - Expected answer: ${inert(question.expectedOutput)}`,
       );
     }
+    lines.push("", "What a specialist would investigate to fulfil it:");
+    for (const specialist of intelligence.questions.filter((question) => question.objectiveId === objective.id)) {
+      lines.push(
+        `- ${specialist.id}${specialist.requiresJudgment ? " [needs assessment]" : ""} ${inert(specialist.question)}`,
+        `  - Why it matters: ${inert(specialist.whyItMatters)}`,
+        `  - Supports: ${inert(specialist.supportsOutcome)}`,
+        ...(specialist.judgmentBasis ? [`  - Assessment criterion: ${inert(specialist.judgmentBasis)}`] : []),
+        ...(specialist.decompositionQuestionIds.length > 0
+          ? [`  - Covers: ${specialist.decompositionQuestionIds.join(", ")}`]
+          : []),
+        ...(specialist.dependsOn.length > 0 ? [`  - After: ${specialist.dependsOn.join(", ")}`] : []),
+      );
+    }
+    const review = intelligence.completenessReview.find((item) => item.objectiveId === objective.id);
+    if (review && review.remainingLimits.length > 0) {
+      lines.push("", "What the documents alone may not settle:", ...review.remainingLimits.map((item) => `- ${inert(item)}`));
+    }
     lines.push("", "Investigation questions:");
     for (const planQuestion of plan.questions.filter((question) => question.objectiveId === objective.id)) {
       lines.push(
         "",
-        `#### ${planQuestion.id} [${planQuestion.answerType}] answers ${planQuestion.sourceQuestionIds.join(", ")}`,
+        `#### ${planQuestion.id} [${planQuestion.answerType}] answers ${planQuestion.specialistQuestionIds.join(", ")}`,
         `- Establish: ${inert(planQuestion.establish)}`,
         `- Required evidence: ${planQuestion.requiredEvidence.map(inert).join("; ")}`,
+        `- Depends on records: ${planQuestion.sourceDependencies.map(inert).join("; ")}`,
         ...optionalLine("Comparison", planQuestion.comparison),
         ...optionalLine("Chronology", planQuestion.chronology),
         ...optionalLine("Calculation", planQuestion.calculation),
+        ...optionalLine("Evaluation", planQuestion.evaluation),
         `- If the evidence is missing: ${planQuestion.missingEvidenceConditions.map(inert).join("; ")}`,
         `- Answer structure: ${inert(planQuestion.deliverable)}`,
         ...(planQuestion.dependsOn.length > 0 ? [`- Answer after: ${planQuestion.dependsOn.join(", ")}`] : []),
@@ -226,6 +250,7 @@ function renderCoverage(snapshot: SourceSnapshot, coverageDigest: string): strin
 }
 
 function renderOutputContract(plan: InvestigationPlan, processingRunId: string, schemaDigest: string): string {
+  const evidence = { sourceDocumentId: "<uuid>", pageNumber: 1, quote: "<verbatim run of words from that page>" };
   const example = {
     schema: STUDY_INVESTIGATION_SCHEMA,
     processingRunId,
@@ -234,7 +259,32 @@ function renderOutputContract(plan: InvestigationPlan, processingRunId: string, 
         planQuestionId: plan.questions[0]?.id ?? "P1",
         status: "ANSWERED | PARTIALLY_ANSWERED | MISSING_EVIDENCE | CONFLICTING",
         answer: "<answer in the structure the question asks for>",
-        evidence: [{ sourceDocumentId: "<uuid>", pageNumber: 1, quote: "<verbatim run of words from that page>" }],
+        facts: [{ statement: "<what one page says>", evidence: [evidence] }],
+        calculations: [
+          {
+            description: "<what is computed>",
+            inputs: [{ label: "<input>", valueAsWritten: "<value exactly as written>", evidence: [evidence] }],
+            arithmetic: "<the arithmetic, step by step>",
+            result: "<result>",
+          },
+        ],
+        assessments: [
+          {
+            judgment: "<the analytical judgment>",
+            criterion: "<the criterion applied>",
+            criterionSource: "DOCUMENT | GENERAL_KNOWLEDGE",
+            criterionEvidence: [],
+            factIndexes: [0],
+            reasoning: "<from the facts to the judgment, step by step>",
+            strength: "STRONG | MODERATE | TENTATIVE",
+            wouldChangeIf: ["<what would change this assessment>"],
+          },
+        ],
+        uncertainties: [],
+        professionalDeterminations: [
+          { determination: "<decision reserved for a professional or authority>", bearingFacts: [0], decidedBy: "<who decides>" },
+        ],
+        evidence: [evidence],
         conflicts: [],
         limitations: [],
       },
@@ -252,6 +302,7 @@ function renderOutputContract(plan: InvestigationPlan, processingRunId: string, 
     `- Include exactly one answer for each investigation question: ${plan.questions.map((question) => question.id).join(", ")}.`,
     `- \`processingRunId\` must be \`${processingRunId}\`.`,
     "- Status values must be one of the four listed exactly. Use `[]` for empty lists.",
+    "- `factIndexes` and `bearingFacts` are positions in the same answer's `facts` list. `criterionEvidence` is required when `criterionSource` is `DOCUMENT`.",
   ].join("\n");
 }
 
@@ -269,13 +320,13 @@ function manifestDocuments(snapshot: SourceSnapshot): ManifestSourceDocument[] {
 }
 
 export function buildStudyPrompt(inputs: StudyPromptInputs): BuiltStudyPrompt {
-  const { catalog, decomposition, domain, plan, sourceSnapshot, processingRunId } = inputs;
+  const { catalog, decomposition, intelligence, domain, plan, sourceSnapshot, processingRunId } = inputs;
   const fileNames = new Map(sourceSnapshot.documents.map((document) => [document.sourceDocumentId, document.fileName]));
   const slots: Record<string, string> = {
     PROMPT_ID: catalog.studyTemplate.id,
     INTENTS: renderIntents(decomposition),
     DOMAIN: renderDomain(domain, plan, fileNames),
-    OBJECTIVES: renderObjectives(decomposition, plan, fileNames),
+    OBJECTIVES: renderObjectives(decomposition, intelligence, plan, fileNames),
     COVERAGE: renderCoverage(sourceSnapshot, inputs.coverageDigest),
     OUTPUT_CONTRACT: renderOutputContract(plan, processingRunId, catalog.outputSchema.digest),
   };
@@ -299,7 +350,7 @@ export function buildStudyPrompt(inputs: StudyPromptInputs): BuiltStudyPrompt {
       version: catalog.studyTemplate.version,
       templateDigest: catalog.studyTemplate.digest,
       promptDigest,
-      componentPrompts: (["intent", "domain", "plan"] as const).map((task) => ({
+      componentPrompts: PLANNER_TASKS.map((task) => ({
         id: catalog.planner[task].id,
         digest: catalog.planner[task].digest,
       })),
@@ -312,6 +363,11 @@ export function buildStudyPrompt(inputs: StudyPromptInputs): BuiltStudyPrompt {
         intentSnapshotDigest: inputs.intentSnapshotDigest,
       },
       sourceDocuments: { sourceSnapshotDigest: inputs.sourceSnapshotDigest, documents },
+      intentIntelligence: {
+        schema: intelligence.schema,
+        intelligenceDigest: sha256Digest(canonicalJson(intelligence)),
+        questionIds: intelligence.questions.map((question) => question.id),
+      },
       investigationPlan: {
         schema: plan.schema,
         planDigest: sha256Digest(canonicalJson(plan)),

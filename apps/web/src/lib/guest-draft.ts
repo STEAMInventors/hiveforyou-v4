@@ -6,6 +6,7 @@
  */
 export type GuestDraft = {
   intentText: string;
+  audience?: string;
   files: File[];
 };
 
@@ -72,5 +73,5 @@ export async function loadGuestDraft(): Promise<GuestDraft | null> {
     await clearGuestDraft();
     return null;
   }
-  return { intentText: stored.intentText, files: stored.files };
+  return { intentText: stored.intentText, audience: stored.audience ?? "", files: stored.files };
 }

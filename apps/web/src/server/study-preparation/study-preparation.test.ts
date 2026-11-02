@@ -1,4 +1,4 @@
-import { PLANNER_CONTRACT_VERSION, type PlannerTask } from "@hiveforyou/contracts";
+import { PLANNER_CONTRACT_VERSION, type PlannerTask, type SourceSnapshot } from "@hiveforyou/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { loadPromptCatalog } from "./prompt-catalog";
@@ -7,11 +7,13 @@ import {
   DOC_2,
   domainOutput,
   INTENTS,
+  intelligenceOutput,
   intentOutput,
   planOutput,
   RUN_ID,
   runJson,
   samplePages,
+  snapshotDocument,
   sourceSnapshot,
 } from "./study-preparation.fixtures";
 import { processStudyPreparation, type ProcessStudyPreparationDeps } from "./study-preparation";
@@ -28,7 +30,8 @@ type Transition = { from: string; to: string; details: Record<string, unknown> }
 /** In-memory stand-in for the V4-004 service RPCs: enforces the status compare-and-set. */
 function fakeDatabase(options: {
   status?: string;
-  intents?: typeof INTENTS;
+  intents?: { id: string; intentText: string; audience: string | null }[];
+  snapshot?: SourceSnapshot;
   snapshotCurrent?: boolean;
   tamperReadback?: boolean;
   sourceChangedOn?: string;
@@ -58,7 +61,7 @@ function fakeDatabase(options: {
         return {
           data: {
             processingRun: runJson(status),
-            sourceSnapshot: sourceSnapshot(),
+            sourceSnapshot: options.snapshot ?? sourceSnapshot(),
             sourceSnapshotDigest: `sha256:${"c".repeat(64)}`,
             intentSnapshotDigest: `sha256:${"d".repeat(64)}`,
             coverageDigest: `sha256:${"e".repeat(64)}`,
@@ -103,8 +106,17 @@ function completion(task: PlannerTask, content: unknown) {
   };
 }
 
-function fakePlanner(overrides: Partial<Record<PlannerTask, () => Response>> = {}) {
-  const outputs: Record<PlannerTask, unknown> = { intent: intentOutput(), domain: domainOutput(), plan: planOutput() };
+function fakePlanner(
+  overrides: Partial<Record<PlannerTask, () => Response>> = {},
+  scenario: Partial<Record<PlannerTask, unknown>> = {},
+) {
+  const outputs: Record<PlannerTask, unknown> = {
+    intent: intentOutput(),
+    domain: domainOutput(),
+    intelligence: intelligenceOutput(),
+    plan: planOutput(),
+    ...scenario,
+  };
   const calls: PlannerTask[] = [];
   const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as { task: PlannerTask };
@@ -132,24 +144,35 @@ beforeEach(() => {
 });
 
 describe("processStudyPreparation", () => {
-  it("runs the three planning stages in order, saves the prompt, reads it back and succeeds", async () => {
+  it("runs the four planning stages in order, saves the prompt, reads it back and succeeds", async () => {
     const db = fakeDatabase();
     const planner = fakePlanner();
 
     await expect(processStudyPreparation(deps(db, planner), RUN_ID)).resolves.toBe("SUCCEEDED");
 
-    expect(planner.calls).toEqual(["intent", "domain", "plan"]);
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "plan"]);
     expect(db.transitions.map((t) => t.to)).toEqual([
       "UNDERSTANDING_REQUEST",
       "IDENTIFYING_DOMAIN",
+      "DEVELOPING_QUESTIONS",
       "PLANNING_INVESTIGATION",
       "BUILDING_PROMPT",
       "SAVING",
       "SUCCEEDED",
     ]);
-    const [, toDomain, toPlan, toBuild] = db.transitions;
+    const [, toDomain, toQuestions, toPlan, toBuild] = db.transitions;
     expect(Object.keys(toDomain!.details.stage_outputs as object)).toEqual(["intentDecomposition"]);
-    expect(Object.keys(toPlan!.details.stage_outputs as object).sort()).toEqual(["domainProposal", "sampleCoverage"]);
+    expect(Object.keys(toQuestions!.details.stage_outputs as object).sort()).toEqual([
+      "domainProposal",
+      "sampleCoverage",
+    ]);
+    expect(Object.keys(toPlan!.details.stage_outputs as object)).toEqual(["intentIntelligence"]);
+    expect(toPlan!.details.stage_metric).toMatchObject({
+      stage: "DEVELOPING_QUESTIONS",
+      outcome: "SUCCEEDED",
+      promptId: "hive-intent-intelligence/1",
+      modelAliasRequested: "sorter",
+    });
     expect(Object.keys(toBuild!.details.stage_outputs as object)).toEqual(["investigationPlan"]);
     expect(toDomain!.details.stage_metric).toMatchObject({
       stage: "UNDERSTANDING_REQUEST",
@@ -166,8 +189,73 @@ describe("processStudyPreparation", () => {
     expect(promptText).toContain(INTENTS[0]!.intentText);
     expect(promptText).toContain(INTENTS[1]!.intentText);
     expect(promptText).toContain("Procurement");
-    expect(promptText).toContain("#### P1");
+    expect(promptText).toContain("#### P1 [COMPARISON] answers I1, I2");
     expect(promptText).toContain("#### P2");
+    expect(promptText).toContain("For: Our finance lead");
+    expect(promptText).toContain(`- I2 [needs assessment] ${intelligenceOutput().questions[1]!.question}`);
+    expect(saved.execution_manifest).toMatchObject({
+      requiredInputs: { intentIntelligence: { schema: "hive.intent-intelligence/1", questionIds: ["I1", "I2", "I3"] } },
+    });
+  });
+
+  it("gives the intelligence stage the intents with audience, the decomposition, the domain and the sample", async () => {
+    const db = fakeDatabase();
+    const planner = fakePlanner();
+    await processStudyPreparation(deps(db, planner), RUN_ID);
+
+    const bodies = (planner.deps.fetchFn as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
+      ([, init]) => JSON.parse(String((init as RequestInit).body)) as {
+        task: string;
+        prompt_id: string;
+        max_output_tokens: number;
+        user_payload: Record<string, unknown>;
+      },
+    );
+    const intelligence = bodies[2]!;
+    expect(intelligence).toMatchObject({ task: "intelligence", prompt_id: "hive-intent-intelligence/1", max_output_tokens: 12000 });
+    const payload = intelligence.user_payload;
+    expect(payload.task).toBe("intelligence");
+    expect(payload.intents).toEqual([
+      { intentRequestId: INTENTS[0]!.id, intentText: INTENTS[0]!.intentText, audience: "Our finance lead" },
+      { intentRequestId: INTENTS[1]!.id, intentText: INTENTS[1]!.intentText, audience: null },
+    ]);
+    expect(payload.intentDecomposition).toMatchObject({ schema: "hive.intent-decomposition/1" });
+    expect(payload.domain).toMatchObject({ primary: { label: "Procurement" } });
+    expect((payload.samples as unknown[]).length).toBe(6);
+    expect(bodies[3]!.user_payload.intentIntelligence).toMatchObject({ schema: "hive.intent-intelligence/1" });
+  });
+
+  it("fails the run at DEVELOPING_QUESTIONS when a decomposed question is not covered", async () => {
+    const db = fakeDatabase();
+    const partial = intelligenceOutput();
+    partial.questions = partial.questions.filter((question) => question.objectiveId === "O1");
+    const planner = fakePlanner({
+      intelligence: () => new Response(JSON.stringify(completion("intelligence", partial)), { status: 200 }),
+    });
+
+    await expect(processStudyPreparation(deps(db, planner), RUN_ID)).resolves.toBe("FAILED");
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence"]);
+    expect(db.transitions.at(-1)).toMatchObject({
+      from: "DEVELOPING_QUESTIONS",
+      to: "FAILED",
+      details: {
+        error_code: "MODEL_OUTPUT_INVALID",
+        stage_metric: { stage: "DEVELOPING_QUESTIONS", outcome: "FAILED" },
+      },
+    });
+    expect(db.saved()).toBeNull();
+  });
+
+  it("fails the run at planning when the plan drops a specialist question", async () => {
+    const db = fakeDatabase();
+    const dropping = planOutput();
+    dropping.questions[0]!.specialistQuestionIds = ["I1"];
+    const planner = fakePlanner({
+      plan: () => new Response(JSON.stringify(completion("plan", dropping)), { status: 200 }),
+    });
+
+    await expect(processStudyPreparation(deps(db, planner), RUN_ID)).resolves.toBe("FAILED");
+    expect(db.transitions.at(-1)).toMatchObject({ from: "PLANNING_INVESTIGATION", to: "FAILED" });
   });
 
   it("sends the domain stage only sampled page text, and the intent stage no document text", async () => {
@@ -241,7 +329,7 @@ describe("processStudyPreparation", () => {
     const planner = fakePlanner();
 
     await expect(processStudyPreparation(deps(db, planner), RUN_ID)).resolves.toBe("FAILED");
-    expect(planner.calls).toEqual(["intent", "domain"]);
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence"]);
     expect(db.transitions.some((t) => t.to === "FAILED")).toBe(false);
   });
 
@@ -274,5 +362,282 @@ describe("processStudyPreparation", () => {
       details: { error_code: "PERSISTENCE_FAILED" },
     });
     expect(db.transitions.some((t) => t.to === "SUCCEEDED")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression scenarios (synthetic). The specialist questions are model output supplied by the
+// fake planner; the assertions are structural so no domain wording lives in production code.
+// ---------------------------------------------------------------------------
+type Scenario = {
+  intents: { id: string; intentText: string; audience: string | null }[];
+  snapshot: SourceSnapshot;
+  outputs: Record<PlannerTask, unknown>;
+};
+
+type ScenarioQuestion = { id: string; objectiveId: string; question: string; requiresJudgment: boolean };
+
+function ref(sourceDocumentId: string, pageNumber: number) {
+  return { sourceDocumentId, pageNumber };
+}
+
+function decomposedQuestion(id: string, text: string, answerType: string, dependsOn: string[] = []) {
+  return {
+    id,
+    text,
+    answerType,
+    dependsOn,
+    requiredEvidence: ["The pages that state it"],
+    comparisons: answerType === "COMPARISON" ? ["Earlier document against later document"] : [],
+    expectedOutput: "A short sourced answer.",
+  };
+}
+
+function specialist(
+  id: string,
+  objectiveId: string,
+  decompositionQuestionIds: string[],
+  question: string,
+  judgmentBasis: string | null = null,
+  dependsOn: string[] = [],
+) {
+  return {
+    id,
+    objectiveId,
+    decompositionQuestionIds,
+    question,
+    whyItMatters: `Without ${id} the answer would be incomplete.`,
+    supportsOutcome: `The decision behind ${objectiveId}.`,
+    dependsOn,
+    requiresJudgment: judgmentBasis !== null,
+    judgmentBasis,
+    contextRefs: [],
+  };
+}
+
+function review(objectiveId: string, remainingLimits: string[] = []) {
+  return { objectiveId, wouldFulfilIntent: true, gapsFound: [], revisions: [], remainingLimits };
+}
+
+function planItem(
+  id: string,
+  objectiveId: string,
+  specialistQuestionIds: string[],
+  answerType: string,
+  logic: { comparison?: string; chronology?: string; calculation?: string; evaluation?: string } = {},
+) {
+  return {
+    id,
+    objectiveId,
+    specialistQuestionIds,
+    establish: `What the documents show for ${specialistQuestionIds.join(" and ")}.`,
+    requiredEvidence: ["The pages that state it"],
+    sourceDependencies: ["The source records named in the documents"],
+    comparison: logic.comparison ?? null,
+    chronology: logic.chronology ?? null,
+    calculation: logic.calculation ?? null,
+    evaluation: logic.evaluation ?? null,
+    missingEvidenceConditions: ["No page states it"],
+    answerType,
+    deliverable: "A sourced answer with page references.",
+    dependsOn: [],
+    domainConsiderationRefs: [],
+  };
+}
+
+function domain(label: string, subdomain: string) {
+  return {
+    primary: { label, subdomain, confidence: "MEDIUM", reasoning: "Sampled page headings.", supportingRefs: [ref(DOC_1, 1)] },
+    alternatives: [],
+    unknownDomain: false,
+    mixedDomain: false,
+    ambiguous: false,
+    ambiguityNotes: [],
+  };
+}
+
+const MAYA_INTENT_1 = "aaaaaaaa-1111-4111-8111-000000000001";
+const MAYA_INTENT_2 = "aaaaaaaa-1111-4111-8111-000000000002";
+const MAYA_INTENT_3 = "aaaaaaaa-1111-4111-8111-000000000003";
+
+function mayaScenario(): Scenario {
+  return {
+    intents: [
+      {
+        id: MAYA_INTENT_1,
+        intentText: "Compare the draft plan with last year's plan and tell me what changed in her services and goals.",
+        audience: "My husband and me, before the meeting",
+      },
+      {
+        id: MAYA_INTENT_2,
+        intentText: "Is cutting her speech therapy supported by her latest evaluation?",
+        audience: null,
+      },
+      {
+        id: MAYA_INTENT_3,
+        intentText: "What should I ask the school team at the November meeting?",
+        audience: "The school team",
+      },
+    ],
+    snapshot: sourceSnapshot({
+      documents: [snapshotDocument(DOC_1, "Prior plan.pdf"), snapshotDocument(DOC_2, "Draft plan.pdf")],
+    }),
+    outputs: {
+      intent: {
+        objectives: [
+          {
+            id: "O1",
+            intentRequestId: MAYA_INTENT_1,
+            title: "Changes between the two plans",
+            description: "Every change in services and goals.",
+            questions: [
+              decomposedQuestion("Q1", "Which services changed in minutes, frequency or setting?", "COMPARISON"),
+              decomposedQuestion("Q2", "Which annual goals were added, removed or rewritten?", "COMPARISON"),
+            ],
+          },
+          {
+            id: "O2",
+            intentRequestId: MAYA_INTENT_2,
+            title: "Basis for the speech reduction",
+            description: "Whether the evaluation supports the reduced service.",
+            questions: [decomposedQuestion("Q3", "What do the evaluation findings say about speech needs?", "FACT")],
+          },
+          {
+            id: "O3",
+            intentRequestId: MAYA_INTENT_3,
+            title: "Questions for the meeting",
+            description: "Questions grounded in the changes and gaps.",
+            questions: [decomposedQuestion("Q4", "Which changes or gaps are unexplained in the documents?", "FACT", ["Q1", "Q2", "Q3"])],
+          },
+        ],
+        expectedOutputs: ["Change table", "Assessment of the speech reduction", "Meeting questions"],
+        ambiguities: [],
+        missingContext: [],
+      },
+      domain: domain("Special education", "Annual plan review"),
+      intelligence: {
+        questions: [
+          specialist("I1", "O1", ["Q1"], "For each service, what are the minutes, frequency and setting in each plan, and what is the net change?"),
+          specialist("I2", "O1", ["Q2"], "Which goals are carried over unchanged despite progress data showing they were not met?", "Progress reports against each goal's stated measure.", ["I3"]),
+          specialist("I3", "O1", ["Q2"], "What progress is reported on each prior goal, and by what measure?"),
+          specialist("I4", "O2", ["Q3"], "Which evaluation scores and recommendations concern expressive and receptive language?"),
+          specialist("I5", "O2", ["Q3"], "Does the reduction in speech minutes follow from the evaluation's findings and recommendations?", "Consistency between the evaluation recommendation and the draft service minutes.", ["I1", "I4"]),
+          specialist("I6", "O3", ["Q4"], "Which changes have no stated reason anywhere in the documents?", null, ["I1", "I2", "I5"]),
+          specialist("I7", "O3", ["Q4"], "Which records are referred to but not provided, such as progress reports or evaluations?"),
+        ],
+        completenessReview: [
+          review("O1"),
+          review("O2", ["The evaluator's full report may hold reasoning not in the summary."]),
+          review("O3"),
+        ],
+      },
+      plan: {
+        domainBasis: { primaryDomain: "Special education", uncertain: false, considerations: [] },
+        questions: [
+          planItem("P1", "O1", ["I1"], "COMPARISON", { comparison: "Prior plan services against draft plan services" }),
+          planItem("P2", "O1", ["I2", "I3"], "COMPARISON", {
+            comparison: "Prior goals against draft goals",
+            evaluation: "Whether unmet goals were carried over, judged against reported progress.",
+          }),
+          planItem("P3", "O2", ["I4", "I5"], "FACT", {
+            evaluation: "Whether the draft minutes follow the evaluation recommendation.",
+          }),
+          planItem("P4", "O3", ["I6", "I7"], "FACT"),
+        ],
+      },
+    },
+  };
+}
+
+const NEUTRAL_INTENT_1 = "bbbbbbbb-2222-4222-8222-000000000001";
+const NEUTRAL_INTENT_2 = "bbbbbbbb-2222-4222-8222-000000000002";
+
+function neutralScenario(): Scenario {
+  return {
+    intents: [
+      { id: NEUTRAL_INTENT_1, intentText: "Was my water damage claim underpaid?", audience: null },
+      { id: NEUTRAL_INTENT_2, intentText: "What do I need to send the insurer, and by when?", audience: "My contractor" },
+    ],
+    snapshot: sourceSnapshot({
+      documents: [snapshotDocument(DOC_1, "Policy.pdf"), snapshotDocument(DOC_2, "Settlement letter.pdf")],
+    }),
+    outputs: {
+      intent: {
+        objectives: [
+          {
+            id: "O1",
+            intentRequestId: NEUTRAL_INTENT_1,
+            title: "Settlement against the policy",
+            description: "Whether the payment matches what the policy covers.",
+            questions: [decomposedQuestion("Q1", "How was the settlement amount calculated?", "CALCULATION")],
+          },
+          {
+            id: "O2",
+            intentRequestId: NEUTRAL_INTENT_2,
+            title: "Outstanding obligations",
+            description: "Documents and deadlines the policyholder must meet.",
+            questions: [decomposedQuestion("Q2", "Which documents and dates does the insurer require?", "CHRONOLOGY")],
+          },
+        ],
+        expectedOutputs: ["Settlement reconciliation", "Dated checklist"],
+        ambiguities: [],
+        missingContext: [],
+      },
+      domain: domain("Property insurance", "Water damage claim"),
+      intelligence: {
+        questions: [
+          specialist("I1", "O1", ["Q1"], "Which line items, deductible and depreciation make up the settlement amount?"),
+          specialist("I2", "O1", ["Q1"], "Do any exclusions or sublimits the insurer cites match the policy wording?", "The policy's exclusion and sublimit clauses as written.", ["I1"]),
+          specialist("I3", "O2", ["Q2"], "Which proof-of-loss documents and dates does the letter or policy require?"),
+        ],
+        completenessReview: [review("O1", ["Repair costs are not in the documents."]), review("O2")],
+      },
+      plan: {
+        domainBasis: { primaryDomain: "Property insurance", uncertain: false, considerations: [] },
+        questions: [
+          planItem("P1", "O1", ["I1", "I2"], "CALCULATION", {
+            calculation: "Sum of line items less deductible and depreciation",
+            evaluation: "Whether each cited exclusion matches the policy clause.",
+          }),
+          planItem("P2", "O2", ["I3"], "CHRONOLOGY", { chronology: "Order each required item by its due date" }),
+        ],
+      },
+    },
+  };
+}
+
+async function prepareScenario(scenario: Scenario) {
+  const db = fakeDatabase({ intents: scenario.intents, snapshot: scenario.snapshot });
+  const planner = fakePlanner({}, scenario.outputs);
+  await expect(processStudyPreparation(deps(db, planner), RUN_ID)).resolves.toBe("SUCCEEDED");
+  return { promptText: String(db.saved()!.prompt_text), saved: db.saved()!, toPlan: db.transitions[3]! };
+}
+
+describe.each([
+  ["Maya multi-intent plan review", mayaScenario],
+  ["domain-neutral insurance claim", neutralScenario],
+])("regression: %s", (_name, build) => {
+  it("carries every specialist question through planning into the Study Prompt Preview", async () => {
+    const scenario = build();
+    const { promptText, saved, toPlan } = await prepareScenario(scenario);
+    const intelligence = scenario.outputs.intelligence as { questions: ScenarioQuestion[] };
+    const plan = scenario.outputs.plan as { questions: { id: string; specialistQuestionIds: string[]; evaluation: string | null }[] };
+
+    expect(toPlan.details.stage_outputs).toMatchObject({ intentIntelligence: { schema: "hive.intent-intelligence/1" } });
+
+    for (const intent of scenario.intents) {
+      expect(promptText).toContain(intent.intentText);
+      if (intent.audience) expect(promptText).toContain(`For: ${intent.audience}`);
+    }
+    for (const question of intelligence.questions) {
+      expect(promptText).toContain(`- ${question.id}${question.requiresJudgment ? " [needs assessment]" : ""} ${question.question}`);
+      const serving = plan.questions.filter((p) => p.specialistQuestionIds.includes(question.id));
+      expect(serving.length).toBeGreaterThan(0);
+      if (question.requiresJudgment) expect(serving.some((p) => p.evaluation !== null)).toBe(true);
+    }
+    expect(saved.execution_manifest).toMatchObject({
+      requiredInputs: { intentIntelligence: { questionIds: intelligence.questions.map((q) => q.id) } },
+    });
+    expect(promptText).toContain("What the documents alone may not settle:");
   });
 });

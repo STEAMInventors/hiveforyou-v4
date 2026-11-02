@@ -1,5 +1,6 @@
 import {
   HIVE_NAME_MAX_LENGTH,
+  INTENT_AUDIENCE_MAX_LENGTH,
   INTENT_TEXT_MAX_LENGTH,
   type CreateHiveRequest,
   type CreateHiveResponse,
@@ -77,6 +78,7 @@ export function validateHiveName(name: string): { ok: true; value: string } | { 
 
 export function validateComposerDraft(input: {
   intentText: string;
+  audience?: string;
   files: readonly Pick<SelectedSourceFile, "state">[];
 }): ComposerDraftValidation {
   const intent = input.intentText.trim();
@@ -84,7 +86,9 @@ export function validateComposerDraft(input: {
     ? "Describe what you're trying to get done."
     : intent.length > INTENT_TEXT_MAX_LENGTH
       ? `Keep this to ${INTENT_TEXT_MAX_LENGTH} characters or fewer.`
-      : null;
+      : (input.audience ?? "").trim().length > INTENT_AUDIENCE_MAX_LENGTH
+        ? `Keep who this is for to ${INTENT_AUDIENCE_MAX_LENGTH} characters or fewer.`
+        : null;
   const filesError =
     input.files.length === 0
       ? "Add at least one document — PDF, PNG, JPG or DOCX, up to 25 MB each."
@@ -127,6 +131,7 @@ export type CreateHiveFlowInput = {
   progress: CreateHiveProgress;
   hiveName: string;
   intentText: string;
+  audience?: string;
   hiveRequestId: string;
   intentRequestId: string;
   files: SelectedSourceFile[];
@@ -205,8 +210,10 @@ export async function runCreateHiveFlow(
 
   if (!progress.intentSaved) {
     try {
+      const audience = input.audience?.trim();
       await deps.createIntentRequest(hive.id, {
         intentText,
+        ...(audience ? { audience } : {}),
         clientRequestId: input.intentRequestId,
       });
       progress = { ...progress, intentSaved: true };

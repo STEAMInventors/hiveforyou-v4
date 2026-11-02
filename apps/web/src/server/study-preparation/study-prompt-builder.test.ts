@@ -3,6 +3,7 @@ import {
   validateDomainProposal,
   validateExecutionManifest,
   validateIntentDecomposition,
+  validateIntentIntelligence,
   validateInvestigationPlan,
 } from "@hiveforyou/contracts";
 import { describe, expect, it } from "vitest";
@@ -15,6 +16,7 @@ import {
   INTENT_A,
   INTENT_B,
   INTENTS,
+  intelligenceOutput,
   intentOutput,
   planOutput,
   RUN_ID,
@@ -31,19 +33,18 @@ function unwrap<T>(result: { ok: true; value: T } | { ok: false; message: string
 function inputs(overrides: { intents?: typeof INTENTS; snapshot?: StudyPromptInputs["sourceSnapshot"] } = {}): StudyPromptInputs {
   const intents = overrides.intents ?? INTENTS;
   const decomposition = unwrap(validateIntentDecomposition(intentOutput(), { intents }));
-  const domain = unwrap(
-    validateDomainProposal(domainOutput(), {
-      sampledRefs: [
-        { sourceDocumentId: DOC_1, pageNumber: 1 },
-        { sourceDocumentId: DOC_2, pageNumber: 1 },
-      ],
-    }),
-  );
-  const plan = unwrap(validateInvestigationPlan(planOutput(), { decomposition, domain }));
+  const sampledRefs = [
+    { sourceDocumentId: DOC_1, pageNumber: 1 },
+    { sourceDocumentId: DOC_2, pageNumber: 1 },
+  ];
+  const domain = unwrap(validateDomainProposal(domainOutput(), { sampledRefs }));
+  const intelligence = unwrap(validateIntentIntelligence(intelligenceOutput(), { decomposition, sampledRefs }));
+  const plan = unwrap(validateInvestigationPlan(planOutput(), { decomposition, intelligence, domain }));
   return {
     processingRunId: RUN_ID,
     catalog: loadPromptCatalog(),
     decomposition,
+    intelligence,
     domain,
     plan,
     sourceSnapshot: overrides.snapshot ?? sourceSnapshot(),
@@ -69,13 +70,29 @@ describe("buildStudyPrompt", () => {
     for (const intent of INTENTS) expect(built.promptText).toContain(`> ${intent.intentText}`);
     expect(built.promptText).toContain("### O1 — Compare the two supplier quotes (from request 1)");
     expect(built.promptText).toContain("### O2 — Deadlines (from request 2)");
+    expect(built.promptText).toContain("For: Our finance lead");
+  });
+
+  it("lists every specialist question under its objective, marking those that need an assessment", () => {
+    const { promptText } = buildStudyPrompt(inputs());
+    const o1 = promptText.slice(promptText.indexOf("### O1"), promptText.indexOf("### O2"));
+    for (const question of intelligenceOutput().questions) {
+      const line = `- ${question.id}${question.requiresJudgment ? " [needs assessment]" : ""} ${question.question}`;
+      expect(promptText).toContain(line);
+      expect(o1.includes(line)).toBe(question.objectiveId === "O1");
+    }
+    expect(promptText).toContain("What a specialist would investigate to fulfil it:");
+    expect(promptText).toContain("What the documents alone may not settle:");
+    expect(promptText).toContain("Market prices outside the quotes cannot be checked from these documents.");
   });
 
   it("includes every investigation question with its logic, limits and answer structure", () => {
     const { promptText } = buildStudyPrompt(inputs());
-    expect(promptText).toContain("#### P1 [COMPARISON] answers Q1");
+    expect(promptText).toContain("#### P1 [COMPARISON] answers I1, I2");
     expect(promptText).toContain("- Comparison: Quote A all-in total against Quote B all-in total");
-    expect(promptText).toContain("#### P2 [CHRONOLOGY] answers Q2");
+    expect(promptText).toContain("- Depends on records: Price table in each quote; Scope and warranty terms in each quote");
+    expect(promptText).toContain("- Evaluation: Whether the scopes are equivalent, judged line by line against both quotes.");
+    expect(promptText).toContain("#### P2 [CHRONOLOGY] answers I3");
     expect(promptText).toContain("- Chronology: Order every stated date from earliest to latest");
     expect(promptText).toContain("- If the evidence is missing: No dates or validity period on any page");
     expect(promptText).toContain("- Answer structure: Dated list with the source page for each date");
@@ -124,8 +141,14 @@ describe("buildStudyPrompt", () => {
     expect(built.executionManifest.prompt.componentPrompts.map((prompt) => prompt.id)).toEqual([
       "hive-intent/1",
       "hive-domain/1",
+      "hive-intent-intelligence/1",
       "hive-plan/1",
     ]);
     expect(built.executionManifest.requiredInputs.investigationPlan.questionIds).toEqual(["P1", "P2"]);
+    expect(built.executionManifest.requiredInputs.intentIntelligence).toEqual({
+      schema: "hive.intent-intelligence/1",
+      intelligenceDigest: sha256Digest(canonicalJson(inputs().intelligence)),
+      questionIds: ["I1", "I2", "I3"],
+    });
   });
 });

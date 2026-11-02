@@ -4,6 +4,7 @@ import { isValidUuid } from "../hives/hive-contracts";
 export const MAX_SOURCE_DOCUMENT_BYTES = 26_214_400;
 export const FREE_UPLOADS_PER_UTC_MONTH = 10;
 export const INTENT_TEXT_MAX_LENGTH = 2000;
+export const INTENT_AUDIENCE_MAX_LENGTH = 200;
 export const SOURCE_FILE_NAME_MAX_LENGTH = 255;
 
 export const DOCX_MIME_TYPE =
@@ -120,6 +121,8 @@ export type GetUploadQuotaResponse = {
 
 export type CreateIntentRequestRequest = {
   intentText: string;
+  /** Who the result is for, in the owner's words; null when not given. */
+  audience?: string | null;
   clientRequestId: string;
 };
 
@@ -364,7 +367,7 @@ export function validateCreateIntentRequestInput(
       diagnosticReason: "invalid_payload_shape",
     };
   }
-  const unexpected = rejectUnexpectedKeys(record, ["intentText", "clientRequestId"]);
+  const unexpected = rejectUnexpectedKeys(record, ["intentText", "audience", "clientRequestId"]);
   if (unexpected) {
     return unexpected;
   }
@@ -374,6 +377,17 @@ export function validateCreateIntentRequestInput(
       ok: false,
       message: "clientRequestId must be a valid UUID.",
       diagnosticReason: "invalid_client_request_id",
+    };
+  }
+  if (record.audience !== undefined && record.audience !== null && typeof record.audience !== "string") {
+    return { ok: false, message: "Audience must be text.", diagnosticReason: "invalid_audience" };
+  }
+  const audience = typeof record.audience === "string" ? record.audience.replace(/\s+/g, " ").trim() : "";
+  if (audience.length > INTENT_AUDIENCE_MAX_LENGTH) {
+    return {
+      ok: false,
+      message: `Keep who this is for to ${INTENT_AUDIENCE_MAX_LENGTH} characters or fewer.`,
+      diagnosticReason: "invalid_audience",
     };
   }
   const intentText = typeof record.intentText === "string" ? record.intentText.trim() : "";
@@ -391,7 +405,7 @@ export function validateCreateIntentRequestInput(
       diagnosticReason: "invalid_intent",
     };
   }
-  return { ok: true, value: { intentText, clientRequestId } };
+  return { ok: true, value: { intentText, audience: audience || null, clientRequestId } };
 }
 
 export function normalizeSourceDocumentRecord(raw: unknown): SourceDocument | null {

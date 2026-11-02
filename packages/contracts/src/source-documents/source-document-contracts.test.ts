@@ -102,7 +102,30 @@ describe("request validation", () => {
     ).toBe(false);
     expect(
       validateCreateIntentRequestInput({ intentText: " Compare my bills ", clientRequestId: REQUEST_ID }),
-    ).toEqual({ ok: true, value: { intentText: "Compare my bills", clientRequestId: REQUEST_ID } });
+    ).toEqual({ ok: true, value: { intentText: "Compare my bills", clientRequestId: REQUEST_ID, audience: null } });
+  });
+
+  it("accepts an optional audience, collapsing whitespace, and rejects invalid ones", () => {
+    expect(
+      validateCreateIntentRequestInput({
+        intentText: "Compare my bills",
+        clientRequestId: REQUEST_ID,
+        audience: "  My   accountant ",
+      }),
+    ).toEqual({ ok: true, value: { intentText: "Compare my bills", clientRequestId: REQUEST_ID, audience: "My accountant" } });
+    expect(
+      validateCreateIntentRequestInput({ intentText: "Compare my bills", clientRequestId: REQUEST_ID, audience: "   " }),
+    ).toMatchObject({ ok: true, value: { audience: null } });
+    expect(
+      validateCreateIntentRequestInput({ intentText: "Compare my bills", clientRequestId: REQUEST_ID, audience: 7 }).ok,
+    ).toBe(false);
+    expect(
+      validateCreateIntentRequestInput({
+        intentText: "Compare my bills",
+        clientRequestId: REQUEST_ID,
+        audience: "x".repeat(201),
+      }).ok,
+    ).toBe(false);
   });
 });
 

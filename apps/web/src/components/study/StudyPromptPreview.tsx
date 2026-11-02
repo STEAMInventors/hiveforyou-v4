@@ -79,6 +79,8 @@ function TextList({ label, items }: { label: string; items: string[] }) {
 
 export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromptPreviewProps) {
   const { intentDecomposition: intent, domainProposal: domain, investigationPlan: plan, sourceSnapshot } = preview;
+  const specialistQuestions = preview.intentIntelligence?.questions ?? [];
+  const reviews = preview.intentIntelligence?.completenessReview ?? [];
   const fileNames = new Map<string, string>();
   for (const doc of sourceSnapshot.documents) fileNames.set(doc.sourceDocumentId, doc.fileName);
   for (const doc of sourceSnapshot.excluded) fileNames.set(doc.sourceDocumentId, doc.fileName);
@@ -160,6 +162,8 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
         <ol className="m-0 flex list-none flex-col gap-5 p-0">
           {intent.objectives.map((objective) => {
             const planQuestions = plan.questions.filter((question) => question.objectiveId === objective.id);
+            const specialist = specialistQuestions.filter((question) => question.objectiveId === objective.id);
+            const remainingLimits = reviews.find((review) => review.objectiveId === objective.id)?.remainingLimits ?? [];
             return (
               <li key={objective.id} className="flex flex-col gap-3 border-t border-line pt-4 first:border-t-0 first:pt-0">
                 <div className="flex flex-col gap-1">
@@ -179,6 +183,33 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
                     ))}
                   </ul>
                 </div>
+                {specialist.length > 0 ? (
+                  <div className="flex flex-col gap-2" data-testid={`specialist-questions-${objective.id}`}>
+                    <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">
+                      What a specialist would ask
+                    </span>
+                    <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+                      {specialist.map((question) => (
+                        <li key={question.id} className="flex flex-col gap-1">
+                          <span className="text-[14.5px] font-medium leading-[1.5] text-ink">
+                            <span className="font-mono text-[12px] text-ink-subtle">{question.id}</span> {question.question}
+                          </span>
+                          <span className="text-[14px] leading-[1.5] text-ink-muted">{question.whyItMatters}</span>
+                          <span className="text-[12.5px] text-ink-subtle">
+                            Supports: {question.supportsOutcome}
+                            {question.dependsOn.length > 0 ? ` · after ${question.dependsOn.join(", ")}` : ""}
+                          </span>
+                          {question.requiresJudgment ? (
+                            <span className="w-fit rounded-md border border-line px-2 py-0.5 text-[12.5px] text-ink-muted">
+                              Needs an assessment{question.judgmentBasis ? `: ${question.judgmentBasis}` : ""}
+                            </span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                    <TextList label="The documents alone may not settle" items={remainingLimits} />
+                  </div>
+                ) : null}
                 {planQuestions.length > 0 ? (
                   <div className="flex flex-col gap-2">
                     <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">
@@ -192,12 +223,15 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
                           </span>
                           <span className="text-[12.5px] text-ink-subtle">
                             {ANSWER_TYPE_LABEL[question.answerType]}
+                            {question.specialistQuestionIds?.length ? ` · answers ${question.specialistQuestionIds.join(", ")}` : ""}
                             {question.dependsOn.length > 0 ? ` · after ${question.dependsOn.join(", ")}` : ""}
                           </span>
                           <TextList label="Evidence needed" items={question.requiredEvidence} />
+                          <TextList label="Depends on records" items={question.sourceDependencies ?? []} />
                           {question.comparison ? <p className="m-0 text-[14px] text-ink-muted">Compare: {question.comparison}</p> : null}
                           {question.chronology ? <p className="m-0 text-[14px] text-ink-muted">Timeline: {question.chronology}</p> : null}
                           {question.calculation ? <p className="m-0 text-[14px] text-ink-muted">Calculate: {question.calculation}</p> : null}
+                          {question.evaluation ? <p className="m-0 text-[14px] text-ink-muted">Assess: {question.evaluation}</p> : null}
                           <TextList label="If evidence is missing" items={question.missingEvidenceConditions} />
                           <p className="m-0 text-[14px] text-ink-muted">Answer shape: {question.deliverable}</p>
                           <PageChips refs={question.domainConsiderationRefs} fileNames={fileNames} />

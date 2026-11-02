@@ -92,6 +92,26 @@ def test_returns_parsed_json_with_forced_alias_and_usage(client: TestClient) -> 
     assert json.loads(sent["messages"][1]["content"])["task"] == "intent"
 
 
+def test_intelligence_task_uses_its_own_model_alias(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(v4_planner.TASK_MODEL_ALIASES, "intelligence", "harvester")
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"questions": []}')))
+    intelligence = post(
+        client,
+        body(
+            task="intelligence",
+            prompt_id="hive-intent-intelligence/1",
+            user_payload={"task": "intelligence"},
+            max_output_tokens=12000,
+        ),
+    )
+    plan = post(client, body(task="plan", prompt_id="hive-plan/1", user_payload={"task": "plan"}))
+    assert intelligence.status_code == 200
+    assert intelligence.json()["model_alias"] == "harvester"
+    assert plan.json()["model_alias"] == "sorter"
+    assert [json.loads(request.content)["model"] for request in seen] == ["harvester", "sorter"]
+    assert json.loads(seen[0].content)["max_tokens"] == 12000
+
+
 def test_caller_cannot_choose_the_model(client: TestClient) -> None:
     use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
     assert post(client, body(model="gpt-4o")).status_code == 400
@@ -119,6 +139,8 @@ def test_fails_closed_without_configured_token(client: TestClient, monkeypatch: 
         {"prompt_id": "hive-plan/1"},
         {"prompt_digest": "md5:abc"},
         {"max_output_tokens": 9000},
+        {"task": "intelligence", "prompt_id": "hive-intent-intelligence/1", "max_output_tokens": 12001},
+        {"task": "intelligence", "prompt_id": "hive-plan/1"},
         {"contract_version": "planner-completion@2"},
     ],
 )
@@ -191,6 +213,7 @@ def test_health_reveals_no_secrets(client: TestClient) -> None:
     assert data == {
         "status": "ok",
         "model_alias": "sorter",
+        "task_model_aliases": {"intent": "sorter", "domain": "sorter", "intelligence": "sorter", "plan": "sorter"},
         "litellm_configured": True,
         "service_token_configured": True,
     }

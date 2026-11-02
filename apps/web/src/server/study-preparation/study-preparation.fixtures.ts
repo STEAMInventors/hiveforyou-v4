@@ -12,8 +12,8 @@ export const DOC_2 = "44444444-4444-4444-8444-444444444444";
 const SHA = `sha256:${"a".repeat(64)}`;
 
 export const INTENTS = [
-  { id: INTENT_A, intentText: "Which supplier gave us the better deal across both quotes?" },
-  { id: INTENT_B, intentText: "What deadlines do we have to meet?" },
+  { id: INTENT_A, intentText: "Which supplier gave us the better deal across both quotes?", audience: "Our finance lead" },
+  { id: INTENT_B, intentText: "What deadlines do we have to meet?", audience: null },
 ];
 
 export function snapshotDocument(id: string, fileName: string, overrides: Partial<SnapshotDocument> = {}): SnapshotDocument {
@@ -119,6 +119,65 @@ export function domainOutput() {
   };
 }
 
+export function intelligenceOutput() {
+  return {
+    questions: [
+      {
+        id: "I1",
+        objectiveId: "O1",
+        decompositionQuestionIds: ["Q1"],
+        question: "What is the all-in delivered cost of each quote once fees, freight and taxes are included?",
+        whyItMatters: "Headline prices hide fees that change which supplier is cheaper.",
+        supportsOutcome: "Choosing the supplier with the lower true cost.",
+        dependsOn: [],
+        requiresJudgment: false,
+        judgmentBasis: null,
+        contextRefs: [{ sourceDocumentId: DOC_1, pageNumber: 1 }],
+      },
+      {
+        id: "I2",
+        objectiveId: "O1",
+        decompositionQuestionIds: ["Q1"],
+        question: "Do the two quotes cover the same scope, quantities and service terms?",
+        whyItMatters: "A cheaper quote for less scope is not a better deal.",
+        supportsOutcome: "Deciding whether the totals are comparable.",
+        dependsOn: ["I1"],
+        requiresJudgment: true,
+        judgmentBasis: "Equivalence of line items, quantities and warranty terms across both quotes.",
+        contextRefs: [],
+      },
+      {
+        id: "I3",
+        objectiveId: "O2",
+        decompositionQuestionIds: ["Q2"],
+        question: "By which dates must the buyer accept, pay or respond, and what happens if a date is missed?",
+        whyItMatters: "A lapsed quote or missed payment changes the price or the deal.",
+        supportsOutcome: "Acting before any offer expires.",
+        dependsOn: [],
+        requiresJudgment: false,
+        judgmentBasis: null,
+        contextRefs: [{ sourceDocumentId: DOC_2, pageNumber: 1 }],
+      },
+    ],
+    completenessReview: [
+      {
+        objectiveId: "O1",
+        wouldFulfilIntent: true,
+        gapsFound: ["Scope equivalence was not asked."],
+        revisions: ["Added I2 on scope equivalence."],
+        remainingLimits: ["Market prices outside the quotes cannot be checked from these documents."],
+      },
+      {
+        objectiveId: "O2",
+        wouldFulfilIntent: true,
+        gapsFound: [],
+        revisions: [],
+        remainingLimits: [],
+      },
+    ],
+  };
+}
+
 export function planOutput() {
   return {
     domainBasis: {
@@ -132,12 +191,14 @@ export function planOutput() {
       {
         id: "P1",
         objectiveId: "O1",
-        sourceQuestionIds: ["Q1"],
+        specialistQuestionIds: ["I1", "I2"],
         establish: "The all-in price of each quote for the same delivered scope.",
         requiredEvidence: ["Line items and fees in each quote"],
+        sourceDependencies: ["Price table in each quote", "Scope and warranty terms in each quote"],
         comparison: "Quote A all-in total against Quote B all-in total",
         chronology: null,
         calculation: null,
+        evaluation: "Whether the scopes are equivalent, judged line by line against both quotes.",
         missingEvidenceConditions: ["A quote lists no total and no line prices"],
         answerType: "COMPARISON",
         deliverable: "Table: supplier, total, fees, difference",
@@ -147,12 +208,14 @@ export function planOutput() {
       {
         id: "P2",
         objectiveId: "O2",
-        sourceQuestionIds: ["Q2"],
+        specialistQuestionIds: ["I3"],
         establish: "Each acceptance, payment and response date stated in either quote.",
         requiredEvidence: ["Validity period and payment terms"],
+        sourceDependencies: ["Validity and payment terms in each quote"],
         comparison: null,
         chronology: "Order every stated date from earliest to latest",
         calculation: null,
+        evaluation: null,
         missingEvidenceConditions: ["No dates or validity period on any page"],
         answerType: "CHRONOLOGY",
         deliverable: "Dated list with the source page for each date",

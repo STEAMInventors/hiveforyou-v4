@@ -16,6 +16,7 @@ export const STUDY_PREVIEW_PROMPT_VERSION = "1";
 const PROMPT_FILES: Record<PlannerTask, string> = {
   intent: "hive-intent/HiveForYou-Intent-v1.md",
   domain: "hive-domain/HiveForYou-Domain-v1.md",
+  intelligence: "hive-intent-intelligence/HiveForYou-Intent-Intelligence-v1.md",
   plan: "hive-plan/HiveForYou-Plan-v1.md",
 };
 const STUDY_TEMPLATE_FILE = "hive-study/HiveForYou-Study-Preview-v1.md";

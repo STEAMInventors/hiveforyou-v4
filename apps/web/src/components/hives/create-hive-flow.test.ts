@@ -1,4 +1,9 @@
-import { HIVE_NAME_MAX_LENGTH, INTENT_TEXT_MAX_LENGTH, type Hive } from "@hiveforyou/contracts";
+import {
+  HIVE_NAME_MAX_LENGTH,
+  INTENT_AUDIENCE_MAX_LENGTH,
+  INTENT_TEXT_MAX_LENGTH,
+  type Hive,
+} from "@hiveforyou/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HiveClientError } from "@/lib/hives-client";
@@ -74,6 +79,18 @@ describe("validateComposerDraft", () => {
   it("accepts intent plus a supported document", () => {
     const files = toSelectedSourceFiles([pdf(), new File(["x"], "scan.docx")]);
     expect(validateComposerDraft({ intentText: " Review my claim ", files }).ok).toBe(true);
+  });
+
+  it("accepts an optional audience within the contract limit", () => {
+    const files = toSelectedSourceFiles([pdf()]);
+    expect(validateComposerDraft({ intentText: "Review my claim", audience: "My adjuster", files }).ok).toBe(true);
+    const result = validateComposerDraft({
+      intentText: "Review my claim",
+      audience: "a".repeat(INTENT_AUDIENCE_MAX_LENGTH + 1),
+      files,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.intentError).toBe(`Keep who this is for to ${INTENT_AUDIENCE_MAX_LENGTH} characters or fewer.`);
   });
 });
 
@@ -197,6 +214,16 @@ describe("runCreateHiveFlow", () => {
       { hive: HIVE, intentSaved: false },
       { hive: HIVE, intentSaved: true },
     ]);
+  });
+
+  it("saves a trimmed audience with the intent when one is given", async () => {
+    registerAll();
+    await runCreateHiveFlow(deps as CreateHiveFlowDeps, input({ audience: "  The school team " }));
+    expect(deps.createIntentRequest).toHaveBeenCalledWith(HIVE_ID, {
+      intentText: "Prepare for an IEP meeting",
+      clientRequestId: INTENT_REQUEST_ID,
+      audience: "The school team",
+    });
   });
 
   it("reports a createHive failure without touching later stages", async () => {

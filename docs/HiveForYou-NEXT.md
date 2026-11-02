@@ -1,6 +1,6 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-**Date:** 2026-11-01 | **Status:** V4-004 active (implemented locally, uncommitted; migration applied; `v4-planner` and Vercel planner settings not deployed; first paid `sorter` run not performed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
+**Date:** 2026-11-02 | **Status:** V4-004 active (implemented locally, uncommitted; first migration applied; D-040 refinement implemented locally with migration `20261102120000` not applied; `v4-planner` and Vercel planner settings not deployed; first paid `sorter` run not performed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
 
 > **Exactly one active engineering ticket: V4-004 — Analyze / Prompt Preview (D-039).** Founder-approved 2026-11-01. V4-003 is paused, not closed: its live verification items below still have to pass before it closes. No Opus execution, extraction, verification, merge, Canonical Study acceptance, reports or A2UI as a side effect of V4-004.
 
@@ -30,6 +30,17 @@
 - **Contracts:** error codes `MODEL_TIMEOUT` (504), `MODEL_UNAVAILABLE` (503), `MODEL_OUTPUT_INVALID` (502); stage labels "Understanding your request", "Identifying the domain", "Planning the investigation", "Constructing your study prompt".
 - **UI:** Documents **Analyze** button + hint, `AnalyzeModal` (coverage-gap confirmation, four persisted stages, failure with support reference and Try again), 3 s polling only while active, automatic navigation to Study on success. Study tab renders `StudyPromptPreview` (verbatim requests, domain with advisory confidence and page chips, objectives, investigation questions, coverage, staleness, full prompt, **Copy Prompt**).
 - **Remaining approval stops:** scoped LiteLLM virtual key; `v4-planner` deployment and TLS route `/planner/*`; Vercel `PLANNER_BASE_URL` / `PLANNER_SERVICE_TOKEN`; first paid `sorter` smoke run; commit.
+
+**Refinement — intent intelligence and investigation quality (2026-11-02, D-040, local working tree, uncommitted):**
+
+- **New stage** `DEVELOPING_QUESTIONS` ("Developing specialist questions") between domain and planning: prompt `prompts/hive-intent-intelligence/HiveForYou-Intent-Intelligence-v1.md` (`hive-intent-intelligence/1`), validator `validateIntentIntelligence` (output `hive.intent-intelligence/1`), stage output `intentIntelligence`, persisted on the preview as `intent_intelligence`. The worker now makes four planner calls (`intent`, `domain`, `intelligence`, `plan`).
+- **Planner:** `hive-plan/1` input includes the specialist questions; each plan question lists `specialistQuestionIds`, `sourceDependencies` and an optional `evaluation`; the validator fails a plan that drops a specialist question or leaves a judgment question without an evaluation.
+- **Study prompt:** `hive-study-preview/1` allows evidence-backed assessments (facts, declared criterion, reasoning, strength) and keeps facts, calculations, assessments, uncertainties and professional determinations in separate fields of `hive.study-investigation/1`. The prompt lists each objective's specialist questions and what the documents may not settle.
+- **Model routing:** `v4-planner` `TASK_MODEL_ALIASES` (all `sorter`; intelligence switchable to `harvester` in code); per-task output budgets (intelligence and plan 12,000 tokens); LiteLLM timeout 150 s, web planner timeout 160 s.
+- **Audience:** optional "Who is this for?" field in `HiveComposer`, saved with the intent (`create_intent_request(…, p_audience)`), passed to the intent intelligence stage and shown in the prompt.
+- **Migration (not applied):** `supabase/migrations/20261102120000_add_intent_intelligence_stage.sql` — additive (audience column + 4-arg RPC, new status/transition/gate, preview column, updated save/readback/inputs). pgTAP `study_preparation.test.sql` now plans 49 tests.
+- **Tests:** contracts (96), web (worker regression scenarios: synthetic Maya multi-intent plan review and a domain-neutral insurance claim), planner pytest (24).
+- **Approval stops:** applying the migration; redeploying `v4-planner`; the live `sorter` run through Study Prompt Preview (needs LiteLLM and Supabase access); commit. Canonical Study is not executed.
 
 ## Paused ticket — V4-003 (awaiting live verification)
 

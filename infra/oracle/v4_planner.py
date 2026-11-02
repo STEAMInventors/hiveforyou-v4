@@ -2,11 +2,12 @@
 HiveForYou V4 — Planner (D-039).
 
 Authenticated planning endpoint for Analyze / Prompt Preview. The web server sends one
-`planner-completion@1` request per planning stage (intent, domain, plan); the planner forwards it
-to the private LiteLLM gateway with a fixed model alias and a scoped virtual key that never leaves
-Oracle, and returns the parsed JSON completion plus usage metadata.
+`planner-completion@1` request per planning stage (intent, domain, intelligence, plan); the planner
+forwards it to the private LiteLLM gateway with a fixed model alias and a scoped virtual key that
+never leaves Oracle, and returns the parsed JSON completion plus usage metadata.
 
-- Callers cannot choose the model: the alias comes only from `PLANNER_LITELLM_ALIAS` (`sorter`).
+- Callers cannot choose the model: each task uses `TASK_MODEL_ALIASES[task]` when set, otherwise
+  `PLANNER_LITELLM_ALIAS` (`sorter`). Switching one stage's model is a change here only.
 - Bearer `PLANNER_SERVICE_TOKEN` is compared in constant time; an unset token fails closed.
 - Logs carry identifiers, codes, token counts and latency only — never prompts, page text,
   completions or credentials.
@@ -36,13 +37,24 @@ ERROR_CONTRACT_VERSION = "planner-error@1"
 TASK_PROMPT_IDS: dict[str, str] = {
     "intent": "hive-intent/1",
     "domain": "hive-domain/1",
+    "intelligence": "hive-intent-intelligence/1",
     "plan": "hive-plan/1",
 }
 DEFAULT_MODEL_ALIAS = "sorter"
-MAX_OUTPUT_TOKENS = 4000
+# Per-task model override; tasks not listed use PLANNER_LITELLM_ALIAS.
+TASK_MODEL_ALIASES: dict[str, str] = {
+    "intelligence": "sorter",
+}
+TASK_MAX_OUTPUT_TOKENS: dict[str, int] = {
+    "intent": 4000,
+    "domain": 4000,
+    "intelligence": 12000,
+    "plan": 12000,
+}
+MAX_OUTPUT_TOKENS = max(TASK_MAX_OUTPUT_TOKENS.values())
 MAX_REQUEST_BYTES = 256 * 1024
 MAX_SYSTEM_PROMPT_CHARS = 64_000
-LITELLM_TIMEOUT_SECONDS = 90.0
+LITELLM_TIMEOUT_SECONDS = 150.0
 
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]{1,128}$")
@@ -55,7 +67,7 @@ class PlannerCompletionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["planner-completion@1"]
-    task: Literal["intent", "domain", "plan"]
+    task: Literal["intent", "domain", "intelligence", "plan"]
     prompt_id: str = Field(min_length=1, max_length=64)
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=MAX_SYSTEM_PROMPT_CHARS)
@@ -123,7 +135,13 @@ def _parse_request(body: bytes) -> PlannerCompletionRequest:
         raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Prompt does not match the task.")
     if not DIGEST_RE.match(parsed.prompt_digest):
         raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Prompt digest is invalid.")
+    if parsed.max_output_tokens > TASK_MAX_OUTPUT_TOKENS[parsed.task]:
+        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Output limit is too high for the task.")
     return parsed
+
+
+def _model_alias(task: str, settings: dict[str, str]) -> str:
+    return TASK_MODEL_ALIASES.get(task) or settings["litellm_alias"]
 
 
 def _count(value: Any) -> int | None:
@@ -146,8 +164,9 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
     if not settings["litellm_base_url"] or not settings["litellm_api_key"]:
         raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "Planning model is not configured.")
 
+    alias = _model_alias(request.task, settings)
     payload = {
-        "model": settings["litellm_alias"],
+        "model": alias,
         "messages": [
             {"role": "system", "content": request.system_prompt},
             {"role": "user", "content": json.dumps(request.user_payload, ensure_ascii=False)},
@@ -201,7 +220,7 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
     return {
         "contract_version": CONTRACT_VERSION,
         "task": request.task,
-        "model_alias": settings["litellm_alias"],
+        "model_alias": alias,
         "resolved_model": _safe_token(data.get("model")),
         "content_json": content_json,
         "usage": {
@@ -223,6 +242,7 @@ async def health() -> dict[str, object]:
     return {
         "status": "ok",
         "model_alias": settings["litellm_alias"],
+        "task_model_aliases": {task: _model_alias(task, settings) for task in TASK_PROMPT_IDS},
         "litellm_configured": bool(settings["litellm_base_url"] and settings["litellm_api_key"]),
         "service_token_configured": bool(settings["service_token"]),
     }

@@ -6,16 +6,23 @@ import type { ContractValidation } from "../source-documents/source-document-con
  */
 export const PLANNER_CONTRACT_VERSION = "planner-completion@1";
 
-export const PLANNER_TASKS = ["intent", "domain", "plan"] as const;
+export const PLANNER_TASKS = ["intent", "domain", "intelligence", "plan"] as const;
 export type PlannerTask = (typeof PLANNER_TASKS)[number];
 
 export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask, string> = {
   intent: "hive-intent/1",
   domain: "hive-domain/1",
+  intelligence: "hive-intent-intelligence/1",
   plan: "hive-plan/1",
 };
 
-export const PLANNER_MAX_OUTPUT_TOKENS = 4000;
+/** Per-task output caps; the planner enforces the same limits. */
+export const PLANNER_MAX_OUTPUT_TOKENS: Record<PlannerTask, number> = {
+  intent: 4000,
+  domain: 4000,
+  intelligence: 12000,
+  plan: 12000,
+};
 export const PLANNER_MAX_REQUEST_BYTES = 256 * 1024;
 
 export type PlannerCompletionRequest = {

@@ -13,11 +13,103 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["planQuestionId", "status", "answer", "evidence", "conflicts", "limitations"],
+        "required": [
+          "planQuestionId",
+          "status",
+          "answer",
+          "facts",
+          "calculations",
+          "assessments",
+          "uncertainties",
+          "professionalDeterminations",
+          "evidence",
+          "conflicts",
+          "limitations"
+        ],
         "properties": {
           "planQuestionId": { "type": "string", "pattern": "^P[1-9][0-9]{0,2}$" },
           "status": { "enum": ["ANSWERED", "PARTIALLY_ANSWERED", "MISSING_EVIDENCE", "CONFLICTING"] },
           "answer": { "type": "string", "maxLength": 4000 },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["statement", "evidence"],
+              "properties": {
+                "statement": { "type": "string", "maxLength": 1200 },
+                "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+              }
+            }
+          },
+          "calculations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["description", "inputs", "arithmetic", "result"],
+              "properties": {
+                "description": { "type": "string", "maxLength": 600 },
+                "inputs": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["label", "valueAsWritten", "evidence"],
+                    "properties": {
+                      "label": { "type": "string", "maxLength": 200 },
+                      "valueAsWritten": { "type": "string", "maxLength": 200 },
+                      "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+                    }
+                  }
+                },
+                "arithmetic": { "type": "string", "maxLength": 600 },
+                "result": { "type": "string", "maxLength": 200 }
+              }
+            }
+          },
+          "assessments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "judgment",
+                "criterion",
+                "criterionSource",
+                "criterionEvidence",
+                "factIndexes",
+                "reasoning",
+                "strength",
+                "wouldChangeIf"
+              ],
+              "properties": {
+                "judgment": { "type": "string", "maxLength": 1200 },
+                "criterion": { "type": "string", "maxLength": 600 },
+                "criterionSource": { "enum": ["DOCUMENT", "GENERAL_KNOWLEDGE"] },
+                "criterionEvidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+                "factIndexes": { "type": "array", "minItems": 1, "items": { "type": "integer", "minimum": 0 } },
+                "reasoning": { "type": "string", "maxLength": 2000 },
+                "strength": { "enum": ["STRONG", "MODERATE", "TENTATIVE"] },
+                "wouldChangeIf": { "type": "array", "items": { "type": "string", "maxLength": 600 } }
+              }
+            }
+          },
+          "uncertainties": { "type": "array", "items": { "type": "string", "maxLength": 600 } },
+          "professionalDeterminations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["determination", "bearingFacts", "decidedBy"],
+              "properties": {
+                "determination": { "type": "string", "maxLength": 600 },
+                "bearingFacts": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+                "decidedBy": { "type": "string", "maxLength": 200 }
+              }
+            }
+          },
           "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
           "conflicts": {
             "type": "array",

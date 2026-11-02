@@ -1,13 +1,19 @@
 import { isValidUuid } from "../hives/hive-contracts";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 import type { ExecutionManifest } from "./execution-manifest-contracts";
-import type { DomainProposal, IntentDecomposition, InvestigationPlan } from "./planning-output-contracts";
+import type {
+  DomainProposal,
+  IntentDecomposition,
+  IntentIntelligence,
+  InvestigationPlan,
+} from "./planning-output-contracts";
 
-/** Mirrored in supabase/migrations/20261102090000_create_study_preparation.sql. */
+/** Mirrored in supabase/migrations/20261102120000_add_intent_intelligence_stage.sql. */
 export const PROCESSING_RUN_STATUSES = [
   "QUEUED",
   "UNDERSTANDING_REQUEST",
   "IDENTIFYING_DOMAIN",
+  "DEVELOPING_QUESTIONS",
   "PLANNING_INVESTIGATION",
   "BUILDING_PROMPT",
   "SAVING",
@@ -22,11 +28,12 @@ export const TERMINAL_PROCESSING_RUN_STATUSES = ["SUCCEEDED", "NEEDS_CLARIFICATI
 export const MODEL_STAGE_STATUSES = [
   "UNDERSTANDING_REQUEST",
   "IDENTIFYING_DOMAIN",
+  "DEVELOPING_QUESTIONS",
   "PLANNING_INVESTIGATION",
 ] as const;
 export type ModelStageStatus = (typeof MODEL_STAGE_STATUSES)[number];
 
-/** The four stages shown to the owner. SAVING is the final step of "Building prompt". */
+/** The five stages shown to the owner. SAVING is the final step of "Building prompt". */
 export const STUDY_PREPARATION_STAGES = [
   {
     key: "UNDERSTANDING_REQUEST",
@@ -39,9 +46,14 @@ export const STUDY_PREPARATION_STAGES = [
     description: "Reading sample pages to work out what kind of documents these are.",
   },
   {
+    key: "DEVELOPING_QUESTIONS",
+    label: "Developing specialist questions",
+    description: "Working out everything a specialist in this field would ask to fulfil your request.",
+  },
+  {
     key: "PLANNING_INVESTIGATION",
     label: "Planning the investigation",
-    description: "Turning each objective into specific questions the documents must answer.",
+    description: "Turning each specialist question into the evidence, comparisons and calculations it needs.",
   },
   {
     key: "BUILDING_PROMPT",
@@ -151,6 +163,8 @@ export type StudyPromptPreview = {
   intentRequestIds: string[];
   intentDecomposition: IntentDecomposition;
   domainProposal: DomainProposal;
+  /** Null on previews prepared before the specialist-question stage existed. */
+  intentIntelligence: IntentIntelligence | null;
   investigationPlan: InvestigationPlan;
   sampleCoverage: SampleCoverage;
   sourceSnapshot: SourceSnapshot;

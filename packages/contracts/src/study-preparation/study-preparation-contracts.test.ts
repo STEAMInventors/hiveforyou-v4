@@ -124,16 +124,18 @@ describe("normalizeProcessingRun", () => {
 });
 
 describe("stages", () => {
-  it("maps statuses onto the four visible stages", () => {
+  it("maps statuses onto the five visible stages", () => {
     expect(STUDY_PREPARATION_STAGES.map((stage) => stage.label)).toEqual([
       "Understanding your request",
       "Identifying the domain",
+      "Developing specialist questions",
       "Planning the investigation",
       "Constructing your study prompt",
     ]);
     expect(stageIndexForStatus("QUEUED")).toBe(-1);
-    expect(stageIndexForStatus("PLANNING_INVESTIGATION")).toBe(2);
-    expect(stageIndexForStatus("SAVING")).toBe(3);
+    expect(stageIndexForStatus("DEVELOPING_QUESTIONS")).toBe(2);
+    expect(stageIndexForStatus("PLANNING_INVESTIGATION")).toBe(3);
+    expect(stageIndexForStatus("SAVING")).toBe(4);
   });
 });
 
