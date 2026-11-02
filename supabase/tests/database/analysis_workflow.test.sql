@@ -827,7 +827,7 @@ SELECT is(
   'RLS hides studies, Writer runs and reports from another user');
 
 -- ---------------------------------------------------------------------------
--- Sweeper: scheduled, and inert until both Vault secrets exist
+-- Optional manual recovery helper: inert until both Vault secrets exist; no Cron schedule
 -- ---------------------------------------------------------------------------
 RESET role;
 SET LOCAL role service_role;
@@ -836,10 +836,12 @@ SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 SELECT is(public.dispatch_due_work(), 0, 'without the worker URL and token nothing is dispatched');
 
 RESET role;
-SELECT is(
-  (SELECT count(*)::int FROM cron.job WHERE jobname = 'hive-dispatch-due-work' AND schedule = '* * * * *'),
-  1,
-  'the recovery sweeper runs every minute');
+SELECT ok(
+  CASE
+    WHEN NOT EXISTS (SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'pg_cron') THEN true
+    ELSE NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'hive-dispatch-due-work')
+  END,
+  'Analyze does not depend on a pg_cron dispatcher');
 
 SELECT * FROM finish();
 ROLLBACK;

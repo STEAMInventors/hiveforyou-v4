@@ -7,9 +7,9 @@ import { isAuthorizedWorkerRequest, loadInternalWorkerToken, parseWorkItem } fro
 import { createWorkerDeps, runWorkItem } from "@/server/workflow/worker";
 
 /**
- * Internal hand-off endpoint for workflow invocations and the pg_cron sweeper. Not for browsers:
- * it requires `Authorization: Bearer <HIVE_INTERNAL_WORKER_TOKEN>` and refuses every request when
- * the token is not configured. Work runs in `after()`; the caller only learns it was accepted.
+ * Internal hand-off endpoint for chained workflow invocations. Not for browsers: it requires
+ * `Authorization: Bearer <HIVE_INTERNAL_WORKER_TOKEN>` and refuses every request when the token is
+ * not configured. Work runs in `after()`; the caller only learns it was accepted.
  */
 export const maxDuration = 300;
 

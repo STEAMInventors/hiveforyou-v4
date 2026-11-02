@@ -252,13 +252,19 @@ function fakePlanner(
   };
 }
 
+type DispatchedWork = WorkItem & { delaySeconds: number };
+
+function stageOutputsSeed(db: ReturnType<typeof fakeDatabase>) {
+  Object.assign(db.stageOutputs, { intentDecomposition: intentOutput() });
+}
+
 function harness(db: ReturnType<typeof fakeDatabase>, planner: ReturnType<typeof fakePlanner>) {
-  const dispatched: WorkItem[] = [];
+  const dispatched: DispatchedWork[] = [];
   const deps: AnalysisWorkflowDeps = {
     client: db.client,
     planner: planner.deps,
-    dispatch: vi.fn(async (item: WorkItem) => {
-      dispatched.push(item);
+    dispatch: vi.fn(async (item: WorkItem, _correlationId, options?) => {
+      dispatched.push({ ...item, delaySeconds: options?.delaySeconds ?? 0 });
       return true;
     }),
     loadCatalog: () => loadPromptCatalog(),
@@ -266,7 +272,7 @@ function harness(db: ReturnType<typeof fakeDatabase>, planner: ReturnType<typeof
   return { deps, dispatched };
 }
 
-/** Plays dispatcher and sweeper: a fresh invocation after every hand-off or stage retry. */
+/** Plays the dispatcher: a fresh invocation after every hand-off or stage retry. */
 async function drive(
   db: ReturnType<typeof fakeDatabase>,
   planner: ReturnType<typeof fakePlanner>,
@@ -399,6 +405,16 @@ describe("processAnalysisRun: planning stages", () => {
     expect(db.saved()).toBeNull();
   });
 
+  it("schedules delayed continuation after a retryable model timeout on the same stage", async () => {
+    const db = fakeDatabase({ status: "IDENTIFYING_DOMAIN" });
+    stageOutputsSeed(db);
+    const planner = fakePlanner({ domain: () => timeout() });
+    const h = harness(db, planner);
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("IDENTIFYING_DOMAIN");
+    expect(planner.calls).toEqual(["domain"]);
+    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 20 }]);
+  });
+
   it("retries the same stage after a model timeout, then continues", async () => {
     const db = fakeDatabase();
     const planner = fakePlanner({ domain: (call) => (call === 1 ? timeout() : null) });
@@ -457,6 +473,14 @@ describe("processAnalysisRun: planning stages", () => {
     expect(dispatched).toEqual([]);
   });
 
+  it("runs at most one intent model call when two invocations race for the same run", async () => {
+    const db = fakeDatabase({ status: "UNDERSTANDING_REQUEST" });
+    const planner = fakePlanner();
+    const h = harness(db, planner);
+    await Promise.all([processAnalysisRun(h.deps, RUN_ID), processAnalysisRun(h.deps, RUN_ID)]);
+    expect(planner.calls.filter((task) => task === "intent")).toHaveLength(1);
+  });
+
   it("never reaches the Study stage when the saved prompt does not read back identically", async () => {
     const db = fakeDatabase({ tamperReadback: true });
     const planner = fakePlanner();
@@ -467,13 +491,14 @@ describe("processAnalysisRun: planning stages", () => {
 });
 
 describe("processAnalysisRun: reading documents", () => {
-  it("waits without a model call while reads are still running, and checks again later", async () => {
+  it("waits without a model call while reads are still running, and schedules another check", async () => {
     const db = fakeDatabase({ status: "READING_DOCUMENTS", readsWaiting: true });
     const planner = fakePlanner();
-    const { dispatched } = await drive(db, planner);
+    const h = harness(db, planner);
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("READING_DOCUMENTS");
     expect(planner.calls).toEqual([]);
     expect(db.releases).toEqual([{ status: "READING_DOCUMENTS", delay: 15 }]);
-    expect(dispatched).toEqual([]);
+    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 15 }]);
   });
 
   it("hands the request stage to a fresh invocation once reading is done", async () => {
@@ -482,7 +507,7 @@ describe("processAnalysisRun: reading documents", () => {
     const h = harness(db, planner);
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("UNDERSTANDING_REQUEST");
     expect(planner.calls).toEqual([]);
-    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID }]);
+    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 0 }]);
   });
 
   it("pauses for the owner when reading found new material gaps: no model call, no handoff, nothing to claim", async () => {
@@ -650,7 +675,9 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     expect(revision.audience_configuration).toMatchObject({ customer: { status: "UNKNOWN" } });
     expect(revision.verification).toBeTruthy();
 
-    expect(dispatched.filter((item) => item.kind === "report")).toEqual(REPORT_RUN_IDS.map((id) => ({ kind: "report", id })));
+    expect(dispatched.filter((item) => item.kind === "report")).toEqual(
+      REPORT_RUN_IDS.map((id) => ({ kind: "report", id, delaySeconds: 0 })),
+    );
   });
 
   it("fails the run and accepts nothing when a Study quote is not on its page", async () => {

@@ -747,7 +747,9 @@ async function acceptStudy(context: Context): Promise<StepResult> {
   await Promise.all(
     reportRuns
       .filter((reportRun) => typeof reportRun.id === "string" && reportRun.status === "QUEUED")
-      .map((reportRun) => context.deps.dispatch({ kind: "report", id: reportRun.id as string }, context.correlationId)),
+      .map((reportRun) =>
+        context.deps.dispatch({ kind: "report", id: reportRun.id as string }, context.correlationId, { delaySeconds: 0 }),
+      ),
   );
   return { next: "stop", status: run?.status ?? "SUCCEEDED" };
 }
@@ -825,7 +827,13 @@ async function failRun(context: Context, status: ProcessingRunStatus, run: Proce
     const payload = await rpc(client, "retry_processing_run_stage", { p_run_id: context.runId, p_status: status, p_details: details });
     const retried = payload?.retried === true;
     log(run, retried ? `${status}_retry` : "FAILED", context.startedAt, failure.hiveError);
-    return retried ? status : "FAILED";
+    if (retried) {
+      const updated = normalizeProcessingRun(payload?.processingRun);
+      const delaySeconds = updated ? 20 * Math.max(1, updated.stageAttempt - 1) : 20;
+      await context.deps.dispatch({ kind: "analysis", id: context.runId }, context.correlationId, { delaySeconds });
+      return status;
+    }
+    return "FAILED";
   }
   const result = await transition(client, context.runId, status, "FAILED", details);
   log(run, "FAILED", context.startedAt, failure.hiveError);
@@ -862,7 +870,7 @@ export async function processAnalysisRun(deps: AnalysisWorkflowDeps, runId: stri
       try {
         return await failRun(context, context.status, run, error);
       } catch {
-        // The lease lapses; the sweeper claims the stage again as a new attempt.
+        // The lease lapses until it expires or another invocation claims the run.
         return null;
       }
     }
@@ -876,13 +884,13 @@ export async function processAnalysisRun(deps: AnalysisWorkflowDeps, runId: stri
         p_status: result.status,
         p_delay_seconds: result.delaySeconds,
       }).catch(() => null);
-      if (result.delaySeconds === 0) await deps.dispatch({ kind: "analysis", id: runId }, context.correlationId);
+      await deps.dispatch({ kind: "analysis", id: runId }, context.correlationId, { delaySeconds: result.delaySeconds });
       return result.status;
     }
     return result.status;
   }
   await rpc(deps.client, "release_processing_run", { p_run_id: runId, p_status: run.status, p_delay_seconds: 0 }).catch(() => null);
-  await deps.dispatch({ kind: "analysis", id: runId }, context.correlationId);
+  await deps.dispatch({ kind: "analysis", id: runId }, context.correlationId, { delaySeconds: 0 });
   return run.status;
 }
 

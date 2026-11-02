@@ -194,4 +194,21 @@ describe("processReportRun", () => {
     await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("WRITING");
     expect(model.bodies).toHaveLength(0);
   });
+
+  it("retries one Writer audience without affecting the other run's claim semantics", async () => {
+    const customerDb = fakeDatabase("CUSTOMER");
+    const proDb = fakeDatabase("PRO");
+    const customerModel = planner(mayaWriterOutput("CUSTOMER"));
+    const proModel = planner(mayaWriterOutput("PRO"));
+
+    await expect(processReportRun({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID)).resolves.toBe(
+      "SUCCEEDED",
+    );
+    await expect(processReportRun({ client: proDb.client, planner: proModel.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
+
+    expect(customerModel.bodies).toHaveLength(1);
+    expect(proModel.bodies).toHaveLength(1);
+    expect(customerModel.bodies[0]!.user_payload.audience).toBe("CUSTOMER");
+    expect(proModel.bodies[0]!.user_payload.audience).toBe("PRO");
+  });
 });

@@ -293,7 +293,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
       if (failed.reportRun) log(failed.reportRun, failed.reportRun.status, startedAt, hiveError);
       return failed.reportRun?.status ?? null;
     } catch {
-      // The lease lapses; the sweeper claims the run again as a new attempt.
+      // The lease lapses until it expires or another invocation claims the run.
       return null;
     }
   }

@@ -1,14 +1,18 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import { isValidUuid } from "@hiveforyou/contracts";
+import { after } from "next/server";
 
 import { resolveAppOrigin } from "@/server/config/app-origin";
 import { emitStructuredEvent } from "@/server/observability/logger";
 
 /**
  * Server-side hand-off between workflow invocations (D-041 B1). Each model stage runs in its own
- * function invocation; the previous one posts the next work item to `/api/internal/workflow`. If the
- * post is lost, the pg_cron sweeper (`public.dispatch_due_work`) posts it again within a minute.
+ * function invocation; the previous one schedules the next work item on `/api/internal/workflow`.
+ * When the HTTP post fails, the same process runs the work item directly so progress does not depend
+ * on Cron or browser polling. A successful POST (202) and the in-process fallback are mutually
+ * exclusive; duplicate deliveries still converge on one active lease via `claim_processing_run` /
+ * `claim_report_run` compare-and-set in the database.
  */
 
 export const WORK_KINDS = ["document_read", "analysis", "report"] as const;
@@ -19,7 +23,11 @@ export const INTERNAL_WORKFLOW_PATH = "/api/internal/workflow";
 const DISPATCH_TIMEOUT_MS = 5_000;
 const MIN_TOKEN_LENGTH = 32;
 
-export type Dispatch = (item: WorkItem, correlationId: string) => Promise<boolean>;
+export type DispatchOptions = { readonly delaySeconds?: number };
+
+export type Dispatch = (item: WorkItem, correlationId: string, options?: DispatchOptions) => Promise<boolean>;
+
+export type WorkflowContinuationFallback = (item: WorkItem) => Promise<void>;
 
 /** The shared secret; also stored in Supabase Vault as `hive_internal_worker_token`. */
 export function loadInternalWorkerToken(env: NodeJS.ProcessEnv): string | null {
@@ -91,5 +99,45 @@ export function createHttpDispatch(input: {
       logDispatch(item, correlationId, "dispatch_failed");
       return false;
     }
+  };
+}
+
+/** Schedules the next invocation after an optional delay; runs `fallback` when the HTTP post fails. */
+export function scheduleWorkflowContinuation(
+  httpDispatch: Dispatch,
+  fallback: WorkflowContinuationFallback | null,
+  item: WorkItem,
+  correlationId: string,
+  delaySeconds: number,
+): void {
+  after(async () => {
+    try {
+      if (delaySeconds > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delaySeconds * 1000));
+      }
+      const accepted = await httpDispatch(item, correlationId);
+      if (!accepted && fallback) {
+        await fallback(item);
+        return;
+      }
+    } catch {
+      if (fallback) {
+        await fallback(item).catch(() => null);
+      }
+    }
+  });
+}
+
+/** HTTP dispatch to the internal route, with in-process fallback when the post fails. */
+export function createWorkflowDispatch(input: {
+  readonly token: string | null;
+  readonly origin?: string;
+  readonly fetchFn?: typeof fetch;
+  readonly fallback: WorkflowContinuationFallback | null;
+}): Dispatch {
+  const httpDispatch = createHttpDispatch(input);
+  return (item, correlationId, options) => {
+    scheduleWorkflowContinuation(httpDispatch, input.fallback, item, correlationId, options?.delaySeconds ?? 0);
+    return Promise.resolve(true);
   };
 }

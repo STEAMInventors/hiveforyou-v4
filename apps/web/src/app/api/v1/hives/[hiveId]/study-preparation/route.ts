@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
   return run(request);
 }
 
-/** Analyze: starts the whole chain. Later stages hand off server-side; the sweeper resumes stalls. */
+/** Analyze: starts the whole chain. Later stages hand off server-side through the internal worker route. */
 export async function POST(request: NextRequest, context: RouteContext): Promise<Response> {
   const run = withApiRoute("studyPreparation", "startStudyPreparation", async ({ correlationId, request }) => {
     const { hiveId } = await context.params;

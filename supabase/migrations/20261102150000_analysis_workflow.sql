@@ -10,18 +10,18 @@
 --   * hive.report_runs: independent CUSTOMER and PRO Writer runs (max 3 attempts each) queued in the
 --     same transaction that accepts a revision; immutable hive.reports with scenario results and the
 --     bound A2UI view. Writer failures never touch the revision.
---   * public.dispatch_due_work(): pg_cron (every minute) + pg_net recovery sweeper posting due work
---     to the web server's internal worker route, with the URL and bearer token read from Vault.
+--   * public.dispatch_due_work(): optional manual recovery helper (pg_net POST to the internal worker
+--     route when Vault secrets exist). Workflow progress does not depend on Cron; the web app chains
+--     stages through POST /api/internal/workflow after each stage completes.
 --
--- Prerequisites on the Supabase project (founder approval): pg_cron, pg_net and supabase_vault
--- enabled; Vault secrets `hive_internal_worker_url` and `hive_internal_worker_token`.
+-- Prerequisites on the Supabase project (founder approval): pg_net and supabase_vault only if the
+-- optional manual recovery helper is used; Vercel HIVE_INTERNAL_WORKER_TOKEN for server-side chaining.
 -- Authority: HiveForYou-DATA-MODEL.md, HiveForYou-DECISIONS.md (D-039, D-040, D-041).
 -- Do not apply to a live Supabase project without explicit founder authorization.
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
-CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
 CREATE EXTENSION IF NOT EXISTS supabase_vault WITH SCHEMA vault;
 
 -- ---------------------------------------------------------------------------
@@ -324,8 +324,8 @@ AS $$
      AND (hive.compute_study_intent_snapshot(r.hive_id) ->> 'intentSnapshotDigest') = r.intent_snapshot_digest;
 $$;
 
--- With the sweeper, a lapsed lease is retried by claim_processing_run. Only a run that made no
--- progress for 15 minutes (no worker, no sweeper), or is older than two hours, is interrupted.
+-- A lapsed lease is retried by claim_processing_run when the app dispatches the next invocation.
+-- Only a run that made no progress for 15 minutes, or is older than two hours, is interrupted.
 CREATE OR REPLACE FUNCTION hive.expire_stale_processing_runs(p_hive_id uuid)
 RETURNS integer
 LANGUAGE plpgsql
@@ -2119,11 +2119,12 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 9. Recovery sweeper: pg_cron every minute → pg_net → internal worker route
+-- 9. Optional manual recovery: pg_net → internal worker route (not scheduled)
 -- ---------------------------------------------------------------------------
 -- Due work: queued reads nobody picked up, runs whose stage is unclaimed (or whose lease lapsed),
 -- and Writer runs that are queued or whose lease lapsed. Claims in the worker are compare-and-set,
--- so a duplicate dispatch is harmless. Without both Vault secrets the sweeper does nothing.
+-- so a duplicate dispatch is harmless. Without both Vault secrets this helper does nothing. Normal
+-- Analyze execution chains server-side without Cron.
 CREATE OR REPLACE FUNCTION public.dispatch_due_work(p_limit integer DEFAULT 25)
 RETURNS integer
 LANGUAGE plpgsql
@@ -2188,10 +2189,10 @@ $$;
 
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'hive-dispatch-due-work') THEN
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'pg_cron')
+     AND EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'hive-dispatch-due-work') THEN
     PERFORM cron.unschedule('hive-dispatch-due-work');
   END IF;
-  PERFORM cron.schedule('hive-dispatch-due-work', '* * * * *', 'SELECT public.dispatch_due_work()');
 END;
 $$;
 
