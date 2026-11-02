@@ -1,5 +1,5 @@
 import type { NumericStatus, StudyClaim } from "../analysis/study-verification";
-import type { ContractValidation } from "../source-documents/source-document-contracts";
+import { diagnosticFieldFromMessage, type FailureComponent } from "../errors/failure-diagnostic";
 import {
   BINDING_TOKEN,
   evaluateScenarios,
@@ -107,26 +107,56 @@ class BindRejection extends Error {
   constructor(
     readonly diagnosticReason: string,
     message: string,
+    readonly diagnosticField?: string,
   ) {
     super(message);
   }
 }
 
 function reject(diagnosticReason: string, message: string): never {
-  throw new BindRejection(diagnosticReason, message);
+  throw new BindRejection(diagnosticReason, message, diagnosticFieldFromMessage(message));
+}
+
+export type ReportBuildResult =
+  | { ok: true; value: BuiltReport }
+  | {
+      ok: false;
+      message: string;
+      diagnosticReason: string;
+      diagnosticField?: string;
+      component: Extract<FailureComponent, "writer" | "scenario" | "a2ui">;
+    };
+
+function reportLayer(diagnosticReason: string): "writer" | "scenario" {
+  if (diagnosticReason.startsWith("writer_scenario") || diagnosticReason === "writer_formula_invalid") return "scenario";
+  return "writer";
 }
 
 /** Validates a Writer output, computes its scenarios and binds its view. Any failure rejects the draft. */
-export function buildReport(raw: unknown, context: ReportBuildContext): ContractValidation<BuiltReport> {
+export function buildReport(raw: unknown, context: ReportBuildContext): ReportBuildResult {
   const validated = validateWriterReport(raw, { audience: context.audience, claims: context.claims });
-  if (!validated.ok) return validated;
+  if (!validated.ok) {
+    return {
+      ok: false,
+      message: validated.message,
+      diagnosticReason: validated.diagnosticReason,
+      ...(validated.diagnosticField ? { diagnosticField: validated.diagnosticField } : {}),
+      component: reportLayer(validated.diagnosticReason),
+    };
+  }
   const report = validated.value;
   const scenarioAnalysis = evaluateScenarios(report, context.claims);
   try {
     return { ok: true, value: { writerOutput: report, scenarioAnalysis, view: bindApplicationView(report, scenarioAnalysis, context) } };
   } catch (error) {
     if (error instanceof BindRejection) {
-      return { ok: false, message: "The report layout did not pass our checks.", diagnosticReason: error.diagnosticReason };
+      return {
+        ok: false,
+        message: "The report layout did not pass our checks.",
+        diagnosticReason: error.diagnosticReason,
+        ...(error.diagnosticField ? { diagnosticField: error.diagnosticField } : {}),
+        component: "a2ui",
+      };
     }
     throw error;
   }

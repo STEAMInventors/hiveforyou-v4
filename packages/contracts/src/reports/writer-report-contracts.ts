@@ -8,6 +8,7 @@ import {
   parseFormula,
 } from "../analysis/decimal-formula";
 import type { StudyClaim } from "../analysis/study-verification";
+import { diagnosticFieldFromMessage } from "../errors/failure-diagnostic";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 
 /**
@@ -113,13 +114,14 @@ class WriterRejection extends Error {
   constructor(
     readonly diagnosticReason: string,
     message: string,
+    readonly diagnosticField?: string,
   ) {
     super(message);
   }
 }
 
 function reject(diagnosticReason: string, message: string): never {
-  throw new WriterRejection(diagnosticReason, message);
+  throw new WriterRejection(diagnosticReason, message, diagnosticFieldFromMessage(message));
 }
 
 function record(value: unknown, path: string): Record<string, unknown> {
@@ -399,6 +401,7 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
         ok: false,
         message: "The report draft did not pass our checks against the Study.",
         diagnosticReason: error.diagnosticReason,
+        ...(error.diagnosticField ? { diagnosticField: error.diagnosticField } : {}),
       };
     }
     throw error;

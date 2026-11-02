@@ -2,6 +2,7 @@ import {
   createHiveError,
   type HiveError,
   normalizePlannerCompletion,
+  normalizePlannerErrorEnvelope,
   PLANNER_CONTRACT_VERSION,
   PLANNER_MAX_OUTPUT_TOKENS,
   type PlannerCompletion,
@@ -70,45 +71,64 @@ export function loadPlannerServiceConfig(
   return { baseUrl, serviceToken, timeoutMs: PLANNER_HTTP_TIMEOUT_MS, longTimeoutMs: PLANNER_LONG_HTTP_TIMEOUT_MS };
 }
 
-type PlannerErrorEnvelope = { error_code?: unknown; retryable?: unknown };
+function mapPlannerHttpError(
+  status: number,
+  raw: unknown,
+  correlationId: string,
+  processingRunId: string,
+): HiveError {
+  const envelope = normalizePlannerErrorEnvelope(raw);
+  const code = envelope?.errorCode ?? "";
+  const retryable = envelope ? envelope.retryable : status >= 500;
+  const operationId = envelope?.processingRunId ?? processingRunId;
+  const upstream = envelope?.diagnosticReason ?? null;
+  const withRun = (error: Omit<HiveError, "stage" | "category"> & { category?: HiveError["category"] }) =>
+    plannerError({ ...error, operationId });
 
-function mapPlannerHttpError(status: number, envelope: PlannerErrorEnvelope | null, correlationId: string): HiveError {
-  const code = typeof envelope?.error_code === "string" ? envelope.error_code : "";
-  const retryable = typeof envelope?.retryable === "boolean" ? envelope.retryable : status >= 500;
   if (status === 401 || code === "AUTH_FAILED") {
-    return plannerError({
+    return withRun({
       errorCode: "MODEL_UNAVAILABLE",
       retryable: false,
       safeMessage: "The analysis service rejected our credentials. Contact support with your reference.",
       correlationId,
-      diagnosticReason: "planner_auth_failed",
+      diagnosticReason: upstream ?? "planner_auth_failed",
     });
   }
   if (status === 504 || code === "MODEL_TIMEOUT") {
-    return plannerError({
+    return withRun({
       errorCode: "MODEL_TIMEOUT",
       retryable: true,
       safeMessage: "The analysis model took too long to answer. You can try again.",
       correlationId,
-      diagnosticReason: "planner_timeout",
+      diagnosticReason: upstream ?? "planner_timeout",
     });
   }
   if (code === "MODEL_OUTPUT_INVALID" || code === "MODEL_CONTEXT_EXCEEDED") {
-    return plannerError({
+    return withRun({
       errorCode: "MODEL_OUTPUT_INVALID",
       category: "MODEL",
       retryable: code === "MODEL_OUTPUT_INVALID" && retryable,
       safeMessage: "The analysis model returned an answer we couldn't use. You can try again.",
       correlationId,
-      diagnosticReason: code === "MODEL_CONTEXT_EXCEEDED" ? "model_context_exceeded" : "model_output_invalid",
+      diagnosticReason:
+        upstream ?? (code === "MODEL_CONTEXT_EXCEEDED" ? "model_context_exceeded" : "model_output_invalid"),
     });
   }
-  return plannerError({
+  if (code === "MODEL_UNAVAILABLE" || code === "DEPENDENCY_UNAVAILABLE") {
+    return withRun({
+      errorCode: "MODEL_UNAVAILABLE",
+      retryable,
+      safeMessage: UNAVAILABLE_MESSAGE,
+      correlationId,
+      diagnosticReason: upstream ?? "planner_unavailable",
+    });
+  }
+  return withRun({
     errorCode: "MODEL_UNAVAILABLE",
     retryable,
     safeMessage: UNAVAILABLE_MESSAGE,
     correlationId,
-    diagnosticReason: "planner_unavailable",
+    diagnosticReason: upstream ?? (raw == null ? "planner_response_unreadable" : "planner_unavailable"),
   });
 }
 
@@ -160,18 +180,15 @@ export async function callPlanner(
       retryable: true,
       safeMessage: timedOut ? "The analysis model took too long to answer. You can try again." : UNAVAILABLE_MESSAGE,
       correlationId,
-      diagnosticReason: timedOut ? "planner_timeout" : "planner_unavailable",
+      operationId: input.processingRunId,
+      diagnosticReason: timedOut ? "planner_timeout" : "planner_network_error",
       cause: error,
     });
   }
 
   const raw: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    throw mapPlannerHttpError(
-      response.status,
-      raw && typeof raw === "object" ? (raw as PlannerErrorEnvelope) : null,
-      correlationId,
-    );
+    throw mapPlannerHttpError(response.status, raw, correlationId, input.processingRunId);
   }
   const normalized = normalizePlannerCompletion(raw, input.prompt.task);
   if (!normalized.ok) {
@@ -181,7 +198,8 @@ export async function callPlanner(
       retryable: true,
       safeMessage: "The analysis service returned an unexpected response. You can try again.",
       correlationId,
-      diagnosticReason: "planner_invalid_response",
+      operationId: input.processingRunId,
+      diagnosticReason: normalized.diagnosticReason,
     });
   }
   return { ...normalized.value, roundTripMs: Date.now() - started };

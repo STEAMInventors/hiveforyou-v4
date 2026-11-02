@@ -63,8 +63,15 @@ def use_litellm(handler: Callable[[httpx.Request], httpx.Response]) -> list[http
     return seen
 
 
-def post(client: TestClient, payload: object, token: str | None = TOKEN) -> httpx.Response:
+def post(
+    client: TestClient,
+    payload: object,
+    token: str | None = TOKEN,
+    headers_run: str | None = None,
+) -> httpx.Response:
     headers = {"x-correlation-id": "corr-1"}
+    if headers_run:
+        headers["x-study-run-id"] = headers_run
     if token is not None:
         headers["Authorization"] = f"Bearer {token}"
     return client.post("/v1/plan-completion", content=json.dumps(payload), headers=headers)
@@ -168,21 +175,31 @@ def test_rejects_non_object_or_truncated_completion(client: TestClient, content:
     assert response.json()["error_code"] == "MODEL_OUTPUT_INVALID"
 
 
-def test_maps_timeout(client: TestClient) -> None:
+def test_maps_timeout(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
     def timeout(_: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("slow")
 
     use_litellm(timeout)
-    response = post(client, body())
+    with caplog.at_level("WARNING", logger="hive_planner"):
+        response = post(client, body(), headers_run="325193b3-826e-4583-897e-71d1086530a0")
     assert response.status_code == 504
-    assert response.json() | {"correlation_id": None} == {
+    assert response.json() == {
         "contract_version": "planner-error@1",
         "error_code": "MODEL_TIMEOUT",
         "category": "dependency",
         "retryable": True,
         "message_safe": "The planning model timed out.",
-        "correlation_id": None,
+        "correlation_id": "corr-1",
+        "processing_run_id": "325193b3-826e-4583-897e-71d1086530a0",
+        "task": "intent",
+        "component": "planner",
+        "operation": "plan_completion",
+        "diagnostic_reason": "litellm_timeout",
     }
+    assert "v4_plan_completion_failed" in caplog.text
+    assert "corr-1" in caplog.text
+    assert "litellm_timeout" in caplog.text
+    assert "325193b3-826e-4583-897e-71d1086530a0" in caplog.text
 
 
 @pytest.mark.parametrize("status,retryable", [(500, True), (429, True), (401, False)])
@@ -192,6 +209,51 @@ def test_maps_upstream_failures(client: TestClient, status: int, retryable: bool
     assert response.status_code == 503
     assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
     assert response.json()["retryable"] is retryable
+    assert response.json()["diagnostic_reason"] == "litellm_http_error"
+    assert "upstream" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("content", "finish_reason", "reason"),
+    [
+        (None, "stop", "model_content_missing"),
+        ("", "stop", "model_content_missing"),
+        ("not json at all", "stop", "model_output_not_json"),
+        ('{"objectives": [', "length", "model_output_truncated"),
+        ('["a list"]', "stop", "model_response_contract"),
+    ],
+)
+def test_distinguishes_completion_failures(
+    client: TestClient, content: str | None, finish_reason: str, reason: str
+) -> None:
+    payload = completion("{}", finish_reason)
+    choice = payload["choices"][0]
+    assert isinstance(choice, dict)
+    message = choice["message"]
+    assert isinstance(message, dict)
+    message["content"] = content
+    use_litellm(lambda _: httpx.Response(200, json=payload))
+    response = post(client, body())
+    assert response.status_code == 502
+    assert response.json()["error_code"] == "MODEL_OUTPUT_INVALID"
+    assert response.json()["diagnostic_reason"] == reason
+
+
+def test_network_failure_is_not_an_http_failure(client: TestClient) -> None:
+    def offline(_: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    use_litellm(offline)
+    response = post(client, body())
+    assert response.status_code == 503
+    assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
+    assert response.json()["diagnostic_reason"] == "litellm_network_error"
+
+
+def test_non_json_gateway_body_is_a_contract_error(client: TestClient) -> None:
+    use_litellm(lambda _: httpx.Response(200, content=b"not-json"))
+    response = post(client, body())
+    assert response.json()["diagnostic_reason"] == "model_response_contract"
 
 
 def test_maps_context_length_errors(client: TestClient) -> None:

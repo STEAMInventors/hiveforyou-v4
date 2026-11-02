@@ -82,10 +82,35 @@ describe("callPlanner", () => {
     await expect(call(respond(status, body))).rejects.toMatchObject({ errorCode, retryable, diagnosticReason });
   });
 
+  it("keeps the planner's diagnostic reason instead of collapsing it", async () => {
+    const envelope = {
+      contract_version: "planner-error@1",
+      error_code: "MODEL_OUTPUT_INVALID",
+      category: "model",
+      retryable: true,
+      message_safe: "The planning answer was not JSON.",
+      correlation_id: CORRELATION_ID,
+      processing_run_id: RUN_ID,
+      task: "study",
+      component: "planner",
+      operation: "plan_completion",
+      diagnostic_reason: "model_output_not_json",
+    };
+    await expect(call(respond(502, envelope))).rejects.toMatchObject({
+      errorCode: "MODEL_OUTPUT_INVALID",
+      diagnosticReason: "model_output_not_json",
+      operationId: RUN_ID,
+      retryable: true,
+    });
+    await expect(
+      call(respond(503, { ...envelope, error_code: "MODEL_UNAVAILABLE", diagnostic_reason: "litellm_http_error" })),
+    ).rejects.toMatchObject({ errorCode: "MODEL_UNAVAILABLE", diagnosticReason: "litellm_http_error" });
+  });
+
   it("rejects a success body that breaks the wire contract", async () => {
     await expect(call(respond(200, { ...ok, task: "plan" }))).rejects.toMatchObject({
       errorCode: "MODEL_OUTPUT_INVALID",
-      diagnosticReason: "planner_invalid_response",
+      diagnosticReason: "planner_task_mismatch",
     });
   });
 

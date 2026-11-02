@@ -1,5 +1,6 @@
 import {
   buildDeterministicInvestigationPlan,
+  normalizeFailureDiagnostic,
   PLANNER_CONTRACT_VERSION,
   type PlannerTask,
   SOURCE_PAGES_PLACEHOLDER,
@@ -651,6 +652,54 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     expect(dispatched.filter((item) => item.kind === "report")).toEqual(
       REPORT_RUN_IDS.map((id) => ({ kind: "report", id, delaySeconds: 0 })),
     );
+  });
+
+  it("persists the planner's diagnostic when Canonical Study fails after a model HTTP 200", async () => {
+    const db = mayaDatabase();
+    const planner = fakePlanner(
+      {
+        study: () =>
+          new Response(
+            JSON.stringify({
+              contract_version: "planner-error@1",
+              error_code: "MODEL_OUTPUT_INVALID",
+              category: "model",
+              retryable: true,
+              message_safe: "The planning answer was not JSON.",
+              correlation_id: "66666666-6666-4666-8666-666666666666",
+              processing_run_id: MAYA_RUN_ID,
+              task: "study",
+              component: "planner",
+              operation: "plan_completion",
+              diagnostic_reason: "model_output_not_json",
+              content: "raw model text must not be stored",
+            }),
+            { status: 502 },
+          ),
+      },
+      mayaOutputs(),
+    );
+
+    await drive(db, planner, MAYA_RUN_ID);
+
+    expect(db.status()).toBe("FAILED");
+    const failed = db.transitions.at(-1);
+    expect(failed).toMatchObject({ from: "INVESTIGATING", to: "FAILED", details: { error_code: "MODEL_OUTPUT_INVALID" } });
+    const stored = normalizeFailureDiagnostic((failed?.details as { failure_diagnostic?: unknown }).failure_diagnostic);
+    expect(stored).toEqual({
+      contractVersion: "failure-diagnostic@1",
+      component: "planner",
+      operation: "plan_completion",
+      task: "study",
+      stage: "INVESTIGATING",
+      errorCode: "MODEL_OUTPUT_INVALID",
+      diagnosticReason: "model_output_not_json",
+      diagnosticField: null,
+      retryable: true,
+      attempt: 1,
+    });
+    expect(JSON.stringify(stored)).not.toContain("raw model text");
+    expect(db.accepted()).toBeNull();
   });
 
   it("fails the run and accepts nothing when a Study quote is not on its page", async () => {

@@ -173,7 +173,17 @@ describe("processReportRun", () => {
     expect(db.transitions.at(-1)).toMatchObject({
       from: "VALIDATING",
       to: "FAILED",
-      details: { error_code: "MODEL_OUTPUT_INVALID", retryable: true, stage_metric: { stage: "WRITING", outcome: "FAILED" } },
+      details: {
+        error_code: "MODEL_OUTPUT_INVALID",
+        retryable: true,
+        stage_metric: { stage: "WRITING", outcome: "FAILED" },
+        failure_diagnostic: {
+          component: "writer",
+          operation: "validate_writer",
+          task: "writer",
+          diagnosticReason: "writer_claim_unknown",
+        },
+      },
     });
     expect(db.saved()).toBeNull();
   });

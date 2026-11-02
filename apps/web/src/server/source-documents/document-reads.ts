@@ -1,4 +1,6 @@
 import {
+  buildFailureDiagnostic,
+  classifyFailure,
   createHiveError,
   type DocumentRead,
   type DocumentReadStatus,
@@ -49,6 +51,7 @@ type TransitionDetails = {
   readonly error_code?: string;
   readonly error_message_safe?: string;
   readonly retryable?: boolean;
+  readonly failure_diagnostic?: ReturnType<typeof buildFailureDiagnostic>;
 };
 
 type TransitionResult = {
@@ -263,15 +266,23 @@ function isUnreadableDocumentError(error: HiveError): boolean {
   );
 }
 
-function failureDetails(error: unknown): TransitionDetails {
-  if (isHiveError(error)) {
-    return {
-      error_code: error.errorCode,
-      error_message_safe: error.safeMessage,
-      retryable: error.retryable,
-    };
-  }
-  return { error_code: "INTERNAL_ERROR", error_message_safe: READ_STOPPED_MESSAGE, retryable: true };
+function failureDetails(error: unknown, attempt: number): TransitionDetails {
+  const hive = isHiveError(error) ? error : null;
+  const base = hive
+    ? { error_code: hive.errorCode, error_message_safe: hive.safeMessage, retryable: hive.retryable }
+    : { error_code: "INTERNAL_ERROR" as const, error_message_safe: READ_STOPPED_MESSAGE, retryable: true };
+  const reason = hive?.diagnosticReason ?? "unexpected_exception";
+  const classified = classifyFailure({ stage: "READ", diagnosticReason: reason, task: "read" });
+  const diagnostic = buildFailureDiagnostic({
+    ...classified,
+    stage: "READ",
+    errorCode: base.error_code,
+    diagnosticReason: reason,
+    diagnosticField: hive?.diagnosticField ?? null,
+    retryable: base.retryable,
+    attempt,
+  });
+  return { ...base, ...(diagnostic ? { failure_diagnostic: diagnostic } : {}) };
 }
 
 function logTransition(input: {
@@ -285,14 +296,15 @@ function logTransition(input: {
     eventName: `documentRead.${input.status.toLowerCase()}`,
     severity: input.status === "FAILED" ? "ERROR" : failed ? "WARN" : "INFO",
     timestamp: new Date().toISOString(),
-    component: "sourceDocuments",
-    operation: "readDocuments",
+    component: isHiveError(input.error) ? "reader" : "sourceDocuments",
+    operation: isHiveError(input.error) ? "read_document" : "readDocuments",
     stage: "READ",
     correlationId: input.read.correlationId,
     hiveId: input.read.hiveId,
     sourceDocumentId: input.read.sourceDocumentId,
     processingRunId: input.read.id,
     attempt: input.read.attemptNumber,
+    task: "read",
     status: input.status,
     durationMs: Date.now() - input.startedAt,
     ...(isHiveError(input.error)
@@ -300,6 +312,7 @@ function logTransition(input: {
           errorCode: input.error.errorCode,
           retryable: input.error.retryable,
           diagnosticReason: input.error.diagnosticReason ?? "unexpected_exception",
+          ...(typeof input.error.diagnosticField === "string" ? { diagnosticField: input.error.diagnosticField } : {}),
         }
       : {}),
   });
@@ -414,9 +427,17 @@ export async function processDocumentRead(
       );
     } catch (error) {
       if (isHiveError(error) && isUnreadableDocumentError(error)) {
+        const details = failureDetails(error, read.attemptNumber);
         await advance(
           "UNREADABLE",
-          { error_code: "DOCUMENT_UNREADABLE", error_message_safe: error.safeMessage, retryable: false },
+          {
+            ...details,
+            error_code: "DOCUMENT_UNREADABLE",
+            retryable: false,
+            failure_diagnostic: details.failure_diagnostic
+              ? { ...details.failure_diagnostic, errorCode: "DOCUMENT_UNREADABLE", retryable: false }
+              : undefined,
+          },
           error,
         );
         return current;
@@ -467,7 +488,7 @@ export async function processDocumentRead(
     return current;
   } catch (error) {
     try {
-      await advance("FAILED", failureDetails(error), error);
+      await advance("FAILED", failureDetails(error, read.attemptNumber), error);
     } catch {
       // The attempt's lease expires and list_document_reads marks it FAILED.
     }

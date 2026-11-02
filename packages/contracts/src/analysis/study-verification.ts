@@ -1,3 +1,4 @@
+import { diagnosticFieldFromMessage } from "../errors/failure-diagnostic";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 import {
   INVESTIGATION_ANSWER_STATUSES,
@@ -96,13 +97,14 @@ class StudyRejection extends Error {
   constructor(
     readonly diagnosticReason: string,
     message: string,
+    readonly diagnosticField?: string,
   ) {
     super(message);
   }
 }
 
 function reject(diagnosticReason: string, message: string): never {
-  throw new StudyRejection(diagnosticReason, message);
+  throw new StudyRejection(diagnosticReason, message, diagnosticFieldFromMessage(message));
 }
 
 export function normalizeQuoteText(text: string): string {
@@ -415,6 +417,7 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
         ok: false,
         message: "The analysis returned an answer we couldn't verify against your documents.",
         diagnosticReason: error.diagnosticReason,
+        ...(error.diagnosticField ? { diagnosticField: error.diagnosticField } : {}),
       };
     }
     throw error;

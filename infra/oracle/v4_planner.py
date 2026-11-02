@@ -105,13 +105,22 @@ class PlannerCompletionRequest(BaseModel):
 
 
 class PlannerError(Exception):
-    def __init__(self, status: int, code: str, category: str, retryable: bool, message: str) -> None:
+    def __init__(
+        self,
+        status: int,
+        code: str,
+        category: str,
+        retryable: bool,
+        message: str,
+        diagnostic_reason: str,
+    ) -> None:
         super().__init__(code)
         self.status = status
         self.code = code
         self.category = category
         self.retryable = retryable
         self.message = message
+        self.diagnostic_reason = diagnostic_reason
 
 
 def _settings() -> dict[str, str]:
@@ -135,45 +144,65 @@ def _correlation_id(raw: str | None) -> str:
     return str(uuid.uuid4())
 
 
-def _error_response(error: PlannerError, correlation_id: str) -> JSONResponse:
-    return JSONResponse(
-        status_code=error.status,
-        content={
-            "contract_version": ERROR_CONTRACT_VERSION,
-            "error_code": error.code,
-            "category": error.category,
-            "retryable": error.retryable,
-            "message_safe": error.message,
-            "correlation_id": correlation_id,
-        },
-    )
+def _log(event: str, **fields: object) -> None:
+    """One JSON line. Default logging formatters print the message, not `extra`."""
+    payload = {"event": event, **{key: value for key, value in fields.items() if value is not None}}
+    line = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    if event.endswith("_failed"):
+        logger.warning(line)
+    else:
+        logger.info(line)
+
+
+def _error_response(
+    error: PlannerError,
+    correlation_id: str,
+    processing_run_id: str | None,
+    task: str | None,
+) -> JSONResponse:
+    content: dict[str, object] = {
+        "contract_version": ERROR_CONTRACT_VERSION,
+        "error_code": error.code,
+        "category": error.category,
+        "retryable": error.retryable,
+        "message_safe": error.message,
+        "correlation_id": correlation_id,
+        "component": "planner",
+        "operation": "plan_completion",
+        "diagnostic_reason": error.diagnostic_reason,
+    }
+    if processing_run_id:
+        content["processing_run_id"] = processing_run_id
+    if task:
+        content["task"] = task
+    return JSONResponse(status_code=error.status, content=content)
 
 
 def _authorize(header: str | None, expected: str) -> None:
     if not expected:
-        raise PlannerError(503, "DEPENDENCY_UNAVAILABLE", "dependency", False, "Planner is not configured.")
+        raise PlannerError(503, "DEPENDENCY_UNAVAILABLE", "dependency", False, "Planner is not configured.", "planner_unconfigured")
     scheme, _, presented = (header or "").partition(" ")
     if scheme.lower() != "bearer" or not hmac.compare_digest(presented.strip().encode(), expected.encode()):
-        raise PlannerError(401, "AUTH_FAILED", "authorization", False, "Planner authentication failed.")
+        raise PlannerError(401, "AUTH_FAILED", "authorization", False, "Planner authentication failed.", "planner_auth_failed")
 
 
 def _parse_request(body: bytes) -> PlannerCompletionRequest:
     if len(body) > MAX_REQUEST_BYTES:
-        raise PlannerError(413, "INVALID_REQUEST", "validation", False, "Planner request is too large.")
+        raise PlannerError(413, "INVALID_REQUEST", "validation", False, "Planner request is too large.", "planner_invalid_request")
     try:
         parsed = PlannerCompletionRequest.model_validate_json(body)
     except ValidationError as exc:
-        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Planner request is invalid.") from exc
+        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Planner request is invalid.", "planner_invalid_request") from exc
     if parsed.prompt_id != TASK_PROMPT_IDS[parsed.task]:
-        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Prompt does not match the task.")
+        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Prompt does not match the task.", "planner_invalid_request")
     if not DIGEST_RE.match(parsed.prompt_digest):
-        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Prompt digest is invalid.")
+        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Prompt digest is invalid.", "planner_invalid_request")
     if parsed.max_output_tokens > TASK_MAX_OUTPUT_TOKENS[parsed.task]:
-        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Output limit is too high for the task.")
+        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Output limit is too high for the task.", "planner_invalid_request")
     if len(body) > TASK_MAX_REQUEST_BYTES[parsed.task]:
-        raise PlannerError(413, "INVALID_REQUEST", "validation", False, "Planner request is too large.")
+        raise PlannerError(413, "INVALID_REQUEST", "validation", False, "Planner request is too large.", "planner_invalid_request")
     if len(parsed.system_prompt) > TASK_MAX_SYSTEM_PROMPT_CHARS[parsed.task]:
-        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Planner request is invalid.")
+        raise PlannerError(400, "INVALID_REQUEST", "validation", False, "Planner request is invalid.", "planner_invalid_request")
     return parsed
 
 
@@ -202,11 +231,11 @@ def _is_context_error(response: httpx.Response) -> bool:
 
 async def _complete(request: PlannerCompletionRequest, settings: dict[str, str]) -> dict[str, Any]:
     if not settings["litellm_base_url"] or not settings["litellm_api_key"]:
-        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "Planning model is not configured.")
+        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "Planning model is not configured.", "planner_unconfigured")
 
     alias = _model_alias(request.task, settings)
     if alias is None:
-        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "The model for this task is not configured.")
+        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "The model for this task is not configured.", "model_alias_unconfigured")
     payload = {
         "model": alias,
         "messages": [
@@ -227,37 +256,44 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
                 headers={"Authorization": f"Bearer {settings['litellm_api_key']}"},
             )
     except httpx.TimeoutException as exc:
-        raise PlannerError(504, "MODEL_TIMEOUT", "dependency", True, "The planning model timed out.") from exc
+        raise PlannerError(504, "MODEL_TIMEOUT", "dependency", True, "The planning model timed out.", "litellm_timeout") from exc
     except httpx.HTTPError as exc:
-        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", True, "The planning model is unavailable.") from exc
+        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", True, "The planning model is unavailable.", "litellm_network_error") from exc
     latency_ms = int((time.monotonic() - started) * 1000)
 
     if response.status_code >= 400:
         if response.status_code in (400, 413) and _is_context_error(response):
-            raise PlannerError(422, "MODEL_CONTEXT_EXCEEDED", "model", False, "The planning request is too long.")
+            raise PlannerError(422, "MODEL_CONTEXT_EXCEEDED", "model", False, "The planning request is too long.", "model_context_exceeded")
         if response.status_code in (401, 403):
-            raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "The planning model rejected the planner.")
+            raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "The planning model rejected the planner.", "litellm_http_error")
         retryable = response.status_code == 429 or response.status_code >= 500
-        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", retryable, "The planning model is unavailable.")
+        raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", retryable, "The planning model is unavailable.", "litellm_http_error")
 
     try:
         data = response.json()
-        choice = data["choices"][0]
-        content = choice["message"]["content"]
-    except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.") from exc
-
+    except ValueError as exc:
+        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.", "model_response_contract") from exc
+    if not isinstance(data, dict):
+        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.", "model_response_contract")
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.", "model_response_contract")
+    choice = choices[0]
+    message = choice.get("message")
+    if not isinstance(message, dict) or "content" not in message:
+        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.", "model_content_missing")
+    content = message.get("content")
     finish_reason = _safe_token(choice.get("finish_reason"))
     if finish_reason == "length":
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was cut off.")
-    if not isinstance(content, str):
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.")
+        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was cut off.", "model_output_truncated")
+    if not isinstance(content, str) or not content.strip():
+        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.", "model_content_missing")
     try:
         content_json = json.loads(content)
     except ValueError as exc:
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was not JSON.") from exc
+        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was not JSON.", "model_output_not_json") from exc
     if not isinstance(content_json, dict):
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was not a JSON object.")
+        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was not a JSON object.", "model_response_contract")
 
     usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
     return {
@@ -305,30 +341,31 @@ async def plan_completion(request: Request) -> JSONResponse:
         task = parsed.task
         result = await _complete(parsed, settings)
         usage = result["usage"]
-        logger.info(
+        _log(
             "v4_plan_completion_succeeded",
-            extra={
-                "correlation_id": correlation_id,
-                "processing_run_id": run_id,
-                "task": task,
-                "prompt_id": parsed.prompt_id,
-                "model_alias": result["model_alias"],
-                "prompt_tokens": usage["prompt_tokens"],
-                "completion_tokens": usage["completion_tokens"],
-                "latency_ms": result["latency_ms"],
-            },
+            correlation_id=correlation_id,
+            processing_run_id=run_id,
+            task=task,
+            component="planner",
+            operation="plan_completion",
+            prompt_id=parsed.prompt_id,
+            model_alias=result["model_alias"],
+            prompt_tokens=usage["prompt_tokens"],
+            completion_tokens=usage["completion_tokens"],
+            latency_ms=result["latency_ms"],
         )
         return JSONResponse(status_code=200, content=result)
     except PlannerError as error:
-        logger.warning(
+        _log(
             "v4_plan_completion_failed",
-            extra={
-                "correlation_id": correlation_id,
-                "processing_run_id": run_id,
-                "task": task,
-                "error_code": error.code,
-                "retryable": error.retryable,
-                "latency_ms": int((time.monotonic() - started) * 1000),
-            },
+            correlation_id=correlation_id,
+            processing_run_id=run_id,
+            task=task,
+            component="planner",
+            operation="plan_completion",
+            error_code=error.code,
+            diagnostic_reason=error.diagnostic_reason,
+            retryable=error.retryable,
+            latency_ms=int((time.monotonic() - started) * 1000),
         )
-        return _error_response(error, correlation_id)
+        return _error_response(error, correlation_id, run_id, task)

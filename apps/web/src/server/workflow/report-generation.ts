@@ -1,4 +1,6 @@
 import {
+  buildFailureDiagnostic,
+  classifyFailure,
   type AudienceConfiguration,
   audienceRoleLabel,
   buildReport,
@@ -69,20 +71,22 @@ function isHiveError(value: unknown): value is HiveError {
 }
 
 function reportError(
-  input: Pick<HiveError, "errorCode" | "retryable" | "safeMessage" | "correlationId" | "diagnosticReason"> & {
+  input: Pick<HiveError, "errorCode" | "retryable" | "safeMessage" | "correlationId" | "diagnosticReason" | "diagnosticField"> & {
     category?: HiveError["category"];
   },
 ): HiveError {
   return createHiveError({ category: "MODEL", stage: "ANALYZE", ...input });
 }
 
-function log(run: ReportRun, status: ReportRunStatus, startedAt: number, error?: HiveError): void {
+function log(run: ReportRun, status: ReportRunStatus, startedAt: number, error?: HiveError, failureStage = "WRITING"): void {
+  const reason = error?.diagnosticReason ?? (error ? "unexpected_exception" : undefined);
+  const classified = error && reason ? classifyFailure({ stage: failureStage, diagnosticReason: reason, task: "writer" }) : null;
   emitStructuredEvent({
     eventName: `report.${status.toLowerCase()}`,
     severity: status === "FAILED" ? "ERROR" : "INFO",
     timestamp: new Date().toISOString(),
-    component: "reports",
-    operation: `write_${run.audience.toLowerCase()}`,
+    component: classified?.component ?? "reports",
+    operation: classified?.operation ?? `write_${run.audience.toLowerCase()}`,
     stage: "ANALYZE",
     correlationId: run.correlationId,
     hiveId: run.hiveId,
@@ -90,9 +94,29 @@ function log(run: ReportRun, status: ReportRunStatus, startedAt: number, error?:
     attempt: run.attemptCount,
     status,
     durationMs: Date.now() - startedAt,
+    task: "writer",
     ...(error
-      ? { errorCode: error.errorCode, retryable: error.retryable, diagnosticReason: error.diagnosticReason ?? "unexpected_exception" }
+      ? {
+          errorCode: error.errorCode,
+          retryable: error.retryable,
+          diagnosticReason: reason,
+          ...(typeof error.diagnosticField === "string" ? { diagnosticField: error.diagnosticField } : {}),
+        }
       : {}),
+  });
+}
+
+function reportDiagnostic(error: HiveError, attempt: number, stage = "WRITING") {
+  const reason = error.diagnosticReason ?? "unexpected_exception";
+  const classified = classifyFailure({ stage, diagnosticReason: reason, task: "writer" });
+  return buildFailureDiagnostic({
+    ...classified,
+    stage,
+    errorCode: error.errorCode,
+    diagnosticReason: reason,
+    diagnosticField: error.diagnosticField ?? null,
+    retryable: error.retryable,
+    attempt,
   });
 }
 
@@ -250,6 +274,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
         safeMessage: MODEL_OUTPUT_MESSAGE,
         correlationId,
         diagnosticReason: built.diagnosticReason,
+        ...(built.diagnosticField ? { diagnosticField: built.diagnosticField } : {}),
       });
     }
     metric = { ...metric, outcome: "SUCCEEDED" };
@@ -284,11 +309,13 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
           diagnosticReason: "unexpected_exception",
         });
     try {
+      const diagnostic = reportDiagnostic(hiveError, claimed.attemptCount, metric?.stage ?? "WRITING");
       const failed = await transitionReport(deps.client, reportRunId, current, "FAILED", {
         error_code: hiveError.errorCode,
         error_message_safe: hiveError.safeMessage,
         retryable: hiveError.retryable,
         ...(metric && metric.outcome === "FAILED" ? { stage_metric: metric } : {}),
+        ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
       });
       if (failed.reportRun) log(failed.reportRun, failed.reportRun.status, startedAt, hiveError);
       return failed.reportRun?.status ?? null;

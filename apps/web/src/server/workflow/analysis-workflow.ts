@@ -1,4 +1,6 @@
 import {
+  buildFailureDiagnostic,
+  classifyFailure,
   createHiveError,
   type DomainProposal,
   type ExecutionManifest,
@@ -79,6 +81,7 @@ type TransitionDetails = {
   readonly error_code?: string;
   readonly error_message_safe?: string;
   readonly retryable?: boolean;
+  readonly failure_diagnostic?: ReturnType<typeof buildFailureDiagnostic>;
 };
 
 type TransitionResult = {
@@ -239,13 +242,22 @@ function coverageSummary(snapshot: SourceSnapshot) {
   return { complete: snapshot.coverageComplete, excludedDocumentCount: snapshot.excluded.length };
 }
 
-function log(run: Pick<ProcessingRun, "id" | "hiveId" | "correlationId" | "attemptNumber">, status: string, startedAt: number, error?: HiveError) {
+function log(
+  run: Pick<ProcessingRun, "id" | "hiveId" | "correlationId" | "attemptNumber">,
+  status: string,
+  startedAt: number,
+  error?: { errorCode: string; retryable: boolean; diagnosticReason?: string; diagnosticField?: string },
+  failureStage?: string,
+) {
+  const reason = error?.diagnosticReason ?? (error ? "unexpected_exception" : undefined);
+  const classified =
+    error && reason ? classifyFailure({ stage: failureStage ?? "INVESTIGATING", diagnosticReason: reason }) : null;
   emitStructuredEvent({
     eventName: `analysis.${status.toLowerCase()}`,
     severity: status === "FAILED" ? "ERROR" : "INFO",
     timestamp: new Date().toISOString(),
-    component: "analysis",
-    operation: "analyze",
+    component: classified?.component ?? "analysis",
+    operation: classified?.operation ?? "analyze",
     stage: "ANALYZE",
     correlationId: run.correlationId,
     hiveId: run.hiveId,
@@ -253,15 +265,38 @@ function log(run: Pick<ProcessingRun, "id" | "hiveId" | "correlationId" | "attem
     attempt: run.attemptNumber,
     status,
     durationMs: Date.now() - startedAt,
+    ...(classified?.task ? { task: classified.task } : {}),
     ...(error
       ? {
           errorCode: error.errorCode,
           retryable: error.retryable,
-          diagnosticReason: error.diagnosticReason ?? "unexpected_exception",
+          diagnosticReason: reason,
           ...(typeof error.diagnosticField === "string" ? { diagnosticField: error.diagnosticField } : {}),
         }
       : {}),
   });
+}
+
+function persistedDiagnostic(input: {
+  stage: string;
+  errorCode: string;
+  diagnosticReason: string;
+  diagnosticField?: string | null;
+  retryable: boolean;
+  attempt: number;
+}): TransitionDetails["failure_diagnostic"] {
+  const classified = classifyFailure({ stage: input.stage, diagnosticReason: input.diagnosticReason });
+  return (
+    buildFailureDiagnostic({
+      ...classified,
+      stage: input.stage,
+      errorCode: input.errorCode,
+      diagnosticReason: input.diagnosticReason,
+      diagnosticField: input.diagnosticField ?? null,
+      retryable: input.retryable,
+      attempt: input.attempt,
+    }) ?? undefined
+  );
 }
 
 type Context = {
@@ -817,14 +852,20 @@ async function failRun(context: Context, status: ProcessingRunStatus, run: Proce
         ? new SourceChanged(false)
         : null;
   if (sourceChanged) {
+    const sourceFailure = {
+      errorCode: "SOURCE_CHANGED",
+      retryable: true,
+      diagnosticReason: "source_changed",
+    };
     if (!sourceChanged.alreadyFailed) {
       await transition(client, context.runId, status, "FAILED", {
         error_code: "SOURCE_CHANGED",
         error_message_safe: SOURCE_CHANGED_MESSAGE,
         retryable: true,
+        failure_diagnostic: persistedDiagnostic({ ...sourceFailure, stage: status, attempt: run.stageAttempt }),
       });
     }
-    log(run, "FAILED", context.startedAt);
+    log(run, "FAILED", context.startedAt, sourceFailure, status);
     return "FAILED";
   }
   const failure =
@@ -843,16 +884,26 @@ async function failRun(context: Context, status: ProcessingRunStatus, run: Proce
               }),
           null,
         );
+  const failureStage = failure.metric?.stage ?? status;
+  const diagnostic = persistedDiagnostic({
+    stage: failureStage,
+    errorCode: failure.hiveError.errorCode,
+    diagnosticReason: failure.hiveError.diagnosticReason ?? "unexpected_exception",
+    diagnosticField: failure.hiveError.diagnosticField,
+    retryable: failure.hiveError.retryable,
+    attempt: failure.metric?.attempt ?? run.stageAttempt,
+  });
   const details = {
     error_code: failure.hiveError.errorCode,
     error_message_safe: failure.hiveError.safeMessage,
     retryable: failure.hiveError.retryable,
     ...(failure.metric ? { stage_metric: failure.metric } : {}),
+    ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
   };
   if (failure.hiveError.retryable && RETRYABLE_MODEL_ERRORS.has(failure.hiveError.errorCode)) {
     const payload = await rpc(client, "retry_processing_run_stage", { p_run_id: context.runId, p_status: status, p_details: details });
     const retried = payload?.retried === true;
-    log(run, retried ? `${status}_retry` : "FAILED", context.startedAt, failure.hiveError);
+    log(run, retried ? `${status}_retry` : "FAILED", context.startedAt, failure.hiveError, failureStage);
     if (retried) {
       const updated = normalizeProcessingRun(payload?.processingRun);
       const delaySeconds = updated ? 20 * Math.max(1, updated.stageAttempt - 1) : 20;
@@ -862,7 +913,7 @@ async function failRun(context: Context, status: ProcessingRunStatus, run: Proce
     return "FAILED";
   }
   const result = await transition(client, context.runId, status, "FAILED", details);
-  log(run, "FAILED", context.startedAt, failure.hiveError);
+  log(run, "FAILED", context.startedAt, failure.hiveError, failureStage);
   return result.applied || result.run?.status === "FAILED" ? "FAILED" : null;
 }
 
