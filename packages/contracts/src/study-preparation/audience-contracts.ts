@@ -1,3 +1,5 @@
+import { diagnosticFieldFromMessage } from "../errors/failure-diagnostic";
+
 /**
  * Audience Intelligence (D-041): who the Customer report is for and which professional the Pro report
  * serves. The intent stage proposes `audienceAnalysis` from the person's own words and the provisional
@@ -88,6 +90,8 @@ export type AudienceParseContext = {
   /** `INTENT` may not use document context; `INTELLIGENCE` may, within `allowedRefs`. */
   readonly stage: "INTENT" | "INTELLIGENCE";
   readonly allowedRefs?: ReadonlySet<string>;
+  /** JSON path prefix for diagnostics (`audienceAnalysis` on intent analysis, `audience` on intelligence). */
+  readonly fieldRoot?: string;
 };
 
 export type AudienceParseResult<T> =
@@ -112,8 +116,9 @@ class AudienceError extends Error {
 
 /** Safe log field derived from validator paths (no role text or quotations). */
 export function audienceDiagnosticField(message: string): string | undefined {
-  const match = /^([\w[\].]+):/.exec(message);
-  return match?.[1];
+  const colon = /^([\w[\].]+):/.exec(message);
+  if (colon?.[1]) return colon[1];
+  return diagnosticFieldFromMessage(message);
 }
 
 function fail(reason: string, message: string): never {
@@ -312,8 +317,12 @@ function normalizeProAudience(
   return { primaryRole, alternativeRoles, status, confidence, basis };
 }
 
+function audienceRoot(context: AudienceParseContext): string {
+  return context.fieldRoot ?? "audience";
+}
+
 function readCustomer(raw: unknown, context: AudienceParseContext): CustomerAudience {
-  const path = "audience.customer";
+  const path = `${audienceRoot(context)}.customer`;
   const source = record(raw, path);
   const role = nullableText(source, "role", path, ROLE_MAX);
   const status = oneOf(source, "status", path, AUDIENCE_ROLE_STATUSES);
@@ -328,7 +337,7 @@ function readCustomer(raw: unknown, context: AudienceParseContext): CustomerAudi
 }
 
 function readPro(raw: unknown, context: AudienceParseContext): ProAudience {
-  const path = "audience.pro";
+  const path = `${audienceRoot(context)}.pro`;
   const source = record(raw, path);
   const primaryRole = nullableText(source, "primaryRole", path, ROLE_MAX);
   const status = oneOf(source, "status", path, AUDIENCE_ROLE_STATUSES);
@@ -361,15 +370,16 @@ function run<T>(parse: () => T): AudienceParseResult<T> {
 
 export function parseAudienceAnalysis(raw: unknown, context: AudienceParseContext): AudienceParseResult<AudienceAnalysis> {
   return run(() => {
-    const source = record(raw, "audience");
-    const writer = record(source.writerGuidance, "audience.writerGuidance");
+    const root = audienceRoot(context);
+    const source = record(raw, root);
+    const writer = record(source.writerGuidance, `${root}.writerGuidance`);
     return {
       customer: readCustomer(source.customer, context),
       pro: readPro(source.pro, context),
-      studyGuidance: textList(source, "studyGuidance", "audience", GUIDANCE_ITEMS, GUIDANCE_MAX),
+      studyGuidance: textList(source, "studyGuidance", root, GUIDANCE_ITEMS, GUIDANCE_MAX),
       writerGuidance: {
-        customer: textList(writer, "customer", "audience.writerGuidance", GUIDANCE_ITEMS, GUIDANCE_MAX),
-        pro: textList(writer, "pro", "audience.writerGuidance", GUIDANCE_ITEMS, GUIDANCE_MAX),
+        customer: textList(writer, "customer", `${root}.writerGuidance`, GUIDANCE_ITEMS, GUIDANCE_MAX),
+        pro: textList(writer, "pro", `${root}.writerGuidance`, GUIDANCE_ITEMS, GUIDANCE_MAX),
       },
     };
   });

@@ -399,10 +399,40 @@ describe("validateIntentAnalysis", () => {
         analysisOutput([goal("G1", INTENT_A, text, [analysisQuestion("Q1", { answerForm: "VERDICT" })])]),
         context(singleIntent),
       ),
-    ).toMatchObject({ ok: false, diagnosticReason: "invalid_enum" });
+    ).toMatchObject({
+      ok: false,
+      diagnosticReason: "invalid_enum",
+      diagnosticField: "goals[0].questions[0].answerForm",
+    });
     expect(
       validateIntentAnalysis(analysisOutput([goal("X1", INTENT_A, text, [analysisQuestion("Q1")])]), context(singleIntent)),
     ).toMatchObject({ ok: false, diagnosticReason: "invalid_id" });
+  });
+
+  it("accepts YES_NO as the plan-stage alias for YES_NO_WITH_REASONS", () => {
+    const text = singleIntent[0]!.intentText;
+    const result = validateIntentAnalysis(
+      analysisOutput([goal("G1", INTENT_A, text, [analysisQuestion("Q1", { answerForm: "YES_NO", needsJudgment: true })])]),
+      context(singleIntent),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.goals[0]!.questions[0]!.answerForm).toBe("YES_NO_WITH_REASONS");
+  });
+
+  it("reports audienceAnalysis paths on intent-stage audience enum errors", () => {
+    const text = singleIntent[0]!.intentText;
+    const badAudience = {
+      ...UNKNOWN_AUDIENCE,
+      customer: { ...UNKNOWN_AUDIENCE.customer, detailLevel: "plain" },
+    };
+    expect(
+      validateIntentAnalysis(analysisOutput([goal("G1", INTENT_A, text, [analysisQuestion("Q1")])], { audienceAnalysis: badAudience }), context(singleIntent)),
+    ).toMatchObject({
+      ok: false,
+      diagnosticReason: "invalid_enum",
+      diagnosticField: "audienceAnalysis.customer.detailLevel",
+    });
   });
 });
 

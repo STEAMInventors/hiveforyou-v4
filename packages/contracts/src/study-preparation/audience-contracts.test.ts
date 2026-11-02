@@ -228,6 +228,18 @@ describe("parseAudienceAnalysis", () => {
     expect(clamped.value.customer.confidence).toBe("MEDIUM");
   });
 
+  it("includes diagnosticField on invalid enum values", () => {
+    const raw = audience(
+      { role: null, status: "UNKNOWN", confidence: "LOW", basis: none, detailLevel: "plain" },
+      { primaryRole: null, status: "UNKNOWN", confidence: "LOW", basis: none },
+    );
+    expect(intentStage(MAYA, raw)).toMatchObject({
+      ok: false,
+      diagnosticReason: "invalid_enum",
+      diagnosticField: "audience.customer.detailLevel",
+    });
+  });
+
   it("forbids document context before the documents are seen", () => {
     const raw = audience(
       { role: "Parent", status: "PROVISIONAL", confidence: "LOW", basis: { kind: "DOCUMENT_CONTEXT", statedAs: null, intentRequestId: null, contextRefs: [{ sourceDocumentId: DOC, pageNumber: 2 }] } },

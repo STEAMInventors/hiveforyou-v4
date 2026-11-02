@@ -299,6 +299,17 @@ function readEnum<T extends string>(
   return value as T;
 }
 
+/**
+ * Intent questions use `YES_NO_WITH_REASONS`; models often emit plan-stage `YES_NO` for the same shape.
+ * Only that alias is accepted — not open-ended enum repair.
+ */
+function readAnswerForm(record: Record<string, unknown>, key: string, path: string): AnswerForm {
+  if (record[key] === "YES_NO") {
+    return readEnum({ ...record, [key]: "YES_NO_WITH_REASONS" }, key, path, ANSWER_FORMS);
+  }
+  return readEnum(record, key, path, ANSWER_FORMS);
+}
+
 function readId(record: Record<string, unknown>, key: string, path: string, prefix: string): string {
   const value = record[key];
   if (typeof value !== "string" || !new RegExp(`^${prefix}[1-9][0-9]{0,2}$`).test(value)) {
@@ -496,7 +507,7 @@ export function validateIntentAnalysis(
           return {
             questionId: readIdField(question, "questionId", questionPath, "Q"),
             question: readText(question, "question", questionPath, MAX_LONG_TEXT),
-            answerForm: readEnum(question, "answerForm", questionPath, ANSWER_FORMS),
+            answerForm: readAnswerForm(question, "answerForm", questionPath),
             needsJudgment: readBoolean(question, "needsJudgment", questionPath),
             dependsOn: readIdList(question, "dependsOn", questionPath, "Q", MAX_LIST_ITEMS),
           };
@@ -577,7 +588,11 @@ export function validateIntentAnalysis(
       },
     );
 
-    const audience = parseAudienceAnalysis(root.audienceAnalysis, { intents: context.intents, stage: "INTENT" });
+    const audience = parseAudienceAnalysis(root.audienceAnalysis, {
+      intents: context.intents,
+      stage: "INTENT",
+      fieldRoot: "audienceAnalysis",
+    });
     if (!audience.ok) {
       throw new PlanningOutputError(audience.diagnosticReason, audience.message, audience.diagnosticField);
     }
