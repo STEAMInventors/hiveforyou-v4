@@ -344,7 +344,10 @@ SELECT public.save_study_prompt_preview((SELECT id FROM t_id), jsonb_build_objec
   'prompt_template_digest', 'sha256:' || repeat('1', 64),
   'prompt_text', 'Synthetic prompt',
   'prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic prompt', 'UTF8')), 'hex'),
-  'execution_manifest', jsonb_build_object('schema', 'hive.study-execution-manifest/1')));
+  'execution_manifest', jsonb_build_object(
+    'schema', 'hive.study-execution-manifest/1',
+    'bindings', jsonb_build_array(jsonb_build_object('format', 'hive.source-page-index/1'))
+  )));
 
 SELECT is(
   (public.transition_processing_run((SELECT id FROM t_id), 'SAVING', 'INVESTIGATING',
@@ -802,6 +805,196 @@ SELECT is(
   'a run left waiting for a day stops, keeping the unacknowledged coverage for the record');
 
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- V4-004E: Resumable Analyze and Report Reuse (D-046)
+--   Hive 3 (owner A): doc g SUCCEEDED (1 page); one intent.
+-- ---------------------------------------------------------------------------
+RESET role;
+INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
+VALUES ('bbbbbbbb-0000-4000-8000-000000000003', 'aaaaaaaa-0000-4000-8000-000000000001', 'Synthetic Hive 3',
+        'bbbbbbbb-0000-4000-8000-0000000000f3');
+
+INSERT INTO hive.source_documents (
+  id, case_id, owner_user_id, original_filename, mime_type, byte_size, sha256,
+  storage_bucket, storage_path, upload_status, lifecycle_status, read_status, created_at
+)
+VALUES
+  ('cccccccc-0000-4000-8000-000000000009', 'bbbbbbbb-0000-4000-8000-000000000003',
+   'aaaaaaaa-0000-4000-8000-000000000001', 'synthetic-9.pdf', 'application/pdf', 2048, repeat('9', 64),
+   'hive-source-documents', 'synthetic/9.pdf', 'UPLOADED', 'ACTIVE', 'SUCCEEDED', now() - interval '1 minute');
+
+INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, client_request_id)
+VALUES ('99999999-0000-4000-8000-000000000003', 'bbbbbbbb-0000-4000-8000-000000000003',
+        'aaaaaaaa-0000-4000-8000-000000000001',
+        'Review this synthetic record.', '99999999-0000-4000-8000-0000000000f3');
+
+CREATE TEMP TABLE t_pages_9 AS
+WITH raw (n, t) AS (
+  VALUES (1, 'Synthetic record page one.')
+), built AS (
+  SELECT count(*)::int AS page_count,
+         jsonb_agg(jsonb_build_object(
+           'page_number', n,
+           'page_text', t,
+           'page_text_sha256', 'sha256:' || encode(sha256(convert_to(t, 'UTF8')), 'hex'),
+           'page_byte_length', octet_length(convert_to(t, 'UTF8')),
+           'extraction_method', 'pdf_native',
+           'provenance_json', jsonb_build_object('synthetic', true)
+         ) ORDER BY n) AS pages
+    FROM raw
+)
+SELECT page_count, pages, hive.compute_page_set_digest(repeat('9', 64), page_count, pages) AS digest FROM built;
+GRANT SELECT ON t_pages_9 TO service_role;
+
+SET LOCAL role service_role;
+SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
+SELECT public.put_document_pages(
+         'bbbbbbbb-0000-4000-8000-000000000003', 'cccccccc-0000-4000-8000-000000000009',
+         repeat('9', 64), 'reader-document-read@1:synthetic-9', p.digest, 'SUCCEEDED',
+         p.page_count, p.page_count, p.pages)
+  FROM t_pages_9 p;
+RESET role;
+
+INSERT INTO hive.document_reads (
+  hive_id, owner_user_id, source_document_id, request_id, attempt_number, status, correlation_id,
+  read_fingerprint, page_set_digest, total_physical_pages, verified_page_count, finished_at
+)
+SELECT 'bbbbbbbb-0000-4000-8000-000000000003', 'aaaaaaaa-0000-4000-8000-000000000001',
+       'cccccccc-0000-4000-8000-000000000009', gen_random_uuid(), 1, 'SUCCEEDED', gen_random_uuid(),
+       'reader-document-read@1:synthetic-9', p.digest, p.page_count, p.page_count, now()
+  FROM t_pages_9 p;
+
+SET LOCAL role authenticated;
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
+
+CREATE TEMP TABLE t_h3_run1 AS
+SELECT public.start_study_preparation(
+         'bbbbbbbb-0000-4000-8000-000000000003', 'dddddddd-0000-4000-8000-000000000031',
+         'eeeeeeee-0000-4000-8000-000000000031') AS result;
+GRANT SELECT ON t_h3_run1 TO service_role, authenticated;
+
+RESET role;
+SET LOCAL role service_role;
+SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
+
+CREATE TEMP TABLE t_h3_id AS SELECT ((SELECT result FROM t_h3_run1) -> 'processingRun' ->> 'id')::uuid AS id;
+GRANT SELECT ON t_h3_id TO service_role, authenticated;
+
+SELECT public.claim_processing_run((SELECT id FROM t_h3_id));
+SELECT public.transition_processing_run((SELECT id FROM t_h3_id), 'QUEUED', 'UNDERSTANDING_REQUEST', '{}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_h3_id), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
+  '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-analysis/1"}}}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_h3_id), 'IDENTIFYING_DOMAIN', 'DEVELOPING_QUESTIONS',
+  '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},"sampleCoverage":{"sampledPageCount":1}}}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_h3_id), 'DEVELOPING_QUESTIONS', 'BUILDING_PROMPT',
+  '{"stage_outputs":{"intentIntelligence":{"schema":"hive.intent-intelligence/1"},"investigationPlan":{"schema":"hive.investigation-plan/1"}}}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_h3_id), 'BUILDING_PROMPT', 'SAVING', '{}'::jsonb);
+SELECT public.save_study_prompt_preview((SELECT id FROM t_h3_id), jsonb_build_object(
+  'prompt_id', 'hive-study-preview/1', 'prompt_version', '1',
+  'prompt_template_digest', 'sha256:' || repeat('1', 64),
+  'prompt_text', 'Synthetic prompt 3',
+  'prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic prompt 3', 'UTF8')), 'hex'),
+  'execution_manifest', jsonb_build_object(
+    'schema', 'hive.study-execution-manifest/1',
+    'bindings', jsonb_build_array(jsonb_build_object('format', 'hive.source-page-index/1'))
+  )));
+SELECT public.transition_processing_run((SELECT id FROM t_h3_id), 'SAVING', 'INVESTIGATING',
+  jsonb_build_object('prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic prompt 3', 'UTF8')), 'hex')));
+SELECT public.transition_processing_run((SELECT id FROM t_h3_id), 'INVESTIGATING', 'VERIFYING_EVIDENCE',
+  '{"stage_outputs":{"studyInvestigation":{"schema":"hive.study-investigation/1","answers":[]}}}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_h3_id), 'VERIFYING_EVIDENCE', 'ACCEPTING_STUDY', '{}'::jsonb);
+
+CREATE TEMP TABLE t_h3_accept AS
+SELECT public.accept_study_revision((SELECT id FROM t_h3_id), jsonb_build_object(
+         'investigation', jsonb_build_object('schema', 'hive.study-investigation/1', 'answers', '[]'::jsonb),
+         'verification', jsonb_build_object('schema', 'hive.study-verification/1', 'counts', '{}'::jsonb),
+         'audience_configuration', jsonb_build_object('schema', 'hive.audience-configuration/1'),
+         'investigation_digest', 'sha256:' || repeat('7', 64),
+         'model_alias', 'heavy_lifter')) AS result;
+GRANT SELECT ON t_h3_accept TO service_role, authenticated;
+
+-- Complete CUSTOMER report, fail PRO report (all 3 attempts)
+CREATE TEMP TABLE t_h3_reports AS
+SELECT (SELECT id FROM hive.report_runs WHERE hive_id = 'bbbbbbbb-0000-4000-8000-000000000003' AND audience = 'CUSTOMER') AS customer,
+       (SELECT id FROM hive.report_runs WHERE hive_id = 'bbbbbbbb-0000-4000-8000-000000000003' AND audience = 'PRO') AS pro;
+GRANT SELECT ON t_h3_reports TO service_role, authenticated;
+
+SELECT public.claim_report_run((SELECT customer FROM t_h3_reports));
+SELECT public.transition_report_run((SELECT customer FROM t_h3_reports), 'WRITING', 'VALIDATING', '{}'::jsonb);
+SELECT public.transition_report_run((SELECT customer FROM t_h3_reports), 'VALIDATING', 'SAVING', '{}'::jsonb);
+SELECT public.save_report((SELECT customer FROM t_h3_reports), jsonb_build_object(
+  'writer_output', jsonb_build_object('schema', 'hive.writer-report/1', 'audience', 'CUSTOMER'),
+  'scenario_analysis', jsonb_build_object('schema', 'hive.scenario-analysis/1', 'scenarios', '[]'::jsonb),
+  'view', jsonb_build_object('schema', 'hive-application-view/1', 'audience', 'CUSTOMER', 'title', 'Customer report 1', 'components', '[]'::jsonb),
+  'writer_prompt_digest', 'sha256:' || repeat('8', 64),
+  'model_alias', 'harvester'));
+
+SELECT public.claim_report_run((SELECT pro FROM t_h3_reports));
+SELECT public.transition_report_run((SELECT pro FROM t_h3_reports), 'WRITING', 'FAILED',
+  '{"error_code":"MODEL_OUTPUT_INVALID","retryable":false}'::jsonb);
+
+-- Owner clicks Analyze when CUSTOMER succeeded and PRO failed: reuses Study, preserves CUSTOMER, queues only PRO
+RESET role;
+SET LOCAL role authenticated;
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
+
+CREATE TEMP TABLE t_h3_resume_partial AS
+SELECT public.start_study_preparation(
+         'bbbbbbbb-0000-4000-8000-000000000003', 'dddddddd-0000-4000-8000-000000000032',
+         'eeeeeeee-0000-4000-8000-000000000032') AS result;
+GRANT SELECT ON t_h3_resume_partial TO service_role, authenticated;
+
+SELECT is(
+  (SELECT (result ->> 'created') || ':' || (result ->> 'reusedStudy') || ':' || (result ->> 'reportsReady') || ':'
+          || json_array_length(result -> 'queuedReportRunIds')
+     FROM t_h3_resume_partial),
+  'false:true:false:1',
+  'Analyze reuses the compatible Study, preserves the Customer report, and queues only the failed Pro report');
+
+-- Clicking Analyze again while the Pro Writer is leased and active reattaches without creating another run
+RESET role;
+SET LOCAL role service_role;
+SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
+SELECT public.claim_report_run(((SELECT result FROM t_h3_resume_partial) -> 'queuedReportRunIds' ->> 0)::uuid);
+
+RESET role;
+SET LOCAL role authenticated;
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
+
+SELECT is(
+  (SELECT (r ->> 'reusedStudy') || ':' || (r ->> 'reportsReady') || ':' || json_array_length(r -> 'queuedReportRunIds')
+     FROM (SELECT public.start_study_preparation(
+                    'bbbbbbbb-0000-4000-8000-000000000003', 'dddddddd-0000-4000-8000-000000000033',
+                    'eeeeeeee-0000-4000-8000-000000000033') AS r) x),
+  'true:false:0',
+  'Analyze reattaches to the active leased Pro Writer run without creating duplicates');
+
+-- Finish the Pro report, then click Analyze: both reports exist -> reportsReady = true, zero runs queued
+RESET role;
+SET LOCAL role service_role;
+SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
+SELECT public.transition_report_run(((SELECT result FROM t_h3_resume_partial) -> 'queuedReportRunIds' ->> 0)::uuid, 'WRITING', 'VALIDATING', '{}'::jsonb);
+SELECT public.transition_report_run(((SELECT result FROM t_h3_resume_partial) -> 'queuedReportRunIds' ->> 0)::uuid, 'VALIDATING', 'SAVING', '{}'::jsonb);
+SELECT public.save_report(((SELECT result FROM t_h3_resume_partial) -> 'queuedReportRunIds' ->> 0)::uuid, jsonb_build_object(
+  'writer_output', jsonb_build_object('schema', 'hive.writer-report/1', 'audience', 'PRO'),
+  'scenario_analysis', jsonb_build_object('schema', 'hive.scenario-analysis/1', 'scenarios', '[]'::jsonb),
+  'view', jsonb_build_object('schema', 'hive-application-view/1', 'audience', 'PRO', 'title', 'Pro report 1', 'components', '[]'::jsonb),
+  'writer_prompt_digest', 'sha256:' || repeat('8', 64),
+  'model_alias', 'harvester'));
+
+RESET role;
+SET LOCAL role authenticated;
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
+
+SELECT is(
+  (SELECT (r ->> 'created') || ':' || (r ->> 'reusedStudy') || ':' || (r ->> 'reportsReady') || ':'
+          || json_array_length(r -> 'queuedReportRunIds')
+     FROM (SELECT public.start_study_preparation(
+                    'bbbbbbbb-0000-4000-8000-000000000003', 'dddddddd-0000-4000-8000-000000000034',
+                    'eeeeeeee-0000-4000-8000-000000000034') AS r) x),
+  'false:true:true:0',
+  'when both Customer and Pro reports exist for the compatible Study, Analyze returns reportsReady=true with zero new runs');
+
 -- Another user is denied
 -- ---------------------------------------------------------------------------
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000002","role":"authenticated"}';

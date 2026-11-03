@@ -18,6 +18,14 @@ export const ALLOWLISTED_LOG_FIELDS = [
   "processingRunId",
   "sourceDocumentId",
   "task",
+  "audience",
+  "inputCount",
+  "outputCount",
+  "totalCount",
+  "componentCount",
+  "sectionCount",
+  "scenarioCount",
+  "rounds",
 ] as const;
 
 export type AllowlistedLogField = (typeof ALLOWLISTED_LOG_FIELDS)[number];
@@ -198,6 +206,7 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "study_manifest_mismatch",
   "study_preview_outdated",
   "study_agent_budget_exhausted",
+  "writer_agent_budget_exhausted",
   "writer_output_shape",
   "writer_output_schema",
   "writer_audience_mismatch",

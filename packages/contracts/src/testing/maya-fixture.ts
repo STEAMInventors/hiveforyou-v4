@@ -540,6 +540,62 @@ export function mayaWriterOutput(audience: "CUSTOMER" | "PRO" = "CUSTOMER") {
 }
 
 /**
+ * Compact presentation plan (`hive.writer-presentation-plan/1`) for Maya's Customer or Pro report (D-047).
+ */
+export function mayaWriterPresentationPlan(audience: "CUSTOMER" | "PRO" = "CUSTOMER") {
+  return {
+    summaryDetailLevel: (audience === "CUSTOMER" ? "BALANCED" : "COMPREHENSIVE") as "BALANCED" | "COMPREHENSIVE",
+    priorityFindings: [
+      { claimId: "P1.C0", priority: "HIGH" as const },
+      { claimId: "P2.C0", priority: "HIGH" as const },
+      { claimId: "P1.A0", priority: "MEDIUM" as const },
+      { claimId: "P3", priority: "HIGH" as const },
+    ],
+    sections: [
+      { id: "s1", heading: "Reading progress", priority: "HIGH" as const, claimIds: ["P1.F1", "P1.A0", "P1.U0", "P1.C1"] },
+      { id: "s2", heading: "Speech services", priority: "HIGH" as const, claimIds: ["P2.F0", "P2.F1", "P2.C0"] },
+      { id: "s3", heading: "What is missing", priority: "MEDIUM" as const, claimIds: ["P3"] },
+    ],
+    components: [
+      { component: "Narrative" as const, sectionId: "summary", claimIds: ["P1.F0", "P1.F2", "P1.C0"] },
+      { component: "Metric" as const, claimIds: ["P1.C0"] },
+      { component: "Narrative" as const, sectionId: "s1", claimIds: ["P1.F1", "P1.A0", "P1.U0"] },
+      { component: "Timeline" as const, claimIds: ["P1.F1"] },
+      { component: "Narrative" as const, sectionId: "s2", claimIds: ["P2.F0", "P2.F1", "P2.C0"] },
+      { component: "ScenarioExplorer" as const, scenarioId: "S1", claimIds: ["P2.F0", "P2.F1"] },
+      { component: "Narrative" as const, sectionId: "s3", claimIds: ["P3"] },
+      { component: "KeyFindings" as const, claimIds: ["P1.F2", "P2.C0"] },
+    ],
+  };
+}
+
+/**
+ * Single-call structured Writer composition (D-047) with presentation planning and dynamic A2UI composition.
+ */
+export function mayaWriterComposeTurns(
+  audience: "CUSTOMER" | "PRO" = "CUSTOMER",
+  draft: ReturnType<typeof mayaWriterOutput> = mayaWriterOutput(audience),
+  presentationPlan = mayaWriterPresentationPlan(audience),
+): ScriptedCall[][] {
+  return [
+    [
+      {
+        id: `toolu_compose_${audience.toLowerCase()}_1`,
+        name: "compose_writer_report",
+        arguments: JSON.stringify({
+          presentationPlan,
+          title: draft.title,
+          summary: draft.summary,
+          sections: draft.sections,
+          scenarios: draft.scenarios,
+          view: draft.view,
+        }),
+      },
+    ],
+  ];
+}
+
+/**
  * Scripted Writer tool-calling sequence (D-045) that builds `draft` (default: `mayaWriterOutput(audience)`)
  * through `WriterAgentLedger` and finishes in one batched turn.
  */

@@ -4,7 +4,7 @@ import {
   STUDY_AGENT_TURN_LIMITS,
   type StudyAgentTurnRequest,
   verifyStudyInvestigation,
-  WRITER_AGENT_TOOL_NAMES,
+  WRITER_ALL_TOOL_NAMES,
 } from "@hiveforyou/contracts";
 import {
   MAYA_DOCS,
@@ -16,10 +16,13 @@ import {
   MAYA_RUN_ID,
   mayaStudyOutput,
   mayaWriterAgentTurns,
+  mayaWriterComposeTurns,
   mayaWriterOutput,
+  mayaWriterPresentationPlan,
 } from "@hiveforyou/contracts/testing";
 import { describe, expect, it, vi } from "vitest";
 
+import { emitStructuredEvent } from "@/server/observability/logger";
 import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { UNKNOWN_AUDIENCE } from "@/server/study-preparation/study-preparation.fixtures";
 
@@ -241,6 +244,8 @@ describe("processReportRun", () => {
     expect(model.bodies[0]!.task).toBe("writer");
     expect(model.bodies[0]!.prompt_id).toBe("hive-writer/1");
     expect(model.bodies[0]!.tools.map((t) => t.function.name)).toEqual([
+      "compose_writer_report",
+      "apply_writer_correction",
       "set_report_outline",
       "record_section",
       "record_scenario",
@@ -535,7 +540,7 @@ describe("processReportRun", () => {
       expect(req.max_output_tokens).toBe(8000);
       expect(req.timeout_seconds).toBeGreaterThanOrEqual(5);
       expect(req.timeout_seconds).toBeLessThanOrEqual(240);
-      expect(req.tools.map((t) => t.function.name)).toEqual([...WRITER_AGENT_TOOL_NAMES]);
+      expect(req.tools.map((t) => t.function.name)).toEqual([...WRITER_ALL_TOOL_NAMES]);
       for (const tool of req.tools) {
         expect(tool.type).toBe("function");
         expect(tool.function.description.length).toBeGreaterThan(0);
@@ -548,6 +553,89 @@ describe("processReportRun", () => {
       const userContent = req.messages[0]!.content ?? "";
       expect(userContent.length).toBeGreaterThan(STUDY_AGENT_TURN_LIMITS.maxContentChars);
       expect(userContent.length).toBeLessThanOrEqual(STUDY_AGENT_TURN_LIMITS.maxUserContentChars);
+    },
+  );
+
+  it.each(["CUSTOMER", "PRO"] as const)(
+    "composes a %s report via single-turn compose_writer_report with presentation planning, recovers via apply_writer_correction, and emits privacy-safe runtime observability events",
+    async (audience) => {
+      vi.mocked(emitStructuredEvent).mockClear();
+      const db = fakeDatabase(audience);
+      const base = mayaWriterOutput(audience);
+      const badDraft = structuredClone(base);
+      badDraft.sections[2]!.blocks.push({
+        type: "UNCERTAINTY",
+        text: "Maya is improving at 74 words per minute but has not reached the goal yet.",
+        claimRefs: ["P1.A0"],
+      });
+
+      const [turn1] = mayaWriterComposeTurns(audience, badDraft, mayaWriterPresentationPlan(audience));
+      const turn2: ToolCall[] = [
+        {
+          id: `toolu_patch_${audience.toLowerCase()}_1`,
+          name: "apply_writer_correction",
+          arguments: JSON.stringify({
+            sections: [base.sections[2]!],
+            view: [{ component: "Narrative", props: { sectionId: "s3" } }],
+          }),
+        },
+      ];
+      const model = planner([turn1!, turn2]);
+
+      await expect(
+        processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      ).resolves.toBe("SUCCEEDED");
+
+      expect(model.bodies).toHaveLength(2);
+      const expectedSavedOutput = {
+        ...base,
+        view: [
+          base.view[0],
+          base.view[1],
+          base.view[2],
+          base.view[3],
+          base.view[4],
+          base.view[5],
+          base.view[7],
+          base.view[6],
+        ],
+      };
+      expect(db.saved()).toMatchObject({
+        writer_output: expectedSavedOutput,
+        view: { audience, schema: "hive-application-view/1" },
+      });
+
+      const events = vi.mocked(emitStructuredEvent).mock.calls.map((c) => c[0] as Record<string, unknown>);
+      const eventNames = events.map((e) => e.eventName);
+      expect(eventNames).toEqual(
+        expect.arrayContaining([
+          "writer.start",
+          "writer.model.completed",
+          "writer.correction.requested",
+          "writer.validation.completed",
+          "writer.publication.completed",
+        ]),
+      );
+      const correctionEvent = events.find((e) => e.eventName === "writer.correction.requested")!;
+      expect(correctionEvent).toMatchObject({
+        audience,
+        diagnosticReason: "writer_claim_kind",
+        diagnosticField: "sections[2].blocks[3]",
+      });
+      const publicationEvent = events.find((e) => e.eventName === "writer.publication.completed")!;
+      expect(publicationEvent).toMatchObject({
+        audience,
+        inputCount: 200,
+        outputCount: 100,
+        totalCount: 300,
+        componentCount: 9,
+        sectionCount: 3,
+        scenarioCount: 1,
+        rounds: 2,
+      });
+      const serializedEvents = JSON.stringify(events);
+      expect(serializedEvents).not.toContain(MAYA_INTENT_TEXT);
+      expect(serializedEvents).not.toContain("Baseline: 62 words correct per minute.");
     },
   );
 });

@@ -1,8 +1,8 @@
 # Hive Writer — v1
 
-Prompt id: `hive-writer/1` · Stage: Writing the report · Model: `PLANNER_WRITER_LITELLM_ALIAS` chosen by `v4-planner` (approved: `harvester`) · Output: assembled from the five Writer tools and validated as `hive.writer-report/1`
+Prompt id: `hive-writer/1` · Stage: Writing the report · Model: `PLANNER_WRITER_LITELLM_ALIAS` chosen by `v4-planner` (approved: `harvester`) · Output: compiled from structured Writer generation (`compose_writer_report` / `apply_writer_correction` or segmented unit tools) and validated as `hive.writer-report/1`
 
-The text under **System** is sent as the system message alongside the five Writer tool definitions. The user message is a JSON object built by trusted code from **one accepted, immutable Canonical Study revision**: its claim catalog (each claim with a stable id, its text, its source pages and quotes, and for calculations a numeric status), the person's requests, the validated audience configuration, the domain and the coverage. The same Study is written for two audiences in two separate runs; each run writes **one** report through the Writer tools. Trusted code validates every block, scenario and A2UI component as it is recorded, recomputes every scenario, binds the view to verified values, and rejects anything it cannot support. Nothing is repaired or auto-cited in code.
+The text under **System** is sent as the system message alongside the Writer tool definitions. The user message is a JSON object built by trusted code from **one accepted, immutable Canonical Study revision**: its claim catalog (each claim with a stable id, its text, its source pages and quotes, and for calculations a numeric status), the person's requests, the validated audience configuration, the domain and the coverage. The same Study is written for two audiences in two separate runs; each run writes **one** report. Trusted code validates every block, scenario and A2UI component, recomputes every scenario, binds the view to verified values, and rejects anything it cannot support. Nothing is repaired or auto-cited in code.
 
 ---
 
@@ -84,21 +84,19 @@ Compose the page from this catalog only, in reading order. Anything else is reje
 
 Text in tables, comparisons, timelines and lists follows the same number rule as blocks: every number must appear in the claims that item cites.
 
-### Building the report with the five tools
+### Presentation planning and structured report generation
 
-Do not return a raw JSON document in prose. Build the report through these five tools:
+Do not return a raw JSON document in prose, and do not impose fixed section counts, rigid layouts or artificial component sequences. Build the report through application-controlled structured generation:
 
-- `set_report_outline` — sets `title` and `1`–`6` `summary` blocks.
-- `record_section` — records or replaces one narrative section (`id`: `s1`, `s2`, …, `s99`; `heading`; `1`–`20` `blocks`).
-- `record_scenario` — records or replaces one optional scenario (`id`: `S1`–`S9`; `title`; `question`; `rationale`; `claimRefs`; `parameters`; `results` with `R1`–`R9` formula trees).
-- `record_view_component` — appends one A2UI component to `view` in reading order (or replaces the component at zero-based `index` when `index` is provided). Any `sectionId`, `scenarioId` or `{{result:S*.R*}}` binding it references must already be recorded before that component call.
-- `finish_report` — completes the report once the outline, at least one section, any scenarios, and the `view` components are recorded and every mandatory uncertainty is visibly surfaced.
-
-**How to execute:**
-
-- **Batch independent calls in order.** You may call `set_report_outline`, all `record_section` calls (`s1`, `s2`, …), any `record_scenario` calls (`S1`, …), all `record_view_component` calls in reading order, and `finish_report` in a single turn. Tool calls are executed in the order you send them, so record `set_report_outline`, `record_section` and `record_scenario` before `record_view_component` calls that reference those sections or scenarios.
-- **Targeted correction on rejection.** Each tool validates its arguments immediately. Rejected tool calls do not alter previously accepted outline, section, scenario or view state. If a tool call returns `ok: false` (for example `writer_claim_kind`, `writer_number_ungrounded`, `view_props_invalid` or `writer_uncertainty_hidden`), inspect its `field`, `hint` and `candidateClaimIds`, then re-call **only** the rejected section, outline, scenario or view component (using the same section `id`, scenario `id` or view `index`) and call `finish_report` again. Never regenerate sections or components that already succeeded.
-- **Never invent claim references, numerical values or source citations.** Cite only claim ids present in the user message's `claims` list. If an error reports an ungrounded number that appears in a compatible Study claim (`candidateClaimIds`), add that specific claim id to `claimRefs` only when that claim genuinely supports the statement; if the number does not appear in any Study claim, remove the unsupported number from the prose.
+1. **Presentation planning (`presentationPlan`):** Given the accepted Canonical Study, `audience` and user `requests`, determine:
+   - Important findings and their priority (`priorityFindings`: `[{ "claimId", "priority": "HIGH" | "MEDIUM" | "LOW" }]`).
+   - Narrative organization and section headings (`sections`: `[{ "id": "s1"…, "heading", "priority", "claimIds": [...] }]`).
+   - Appropriate summary/detail level (`summaryDetailLevel`: `"CONCISE" | "BALANCED" | "COMPREHENSIVE"`).
+   - Which approved A2UI components best communicate the findings (`components`: `[{ "component", "sectionId"?, "scenarioId"?, "claimIds": [...] }]`).
+   - Keep the presentation plan compact: reference verified Canonical Study claim IDs instead of copying evidence records.
+2. **Content generation (`compose_writer_report`):** Call `compose_writer_report` in a single turn with `{ presentationPlan, title, summary, sections, scenarios, view }`. Do not require one tool call per section or A2UI component. (When generating large reports in independent segments, you may also use `set_report_outline`, `record_section`, `record_scenario`, `record_view_component`, and `finish_report`.)
+3. **Targeted unit correction (`apply_writer_correction`):** Trusted code validates each unit (`title`, `summary`, each `section`, each `scenario`, each `view` component, and mandatory uncertainty coverage) independently. Accepted units are preserved in state and never mutated by a rejected sibling unit. If validation returns `ok: false` with `rejections`, inspect each rejection's `unit`, `id`/`index`, `field`, `hint` and `candidateClaimIds`, then call `apply_writer_correction` supplying **only** the corrected unit(s) (or re-call only the rejected unit tool by `id` or `index`). Never regenerate sections or components that already succeeded.
+4. **Never invent claim references, numerical values or source citations.** Cite only claim ids present in the user message's `claims` list. If an error reports an ungrounded number that appears in a compatible Study claim (`candidateClaimIds`), add that specific claim id to `claimRefs` only when that claim genuinely supports the statement; if the number does not appear in any Study claim, remove the unsupported number from the prose.
 
 ---
 

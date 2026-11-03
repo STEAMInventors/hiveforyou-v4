@@ -308,6 +308,14 @@ export type AcknowledgeStudyCoverageResponse = {
 export type StartStudyPreparationResponse = {
   processingRun: ProcessingRun;
   created: boolean;
+  /** The accepted Study revision when Analyze reuses a compatible Study (V4-004E). */
+  studyRevision?: StudyRevisionSummary | null;
+  /** Latest Writer runs per audience when Analyze reuses a compatible Study (V4-004E). */
+  reportRuns?: ReportRun[];
+  /** True when Analyze reused an accepted compatible Study instead of starting a new Study run. */
+  reusedStudy?: boolean;
+  /** True when both Customer and Pro reports already exist for the reused compatible Study. */
+  reportsReady?: boolean;
 };
 
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
@@ -509,6 +517,26 @@ function normalizeEligibility(raw: unknown): StudyPreparationEligibility | null 
     activeReadCount: record.activeReadCount,
     coverageDigest: record.coverageDigest,
     gaps: normalizeCoverageGaps(record.gaps),
+  };
+}
+
+export function normalizeStartStudyPreparationResponse(raw: unknown): StartStudyPreparationResponse | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const processingRun = normalizeProcessingRun(record.processingRun);
+  if (!processingRun) return null;
+  const studyRevision = record.studyRevision == null ? undefined : normalizeStudyRevisionSummary(record.studyRevision);
+  if (record.studyRevision != null && !studyRevision) return null;
+  const reportRuns = Array.isArray(record.reportRuns)
+    ? record.reportRuns.map(normalizeReportRun).filter((run): run is ReportRun => run !== null)
+    : undefined;
+  return {
+    processingRun,
+    created: record.created === true,
+    ...(studyRevision !== undefined ? { studyRevision } : {}),
+    ...(reportRuns !== undefined ? { reportRuns } : {}),
+    ...(typeof record.reusedStudy === "boolean" ? { reusedStudy: record.reusedStudy } : {}),
+    ...(typeof record.reportsReady === "boolean" ? { reportsReady: record.reportsReady } : {}),
   };
 }
 

@@ -3,6 +3,18 @@ import type { CoverageGap, SourceDocument } from "@hiveforyou/contracts";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const routerMock = vi.hoisted(() => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  prefetch: vi.fn(),
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => routerMock,
+}));
+
 import { DOCUMENT_READ_POLL_INTERVAL_MS } from "./document-read-progress";
 import { DocumentsPanel } from "./DocumentsPanel";
 
@@ -184,6 +196,7 @@ const READY_HINT = "Ready to analyze. Documents not read yet are read first.";
 
 describe("DocumentsPanel — Analyze", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     vi.stubGlobal("requestAnimationFrame", () => 1);
     vi.stubGlobal("cancelAnimationFrame", () => undefined);
@@ -205,6 +218,31 @@ describe("DocumentsPanel — Analyze", () => {
         const url = String(input);
         if (url === STUDY_URL && init?.method === "POST") {
           server.analysisPosts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+          if (server.analysisRunStatus === "SUCCEEDED" && server.reportStatuses) {
+            const customerReady = server.reportStatuses.CUSTOMER === "SUCCEEDED";
+            const proReady = server.reportStatuses.PRO === "SUCCEEDED";
+            if (!customerReady && server.reportStatuses.CUSTOMER === "FAILED") {
+              server.reportStatuses.CUSTOMER = "QUEUED";
+            }
+            if (!proReady && server.reportStatuses.PRO === "FAILED") {
+              server.reportStatuses.PRO = "QUEUED";
+            }
+            const reportsReady = customerReady && proReady;
+            return json(
+              {
+                processingRun: analysisRun("SUCCEEDED"),
+                created: false,
+                reusedStudy: true,
+                reportsReady,
+                studyRevision: studyPreparationBody().studyRevision,
+                reportRuns: [
+                  reportRun("CUSTOMER", server.reportStatuses.CUSTOMER),
+                  reportRun("PRO", server.reportStatuses.PRO),
+                ],
+              },
+              reportsReady ? 200 : 202,
+            );
+          }
           server.analysisRunStatus = server.unreadDocuments > 0 ? "READING_DOCUMENTS" : "QUEUED";
           return json({ processingRun: analysisRun(server.analysisRunStatus), created: true }, 202);
         }
@@ -341,5 +379,56 @@ describe("DocumentsPanel — Analyze", () => {
     expect(screen.queryByTestId("analyze-modal")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Review missing content" }));
     await screen.findByTestId("analyze-acknowledge");
+  });
+
+  it("navigates directly to the report page without opening the progress modal when both reports exist for the compatible Study", async () => {
+    server.analysisRunStatus = "SUCCEEDED";
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" };
+    renderPanel();
+    await screen.findByText(READY_HINT);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("analyze-button"));
+    });
+
+    expect(routerMock.push).toHaveBeenCalledWith(`/hives/${HIVE_ID}/reports`);
+    expect(screen.queryByTestId("analyze-modal")).toBeNull();
+    expect(server.analysisPosts).toHaveLength(1);
+  });
+
+  it("reuses the compatible Study, preserves the existing report, and polls only the missing Writer run when one report failed", async () => {
+    server.analysisRunStatus = "SUCCEEDED";
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "FAILED" };
+    renderPanel();
+    await screen.findByText(READY_HINT);
+
+    fireEvent.click(screen.getByTestId("analyze-button"));
+    const dialog = await screen.findByTestId("analyze-modal");
+    await within(dialog).findByRole("heading", { name: "Your study is complete" });
+    expect(routerMock.push).not.toHaveBeenCalled();
+
+    const rows = within(dialog).getAllByRole("listitem");
+    const reportItems = within(within(dialog).getByTestId("analyze-reports")).getAllByRole("listitem");
+    expect(reportItems.map((row) => row.dataset.state)).toEqual(["ready", "retrying"]);
+    expect(rows.length).toBeGreaterThan(0);
+
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" };
+    await poll();
+    const updatedReportItems = within(within(screen.getByTestId("analyze-modal")).getByTestId("analyze-reports")).getAllByRole(
+      "listitem",
+    );
+    expect(updatedReportItems.map((row) => row.dataset.state)).toEqual(["ready", "ready"]);
+  });
+
+  it("ignores repeated clicks while starting so duplicate POST requests are never sent", async () => {
+    renderPanel();
+    await screen.findByText(READY_HINT);
+    const button = screen.getByTestId("analyze-button");
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await within(await screen.findByTestId("analyze-modal")).findByRole("heading", { name: "Getting ready…" });
+
+    expect(server.analysisPosts).toHaveLength(1);
   });
 });

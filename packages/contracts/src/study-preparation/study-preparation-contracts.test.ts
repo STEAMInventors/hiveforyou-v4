@@ -10,6 +10,7 @@ import {
   normalizeGetStudyPreparationResponse,
   normalizeProcessingRun,
   normalizeReportRun,
+  normalizeStartStudyPreparationResponse,
   stageIndexForStatus,
   STUDY_PREPARATION_STAGES,
   type SnapshotDocument,
@@ -245,6 +246,65 @@ describe("normalizeProcessingRun", () => {
     expect(response?.studyRevision?.coverageGaps).toHaveLength(1);
     expect(response?.reportRuns.map((run) => run.audience)).toEqual(["CUSTOMER"]);
     expect(normalizeGetStudyPreparationResponse({ eligibility: { documents: [] } })).toBeNull();
+  });
+});
+
+describe("normalizeStartStudyPreparationResponse", () => {
+  it("normalizes both fresh runs and reused Study responses with reportRuns and reportsReady", () => {
+    const fresh = normalizeStartStudyPreparationResponse({
+      processingRun: rawRun({ status: "QUEUED" }),
+      created: true,
+      reusedStudy: false,
+      reportsReady: false,
+    });
+    expect(fresh).toMatchObject({
+      created: true,
+      reusedStudy: false,
+      reportsReady: false,
+      processingRun: { id: RUN_ID, status: "QUEUED" },
+    });
+
+    const reused = normalizeStartStudyPreparationResponse({
+      processingRun: rawRun({ status: "SUCCEEDED", finishedAt: "2026-11-02T03:05:00Z" }),
+      created: false,
+      reusedStudy: true,
+      reportsReady: true,
+      studyRevision: {
+        id: REVISION_ID,
+        canonicalStudyId: HIVE_ID,
+        revisionNumber: 2,
+        predecessorRevisionId: null,
+        processingRunId: RUN_ID,
+        coverageComplete: true,
+        coverageStatus: "COMPLETE",
+        coverageGaps: [],
+        coverageAcknowledgement: "NOT_REQUIRED",
+        createdAt: "2026-11-02T03:05:00Z",
+      },
+      reportRuns: [
+        rawReportRun({ audience: "CUSTOMER", status: "SUCCEEDED", reportId: "eeeeeeee-0000-4000-8000-000000000001", finishedAt: "2026-11-02T03:06:00Z" }),
+        rawReportRun({ audience: "PRO", status: "SUCCEEDED", reportId: "eeeeeeee-0000-4000-8000-000000000002", finishedAt: "2026-11-02T03:06:00Z" }),
+      ],
+    });
+    expect(reused).toMatchObject({
+      created: false,
+      reusedStudy: true,
+      reportsReady: true,
+      studyRevision: { id: REVISION_ID, revisionNumber: 2 },
+    });
+    expect(reused?.reportRuns?.map((r) => `${r.audience}:${r.status}`)).toEqual(["CUSTOMER:SUCCEEDED", "PRO:SUCCEEDED"]);
+  });
+
+  it("rejects malformed processing runs or study revisions", () => {
+    expect(normalizeStartStudyPreparationResponse(null)).toBeNull();
+    expect(normalizeStartStudyPreparationResponse({ processingRun: { id: "bad" }, created: true })).toBeNull();
+    expect(
+      normalizeStartStudyPreparationResponse({
+        processingRun: rawRun({ status: "SUCCEEDED", finishedAt: "2026-11-02T03:05:00Z" }),
+        created: false,
+        studyRevision: { id: "not-a-uuid" },
+      }),
+    ).toBeNull();
   });
 });
 

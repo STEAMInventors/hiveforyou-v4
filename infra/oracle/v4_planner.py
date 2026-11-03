@@ -111,6 +111,17 @@ WRITER_AGENT_TOOL_NAMES = frozenset(
         "finish_report",
     }
 )
+WRITER_COMPOSE_TOOL_NAMES = frozenset(
+    {
+        "compose_writer_report",
+        "apply_writer_correction",
+    }
+)
+WRITER_ALLOWED_TOOL_SETS: tuple[frozenset[str], ...] = (
+    WRITER_COMPOSE_TOOL_NAMES,
+    WRITER_AGENT_TOOL_NAMES,
+    WRITER_COMPOSE_TOOL_NAMES | WRITER_AGENT_TOOL_NAMES,
+)
 AGENT_TASK_TOOLS: dict[str, frozenset[str]] = {
     "study": STUDY_AGENT_TOOL_NAMES,
     "writer": WRITER_AGENT_TOOL_NAMES,
@@ -329,7 +340,11 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
         raise _invalid_request("Prompt digest is invalid.")
     expected_tools = AGENT_TASK_TOOLS[parsed.task]
     names = [tool.function.name for tool in parsed.tools]
-    if len(names) != len(expected_tools) or set(names) != expected_tools:
+    name_set = set(names)
+    if parsed.task == "writer":
+        if len(names) != len(name_set) or name_set not in WRITER_ALLOWED_TOOL_SETS:
+            raise _invalid_request("Tools do not match the writer tool set.")
+    elif len(names) != len(expected_tools) or name_set != expected_tools:
         raise _invalid_request(f"Tools do not match the {parsed.task} tool set.")
     for tool in parsed.tools:
         params = tool.function.parameters

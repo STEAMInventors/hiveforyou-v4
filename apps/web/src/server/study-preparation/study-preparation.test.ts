@@ -49,6 +49,158 @@ describe("startStudyPreparation", () => {
       correlationId: CORRELATION_ID,
     });
     expect(started.process).toBe(false);
+    expect(started.queuedReportRunIds).toEqual([]);
+  });
+
+  it("reuses a compatible accepted Study when both reports exist without queueing Study or Writer work", async () => {
+    const revisionId = "dddddddd-0000-4000-8000-000000000001";
+    const customerRunId = "cccccccc-0000-4000-8000-000000000001";
+    const proRunId = "cccccccc-0000-4000-8000-000000000002";
+    const db = client({
+      data: {
+        processingRun: runJson("SUCCEEDED", { finishedAt: "2026-11-01T10:05:00.000Z" }),
+        created: false,
+        reusedStudy: true,
+        reportsReady: true,
+        studyRevision: {
+          id: revisionId,
+          canonicalStudyId: HIVE_ID,
+          revisionNumber: 1,
+          predecessorRevisionId: null,
+          processingRunId: RUN_ID,
+          coverageComplete: true,
+          coverageStatus: "COMPLETE",
+          coverageGaps: [],
+          coverageAcknowledgement: "NOT_REQUIRED",
+          createdAt: "2026-11-01T10:05:00.000Z",
+        },
+        reportRuns: [
+          {
+            id: customerRunId,
+            hiveId: HIVE_ID,
+            studyRevisionId: revisionId,
+            audience: "CUSTOMER",
+            trigger: "STUDY_ACCEPTED",
+            status: "SUCCEEDED",
+            attemptCount: 1,
+            maxAttempts: 3,
+            errorCode: null,
+            errorMessageSafe: null,
+            retryable: null,
+            correlationId: CORRELATION_ID,
+            reportId: "eeeeeeee-0000-4000-8000-000000000001",
+            createdAt: "2026-11-01T10:05:00.000Z",
+            finishedAt: "2026-11-01T10:06:00.000Z",
+          },
+          {
+            id: proRunId,
+            hiveId: HIVE_ID,
+            studyRevisionId: revisionId,
+            audience: "PRO",
+            trigger: "STUDY_ACCEPTED",
+            status: "SUCCEEDED",
+            attemptCount: 1,
+            maxAttempts: 3,
+            errorCode: null,
+            errorMessageSafe: null,
+            retryable: null,
+            correlationId: CORRELATION_ID,
+            reportId: "eeeeeeee-0000-4000-8000-000000000002",
+            createdAt: "2026-11-01T10:05:00.000Z",
+            finishedAt: "2026-11-01T10:06:00.000Z",
+          },
+        ],
+        queuedReadIds: [],
+        queuedReportRunIds: [],
+      },
+    });
+
+    const started = await startStudyPreparation(db, {
+      hiveId: HIVE_ID,
+      rawBody: { clientRequestId: REQUEST_ID },
+      correlationId: CORRELATION_ID,
+    });
+
+    expect(started.process).toBe(false);
+    expect(started.queuedReportRunIds).toEqual([]);
+    expect(started.response.reusedStudy).toBe(true);
+    expect(started.response.reportsReady).toBe(true);
+    expect(started.response.studyRevision?.id).toBe(revisionId);
+    expect(started.response.reportRuns).toHaveLength(2);
+  });
+
+  it("reuses a compatible accepted Study and returns only newly queued Writer run IDs when a report is missing or failed", async () => {
+    const revisionId = "dddddddd-0000-4000-8000-000000000001";
+    const proRunId = "cccccccc-0000-4000-8000-000000000002";
+    const db = client({
+      data: {
+        processingRun: runJson("SUCCEEDED", { finishedAt: "2026-11-01T10:05:00.000Z" }),
+        created: false,
+        reusedStudy: true,
+        reportsReady: false,
+        studyRevision: {
+          id: revisionId,
+          canonicalStudyId: HIVE_ID,
+          revisionNumber: 1,
+          predecessorRevisionId: null,
+          processingRunId: RUN_ID,
+          coverageComplete: true,
+          coverageStatus: "COMPLETE",
+          coverageGaps: [],
+          coverageAcknowledgement: "NOT_REQUIRED",
+          createdAt: "2026-11-01T10:05:00.000Z",
+        },
+        reportRuns: [
+          {
+            id: "cccccccc-0000-4000-8000-000000000001",
+            hiveId: HIVE_ID,
+            studyRevisionId: revisionId,
+            audience: "CUSTOMER",
+            trigger: "STUDY_ACCEPTED",
+            status: "SUCCEEDED",
+            attemptCount: 1,
+            maxAttempts: 3,
+            errorCode: null,
+            errorMessageSafe: null,
+            retryable: null,
+            correlationId: CORRELATION_ID,
+            reportId: "eeeeeeee-0000-4000-8000-000000000001",
+            createdAt: "2026-11-01T10:05:00.000Z",
+            finishedAt: "2026-11-01T10:06:00.000Z",
+          },
+          {
+            id: proRunId,
+            hiveId: HIVE_ID,
+            studyRevisionId: revisionId,
+            audience: "PRO",
+            trigger: "OWNER_GENERATE",
+            status: "QUEUED",
+            attemptCount: 0,
+            maxAttempts: 3,
+            errorCode: null,
+            errorMessageSafe: null,
+            retryable: null,
+            correlationId: CORRELATION_ID,
+            reportId: null,
+            createdAt: "2026-11-01T10:07:00.000Z",
+            finishedAt: null,
+          },
+        ],
+        queuedReadIds: [],
+        queuedReportRunIds: [proRunId],
+      },
+    });
+
+    const started = await startStudyPreparation(db, {
+      hiveId: HIVE_ID,
+      rawBody: { clientRequestId: REQUEST_ID },
+      correlationId: CORRELATION_ID,
+    });
+
+    expect(started.process).toBe(false);
+    expect(started.queuedReportRunIds).toEqual([proRunId]);
+    expect(started.response.reusedStudy).toBe(true);
+    expect(started.response.reportsReady).toBe(false);
   });
 
   it("rejects blanket partial-coverage consent before calling the database", async () => {

@@ -28,6 +28,9 @@ describe("loadPromptCatalog", () => {
     expect(catalog.writer.systemPrompt).toContain("Avoid numbered lists inside report block text.");
     expect(catalog.writer.systemPrompt).toContain("GENERAL_KNOWLEDGE");
     expect(catalog.writer.systemPrompt).toContain("Never cite a broad question-level `ANSWER` claim");
+    expect(catalog.writer.systemPrompt).toContain("compose_writer_report");
+    expect(catalog.writer.systemPrompt).toContain("apply_writer_correction");
+    expect(catalog.writer.systemPrompt).toContain("presentationPlan");
     expect(catalog.writer.systemPrompt).toContain("set_report_outline");
     expect(catalog.writer.systemPrompt).toContain("record_section");
     expect(catalog.writer.systemPrompt).toContain("record_scenario");

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 import model_json_parse
 import v4_planner
 from model_json_parse import parse_model_json_object
-from v4_planner import MAX_REQUEST_BYTES, STUDY_AGENT_TOOL_NAMES, WRITER_AGENT_TOOL_NAMES, app
+from v4_planner import MAX_REQUEST_BYTES, STUDY_AGENT_TOOL_NAMES, WRITER_AGENT_TOOL_NAMES, WRITER_COMPOSE_TOOL_NAMES, app
 
 TOKEN = "planner-test-token"
 LITELLM_URL = "http://hive-litellm:4000"
@@ -662,6 +662,17 @@ def test_writer_agent_turn_fails_closed_without_writer_alias_and_validates_write
     }
     assert post_agent(client, writer_agent_body(tools=unclosed_tools)).status_code == 400
     assert seen == []
+
+    # Accepts the D-047 compose tool set and combined tool set.
+    seen_compose = use_litellm(
+        lambda _: httpx.Response(
+            200,
+            json=tool_completion([wire_call("toolu_c1", "compose_writer_report", '{"title":"Report"}')]),
+        )
+    )
+    assert post_agent(client, writer_agent_body(tools=agent_tools(WRITER_COMPOSE_TOOL_NAMES))).status_code == 200
+    assert post_agent(client, writer_agent_body(tools=agent_tools(WRITER_COMPOSE_TOOL_NAMES | WRITER_AGENT_TOOL_NAMES))).status_code == 200
+    assert len(seen_compose) == 2
 
 
 def test_writer_agent_turn_accepts_real_multi_question_claim_catalog_over_32k_chars(

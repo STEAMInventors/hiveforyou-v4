@@ -2,6 +2,7 @@ import type { StudyAgentBudgetDimension } from "../analysis/study-agent";
 import type { StudyClaim } from "../analysis/study-verification";
 import {
   A2UI_COMPONENTS,
+  type A2uiComponentName,
   BindRejection,
   buildReport,
   validateViewComponentProposal,
@@ -36,22 +37,111 @@ import {
 } from "./writer-report-contracts";
 
 /**
- * Agentic Writer ledger (D-045). The model writes one audience report over an accepted Canonical
- * Study's claim catalog through five fixed tools; this ledger is the trusted executor. Each block,
- * scenario and A2UI component is validated immediately using the shared Writer and A2UI validators.
- * Rejected tool calls never mutate accepted state and return actionable diagnostics for targeted
- * correction. Nothing is repaired or auto-cited in code. After `finish_report`, `assemble()`
- * returns the unchanged `hive.writer-report/1` object and `buildReport()` remains the final authority.
+ * Application-orchestrated Writer compiler and validator (D-047; retains D-045 ledger compatibility).
+ *
+ * Three logical responsibilities:
+ *   A. Presentation planning (`hive.writer-presentation-plan/1`): model determines priority findings,
+ *      narrative organization/headings, summary/detail level, approved A2UI components, and supporting
+ *      verified claim IDs without copying evidence payloads.
+ *   B. Content generation: structured model output (`composeWriterReport` or segmented section/unit
+ *      generation) with targeted unit-level repair (`applyWriterCorrection`) that preserves accepted
+ *      sections, scenarios, summary and view components.
+ *   C. Validation and compilation (`WriterCompiler`): verifies claim IDs and claim-kind compatibility,
+ *      enforces source provenance and strict claim-level numerical grounding, resolves scenario
+ *      calculations deterministically, validates and binds A2UI components from authorized Canonical
+ *      Study records, and assembles `hive.writer-report/1` and `hive-application-view/1`.
  */
 
-export const WRITER_AGENT_TOOL_NAMES = [
+export const WRITER_PRESENTATION_PLAN_SCHEMA = "hive.writer-presentation-plan/1" as const;
+
+export const WRITER_SUMMARY_DETAIL_LEVELS = ["CONCISE", "BALANCED", "COMPREHENSIVE"] as const;
+export type WriterSummaryDetailLevel = (typeof WRITER_SUMMARY_DETAIL_LEVELS)[number];
+
+export const WRITER_FINDING_PRIORITIES = ["HIGH", "MEDIUM", "LOW"] as const;
+export type WriterFindingPriority = (typeof WRITER_FINDING_PRIORITIES)[number];
+
+export type WriterPriorityFinding = {
+  readonly claimId: string;
+  readonly priority: WriterFindingPriority;
+};
+
+export type WriterPlannedSection = {
+  readonly id: string;
+  readonly heading: string;
+  readonly priority: WriterFindingPriority;
+  readonly claimIds: readonly string[];
+};
+
+export type WriterPlannedComponent = {
+  readonly component: A2uiComponentName;
+  readonly sectionId?: string | null;
+  readonly scenarioId?: string | null;
+  readonly claimIds: readonly string[];
+};
+
+export type WriterPresentationPlan = {
+  readonly schema?: typeof WRITER_PRESENTATION_PLAN_SCHEMA;
+  readonly summaryDetailLevel: WriterSummaryDetailLevel;
+  readonly priorityFindings: readonly WriterPriorityFinding[];
+  readonly sections: readonly WriterPlannedSection[];
+  readonly components: readonly WriterPlannedComponent[];
+};
+
+export type WriterRejectedUnitKind = "title" | "summary" | "section" | "scenario" | "view" | "uncertainty";
+
+export type WriterRejectedUnit = {
+  readonly unit: WriterRejectedUnitKind;
+  readonly id?: string;
+  readonly index?: number;
+  readonly error: string;
+  readonly field?: string;
+  readonly message: string;
+  readonly hint?: string;
+  readonly candidateClaimIds?: readonly string[];
+};
+
+export type WriterCorrectionPatch = {
+  readonly title?: string;
+  readonly summary?: readonly ReportBlock[];
+  readonly sections?: readonly ReportSection[];
+  readonly scenarios?: readonly ScenarioDefinition[];
+  readonly view?: readonly (ViewComponentProposal & { readonly index?: number })[];
+};
+
+export type WriterCompileState = {
+  readonly ok: boolean;
+  readonly presentationPlan: WriterPresentationPlan | null;
+  readonly report: WriterReport | null;
+  readonly acceptedSectionIds: readonly string[];
+  readonly acceptedScenarioIds: readonly string[];
+  readonly acceptedViewComponentCount: number;
+  readonly unsurfacedClaimIds: readonly string[];
+  readonly rejections: readonly WriterRejectedUnit[];
+};
+
+export const WRITER_COMPOSE_TOOL_NAMES = [
+  "compose_writer_report",
+  "apply_writer_correction",
+] as const;
+export type WriterComposeToolName = (typeof WRITER_COMPOSE_TOOL_NAMES)[number];
+
+export const WRITER_LEGACY_TOOL_NAMES = [
   "set_report_outline",
   "record_section",
   "record_scenario",
   "record_view_component",
   "finish_report",
 ] as const;
-export type WriterAgentToolName = (typeof WRITER_AGENT_TOOL_NAMES)[number];
+
+export const WRITER_AGENT_TOOL_NAMES = [
+  ...WRITER_LEGACY_TOOL_NAMES,
+] as const;
+export type WriterAgentToolName = (typeof WRITER_AGENT_TOOL_NAMES)[number] | WriterComposeToolName;
+
+export const WRITER_ALL_TOOL_NAMES = [
+  ...WRITER_COMPOSE_TOOL_NAMES,
+  ...WRITER_LEGACY_TOOL_NAMES,
+] as const;
 
 /** Execution ceilings for one Writer report-run attempt (`harvester` model profile). */
 export const WRITER_AGENT_BUDGET = {
@@ -202,6 +292,201 @@ const scenarioResultSchema = object(
   ["id", "label", "unit", "formula"],
 );
 
+const sectionItemSchema = object(
+  {
+    id: str("Section id: s1, s2, ..., s99.", 8),
+    heading: str("Section heading (up to 160 characters).", WRITER_LIMITS.heading),
+    blocks: {
+      type: "array",
+      description: "1 to 20 blocks in this section.",
+      maxItems: WRITER_LIMITS.blocksPerSection,
+      items: blockItemSchema,
+    },
+  },
+  ["id", "heading", "blocks"],
+);
+
+const scenarioItemSchema = object(
+  {
+    id: str("Scenario id: S1 to S9.", 8),
+    title: str("Scenario title (up to 160 characters).", WRITER_LIMITS.heading),
+    question: str("Question the scenario explores (up to 600 characters).", 600),
+    rationale: str("Why this scenario is useful (up to 1200 characters).", 1200),
+    claimRefs: claimRefsSchema("Specific supporting Study claim ids (never broad ANSWER claims when atomic facts exist)."),
+    parameters: {
+      type: "array",
+      description: "Up to 8 parameters.",
+      maxItems: WRITER_LIMITS.parameters,
+      items: scenarioParameterSchema,
+    },
+    results: {
+      type: "array",
+      description: "1 to 6 result definitions.",
+      maxItems: WRITER_LIMITS.results,
+      items: scenarioResultSchema,
+    },
+  },
+  ["id", "title", "question", "rationale", "claimRefs", "parameters", "results"],
+);
+
+const viewComponentItemSchema = object(
+  {
+    index: {
+      type: "integer",
+      minimum: 0,
+      description: "Optional zero-based index in view to replace; omit to append.",
+    },
+    component: {
+      type: "string",
+      enum: [...A2UI_COMPONENTS],
+      description: "Component name from the 13-component A2UI catalog.",
+    },
+    props: {
+      type: "object",
+      description: "Component properties matching the chosen A2UI component.",
+    },
+  },
+  ["component", "props"],
+);
+
+const presentationPlanSchema = object(
+  {
+    summaryDetailLevel: {
+      type: "string",
+      enum: [...WRITER_SUMMARY_DETAIL_LEVELS],
+      description: "Appropriate summary/detail level for this audience: CONCISE, BALANCED, or COMPREHENSIVE.",
+    },
+    priorityFindings: {
+      type: "array",
+      description: "Important findings and their priority, referencing verified Canonical Study claim IDs.",
+      maxItems: 24,
+      items: object(
+        {
+          claimId: str("Verified Canonical Study claim ID.", 16),
+          priority: { type: "string", enum: [...WRITER_FINDING_PRIORITIES] },
+        },
+        ["claimId", "priority"],
+      ),
+    },
+    sections: {
+      type: "array",
+      description: "Planned narrative organization, section headings, priority, and supporting verified claim IDs.",
+      maxItems: WRITER_LIMITS.sections,
+      items: object(
+        {
+          id: str("Section id: s1, s2, ..., s99.", 8),
+          heading: str("Section heading.", WRITER_LIMITS.heading),
+          priority: { type: "string", enum: [...WRITER_FINDING_PRIORITIES] },
+          claimIds: claimRefsSchema("Verified Study claim IDs supporting this section."),
+        },
+        ["id", "heading", "priority", "claimIds"],
+      ),
+    },
+    components: {
+      type: "array",
+      description: "Approved A2UI components chosen to communicate the findings, with supporting verified claim IDs.",
+      maxItems: WRITER_LIMITS.viewComponents,
+      items: object(
+        {
+          component: { type: "string", enum: [...A2UI_COMPONENTS] },
+          sectionId: nullableStr("Optional sectionId when component is Narrative.", 16),
+          scenarioId: nullableStr("Optional scenarioId when component is ScenarioExplorer.", 16),
+          claimIds: claimRefsSchema("Verified Study claim IDs supporting this component."),
+        },
+        ["component", "claimIds"],
+      ),
+    },
+  },
+  ["summaryDetailLevel", "priorityFindings", "sections", "components"],
+);
+
+/**
+ * Provider-compatible closed tool schemas for structured Writer composition and targeted unit correction (D-047).
+ */
+export const WRITER_COMPOSE_TOOLS: readonly WriterAgentToolDefinition[] = [
+  {
+    type: "function",
+    function: {
+      name: "compose_writer_report",
+      description:
+        "Plans presentation and composes the audience-specific report (or a batch of sections/components) in one structured call. Trusted code validates every unit independently and preserves accepted units.",
+      parameters: object(
+        {
+          presentationPlan: {
+            ...presentationPlanSchema,
+            description:
+              "Compact presentation plan: priority findings, narrative section organization, summary/detail level, chosen A2UI components, and supporting claim IDs.",
+          },
+          title: str("Report title (up to 160 characters).", WRITER_LIMITS.title),
+          summary: {
+            type: "array",
+            description: "Summary blocks for this audience.",
+            maxItems: WRITER_LIMITS.summaryBlocks,
+            items: blockItemSchema,
+          },
+          sections: {
+            type: "array",
+            description: "Narrative sections in reading order.",
+            maxItems: WRITER_LIMITS.sections,
+            items: sectionItemSchema,
+          },
+          scenarios: {
+            type: "array",
+            description: "Optional deterministic scenarios (empty [] when none needed).",
+            maxItems: WRITER_LIMITS.scenarios,
+            items: scenarioItemSchema,
+          },
+          view: {
+            type: "array",
+            description: "Dynamic A2UI component composition from the 13-component catalog.",
+            maxItems: WRITER_LIMITS.viewComponents,
+            items: viewComponentItemSchema,
+          },
+        },
+        ["title", "summary", "sections", "scenarios", "view"],
+      ),
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "apply_writer_correction",
+      description:
+        "Applies a targeted correction to only the rejected content units (title, summary, specific sections by id, specific scenarios by id, or specific view components by index), preserving all previously accepted units.",
+      parameters: object(
+        {
+          title: str("Optional corrected report title.", WRITER_LIMITS.title),
+          summary: {
+            type: "array",
+            description: "Optional corrected summary blocks.",
+            maxItems: WRITER_LIMITS.summaryBlocks,
+            items: blockItemSchema,
+          },
+          sections: {
+            type: "array",
+            description: "Optional corrected or added sections (matched by id).",
+            maxItems: WRITER_LIMITS.sections,
+            items: sectionItemSchema,
+          },
+          scenarios: {
+            type: "array",
+            description: "Optional corrected or added scenarios (matched by id).",
+            maxItems: WRITER_LIMITS.scenarios,
+            items: scenarioItemSchema,
+          },
+          view: {
+            type: "array",
+            description: "Optional corrected or added A2UI view components (replace by index, sectionId or scenarioId, or omit index to append).",
+            maxItems: WRITER_LIMITS.viewComponents,
+            items: viewComponentItemSchema,
+          },
+        },
+        [],
+      ),
+    },
+  },
+];
+
 /** Provider-compatible closed tool schemas for the five Writer tools. */
 export const WRITER_AGENT_TOOLS: readonly WriterAgentToolDefinition[] = [
   {
@@ -230,19 +515,7 @@ export const WRITER_AGENT_TOOLS: readonly WriterAgentToolDefinition[] = [
       name: "record_section",
       description:
         "Records or replaces one narrative section (s1 to s99) with a heading and 1 to 20 blocks. Validated immediately for claim-kind compatibility, calculation bindings, and claim-level numerical grounding.",
-      parameters: object(
-        {
-          id: str("Section id: s1, s2, ..., s99.", 8),
-          heading: str("Section heading (up to 160 characters).", WRITER_LIMITS.heading),
-          blocks: {
-            type: "array",
-            description: "1 to 20 blocks in this section.",
-            maxItems: WRITER_LIMITS.blocksPerSection,
-            items: blockItemSchema,
-          },
-        },
-        ["id", "heading", "blocks"],
-      ),
+      parameters: sectionItemSchema,
     },
   },
   {
@@ -251,28 +524,7 @@ export const WRITER_AGENT_TOOLS: readonly WriterAgentToolDefinition[] = [
       name: "record_scenario",
       description:
         "Records or replaces one deterministic scenario (S1 to S9). Validates documented parameters against their cited specific claim and computes results in code.",
-      parameters: object(
-        {
-          id: str("Scenario id: S1 to S9.", 8),
-          title: str("Scenario title (up to 160 characters).", WRITER_LIMITS.heading),
-          question: str("Question the scenario explores (up to 600 characters).", 600),
-          rationale: str("Why this scenario is useful (up to 1200 characters).", 1200),
-          claimRefs: claimRefsSchema("Specific supporting Study claim ids (never broad ANSWER claims when atomic facts exist)."),
-          parameters: {
-            type: "array",
-            description: "Up to 8 parameters.",
-            maxItems: WRITER_LIMITS.parameters,
-            items: scenarioParameterSchema,
-          },
-          results: {
-            type: "array",
-            description: "1 to 6 result definitions.",
-            maxItems: WRITER_LIMITS.results,
-            items: scenarioResultSchema,
-          },
-        },
-        ["id", "title", "question", "rationale", "claimRefs", "parameters", "results"],
-      ),
+      parameters: scenarioItemSchema,
     },
   },
   {
@@ -281,25 +533,7 @@ export const WRITER_AGENT_TOOLS: readonly WriterAgentToolDefinition[] = [
       name: "record_view_component",
       description:
         "Appends one A2UI component to the report view, or replaces the component at zero-based index when index is given. Referenced sections and scenarios must already be recorded.",
-      parameters: object(
-        {
-          index: {
-            type: "integer",
-            minimum: 0,
-            description: "Optional zero-based index in view to replace; omit to append.",
-          },
-          component: {
-            type: "string",
-            enum: [...A2UI_COMPONENTS],
-            description: "Component name from the 13-component A2UI catalog.",
-          },
-          props: {
-            type: "object",
-            description: "Component properties matching the chosen A2UI component.",
-          },
-        },
-        ["component", "props"],
-      ),
+      parameters: viewComponentItemSchema,
     },
   },
   {
@@ -340,6 +574,7 @@ export class WriterAgentLedger {
   private readonly allCatalogNumbers: ReadonlySet<string>;
   private readonly fileNames: ReadonlyMap<string, string>;
   private readonly calls = new Map<string, { name: string; arguments: string; result: WriterAgentToolResult }>();
+  private presentationPlan: WriterPresentationPlan | null = null;
   private outline: { title: string; summary: ReportBlock[] } | null = null;
   private readonly sections = new Map<string, ReportSection>();
   private readonly scenarios = new Map<string, ScenarioDefinition>();
@@ -365,12 +600,12 @@ export class WriterAgentLedger {
     return this.finishedReport !== null;
   }
 
-  /** Number of accepted (successful) tool calls executed on this ledger. */
+  /** Number of accepted (successful) tool calls or structured compositions executed on this ledger. */
   get toolCalls(): number {
     return this.acceptedCallCount;
   }
 
-  /** Number of rejected tool calls (or turns without tool calls) on this ledger. */
+  /** Number of rejected tool calls / content units (or turns without tool calls) on this ledger. */
   get invalidCalls(): number {
     return this.invalidCallCount;
   }
@@ -381,6 +616,349 @@ export class WriterAgentLedger {
 
   get recordedViewComponentCount(): number {
     return this.view.length;
+  }
+
+  get recordedScenarioCount(): number {
+    return this.scenarios.size;
+  }
+
+  get acceptedSectionIds(): string[] {
+    return [...this.sections.keys()];
+  }
+
+  get acceptedScenarioIds(): string[] {
+    return [...this.scenarios.keys()];
+  }
+
+  get currentPresentationPlan(): WriterPresentationPlan | null {
+    return this.presentationPlan;
+  }
+
+  /**
+   * Validates and records a compact `hive.writer-presentation-plan/1` (D-047 Responsibility A).
+   * Verifies every referenced claim ID against the accepted Canonical Study and checks component names.
+   */
+  recordPresentationPlan(raw: unknown): WriterPresentationPlan {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new WriterRejection("writer_output_shape", "presentationPlan must be an object.", "presentationPlan");
+    }
+    const plan = raw as Record<string, unknown>;
+    const detailLevel = plan.summaryDetailLevel;
+    if (
+      typeof detailLevel !== "string" ||
+      !(WRITER_SUMMARY_DETAIL_LEVELS as readonly string[]).includes(detailLevel)
+    ) {
+      throw new WriterRejection(
+        "writer_output_shape",
+        "presentationPlan.summaryDetailLevel must be CONCISE, BALANCED, or COMPREHENSIVE.",
+        "presentationPlan.summaryDetailLevel",
+      );
+    }
+    if (!Array.isArray(plan.priorityFindings) || plan.priorityFindings.length > 24) {
+      throw new WriterRejection(
+        "writer_output_shape",
+        "presentationPlan.priorityFindings must be a list of up to 24 items.",
+        "presentationPlan.priorityFindings",
+      );
+    }
+    const priorityFindings: WriterPriorityFinding[] = plan.priorityFindings.map((item, index) => {
+      const path = `presentationPlan.priorityFindings[${index}]`;
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        throw new WriterRejection("writer_output_shape", `${path} must be an object.`, path);
+      }
+      const entry = item as Record<string, unknown>;
+      if (typeof entry.claimId !== "string" || !this.claims.has(entry.claimId)) {
+        throw new WriterRejection("writer_claim_unknown", `${path}.claimId is not a Study claim.`, `${path}.claimId`);
+      }
+      if (typeof entry.priority !== "string" || !(WRITER_FINDING_PRIORITIES as readonly string[]).includes(entry.priority)) {
+        throw new WriterRejection("writer_output_shape", `${path}.priority is invalid.`, `${path}.priority`);
+      }
+      return { claimId: entry.claimId, priority: entry.priority as WriterFindingPriority };
+    });
+
+    if (!Array.isArray(plan.sections) || plan.sections.length > WRITER_LIMITS.sections) {
+      throw new WriterRejection(
+        "writer_output_shape",
+        `presentationPlan.sections must be a list of up to ${WRITER_LIMITS.sections} items.`,
+        "presentationPlan.sections",
+      );
+    }
+    const plannedSections: WriterPlannedSection[] = plan.sections.map((item, index) => {
+      const path = `presentationPlan.sections[${index}]`;
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        throw new WriterRejection("writer_output_shape", `${path} must be an object.`, path);
+      }
+      const entry = item as Record<string, unknown>;
+      if (typeof entry.id !== "string" || !SECTION_ID_PATTERN.test(entry.id)) {
+        throw new WriterRejection("writer_output_shape", `${path}.id must be s1…s99.`, `${path}.id`);
+      }
+      if (typeof entry.heading !== "string" || entry.heading.trim() === "" || entry.heading.length > WRITER_LIMITS.heading) {
+        throw new WriterRejection("writer_output_shape", `${path}.heading must be short text.`, `${path}.heading`);
+      }
+      if (typeof entry.priority !== "string" || !(WRITER_FINDING_PRIORITIES as readonly string[]).includes(entry.priority)) {
+        throw new WriterRejection("writer_output_shape", `${path}.priority is invalid.`, `${path}.priority`);
+      }
+      if (!Array.isArray(entry.claimIds) || entry.claimIds.length > WRITER_LIMITS.claimRefsPerBlock) {
+        throw new WriterRejection("writer_output_shape", `${path}.claimIds must be a list.`, `${path}.claimIds`);
+      }
+      const claimIds = entry.claimIds.map((claimId, cIdx) => {
+        if (typeof claimId !== "string" || !this.claims.has(claimId)) {
+          throw new WriterRejection("writer_claim_unknown", `${path}.claimIds[${cIdx}] is not a Study claim.`, `${path}.claimIds[${cIdx}]`);
+        }
+        return claimId;
+      });
+      return {
+        id: entry.id,
+        heading: entry.heading,
+        priority: entry.priority as WriterFindingPriority,
+        claimIds,
+      };
+    });
+
+    if (!Array.isArray(plan.components) || plan.components.length > WRITER_LIMITS.viewComponents) {
+      throw new WriterRejection(
+        "writer_output_shape",
+        `presentationPlan.components must be a list of up to ${WRITER_LIMITS.viewComponents} items.`,
+        "presentationPlan.components",
+      );
+    }
+    const plannedComponents: WriterPlannedComponent[] = plan.components.map((item, index) => {
+      const path = `presentationPlan.components[${index}]`;
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        throw new WriterRejection("writer_output_shape", `${path} must be an object.`, path);
+      }
+      const entry = item as Record<string, unknown>;
+      if (typeof entry.component !== "string" || !(A2UI_COMPONENTS as readonly string[]).includes(entry.component)) {
+        throw new WriterRejection("view_component_unknown", `${path}.component is outside the allowed catalog.`, `${path}.component`);
+      }
+      if (!Array.isArray(entry.claimIds) || entry.claimIds.length > WRITER_LIMITS.claimRefsPerBlock) {
+        throw new WriterRejection("writer_output_shape", `${path}.claimIds must be a list.`, `${path}.claimIds`);
+      }
+      const claimIds = entry.claimIds.map((claimId, cIdx) => {
+        if (typeof claimId !== "string" || !this.claims.has(claimId)) {
+          throw new WriterRejection("writer_claim_unknown", `${path}.claimIds[${cIdx}] is not a Study claim.`, `${path}.claimIds[${cIdx}]`);
+        }
+        return claimId;
+      });
+      return {
+        component: entry.component as A2uiComponentName,
+        ...(typeof entry.sectionId === "string" ? { sectionId: entry.sectionId } : {}),
+        ...(typeof entry.scenarioId === "string" ? { scenarioId: entry.scenarioId } : {}),
+        claimIds,
+      };
+    });
+
+    const normalized: WriterPresentationPlan = {
+      schema: WRITER_PRESENTATION_PLAN_SCHEMA,
+      summaryDetailLevel: detailLevel as WriterSummaryDetailLevel,
+      priorityFindings,
+      sections: plannedSections,
+      components: plannedComponents,
+    };
+    this.presentationPlan = normalized;
+    return normalized;
+  }
+
+  /**
+   * Application-controlled unit-by-unit compilation and targeted correction (D-047 Responsibilities B & C).
+   * Validates each unit (presentationPlan, outline, each section, each scenario, each view component)
+   * independently so valid units are preserved in state while rejected units return structured diagnostics
+   * without mutating previously accepted units.
+   */
+  compileUnits(raw: unknown): WriterCompileState {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      this.invalidCallCount += 1;
+      return {
+        ok: false,
+        presentationPlan: this.presentationPlan,
+        report: null,
+        acceptedSectionIds: this.acceptedSectionIds,
+        acceptedScenarioIds: this.acceptedScenarioIds,
+        acceptedViewComponentCount: this.view.length,
+        unsurfacedClaimIds: this.unsurfacedClaimIds(),
+        rejections: [
+          {
+            unit: "summary",
+            error: "writer_output_shape",
+            field: "output",
+            message: "Writer output must be a JSON object.",
+          },
+        ],
+      };
+    }
+
+    const input = raw as Record<string, unknown>;
+    const rejections: WriterRejectedUnit[] = [];
+    this.beginTurn();
+
+    const recordUnitRejection = (
+      unit: WriterRejectedUnitKind,
+      error: WriterRejection | BindRejection,
+      unitPayload: unknown,
+      meta: { id?: string; index?: number; slot: string },
+    ) => {
+      this.invalidCallCount += 1;
+      this.unresolvedSlots.set(meta.slot, error.diagnosticReason);
+      const described = this.describeRejection(error, {
+        id: "unit",
+        name: "compose_writer_report",
+        arguments: JSON.stringify(unitPayload ?? {}),
+      });
+      rejections.push({
+        unit,
+        ...(meta.id !== undefined ? { id: meta.id } : {}),
+        ...(meta.index !== undefined ? { index: meta.index } : {}),
+        error: String(described.error ?? error.diagnosticReason),
+        ...(typeof described.field === "string" ? { field: described.field } : {}),
+        message: String(described.message ?? error.message),
+        ...(typeof described.hint === "string" ? { hint: described.hint } : {}),
+        ...(Array.isArray(described.candidateClaimIds)
+          ? { candidateClaimIds: described.candidateClaimIds as string[] }
+          : {}),
+      });
+    };
+
+    if (input.presentationPlan !== undefined && input.presentationPlan !== null) {
+      try {
+        this.recordPresentationPlan(input.presentationPlan);
+      } catch (error) {
+        if (!(error instanceof WriterRejection || error instanceof BindRejection)) throw error;
+        recordUnitRejection("summary", error, input.presentationPlan, { slot: "presentationPlan" });
+      }
+    }
+
+    if (input.title !== undefined || input.summary !== undefined) {
+      const nextTitle = typeof input.title === "string" ? input.title : this.outline?.title;
+      const nextSummary = input.summary !== undefined ? input.summary : this.outline?.summary;
+      try {
+        this.setReportOutline({ title: nextTitle, summary: nextSummary });
+        this.acceptedCallCount += 1;
+      } catch (error) {
+        if (!(error instanceof WriterRejection || error instanceof BindRejection)) throw error;
+        const isTitle = error.diagnosticField === "title" || error.diagnosticField?.startsWith("title@") === true;
+        recordUnitRejection(
+          isTitle ? "title" : "summary",
+          error,
+          { title: nextTitle, summary: nextSummary },
+          { slot: "outline" },
+        );
+      }
+    }
+
+    if (input.sections !== undefined) {
+      if (!Array.isArray(input.sections) || (input.sections.length === 0 && this.sections.size === 0)) {
+        const err = new WriterRejection(
+          "writer_output_shape",
+          `sections must be a list of 1–${WRITER_LIMITS.sections} items.`,
+          "sections",
+        );
+        recordUnitRejection("section", err, input.sections, { slot: "section:invalid" });
+      } else {
+        input.sections.forEach((sec, idx) => {
+          const secObj = sec && typeof sec === "object" && !Array.isArray(sec) ? (sec as Args) : {};
+          const secId = typeof secObj.id === "string" ? secObj.id : undefined;
+          try {
+            this.recordSection(secObj);
+            this.acceptedCallCount += 1;
+          } catch (error) {
+            if (!(error instanceof WriterRejection || error instanceof BindRejection)) throw error;
+            recordUnitRejection("section", error, sec, {
+              id: secId,
+              index: idx,
+              slot: secId && SECTION_ID_PATTERN.test(secId) ? `section:${secId}` : `section:${idx}`,
+            });
+          }
+        });
+      }
+    }
+
+    if (input.scenarios !== undefined) {
+      if (!Array.isArray(input.scenarios)) {
+        const err = new WriterRejection(
+          "writer_output_shape",
+          `scenarios must be a list of 0–${WRITER_LIMITS.scenarios} items.`,
+          "scenarios",
+        );
+        recordUnitRejection("scenario", err, input.scenarios, { slot: "scenario:invalid" });
+      } else {
+        input.scenarios.forEach((scen, idx) => {
+          const scenObj = scen && typeof scen === "object" && !Array.isArray(scen) ? (scen as Args) : {};
+          const scenId = typeof scenObj.id === "string" ? scenObj.id : undefined;
+          try {
+            this.recordScenario(scenObj);
+            this.acceptedCallCount += 1;
+          } catch (error) {
+            if (!(error instanceof WriterRejection || error instanceof BindRejection)) throw error;
+            recordUnitRejection("scenario", error, scen, {
+              id: scenId,
+              index: idx,
+              slot: scenId && SCENARIO_ID_PATTERN.test(scenId) ? `scenario:${scenId}` : `scenario:${idx}`,
+            });
+          }
+        });
+      }
+    }
+
+    if (input.view !== undefined) {
+      if (!Array.isArray(input.view)) {
+        const err = new WriterRejection(
+          "writer_output_shape",
+          `view must be a list of 0–${WRITER_LIMITS.viewComponents} items.`,
+          "view",
+        );
+        recordUnitRejection("view", err, input.view, { slot: "view:invalid" });
+      } else {
+        input.view.forEach((comp, idx) => {
+          const compObj = comp && typeof comp === "object" && !Array.isArray(comp) ? (comp as Args) : {};
+          const explicitIndex = typeof compObj.index === "number" ? compObj.index : undefined;
+          const clampedObj =
+            explicitIndex !== undefined && Number.isInteger(explicitIndex) && explicitIndex > this.view.length
+              ? { ...compObj, index: this.view.length }
+              : compObj;
+          try {
+            this.recordViewComponent(clampedObj);
+            this.acceptedCallCount += 1;
+          } catch (error) {
+            if (!(error instanceof WriterRejection || error instanceof BindRejection)) throw error;
+            recordUnitRejection("view", error, comp, {
+              index: explicitIndex ?? idx,
+              slot: `view:${explicitIndex ?? idx}`,
+            });
+          }
+        });
+      }
+    }
+
+    if (rejections.length === 0) {
+      try {
+        this.finishReport({});
+        this.acceptedCallCount += 1;
+      } catch (error) {
+        if (!(error instanceof WriterRejection || error instanceof BindRejection)) throw error;
+        const unitKind: WriterRejectedUnitKind =
+          error.diagnosticReason === "writer_uncertainty_hidden"
+            ? "uncertainty"
+            : error.diagnosticField?.startsWith("view")
+              ? "view"
+              : error.diagnosticField?.startsWith("scenarios")
+                ? "scenario"
+                : error.diagnosticField?.startsWith("sections")
+                  ? "section"
+                  : "summary";
+        recordUnitRejection(unitKind, error, {}, { slot: "finish" });
+      }
+    }
+
+    return {
+      ok: this.finished && rejections.length === 0,
+      presentationPlan: this.presentationPlan,
+      report: this.finished ? this.assemble() : null,
+      acceptedSectionIds: this.acceptedSectionIds,
+      acceptedScenarioIds: this.acceptedScenarioIds,
+      acceptedViewComponentCount: this.view.length,
+      unsurfacedClaimIds: this.unsurfacedClaimIds(),
+      rejections,
+    };
   }
 
   /** Clears per-turn unresolved rejection tracking at the start of a new model turn. */
@@ -409,6 +987,61 @@ export class WriterAgentLedger {
     if (previous) {
       if (previous.name === call.name && previous.arguments === call.arguments) return previous.result;
       return this.decline(call, "tool_call_conflict", "This tool call id was already used for a different call.");
+    }
+    if (call.name === "compose_writer_report" || call.name === "apply_writer_correction") {
+      if (this.finished) {
+        const result: WriterAgentToolResult = {
+          toolCallId: call.id,
+          ok: false,
+          content: JSON.stringify({ ok: false, error: "report_finished", message: "The report is already finished." }),
+        };
+        this.calls.set(key, { name: call.name, arguments: call.arguments, result });
+        return result;
+      }
+      let parsed: Args;
+      try {
+        parsed = this.parse(call);
+      } catch (error) {
+        if (!(error instanceof WriterRejection)) throw error;
+        this.invalidCallCount += 1;
+        const result: WriterAgentToolResult = {
+          toolCallId: call.id,
+          ok: false,
+          content: JSON.stringify({ ok: false, error: error.diagnosticReason, message: error.message }),
+        };
+        this.calls.set(key, { name: call.name, arguments: call.arguments, result });
+        return result;
+      }
+      const compiled = this.compileUnits(parsed);
+      const firstRejection = compiled.rejections[0];
+      const payload = compiled.ok
+        ? {
+            ok: true,
+            finished: true,
+            sectionCount: this.sections.size,
+            scenarioCount: this.scenarios.size,
+            viewComponentCount: this.view.length,
+          }
+        : {
+            ok: false,
+            error: firstRejection?.error ?? "writer_output_shape",
+            ...(firstRejection?.field ? { field: firstRejection.field } : {}),
+            message: firstRejection?.message ?? "One or more units did not pass validation.",
+            ...(firstRejection?.hint ? { hint: firstRejection.hint } : {}),
+            ...(firstRejection?.candidateClaimIds ? { candidateClaimIds: firstRejection.candidateClaimIds } : {}),
+            acceptedSectionIds: compiled.acceptedSectionIds,
+            acceptedScenarioIds: compiled.acceptedScenarioIds,
+            acceptedViewComponentCount: compiled.acceptedViewComponentCount,
+            unsurfacedClaims: compiled.unsurfacedClaimIds,
+            rejections: compiled.rejections,
+          };
+      const result: WriterAgentToolResult = {
+        toolCallId: call.id,
+        ok: compiled.ok,
+        content: JSON.stringify(payload),
+      };
+      this.calls.set(key, { name: call.name, arguments: call.arguments, result });
+      return result;
     }
     let slot = `tool:${call.name}`;
     let isFinishAttempt = false;
@@ -450,7 +1083,7 @@ export class WriterAgentLedger {
   }
 
   private parse(call: WriterAgentToolCall): Args {
-    if (!(WRITER_AGENT_TOOL_NAMES as readonly string[]).includes(call.name)) {
+    if (!(WRITER_ALL_TOOL_NAMES as readonly string[]).includes(call.name)) {
       throw new WriterRejection("unknown_tool", "There is no Writer tool with that name.");
     }
     if (call.arguments.length > WRITER_AGENT_LIMITS.argumentsChars) {
@@ -470,6 +1103,9 @@ export class WriterAgentLedger {
 
   private slotForCall(name: WriterAgentToolName, args: Args): string {
     switch (name) {
+      case "compose_writer_report":
+      case "apply_writer_correction":
+        return "compose";
       case "set_report_outline":
         return "outline";
       case "record_section":
@@ -505,6 +1141,9 @@ export class WriterAgentLedger {
 
   private dispatch(name: WriterAgentToolName, args: Args): Record<string, unknown> {
     switch (name) {
+      case "compose_writer_report":
+      case "apply_writer_correction":
+        return this.compileUnits(args) as unknown as Record<string, unknown>;
       case "set_report_outline":
         return this.setReportOutline(args);
       case "record_section":
@@ -928,6 +1567,10 @@ export class WriterAgentLedger {
     };
   }
 }
+
+/** Alias for the application-orchestrated Writer compiler (D-047). */
+export const WriterCompiler = WriterAgentLedger;
+export type WriterCompiler = WriterAgentLedger;
 
 function firstUngroundedTokensInObject(
   node: unknown,

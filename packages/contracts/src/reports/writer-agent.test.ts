@@ -9,7 +9,9 @@ import {
   MAYA_RUN_ID,
   mayaStudyOutput,
   mayaWriterAgentTurns,
+  mayaWriterComposeTurns,
   mayaWriterOutput,
+  mayaWriterPresentationPlan,
 } from "../testing/maya-fixture";
 import { A2UI_COMPONENTS, buildReport } from "./application-view-contracts";
 import {
@@ -19,7 +21,11 @@ import {
   WRITER_AGENT_BUDGET,
   WRITER_AGENT_TOOL_NAMES,
   WRITER_AGENT_TOOLS,
+  WRITER_COMPOSE_TOOL_NAMES,
+  WRITER_COMPOSE_TOOLS,
+  WRITER_PRESENTATION_PLAN_SCHEMA,
   WriterAgentLedger,
+  WriterCompiler,
   type WriterAgentToolCall,
 } from "./writer-agent";
 import type { ReportAudience } from "./writer-report-contracts";
@@ -390,5 +396,165 @@ describe("WriterAgentLedger", () => {
     expect(exec(ledger, "record_section", base.sections[2]).ok).toBe(true);
     expect(exec(ledger, "finish_report", {}).ok).toBe(true);
     expect(ledger.assemble().sections[0]).toEqual(base.sections[0]);
+  });
+});
+
+describe("WriterCompiler structured composition and targeted unit correction (D-047)", () => {
+  it("defines compose_writer_report and apply_writer_correction with closed object parameter schemas", () => {
+    expect(WRITER_COMPOSE_TOOLS.map((tool) => tool.function.name)).toEqual([...WRITER_COMPOSE_TOOL_NAMES]);
+    expect(WRITER_COMPOSE_TOOL_NAMES).toEqual(["compose_writer_report", "apply_writer_correction"]);
+    for (const tool of WRITER_COMPOSE_TOOLS) {
+      expect(tool.function.parameters).toMatchObject({ type: "object", additionalProperties: false });
+    }
+  });
+
+  it.each(["CUSTOMER", "PRO"] as const)(
+    "completes %s report generation with presentation planning and dynamic A2UI selection in a single compose_writer_report call",
+    (audience) => {
+      const compiler = new WriterCompiler({
+        reportRunId: REPORT_RUN_ID,
+        audience,
+        claims: CLAIMS,
+        fileNames: FILE_NAMES,
+      });
+      const [turn] = mayaWriterComposeTurns(audience);
+      const res = compiler.execute(turn![0]!);
+
+      expect(res.ok).toBe(true);
+      expect(compiler.finished).toBe(true);
+      expect(compiler.currentPresentationPlan).toEqual({
+        schema: WRITER_PRESENTATION_PLAN_SCHEMA,
+        ...mayaWriterPresentationPlan(audience),
+      });
+
+      const assembled = compiler.assemble();
+      expect(assembled).toEqual(mayaWriterOutput(audience));
+
+      const built = buildReport(assembled, { audience, claims: CLAIMS, fileNames: FILE_NAMES });
+      expect(built.ok).toBe(true);
+    },
+  );
+
+  it("supports variable section counts, zero scenarios, and dynamic A2UI component selection without artificial constraints", () => {
+    const compiler = createLedger("PRO");
+    const state = compiler.compileUnits({
+      presentationPlan: {
+        summaryDetailLevel: "CONCISE",
+        priorityFindings: [{ claimId: "P1.C0", priority: "HIGH" }],
+        sections: [{ id: "s1", heading: "Concise synthesis", priority: "HIGH", claimIds: ["P1.F0", "P1.F2", "P1.U0", "P3"] }],
+        components: [
+          { component: "Narrative", sectionId: "summary", claimIds: ["P1.F0", "P1.F2", "P1.C0"] },
+          { component: "Comparison", claimIds: ["P1.F0", "P1.F2"] },
+          { component: "IssueList", claimIds: ["P1.U0", "P3"] },
+        ],
+      },
+      title: "Focused IEP synthesis",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "Fluency increased from 62 to 74 words correct per minute ({{calc:P1.C0}} words gained).",
+          claimRefs: ["P1.F0", "P1.F2", "P1.C0"],
+        },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "Concise synthesis",
+          blocks: [
+            {
+              type: "INTERPRETATION",
+              text: "Maya is improving toward the 90-word target.",
+              claimRefs: ["P1.A0", "P1.F1"],
+            },
+          ],
+        },
+      ],
+      scenarios: [],
+      view: [
+        { component: "Narrative", props: { sectionId: "summary" } },
+        {
+          component: "Comparison",
+          props: {
+            title: "Fluency progression",
+            leftLabel: "Baseline",
+            rightLabel: "November 2025",
+            items: [{ label: "Words correct per minute", left: "62", right: "74", claimRefs: ["P1.F0", "P1.F2"] }],
+          },
+        },
+        {
+          component: "IssueList",
+          props: {
+            title: "Open evidence gaps",
+            issues: [
+              { text: "Only one progress measurement after the baseline was available.", severity: "MEDIUM", claimRefs: ["P1.U0"] },
+              { text: "No reading comprehension score was reported in the evaluation.", severity: "HIGH", claimRefs: ["P3"] },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(state.ok).toBe(true);
+    expect(state.acceptedSectionIds).toEqual(["s1"]);
+    expect(state.acceptedScenarioIds).toEqual([]);
+    const built = buildReport(state.report, { audience: "PRO", claims: CLAIMS, fileNames: FILE_NAMES });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.value.view.components.map((c) => c.component)).toEqual([
+      "Narrative",
+      "Comparison",
+      "IssueList",
+      "Narrative",
+      "SourceReferences",
+    ]);
+  });
+
+  it("preserves accepted sections, scenarios and view components when one section fails, and finishes via apply_writer_correction", () => {
+    const compiler = createLedger("CUSTOMER");
+    const base = mayaWriterOutput("CUSTOMER");
+    const badDraft = structuredClone(base);
+    // Corrupt only s2 with an ungrounded number 999; s1, s3, summary, S1, and non-s2 view components are valid.
+    badDraft.sections[1]!.blocks[0]!.text = "Maya received 999 of 480 required speech minutes.";
+
+    const first = exec(compiler, "compose_writer_report", {
+      presentationPlan: mayaWriterPresentationPlan("CUSTOMER"),
+      title: badDraft.title,
+      summary: badDraft.summary,
+      sections: badDraft.sections,
+      scenarios: badDraft.scenarios,
+      view: badDraft.view,
+    });
+
+    expect(first.ok).toBe(false);
+    expect(first).toMatchObject({
+      error: "writer_number_ungrounded",
+      acceptedSectionIds: ["s1", "s3"],
+      acceptedScenarioIds: ["S1"],
+    });
+    expect(compiler.completedSectionCount).toBe(2);
+
+    // Apply targeted correction for ONLY s2 and the Narrative view component for s2; s1 and s3 are not resent!
+    const corrected = exec(compiler, "apply_writer_correction", {
+      sections: [base.sections[1]!],
+      view: [{ index: 4, component: "Narrative", props: { sectionId: "s2" } }],
+    });
+
+    expect(corrected.ok).toBe(true);
+    expect(compiler.finished).toBe(true);
+    const finalReport = compiler.assemble();
+    expect(finalReport.sections.map((s) => s.id)).toEqual(["s1", "s3", "s2"]);
+    expect(buildReport(finalReport, { audience: "CUSTOMER", claims: CLAIMS, fileNames: FILE_NAMES }).ok).toBe(true);
+  });
+
+  it("rejects unknown claims or invalid components in presentationPlan", () => {
+    const compiler = createLedger("CUSTOMER");
+    expect(() =>
+      compiler.recordPresentationPlan({
+        summaryDetailLevel: "BALANCED",
+        priorityFindings: [{ claimId: "P99.F0", priority: "HIGH" }],
+        sections: [],
+        components: [],
+      }),
+    ).toThrow(expect.objectContaining({ diagnosticReason: "writer_claim_unknown" }));
   });
 });

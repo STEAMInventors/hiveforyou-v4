@@ -1,9 +1,11 @@
 "use client";
 
 import { type SourceDocument, type UploadQuota } from "@hiveforyou/contracts";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
+import { hiveReportsPath } from "@/lib/hive-routes";
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchSourceDocuments, fetchUploadQuota } from "@/lib/source-documents-client";
 
@@ -26,6 +28,7 @@ type DocumentsPanelProps = {
   hiveId: string;
   initialDocuments: SourceDocument[];
   initialError?: LoadError | null;
+  onNavigateToReports?: () => void;
 };
 
 const TYPE_LABELS: Record<SourceDocument["mimeType"], string> = {
@@ -99,12 +102,21 @@ function DocumentIcon() {
   );
 }
 
-export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }: DocumentsPanelProps) {
+export function DocumentsPanel({ hiveId, initialDocuments, initialError = null, onNavigateToReports }: DocumentsPanelProps) {
+  const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
   const [loadError, setLoadError] = useState<LoadError | null>(initialError);
   const [quota, setQuota] = useState<UploadQuota | null>(null);
   const [batch, setBatch] = useState<SelectedSourceFile[]>([]);
   const [busy, setBusy] = useState(false);
+
+  const navigateToReports = useCallback(() => {
+    if (onNavigateToReports) {
+      onNavigateToReports();
+      return;
+    }
+    router.push(hiveReportsPath(hiveId));
+  }, [hiveId, onNavigateToReports, router]);
 
   const refresh = useCallback(async () => {
     try {
@@ -126,7 +138,7 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null }
       .catch(() => setQuota(null));
   }, []);
 
-  const analysis = useStudyPreparation(hiveId);
+  const analysis = useStudyPreparation(hiveId, { onReportsReady: navigateToReports });
   const refreshAnalysis = analysis.refresh;
   const analysisStatus = analysis.run?.status ?? null;
   useEffect(() => {

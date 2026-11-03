@@ -6,6 +6,7 @@ import {
   isValidUuid,
   normalizeGetStudyPreparationResponse,
   normalizeProcessingRun,
+  normalizeStartStudyPreparationResponse,
   type StartStudyPreparationResponse,
   validateAcknowledgeStudyCoverageInput,
   validateStartStudyPreparationInput,
@@ -114,14 +115,23 @@ function unexpectedShape(correlationId: string): HiveError {
   });
 }
 
+function uuidElements(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((id) => (typeof id === "string" ? id.trim().toLowerCase() : ""))
+    .filter((id) => isValidUuid(id));
+}
+
 /**
- * Starts (or replays) one Analyze run. `process` is true only for a newly queued run; the caller
- * then runs the workflow server-side. Documents not yet verified are queued for reading by the RPC.
+ * Starts (or replays/resumes) Analyze.
+ * - `process` is true only for a newly queued Study processing run.
+ * - `queuedReportRunIds` contains any newly queued Writer runs when a compatible Study revision is reused
+ *   and one or both audience reports are missing or failed.
  */
 export async function startStudyPreparation(
   userClient: StudyPreparationRpcClient,
   input: { readonly hiveId: string; readonly rawBody: unknown; readonly correlationId: string },
-): Promise<{ response: StartStudyPreparationResponse; process: boolean }> {
+): Promise<{ response: StartStudyPreparationResponse; process: boolean; queuedReportRunIds: string[] }> {
   const { correlationId } = input;
   const hiveId = requireHiveId(input.hiveId, correlationId);
   const validated = validateStartStudyPreparationInput(input.rawBody);
@@ -136,12 +146,14 @@ export async function startStudyPreparation(
   });
   if (error) throw mapOwnerRpcError(error, correlationId);
   const payload = parsePayload(data);
-  const processingRun = normalizeProcessingRun(payload?.processingRun);
-  if (!processingRun) throw unexpectedShape(correlationId);
-  const created = payload?.created === true;
+  const response = normalizeStartStudyPreparationResponse(payload);
+  if (!response) throw unexpectedShape(correlationId);
+  const { processingRun, created } = response;
+  const queuedReportRunIds = uuidElements(payload?.queuedReportRunIds);
   return {
-    response: { processingRun, created },
+    response,
     process: created && (processingRun.status === "QUEUED" || processingRun.status === "READING_DOCUMENTS"),
+    queuedReportRunIds,
   };
 }
 

@@ -60,12 +60,19 @@ function writeMinimized(hiveId: string, runId: string | null): void {
   }
 }
 
+export type UseStudyPreparationOptions = {
+  readonly onReportsReady?: () => void;
+};
+
 /**
  * Durable Analyze progress for one Hive: state always comes from `GET …/study-preparation`, so
  * closing the modal, refreshing or reconnecting never loses progress. Polls while the analysis or
  * either Writer run is still moving, so the modal follows every stage through to both reports.
  */
-export function useStudyPreparation(hiveId: string) {
+export function useStudyPreparation(hiveId: string, options?: UseStudyPreparationOptions) {
+  const onReportsReady = options?.onReportsReady;
+  const onReportsReadyRef = useRef(onReportsReady);
+  onReportsReadyRef.current = onReportsReady;
   const [state, setState] = useState<GetStudyPreparationResponse | null>(null);
   const [modalMode, setModalMode] = useState<AnalyzeModalMode | null>(null);
   const [starting, setStarting] = useState(false);
@@ -166,14 +173,34 @@ export function useStudyPreparation(hiveId: string) {
           ...(consent ? { coverageAcknowledgementDigest: consent.coverageAcknowledgementDigest } : {}),
         });
         runRef.current = result.processingRun;
+        const nextReportRuns = result.reportRuns ?? [];
         setState((current) => {
-          const next = current ? { ...current, processingRun: result.processingRun, reportRuns: [] } : current;
+          const next = current
+            ? {
+                ...current,
+                processingRun: result.processingRun,
+                ...(result.studyRevision !== undefined ? { studyRevision: result.studyRevision } : {}),
+                reportRuns: nextReportRuns,
+              }
+            : current;
           stateRef.current = next;
           return next;
         });
         writeMinimized(hiveId, null);
+        const bothReportsSucceeded =
+          result.reportsReady === true ||
+          (result.processingRun.status === "SUCCEEDED" &&
+            (["CUSTOMER", "PRO"] as const).every((audience) =>
+              nextReportRuns.some((run) => run.audience === audience && run.status === "SUCCEEDED" && run.reportId !== null),
+            ));
+        if (bothReportsSucceeded) {
+          setModalMode(null);
+          onReportsReadyRef.current?.();
+          void refresh();
+          return;
+        }
         setModalMode("progress");
-        if (isActive(result.processingRun)) startPolling();
+        if (isWorking({ processingRun: result.processingRun, reportRuns: nextReportRuns })) startPolling();
         void refresh();
       } catch (error) {
         setStartError(

@@ -23,7 +23,9 @@ import {
   type VerifiedStudy,
   WRITER_AGENT_BUDGET,
   WRITER_AGENT_TOOLS,
+  WRITER_COMPOSE_TOOLS,
   WriterAgentLedger,
+  type WriterPresentationPlan,
   type WriterReport,
 } from "@hiveforyou/contracts";
 
@@ -36,17 +38,25 @@ import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 import type { Dispatch } from "./dispatch";
 
 /**
- * One Writer run (D-041, D-045): a bounded native tool-calling loop (`WriterAgentLedger`) for one
- * audience over the accepted Study revision, with immediate block/scenario/A2UI validation, followed
- * by `buildReport()` (authoritative validation, deterministic scenario arithmetic and A2UI binding)
- * before the report is saved. Model/network failures retry this Writer run only (up to 3 attempts);
- * budget exhaustion fails closed without automatic retries; the accepted Study is never touched.
+ * Application-orchestrated Writer (D-041, D-045, D-047) with three logical responsibilities:
+ *   A. Presentation planning: determines priority findings, narrative organization/headings,
+ *      summary/detail level, approved A2UI components, and supporting verified claim IDs.
+ *   B. Content generation: generates audience-specific narrative content and A2UI composition
+ *      via application-controlled structured generation (`compose_writer_report`) and targeted
+ *      unit correction (`apply_writer_correction`), while retaining compatibility with segmented
+ *      section/unit tool calls (`set_report_outline`, `record_section`, `record_scenario`,
+ *      `record_view_component`, `finish_report`).
+ *   C. Validation and compilation: `WriterCompiler` (`WriterAgentLedger`) and `buildReport()`
+ *      verify claim IDs and claim-kind compatibility, enforce source provenance and numerical
+ *      grounding, resolve scenario calculations deterministically, bind A2UI components from
+ *      authorized Canonical Study records, and persist the validated report against its exact
+ *      accepted Study revision.
  */
 
 export const REPORT_RETRY_BACKOFF_SECONDS = 30;
 
 const NUDGE_MESSAGE =
-  "No tool was called. Continue building the report using set_report_outline, record_section, record_scenario, record_view_component, and finish_report.";
+  "No tool was called. Call compose_writer_report with your presentationPlan, title, summary, sections, scenarios and view (or apply_writer_correction to repair rejected units).";
 
 export type ReportGenerationDeps = {
   readonly client: DocumentPageRpcClient;
@@ -95,6 +105,8 @@ export class WriterAgentFailure extends Error {
 export type WriterAgentInput = {
   readonly planner: PlannerDeps;
   readonly reportRunId: string;
+  readonly hiveId?: string;
+  readonly attempt?: number;
   readonly correlationId: string;
   readonly audience: ReportAudience;
   readonly prompt: { readonly id: string; readonly digest: string; readonly systemPrompt: string };
@@ -138,7 +150,22 @@ function reportError(
   return createHiveError({ category: "MODEL", stage: "ANALYZE", ...input });
 }
 
-function log(run: ReportRun, status: ReportRunStatus, startedAt: number, error?: HiveError, failureStage = "WRITING"): void {
+function log(
+  run: ReportRun,
+  status: ReportRunStatus,
+  startedAt: number,
+  error?: HiveError,
+  failureStage = "WRITING",
+  metrics?: {
+    readonly inputCount?: number | null;
+    readonly outputCount?: number | null;
+    readonly totalCount?: number | null;
+    readonly componentCount?: number;
+    readonly sectionCount?: number;
+    readonly scenarioCount?: number;
+    readonly rounds?: number;
+  },
+): void {
   const reason = error?.diagnosticReason ?? (error ? "unexpected_exception" : undefined);
   const classified = error && reason ? classifyFailure({ stage: failureStage, diagnosticReason: reason, task: "writer" }) : null;
   emitStructuredEvent({
@@ -152,9 +179,17 @@ function log(run: ReportRun, status: ReportRunStatus, startedAt: number, error?:
     hiveId: run.hiveId,
     processingRunId: run.id,
     attempt: run.attemptCount,
+    audience: run.audience,
     status,
     durationMs: Date.now() - startedAt,
     task: "writer",
+    ...(metrics?.inputCount != null ? { inputCount: metrics.inputCount } : {}),
+    ...(metrics?.outputCount != null ? { outputCount: metrics.outputCount } : {}),
+    ...(metrics?.totalCount != null ? { totalCount: metrics.totalCount } : {}),
+    ...(metrics?.componentCount !== undefined ? { componentCount: metrics.componentCount } : {}),
+    ...(metrics?.sectionCount !== undefined ? { sectionCount: metrics.sectionCount } : {}),
+    ...(metrics?.scenarioCount !== undefined ? { scenarioCount: metrics.scenarioCount } : {}),
+    ...(metrics?.rounds !== undefined ? { rounds: metrics.rounds } : {}),
     ...(error
       ? {
           errorCode: error.errorCode,
@@ -163,6 +198,60 @@ function log(run: ReportRun, status: ReportRunStatus, startedAt: number, error?:
           ...(typeof error.diagnosticField === "string" ? { diagnosticField: error.diagnosticField } : {}),
         }
       : {}),
+  });
+}
+
+function logWriterRuntimeEvent(
+  eventName:
+    | "writer.start"
+    | "writer.model.completed"
+    | "writer.validation.completed"
+    | "writer.correction.requested"
+    | "writer.publication.completed",
+  input: {
+    readonly correlationId: string;
+    readonly reportRunId: string;
+    readonly hiveId?: string;
+    readonly audience: ReportAudience;
+    readonly attempt?: number;
+    readonly durationMs: number;
+    readonly inputCount?: number | null;
+    readonly outputCount?: number | null;
+    readonly componentCount?: number;
+    readonly sectionCount?: number;
+    readonly scenarioCount?: number;
+    readonly rounds?: number;
+    readonly errorCode?: string;
+    readonly diagnosticReason?: string;
+    readonly diagnosticField?: string;
+  },
+): void {
+  emitStructuredEvent({
+    eventName,
+    severity: input.errorCode || input.diagnosticReason ? "WARN" : "INFO",
+    timestamp: new Date().toISOString(),
+    component: "reports",
+    operation: `write_${input.audience.toLowerCase()}`,
+    stage: "ANALYZE",
+    correlationId: input.correlationId,
+    processingRunId: input.reportRunId,
+    ...(input.hiveId ? { hiveId: input.hiveId } : {}),
+    ...(input.attempt !== undefined ? { attempt: input.attempt } : {}),
+    audience: input.audience,
+    task: "writer",
+    durationMs: Math.max(0, Math.trunc(input.durationMs)),
+    ...(input.inputCount != null ? { inputCount: input.inputCount } : {}),
+    ...(input.outputCount != null ? { outputCount: input.outputCount } : {}),
+    ...(input.inputCount != null && input.outputCount != null
+      ? { totalCount: input.inputCount + input.outputCount }
+      : {}),
+    ...(input.componentCount !== undefined ? { componentCount: input.componentCount } : {}),
+    ...(input.sectionCount !== undefined ? { sectionCount: input.sectionCount } : {}),
+    ...(input.scenarioCount !== undefined ? { scenarioCount: input.scenarioCount } : {}),
+    ...(input.rounds !== undefined ? { rounds: input.rounds } : {}),
+    ...(input.errorCode ? { errorCode: input.errorCode } : {}),
+    ...(input.diagnosticReason ? { diagnosticReason: input.diagnosticReason } : {}),
+    ...(input.diagnosticField ? { diagnosticField: input.diagnosticField } : {}),
   });
 }
 
@@ -247,19 +336,23 @@ export function buildWriterPayload(
 }
 
 /**
- * Bounded native tool-calling Writer loop (D-045). Executes the five Writer tools in the in-memory
- * `WriterAgentLedger` under hard budgets and returns the assembled `hive.writer-report/1` object.
+ * Application-orchestrated Writer loop (D-045, D-047).
+ * Supports both single-turn structured composition (`compose_writer_report`) + targeted unit
+ * correction (`apply_writer_correction`) and segmented unit tool calls in `WriterAgentLedger`
+ * under hard budgets, returning the validated `hive.writer-report/1` object and presentation plan.
  */
 export async function runWriterAgent(
   input: WriterAgentInput,
-): Promise<{ report: WriterReport; totals: WriterAgentTotals }> {
+): Promise<{ report: WriterReport; presentationPlan: WriterPresentationPlan | null; totals: WriterAgentTotals }> {
   const clock = input.clock ?? Date.now;
+  const startedAt = clock();
   const ledger = new WriterAgentLedger({
     reportRunId: input.reportRunId,
     audience: input.audience,
     claims: input.claims,
     fileNames: input.fileNames,
   });
+  const writerTools = [...WRITER_COMPOSE_TOOLS, ...WRITER_AGENT_TOOLS];
   const messages: StudyAgentMessage[] = [{ role: "user", content: JSON.stringify(input.userPayload) }];
   const totals: WriterAgentTotals = {
     rounds: 0,
@@ -325,7 +418,7 @@ export async function runWriterAgent(
       prompt_digest: input.prompt.digest,
       system_prompt: input.prompt.systemPrompt,
       messages,
-      tools: WRITER_AGENT_TOOLS,
+      tools: writerTools,
       max_output_tokens: outputTokens,
       timeout_seconds: Math.floor((turnMs - WRITER_AGENT_BUDGET.turnAbortMarginMs) / 1000),
     };
@@ -361,14 +454,27 @@ export async function runWriterAgent(
         totals,
       );
     }
+    const turnInputTokens = turn.usage.promptTokens ?? Math.ceil(bytes / 3);
+    const turnOutputTokens = turn.usage.completionTokens ?? outputTokens;
     totals.rounds += 1;
-    totals.promptTokens += turn.usage.promptTokens ?? Math.ceil(bytes / 3);
-    totals.completionTokens += turn.usage.completionTokens ?? outputTokens;
+    totals.promptTokens += turnInputTokens;
+    totals.completionTokens += turnOutputTokens;
     totals.latencyMs += turn.latencyMs;
     totals.roundTripMs += turn.roundTripMs;
     totals.modelAlias = turn.modelAlias;
     totals.resolvedModel = turn.resolvedModel ?? totals.resolvedModel;
     totals.finishReason = turn.finishReason;
+    logWriterRuntimeEvent("writer.model.completed", {
+      correlationId: input.correlationId,
+      reportRunId: input.reportRunId,
+      hiveId: input.hiveId,
+      audience: input.audience,
+      attempt: input.attempt,
+      durationMs: turn.latencyMs,
+      inputCount: turn.usage.promptTokens,
+      outputCount: turn.usage.completionTokens,
+      rounds: totals.rounds,
+    });
     if (clock() > input.deadline) exhausted("wall_clock");
 
     messages.push({
@@ -382,10 +488,22 @@ export async function runWriterAgent(
     });
     if (turn.toolCalls.length === 0) {
       ledger.noteInvalidTurn();
+      logWriterRuntimeEvent("writer.correction.requested", {
+        correlationId: input.correlationId,
+        reportRunId: input.reportRunId,
+        hiveId: input.hiveId,
+        audience: input.audience,
+        attempt: input.attempt,
+        durationMs: clock() - startedAt,
+        rounds: totals.rounds,
+        diagnosticReason: "model_content_missing",
+      });
       messages.push({ role: "user", content: NUDGE_MESSAGE });
       continue;
     }
     ledger.beginTurn();
+    let firstTurnErrorReason: string | undefined;
+    let firstTurnErrorField: string | undefined;
     turn.toolCalls.forEach((call, index) => {
       const result =
         index >= WRITER_AGENT_BUDGET.maxCallsPerTurn
@@ -395,11 +513,41 @@ export async function runWriterAgent(
             : ledger.toolCalls >= WRITER_AGENT_BUDGET.maxToolCalls
               ? ledger.decline(call, "too_many_calls", `At most ${WRITER_AGENT_BUDGET.maxToolCalls} accepted tool calls per report.`)
               : ledger.execute(call);
+      if (!result.ok && !firstTurnErrorReason) {
+        try {
+          const parsedErr = JSON.parse(result.content) as { error?: unknown; field?: unknown };
+          if (typeof parsedErr.error === "string") firstTurnErrorReason = parsedErr.error;
+          if (typeof parsedErr.field === "string") firstTurnErrorField = parsedErr.field;
+        } catch {
+          firstTurnErrorReason = "writer_output_shape";
+        }
+      }
       messages.push({ role: "tool", tool_call_id: result.toolCallId, content: result.content });
     });
+    sync();
+    if (!ledger.finished && firstTurnErrorReason) {
+      logWriterRuntimeEvent("writer.correction.requested", {
+        correlationId: input.correlationId,
+        reportRunId: input.reportRunId,
+        hiveId: input.hiveId,
+        audience: input.audience,
+        attempt: input.attempt,
+        durationMs: clock() - startedAt,
+        componentCount: ledger.recordedViewComponentCount,
+        sectionCount: ledger.completedSectionCount,
+        scenarioCount: ledger.recordedScenarioCount,
+        rounds: totals.rounds,
+        diagnosticReason: firstTurnErrorReason,
+        diagnosticField: firstTurnErrorField,
+      });
+    }
   }
   sync();
-  return { report: ledger.assemble(), totals };
+  return {
+    report: ledger.assemble(),
+    presentationPlan: ledger.currentPresentationPlan,
+    totals,
+  };
 }
 
 async function transitionReport(
@@ -431,6 +579,14 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
   let current: ReportRunStatus = "WRITING";
   let metric: StageMetric | null = null;
   log(claimed, current, startedAt);
+  logWriterRuntimeEvent("writer.start", {
+    correlationId,
+    reportRunId,
+    hiveId: claimed.hiveId,
+    audience: claimed.audience,
+    attempt: claimed.attemptCount,
+    durationMs: 0,
+  });
 
   try {
     const inputs = await loadGenerationInputs(deps.client, reportRunId);
@@ -464,6 +620,8 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
       agentResult = await runWriterAgent({
         planner: deps.planner,
         reportRunId,
+        hiveId: claimed.hiveId,
+        attempt: claimed.attemptCount,
         correlationId,
         audience,
         prompt: catalog.writer,
@@ -505,6 +663,20 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
       });
     }
     metric = { ...metric, outcome: "SUCCEEDED" };
+    logWriterRuntimeEvent("writer.validation.completed", {
+      correlationId,
+      reportRunId,
+      hiveId: claimed.hiveId,
+      audience,
+      attempt: claimed.attemptCount,
+      durationMs: clock() - startedAt,
+      inputCount: agentResult.totals.promptTokens,
+      outputCount: agentResult.totals.completionTokens,
+      componentCount: built.value.view.components.length,
+      sectionCount: built.value.writerOutput.sections.length,
+      scenarioCount: built.value.scenarioAnalysis.scenarios.length,
+      rounds: agentResult.totals.rounds,
+    });
 
     const saving = await transitionReport(deps.client, reportRunId, "VALIDATING", "SAVING", { stage_metric: metric });
     if (!saving.applied) return saving.reportRun?.status ?? null;
@@ -522,7 +694,25 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
       },
     });
     const done = normalizeReportRun(saved?.reportRun);
-    if (done) log(done, done.status, startedAt);
+    const pubMetrics = {
+      inputCount: agentResult.totals.promptTokens,
+      outputCount: agentResult.totals.completionTokens,
+      totalCount: agentResult.totals.promptTokens + agentResult.totals.completionTokens,
+      componentCount: built.value.view.components.length,
+      sectionCount: built.value.writerOutput.sections.length,
+      scenarioCount: built.value.scenarioAnalysis.scenarios.length,
+      rounds: agentResult.totals.rounds,
+    };
+    if (done) log(done, done.status, startedAt, undefined, "WRITING", pubMetrics);
+    logWriterRuntimeEvent("writer.publication.completed", {
+      correlationId,
+      reportRunId,
+      hiveId: claimed.hiveId,
+      audience,
+      attempt: claimed.attemptCount,
+      durationMs: clock() - startedAt,
+      ...pubMetrics,
+    });
     return done?.status ?? "SUCCEEDED";
   } catch (error) {
     const hiveError = isHiveError(error)
@@ -544,7 +734,13 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
         ...(metric && metric.outcome === "FAILED" ? { stage_metric: metric } : {}),
         ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
       });
-      if (failed.reportRun) log(failed.reportRun, failed.reportRun.status, startedAt, hiveError);
+      if (failed.reportRun) {
+        log(failed.reportRun, failed.reportRun.status, startedAt, hiveError, current, {
+          inputCount: metric?.promptTokens,
+          outputCount: metric?.completionTokens,
+          totalCount: metric?.totalTokens,
+        });
+      }
       if (failed.applied && failed.retrying && deps.dispatch) {
         const attempts = failed.reportRun?.attemptCount ?? claimed.attemptCount;
         const delaySeconds = REPORT_RETRY_BACKOFF_SECONDS * Math.max(1, attempts);

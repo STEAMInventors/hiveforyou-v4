@@ -6,6 +6,7 @@ import {
   type GetStudyPreparationResponse,
   normalizeGetStudyPreparationResponse,
   normalizeProcessingRun,
+  normalizeStartStudyPreparationResponse,
   type StartStudyPreparationRequest,
   type StartStudyPreparationResponse,
 } from "@hiveforyou/contracts";
@@ -45,10 +46,9 @@ export async function startStudyPreparation(
     body: JSON.stringify(payload),
   });
   const message = "Could not start the analysis. Try again.";
-  const body = await parseApiJson<{ processingRun?: unknown; created?: unknown }>(response, correlationId, message);
-  const processingRun = normalizeProcessingRun(body?.processingRun);
-  if (!processingRun) throw unexpected(correlationId, message);
-  return { processingRun, created: body.created === true };
+  const normalized = normalizeStartStudyPreparationResponse(await parseApiJson<unknown>(response, correlationId, message));
+  if (!normalized) throw unexpected(correlationId, message);
+  return normalized;
 }
 
 export async function acknowledgeStudyCoverage(

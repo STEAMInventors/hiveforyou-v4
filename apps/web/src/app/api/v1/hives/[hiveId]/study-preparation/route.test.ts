@@ -7,6 +7,7 @@ const auth = vi.hoisted(() => ({ requireApiSupabaseClient: vi.fn() }));
 const preparation = vi.hoisted(() => ({ getStudyPreparation: vi.fn(), startStudyPreparation: vi.fn() }));
 const planner = vi.hoisted(() => ({ loadPlannerServiceConfig: vi.fn() }));
 const workflow = vi.hoisted(() => ({ processAnalysisRunSafely: vi.fn(async () => undefined) }));
+const reportWorkflow = vi.hoisted(() => ({ processReportRunSafely: vi.fn(async () => undefined) }));
 const worker = vi.hoisted(() => ({
   createWorkerDeps: vi.fn(() => ({ kind: "worker-deps" })),
   requireWorkerDispatch: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("@/server/supabase/server-client", () => auth);
 vi.mock("@/server/study-preparation/study-preparation", () => preparation);
 vi.mock("@/server/study-preparation/planner-client", () => planner);
 vi.mock("@/server/workflow/analysis-workflow", () => workflow);
+vi.mock("@/server/workflow/report-generation", () => reportWorkflow);
 vi.mock("@/server/workflow/worker", () => worker);
 
 import { GET, POST } from "./route";
@@ -129,9 +131,56 @@ describe("/api/v1/hives/[hiveId]/study-preparation", () => {
     preparation.startStudyPreparation.mockResolvedValue({
       response: { processingRun: { id: RUN_ID, status: "BUILDING_PROMPT" }, created: false },
       process: false,
+      queuedReportRunIds: [],
     });
     const res = await POST(post({ clientRequestId: REQUEST_ID }), params);
     expect(res.status).toBe(202);
     expect(nextServer.after).not.toHaveBeenCalled();
+  });
+
+  it("POST returns 200 and schedules nothing when a compatible Study and both reports already exist", async () => {
+    preparation.startStudyPreparation.mockResolvedValue({
+      response: {
+        processingRun: { id: RUN_ID, status: "SUCCEEDED" },
+        created: false,
+        reusedStudy: true,
+        reportsReady: true,
+        reportRuns: [
+          { id: "cccccccc-0000-4000-8000-000000000001", audience: "CUSTOMER", status: "SUCCEEDED" },
+          { id: "cccccccc-0000-4000-8000-000000000002", audience: "PRO", status: "SUCCEEDED" },
+        ],
+      },
+      process: false,
+      queuedReportRunIds: [],
+    });
+    const res = await POST(post({ clientRequestId: REQUEST_ID }), params);
+    expect(res.status).toBe(200);
+    expect(nextServer.after).not.toHaveBeenCalled();
+    expect(workflow.processAnalysisRunSafely).not.toHaveBeenCalled();
+    expect(reportWorkflow.processReportRunSafely).not.toHaveBeenCalled();
+  });
+
+  it("POST dispatches only missing/failed Writer runs when a compatible Study is reused", async () => {
+    const proRunId = "cccccccc-0000-4000-8000-000000000002";
+    preparation.startStudyPreparation.mockResolvedValue({
+      response: {
+        processingRun: { id: RUN_ID, status: "SUCCEEDED" },
+        created: false,
+        reusedStudy: true,
+        reportsReady: false,
+        reportRuns: [
+          { id: "cccccccc-0000-4000-8000-000000000001", audience: "CUSTOMER", status: "SUCCEEDED" },
+          { id: proRunId, audience: "PRO", status: "QUEUED" },
+        ],
+      },
+      process: false,
+      queuedReportRunIds: [proRunId],
+    });
+    const res = await POST(post({ clientRequestId: REQUEST_ID }), params);
+    expect(res.status).toBe(202);
+    expect(nextServer.after).toHaveBeenCalledTimes(1);
+    await nextServer.after.mock.calls[0]![0]();
+    expect(workflow.processAnalysisRunSafely).not.toHaveBeenCalled();
+    expect(reportWorkflow.processReportRunSafely).toHaveBeenCalledWith({ kind: "worker-deps" }, proRunId);
   });
 });

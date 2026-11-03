@@ -6,6 +6,7 @@ import { loadPlannerServiceConfig } from "@/server/study-preparation/planner-cli
 import { getStudyPreparation, startStudyPreparation } from "@/server/study-preparation/study-preparation";
 import { requireApiSupabaseClient } from "@/server/supabase/server-client";
 import { processAnalysisRunSafely } from "@/server/workflow/analysis-workflow";
+import { processReportRunSafely } from "@/server/workflow/report-generation";
 import { createWorkerDeps, requireWorkerDispatch } from "@/server/workflow/worker";
 
 export const maxDuration = 300;
@@ -25,7 +26,10 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
   return run(request);
 }
 
-/** Analyze: starts the whole chain. Later stages hand off server-side through the internal worker route. */
+/**
+ * Analyze: starts or resumes the workflow. When a compatible accepted Study exists, reuses it and
+ * dispatches only missing/failed Writer runs (or nothing when both reports exist or are active).
+ */
 export async function POST(request: NextRequest, context: RouteContext): Promise<Response> {
   const run = withApiRoute("studyPreparation", "startStudyPreparation", async ({ correlationId, request }) => {
     const { hiveId } = await context.params;
@@ -35,15 +39,23 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     requireWorkerDispatch(process.env, correlationId);
 
     const started = await startStudyPreparation(client, { hiveId, rawBody, correlationId });
-    const { response } = started;
+    const { response, queuedReportRunIds } = started;
     if (started.process) {
       const deps = createWorkerDeps(process.env, {
         origin: resolveAppOrigin({ requestUrl: request.url }),
         correlationId,
       });
       after(() => processAnalysisRunSafely(deps, response.processingRun.id));
+    } else if (queuedReportRunIds && queuedReportRunIds.length > 0) {
+      const deps = createWorkerDeps(process.env, {
+        origin: resolveAppOrigin({ requestUrl: request.url }),
+        correlationId,
+      });
+      for (const reportRunId of queuedReportRunIds) {
+        after(() => processReportRunSafely(deps, reportRunId));
+      }
     }
-    return jsonWithCorrelation(response, 202, correlationId);
+    return jsonWithCorrelation(response, response.reportsReady === true ? 200 : 202, correlationId);
   });
   return run(request);
 }
