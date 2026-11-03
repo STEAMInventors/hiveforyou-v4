@@ -177,6 +177,25 @@ export function stripReferenceTokens(value: string): string {
   return value.replace(BINDING_TOKEN, " ").replace(CLAIM_ID_TOKEN, " ");
 }
 
+function isFormattingListMarker(cleaned: string, matchIndex: number, raw: string, plain: string): boolean {
+  if (plain.includes(".") || !/^[1-9]\d?$/.test(plain)) return false;
+  const before = cleaned.slice(0, matchIndex);
+  const after = cleaned.slice(matchIndex + raw.length);
+  const linePrefix = before.slice(Math.max(before.lastIndexOf("\n"), before.lastIndexOf("\r")) + 1);
+  if (!/^\s*(?:[-*•]\s+)?/.test(linePrefix)) return false;
+  const trimmedPrefix = linePrefix.replace(/^\s*(?:[-*•]\s+)?/, "");
+  if (trimmedPrefix === "") {
+    return /^[.)](?:\s|$)/.test(after);
+  }
+  if (trimmedPrefix === "(") {
+    return /^\)(?:\s|$)/.test(after);
+  }
+  if (/^step\s+$/i.test(trimmedPrefix)) {
+    return /^(?:[:.)](?:\s|$)|\s+[—–-](?:\s|$))/i.test(after);
+  }
+  return false;
+}
+
 function classifyNumericToken(cleaned: string, matchIndex: number, raw: string, plain: string): NumericTokenCategory {
   const before = cleaned.slice(0, matchIndex);
   const after = cleaned.slice(matchIndex + raw.length);
@@ -187,11 +206,7 @@ function classifyNumericToken(cleaned: string, matchIndex: number, raw: string, 
   ) {
     return "identifier";
   }
-  if (
-    (/(?:^|[\r\n;:])\s*[([]?$/.test(before) && /^[)\].:](\s|$)/.test(after)) ||
-    /\bstep\s*$/i.test(before) ||
-    /^(?:st|nd|rd|th)\b/i.test(after)
-  ) {
+  if (isFormattingListMarker(cleaned, matchIndex, raw, plain)) {
     return "list_marker";
   }
   if (/^\s*(?:%|percent\b|percentage\b)/i.test(after)) return "percent";
@@ -235,9 +250,11 @@ export function numericTokensIn(value: string): NumericToken[] {
   return tokens;
 }
 
-/** Numbers in prose, normalized: "1,234.50" → "1234.5", "03" → "3"; "4,5" is two numbers. Claim IDs are ignored. */
+/** Numbers in prose, normalized: "1,234.50" → "1234.5", "03" → "3"; "4,5" is two numbers. Claim IDs and formatting list markers are ignored. */
 export function numbersIn(value: string): string[] {
-  return numericTokensIn(value).map((token) => token.normalized);
+  return numericTokensIn(value)
+    .filter((token) => token.category !== "list_marker")
+    .map((token) => token.normalized);
 }
 
 /** Strict claim-level numeric grounding set for the specific claims cited in `refs`. */
@@ -256,6 +273,7 @@ export function groundingNumbersForClaims(claims: ReadonlyMap<string, StudyClaim
 
 export function firstUngroundedNumericToken(value: string, allowed: ReadonlySet<string>): NumericToken | null {
   for (const token of numericTokensIn(value)) {
+    if (token.category === "list_marker") continue;
     if (!allowed.has(token.normalized)) return token;
   }
   return null;

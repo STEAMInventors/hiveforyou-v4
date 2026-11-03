@@ -403,11 +403,16 @@ describe("buildReport", () => {
     expect(s3 && s3.component === "Narrative" && s3.blocks.some((b) => b.type === "NEXT_STEP")).toBe(false);
   });
 
-  it("distinguishes canonical claim IDs from factual numbers and does not convert number words into digits", () => {
+  it("distinguishes canonical claim IDs and formatting list markers from factual numbers and does not convert number words into digits", () => {
     expect(numbersIn("Across P1, P1.F0, P1.F2, P2.C0, P1.A0, P1.U0, P1.K0, P1.D0 and P3.L0, see {{calc:P1.C0}} and {{result:S1.R1}}.")).toEqual(
       [],
     );
     expect(numbersIn("Only one progress measurement across four days a week.")).toEqual([]);
+    expect(
+      numbersIn(
+        "1. Review the baseline.\n2) Compare the progress report.\n(3) Ask who decides.\nStep 4: Request comprehension data.\n- 5. Confirm minutes.",
+      ),
+    ).toEqual([]);
     expect(
       numericTokensIn("1. On March 4, 2025 (p. 2, Section 3), P1.F0 rose 75% to 74.5 across 360 minutes."),
     ).toEqual([
@@ -420,9 +425,93 @@ describe("buildReport", () => {
       { normalized: "74.5", position: 6, category: "decimal" },
       { normalized: "360", position: 7, category: "quantity" },
     ]);
+    expect(
+      numericTokensIn("2) Second item\n(3) Third item\nStep 4: Fourth item"),
+    ).toEqual([
+      { normalized: "2", position: 0, category: "list_marker" },
+      { normalized: "3", position: 1, category: "list_marker" },
+      { normalized: "4", position: 2, category: "list_marker" },
+    ]);
+    // Misleading punctuation, ordinals, mid-sentence "step N", colons/semicolons and sentence-ending periods are NOT list markers.
+    expect(
+      numericTokensIn("The score was 74. Ratio: 2:1; (3) items were missing at step 4 and the 2nd review in 2026."),
+    ).toEqual([
+      { normalized: "74", position: 0, category: "quantity" },
+      { normalized: "2", position: 1, category: "quantity" },
+      { normalized: "1", position: 2, category: "quantity" },
+      { normalized: "3", position: 3, category: "quantity" },
+      { normalized: "4", position: 4, category: "quantity" },
+      { normalized: "2", position: 5, category: "quantity" },
+      { normalized: "2026", position: 6, category: "date" },
+    ]);
   });
 
-  it(" enforces strict claim-level numeric grounding across Pro summary[1], Customer sections[4].blocks[2] and A2UI", () => {
+  it("exempts genuine formatting list markers in Customer and Pro reports while rejecting ungrounded factual numbers", () => {
+    // Legitimate formatting list markers at sections[2].blocks[1] (and A2UI items) pass in both Customer and Pro reports.
+    for (const audience of ["CUSTOMER", "PRO"] as const) {
+      const withListMarkers = writer((o) => {
+        o.sections[2].blocks.push(
+          {
+            type: "QUESTION",
+            text: "1. What reading comprehension assessment will the IEP team review?",
+            claimRefs: ["P3.F0"],
+          },
+          {
+            type: "NEXT_STEP",
+            text: "2) Request the speech log showing 360 delivered minutes.\n(3) Compare against the 480 required minutes.\nStep 4: Ask who decides whether progress is sufficient.",
+            claimRefs: ["P2.F0", "P2.F1", "P1.D0"],
+          },
+        );
+        o.view.push({
+          component: "Checklist",
+          props: {
+            title: "Preparation steps",
+            items: [
+              { text: "1. Bring the November 2025 progress report (74 words correct per minute)", claimRefs: ["P1.F2"] },
+              { text: "2) Bring the speech log (360 delivered minutes)", claimRefs: ["P2.F0"] },
+              { text: "(3) Confirm the 90 words correct per minute goal for March 4, 2026", claimRefs: ["P1.F1"] },
+              { text: "Step 4: Ask who decides whether progress is sufficient", claimRefs: ["P1.D0"] },
+            ],
+          },
+        } as never);
+      }, audience);
+
+      expect(validateWriterReport(withListMarkers, { audience, claims }).ok).toBe(true);
+      expect(buildReport(withListMarkers, { audience, claims, fileNames }).ok).toBe(true);
+
+      // A list marker in a block does NOT ground that same digit as a factual quantity later in the block.
+      const listMarkerDoesNotSelfGround = writer((o) => {
+        o.sections[2].blocks[1] = {
+          type: "QUESTION",
+          text: "1. Ask why only 1 comprehension test was given.",
+          claimRefs: ["P3.F0"],
+        };
+      }, audience);
+      expect(validateWriterReport(listMarkerDoesNotSelfGround, { audience, claims })).toEqual({
+        ok: false,
+        message: "The report draft did not pass our checks against the Study.",
+        diagnosticReason: "writer_number_ungrounded",
+        diagnosticField: "sections[2].blocks[1]@num[1]:quantity",
+      });
+
+      // Misleading punctuation (sentence-final number, mid-sentence "(3)", "step 4" in prose, ordinal "2nd", ratio "2:1", deadline/date/identifier) is still rejected.
+      const misleadingPunctuation = writer((o) => {
+        o.sections[2].blocks[1] = {
+          type: "NEXT_STEP",
+          text: "1. Request the (3) missing logs at step 4 before the 2nd review.",
+          claimRefs: ["P3.F0"],
+        };
+      }, audience);
+      expect(validateWriterReport(misleadingPunctuation, { audience, claims })).toEqual({
+        ok: false,
+        message: "The report draft did not pass our checks against the Study.",
+        diagnosticReason: "writer_number_ungrounded",
+        diagnosticField: "sections[2].blocks[1]@num[1]:quantity",
+      });
+    }
+  });
+
+  it("enforces strict claim-level numeric grounding across Pro summary[1], Customer sections[4].blocks[2] and A2UI", () => {
     // 1. Claim IDs in prose are not treated as factual numbers in Pro summary[1] or A2UI.
     const proClaimIdsInProse = writer((o) => {
       o.summary.push({
@@ -520,7 +609,7 @@ describe("buildReport", () => {
       diagnosticField: "summary[1]@num[0]:quantity",
     });
 
-    // 6. Ungrounded list numbering, dates, percentages, page refs and quantities at Customer sections[4].blocks[2] and Pro summary[1]
+    // 6. Ungrounded dates, percentages, identifiers, page refs and quantities at Customer sections[4].blocks[2] and Pro summary[1]
     //    report safe token position + category without leaking the numeric value or prose.
     const ungroundedCustomerBlock = writer((o) => {
       o.sections.push(
@@ -537,7 +626,7 @@ describe("buildReport", () => {
             { type: "NEXT_STEP", text: "Bring the November 2025 progress report.", claimRefs: ["P1.F2"] },
             {
               type: "NEXT_STEP",
-              text: "2. Ask the IEP team for updated fluency data after the 62 wcpm baseline.",
+              text: "2. Ask the IEP team for 2 updated fluency checks after the 62 wcpm baseline.",
               claimRefs: ["P1.D0", "P1.F0"],
             },
           ],
@@ -549,7 +638,7 @@ describe("buildReport", () => {
       ok: false,
       message: "The report draft did not pass our checks against the Study.",
       diagnosticReason: "writer_number_ungrounded",
-      diagnosticField: "sections[4].blocks[2]@num[0]:list_marker",
+      diagnosticField: "sections[4].blocks[2]@num[1]:quantity",
     });
 
     const proPercentRejected = validateWriterReport(
