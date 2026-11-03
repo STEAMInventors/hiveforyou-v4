@@ -97,7 +97,23 @@ describe("buildStudyPrompt", () => {
     expect(promptText).toContain("## 9. Case page index");
     for (const tool of STUDY_AGENT_TOOL_NAMES) expect(promptText).toContain(`\`${tool}\``);
     expect(promptText).toContain(`Hive assembles \`hive.study-investigation/1\``);
-    expect(promptText).toContain("it is never reported as missing evidence");
+    expect(promptText).toContain("is never reported as missing evidence");
+  });
+
+  it("instructs case-wide phase batching across all questions and forbids sequential question-by-question investigation", () => {
+    const { promptText } = buildStudyPrompt(inputs());
+    expect(promptText).not.toContain("Answer every investigation question (`P…`) separately");
+    expect(promptText).toContain("Investigate the authorized case corpus across all investigation questions (`P…`) together rather than finishing `P1` before starting `P2`");
+    expect(promptText).toContain("Do not investigate and finish `P1` in isolation before starting `P2`.");
+    expect(promptText).toContain("1. **Locate and read relevant pages across all questions.**");
+    expect(promptText).toContain("2. **Batch verified evidence recording across the questions.**");
+    expect(promptText).toContain("3. **Batch source-backed facts, calculations and conflicts.**");
+    expect(promptText).toContain("4. **Record assessments and professional determinations using returned fact IDs.**");
+    expect(promptText).toContain("5. **Close completed questions and finish the Study.**");
+    expect(promptText).toContain("Evidence IDs (`E…`) can be shared across questions.");
+    expect(promptText).toContain("Fact IDs (`F…`) used in assessments or determinations must belong to the same plan question.");
+    expect(promptText).toContain("fact_other_question");
+    expect(promptText).toContain("never assume an ID before the tool result that creates it");
   });
 
   it("binds the page index format and the agent output budget in the manifest", () => {
@@ -115,7 +131,7 @@ describe("buildStudyPrompt", () => {
     expect(promptText).toContain("#### P2 [COMPARISON] answers I2");
     expect(promptText).toContain("- Evaluation: Apply: Equivalence of line items");
     expect(promptText).toContain("#### P3 [LIST] answers I3");
-    expect(promptText).toContain("Call `finish_question` exactly once for each investigation question: P1, P2, P3.");
+    expect(promptText).toContain("Call `finish_question` exactly once for each investigation question (P1, P2, P3)");
   });
 
   it("states the domain with alternatives and advisory confidence", () => {

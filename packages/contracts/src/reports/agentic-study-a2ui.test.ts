@@ -8,6 +8,8 @@ import {
   MAYA_PAGES,
   MAYA_PLAN_QUESTION_IDS,
   MAYA_RUN_ID,
+  MAYA_SIX_PLAN_QUESTION_IDS,
+  mayaSixQuestionStudyAgentTurns,
   mayaStudyAgentTurns,
   mayaWriterOutput,
 } from "../testing/maya-fixture";
@@ -118,5 +120,38 @@ describe("agentic Canonical Study through the Writer and A2UI", () => {
     expect(sources?.component).toBe("SourceReferences");
     const files = sources && sources.component === "SourceReferences" ? sources.sources.map((source) => source.fileName) : [];
     expect(files).toEqual(expect.arrayContaining(["Maya IEP 2025.pdf", "Maya IEP 2024.pdf", "Progress report Nov 2025.pdf", "Speech service log.xlsx"]));
+  });
+
+  it("verifies the 6-question batched Study (P1-P6) and binds Customer and Pro A2UI views from its claim catalog", () => {
+    const pages = Object.entries(MAYA_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const ledger = new StudyAgentLedger({ processingRunId: MAYA_RUN_ID, planQuestionIds: MAYA_SIX_PLAN_QUESTION_IDS, pages });
+    for (const turn of mayaSixQuestionStudyAgentTurns()) for (const call of turn) ledger.execute(call);
+    const verified = verifyStudyInvestigation(ledger.assemble(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: [...MAYA_SIX_PLAN_QUESTION_IDS],
+      pages: new Map(Object.entries(MAYA_PAGES)),
+    });
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+
+    const sixClaims = studyClaimCatalog(verified.value);
+    const byId = new Map(sixClaims.map((c) => [c.id, c]));
+    expect(byId.get("P4.A0")).toMatchObject({ kind: "ASSESSMENT", criterionSource: "GENERAL_KNOWLEDGE" });
+    expect(byId.get("P6.D0")).toMatchObject({ kind: "DETERMINATION" });
+    expect(byId.get("P4.U0")).toMatchObject({ kind: "UNCERTAINTY" });
+
+    for (const audience of ["CUSTOMER", "PRO"] as const) {
+      const draft = writerDraft(audience);
+      draft.sections[0]!.blocks.push({
+        type: "UNCERTAINTY",
+        text: "January 2026 progress data was not collected before the meeting.",
+        claimRefs: ["P4.U0"],
+      });
+      const built = buildReport(draft, { audience, claims: sixClaims, fileNames });
+      expect(built.ok).toBe(true);
+    }
   });
 });

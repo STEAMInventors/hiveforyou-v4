@@ -734,7 +734,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
       component: "analysis",
       operation: "investigate",
       diagnosticReason: "study_agent_budget_exhausted",
-      diagnosticField: "budget.rounds",
+      diagnosticField: "budget.rounds:r12/12:tc12:inv0:q0/3",
     });
     expect(db.stageOutputs.studyInvestigation).toBeUndefined();
     expect(db.accepted()).toBeNull();

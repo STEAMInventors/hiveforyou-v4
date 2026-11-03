@@ -66,6 +66,61 @@ export const STUDY_AGENT_BUDGET = {
 
 export type StudyAgentAllowance = { rounds: number; toolCalls: number; invalidCalls: number };
 
+export const STUDY_AGENT_BUDGET_DIMENSIONS = [
+  "rounds",
+  "tool_calls",
+  "invalid_calls",
+  "output_tokens",
+  "wall_clock",
+  "request_bytes",
+  "input_tokens",
+  "estimated_cost",
+] as const;
+export type StudyAgentBudgetDimension = (typeof STUDY_AGENT_BUDGET_DIMENSIONS)[number];
+
+export type StudyAgentBudgetDiagnostic = {
+  readonly dimension: StudyAgentBudgetDimension;
+  readonly roundsUsed: number;
+  readonly roundsAllowed: number;
+  readonly toolCalls: number;
+  readonly invalidCalls: number;
+  readonly questionsCompleted: number;
+  readonly questionsTotal: number;
+};
+
+const BUDGET_FIELD_RE =
+  /^budget\.(rounds|tool_calls|invalid_calls|output_tokens|wall_clock|request_bytes|input_tokens|estimated_cost):r([0-9]{1,4})\/([0-9]{1,4}):tc([0-9]{1,4}):inv([0-9]{1,4}):q([0-9]{1,4})\/([0-9]{1,4})$/;
+
+/**
+ * Formats safe, non-content budget progress counters into `diagnosticField` (`failure-diagnostic@1`),
+ * compatible with `FIELD` in `failure-diagnostic.ts` and `ck_processing_runs__failure_diagnostic` without a migration.
+ */
+export function formatStudyAgentBudgetDiagnosticField(input: StudyAgentBudgetDiagnostic): string {
+  const clamp = (value: number) => Math.min(9999, Math.max(0, Math.trunc(value)));
+  return [
+    `budget.${input.dimension}`,
+    `r${clamp(input.roundsUsed)}/${clamp(input.roundsAllowed)}`,
+    `tc${clamp(input.toolCalls)}`,
+    `inv${clamp(input.invalidCalls)}`,
+    `q${clamp(input.questionsCompleted)}/${clamp(input.questionsTotal)}`,
+  ].join(":");
+}
+
+export function parseStudyAgentBudgetDiagnosticField(field: string | null | undefined): StudyAgentBudgetDiagnostic | null {
+  if (typeof field !== "string") return null;
+  const match = BUDGET_FIELD_RE.exec(field);
+  if (!match) return null;
+  return {
+    dimension: match[1] as StudyAgentBudgetDimension,
+    roundsUsed: Number(match[2]),
+    roundsAllowed: Number(match[3]),
+    toolCalls: Number(match[4]),
+    invalidCalls: Number(match[5]),
+    questionsCompleted: Number(match[6]),
+    questionsTotal: Number(match[7]),
+  };
+}
+
 export function studyAgentAllowance(questionCount: number): StudyAgentAllowance {
   const questions = Math.max(1, questionCount);
   return {
@@ -449,6 +504,10 @@ export class StudyAgentLedger {
 
   get invalidCalls(): number {
     return this.invalidCallCount;
+  }
+
+  get completedQuestionCount(): number {
+    return this.finishedQuestions.size;
   }
 
   unfinishedQuestions(): string[] {

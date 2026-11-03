@@ -47,6 +47,7 @@ export const MAYA_PAGES: Record<string, string> = {
 };
 
 export const MAYA_PLAN_QUESTION_IDS = ["P1", "P2", "P3"] as const;
+export const MAYA_SIX_PLAN_QUESTION_IDS = ["P1", "P2", "P3", "P4", "P5", "P6"] as const;
 
 const quote = (doc: string, page: number, text: string) => ({ sourceDocumentId: doc, pageNumber: page, quote: text });
 
@@ -268,6 +269,186 @@ export function mayaStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E7"],
         uncertainties: [],
         limitations: ["Comprehension cannot be assessed from these records."],
+      }),
+      call("finish_study", { coverageNotes: [] }),
+    ],
+  ];
+}
+
+/**
+ * Six-question batched Maya investigation (`P1`–`P6`, allowance = 18 rounds) demonstrating the D-044
+ * case-wide phase execution pattern:
+ * - Turn 1: locate and read relevant pages across all 6 questions in one turn.
+ * - Turn 2: batch verified evidence recording (`E1`–`E11`) across the read pages.
+ * - Turn 3: batch source-backed facts (`F1`–`F11`, reusing `E1`/`E2`/`E4`/`E5`/`E6` across questions),
+ *   calculations (`C1`–`C3`) and conflicts (`K1`).
+ * - Turn 4: batch assessments (`A1`, `A2`) and professional determinations (`D1`, `D2`) using only
+ *   same-question `F…` ids (`P4` and `P6` depend on `P1`/`P2`/`P3` and use their own `F6`–`F11`).
+ * - Turn 5: close all 6 questions (`P1`–`P6`, respecting `dependsOn`) and call `finish_study`.
+ */
+export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
+  let n = 0;
+  const call = (name: string, args: Record<string, unknown>): ScriptedCall => ({
+    id: `toolu_maya6_${(n += 1)}`,
+    name,
+    arguments: JSON.stringify(args),
+  });
+  const read = (doc: string, from: number, to = from) => call("read_pages", { documentId: doc, fromPage: from, toPage: to });
+  const cite = (doc: string, page: number, quote: string) => call("record_evidence", { documentId: doc, pageNumber: page, quote });
+  const fact = (questionId: string, statement: string, evidenceIds: string[]) => call("record_fact", { questionId, statement, evidenceIds });
+  const input = (label: string, valueAsWritten: string, evidenceIds: string[]) => ({ label, valueAsWritten, evidenceIds });
+  return [
+    [
+      call("search_case", { query: "words correct per minute" }),
+      read(MAYA_DOCS.iep2025, 1, 2),
+      read(MAYA_DOCS.iep2024, 1),
+      read(MAYA_DOCS.progressNov, 1),
+      read(MAYA_DOCS.serviceLog, 1),
+      read(MAYA_DOCS.evaluation, 1),
+      read(MAYA_DOCS.progressJan, 1),
+      read(MAYA_DOCS.meetingNotice, 1),
+      read(MAYA_DOCS.teacherNotes, 1),
+    ],
+    [
+      cite(MAYA_DOCS.iep2025, 1, "Baseline: 62 words correct per minute."),
+      cite(MAYA_DOCS.iep2025, 1, "Maya will read 90 words correct per minute by March 2026."),
+      cite(MAYA_DOCS.iep2025, 1, "Meeting date: March 4, 2025."),
+      cite(MAYA_DOCS.progressNov, 1, "Goal 1 reading fluency: 74 words correct per minute."),
+      cite(MAYA_DOCS.serviceLog, 1, "Speech therapy minutes delivered September to November 2025: 360 minutes."),
+      cite(MAYA_DOCS.serviceLog, 1, "Minutes required by IEP: 480 minutes."),
+      cite(MAYA_DOCS.evaluation, 1, "The evaluator did not report a reading comprehension score."),
+      cite(MAYA_DOCS.iep2024, 1, "Goal 1: Maya will read 60 words correct per minute."),
+      cite(MAYA_DOCS.progressJan, 1, "Goal 1 data not yet collected."),
+      cite(MAYA_DOCS.meetingNotice, 1, "The annual review meeting is scheduled for March 3, 2026."),
+      cite(MAYA_DOCS.teacherNotes, 1, "Maya participates in small-group reading four days a week."),
+    ],
+    [
+      // P1: Reading fluency baseline, target, November progress, calculations and 2024 vs 2025 conflict
+      fact("P1", "The baseline was 62 words correct per minute.", ["E1"]),
+      fact("P1", "The goal is 90 words correct per minute by March 2026.", ["E2", "E3"]),
+      fact("P1", "In November 2025 Maya read 74 words correct per minute.", ["E4"]),
+      call("record_calculation", {
+        questionId: "P1",
+        description: "Gain since the baseline",
+        inputs: [input("Current", "74 words correct per minute", ["E4"]), input("Baseline", "62 words correct per minute", ["E1"])],
+        formula: { op: "-", args: [{ input: 0 }, { input: 1 }] },
+      }),
+      call("record_calculation", {
+        questionId: "P1",
+        description: "Remaining gap to the goal",
+        inputs: [input("Goal", "90 words correct per minute", ["E2"]), input("Current", "74 words correct per minute", ["E4"])],
+        formula: { op: "-", args: [{ input: 0 }, { input: 1 }] },
+      }),
+      call("flag_conflict", {
+        questionId: "P1",
+        evidenceIds: ["E8", "E2"],
+        description: "The 2024 plan sets a reading goal of 60 words correct per minute; the 2025 plan sets 90.",
+      }),
+      // P2: Speech service delivery
+      fact("P2", "360 speech minutes were delivered.", ["E5"]),
+      fact("P2", "480 minutes are required.", ["E6"]),
+      call("record_calculation", {
+        questionId: "P2",
+        description: "Share of required minutes delivered",
+        inputs: [input("Delivered", "360 minutes", ["E5"]), input("Required", "480 minutes", ["E6"])],
+        formula: { op: "*", args: [{ op: "/", args: [{ input: 0 }, { input: 1 }] }, { value: "100" }] },
+      }),
+      // P3: Comprehension score gap (missing evidence)
+      fact("P3", "The evaluation did not report a comprehension score.", ["E7"]),
+      // P4 (depends on P1): Overall reading progress evaluation reusing E1, E2, E4 + E9 (Jan 2026)
+      fact("P4", "Reading fluency rose from 62 to 74 words correct per minute against the 90-word target.", ["E1", "E2", "E4"]),
+      fact("P4", "January 2026 Goal 1 progress data was not yet collected.", ["E9"]),
+      // P5: Classroom support and annual review schedule
+      fact("P5", "The annual review meeting is scheduled for March 3, 2026.", ["E10"]),
+      fact("P5", "Maya participates in small-group reading four days a week.", ["E11"]),
+      // P6 (depends on P2, P3, P4): Meeting preparation synthesis reusing E5, E6, E7, E9, E10
+      fact("P6", "120 required speech therapy minutes remain undelivered before the March 3, 2026 review.", ["E5", "E6", "E10"]),
+      fact("P6", "Neither a reading comprehension score nor January 2026 fluency data is in the record.", ["E7", "E9"]),
+    ],
+    [
+      call("record_assessment", {
+        questionId: "P1",
+        judgment: "Maya is improving but has not yet reached the goal.",
+        criterion: "Compare the latest measurement with the baseline and the goal.",
+        criterionSource: "GENERAL_KNOWLEDGE",
+        criterionEvidenceIds: [],
+        factIds: ["F1", "F2", "F3"],
+        reasoning: "The latest value is above the baseline and below the goal.",
+        strength: "MODERATE",
+        wouldChangeIf: ["A later progress report shows a different value."],
+      }),
+      call("record_professional_determination", {
+        questionId: "P1",
+        determination: "Whether progress is sufficient",
+        bearingFactIds: ["F1", "F3"],
+        decidedBy: "The IEP team",
+      }),
+      call("record_assessment", {
+        questionId: "P4",
+        judgment: "Reading fluency shows positive trajectory through November 2025, but current status before the March 2026 meeting is unconfirmed.",
+        criterion: "Compare documented measurements against the annual target and required reporting periods.",
+        criterionSource: "GENERAL_KNOWLEDGE",
+        criterionEvidenceIds: [],
+        factIds: ["F7", "F8"],
+        reasoning: "Fluency gained 12 words per minute by November 2025, but the January 2026 report collected no data.",
+        strength: "MODERATE",
+        wouldChangeIf: ["January or February 2026 fluency measurements are provided."],
+      }),
+      call("record_professional_determination", {
+        questionId: "P6",
+        determination: "Whether compensatory speech services are warranted for the 120-minute shortfall",
+        bearingFactIds: ["F11"],
+        decidedBy: "The IEP team",
+      }),
+    ],
+    [
+      call("finish_question", {
+        questionId: "P1",
+        status: "PARTIALLY_ANSWERED",
+        answer: "Reading fluency rose from 62 to 74 words correct per minute against a goal of 90.",
+        evidenceIds: ["E1", "E4"],
+        uncertainties: ["Only one progress measurement after the baseline was available."],
+        limitations: ["No progress measurement after November 2025 was available."],
+      }),
+      call("finish_question", {
+        questionId: "P2",
+        status: "ANSWERED",
+        answer: "The log shows 360 of 480 required speech minutes were delivered.",
+        evidenceIds: ["E5", "E6"],
+        uncertainties: [],
+        limitations: [],
+      }),
+      call("finish_question", {
+        questionId: "P3",
+        status: "MISSING_EVIDENCE",
+        answer: "No reading comprehension score was reported.",
+        evidenceIds: ["E7"],
+        uncertainties: [],
+        limitations: ["Comprehension cannot be assessed from these records."],
+      }),
+      call("finish_question", {
+        questionId: "P4",
+        status: "PARTIALLY_ANSWERED",
+        answer: "Fluency improved from 62 to 74 words per minute by November 2025, but January 2026 data was not collected.",
+        evidenceIds: ["E1", "E4", "E9"],
+        uncertainties: ["January 2026 progress data was not collected."],
+        limitations: ["No post-November 2025 reading measurement is in the case records."],
+      }),
+      call("finish_question", {
+        questionId: "P5",
+        status: "ANSWERED",
+        answer: "Small-group reading occurs four days a week and the annual review meeting is set for March 3, 2026.",
+        evidenceIds: ["E10", "E11"],
+        uncertainties: [],
+        limitations: [],
+      }),
+      call("finish_question", {
+        questionId: "P6",
+        status: "PARTIALLY_ANSWERED",
+        answer: "For the March 3, 2026 meeting, the records show a 120-minute speech shortfall and missing comprehension and January 2026 fluency data.",
+        evidenceIds: ["E5", "E6", "E7", "E9", "E10"],
+        uncertainties: [],
+        limitations: ["The records do not state why 120 speech minutes were missed or provide January 2026 fluency data."],
       }),
       call("finish_study", { coverageNotes: [] }),
     ],

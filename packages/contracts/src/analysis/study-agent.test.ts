@@ -5,10 +5,14 @@ import {
   MAYA_PAGES,
   MAYA_PLAN_QUESTION_IDS,
   MAYA_RUN_ID,
+  MAYA_SIX_PLAN_QUESTION_IDS,
+  mayaSixQuestionStudyAgentTurns,
   mayaStudyAgentTurns,
   mayaStudyOutput,
 } from "../testing/maya-fixture";
 import {
+  formatStudyAgentBudgetDiagnosticField,
+  parseStudyAgentBudgetDiagnosticField,
   STUDY_AGENT_TOOL_NAMES,
   STUDY_AGENT_TOOLS,
   StudyAgentLedger,
@@ -16,6 +20,7 @@ import {
   type StudyAgentToolCall,
   studyAgentAllowance,
 } from "./study-agent";
+import { buildFailureDiagnostic } from "../errors/failure-diagnostic";
 import { verifyStudyInvestigation } from "./study-verification";
 
 const CORPUS: StudyAgentCorpusPage[] = Object.entries(MAYA_PAGES).map(([key, text]) => {
@@ -76,7 +81,42 @@ describe("study agent tool definitions", () => {
 
   it("scales the allowance with the plan under hard ceilings", () => {
     expect(studyAgentAllowance(3)).toEqual({ rounds: 12, toolCalls: 68, invalidCalls: 7 });
+    expect(studyAgentAllowance(6)).toEqual({ rounds: 18, toolCalls: 116, invalidCalls: 10 });
     expect(studyAgentAllowance(40)).toEqual({ rounds: 24, toolCalls: 200, invalidCalls: 12 });
+  });
+
+  it("formats and parses safe budget diagnostic fields within failure-diagnostic@1 limits", () => {
+    const field = formatStudyAgentBudgetDiagnosticField({
+      dimension: "rounds",
+      roundsUsed: 18,
+      roundsAllowed: 18,
+      toolCalls: 42,
+      invalidCalls: 2,
+      questionsCompleted: 3,
+      questionsTotal: 6,
+    });
+    expect(field).toBe("budget.rounds:r18/18:tc42:inv2:q3/6");
+    expect(parseStudyAgentBudgetDiagnosticField(field)).toEqual({
+      dimension: "rounds",
+      roundsUsed: 18,
+      roundsAllowed: 18,
+      toolCalls: 42,
+      invalidCalls: 2,
+      questionsCompleted: 3,
+      questionsTotal: 6,
+    });
+    const diagnostic = buildFailureDiagnostic({
+      component: "analysis",
+      operation: "investigate",
+      task: "study",
+      stage: "INVESTIGATING",
+      errorCode: "MODEL_OUTPUT_INVALID",
+      diagnosticReason: "study_agent_budget_exhausted",
+      diagnosticField: field,
+      retryable: false,
+      attempt: 1,
+    });
+    expect(diagnostic?.diagnosticField).toBe(field);
   });
 });
 
@@ -391,5 +431,76 @@ describe("StudyAgentLedger over the case-wide corpus", () => {
     expect(target.assemble().instructionsIgnored).toEqual([
       { sourceDocumentId: MAYA_DOCS.teacherNotes, pageNumber: 2, description: "The page asked to mark every goal as met." },
     ]);
+  });
+
+  it("completes six plan questions (P1-P6) in 5 batched turns with shared evidence, question dependencies, and verified Study assembly", () => {
+    const target = ledger(CORPUS, MAYA_SIX_PLAN_QUESTION_IDS);
+    const turns = mayaSixQuestionStudyAgentTurns();
+    expect(turns).toHaveLength(5);
+
+    // Before execution: 0 completed questions
+    expect(target.completedQuestionCount).toBe(0);
+
+    // Execute turns 1-4 (locate/read -> record_evidence -> record_fact/calculation/conflict -> record_assessment/determination)
+    for (const turn of turns.slice(0, 4)) {
+      const results = turn.map((item) => target.execute(item));
+      expect(results.every((r) => r.ok)).toBe(true);
+    }
+    expect(target.completedQuestionCount).toBe(0);
+    expect(target.invalidCalls).toBe(0);
+
+    // Dependent question P4 or P6 attempting to cite P1's fact F1 in an assessment or determination is rejected with fact_other_question
+    expect(
+      run(target, "record_assessment", {
+        questionId: "P4",
+        judgment: "Cross-question fact reference attempt.",
+        criterion: "Must use same-question facts.",
+        criterionSource: "GENERAL_KNOWLEDGE",
+        criterionEvidenceIds: [],
+        factIds: ["F1"],
+        reasoning: "F1 belongs to P1, not P4.",
+        strength: "MODERATE",
+        wouldChangeIf: [],
+      }),
+    ).toMatchObject({ ok: false, error: "fact_other_question" });
+    expect(
+      run(target, "record_professional_determination", {
+        questionId: "P6",
+        determination: "Cross-question bearing fact attempt",
+        bearingFactIds: ["F4"],
+        decidedBy: "The IEP team",
+      }),
+    ).toMatchObject({ ok: false, error: "fact_other_question" });
+    expect(target.invalidCalls).toBe(2);
+
+    // Calling finish_study before all 6 questions are closed is rejected
+    expect(run(target, "finish_study", { coverageNotes: [] })).toMatchObject({
+      ok: false,
+      error: "questions_unfinished",
+    });
+
+    // Execute turn 5: close all 6 questions in dependency order and finish_study in the same turn
+    const turn5Results = turns[4]!.map((item) => target.execute(item));
+    expect(turn5Results.every((r) => r.ok)).toBe(true);
+    expect(target.completedQuestionCount).toBe(6);
+    expect(target.finished).toBe(true);
+
+    const assembled = target.assemble();
+    expect(assembled.answers.map((a) => a.planQuestionId)).toEqual([...MAYA_SIX_PLAN_QUESTION_IDS]);
+    // Verify cross-question evidence reuse: E1 and E4 appear in both P1 and P4; E5 and E6 appear in both P2 and P6
+    const p1Quotes = assembled.answers[0]!.facts.flatMap((f) => f.evidence.map((e) => e.quote));
+    const p4Quotes = assembled.answers[3]!.facts.flatMap((f) => f.evidence.map((e) => e.quote));
+    expect(p4Quotes).toEqual(expect.arrayContaining(p1Quotes.slice(0, 2)));
+
+    const verified = verifyStudyInvestigation(assembled, {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: [...MAYA_SIX_PLAN_QUESTION_IDS],
+      pages: new Map(CORPUS.map((page) => [`${page.sourceDocumentId}:${page.pageNumber}`, page.text])),
+    });
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.value.verification.counts.answers).toBe(6);
+    expect(verified.value.verification.counts.facts).toBe(12);
+    expect(verified.value.verification.counts.verifiedCalculations).toBe(3);
   });
 });

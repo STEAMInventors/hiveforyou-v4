@@ -52,9 +52,9 @@ The domain is a proposal from a sample of pages. Treat it as context for which r
 
 {{OBJECTIVES}}
 
-Answer every investigation question (`P…`) separately, in dependency order, and close each with `finish_question` under its question id.
+Investigate the authorized case corpus across all investigation questions (`P…`) together rather than finishing `P1` before starting `P2`. Call `finish_question` once for each investigation question under its question id (`P…`), respecting any `Answer after` dependencies during synthesis and closure, and call `finish_study` only after every required question is closed.
 
-Answer at the depth a specialist would. Use earlier answers in later ones, trace what each finding means for the specialist question it serves (`I…`) and the outcome it supports, and point out inconsistencies, gaps and what remains open: without going beyond the evidence. Where an investigation question states an evaluation, carry it out under rule 6.
+Answer at the depth a specialist would. Reuse verified evidence across questions instead of rereading pages unnecessarily. Trace what each finding means for the specialist question it serves (`I…`) and the outcome it supports, and point out inconsistencies, gaps and what remains open: without going beyond the evidence. Where an investigation question states an evaluation, carry it out under rule 6.
 
 ## 5. Source coverage and authorized document manifest
 
@@ -62,10 +62,12 @@ Answer at the depth a specialist would. Use earlier answers in later ones, trace
 
 ## 6. Evidence and provenance requirements
 
-- Evidence is a quote from one physical page, identified by `documentId` and `pageNumber` as listed in section 9. Read a page before quoting it. One evidence id may support facts in several questions.
+- Evidence is a quote from one physical page, identified by `documentId` and `pageNumber` as listed in section 9. Read a page before quoting it.
+- Evidence ids (`E…`) are case-wide and may be shared across any investigation question (`P…`). Reuse recorded `E…` ids instead of rereading or re-quoting the same page.
+- Fact ids (`F…`) belong to the `questionId` they were recorded under. `record_assessment` (`factIds`) and `record_professional_determination` (`bearingFactIds`) accept only fact ids recorded under that same `questionId`. When a dependent question builds on a fact established for an earlier question, record a `record_fact` under the dependent `questionId` citing the shared `E…` evidence id(s), then reference that new `F…` id in the assessment or determination.
 - For comparisons, cite each side. For chronologies, cite each dated event. For calculations, cite every input value; Hive computes the result from your formula, so do not supply one.
 - Keep each value exactly as written in the document; do not round or convert without saying so.
-- Every assessment names the facts it relies on by fact id. A document criterion carries its own evidence.
+- Every assessment names the facts of the same question it relies on by fact id. A document criterion carries its own evidence.
 
 ## 7. Uncertain, missing and conflicting information
 

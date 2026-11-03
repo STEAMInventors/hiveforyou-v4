@@ -1,8 +1,10 @@
 import {
   createHiveError,
   estimateStudyAgentUsd,
+  formatStudyAgentBudgetDiagnosticField,
   type HiveError,
   STUDY_AGENT_BUDGET,
+  type StudyAgentBudgetDimension,
   STUDY_AGENT_TOOLS,
   studyAgentAllowance,
   type StudyAgentCorpusPage,
@@ -22,15 +24,18 @@ import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation
  */
 
 const START_MESSAGE =
-  "Investigate this case with the tools, following the instructions above. Finish every investigation question with finish_question, then call finish_study.";
+  "Investigate the authorized case corpus across all investigation questions together using the tools, following the instructions above. Batch independent calls across questions (locate/read pages -> record evidence -> record facts/calculations/conflicts -> record assessments/determinations -> close every question with finish_question -> call finish_study).";
 const NUDGE_MESSAGE =
-  "No tool was called. Continue with the tools: finish every investigation question with finish_question, then call finish_study.";
+  "No tool was called. Continue with the tools across the remaining investigation questions: batch independent calls, close every question with finish_question, then call finish_study.";
 const BUDGET_MESSAGE = "The analysis could not finish investigating your documents within its limits. You can try again.";
 
 export type StudyAgentTotals = {
   rounds: number;
+  roundsAllowed: number;
   toolCalls: number;
   invalidCalls: number;
+  questionsCompleted: number;
+  questionsTotal: number;
   promptTokens: number;
   completionTokens: number;
   latencyMs: number;
@@ -70,8 +75,11 @@ export async function runStudyInvestigation(
   const messages: StudyAgentMessage[] = [{ role: "user", content: START_MESSAGE }];
   const totals: StudyAgentTotals = {
     rounds: 0,
+    roundsAllowed: allowance.rounds,
     toolCalls: 0,
     invalidCalls: 0,
+    questionsCompleted: 0,
+    questionsTotal: input.questionIds.length,
     promptTokens: 0,
     completionTokens: 0,
     latencyMs: 0,
@@ -83,8 +91,9 @@ export async function runStudyInvestigation(
   const sync = () => {
     totals.toolCalls = ledger.toolCalls;
     totals.invalidCalls = ledger.invalidCalls;
+    totals.questionsCompleted = ledger.completedQuestionCount;
   };
-  const exhausted = (limit: string): never => {
+  const exhausted = (limit: StudyAgentBudgetDimension): never => {
     sync();
     throw new StudyAgentFailure(
       createHiveError({
@@ -96,7 +105,15 @@ export async function runStudyInvestigation(
         correlationId: input.correlationId,
         operationId: input.runId,
         diagnosticReason: "study_agent_budget_exhausted",
-        diagnosticField: `budget.${limit}`,
+        diagnosticField: formatStudyAgentBudgetDiagnosticField({
+          dimension: limit,
+          roundsUsed: totals.rounds,
+          roundsAllowed: totals.roundsAllowed,
+          toolCalls: totals.toolCalls,
+          invalidCalls: totals.invalidCalls,
+          questionsCompleted: totals.questionsCompleted,
+          questionsTotal: totals.questionsTotal,
+        }),
       }),
       totals,
     );
