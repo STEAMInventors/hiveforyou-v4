@@ -56,7 +56,16 @@ describe("failure diagnostics", () => {
       operation: "study_agent_turn",
       task: "study",
     });
-    expect(classifyFailure({ stage: "WRITING", diagnosticReason: "model_output_truncated" }).operation).toBe("plan_completion");
+    expect(classifyFailure({ stage: "WRITING", diagnosticReason: "model_output_truncated" })).toMatchObject({
+      component: "planner",
+      operation: "study_agent_turn",
+      task: "writer",
+    });
+    expect(classifyFailure({ stage: "WRITING", diagnosticReason: "writer_agent_budget_exhausted" })).toEqual({
+      component: "writer",
+      operation: "write_report",
+      task: "writer",
+    });
     expect(classifyFailure({ stage: "INVESTIGATING", diagnosticReason: "study_agent_budget_exhausted" })).toEqual({
       component: "analysis",
       operation: "investigate",

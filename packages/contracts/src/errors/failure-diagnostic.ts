@@ -169,7 +169,11 @@ export function classifyFailure(input: {
     reason === "model_context_exceeded" ||
     reason === "model_alias_unconfigured";
   if (planner) {
-    return { component: "planner", operation: input.stage === "INVESTIGATING" ? "study_agent_turn" : "plan_completion", task };
+    return {
+      component: "planner",
+      operation: input.stage === "INVESTIGATING" || input.stage === "WRITING" ? "study_agent_turn" : "plan_completion",
+      task,
+    };
   }
   if (
     reason.startsWith("reader_") ||
@@ -185,6 +189,9 @@ export function classifyFailure(input: {
   }
   if (reason.startsWith("view_")) {
     return { component: "a2ui", operation: "bind_view", task: "writer" };
+  }
+  if (reason === "writer_agent_budget_exhausted") {
+    return { component: "writer", operation: "write_report", task: "writer" };
   }
   if (reason.startsWith("writer_")) {
     return { component: "writer", operation: "validate_writer", task: "writer" };

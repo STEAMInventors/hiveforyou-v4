@@ -30,11 +30,19 @@ export type PlannerPrompt = {
   readonly systemPrompt: string;
 };
 
+export type WriterPrompt = {
+  readonly task: "writer";
+  readonly id: string;
+  readonly digest: string;
+  readonly systemPrompt: string;
+  readonly schemaDigest: string;
+};
+
 export type PromptCatalog = {
   readonly planner: Record<PreparationPlannerTask, PlannerPrompt>;
   readonly studyTemplate: { readonly id: string; readonly version: string; readonly digest: string; readonly text: string };
   readonly outputSchema: { readonly digest: string; readonly text: string };
-  readonly writer: PlannerPrompt & { readonly schemaDigest: string };
+  readonly writer: WriterPrompt;
 };
 
 export function sha256Digest(text: string): string {
@@ -126,7 +134,7 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
       task: "writer",
       id: PLANNER_TASK_PROMPT_IDS.writer,
       digest: sha256Digest(writerFile),
-      systemPrompt: `${extractSection(writerFile, "System")}\n\n## Output schema\n\n${writerSchema}`,
+      systemPrompt: extractSection(writerFile, "System"),
       schemaDigest: sha256Digest(writerSchema),
     },
     studyTemplate: {

@@ -1,8 +1,8 @@
 # Hive Writer — v1
 
-Prompt id: `hive-writer/1` · Stage: Writing the report · Model: `PLANNER_WRITER_LITELLM_ALIAS` chosen by `v4-planner` (approved: `harvester`) · Output: one JSON object, validated as `hive.writer-report/1`
+Prompt id: `hive-writer/1` · Stage: Writing the report · Model: `PLANNER_WRITER_LITELLM_ALIAS` chosen by `v4-planner` (approved: `harvester`) · Output: assembled from the five Writer tools and validated as `hive.writer-report/1`
 
-The text under **System**, followed by the output JSON schema `hive.writer-report-1.schema.json`, is sent as the system message. The user message is a JSON object built by trusted code from **one accepted, immutable Canonical Study revision**: its claim catalog (each claim with a stable id, its text, its source pages and quotes, and for calculations a numeric status), the person's requests, the validated audience configuration, the domain and the coverage. The same Study is written for two audiences in two separate calls; each call writes **one** report. Trusted code validates the result, recomputes every scenario, binds the view to verified values, and rejects anything it cannot support. Nothing is repaired.
+The text under **System** is sent as the system message alongside the five Writer tool definitions. The user message is a JSON object built by trusted code from **one accepted, immutable Canonical Study revision**: its claim catalog (each claim with a stable id, its text, its source pages and quotes, and for calculations a numeric status), the person's requests, the validated audience configuration, the domain and the coverage. The same Study is written for two audiences in two separate runs; each run writes **one** report through the Writer tools. Trusted code validates every block, scenario and A2UI component as it is recorded, recomputes every scenario, binds the view to verified values, and rejects anything it cannot support. Nothing is repaired or auto-cited in code.
 
 ---
 
@@ -84,9 +84,21 @@ Compose the page from this catalog only, in reading order. Anything else is reje
 
 Text in tables, comparisons, timelines and lists follows the same number rule as blocks: every number must appear in the claims that item cites.
 
-### Output
+### Building the report with the five tools
 
-Return exactly one JSON object conforming to `hive.writer-report/1` (schema below) and nothing else. `schema` is `"hive.writer-report/1"`; `audience` repeats the requested audience. Section ids are `s1`, `s2`, …; scenario ids `S1`…; result ids `R1`… within a scenario. Use `[]` for empty lists.
+Do not return a raw JSON document in prose. Build the report through these five tools:
+
+- `set_report_outline` — sets `title` and `1`–`6` `summary` blocks.
+- `record_section` — records or replaces one narrative section (`id`: `s1`, `s2`, …, `s99`; `heading`; `1`–`20` `blocks`).
+- `record_scenario` — records or replaces one optional scenario (`id`: `S1`–`S9`; `title`; `question`; `rationale`; `claimRefs`; `parameters`; `results` with `R1`–`R9` formula trees).
+- `record_view_component` — appends one A2UI component to `view` in reading order (or replaces the component at zero-based `index` when `index` is provided). Any `sectionId`, `scenarioId` or `{{result:S*.R*}}` binding it references must already be recorded before that component call.
+- `finish_report` — completes the report once the outline, at least one section, any scenarios, and the `view` components are recorded and every mandatory uncertainty is visibly surfaced.
+
+**How to execute:**
+
+- **Batch independent calls in order.** You may call `set_report_outline`, all `record_section` calls (`s1`, `s2`, …), any `record_scenario` calls (`S1`, …), all `record_view_component` calls in reading order, and `finish_report` in a single turn. Tool calls are executed in the order you send them, so record `set_report_outline`, `record_section` and `record_scenario` before `record_view_component` calls that reference those sections or scenarios.
+- **Targeted correction on rejection.** Each tool validates its arguments immediately. Rejected tool calls do not alter previously accepted outline, section, scenario or view state. If a tool call returns `ok: false` (for example `writer_claim_kind`, `writer_number_ungrounded`, `view_props_invalid` or `writer_uncertainty_hidden`), inspect its `field`, `hint` and `candidateClaimIds`, then re-call **only** the rejected section, outline, scenario or view component (using the same section `id`, scenario `id` or view `index`) and call `finish_report` again. Never regenerate sections or components that already succeeded.
+- **Never invent claim references, numerical values or source citations.** Cite only claim ids present in the user message's `claims` list. If an error reports an ungrounded number that appears in a compatible Study claim (`candidateClaimIds`), add that specific claim id to `claimRefs` only when that claim genuinely supports the statement; if the number does not appear in any Study claim, remove the unsupported number from the prose.
 
 ---
 

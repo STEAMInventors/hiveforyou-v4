@@ -17,17 +17,11 @@ import type { PlannerPrompt } from "./prompt-catalog";
 
 /** Above the planner's own 150 s LiteLLM timeout and below the 180 s stage lease. */
 export const PLANNER_HTTP_TIMEOUT_MS = 160_000;
-/**
- * Writer calls: above the planner's 270 s model timeout and below the 300 s Vercel function
- * limit, so a planner timeout arrives as MODEL_TIMEOUT rather than a killed function.
- */
-export const PLANNER_LONG_HTTP_TIMEOUT_MS = 280_000;
 
 export type PlannerServiceConfig = {
   readonly baseUrl: string;
   readonly serviceToken: string;
   readonly timeoutMs: number;
-  readonly longTimeoutMs?: number;
 };
 
 export type PlannerDeps = {
@@ -82,7 +76,7 @@ export function loadPlannerServiceConfig(
       diagnosticReason: "planner_unconfigured",
     });
   }
-  return { baseUrl, serviceToken, timeoutMs: PLANNER_HTTP_TIMEOUT_MS, longTimeoutMs: PLANNER_LONG_HTTP_TIMEOUT_MS };
+  return { baseUrl, serviceToken, timeoutMs: PLANNER_HTTP_TIMEOUT_MS };
 }
 
 /** Parses planner HTTP bodies; never throws. */
@@ -260,7 +254,7 @@ export async function callPlanner(
   const raw = await exchange(deps, {
     path: "/v1/plan-completion",
     body,
-    timeoutMs: input.prompt.task === "writer" ? (config.longTimeoutMs ?? PLANNER_LONG_HTTP_TIMEOUT_MS) : config.timeoutMs,
+    timeoutMs: config.timeoutMs,
     correlationId: input.correlationId,
     processingRunId: input.processingRunId,
   });
@@ -272,8 +266,8 @@ export async function callPlanner(
 export type StudyAgentTurnResult = StudyAgentTurn & { readonly roundTripMs: number };
 
 /**
- * One Canonical Study tool-calling turn (D-042). The planner relays the conversation to the model
- * and returns its tool calls unexecuted; the caller's ledger executes them.
+ * One Canonical Study or Writer tool-calling turn (D-042, D-045). The planner relays the
+ * conversation to the model and returns its tool calls unexecuted; the caller's ledger executes them.
  */
 export async function callStudyAgentTurn(
   deps: PlannerDeps,

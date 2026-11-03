@@ -538,3 +538,32 @@ export function mayaWriterOutput(audience: "CUSTOMER" | "PRO" = "CUSTOMER") {
     ],
   };
 }
+
+/**
+ * Scripted Writer tool-calling sequence (D-045) that builds `draft` (default: `mayaWriterOutput(audience)`)
+ * through `WriterAgentLedger` and finishes in one batched turn.
+ */
+export function mayaWriterAgentTurns(
+  audience: "CUSTOMER" | "PRO" = "CUSTOMER",
+  draft: ReturnType<typeof mayaWriterOutput> = mayaWriterOutput(audience),
+): ScriptedCall[][] {
+  let n = 0;
+  const call = (name: string, args: Record<string, unknown>): ScriptedCall => ({
+    id: `toolu_writer_${audience.toLowerCase()}_${(n += 1)}`,
+    name,
+    arguments: JSON.stringify(args),
+  });
+  return [
+    [
+      call("set_report_outline", { title: draft.title, summary: draft.summary }),
+      ...draft.sections.map((section) =>
+        call("record_section", { id: section.id, heading: section.heading, blocks: section.blocks }),
+      ),
+      ...draft.scenarios.map((scenario) => call("record_scenario", scenario)),
+      ...draft.view.map((component) =>
+        call("record_view_component", { component: component.component, props: component.props }),
+      ),
+      call("finish_report", {}),
+    ],
+  ];
+}

@@ -115,7 +115,7 @@ export type ReportBuildContext = {
 
 const LIMITS = { label: 200, cell: 600, rows: 40, columns: 8, items: 30 };
 
-class BindRejection extends Error {
+export class BindRejection extends Error {
   constructor(
     readonly diagnosticReason: string,
     message: string,
@@ -174,9 +174,9 @@ export function buildReport(raw: unknown, context: ReportBuildContext): ReportBu
   }
 }
 
-const DOCUMENTED_GRANULAR_KINDS = new Set<StudyClaim["kind"]>(["FACT", "CALCULATION", "CONFLICT", "ANSWER"]);
-const FINDING_GRANULAR_KINDS = new Set<StudyClaim["kind"]>(["FACT", "CALCULATION", "ASSESSMENT", "CONFLICT", "ANSWER"]);
-const EVIDENCE_GRANULAR_KINDS = new Set<StudyClaim["kind"]>([
+export const DOCUMENTED_GRANULAR_KINDS = new Set<StudyClaim["kind"]>(["FACT", "CALCULATION", "CONFLICT", "ANSWER"]);
+export const FINDING_GRANULAR_KINDS = new Set<StudyClaim["kind"]>(["FACT", "CALCULATION", "ASSESSMENT", "CONFLICT", "ANSWER"]);
+export const EVIDENCE_GRANULAR_KINDS = new Set<StudyClaim["kind"]>([
   "FACT",
   "CALCULATION",
   "ASSESSMENT",
@@ -184,7 +184,7 @@ const EVIDENCE_GRANULAR_KINDS = new Set<StudyClaim["kind"]>([
   "CONFLICT",
   "ANSWER",
 ]);
-const ISSUE_QUESTION_GRANULAR_KINDS = new Set<StudyClaim["kind"]>([
+export const ISSUE_QUESTION_GRANULAR_KINDS = new Set<StudyClaim["kind"]>([
   "FACT",
   "CALCULATION",
   "ASSESSMENT",
@@ -194,6 +194,258 @@ const ISSUE_QUESTION_GRANULAR_KINDS = new Set<StudyClaim["kind"]>([
   "LIMITATION",
   "ANSWER",
 ]);
+
+export type ViewComponentValidationContext = {
+  readonly claims: ReadonlyMap<string, StudyClaim>;
+  readonly questionsWithFacts: ReadonlySet<string>;
+  readonly hasOutline: boolean;
+  readonly sectionIds: ReadonlySet<string>;
+  readonly scenarioResultIds: ReadonlySet<string>;
+  readonly scenarioIds: ReadonlySet<string>;
+};
+
+/**
+ * Validates one A2UI component proposal against the exact catalog, claim-kind, page-reference,
+ * numerical-grounding, binding-token and section/scenario existence rules enforced by `bindApplicationView`.
+ */
+export function validateViewComponentProposal(
+  proposal: { readonly component: string; readonly props: Record<string, unknown> },
+  path: string,
+  context: ViewComponentValidationContext,
+): void {
+  const { claims, questionsWithFacts } = context;
+  const props = proposal.props;
+  if (!(A2UI_COMPONENTS as readonly string[]).includes(proposal.component)) {
+    reject("view_component_unknown", `${path} uses a component outside the allowed catalog.`);
+  }
+  const grounded = (value: string, claimIds: readonly string[], fieldPath: string) => {
+    const ungrounded = firstUngroundedNumericToken(value, groundingNumbersForClaims(claims, claimIds));
+    if (ungrounded) {
+      reject(
+        "writer_number_ungrounded",
+        `${fieldPath} states a number its sources do not contain.`,
+        numericDiagnosticField(fieldPath, ungrounded),
+      );
+    }
+  };
+  const str = (value: unknown, fieldPath: string, max = LIMITS.label): string => {
+    if (typeof value !== "string" || value.trim() === "" || value.length > max) {
+      reject("view_props_invalid", `${fieldPath} must be short text.`);
+    }
+    return value;
+  };
+  const arr = (value: unknown, fieldPath: string, max = LIMITS.items, min = 1): unknown[] => {
+    if (!Array.isArray(value) || value.length < min || value.length > max) reject("view_props_invalid", `${fieldPath} must be a list.`);
+    return value;
+  };
+  const obj = (value: unknown, fieldPath: string): Record<string, unknown> => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) reject("view_props_invalid", `${fieldPath} must be an object.`);
+    return value as Record<string, unknown>;
+  };
+  const granularClaims = (
+    value: unknown,
+    fieldPath: string,
+    options: {
+      readonly allowedKinds: ReadonlySet<StudyClaim["kind"]>;
+      readonly requireRefs: boolean;
+      readonly allowMissingEvidenceAnswer?: boolean;
+      readonly unverifiedForUnsupported?: boolean;
+    },
+  ): string[] => {
+    if (!Array.isArray(value)) reject("view_props_invalid", `${fieldPath} must be a list.`);
+    if (value.length === 0) reject("writer_claim_missing", `${fieldPath} needs at least one Study claim.`);
+    if (value.length > 24) reject("view_props_invalid", `${fieldPath} must be a list.`);
+    const ids = value.map((id, i) => {
+      if (typeof id !== "string" || !claims.has(id)) reject("writer_claim_unknown", `${fieldPath}[${i}] is not a Study claim.`);
+      const claim = claims.get(id) as StudyClaim;
+      if (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED") {
+        reject("writer_unverified_number", `${fieldPath}[${i}] cites ${id}, which was not verified.`);
+      }
+      if (!options.allowedKinds.has(claim.kind)) {
+        if (options.unverifiedForUnsupported && (claim.kind === "UNCERTAINTY" || claim.kind === "LIMITATION")) {
+          reject("writer_unverified_number", `${fieldPath}[${i}] lists ${id} as a finding.`);
+        }
+        reject("writer_claim_kind", `${fieldPath}[${i}] cites ${id}, which cannot support this item.`);
+      }
+      if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+        const allowedMissingAnswer =
+          options.allowMissingEvidenceAnswer === true &&
+          (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING");
+        if (!allowedMissingAnswer) {
+          reject("writer_claim_kind", `${fieldPath}[${i}] cites broad answer ${id} when specific facts exist.`);
+        }
+      }
+      if (options.requireRefs && claim.refs.length === 0) {
+        reject("writer_claim_missing", `${fieldPath}[${i}] cites ${id}, which has no source page reference.`);
+      }
+      return id;
+    });
+    return [...new Set(ids)];
+  };
+  const checkBinding = (binding: unknown, fieldPath: string) => {
+    const match = typeof binding === "string" ? /^\{\{(calc|result):([A-Za-z0-9.]{1,32})\}\}$/.exec(binding) : null;
+    if (!match) reject("writer_binding_invalid", `${fieldPath} must be one binding token.`);
+    const [, kind, id] = match;
+    if (kind === "calc") {
+      const claim = claims.get(id);
+      if (!claim || claim.kind !== "CALCULATION" || claim.numericStatus !== "VERIFIED") {
+        reject("writer_unverified_number", `${fieldPath} binds a calculation that was not verified.`);
+      }
+      return;
+    }
+    if (!context.scenarioResultIds.has(id)) {
+      reject("writer_binding_invalid", `${fieldPath} binds an unknown scenario result.`);
+    }
+  };
+
+  switch (proposal.component as A2uiComponentName) {
+    case "Narrative": {
+      if (props.sectionId === "summary") {
+        if (!context.hasOutline) reject("view_props_invalid", `${path}.sectionId must name a section.`);
+        break;
+      }
+      if (typeof props.sectionId !== "string" || !context.sectionIds.has(props.sectionId)) {
+        reject("view_props_invalid", `${path}.sectionId must name a section.`);
+      }
+      break;
+    }
+    case "KeyFindings": {
+      granularClaims(props.claimIds, `${path}.claimIds`, {
+        allowedKinds: FINDING_GRANULAR_KINDS,
+        requireRefs: true,
+        unverifiedForUnsupported: true,
+      });
+      str(props.title, `${path}.title`);
+      break;
+    }
+    case "Metric": {
+      if (props.unit !== undefined && props.unit !== null) str(props.unit, `${path}.unit`, 40);
+      checkBinding(props.binding, `${path}.binding`);
+      str(props.label, `${path}.label`);
+      break;
+    }
+    case "RecordTable": {
+      const columns = arr(props.columns, `${path}.columns`, LIMITS.columns).map((c, i) => str(c, `${path}.columns[${i}]`));
+      arr(props.rows, `${path}.rows`, LIMITS.rows).forEach((r, i) => {
+        const row = obj(r, `${path}.rows[${i}]`);
+        const claimIds = granularClaims(row.claimRefs, `${path}.rows[${i}].claimRefs`, {
+          allowedKinds: DOCUMENTED_GRANULAR_KINDS,
+          requireRefs: true,
+        });
+        const cells = arr(row.cells, `${path}.rows[${i}].cells`, columns.length).map((c, j) => {
+          const cell = str(c, `${path}.rows[${i}].cells[${j}]`, LIMITS.cell);
+          grounded(cell, claimIds, `${path}.rows[${i}].cells[${j}]`);
+          return cell;
+        });
+        if (cells.length !== columns.length) reject("view_props_invalid", `${path}.rows[${i}] must fill every column.`);
+      });
+      str(props.title, `${path}.title`);
+      break;
+    }
+    case "Comparison": {
+      arr(props.items, `${path}.items`).forEach((value, i) => {
+        const item = obj(value, `${path}.items[${i}]`);
+        const claimIds = granularClaims(item.claimRefs, `${path}.items[${i}].claimRefs`, {
+          allowedKinds: DOCUMENTED_GRANULAR_KINDS,
+          requireRefs: true,
+        });
+        for (const field of ["label", "left", "right"]) {
+          const text = str(item[field], `${path}.items[${i}].${field}`, LIMITS.cell);
+          grounded(text, claimIds, `${path}.items[${i}].${field}`);
+        }
+      });
+      str(props.title, `${path}.title`);
+      str(props.leftLabel, `${path}.leftLabel`);
+      str(props.rightLabel, `${path}.rightLabel`);
+      break;
+    }
+    case "Timeline": {
+      arr(props.events, `${path}.events`).forEach((value, i) => {
+        const item = obj(value, `${path}.events[${i}]`);
+        const claimIds = granularClaims(item.claimRefs, `${path}.events[${i}].claimRefs`, {
+          allowedKinds: DOCUMENTED_GRANULAR_KINDS,
+          requireRefs: true,
+        });
+        const date = str(item.date, `${path}.events[${i}].date`, LIMITS.label);
+        if (numbersIn(date).length === 0) {
+          reject(
+            "writer_number_ungrounded",
+            `${path}.events[${i}].date states a date its sources do not contain.`,
+            numericDiagnosticField(`${path}.events[${i}].date`, { position: 0, category: "date" }),
+          );
+        }
+        grounded(date, claimIds, `${path}.events[${i}].date`);
+        const text = str(item.text, `${path}.events[${i}].text`, LIMITS.cell);
+        grounded(text, claimIds, `${path}.events[${i}].text`);
+      });
+      str(props.title, `${path}.title`);
+      break;
+    }
+    case "IssueList": {
+      arr(props.issues, `${path}.issues`).forEach((value, i) => {
+        const item = obj(value, `${path}.issues[${i}]`);
+        const severity = item.severity;
+        if (severity !== "HIGH" && severity !== "MEDIUM" && severity !== "LOW") {
+          reject("view_props_invalid", `${path}.issues[${i}].severity is not allowed.`);
+        }
+        const claimIds = granularClaims(item.claimRefs, `${path}.issues[${i}].claimRefs`, {
+          allowedKinds: ISSUE_QUESTION_GRANULAR_KINDS,
+          requireRefs: false,
+          allowMissingEvidenceAnswer: true,
+        });
+        const text = str(item.text, `${path}.issues[${i}].text`, LIMITS.cell);
+        grounded(text, claimIds, `${path}.issues[${i}].text`);
+      });
+      str(props.title, `${path}.title`);
+      break;
+    }
+    case "QuestionList":
+    case "Checklist": {
+      const isQuestions = proposal.component === "QuestionList";
+      const field = isQuestions ? "questions" : "items";
+      arr(props[field], `${path}.${field}`).forEach((value, i) => {
+        const item = obj(value, `${path}.${field}[${i}]`);
+        const text = str(item.text, `${path}.${field}[${i}].text`, LIMITS.cell);
+        const claimIds = granularClaims(item.claimRefs, `${path}.${field}[${i}].claimRefs`, {
+          allowedKinds: isQuestions ? ISSUE_QUESTION_GRANULAR_KINDS : EVIDENCE_GRANULAR_KINDS,
+          requireRefs: !isQuestions,
+          allowMissingEvidenceAnswer: isQuestions,
+        });
+        grounded(text, claimIds, `${path}.${field}[${i}].text`);
+      });
+      str(props.title, `${path}.title`);
+      break;
+    }
+    case "EvidencePanel": {
+      granularClaims(props.claimIds, `${path}.claimIds`, {
+        allowedKinds: EVIDENCE_GRANULAR_KINDS,
+        requireRefs: true,
+      });
+      str(props.title, `${path}.title`);
+      break;
+    }
+    case "Chart": {
+      const kind = props.kind;
+      if (kind !== "bar" && kind !== "line") reject("view_props_invalid", `${path}.kind must be bar or line.`);
+      if (props.unit !== undefined && props.unit !== null) str(props.unit, `${path}.unit`, 40);
+      arr(props.points, `${path}.points`, 24, 2).forEach((value, i) => {
+        const point = obj(value, `${path}.points[${i}]`);
+        checkBinding(point.binding, `${path}.points[${i}].binding`);
+        str(point.label, `${path}.points[${i}].label`);
+      });
+      str(props.title, `${path}.title`);
+      break;
+    }
+    case "ScenarioExplorer": {
+      if (typeof props.scenarioId !== "string" || !context.scenarioIds.has(props.scenarioId)) {
+        reject("view_props_invalid", `${path}.scenarioId must name a scenario.`);
+      }
+      break;
+    }
+    case "SourceReferences":
+      break;
+  }
+}
 
 function normalizeProse(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();

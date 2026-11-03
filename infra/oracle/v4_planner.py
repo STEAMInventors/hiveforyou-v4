@@ -1,17 +1,18 @@
 """
-HiveForYou V4 — Planner (D-039, D-042).
+HiveForYou V4 — Planner (D-039, D-042, D-045).
 
 Authenticated model relay for Analyze. Two contracts, both forwarded to the private LiteLLM gateway
 with a fixed model alias and a scoped virtual key that never leaves Oracle:
 
-- `planner-completion@1` (`POST /v1/plan-completion`): one JSON completion per model stage
-  (intent, domain, intelligence, plan, writer). Returns the parsed JSON plus usage metadata.
+- `planner-completion@1` (`POST /v1/plan-completion`): one JSON completion per preparation stage
+  (intent, domain, intelligence, plan). Returns the parsed JSON plus usage metadata.
 - `study-agent-turn@1` (`POST /v1/study-agent-turn`): one native tool-calling turn of the Canonical
-  Study investigation. Forwards the conversation and the fixed tool definitions and returns the
-  model's tool calls unexecuted. The planner never runs a Hive tool; the web workflow does.
+  Study investigation (`task: "study"`) or Writer report generation (`task: "writer"`). Forwards the
+  conversation and the fixed tool definitions and returns the model's tool calls unexecuted. The
+  planner never runs a Hive tool; the web workflow does.
 
 - Callers cannot choose the model. Preparation tasks use `TASK_MODEL_ALIASES[task]` when set,
-  otherwise `PLANNER_LITELLM_ALIAS` (`sorter`). The Study turn and `writer` use
+  otherwise `PLANNER_LITELLM_ALIAS` (`sorter`). `study` and `writer` turns use
   `PLANNER_STUDY_LITELLM_ALIAS` / `PLANNER_WRITER_LITELLM_ALIAS` and fail closed when unset.
 - Bearer `PLANNER_SERVICE_TOKEN` is compared in constant time; an unset token fails closed.
 - Logs carry identifiers, codes, token counts and latency only — never prompts, page text,
@@ -61,13 +62,12 @@ REQUIRED_TASK_ALIAS_ENV: dict[str, str] = {
     "study": "PLANNER_STUDY_LITELLM_ALIAS",
     "writer": "PLANNER_WRITER_LITELLM_ALIAS",
 }
-# `study` is not a single completion any more (D-042); it runs through /v1/study-agent-turn.
+# `study` (D-042) and `writer` (D-045) run through /v1/study-agent-turn.
 TASK_MAX_OUTPUT_TOKENS: dict[str, int] = {
     "intent": 4000,
     "domain": 4000,
     "intelligence": 12000,
     "plan": 12000,
-    "writer": 16000,
 }
 MAX_OUTPUT_TOKENS = max(TASK_MAX_OUTPUT_TOKENS.values())
 TASK_MAX_REQUEST_BYTES: dict[str, int] = {
@@ -75,7 +75,6 @@ TASK_MAX_REQUEST_BYTES: dict[str, int] = {
     "domain": 256 * 1024,
     "intelligence": 256 * 1024,
     "plan": 256 * 1024,
-    "writer": 768 * 1024,
 }
 MAX_REQUEST_BYTES = max(TASK_MAX_REQUEST_BYTES.values())
 TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {
@@ -83,12 +82,9 @@ TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {
     "domain": 64_000,
     "intelligence": 64_000,
     "plan": 64_000,
-    "writer": 96_000,
 }
 MAX_SYSTEM_PROMPT_CHARS = max(TASK_MAX_SYSTEM_PROMPT_CHARS.values())
 LITELLM_TIMEOUT_SECONDS = 150.0
-# Below the web server's 280 s client timeout and the 300 s Vercel function limit.
-TASK_LITELLM_TIMEOUT_SECONDS: dict[str, float] = {"writer": 270.0}
 
 # study-agent-turn@1 ceilings; the web budget stays below them.
 STUDY_AGENT_TOOL_NAMES = frozenset(
@@ -106,6 +102,19 @@ STUDY_AGENT_TOOL_NAMES = frozenset(
         "finish_study",
     }
 )
+WRITER_AGENT_TOOL_NAMES = frozenset(
+    {
+        "set_report_outline",
+        "record_section",
+        "record_scenario",
+        "record_view_component",
+        "finish_report",
+    }
+)
+AGENT_TASK_TOOLS: dict[str, frozenset[str]] = {
+    "study": STUDY_AGENT_TOOL_NAMES,
+    "writer": WRITER_AGENT_TOOL_NAMES,
+}
 STUDY_AGENT_MAX_REQUEST_BYTES = 1024 * 1024
 STUDY_AGENT_MAX_SYSTEM_PROMPT_CHARS = 200_000
 STUDY_AGENT_MAX_OUTPUT_TOKENS = 8000
@@ -130,7 +139,7 @@ class PlannerCompletionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["planner-completion@1"]
-    task: Literal["intent", "domain", "intelligence", "plan", "writer"]
+    task: Literal["intent", "domain", "intelligence", "plan"]
     prompt_id: str = Field(min_length=1, max_length=64)
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=MAX_SYSTEM_PROMPT_CHARS)
@@ -186,6 +195,7 @@ class _ToolDefinition(_Strict):
 
 class StudyAgentTurnRequest(_Strict):
     contract_version: Literal["study-agent-turn@1"]
+    task: Literal["study", "writer"] = "study"
     prompt_id: str = Field(min_length=1, max_length=64)
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=STUDY_AGENT_MAX_SYSTEM_PROMPT_CHARS)
@@ -312,13 +322,23 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
         parsed = StudyAgentTurnRequest.model_validate_json(body)
     except ValidationError as exc:
         raise _invalid_request("Planner request is invalid.") from exc
-    if parsed.prompt_id != TASK_PROMPT_IDS["study"]:
+    if parsed.prompt_id != TASK_PROMPT_IDS[parsed.task]:
         raise _invalid_request("Prompt does not match the task.")
     if not DIGEST_RE.match(parsed.prompt_digest):
         raise _invalid_request("Prompt digest is invalid.")
+    expected_tools = AGENT_TASK_TOOLS[parsed.task]
     names = [tool.function.name for tool in parsed.tools]
-    if len(names) != len(STUDY_AGENT_TOOL_NAMES) or set(names) != STUDY_AGENT_TOOL_NAMES:
-        raise _invalid_request("Tools do not match the Study tool set.")
+    if len(names) != len(expected_tools) or set(names) != expected_tools:
+        raise _invalid_request(f"Tools do not match the {parsed.task} tool set.")
+    for tool in parsed.tools:
+        params = tool.function.parameters
+        if (
+            params.get("type") != "object"
+            or params.get("additionalProperties") is not False
+            or not isinstance(params.get("properties"), dict)
+            or ("required" in params and not isinstance(params.get("required"), list))
+        ):
+            raise _invalid_request("Tool parameters must be a closed object schema.")
     if not isinstance(parsed.messages[0], _UserMessage):
         raise _invalid_request("The conversation must start with a user message.")
     pending: set[str] = set()
@@ -531,8 +551,7 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
         "max_tokens": request.max_output_tokens,
         "response_format": {"type": "json_object"},
     }
-    timeout = TASK_LITELLM_TIMEOUT_SECONDS.get(request.task, LITELLM_TIMEOUT_SECONDS)
-    data, choice, latency_ms = await _post_litellm(settings, payload, timeout)
+    data, choice, latency_ms = await _post_litellm(settings, payload, LITELLM_TIMEOUT_SECONDS)
     message = choice.get("message")
     usage = _usage(data)
     completion_tokens = usage["completion_tokens"]
@@ -631,9 +650,9 @@ def _dump_message(message: _UserMessage | _AssistantMessage | _ToolMessage) -> d
 
 
 async def _agent_turn(request: StudyAgentTurnRequest, settings: dict[str, str]) -> dict[str, Any]:
-    """Relays one Study tool-calling turn. Returns the model's tool calls; never executes them."""
+    """Relays one Study or Writer tool-calling turn. Returns the model's tool calls; never executes them."""
     _require_litellm(settings)
-    alias = _require_alias("study", settings)
+    alias = _require_alias(request.task, settings)
     payload: dict[str, object] = {
         "model": alias,
         "messages": [{"role": "system", "content": request.system_prompt}, *(_dump_message(m) for m in request.messages)],
@@ -754,17 +773,26 @@ async def study_agent_turn(request: Request) -> JSONResponse:
     correlation_id = _correlation_id(request.headers.get("x-correlation-id"))
     run_id = _safe_token((request.headers.get("x-study-run-id") or "").strip())
     settings = _settings()
+    task = "study"
     started = time.monotonic()
     try:
         _authorize(request.headers.get("authorization"), settings["service_token"])
-        parsed = _parse_agent_request(await request.body())
+        raw_body = await request.body()
+        try:
+            peek = json.loads(raw_body)
+            if isinstance(peek, dict) and peek.get("task") in ("study", "writer"):
+                task = str(peek["task"])
+        except ValueError:
+            pass
+        parsed = _parse_agent_request(raw_body)
+        task = parsed.task
         result = await _agent_turn(parsed, settings)
         usage = result["usage"]
         _log(
             "v4_study_agent_turn_succeeded",
             correlation_id=correlation_id,
             processing_run_id=run_id,
-            task="study",
+            task=task,
             component="planner",
             operation="study_agent_turn",
             prompt_id=parsed.prompt_id,
@@ -782,7 +810,7 @@ async def study_agent_turn(request: Request) -> JSONResponse:
             "v4_study_agent_turn_failed",
             correlation_id=correlation_id,
             processing_run_id=run_id,
-            task="study",
+            task=task,
             component="planner",
             operation="study_agent_turn",
             error_code=error.code,
@@ -791,4 +819,4 @@ async def study_agent_turn(request: Request) -> JSONResponse:
             latency_ms=int((time.monotonic() - started) * 1000),
             **error.log_fields,
         )
-        return _error_response(error, correlation_id, run_id, "study", "study_agent_turn")
+        return _error_response(error, correlation_id, run_id, task, "study_agent_turn")

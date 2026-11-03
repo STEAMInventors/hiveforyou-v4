@@ -1,4 +1,9 @@
-import { PLANNER_CONTRACT_VERSION, verifyStudyInvestigation } from "@hiveforyou/contracts";
+import {
+  parseWriterAgentBudgetDiagnosticField,
+  STUDY_AGENT_TURN_CONTRACT_VERSION,
+  type StudyAgentTurnRequest,
+  verifyStudyInvestigation,
+} from "@hiveforyou/contracts";
 import {
   MAYA_DOCS,
   MAYA_FILE_NAMES,
@@ -8,6 +13,7 @@ import {
   MAYA_PLAN_QUESTION_IDS,
   MAYA_RUN_ID,
   mayaStudyOutput,
+  mayaWriterAgentTurns,
   mayaWriterOutput,
 } from "@hiveforyou/contracts/testing";
 import { describe, expect, it, vi } from "vitest";
@@ -179,26 +185,37 @@ function fakeDatabase(
   };
 }
 
-function planner(content: unknown, status = 200) {
-  const bodies: { task: string; prompt_id: string; user_payload: Record<string, unknown> }[] = [];
+type ToolCall = { id: string; name: string; arguments: string };
+
+function turnResponse(toolCalls: ToolCall[], overrides: Record<string, unknown> = {}) {
+  return new Response(
+    JSON.stringify({
+      contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION,
+      model_alias: "harvester",
+      resolved_model: "synthetic-model",
+      message: { content: null, tool_calls: toolCalls },
+      usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
+      latency_ms: 900,
+      finish_reason: "tool_calls",
+      ...overrides,
+    }),
+    { status: 200 },
+  );
+}
+
+function planner(turns: ToolCall[][] = mayaWriterAgentTurns("CUSTOMER"), status = 200) {
+  const bodies: StudyAgentTurnRequest[] = [];
   const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-    bodies.push(JSON.parse(String(init?.body)));
+    const body = JSON.parse(String(init?.body)) as StudyAgentTurnRequest;
+    bodies.push(body);
     if (status !== 200) {
-      return new Response(JSON.stringify({ contract_version: "planner-error@1", error_code: "MODEL_TIMEOUT", retryable: true }), { status });
+      return new Response(
+        JSON.stringify({ contract_version: "planner-error@1", error_code: "MODEL_TIMEOUT", retryable: true }),
+        { status },
+      );
     }
-    return new Response(
-      JSON.stringify({
-        contract_version: PLANNER_CONTRACT_VERSION,
-        task: "writer",
-        model_alias: "harvester",
-        resolved_model: "synthetic-model",
-        content_json: content,
-        usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
-        latency_ms: 900,
-        finish_reason: "stop",
-      }),
-      { status: 200 },
-    );
+    const turnIndex = body.messages.filter((m) => m.role === "assistant").length;
+    return turnResponse(turns[turnIndex] ?? []);
   });
   return {
     bodies,
@@ -212,15 +229,24 @@ function planner(content: unknown, status = 200) {
 describe("processReportRun", () => {
   it.each(["CUSTOMER", "PRO"] as const)("writes, validates and saves one %s report from the accepted Study", async (audience) => {
     const db = fakeDatabase(audience);
-    const model = planner(mayaWriterOutput(audience));
+    const model = planner(mayaWriterAgentTurns(audience));
 
     await expect(
       processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
     expect(model.bodies).toHaveLength(1);
-    const payload = model.bodies[0]!.user_payload;
     expect(model.bodies[0]!.task).toBe("writer");
+    expect(model.bodies[0]!.prompt_id).toBe("hive-writer/1");
+    expect(model.bodies[0]!.tools.map((t) => t.function.name)).toEqual([
+      "set_report_outline",
+      "record_section",
+      "record_scenario",
+      "record_view_component",
+      "finish_report",
+    ]);
+
+    const payload = JSON.parse(model.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
     expect(payload).toMatchObject({ task: "writer", audience, coverage: { complete: true } });
     expect(JSON.stringify(payload)).not.toContain(MAYA_PAGES[`${MAYA_DOCS.teacherNotes}:1`]);
     const claims = payload.claims as {
@@ -246,34 +272,96 @@ describe("processReportRun", () => {
     expect(saved.scenario_analysis).toMatchObject({ scenarios: [{ id: "S1" }] });
   });
 
-  it("fails the Writer run as retryable, saving nothing, when the draft cites an unknown claim", async () => {
-    const draft = mayaWriterOutput();
-    draft.summary[0]!.claimRefs = ["P9.F0"];
-    const db = fakeDatabase();
-    const model = planner(draft);
+  it("recovers in Turn 2 when Turn 1 has a writer_claim_kind or writer_number_ungrounded block error, without re-sending accepted sections", async () => {
+    const db = fakeDatabase("CUSTOMER");
+    const base = mayaWriterOutput("CUSTOMER");
+    const badDraft = mayaWriterOutput("CUSTOMER");
+    badDraft.sections[2]!.blocks.push({
+      type: "UNCERTAINTY",
+      text: "Maya is improving at 74 words per minute but has not reached the goal yet.",
+      claimRefs: ["P1.A0"],
+    });
+    const [turn1] = mayaWriterAgentTurns("CUSTOMER", badDraft);
+    const turn2: ToolCall[] = [
+      {
+        id: "toolu_fix_s3",
+        name: "record_section",
+        arguments: JSON.stringify(base.sections[2]),
+      },
+      {
+        id: "toolu_fix_view_s3",
+        name: "record_view_component",
+        arguments: JSON.stringify({ component: "Narrative", props: { sectionId: "s3" } }),
+      },
+      {
+        id: "toolu_fix_finish",
+        name: "finish_report",
+        arguments: "{}",
+      },
+    ];
+    const model = planner([turn1!, turn2]);
 
-    await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
-    expect(db.transitions.at(-1)).toMatchObject({
-      from: "VALIDATING",
+    await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
+    expect(model.bodies).toHaveLength(2);
+    expect(db.attemptCount()).toBe(1);
+    expect(db.saved()).toMatchObject({
+      writer_output: {
+        schema: "hive.writer-report/1",
+        audience: "CUSTOMER",
+        title: base.title,
+        summary: base.summary,
+        sections: base.sections,
+        scenarios: base.scenarios,
+      },
+      view: { audience: "CUSTOMER", schema: "hive-application-view/1" },
+    });
+  });
+
+  it("fails closed without automatic retries, saving nothing, when invalid tool calls exhaust the Writer budget", async () => {
+    const db = fakeDatabase("CUSTOMER");
+    const dispatch = vi.fn(async () => true);
+    const badDraft = mayaWriterOutput("CUSTOMER");
+    badDraft.summary[0]!.claimRefs = ["P9.F0"];
+    const [badTurn] = mayaWriterAgentTurns("CUSTOMER", badDraft);
+    // Repeat invalid calls across turns until the 8-rejected-call budget is exhausted.
+    const turns = Array.from({ length: 5 }, (_, t) =>
+      badTurn!.map((call, i) => ({ ...call, id: `bad_${t}_${i}` })),
+    );
+    const model = planner(turns);
+
+    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("FAILED");
+    const lastTransition = db.transitions.at(-1)!;
+    expect(lastTransition).toMatchObject({
+      from: "WRITING",
       to: "FAILED",
       details: {
         error_code: "MODEL_OUTPUT_INVALID",
-        retryable: true,
-        stage_metric: { stage: "WRITING", outcome: "FAILED" },
+        retryable: false,
+        stage_metric: { stage: "WRITING", outcome: "FAILED", retryable: false },
         failure_diagnostic: {
           component: "writer",
-          operation: "validate_writer",
+          operation: "write_report",
           task: "writer",
-          diagnosticReason: "writer_claim_unknown",
+          diagnosticReason: "writer_agent_budget_exhausted",
+          retryable: false,
         },
       },
     });
+    const diag = lastTransition.details.failure_diagnostic as { diagnosticField?: string };
+    expect(parseWriterAgentBudgetDiagnosticField(diag.diagnosticField)).toMatchObject({
+      dimension: "invalid_calls",
+      roundsUsed: 4,
+      roundsAllowed: 5,
+      invalidCalls: 8,
+    });
+    expect(dispatch).not.toHaveBeenCalled();
     expect(db.saved()).toBeNull();
+    expect(db.studyUnchanged()).toBe(true);
   });
 
   it("fails the Writer run as retryable from WRITING when the model times out", async () => {
     const db = fakeDatabase();
-    const model = planner(null, 504);
+    const model = planner(undefined, 504);
 
     await processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID);
     expect(db.transitions).toEqual([
@@ -283,16 +371,16 @@ describe("processReportRun", () => {
 
   it("does nothing when another invocation already claimed the run", async () => {
     const db = fakeDatabase("CUSTOMER", { claimed: false });
-    const model = planner(mayaWriterOutput());
+    const model = planner(mayaWriterAgentTurns("CUSTOMER"));
     await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("WRITING");
     expect(model.bodies).toHaveLength(0);
   });
 
-  it("retries one Writer audience without affecting the other run's claim semantics", async () => {
+  it("runs Customer and Pro Writer loops independently from the same accepted Study", async () => {
     const customerDb = fakeDatabase("CUSTOMER");
     const proDb = fakeDatabase("PRO");
-    const customerModel = planner(mayaWriterOutput("CUSTOMER"));
-    const proModel = planner(mayaWriterOutput("PRO"));
+    const customerModel = planner(mayaWriterAgentTurns("CUSTOMER"));
+    const proModel = planner(mayaWriterAgentTurns("PRO"));
 
     await expect(processReportRun({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID)).resolves.toBe(
       "SUCCEEDED",
@@ -301,30 +389,25 @@ describe("processReportRun", () => {
 
     expect(customerModel.bodies).toHaveLength(1);
     expect(proModel.bodies).toHaveLength(1);
-    expect(customerModel.bodies[0]!.user_payload.audience).toBe("CUSTOMER");
-    expect(proModel.bodies[0]!.user_payload.audience).toBe("PRO");
+    expect(JSON.parse(customerModel.bodies[0]!.messages[0]!.content ?? "{}").audience).toBe("CUSTOMER");
+    expect(JSON.parse(proModel.bodies[0]!.messages[0]!.content ?? "{}").audience).toBe("PRO");
   });
 
-  it("schedules delayed retry dispatch with backoff, blocks execution before next_dispatch_at, and respects maxAttempts", async () => {
+  it("schedules delayed retry dispatch with backoff on transient model timeouts, blocks execution before next_dispatch_at, and respects maxAttempts", async () => {
     let clock = 1_000_000;
     const db = fakeDatabase("CUSTOMER", { maxAttempts: 3, nowMs: () => clock });
     const dispatch = vi.fn(async () => true);
+    const model = planner(undefined, 504);
 
-    // Attempt 1 fails with Customer writer_claim_kind on sections[2].blocks[3] -> QUEUED + 30s backoff dispatch.
-    const badDraft = mayaWriterOutput("CUSTOMER");
-    badDraft.sections[2]!.blocks.push({
-      type: "UNCERTAINTY",
-      text: "Maya is improving but has not reached the goal yet.",
-      claimRefs: ["P1.A0"],
-    });
-    const model = planner(badDraft);
-
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
+    // Attempt 1 fails with MODEL_TIMEOUT -> QUEUED + 30s backoff dispatch.
+    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
     expect(db.attemptCount()).toBe(1);
     expect(db.transitions.at(-1)?.details.failure_diagnostic).toMatchObject({
-      errorCode: "MODEL_OUTPUT_INVALID",
-      diagnosticReason: "writer_claim_kind",
-      diagnosticField: "sections[2].blocks[3]",
+      component: "planner",
+      operation: "study_agent_turn",
+      task: "writer",
+      errorCode: "MODEL_TIMEOUT",
+      diagnosticReason: "planner_timeout",
       attempt: 1,
       retryable: true,
     });
@@ -337,13 +420,13 @@ describe("processReportRun", () => {
 
     // Before next_dispatch_at (10s elapsed < 30s), claim_report_run refuses to claim and no model call runs.
     clock += 10_000;
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
+    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
     expect(model.bodies).toHaveLength(1);
     expect(dispatch).toHaveBeenCalledTimes(1);
 
     // At next_dispatch_at (30s elapsed), attempt 2 runs and fails -> QUEUED + 60s backoff dispatch.
     clock += 20_000;
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
+    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
     expect(db.attemptCount()).toBe(2);
     expect(model.bodies).toHaveLength(2);
     expect(dispatch).toHaveBeenCalledTimes(2);
@@ -355,7 +438,7 @@ describe("processReportRun", () => {
 
     // At attempt 3 (after 60s), maxAttempts (3) is reached -> terminal FAILED and no further dispatch.
     clock += 60_000;
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("FAILED");
+    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("FAILED");
     expect(db.attemptCount()).toBe(3);
     expect(model.bodies).toHaveLength(3);
     expect(dispatch).toHaveBeenCalledTimes(2);
@@ -389,7 +472,7 @@ describe("processReportRun", () => {
   it("prevents duplicate dispatches from producing duplicate reports", async () => {
     const db = fakeDatabase("CUSTOMER");
     const dispatch = vi.fn(async () => true);
-    const model = planner(mayaWriterOutput("CUSTOMER"));
+    const model = planner(mayaWriterAgentTurns("CUSTOMER"));
 
     const [first, second] = await Promise.all([
       processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID),

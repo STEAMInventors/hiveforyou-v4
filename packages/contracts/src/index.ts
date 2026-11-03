@@ -18,6 +18,7 @@ export * from "./analysis/study-verification";
 export * from "./analysis/study-agent";
 export * from "./reports/writer-report-contracts";
 export * from "./reports/application-view-contracts";
+export * from "./reports/writer-agent";
 export * from "./reports/report-contracts";
 export * from "./study-preparation/planner-wire-contracts";
 export * from "./study-preparation/execution-manifest-contracts";

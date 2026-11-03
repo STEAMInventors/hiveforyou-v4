@@ -125,12 +125,12 @@ export type NumericToken = {
   readonly category: NumericTokenCategory;
 };
 
-const SECTION_ID = /^s[1-9][0-9]?$/;
-const SCENARIO_ID = /^S[1-9]$/;
-const RESULT_ID = /^R[1-9]$/;
-const PARAM_NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
+export const SECTION_ID_PATTERN = /^s[1-9][0-9]?$/;
+export const SCENARIO_ID_PATTERN = /^S[1-9]$/;
+export const RESULT_ID_PATTERN = /^R[1-9]$/;
+export const PARAM_NAME_PATTERN = /^[a-z][a-zA-Z0-9]{0,31}$/;
 
-class WriterRejection extends Error {
+export class WriterRejection extends Error {
   constructor(
     readonly diagnosticReason: string,
     message: string,
@@ -289,9 +289,24 @@ export type WriterValidationContext = {
   readonly claims: readonly StudyClaim[];
 };
 
-const DOCUMENTED_KINDS = new Set(["ANSWER", "FACT", "CALCULATION", "CONFLICT"]);
-const INTERPRETATION_KINDS = new Set(["ANSWER", "FACT", "ASSESSMENT", "DETERMINATION", "CALCULATION", "CONFLICT"]);
-const UNCERTAINTY_KINDS = new Set(["UNCERTAINTY", "CONFLICT", "LIMITATION", "ANSWER", "CALCULATION", "DETERMINATION", "FACT"]);
+export const DOCUMENTED_KINDS: ReadonlySet<StudyClaim["kind"]> = new Set(["ANSWER", "FACT", "CALCULATION", "CONFLICT"]);
+export const INTERPRETATION_KINDS: ReadonlySet<StudyClaim["kind"]> = new Set([
+  "ANSWER",
+  "FACT",
+  "ASSESSMENT",
+  "DETERMINATION",
+  "CALCULATION",
+  "CONFLICT",
+]);
+export const UNCERTAINTY_KINDS: ReadonlySet<StudyClaim["kind"]> = new Set([
+  "UNCERTAINTY",
+  "CONFLICT",
+  "LIMITATION",
+  "ANSWER",
+  "CALCULATION",
+  "DETERMINATION",
+  "FACT",
+]);
 
 function stripTokens(value: string): string {
   return stripReferenceTokens(value);
@@ -336,7 +351,7 @@ export function visiblyPresentsUncertainty(value: string, claim: StudyClaim): bo
   return hasClaimTokenOverlap(cleaned, claim);
 }
 
-function collectVisibleStructuredUncertainties(
+export function collectVisibleStructuredUncertainties(
   component: string,
   props: Record<string, unknown>,
   claims: ReadonlyMap<string, StudyClaim>,
@@ -403,6 +418,219 @@ function collectVisibleStructuredUncertainties(
       break;
   }
 }
+
+export function mustSurfaceClaims(claims: readonly StudyClaim[]): StudyClaim[] {
+  return claims.filter(
+    (claim) =>
+      claim.kind === "CONFLICT" ||
+      claim.kind === "UNCERTAINTY" ||
+      (claim.kind === "ANSWER" && (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING")),
+  );
+}
+
+export function checkGroundedNumber(
+  value: string,
+  refs: readonly string[],
+  claims: ReadonlyMap<string, StudyClaim>,
+  path: string,
+): void {
+  const ungrounded = firstUngroundedNumericToken(value, groundingNumbersForClaims(claims, refs));
+  if (ungrounded) {
+    reject(
+      "writer_number_ungrounded",
+      `${path} states a number its sources do not contain.`,
+      numericDiagnosticField(path, ungrounded),
+    );
+  }
+}
+
+export type ValidatedReportBlock = {
+  readonly block: ReportBlock;
+  readonly cited: string[];
+  readonly surfaced: string[];
+  readonly resultTokens: { scenarioId: string; resultId: string; path: string }[];
+};
+
+export function validateReportBlock(
+  value: unknown,
+  path: string,
+  claims: ReadonlyMap<string, StudyClaim>,
+): ValidatedReportBlock {
+  const item = record(value, path);
+  const type = item.type;
+  if (!(REPORT_BLOCK_TYPES as readonly string[]).includes(type as string)) reject("writer_output_shape", `${path}.type is not allowed.`);
+  const blockText = text(item.text, `${path}.text`, WRITER_LIMITS.blockText);
+  const claimRefs = list(item.claimRefs, `${path}.claimRefs`, WRITER_LIMITS.claimRefsPerBlock).map((ref, i) => {
+    if (typeof ref !== "string" || !claims.has(ref)) reject("writer_claim_unknown", `${path}.claimRefs[${i}] is not a Study claim.`);
+    return ref;
+  });
+  const kinds = claimRefs.map((ref) => claims.get(ref) as StudyClaim);
+  const blockType = type as ReportBlockType;
+  if (blockType === "DOCUMENTED" || blockType === "INTERPRETATION" || blockType === "UNCERTAINTY") {
+    if (claimRefs.length === 0) reject("writer_claim_missing", `${path} needs at least one Study claim.`);
+  }
+  const allowedKinds =
+    blockType === "DOCUMENTED" ? DOCUMENTED_KINDS : blockType === "INTERPRETATION" ? INTERPRETATION_KINDS : UNCERTAINTY_KINDS;
+  if (blockType === "DOCUMENTED" || blockType === "INTERPRETATION" || blockType === "UNCERTAINTY") {
+    for (const claim of kinds) {
+      if (!allowedKinds.has(claim.kind)) reject("writer_claim_kind", `${path} cites ${claim.id}, which cannot support this kind of text.`);
+    }
+  }
+  if (blockType !== "UNCERTAINTY" && kinds.some((claim) => claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED")) {
+    reject("writer_unverified_number", `${path} presents an unverified calculation outside an uncertainty.`);
+  }
+  const cited: string[] = [];
+  const surfaced: string[] = [];
+  const resultTokens: { scenarioId: string; resultId: string; path: string }[] = [];
+  for (const match of blockText.matchAll(BINDING_TOKEN)) {
+    const [, kind, id] = match;
+    if (kind === "calc") {
+      const claim = claims.get(id);
+      if (!claim || claim.kind !== "CALCULATION") reject("writer_binding_invalid", `${path} binds an unknown calculation.`);
+      if (claim.numericStatus !== "VERIFIED") {
+        reject("writer_unverified_number", `${path} binds a calculation that was not verified.`);
+      }
+      cited.push(id);
+    } else {
+      const [scenarioId, resultId] = id.split(".");
+      if (!scenarioId || !resultId) reject("writer_binding_invalid", `${path} binds an unknown scenario result.`);
+      resultTokens.push({ scenarioId, resultId, path });
+    }
+  }
+  if (blockType !== "GENERAL_INFORMATION") checkGroundedNumber(blockText, claimRefs, claims, path);
+  for (const ref of claimRefs) {
+    cited.push(ref);
+    const claim = claims.get(ref);
+    if (!claim) continue;
+    if (blockType === "UNCERTAINTY") {
+      surfaced.push(ref);
+    } else if (
+      (blockType === "DOCUMENTED" || blockType === "INTERPRETATION") &&
+      (claim.kind === "CONFLICT" || visiblyPresentsUncertainty(blockText, claim))
+    ) {
+      surfaced.push(ref);
+    }
+  }
+  return { block: { type: blockType, text: blockText, claimRefs }, cited, surfaced, resultTokens };
+}
+
+export type ValidatedScenarioDefinition = {
+  readonly scenario: ScenarioDefinition;
+  readonly cited: string[];
+};
+
+export function validateScenarioDefinition(
+  value: unknown,
+  path: string,
+  claims: ReadonlyMap<string, StudyClaim>,
+  questionsWithFacts: ReadonlySet<string>,
+  seenIds?: ReadonlySet<string>,
+): ValidatedScenarioDefinition {
+  const item = record(value, path);
+  const id = item.id;
+  if (typeof id !== "string" || !SCENARIO_ID_PATTERN.test(id) || seenIds?.has(id)) {
+    reject("writer_scenario_invalid", `${path}.id must be a new S1…S9 id.`);
+  }
+  const cited: string[] = [];
+  const claimRefs = list(item.claimRefs, `${path}.claimRefs`, WRITER_LIMITS.claimRefsPerBlock, 1).map((ref, i) => {
+    if (typeof ref !== "string" || !claims.has(ref)) reject("writer_claim_unknown", `${path}.claimRefs[${i}] is not a Study claim.`);
+    const claim = claims.get(ref) as StudyClaim;
+    if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+      reject("writer_claim_kind", `${path}.claimRefs[${i}] cites broad answer ${ref} when specific facts exist.`);
+    }
+    cited.push(ref);
+    return ref;
+  });
+  const names = new Set<string>();
+  const parameters = list(item.parameters, `${path}.parameters`, WRITER_LIMITS.parameters).map((p, i) => {
+    const pPath = `${path}.parameters[${i}]`;
+    const param = record(p, pPath);
+    const name = param.name;
+    if (typeof name !== "string" || !PARAM_NAME_PATTERN.test(name) || names.has(name)) {
+      reject("writer_scenario_invalid", `${pPath}.name is invalid.`);
+    }
+    names.add(name);
+    const rawValue = param.value;
+    if (typeof rawValue !== "string" || !decimalFromPlain(rawValue)) reject("writer_scenario_invalid", `${pPath}.value must be a plain number.`);
+    const basis = param.basis;
+    if (basis !== "DOCUMENTED" && basis !== "ASSUMPTION") reject("writer_scenario_invalid", `${pPath}.basis is not allowed.`);
+    const claimRef = param.claimRef ?? null;
+    if (basis === "DOCUMENTED") {
+      const claim = typeof claimRef === "string" ? claims.get(claimRef) : undefined;
+      if (!claim || (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED")) {
+        reject("writer_scenario_unsupported", `${pPath} is documented but cites no verified Study claim.`);
+      }
+      if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+        reject("writer_claim_kind", `${pPath}.claimRef cites broad answer ${claim.id} when specific facts exist.`);
+      }
+      const formatted = formatDecimal(decimalFromPlain(rawValue) as Decimal);
+      if (!groundingNumbersForClaims(claims, [claim.id]).has(formatted)) {
+        const token = numericTokensIn(rawValue)[0] ?? {
+          position: 0,
+          category: rawValue.includes(".") ? ("decimal" as const) : ("quantity" as const),
+        };
+        reject(
+          "writer_number_ungrounded",
+          `${pPath}.value does not appear in the claim it cites.`,
+          numericDiagnosticField(`${pPath}.value`, token),
+        );
+      }
+      cited.push(claim.id);
+    } else if (claimRef !== null) {
+      reject("writer_scenario_invalid", `${pPath} is an assumption and cannot cite a claim.`);
+    }
+    return {
+      name,
+      label: text(param.label, `${pPath}.label`, 200),
+      value: rawValue,
+      unit: optionalText(param.unit, `${pPath}.unit`, 40),
+      basis: basis as ScenarioParameter["basis"],
+      claimRef: claimRef as string | null,
+    };
+  });
+  const resultIds = new Set<string>();
+  const results = list(item.results, `${path}.results`, WRITER_LIMITS.results, 1).map((r, i) => {
+    const rPath = `${path}.results[${i}]`;
+    const result = record(r, rPath);
+    const resultId = result.id;
+    if (typeof resultId !== "string" || !RESULT_ID_PATTERN.test(resultId) || resultIds.has(resultId)) {
+      reject("writer_scenario_invalid", `${rPath}.id must be a new R1…R9 id.`);
+    }
+    const formula = parseFormula(result.formula);
+    if (!formula.ok) reject("writer_formula_invalid", `${rPath}.formula is not an allowed formula.`);
+    for (const leaf of formulaLeaves(formula.value)) {
+      if ("input" in leaf) reject("writer_formula_invalid", `${rPath}.formula uses an input index.`);
+      if ("param" in leaf && !names.has(leaf.param)) reject("writer_formula_invalid", `${rPath}.formula uses an unknown parameter.`);
+      if ("ref" in leaf && !resultIds.has(leaf.ref)) {
+        const claim = claims.get(leaf.ref);
+        if (!claim || claim.kind !== "CALCULATION" || claim.numericStatus !== "VERIFIED") {
+          reject("writer_unverified_number", `${rPath}.formula uses a calculation that was not verified.`);
+        }
+        cited.push(leaf.ref);
+      }
+    }
+    resultIds.add(resultId);
+    return {
+      id: resultId,
+      label: text(result.label, `${rPath}.label`, 200),
+      unit: optionalText(result.unit, `${rPath}.unit`, 40),
+      formula: formula.value,
+    };
+  });
+  return {
+    scenario: {
+      id,
+      title: text(item.title, `${path}.title`, WRITER_LIMITS.heading),
+      question: text(item.question, `${path}.question`, 600),
+      rationale: text(item.rationale, `${path}.rationale`, 1200),
+      claimRefs,
+      parameters,
+      results,
+    },
+    cited,
+  };
+}
+
 export function validateWriterReport(raw: unknown, context: WriterValidationContext): ContractValidation<WriterReport> {
   try {
     const claims = new Map(context.claims.map((claim) => [claim.id, claim]));
@@ -415,77 +643,12 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
     const surfaced = new Set<string>();
     const resultTokens: { scenarioId: string; resultId: string; path: string }[] = [];
 
-    const groundingFor = (refs: readonly string[]): Set<string> => groundingNumbersForClaims(claims, refs);
-
-    const checkTokens = (value: string, path: string) => {
-      for (const match of value.matchAll(BINDING_TOKEN)) {
-        const [, kind, id] = match;
-        if (kind === "calc") {
-          const claim = claims.get(id);
-          if (!claim || claim.kind !== "CALCULATION") reject("writer_binding_invalid", `${path} binds an unknown calculation.`);
-          if (claim.numericStatus !== "VERIFIED") {
-            reject("writer_unverified_number", `${path} binds a calculation that was not verified.`);
-          }
-          cited.add(id);
-        } else {
-          const [scenarioId, resultId] = id.split(".");
-          if (!scenarioId || !resultId) reject("writer_binding_invalid", `${path} binds an unknown scenario result.`);
-          resultTokens.push({ scenarioId, resultId, path });
-        }
-      }
-    };
-
-    const checkGrounded = (value: string, refs: readonly string[], path: string) => {
-      const ungrounded = firstUngroundedNumericToken(value, groundingFor(refs));
-      if (ungrounded) {
-        reject(
-          "writer_number_ungrounded",
-          `${path} states a number its sources do not contain.`,
-          numericDiagnosticField(path, ungrounded),
-        );
-      }
-    };
-
     const block = (value: unknown, path: string): ReportBlock => {
-      const item = record(value, path);
-      const type = item.type;
-      if (!(REPORT_BLOCK_TYPES as readonly string[]).includes(type as string)) reject("writer_output_shape", `${path}.type is not allowed.`);
-      const blockText = text(item.text, `${path}.text`, WRITER_LIMITS.blockText);
-      const claimRefs = list(item.claimRefs, `${path}.claimRefs`, WRITER_LIMITS.claimRefsPerBlock).map((ref, i) => {
-        if (typeof ref !== "string" || !claims.has(ref)) reject("writer_claim_unknown", `${path}.claimRefs[${i}] is not a Study claim.`);
-        return ref;
-      });
-      const kinds = claimRefs.map((ref) => claims.get(ref) as StudyClaim);
-      const blockType = type as ReportBlockType;
-      if (blockType === "DOCUMENTED" || blockType === "INTERPRETATION" || blockType === "UNCERTAINTY") {
-        if (claimRefs.length === 0) reject("writer_claim_missing", `${path} needs at least one Study claim.`);
-      }
-      const allowedKinds =
-        blockType === "DOCUMENTED" ? DOCUMENTED_KINDS : blockType === "INTERPRETATION" ? INTERPRETATION_KINDS : UNCERTAINTY_KINDS;
-      if (blockType === "DOCUMENTED" || blockType === "INTERPRETATION" || blockType === "UNCERTAINTY") {
-        for (const claim of kinds) {
-          if (!allowedKinds.has(claim.kind)) reject("writer_claim_kind", `${path} cites ${claim.id}, which cannot support this kind of text.`);
-        }
-      }
-      if (blockType !== "UNCERTAINTY" && kinds.some((claim) => claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED")) {
-        reject("writer_unverified_number", `${path} presents an unverified calculation outside an uncertainty.`);
-      }
-      checkTokens(blockText, path);
-      if (blockType !== "GENERAL_INFORMATION") checkGrounded(blockText, claimRefs, path);
-      for (const ref of claimRefs) {
-        cited.add(ref);
-        const claim = claims.get(ref);
-        if (!claim) continue;
-        if (blockType === "UNCERTAINTY") {
-          surfaced.add(ref);
-        } else if (
-          (blockType === "DOCUMENTED" || blockType === "INTERPRETATION") &&
-          (claim.kind === "CONFLICT" || visiblyPresentsUncertainty(blockText, claim))
-        ) {
-          surfaced.add(ref);
-        }
-      }
-      return { type: blockType, text: blockText, claimRefs };
+      const validated = validateReportBlock(value, path, claims);
+      for (const ref of validated.cited) cited.add(ref);
+      for (const ref of validated.surfaced) surfaced.add(ref);
+      resultTokens.push(...validated.resultTokens);
+      return validated.block;
     };
 
     const title = text(root.title, "title", WRITER_LIMITS.title);
@@ -495,7 +658,9 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
       const path = `sections[${index}]`;
       const item = record(value, path);
       const id = item.id;
-      if (typeof id !== "string" || !SECTION_ID.test(id) || sectionIds.has(id)) reject("writer_output_shape", `${path}.id must be a new s1…s99 id.`);
+      if (typeof id !== "string" || !SECTION_ID_PATTERN.test(id) || sectionIds.has(id)) {
+        reject("writer_output_shape", `${path}.id must be a new s1…s99 id.`);
+      }
       sectionIds.add(id);
       return {
         id,
@@ -504,108 +669,16 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
       };
     });
     const allRefs = [...cited];
-    checkGrounded(title, allRefs, "title");
-    for (const section of sections) checkGrounded(section.heading, allRefs, `sections.${section.id}.heading`);
+    checkGroundedNumber(title, allRefs, claims, "title");
+    for (const section of sections) checkGroundedNumber(section.heading, allRefs, claims, `sections.${section.id}.heading`);
 
     const scenarioIds = new Set<string>();
     const scenarios = list(root.scenarios ?? [], "scenarios", WRITER_LIMITS.scenarios).map((value, index) => {
       const path = `scenarios[${index}]`;
-      const item = record(value, path);
-      const id = item.id;
-      if (typeof id !== "string" || !SCENARIO_ID.test(id) || scenarioIds.has(id)) reject("writer_scenario_invalid", `${path}.id must be a new S1…S9 id.`);
-      scenarioIds.add(id);
-      const claimRefs = list(item.claimRefs, `${path}.claimRefs`, WRITER_LIMITS.claimRefsPerBlock, 1).map((ref, i) => {
-        if (typeof ref !== "string" || !claims.has(ref)) reject("writer_claim_unknown", `${path}.claimRefs[${i}] is not a Study claim.`);
-        const claim = claims.get(ref) as StudyClaim;
-        if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
-          reject("writer_claim_kind", `${path}.claimRefs[${i}] cites broad answer ${ref} when specific facts exist.`);
-        }
-        cited.add(ref);
-        return ref;
-      });
-      const names = new Set<string>();
-      const parameters = list(item.parameters, `${path}.parameters`, WRITER_LIMITS.parameters).map((p, i) => {
-        const pPath = `${path}.parameters[${i}]`;
-        const param = record(p, pPath);
-        const name = param.name;
-        if (typeof name !== "string" || !PARAM_NAME.test(name) || names.has(name)) reject("writer_scenario_invalid", `${pPath}.name is invalid.`);
-        names.add(name);
-        const rawValue = param.value;
-        if (typeof rawValue !== "string" || !decimalFromPlain(rawValue)) reject("writer_scenario_invalid", `${pPath}.value must be a plain number.`);
-        const basis = param.basis;
-        if (basis !== "DOCUMENTED" && basis !== "ASSUMPTION") reject("writer_scenario_invalid", `${pPath}.basis is not allowed.`);
-        const claimRef = param.claimRef ?? null;
-        if (basis === "DOCUMENTED") {
-          const claim = typeof claimRef === "string" ? claims.get(claimRef) : undefined;
-          if (!claim || (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED")) {
-            reject("writer_scenario_unsupported", `${pPath} is documented but cites no verified Study claim.`);
-          }
-          if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
-            reject("writer_claim_kind", `${pPath}.claimRef cites broad answer ${claim.id} when specific facts exist.`);
-          }
-          const formatted = formatDecimal(decimalFromPlain(rawValue) as Decimal);
-          if (!groundingFor([claim.id]).has(formatted)) {
-            const token = numericTokensIn(rawValue)[0] ?? {
-              position: 0,
-              category: rawValue.includes(".") ? ("decimal" as const) : ("quantity" as const),
-            };
-            reject(
-              "writer_number_ungrounded",
-              `${pPath}.value does not appear in the claim it cites.`,
-              numericDiagnosticField(`${pPath}.value`, token),
-            );
-          }
-          cited.add(claim.id);
-        } else if (claimRef !== null) {
-          reject("writer_scenario_invalid", `${pPath} is an assumption and cannot cite a claim.`);
-        }
-        return {
-          name,
-          label: text(param.label, `${pPath}.label`, 200),
-          value: rawValue,
-          unit: optionalText(param.unit, `${pPath}.unit`, 40),
-          basis,
-          claimRef: claimRef as string | null,
-        };
-      });
-      const resultIds = new Set<string>();
-      const results = list(item.results, `${path}.results`, WRITER_LIMITS.results, 1).map((r, i) => {
-        const rPath = `${path}.results[${i}]`;
-        const result = record(r, rPath);
-        const resultId = result.id;
-        if (typeof resultId !== "string" || !RESULT_ID.test(resultId) || resultIds.has(resultId)) {
-          reject("writer_scenario_invalid", `${rPath}.id must be a new R1…R9 id.`);
-        }
-        const formula = parseFormula(result.formula);
-        if (!formula.ok) reject("writer_formula_invalid", `${rPath}.formula is not an allowed formula.`);
-        for (const leaf of formulaLeaves(formula.value)) {
-          if ("input" in leaf) reject("writer_formula_invalid", `${rPath}.formula uses an input index.`);
-          if ("param" in leaf && !names.has(leaf.param)) reject("writer_formula_invalid", `${rPath}.formula uses an unknown parameter.`);
-          if ("ref" in leaf && !resultIds.has(leaf.ref)) {
-            const claim = claims.get(leaf.ref);
-            if (!claim || claim.kind !== "CALCULATION" || claim.numericStatus !== "VERIFIED") {
-              reject("writer_unverified_number", `${rPath}.formula uses a calculation that was not verified.`);
-            }
-            cited.add(leaf.ref);
-          }
-        }
-        resultIds.add(resultId);
-        return {
-          id: resultId,
-          label: text(result.label, `${rPath}.label`, 200),
-          unit: optionalText(result.unit, `${rPath}.unit`, 40),
-          formula: formula.value,
-        };
-      });
-      return {
-        id,
-        title: text(item.title, `${path}.title`, WRITER_LIMITS.heading),
-        question: text(item.question, `${path}.question`, 600),
-        rationale: text(item.rationale, `${path}.rationale`, 1200),
-        claimRefs,
-        parameters,
-        results,
-      };
+      const validated = validateScenarioDefinition(value, path, claims, questionsWithFacts, scenarioIds);
+      scenarioIds.add(validated.scenario.id);
+      for (const ref of validated.cited) cited.add(ref);
+      return validated.scenario;
     });
 
     for (const token of resultTokens) {
@@ -626,12 +699,7 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
       };
     });
 
-    const mustSurface = context.claims.filter(
-      (claim) =>
-        claim.kind === "CONFLICT" ||
-        claim.kind === "UNCERTAINTY" ||
-        (claim.kind === "ANSWER" && (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING")),
-    );
+    const mustSurface = mustSurfaceClaims(context.claims);
     const unsurfaced = mustSurface.filter((claim) => !surfaced.has(claim.id));
     if (unsurfaced.length > 0) {
       reject("writer_uncertainty_hidden", `The report leaves out ${unsurfaced.map((claim) => claim.id).join(", ")}.`);

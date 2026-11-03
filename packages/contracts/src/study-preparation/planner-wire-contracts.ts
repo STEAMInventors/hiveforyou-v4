@@ -1,11 +1,12 @@
 import type { StudyAgentToolDefinition } from "../analysis/study-agent";
+import type { WriterAgentToolDefinition } from "../reports/writer-agent";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 
 /**
- * Wire contracts between the web server and the Oracle `v4-planner` (D-039, D-042). Mirrored in
+ * Wire contracts between the web server and the Oracle `v4-planner` (D-039, D-042, D-045). Mirrored in
  * `infra/oracle/v4_planner.py`. The planner chooses the model alias itself; callers cannot.
- * `planner-completion@1` carries one JSON completion (intent, domain, intelligence, writer);
- * `study-agent-turn@1` relays one Canonical Study tool-calling turn and never runs a tool.
+ * `planner-completion@1` carries one JSON completion (intent, domain, intelligence);
+ * `study-agent-turn@1` relays one Canonical Study or Writer tool-calling turn and never runs a tool.
  */
 export const PLANNER_CONTRACT_VERSION = "planner-completion@1";
 export const STUDY_AGENT_TURN_CONTRACT_VERSION = "study-agent-turn@1";
@@ -13,11 +14,14 @@ export const STUDY_AGENT_TURN_CONTRACT_VERSION = "study-agent-turn@1";
 /** Model stages before deterministic prompt construction (investigation questions are derived in code). */
 export const PREPARATION_PLANNER_TASKS = ["intent", "domain", "intelligence"] as const;
 export type PreparationPlannerTask = (typeof PREPARATION_PLANNER_TASKS)[number];
-/** Tasks sent as one `planner-completion@1` call; `writer` writes one audience report (D-041). */
-export const PLANNER_COMPLETION_TASKS = [...PREPARATION_PLANNER_TASKS, "writer"] as const;
+/** Tasks sent as one `planner-completion@1` call. */
+export const PLANNER_COMPLETION_TASKS = [...PREPARATION_PLANNER_TASKS] as const;
 export type PlannerCompletionTask = (typeof PLANNER_COMPLETION_TASKS)[number];
-/** Every planner task; `study` runs the Canonical Study through `study-agent-turn@1` (D-042). */
-export const PLANNER_TASKS = [...PREPARATION_PLANNER_TASKS, "study", "writer"] as const;
+/** Agentic tool-calling tasks relayed through `study-agent-turn@1` (D-042, D-045). */
+export const STUDY_AGENT_TURN_TASKS = ["study", "writer"] as const;
+export type StudyAgentTurnTask = (typeof STUDY_AGENT_TURN_TASKS)[number];
+/** Every planner task; `study` and `writer` run through `study-agent-turn@1` (D-042, D-045). */
+export const PLANNER_TASKS = [...PREPARATION_PLANNER_TASKS, ...STUDY_AGENT_TURN_TASKS] as const;
 export type PlannerTask = (typeof PLANNER_TASKS)[number];
 
 export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask, string> = {
@@ -33,14 +37,12 @@ export const PLANNER_MAX_OUTPUT_TOKENS: Record<PlannerCompletionTask, number> = 
   intent: 4000,
   domain: 4000,
   intelligence: 12000,
-  writer: 16000,
 };
 /** Per-task request caps. */
 export const PLANNER_MAX_REQUEST_BYTES_BY_TASK: Record<PlannerCompletionTask, number> = {
   intent: 256 * 1024,
   domain: 256 * 1024,
   intelligence: 256 * 1024,
-  writer: 768 * 1024,
 };
 export const PLANNER_MAX_REQUEST_BYTES = PLANNER_MAX_REQUEST_BYTES_BY_TASK.intent;
 
@@ -157,11 +159,12 @@ export type StudyAgentMessage =
 
 export type StudyAgentTurnRequest = {
   contract_version: typeof STUDY_AGENT_TURN_CONTRACT_VERSION;
+  task?: StudyAgentTurnTask;
   prompt_id: string;
   prompt_digest: string;
   system_prompt: string;
   messages: StudyAgentMessage[];
-  tools: readonly StudyAgentToolDefinition[];
+  tools: readonly (StudyAgentToolDefinition | WriterAgentToolDefinition)[];
   max_output_tokens: number;
   timeout_seconds: number;
 };

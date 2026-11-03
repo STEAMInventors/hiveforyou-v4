@@ -11,9 +11,11 @@ import {
   MAYA_SIX_PLAN_QUESTION_IDS,
   mayaSixQuestionStudyAgentTurns,
   mayaStudyAgentTurns,
+  mayaWriterAgentTurns,
   mayaWriterOutput,
 } from "../testing/maya-fixture";
 import { A2UI_COMPONENTS, buildReport } from "./application-view-contracts";
+import { WriterAgentLedger } from "./writer-agent";
 import { validateWriterReport } from "./writer-report-contracts";
 
 /** Agent-built Study → verifier → claim catalog: the same path an accepted revision takes to the Writer. */
@@ -150,7 +152,19 @@ describe("agentic Canonical Study through the Writer and A2UI", () => {
         text: "January 2026 progress data was not collected before the meeting.",
         claimRefs: ["P4.U0"],
       });
-      const built = buildReport(draft, { audience, claims: sixClaims, fileNames });
+      const writerLedger = new WriterAgentLedger({
+        reportRunId: MAYA_RUN_ID,
+        audience,
+        claims: sixClaims,
+        fileNames,
+      });
+      for (const turn of mayaWriterAgentTurns(audience, draft)) {
+        for (const call of turn) {
+          expect(writerLedger.execute(call).ok).toBe(true);
+        }
+      }
+      expect(writerLedger.finished).toBe(true);
+      const built = buildReport(writerLedger.assemble(), { audience, claims: sixClaims, fileNames });
       expect(built.ok).toBe(true);
     }
   });

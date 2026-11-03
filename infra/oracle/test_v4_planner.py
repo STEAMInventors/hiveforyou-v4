@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 import model_json_parse
 import v4_planner
 from model_json_parse import parse_model_json_object
-from v4_planner import MAX_REQUEST_BYTES, STUDY_AGENT_TOOL_NAMES, app
+from v4_planner import MAX_REQUEST_BYTES, STUDY_AGENT_TOOL_NAMES, WRITER_AGENT_TOOL_NAMES, app
 
 TOKEN = "planner-test-token"
 LITELLM_URL = "http://hive-litellm:4000"
@@ -334,45 +334,16 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
     assert "sk-scoped-virtual-key" not in json.dumps(data)
 
 
-def writer_body(**overrides: object) -> dict[str, object]:
-    return body(
-        task="writer",
-        prompt_id="hive-writer/1",
-        system_prompt="Write the report.",
-        user_payload={"task": "writer", "audience": "CUSTOMER"},
-        max_output_tokens=16000,
-    ) | overrides
-
-
-def test_writer_uses_its_configured_alias(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
-    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"sections": []}')))
-    writer = post(client, writer_body())
-    assert writer.status_code == 200 and writer.json()["model_alias"] == "harvester"
-    sent = json.loads(seen[0].content)
-    assert sent["model"] == "harvester"
-    assert sent["max_tokens"] == 16000
-    assert sent["response_format"] == {"type": "json_object"}
-
-
-def test_writer_fails_closed_without_alias(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("PLANNER_WRITER_LITELLM_ALIAS", raising=False)
-    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
-    response = post(client, writer_body())
-    assert response.status_code == 503
-    assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
-    assert response.json()["retryable"] is False
-    assert seen == []
-    assert client.get("/health").json()["task_aliases_configured"] is False
-
-
-def test_plan_completion_no_longer_runs_the_study(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_plan_completion_no_longer_runs_the_study_or_writer(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
     seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"answers": []}')))
     study = body(task="study", prompt_id="hive-study-preview/1", user_payload={"task": "study"}, max_output_tokens=4000)
-    response = post(client, study)
-    assert response.status_code == 400
-    assert response.json()["diagnostic_reason"] == "planner_invalid_request"
+    writer = body(task="writer", prompt_id="hive-writer/1", user_payload={"task": "writer"}, max_output_tokens=4000)
+    for invalid in (study, writer):
+        response = post(client, invalid)
+        assert response.status_code == 400
+        assert response.json()["diagnostic_reason"] == "planner_invalid_request"
     assert seen == []
     pages = "p" * (400 * 1024)
     assert post(client, body(user_payload={"blob": pages})).status_code == 413
@@ -420,29 +391,13 @@ def test_parse_model_json_object_unit() -> None:
         parse_model_json_object("Answer:\n{}")
 
 
-def test_writer_timeout_is_longer_and_retryable(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
-    timeouts: list[object] = []
-
-    def timeout(request: httpx.Request) -> httpx.Response:
-        timeouts.append(request.extensions.get("timeout"))
-        raise httpx.ReadTimeout("slow")
-
-    use_litellm(timeout)
-    response = post(client, writer_body())
-    assert response.status_code == 504
-    assert response.json()["error_code"] == "MODEL_TIMEOUT"
-    assert response.json()["retryable"] is True
-    assert timeouts[0]["read"] == 270.0
-
-
 # ---------------------------------------------------------------------------
-# study-agent-turn@1 (D-042): relay only; the planner never executes a Hive tool.
+# study-agent-turn@1 (D-042, D-045): relay only; the planner never executes a Hive tool.
 # ---------------------------------------------------------------------------
 SECRET_PAGE = "CONFIDENTIAL PAGE TEXT 4242"
 
 
-def agent_tools() -> list[dict[str, object]]:
+def agent_tools(names: frozenset[str] = STUDY_AGENT_TOOL_NAMES) -> list[dict[str, object]]:
     return [
         {
             "type": "function",
@@ -452,7 +407,7 @@ def agent_tools() -> list[dict[str, object]]:
                 "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
             },
         }
-        for name in sorted(STUDY_AGENT_TOOL_NAMES)
+        for name in sorted(names)
     ]
 
 
@@ -645,3 +600,65 @@ def test_agent_turn_maps_upstream_failures_without_bodies(client: TestClient, st
     assert response.status_code == 503
     assert response.json()["retryable"] is retryable
     assert SECRET_PAGE not in response.text
+
+
+def writer_agent_body(**overrides: object) -> dict[str, object]:
+    return agent_body(
+        task="writer",
+        prompt_id="hive-writer/1",
+        system_prompt="Write the report with the five tools.",
+        messages=[{"role": "user", "content": '{"task":"writer","audience":"CUSTOMER"}'}],
+        tools=agent_tools(WRITER_AGENT_TOOL_NAMES),
+    ) | overrides
+
+
+def test_writer_agent_turn_relays_writer_tools_with_configured_alias(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    seen = use_litellm(
+        lambda _: httpx.Response(
+            200,
+            json=tool_completion([wire_call("toolu_w1", "set_report_outline", '{"title":"Report","summary":[]}')]),
+        )
+    )
+    with caplog.at_level("INFO", logger="hive_planner"):
+        response = post_agent(client, writer_agent_body())
+    assert response.status_code == 200
+    assert response.json()["model_alias"] == "harvester"
+    assert response.json()["message"]["tool_calls"] == [
+        {"id": "toolu_w1", "name": "set_report_outline", "arguments": '{"title":"Report","summary":[]}'}
+    ]
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == "harvester"
+    assert sent["tool_choice"] == "required"
+    assert {tool["function"]["name"] for tool in sent["tools"]} == WRITER_AGENT_TOOL_NAMES
+    assert "v4_study_agent_turn_succeeded" in caplog.text
+    assert '"task":"writer"' in caplog.text
+
+
+def test_writer_agent_turn_fails_closed_without_writer_alias_and_validates_writer_tools(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("PLANNER_WRITER_LITELLM_ALIAS", raising=False)
+    seen = use_litellm(lambda _: httpx.Response(200, json=tool_completion([wire_call()])))
+    unconfigured = post_agent(client, writer_agent_body())
+    assert unconfigured.status_code == 503
+    assert unconfigured.json()["diagnostic_reason"] == "model_alias_unconfigured"
+    assert unconfigured.json()["task"] == "writer"
+
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    # Rejects Study tools on task="writer", wrong prompt_id, or non-closed parameter schemas.
+    assert post_agent(client, writer_agent_body(tools=agent_tools(STUDY_AGENT_TOOL_NAMES))).status_code == 400
+    assert post_agent(client, writer_agent_body(prompt_id="hive-study-preview/1")).status_code == 400
+    unclosed_tools = agent_tools(WRITER_AGENT_TOOL_NAMES)
+    unclosed_tools[0] = {
+        "type": "function",
+        "function": {
+            "name": sorted(WRITER_AGENT_TOOL_NAMES)[0],
+            "description": "Unclosed schema.",
+            "parameters": {"type": "object", "properties": {}, "additionalProperties": True},
+        },
+    }
+    assert post_agent(client, writer_agent_body(tools=unclosed_tools)).status_code == 400
+    assert seen == []

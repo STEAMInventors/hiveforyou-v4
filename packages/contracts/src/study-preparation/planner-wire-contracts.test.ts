@@ -11,28 +11,30 @@ import {
   PLANNER_TASKS,
   PREPARATION_PLANNER_TASKS,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
+  STUDY_AGENT_TURN_TASKS,
 } from "./planner-wire-contracts";
 
 describe("planner tasks", () => {
   it("runs intent intelligence before deterministic prompt construction", () => {
     expect(PREPARATION_PLANNER_TASKS).toEqual(["intent", "domain", "intelligence"]);
+    expect(STUDY_AGENT_TURN_TASKS).toEqual(["study", "writer"]);
     expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "study", "writer"]);
     expect(PLANNER_TASK_PROMPT_IDS.intelligence).toBe("hive-intent-intelligence/1");
-    expect(PLANNER_COMPLETION_TASKS).toEqual(["intent", "domain", "intelligence", "writer"]);
+    expect(PLANNER_COMPLETION_TASKS).toEqual(["intent", "domain", "intelligence"]);
     expect(PLANNER_MAX_OUTPUT_TOKENS).toEqual({
       intent: 4000,
       domain: 4000,
       intelligence: 12000,
-      writer: 16000,
     });
   });
 
-  it("keeps the study off the single-completion transport and gives the writer a larger request limit", () => {
+  it("keeps the study and writer off the single-completion transport", () => {
     expect(PLANNER_TASK_PROMPT_IDS.study).toBe("hive-study-preview/1");
     expect(PLANNER_TASK_PROMPT_IDS.writer).toBe("hive-writer/1");
     expect(PLANNER_COMPLETION_TASKS).not.toContain("study");
+    expect(PLANNER_COMPLETION_TASKS).not.toContain("writer");
     expect("study" in PLANNER_MAX_REQUEST_BYTES_BY_TASK).toBe(false);
-    expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.writer).toBeGreaterThan(PLANNER_MAX_REQUEST_BYTES_BY_TASK.intelligence);
+    expect("writer" in PLANNER_MAX_REQUEST_BYTES_BY_TASK).toBe(false);
   });
 });
 

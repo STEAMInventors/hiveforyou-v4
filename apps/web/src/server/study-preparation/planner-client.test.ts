@@ -1,4 +1,9 @@
-import { PLANNER_CONTRACT_VERSION, STUDY_AGENT_TOOLS, STUDY_AGENT_TURN_CONTRACT_VERSION } from "@hiveforyou/contracts";
+import {
+  PLANNER_CONTRACT_VERSION,
+  STUDY_AGENT_TOOLS,
+  STUDY_AGENT_TURN_CONTRACT_VERSION,
+  WRITER_AGENT_TOOLS,
+} from "@hiveforyou/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import { callPlanner, callStudyAgentTurn, loadPlannerServiceConfig } from "./planner-client";
@@ -198,5 +203,36 @@ describe("callStudyAgentTurn", () => {
       errorCode: "MODEL_OUTPUT_INVALID",
       diagnosticReason: "planner_contract_version",
     });
+  });
+
+  it("posts a Writer agent turn with task: writer and the five Writer tools", async () => {
+    const fetchFn = respond(200, { ...turn, model_alias: "harvester" });
+    const result = await callStudyAgentTurn(
+      { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
+      {
+        request: {
+          task: "writer",
+          prompt_id: "hive-writer/1",
+          prompt_digest: `sha256:${"c".repeat(64)}`,
+          system_prompt: "writer system",
+          messages: [{ role: "user", content: '{"task":"writer"}' }],
+          tools: WRITER_AGENT_TOOLS,
+          max_output_tokens: 8000,
+          timeout_seconds: 120,
+        },
+        abortMs: 125_000,
+        correlationId: CORRELATION_ID,
+        processingRunId: RUN_ID,
+      },
+    );
+    expect(result.modelAlias).toBe("harvester");
+    const [, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({
+      contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION,
+      task: "writer",
+      prompt_id: "hive-writer/1",
+    });
+    expect(body.tools.map((tool: { function: { name: string } }) => tool.function.name)).toHaveLength(5);
   });
 });

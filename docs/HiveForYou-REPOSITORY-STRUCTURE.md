@@ -31,12 +31,13 @@ hiveforyou-v4/
 │       ├── components/             # brand shell, screens, A2UI renderer
 │       ├── server/                 # auth, persistence, model I/O, workflows
 │       │   ├── study-preparation/  # prompt catalog, planner client, prompt builder
-│       │   └── workflow/           # analysis workflow, agentic Study loop (study-investigation.ts), reports
+│       │   └── workflow/           # analysis workflow, agentic Study loop (study-investigation.ts),
+│       │                           # agentic Writer loop & report generation (report-generation.ts)
 │       └── lib/                    # web-only helpers / typed clients
 ├── packages/
 │   ├── contracts/src/              # versioned trust-boundary contracts and pure checks
 │   │   ├── analysis/               # Study agent ledger (study-agent.ts), verifier, formulas
-│   │   └── reports/                # Writer validation, scenarios, A2UI catalog/binder
+│   │   └── reports/                # Writer agent ledger (writer-agent.ts), validation, scenarios, A2UI catalog/binder
 │   └── core/src/                   # proposed: pure evidence/merge/calculation logic (not created)
 ├── infra/oracle/                   # V4 Reader wrapper and v4-planner (FastAPI) + Docker/compose
 ├── supabase/migrations/, tests/    # append-only SQL created only with approved schema tickets; pgTAP
@@ -75,7 +76,7 @@ Prompt ID and output schema are versioned (`hive-extract/1`, `hive.doc-extractio
 
 The repository existing does not mean a migration is applied or a service is deployed; deployment state is tracked per ticket in `HiveForYou-NEXT.md`.
 
-The Oracle `v4-planner` relays model turns only (D-042): Study tools are executed by `StudyAgentLedger` in `packages/contracts/src/analysis/`, called from `apps/web/src/server/workflow/study-investigation.ts`. Do not add tool execution to `infra/oracle`.
+The Oracle `v4-planner` relays model turns only (D-042, D-045): Study tools are executed by `StudyAgentLedger` in `packages/contracts/src/analysis/` (called from `apps/web/src/server/workflow/study-investigation.ts`), and Writer tools are executed by `WriterAgentLedger` in `packages/contracts/src/reports/` (called from `apps/web/src/server/workflow/report-generation.ts`). Do not add tool execution to `infra/oracle`.
 
 ## Analytical Intelligence logical ownership (future, not scaffolded)
 
