@@ -140,12 +140,20 @@ describe("verifyStudyInvestigation", () => {
 });
 
 describe("studyClaimCatalog", () => {
-  it("lists claims with refs, quotes and numeric statuses", () => {
+  it("lists claims with refs, quotes, assessment provenance and numeric statuses without quoting fact statements", () => {
     const result = verify();
     if (!result.ok) throw new Error(result.message);
     const claims = studyClaimCatalog(result.value);
     expect(claims.find((claim) => claim.id === "P1.C1")).toMatchObject({ kind: "CALCULATION", numericStatus: "UNVERIFIED" });
     expect(claims.find((claim) => claim.id === "P3")).toMatchObject({ kind: "ANSWER", answerStatus: "MISSING_EVIDENCE" });
     expect(claims.find((claim) => claim.id === "P1.F1")?.refs).toEqual([{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1 }]);
+    const assessment = claims.find((claim) => claim.id === "P1.A0");
+    expect(assessment).toMatchObject({
+      kind: "ASSESSMENT",
+      criterion: "Compare the latest measurement with the baseline and the goal.",
+      criterionSource: "GENERAL_KNOWLEDGE",
+    });
+    expect(assessment?.quotes).not.toContain("The baseline was 62 words correct per minute.");
+    expect(assessment?.quotes).toContain("Baseline: 62 words correct per minute.");
   });
 });

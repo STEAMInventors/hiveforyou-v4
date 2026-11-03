@@ -38,7 +38,14 @@ export const A2UI_COMPONENTS = [
 export type A2uiComponentName = (typeof A2UI_COMPONENTS)[number];
 
 export type BoundRef = { sourceDocumentId: string; pageNumber: number; fileName: string };
-export type BoundBlock = { type: ReportBlockType; text: string; claimIds: string[]; refs: BoundRef[] };
+export type BoundBlock = {
+  type: ReportBlockType;
+  text: string;
+  claimIds: string[];
+  refs: BoundRef[];
+  criterion?: string | null;
+  criterionSource?: StudyClaim["criterionSource"] | null;
+};
 export type BoundClaim = {
   id: string;
   kind: StudyClaim["kind"];
@@ -46,6 +53,8 @@ export type BoundClaim = {
   refs: BoundRef[];
   quotes: string[];
   numericStatus: NumericStatus | null;
+  criterion?: string | null;
+  criterionSource?: StudyClaim["criterionSource"] | null;
 };
 export type BoundValue = {
   value: string | null;
@@ -162,8 +171,44 @@ export function buildReport(raw: unknown, context: ReportBuildContext): ReportBu
   }
 }
 
+const DOCUMENTED_GRANULAR_KINDS = new Set<StudyClaim["kind"]>(["FACT", "CALCULATION", "CONFLICT", "ANSWER"]);
+const FINDING_GRANULAR_KINDS = new Set<StudyClaim["kind"]>(["FACT", "CALCULATION", "ASSESSMENT", "CONFLICT", "ANSWER"]);
+const EVIDENCE_GRANULAR_KINDS = new Set<StudyClaim["kind"]>([
+  "FACT",
+  "CALCULATION",
+  "ASSESSMENT",
+  "DETERMINATION",
+  "CONFLICT",
+  "ANSWER",
+]);
+const ISSUE_QUESTION_GRANULAR_KINDS = new Set<StudyClaim["kind"]>([
+  "FACT",
+  "CALCULATION",
+  "ASSESSMENT",
+  "DETERMINATION",
+  "CONFLICT",
+  "UNCERTAINTY",
+  "LIMITATION",
+  "ANSWER",
+]);
+
+function normalizeProse(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, context: ReportBuildContext): ApplicationView {
   const claims = new Map(context.claims.map((claim) => [claim.id, claim]));
+  const questionsWithFacts = new Set(context.claims.filter((claim) => claim.kind === "FACT").map((claim) => claim.planQuestionId));
+  const mustSurfaceIds = new Set(
+    context.claims
+      .filter(
+        (claim) =>
+          claim.kind === "CONFLICT" ||
+          claim.kind === "UNCERTAINTY" ||
+          (claim.kind === "ANSWER" && (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING")),
+      )
+      .map((claim) => claim.id),
+  );
   const results = new Map<string, ScenarioAnalysis["scenarios"][number]["results"][number]>(
     analysis.scenarios.flatMap((scenario) => scenario.results.map((result) => [`${scenario.id}.${result.id}`, result] as const)),
   );
@@ -191,6 +236,8 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
       refs: bindRefs([id]),
       quotes: claim.quotes.slice(0, 6),
       numericStatus: claim.numericStatus ?? null,
+      ...(claim.criterion ? { criterion: claim.criterion } : {}),
+      ...(claim.criterionSource ? { criterionSource: claim.criterionSource } : {}),
     };
   };
   const formatValue = (value: string | null, unit: string | null) => (value === null ? "not calculable" : unit ? `${value} ${unit}` : value);
@@ -206,7 +253,9 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
     for (const id of claimIds) {
       const claim = claims.get(id);
       if (!claim) continue;
-      for (const source of [claim.text, ...claim.quotes]) for (const n of numbersIn(source)) allowed.add(n);
+      for (const source of [claim.text, ...(claim.criterion ? [claim.criterion] : []), ...claim.quotes]) {
+        for (const n of numbersIn(source)) allowed.add(n);
+      }
       if (claim.numericStatus === "VERIFIED" && claim.computedValue) allowed.add(claim.computedValue);
     }
     for (const n of numbersIn(value.replace(BINDING_TOKEN, " "))) {
@@ -225,19 +274,47 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
     if (!value || typeof value !== "object" || Array.isArray(value)) reject("view_props_invalid", `${path} must be an object.`);
     return value as Record<string, unknown>;
   };
-  const claimIdList = (value: unknown, path: string, min = 1): string[] =>
-    arr(value ?? [], path, 24, min).map((id, i) => {
+  const granularClaims = (
+    value: unknown,
+    path: string,
+    options: {
+      readonly allowedKinds: ReadonlySet<StudyClaim["kind"]>;
+      readonly requireRefs: boolean;
+      readonly allowMissingEvidenceAnswer?: boolean;
+      readonly unverifiedForUnsupported?: boolean;
+    },
+  ): string[] => {
+    if (!Array.isArray(value)) reject("view_props_invalid", `${path} must be a list.`);
+    if (value.length === 0) reject("writer_claim_missing", `${path} needs at least one Study claim.`);
+    if (value.length > 24) reject("view_props_invalid", `${path} must be a list.`);
+    const ids = value.map((id, i) => {
       if (typeof id !== "string" || !claims.has(id)) reject("writer_claim_unknown", `${path}[${i}] is not a Study claim.`);
+      const claim = claims.get(id) as StudyClaim;
+      if (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED") {
+        reject("writer_unverified_number", `${path}[${i}] cites ${id}, which was not verified.`);
+      }
+      if (!options.allowedKinds.has(claim.kind)) {
+        if (options.unverifiedForUnsupported && (claim.kind === "UNCERTAINTY" || claim.kind === "LIMITATION")) {
+          reject("writer_unverified_number", `${path}[${i}] lists ${id} as a finding.`);
+        }
+        reject("writer_claim_kind", `${path}[${i}] cites ${id}, which cannot support this item.`);
+      }
+      if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+        const allowedMissingAnswer =
+          options.allowMissingEvidenceAnswer === true &&
+          (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING");
+        if (!allowedMissingAnswer) {
+          reject("writer_claim_kind", `${path}[${i}] cites broad answer ${id} when specific facts exist.`);
+        }
+      }
+      if (options.requireRefs && claim.refs.length === 0) {
+        reject("writer_claim_missing", `${path}[${i}] cites ${id}, which has no source page reference.`);
+      }
       return id;
     });
-  /** Grounded short text with its supporting claims. */
-  const supported = (item: Record<string, unknown>, field: string, path: string, max = LIMITS.cell) => {
-    const value = str(item[field], `${path}.${field}`, max);
-    const claimIds = claimIdList(item.claimRefs, `${path}.claimRefs`);
-    grounded(value, claimIds, `${path}.${field}`);
-    return { value, claimIds };
+    return [...new Set(ids)];
   };
-  const boundValue = (binding: unknown, unit: string | null, path: string): BoundValue => {
+  const boundValue = (binding: unknown, unit: string | null, path: string): (BoundValue & { claimIds: string[] }) => {
     const match = typeof binding === "string" ? /^\{\{(calc|result):([A-Za-z0-9.]{1,32})\}\}$/.exec(binding) : null;
     if (!match) reject("writer_binding_invalid", `${path} must be one binding token.`);
     const [, kind, id] = match;
@@ -246,33 +323,57 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
       if (!claim || claim.kind !== "CALCULATION" || claim.numericStatus !== "VERIFIED") {
         reject("writer_unverified_number", `${path} binds a calculation that was not verified.`);
       }
-      return { value: claim.computedValue ?? null, unit, status: "VERIFIED", usesAssumptions: false, refs: bindRefs([id]) };
+      return { value: claim.computedValue ?? null, unit, status: "VERIFIED", usesAssumptions: false, refs: bindRefs([id]), claimIds: [id] };
     }
     const result = results.get(id);
     if (!result) reject("writer_binding_invalid", `${path} binds an unknown scenario result.`);
     const scenario = analysis.scenarios.find((item) => item.id === result.scenarioId);
+    const scenarioClaims = scenario?.claimRefs ?? [];
     return {
       value: result.value,
       unit: unit ?? result.unit,
       status: result.status,
       usesAssumptions: result.usesAssumptions,
-      refs: bindRefs(scenario?.claimRefs ?? []),
+      refs: bindRefs(scenarioClaims),
+      claimIds: [...scenarioClaims],
     };
   };
   const sectionBlocks = (blocks: WriterReport["summary"]): BoundBlock[] =>
-    blocks.map((block) => ({
-      type: block.type,
-      text: resolveTokens(block.text),
-      claimIds: block.claimRefs,
-      refs: bindRefs(block.claimRefs),
-    }));
+    blocks.map((block) => {
+      const assessment = block.claimRefs
+        .map((id) => claims.get(id))
+        .find((claim): claim is StudyClaim => claim?.kind === "ASSESSMENT" && !!claim.criterionSource);
+      return {
+        type: block.type,
+        text: resolveTokens(block.text),
+        claimIds: block.claimRefs,
+        refs: bindRefs(block.claimRefs),
+        ...(assessment?.criterion ? { criterion: assessment.criterion } : {}),
+        ...(assessment?.criterionSource ? { criterionSource: assessment.criterionSource } : {}),
+      };
+    });
 
   const sections = new Map(report.sections.map((section) => [section.id, section]));
   const usedSections = new Set<string>();
   const usedScenarios = new Set<string>();
+  const structuredTexts = new Set<string>();
+  const structuredClaims = new Set<string>();
+  const questionListClaims = new Set<string>();
+  const checklistClaims = new Set<string>();
+  const structuredSurfaced = new Set<string>();
   const components: ApplicationViewComponent[] = [];
   const add = (component: UnboundComponent) =>
     components.push({ id: `c${components.length + 1}`, ...component } as ApplicationViewComponent);
+  const recordStructured = (texts: readonly string[], claimIds: readonly string[], canSurfaceUncertainty = false) => {
+    for (const item of texts) {
+      const normalized = normalizeProse(item);
+      if (normalized) structuredTexts.add(normalized);
+    }
+    for (const id of claimIds) {
+      structuredClaims.add(id);
+      if (canSurfaceUncertainty && mustSurfaceIds.has(id)) structuredSurfaced.add(id);
+    }
+  };
 
   report.view.forEach((proposal, index) => {
     const path = `view[${index}]`;
@@ -283,43 +384,51 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
     switch (proposal.component as A2uiComponentName) {
       case "Narrative": {
         if (props.sectionId === "summary") {
+          if (usedSections.has("summary")) break;
           add({ component: "Narrative", heading: null, blocks: sectionBlocks(report.summary) });
           usedSections.add("summary");
           break;
         }
         const section = typeof props.sectionId === "string" ? sections.get(props.sectionId) : undefined;
         if (!section) reject("view_props_invalid", `${path}.sectionId must name a section.`);
+        if (usedSections.has(section.id)) break;
         usedSections.add(section.id);
         add({ component: "Narrative", heading: resolveTokens(section.heading), blocks: sectionBlocks(section.blocks) });
         break;
       }
       case "KeyFindings": {
-        const ids = claimIdList(props.claimIds, `${path}.claimIds`);
-        for (const id of ids) {
-          const claim = claims.get(id) as StudyClaim;
-          if (claim.kind === "UNCERTAINTY" || claim.kind === "LIMITATION" || (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED")) {
-            reject("writer_unverified_number", `${path} lists ${id} as a finding.`);
-          }
-        }
-        add({ component: "KeyFindings", title: str(props.title, `${path}.title`), items: ids.map(bindClaim) });
+        const ids = granularClaims(props.claimIds, `${path}.claimIds`, {
+          allowedKinds: FINDING_GRANULAR_KINDS,
+          requireRefs: true,
+          unverifiedForUnsupported: true,
+        });
+        const items = ids.map(bindClaim);
+        recordStructured(items.map((item) => item.text), ids, true);
+        add({ component: "KeyFindings", title: str(props.title, `${path}.title`), items });
         break;
       }
       case "Metric": {
         const unit = props.unit === undefined || props.unit === null ? null : str(props.unit, `${path}.unit`, 40);
-        add({ component: "Metric", label: str(props.label, `${path}.label`), ...boundValue(props.binding, unit, `${path}.binding`) });
+        const { claimIds, ...bound } = boundValue(props.binding, unit, `${path}.binding`);
+        recordStructured([], claimIds);
+        add({ component: "Metric", label: str(props.label, `${path}.label`), ...bound });
         break;
       }
       case "RecordTable": {
         const columns = arr(props.columns, `${path}.columns`, LIMITS.columns).map((c, i) => str(c, `${path}.columns[${i}]`));
         const rows = arr(props.rows, `${path}.rows`, LIMITS.rows).map((r, i) => {
           const row = obj(r, `${path}.rows[${i}]`);
-          const claimIds = claimIdList(row.claimRefs, `${path}.rows[${i}].claimRefs`);
+          const claimIds = granularClaims(row.claimRefs, `${path}.rows[${i}].claimRefs`, {
+            allowedKinds: DOCUMENTED_GRANULAR_KINDS,
+            requireRefs: true,
+          });
           const cells = arr(row.cells, `${path}.rows[${i}].cells`, columns.length).map((c, j) => {
             const cell = str(c, `${path}.rows[${i}].cells[${j}]`, LIMITS.cell);
             grounded(cell, claimIds, `${path}.rows[${i}].cells[${j}]`);
             return cell;
           });
           if (cells.length !== columns.length) reject("view_props_invalid", `${path}.rows[${i}] must fill every column.`);
+          recordStructured([cells.join(" ")], claimIds);
           return { cells, refs: bindRefs(claimIds) };
         });
         add({ component: "RecordTable", title: str(props.title, `${path}.title`), columns, rows });
@@ -328,12 +437,16 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
       case "Comparison": {
         const items = arr(props.items, `${path}.items`).map((value, i) => {
           const item = obj(value, `${path}.items[${i}]`);
-          const claimIds = claimIdList(item.claimRefs, `${path}.items[${i}].claimRefs`);
+          const claimIds = granularClaims(item.claimRefs, `${path}.items[${i}].claimRefs`, {
+            allowedKinds: DOCUMENTED_GRANULAR_KINDS,
+            requireRefs: true,
+          });
           const fields = ["label", "left", "right"].map((field) => {
             const text = str(item[field], `${path}.items[${i}].${field}`, LIMITS.cell);
             grounded(text, claimIds, `${path}.items[${i}].${field}`);
             return text;
           });
+          recordStructured([fields.join(" ")], claimIds, true);
           return { label: fields[0], left: fields[1], right: fields[2], refs: bindRefs(claimIds) };
         });
         add({
@@ -348,9 +461,19 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
       case "Timeline": {
         const events = arr(props.events, `${path}.events`).map((value, i) => {
           const item = obj(value, `${path}.events[${i}]`);
-          const date = supported(item, "date", `${path}.events[${i}]`, LIMITS.label);
-          const text = supported(item, "text", `${path}.events[${i}]`);
-          return { date: date.value, text: text.value, refs: bindRefs(text.claimIds) };
+          const claimIds = granularClaims(item.claimRefs, `${path}.events[${i}].claimRefs`, {
+            allowedKinds: DOCUMENTED_GRANULAR_KINDS,
+            requireRefs: true,
+          });
+          const date = str(item.date, `${path}.events[${i}].date`, LIMITS.label);
+          if (numbersIn(date).length === 0) {
+            reject("writer_number_ungrounded", `${path}.events[${i}].date states a date its sources do not contain.`);
+          }
+          grounded(date, claimIds, `${path}.events[${i}].date`);
+          const text = str(item.text, `${path}.events[${i}].text`, LIMITS.cell);
+          grounded(text, claimIds, `${path}.events[${i}].text`);
+          recordStructured([text, `${date} ${text}`], claimIds);
+          return { date, text, refs: bindRefs(claimIds) };
         });
         add({ component: "Timeline", title: str(props.title, `${path}.title`), events });
         break;
@@ -360,32 +483,55 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
           const item = obj(value, `${path}.issues[${i}]`);
           const severity = item.severity;
           if (severity !== "HIGH" && severity !== "MEDIUM" && severity !== "LOW") reject("view_props_invalid", `${path}.issues[${i}].severity is not allowed.`);
-          const text = supported(item, "text", `${path}.issues[${i}]`);
-          return { text: text.value, severity: severity as "HIGH" | "MEDIUM" | "LOW", refs: bindRefs(text.claimIds) };
+          const claimIds = granularClaims(item.claimRefs, `${path}.issues[${i}].claimRefs`, {
+            allowedKinds: ISSUE_QUESTION_GRANULAR_KINDS,
+            requireRefs: false,
+            allowMissingEvidenceAnswer: true,
+          });
+          const text = str(item.text, `${path}.issues[${i}].text`, LIMITS.cell);
+          grounded(text, claimIds, `${path}.issues[${i}].text`);
+          recordStructured([text], claimIds, true);
+          return { text, severity: severity as "HIGH" | "MEDIUM" | "LOW", refs: bindRefs(claimIds) };
         });
         add({ component: "IssueList", title: str(props.title, `${path}.title`), issues });
         break;
       }
       case "QuestionList":
       case "Checklist": {
-        const field = proposal.component === "QuestionList" ? "questions" : "items";
+        const isQuestions = proposal.component === "QuestionList";
+        const field = isQuestions ? "questions" : "items";
         const entries = arr(props[field], `${path}.${field}`).map((value, i) => {
           const item = obj(value, `${path}.${field}[${i}]`);
           const text = str(item.text, `${path}.${field}[${i}].text`, LIMITS.cell);
-          const claimIds = claimIdList(item.claimRefs, `${path}.${field}[${i}].claimRefs`, 0);
+          const claimIds = granularClaims(item.claimRefs, `${path}.${field}[${i}].claimRefs`, {
+            allowedKinds: isQuestions ? ISSUE_QUESTION_GRANULAR_KINDS : EVIDENCE_GRANULAR_KINDS,
+            requireRefs: !isQuestions,
+            allowMissingEvidenceAnswer: isQuestions,
+          });
           grounded(text, claimIds, `${path}.${field}[${i}].text`);
+          recordStructured([text], claimIds);
+          for (const id of claimIds) {
+            if (isQuestions) questionListClaims.add(id);
+            else checklistClaims.add(id);
+          }
           return { text, refs: bindRefs(claimIds) };
         });
         const title = str(props.title, `${path}.title`);
-        if (proposal.component === "QuestionList") add({ component: "QuestionList", title, questions: entries });
+        if (isQuestions) add({ component: "QuestionList", title, questions: entries });
         else add({ component: "Checklist", title, items: entries });
         break;
       }
       case "EvidencePanel": {
+        const ids = granularClaims(props.claimIds, `${path}.claimIds`, {
+          allowedKinds: EVIDENCE_GRANULAR_KINDS,
+          requireRefs: true,
+        });
+        const panelClaims = ids.map(bindClaim);
+        recordStructured(panelClaims.map((item) => item.text), ids, true);
         add({
           component: "EvidencePanel",
           title: str(props.title, `${path}.title`),
-          claims: claimIdList(props.claimIds, `${path}.claimIds`).map(bindClaim),
+          claims: panelClaims,
         });
         break;
       }
@@ -395,7 +541,9 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
         const unit = props.unit === undefined || props.unit === null ? null : str(props.unit, `${path}.unit`, 40);
         const points = arr(props.points, `${path}.points`, 24, 2).map((value, i) => {
           const point = obj(value, `${path}.points[${i}]`);
-          return { label: str(point.label, `${path}.points[${i}].label`), ...boundValue(point.binding, unit, `${path}.points[${i}].binding`) };
+          const { claimIds, ...bound } = boundValue(point.binding, unit, `${path}.points[${i}].binding`);
+          recordStructured([], claimIds);
+          return { label: str(point.label, `${path}.points[${i}].label`), ...bound };
         });
         add({ component: "Chart", title: str(props.title, `${path}.title`), kind, unit, points });
         break;
@@ -403,6 +551,7 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
       case "ScenarioExplorer": {
         const scenario = analysis.scenarios.find((item) => item.id === props.scenarioId);
         if (!scenario) reject("view_props_invalid", `${path}.scenarioId must name a scenario.`);
+        if (usedScenarios.has(scenario.id)) break;
         usedScenarios.add(scenario.id);
         add(scenarioComponent(scenario));
         break;
@@ -416,11 +565,13 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
     const refIds = scenario.results.flatMap((result) =>
       collectRefs(result.formula).filter((id) => claims.get(id)?.kind === "CALCULATION"),
     );
+    const scenarioClaimIds = [...scenario.claimRefs, ...scenario.parameters.flatMap((p) => (p.claimRef ? [p.claimRef] : []))];
+    recordStructured([], scenarioClaimIds);
     return {
       component: "ScenarioExplorer" as const,
       scenario,
       verifiedInputs: [...new Set(refIds)].map((id) => ({ id, computedValue: claims.get(id)?.computedValue ?? "" })),
-      refs: bindRefs([...scenario.claimRefs, ...scenario.parameters.flatMap((p) => (p.claimRef ? [p.claimRef] : []))]),
+      refs: bindRefs(scenarioClaimIds),
     };
   }
 
@@ -430,11 +581,54 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
   }
   for (const section of report.sections) {
     if (!usedSections.has(section.id)) {
-      add({ component: "Narrative", heading: resolveTokens(section.heading), blocks: sectionBlocks(section.blocks) });
+      const blocks = sectionBlocks(section.blocks);
+      const allCoveredByStructured =
+        layout === "PROPOSED" &&
+        structuredClaims.size > 0 &&
+        blocks.every(
+          (block) =>
+            (block.claimIds.length === 0 || block.claimIds.every((id) => structuredClaims.has(id))) &&
+            !block.claimIds.some((id) => mustSurfaceIds.has(id) && !structuredSurfaced.has(id)),
+        );
+      if (!allCoveredByStructured) {
+        add({ component: "Narrative", heading: resolveTokens(section.heading), blocks });
+      }
     }
   }
   for (const scenario of analysis.scenarios) {
     if (!usedScenarios.has(scenario.id)) add(scenarioComponent(scenario));
+  }
+
+  const seenNarrativeTexts = new Set<string>();
+  const surfacedSoFar = new Set<string>(structuredSurfaced);
+  const deduplicated: ApplicationViewComponent[] = [];
+  for (const component of components) {
+    if (component.component !== "Narrative") {
+      deduplicated.push(component);
+      continue;
+    }
+    const keptBlocks = component.blocks.filter((block) => {
+      const norm = normalizeProse(block.text);
+      if (!norm || seenNarrativeTexts.has(norm)) return false;
+      const neededForUncertainty = block.claimIds.some((id) => mustSurfaceIds.has(id) && !surfacedSoFar.has(id));
+      if (!neededForUncertainty) {
+        if (structuredTexts.has(norm)) return false;
+        if (block.type === "QUESTION" && block.claimIds.length > 0 && block.claimIds.every((id) => questionListClaims.has(id))) {
+          return false;
+        }
+        if (block.type === "NEXT_STEP" && block.claimIds.length > 0 && block.claimIds.every((id) => checklistClaims.has(id))) {
+          return false;
+        }
+      }
+      seenNarrativeTexts.add(norm);
+      for (const id of block.claimIds) {
+        if (mustSurfaceIds.has(id)) surfacedSoFar.add(id);
+      }
+      return true;
+    });
+    if (keptBlocks.length > 0) {
+      deduplicated.push({ ...component, blocks: keptBlocks });
+    }
   }
 
   const cited = new Map<string, Set<number>>();
@@ -445,8 +639,9 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
       cited.set(ref.sourceDocumentId, pages);
     }
   };
-  for (const component of components) collectComponentRefs(component, collect);
-  add({
+  for (const component of deduplicated) collectComponentRefs(component, collect);
+  deduplicated.push({
+    id: `c${deduplicated.length + 1}`,
     component: "SourceReferences",
     title: "Sources",
     sources: [...cited.entries()].map(([sourceDocumentId, pages]) => ({
@@ -461,7 +656,7 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
     audience: report.audience,
     title: report.title,
     layout,
-    components: components.map((component, index) => ({ ...component, id: `c${index + 1}` })),
+    components: deduplicated.map((component, index) => ({ ...component, id: `c${index + 1}` })),
   };
 }
 

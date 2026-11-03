@@ -21,6 +21,10 @@ describe("loadPromptCatalog", () => {
     expect(catalog.studyTemplate.id).toBe("hive-study-preview/1");
     expect(catalog.studyTemplate.text.split(SOURCE_PAGES_PLACEHOLDER)).toHaveLength(2);
     expect(() => JSON.parse(catalog.outputSchema.text)).not.toThrow();
+    expect(catalog.writer.id).toBe("hive-writer/1");
+    expect(catalog.writer.systemPrompt).toContain("writer_claim_kind");
+    expect(catalog.writer.systemPrompt).toContain("GENERAL_KNOWLEDGE");
+    expect(catalog.writer.systemPrompt).toContain("Never cite a broad question-level `ANSWER` claim");
   });
 });
 

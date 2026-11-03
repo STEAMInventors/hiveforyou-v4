@@ -1,10 +1,31 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-**Date:** 2026-11-03 | **Status:** V4-004A active (implemented locally, uncommitted; `v4-planner` not rebuilt; no paid model run). V4-004 paused at *awaiting live verification* (implemented locally; migrations `20261102120000`, `20261102150000`, `20261102170000` not applied; `v4-planner` and Vercel settings not deployed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
+**Date:** 2026-11-03 | **Status:** V4-004B active (implemented locally, uncommitted; no paid model run). V4-004A paused at *awaiting live verification* (implemented locally, uncommitted; `v4-planner` not rebuilt; no paid model run). V4-004 paused at *awaiting live verification* (implemented locally; migrations `20261102120000`, `20261102150000`, `20261102170000` not applied; `v4-planner` and Vercel settings not deployed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
 
-> **Exactly one active engineering ticket: V4-004A — Agentic Canonical Study (D-042).** Founder-approved 2026-11-03. V4-004 and V4-003 are paused, not closed: their live verification items below still have to pass before they close.
+> **Exactly one active engineering ticket: V4-004B — Writer Reliability and Evidence Precision (D-043).** Founder-approved 2026-11-03. V4-004A, V4-004 and V4-003 are paused, not closed: their live verification items below still have to pass before they close.
 
-## Active ticket — V4-004A Agentic Canonical Study
+## Active ticket — V4-004B Writer Reliability and Evidence Precision
+
+**Objective:** Fix confirmed downstream report defects — Customer `writer_claim_kind` failure at `sections[2].blocks[3]`, missing delayed report retry dispatch after `transition_report_run` sets `next_dispatch_at`, overly broad question-level source attribution on granular A2UI entries, assessment provenance (`criterion` / `criterionSource`) and verbatim-quote separation, and duplicated narrative/structured report content — while preserving the accepted Canonical Study, investigation engine, database migrations and 13-component A2UI catalog.
+
+**Scope (D-043):**
+
+1. **Customer Writer validation (`hive-writer/1`):** keep deterministic `validateWriterReport()` claim-kind rules unchanged; update `prompts/hive-writer/HiveForYou-Writer-v1.md` (digest `sha256:b738806c29058e310795888f31f8bab40a950ba45d47bd6a07dc7a10f1a2f9cc`) with explicit `(block.type, claim.kind)` compatibility rules and JSON examples so `harvester` separates `INTERPRETATION` (`.A`) from `UNCERTAINTY` (`.U`/`.L`).
+2. **Report retry dispatch (`report-generation.ts`):** when `transition_report_run` returns `applied: true` and `retrying: true` (`status = 'QUEUED'`, `next_dispatch_at = now() + 30s * attempt_count`), `processReportRun()` schedules `{ kind: "report", id: reportRunId }` via `deps.dispatch` with `delaySeconds = 30 * attemptCount`, preserving attempt counters, backoff, leases, `max_attempts` (3) and `save_report` idempotency.
+3. **Granular claim-level provenance (`application-view-contracts.ts`, `writer-report-contracts.ts`):** require non-empty specific `claimRefs`/`claimIds` on `Timeline`, `Checklist`, `RecordTable`, `Comparison`, `IssueList`, `QuestionList`, `KeyFindings` and `EvidencePanel`; reject broad question-level `ANSWER` claims (`P1`, `P2`, …) in granular A2UI entries and scenario parameters when atomic `FACT` claims (`P1.F*`) exist; require source page references on `Timeline`, `Checklist`, `RecordTable`, `Comparison`, `KeyFindings` and `EvidencePanel`; never infer citations via fuzzy text matching.
+4. **Assessment provenance (`study-verification.ts`, `report-generation.ts`, `application-view-contracts.ts`, `A2uiView.tsx`):** carry `criterion` and `criterionSource` (`DOCUMENT` | `GENERAL_KNOWLEDGE`) from the accepted Study through `StudyClaim`, `buildWriterPayload()`, `BoundClaim` and `BoundBlock`; keep `StudyClaim.quotes` strictly to deduplicated verbatim source quotes (never model-written `fact.statement` strings); render provenance badges (`Source-backed fact`, `Interpretation · General-knowledge criterion`, `Interpretation · Document criterion`, `Reserved determination`, `General information`) and the declared criterion in `A2uiView`.
+5. **Deduplicated report composition and visible uncertainty coverage:** render each `Narrative` `sectionId` and `ScenarioExplorer` `scenarioId` at most once; filter out narrative blocks (and unplaced sections in `PROPOSED` layout) that duplicate structured component items; count structured components toward mandatory uncertainty coverage (`mustSurface`) only when their rendered text visibly presents the uncertainty (`visiblyPresentsUncertainty`).
+
+**Implementation status (2026-11-03, local working tree, uncommitted):**
+
+- **Contracts:** `packages/contracts/src/analysis/study-verification.ts`, `packages/contracts/src/reports/writer-report-contracts.ts`, `packages/contracts/src/reports/application-view-contracts.ts` + focused tests in `study-verification.test.ts` and `writer-report-contracts.test.ts`.
+- **Web & Prompt:** `prompts/hive-writer/HiveForYou-Writer-v1.md`, `apps/web/src/server/workflow/report-generation.ts`, `apps/web/src/components/a2ui/A2uiView.tsx` + focused tests in `report-generation.test.ts`, `ReportsPanel.test.tsx`, `prompt-catalog.test.ts`.
+- **Verification (2026-11-03):** contracts 225 tests (19 files), web 314 tests (44 files) — all pass; typecheck pass; lint 0 errors (2 pre-existing warnings); production build pass; `git diff --check` clean.
+- **Approval stops:** deployment, live paid Writer run, commit.
+
+**Done when:** founder approves the local implementation and verification results; after deployment, Customer and Pro Writer runs complete without `writer_claim_kind` failure or orphaned `QUEUED` retries, and rendered reports show precise per-item source chips, general-knowledge assessment labels and deduplicated sections.
+
+## Paused ticket — V4-004A Agentic Canonical Study (awaiting live verification)
 
 **Objective:** Replace the single `study` JSON call in `INVESTIGATING` with a bounded native tool-calling investigation over one case-wide corpus of persisted authorized pages, so the Study scales past what fits in one prompt and every recorded item is checked as it is made. Output contract, verifier, formulas, `accept_study_revision`, Writer, reports and A2UI are unchanged.
 
@@ -143,4 +164,4 @@ Renumbered 2026-11-01 when Analyze / Prompt Preview became V4-004 (D-039).
 
 ## Analytical Intelligence parking-lot note — 2026-10-31
 
-Product requirements **R65–R84** and features **F-045–F-064** add **proactive analysis discovery and scenario what-if** to the long-term V4 product direction. Decisions **D-028–D-035** record that product direction. This documentation change does **not** authorize code, schema, background jobs, LLM calls, or a new active ticket. Preserve the single active ticket (now **V4-004A**). Proposed future sequence **V4-A01–V4-A07** requires explicit ticket activation after prerequisites are met.
+Product requirements **R65–R84** and features **F-045–F-064** add **proactive analysis discovery and scenario what-if** to the long-term V4 product direction. Decisions **D-028–D-035** record that product direction. This documentation change does **not** authorize code, schema, background jobs, LLM calls, or a new active ticket. Preserve the single active ticket (now **V4-004B**). Proposed future sequence **V4-A01–V4-A07** requires explicit ticket activation after prerequisites are met.

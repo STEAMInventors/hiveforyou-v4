@@ -435,10 +435,20 @@ export type StudyClaim = {
   answerStatus?: StudyInvestigationOutput["answers"][number]["status"];
   numericStatus?: NumericStatus;
   computedValue?: string | null;
+  criterion?: string;
+  criterionSource?: StudyInvestigationOutput["answers"][number]["assessments"][number]["criterionSource"];
 };
 
 function quotesOf(items: readonly { quote: string }[]): string[] {
-  return items.map((item) => item.quote);
+  const seen = new Set<string>();
+  const quotes: string[] = [];
+  for (const item of items) {
+    if (!seen.has(item.quote)) {
+      seen.add(item.quote);
+      quotes.push(item.quote);
+    }
+  }
+  return quotes;
 }
 
 function refsOf(items: readonly { sourceDocumentId: string; pageNumber: number }[]): EvidenceRef[] {
@@ -493,7 +503,7 @@ export function studyClaimCatalog(study: VerifiedStudy): StudyClaim[] {
         planQuestionId: p,
         text: `${calculation.description}: ${calculation.result}`,
         refs: refsOf(evidence),
-        quotes: [...quotesOf(evidence), ...calculation.inputs.map((input) => input.valueAsWritten)],
+        quotes: quotesOf(evidence),
         numericStatus: check?.status ?? "UNVERIFIED",
         computedValue: check?.computedValue ?? null,
       });
@@ -506,7 +516,9 @@ export function studyClaimCatalog(study: VerifiedStudy): StudyClaim[] {
         planQuestionId: p,
         text: assessment.judgment,
         refs: refsOf(evidence),
-        quotes: [...quotesOf(evidence), ...assessment.factIndexes.map((f) => answer.facts[f]?.statement ?? "")],
+        quotes: quotesOf(evidence),
+        criterion: assessment.criterion,
+        criterionSource: assessment.criterionSource,
       });
     });
     answer.uncertainties.forEach((item, i) =>

@@ -15,9 +15,48 @@ const SEVERITY: Record<"HIGH" | "MEDIUM" | "LOW", string> = {
 };
 
 const BLOCK_TONE: Record<string, string> = {
+  INTERPRETATION: "border-l-2 border-cell-blue pl-3",
   UNCERTAINTY: "border-l-2 border-honey pl-3",
   LIMITATION: "border-l-2 border-line-strong pl-3",
 };
+
+function ProvenanceBadge({
+  kind,
+  criterionSource,
+}: {
+  kind: "FACT" | "INTERPRETATION" | "DETERMINATION" | "GENERAL_INFORMATION";
+  criterionSource?: "DOCUMENT" | "GENERAL_KNOWLEDGE" | null;
+}) {
+  if (kind === "FACT") {
+    return (
+      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-leaf-wash px-2 text-[11px] font-medium text-leaf-deep">
+        Source-backed fact
+      </span>
+    );
+  }
+  if (kind === "DETERMINATION") {
+    return (
+      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-mist px-2 text-[11px] font-medium text-ink-muted">
+        Reserved determination
+      </span>
+    );
+  }
+  if (kind === "GENERAL_INFORMATION") {
+    return (
+      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-mist px-2 text-[11px] font-medium text-ink-muted">
+        General information
+      </span>
+    );
+  }
+  const label =
+    criterionSource === "GENERAL_KNOWLEDGE"
+      ? "Interpretation · General-knowledge criterion"
+      : criterionSource === "DOCUMENT"
+        ? "Interpretation · Document criterion"
+        : "Interpretation";
+  const tone = criterionSource === "GENERAL_KNOWLEDGE" ? "bg-honey-wash text-honey-deep" : "bg-cell-blue-wash text-cell-blue-deep";
+  return <span className={`inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium ${tone}`}>{label}</span>;
+}
 
 function ClaimItem({ claim }: { claim: BoundClaim }) {
   return (
@@ -25,7 +64,11 @@ function ClaimItem({ claim }: { claim: BoundClaim }) {
       <span className="flex flex-wrap items-start gap-2">
         <span className="flex-1 text-[15px] leading-[1.55] text-ink">{claim.text}</span>
         {claim.numericStatus ? <StatusBadge status={claim.numericStatus} /> : null}
+        {claim.kind === "FACT" ? <ProvenanceBadge kind="FACT" /> : null}
+        {claim.kind === "ASSESSMENT" ? <ProvenanceBadge kind="INTERPRETATION" criterionSource={claim.criterionSource} /> : null}
+        {claim.kind === "DETERMINATION" ? <ProvenanceBadge kind="DETERMINATION" /> : null}
       </span>
+      {claim.criterion ? <span className="text-[13px] leading-[1.45] text-ink-muted">Criterion: {claim.criterion}</span> : null}
       {claim.quotes.slice(0, 2).map((quote) => (
         <q key={quote} className="text-[13.5px] italic leading-[1.5] text-ink-muted">
           {quote}
@@ -42,7 +85,17 @@ const REGISTRY: { [N in ApplicationViewComponent["component"]]: (props: Of<N>) =
       {heading ? <h3 className={HEADING_CLASS}>{heading}</h3> : null}
       {blocks.map((block, index) => (
         <div key={index} className={`flex flex-col gap-1.5 ${BLOCK_TONE[block.type] ?? ""}`}>
+          {block.type === "INTERPRETATION" ? (
+            <span className="flex flex-wrap items-center gap-2">
+              <ProvenanceBadge kind="INTERPRETATION" criterionSource={block.criterionSource} />
+            </span>
+          ) : block.type === "GENERAL_INFORMATION" ? (
+            <span className="flex flex-wrap items-center gap-2">
+              <ProvenanceBadge kind="GENERAL_INFORMATION" />
+            </span>
+          ) : null}
           <p className="m-0 text-[15px] leading-[1.6] text-ink">{block.text}</p>
+          {block.criterion ? <span className="text-[13px] leading-[1.45] text-ink-muted">Criterion: {block.criterion}</span> : null}
           <SourceChips refs={block.refs} />
         </div>
       ))}

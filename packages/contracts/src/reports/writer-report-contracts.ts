@@ -175,15 +175,122 @@ function stripTokens(value: string): string {
   return value.replace(BINDING_TOKEN, " ");
 }
 
-/** Accepts or rejects one Writer output. Rejection is MODEL_OUTPUT_INVALID (retryable for Writers). */
+const UNCERTAINTY_CUE =
+  /\b(uncertain|uncertainty|unverified|unconfirmed|unknown|missing|not\s+reported|not\s+provided|not\s+available|unavailable|not\s+included|did\s+not\s+include|didn't\s+include|did\s+not\s+report|didn't\s+report|no\s+(?:\w+\s+){0,3}(?:score|data|record|report|measurement|log|evidence)|only\s+one|not\s+yet|gap|conflict|conflicting|differ|different|contradict|inconsistent|discrepancy|mismatch|could\s+not|cannot|can't|lacks?|incomplete|limited|limitation|unanswered|unresolved)\b/i;
+
+const STOPWORDS = new Set([
+  "that", "this", "with", "from", "were", "have", "been", "their", "there", "what", "when", "where",
+  "which", "while", "would", "could", "should", "about", "after", "before", "between", "into", "over",
+  "under", "only", "also", "more", "most", "some", "such", "than", "then", "them", "they", "these",
+  "those", "does", "did", "not", "none", "report", "reported", "document", "documents", "record", "records",
+]);
+
+function contentTokens(value: string): Set<string> {
+  const tokens = new Set<string>(numbersIn(value));
+  for (const word of value.toLowerCase().match(/[a-z]{4,}/g) ?? []) {
+    if (!STOPWORDS.has(word)) tokens.add(word);
+  }
+  return tokens;
+}
+
+export function hasClaimTokenOverlap(value: string, claim: StudyClaim): boolean {
+  const cleaned = stripTokens(value).trim();
+  if (!cleaned) return false;
+  const claimTokens = contentTokens([claim.text, ...claim.quotes].join(" "));
+  if (claimTokens.size === 0) return true;
+  for (const token of contentTokens(cleaned)) {
+    if (claimTokens.has(token)) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether a structured component entry's rendered prose visibly presents an uncertainty, conflict
+ * or missing-evidence claim rather than merely attaching its claim ID to unrelated content.
+ */
+export function visiblyPresentsUncertainty(value: string, claim: StudyClaim): boolean {
+  const cleaned = stripTokens(value).trim();
+  if (!cleaned || !UNCERTAINTY_CUE.test(cleaned)) return false;
+  return hasClaimTokenOverlap(cleaned, claim);
+}
+
+function collectVisibleStructuredUncertainties(
+  component: string,
+  props: Record<string, unknown>,
+  claims: ReadonlyMap<string, StudyClaim>,
+  surfaced: Set<string>,
+): void {
+  const markVisible = (prose: string, rawRefs: unknown, allowConflictCompare = false) => {
+    if (!Array.isArray(rawRefs)) return;
+    for (const ref of rawRefs) {
+      if (typeof ref !== "string") continue;
+      const claim = claims.get(ref);
+      if (!claim) continue;
+      if (visiblyPresentsUncertainty(prose, claim) || (allowConflictCompare && claim.kind === "CONFLICT" && hasClaimTokenOverlap(prose, claim))) {
+        surfaced.add(ref);
+      }
+    }
+  };
+  switch (component) {
+    case "IssueList":
+      if (Array.isArray(props.issues)) {
+        for (const raw of props.issues) {
+          if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+            const issue = raw as Record<string, unknown>;
+            if (typeof issue.text === "string") markVisible(issue.text, issue.claimRefs);
+          }
+        }
+      }
+      break;
+    case "EvidencePanel":
+    case "KeyFindings":
+      if (Array.isArray(props.claimIds)) {
+        for (const id of props.claimIds) {
+          if (typeof id !== "string") continue;
+          const claim = claims.get(id);
+          if (!claim || claim.refs.length === 0 || claim.kind === "UNCERTAINTY" || claim.kind === "LIMITATION") continue;
+          if (claim.kind === "CONFLICT" || visiblyPresentsUncertainty(claim.text, claim)) {
+            surfaced.add(id);
+          }
+        }
+      }
+      break;
+    case "Comparison":
+      if (Array.isArray(props.items)) {
+        for (const raw of props.items) {
+          if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+            const item = raw as Record<string, unknown>;
+            const left = typeof item.left === "string" ? item.left.trim() : "";
+            const right = typeof item.right === "string" ? item.right.trim() : "";
+            const label = typeof item.label === "string" ? item.label.trim() : "";
+            markVisible(`${label} ${left} ${right}`, item.claimRefs, left !== "" && right !== "" && left !== right);
+          }
+        }
+      }
+      break;
+    case "RecordTable":
+      if (Array.isArray(props.rows)) {
+        for (const raw of props.rows) {
+          if (raw && typeof raw === "object" && !Array.isArray(raw) && Array.isArray((raw as { cells?: unknown }).cells)) {
+            const row = raw as { cells: unknown[]; claimRefs?: unknown };
+            const prose = row.cells.filter((c): c is string => typeof c === "string").join(" ");
+            markVisible(prose, row.claimRefs);
+          }
+        }
+      }
+      break;
+  }
+}
 export function validateWriterReport(raw: unknown, context: WriterValidationContext): ContractValidation<WriterReport> {
   try {
     const claims = new Map(context.claims.map((claim) => [claim.id, claim]));
+    const questionsWithFacts = new Set(context.claims.filter((claim) => claim.kind === "FACT").map((claim) => claim.planQuestionId));
     const root = record(raw, "output");
     if (root.schema !== WRITER_REPORT_SCHEMA) reject("writer_output_schema", "The report schema is wrong.");
     if (root.audience !== context.audience) reject("writer_audience_mismatch", "The report is for the other audience.");
 
     const cited = new Set<string>();
+    const surfaced = new Set<string>();
     const resultTokens: { scenarioId: string; resultId: string; path: string }[] = [];
 
     const groundingFor = (refs: readonly string[]): Set<string> => {
@@ -191,7 +298,9 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
       for (const ref of refs) {
         const claim = claims.get(ref);
         if (!claim) continue;
-        for (const source of [claim.text, ...claim.quotes]) for (const n of numbersIn(source)) numbers.add(n);
+        for (const source of [claim.text, ...(claim.criterion ? [claim.criterion] : []), ...claim.quotes]) {
+          for (const n of numbersIn(source)) numbers.add(n);
+        }
         if (claim.numericStatus === "VERIFIED" && claim.computedValue) numbers.add(claim.computedValue);
       }
       return numbers;
@@ -248,7 +357,19 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
       }
       checkTokens(blockText, path);
       if (blockType !== "GENERAL_INFORMATION") checkGrounded(blockText, claimRefs, path);
-      for (const ref of claimRefs) cited.add(ref);
+      for (const ref of claimRefs) {
+        cited.add(ref);
+        const claim = claims.get(ref);
+        if (!claim) continue;
+        if (blockType === "UNCERTAINTY") {
+          surfaced.add(ref);
+        } else if (
+          (blockType === "DOCUMENTED" || blockType === "INTERPRETATION") &&
+          (claim.kind === "CONFLICT" || visiblyPresentsUncertainty(blockText, claim))
+        ) {
+          surfaced.add(ref);
+        }
+      }
       return { type: blockType, text: blockText, claimRefs };
     };
 
@@ -280,6 +401,10 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
       scenarioIds.add(id);
       const claimRefs = list(item.claimRefs, `${path}.claimRefs`, WRITER_LIMITS.claimRefsPerBlock, 1).map((ref, i) => {
         if (typeof ref !== "string" || !claims.has(ref)) reject("writer_claim_unknown", `${path}.claimRefs[${i}] is not a Study claim.`);
+        const claim = claims.get(ref) as StudyClaim;
+        if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+          reject("writer_claim_kind", `${path}.claimRefs[${i}] cites broad answer ${ref} when specific facts exist.`);
+        }
         cited.add(ref);
         return ref;
       });
@@ -299,6 +424,9 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
           const claim = typeof claimRef === "string" ? claims.get(claimRef) : undefined;
           if (!claim || (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED")) {
             reject("writer_scenario_unsupported", `${pPath} is documented but cites no verified Study claim.`);
+          }
+          if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+            reject("writer_claim_kind", `${pPath}.claimRef cites broad answer ${claim.id} when specific facts exist.`);
           }
           const formatted = formatDecimal(decimalFromPlain(rawValue) as Decimal);
           if (!groundingFor([claim.id]).has(formatted)) {
@@ -366,9 +494,12 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
 
     const view = list(root.view, "view", WRITER_LIMITS.viewComponents).map((value, index) => {
       const item = record(value, `view[${index}]`);
+      const component = text(item.component, `view[${index}].component`, 40);
+      const props = item.props === undefined ? {} : record(item.props, `view[${index}].props`);
+      collectVisibleStructuredUncertainties(component, props, claims, surfaced);
       return {
-        component: text(item.component, `view[${index}].component`, 40),
-        props: item.props === undefined ? {} : record(item.props, `view[${index}].props`),
+        component,
+        props,
       };
     });
 
@@ -378,7 +509,7 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
         claim.kind === "UNCERTAINTY" ||
         (claim.kind === "ANSWER" && (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING")),
     );
-    const unsurfaced = mustSurface.filter((claim) => !cited.has(claim.id));
+    const unsurfaced = mustSurface.filter((claim) => !surfaced.has(claim.id));
     if (unsurfaced.length > 0) {
       reject("writer_uncertainty_hidden", `The report leaves out ${unsurfaced.map((claim) => claim.id).join(", ")}.`);
     }

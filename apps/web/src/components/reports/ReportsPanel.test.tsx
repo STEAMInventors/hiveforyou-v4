@@ -186,4 +186,28 @@ describe("A2uiView", () => {
     expect(document.querySelector('[data-component="Fallback"]')?.textContent).toContain("can't be shown");
     expect(document.querySelectorAll('[data-component="Narrative"]').length).toBe(1);
   });
+
+  it("distinguishes source-backed facts from general-knowledge assessments and never quotes model-written fact statements", () => {
+    const draft = mayaWriterOutput("PRO");
+    draft.view.push({
+      component: "EvidencePanel",
+      props: { title: "Evidence and assessments", claimIds: ["P1.A0", "P1.F0"] },
+    } as never);
+    const built = buildReport(draft, {
+      audience: "PRO",
+      claims: claims(),
+      fileNames: new Map(Object.entries(MAYA_FILE_NAMES)),
+    });
+    if (!built.ok) throw new Error(built.message);
+
+    render(<A2uiView view={built.value.view} />);
+    expect(screen.getAllByText("Interpretation · General-knowledge criterion").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Criterion: Compare the latest measurement with the baseline and the goal.").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Source-backed fact").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("General information")).toBeTruthy();
+
+    const quotes = Array.from(document.querySelectorAll("q")).map((node) => node.textContent);
+    expect(quotes).toContain("Baseline: 62 words correct per minute.");
+    expect(quotes).not.toContain("The baseline was 62 words correct per minute.");
+  });
 });

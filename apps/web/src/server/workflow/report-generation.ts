@@ -24,15 +24,20 @@ import { callPlanner, type PlannerCallResult, type PlannerDeps } from "@/server/
 import { loadPromptCatalog, type PromptCatalog, sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 
+import type { Dispatch } from "./dispatch";
+
 /**
  * One Writer run (D-041): one model call for one audience over the accepted Study revision, then
  * trusted validation, deterministic scenario arithmetic and A2UI binding before the report is saved.
  * Failures retry this Writer run only (three attempts); the accepted Study is never touched.
  */
 
+export const REPORT_RETRY_BACKOFF_SECONDS = 30;
+
 export type ReportGenerationDeps = {
   readonly client: DocumentPageRpcClient;
   readonly planner: PlannerDeps;
+  readonly dispatch?: Dispatch;
   readonly loadCatalog?: () => PromptCatalog;
   readonly now?: () => Date;
 };
@@ -180,6 +185,8 @@ export function buildWriterPayload(
       ...(claim.refs.length > 0 ? { pages: claim.refs.map(page) } : {}),
       ...(claim.answerStatus ? { answerStatus: claim.answerStatus } : {}),
       ...(claim.numericStatus ? { numericStatus: claim.numericStatus, computedValue: claim.computedValue ?? null } : {}),
+      ...(claim.criterion ? { criterion: claim.criterion } : {}),
+      ...(claim.criterionSource ? { criterionSource: claim.criterionSource } : {}),
     })),
   };
 }
@@ -318,6 +325,11 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
         ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
       });
       if (failed.reportRun) log(failed.reportRun, failed.reportRun.status, startedAt, hiveError);
+      if (failed.applied && failed.retrying && deps.dispatch) {
+        const attempts = failed.reportRun?.attemptCount ?? claimed.attemptCount;
+        const delaySeconds = REPORT_RETRY_BACKOFF_SECONDS * Math.max(1, attempts);
+        await deps.dispatch({ kind: "report", id: reportRunId }, correlationId, { delaySeconds });
+      }
       return failed.reportRun?.status ?? null;
     } catch {
       // The lease lapses until it expires or another invocation claims the run.
