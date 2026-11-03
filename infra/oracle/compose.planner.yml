@@ -8,8 +8,8 @@ services:
   v4-planner:
     image: ${V4_PLANNER_IMAGE:-hiveforyou-v4-planner:local}
     build:
-      context: .
-      dockerfile: Dockerfile.planner
+      context: ../..
+      dockerfile: infra/oracle/Dockerfile.planner
       platforms:
         - linux/arm64
     ports:

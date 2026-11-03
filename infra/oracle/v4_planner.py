@@ -31,6 +31,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from model_json_parse import ModelJsonParseError, parse_model_json_object
+from study_investigation_schema import (
+    StudySchemaError,
+    load_study_investigation_structured_schema,
+    study_json_schema_response_format,
+)
+
 logger = logging.getLogger("hive_planner")
 
 CONTRACT_VERSION = "planner-completion@1"
@@ -89,9 +96,26 @@ DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]{1,128}$")
 TRUNCATED_FINISH_REASONS = frozenset({"length", "max_tokens"})
 JSON_ERROR_CATEGORY_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+STUDY_STRUCTURED_OUTPUT_ENV = "PLANNER_STUDY_STRUCTURED_OUTPUT"
 
 # Tests replace this with httpx.MockTransport; production uses the default network transport.
 _transport: httpx.AsyncBaseTransport | None = None
+
+_study_structured_schema: dict[str, object] | None = None
+_study_structured_schema_error: str | None = None
+
+
+def _load_study_structured_schema_cache() -> None:
+    global _study_structured_schema, _study_structured_schema_error
+    try:
+        _study_structured_schema = load_study_investigation_structured_schema()
+        _study_structured_schema_error = None
+    except StudySchemaError as exc:
+        _study_structured_schema = None
+        _study_structured_schema_error = str(exc)
+
+
+_load_study_structured_schema_cache()
 
 
 class PlannerCompletionRequest(BaseModel):
@@ -135,11 +159,17 @@ def _settings() -> dict[str, str]:
         "litellm_api_key": os.environ.get("PLANNER_LITELLM_API_KEY", "").strip(),
         "litellm_alias": os.environ.get("PLANNER_LITELLM_ALIAS", DEFAULT_MODEL_ALIAS).strip()
         or DEFAULT_MODEL_ALIAS,
+        "study_structured_output": os.environ.get(STUDY_STRUCTURED_OUTPUT_ENV, "").strip().lower(),
         **{
             f"{task}_alias": os.environ.get(env_name, "").strip()
             for task, env_name in REQUIRED_TASK_ALIAS_ENV.items()
         },
     }
+
+
+def _study_structured_output_enabled(settings: dict[str, str]) -> bool:
+    raw = settings.get("study_structured_output", "")
+    return raw in {"1", "true", "yes", "json_schema", "structured", "on"}
 
 
 def _correlation_id(raw: str | None) -> str:
@@ -244,17 +274,54 @@ def _json_error_category(exc: ValueError) -> str | None:
     return "json_decode_error"
 
 
+def _first_content_category(content: str) -> str:
+    """Classify leading structure without logging body text."""
+    trimmed = content.lstrip("\ufeff \t\n\r")
+    if not trimmed:
+        return "empty"
+    first = trimmed[0]
+    if first == "{":
+        return "json_object"
+    if first == "`":
+        return "markdown_fence"
+    return "other"
+
+
+def _ending_structure_category(content: str) -> str:
+    """Classify trailing structure without logging body text."""
+    trimmed = content.rstrip("\t\n\r ")
+    if not trimmed:
+        return "empty"
+    if trimmed.endswith("```"):
+        return "markdown_fence_close"
+    if trimmed.endswith("}"):
+        return "json_object_close"
+    if trimmed.endswith("]"):
+        return "json_array_close"
+    return "other"
+
+
+def _json_decode_diagnostics(exc: json.JSONDecodeError) -> dict[str, object]:
+    return {
+        "json_error_line": exc.lineno,
+        "json_error_column": exc.colno,
+        "json_error_position": exc.pos,
+    }
+
+
 def _output_failure_log(
     *,
     model_alias: str,
+    response_format_mode: str,
     finish_reason: str | None,
     completion_tokens: int | None,
     content: str | None,
     json_error_category: str | None = None,
+    json_decode_exc: json.JSONDecodeError | None = None,
 ) -> dict[str, object]:
     fields: dict[str, object] = {
         "model_alias": model_alias,
-        "response_format_mode": "json_object",
+        "response_format_mode": response_format_mode,
     }
     if finish_reason:
         fields["finish_reason"] = finish_reason
@@ -262,8 +329,12 @@ def _output_failure_log(
         fields["completion_tokens"] = completion_tokens
     if content is not None:
         fields["content_char_count"] = len(content)
+        fields["content_start_category"] = _first_content_category(content)
+        fields["content_end_category"] = _ending_structure_category(content)
     if json_error_category:
         fields["json_error_category"] = json_error_category
+    if json_decode_exc is not None:
+        fields.update(_json_decode_diagnostics(json_decode_exc))
     return fields
 
 
@@ -279,6 +350,64 @@ def _is_context_error(response: httpx.Response) -> bool:
     return "context" in text and ("length" in text or "window" in text or "exceed" in text)
 
 
+def _response_format_mode(task: str, settings: dict[str, str]) -> str:
+    if task == "study" and _study_structured_output_enabled(settings):
+        return "json_schema"
+    return "json_object"
+
+
+def _litellm_response_format(task: str, settings: dict[str, str]) -> dict[str, object]:
+    if _response_format_mode(task, settings) == "json_schema":
+        if _study_structured_schema is None:
+            raise PlannerError(
+                503,
+                "MODEL_UNAVAILABLE",
+                "dependency",
+                False,
+                "The Canonical Study structured output schema is not available.",
+                "structured_output_schema_unavailable",
+            )
+        return study_json_schema_response_format(_study_structured_schema)
+    return {"type": "json_object"}
+
+
+def _is_structured_output_rejection(response: httpx.Response) -> bool:
+    if response.status_code not in (400, 422):
+        return False
+    try:
+        text = json.dumps(response.json()).lower()
+    except ValueError:
+        text = response.text.lower()
+    markers = (
+        "json_schema",
+        "output_format",
+        "output_config",
+        "structured output",
+        "structured_output",
+        "response_format",
+        "schema",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _parse_error_category(exc: ModelJsonParseError) -> str | None:
+    if exc.category == "invalid_json":
+        return "expecting_value"
+    if exc.category == "surrounding_text":
+        return "expecting_value"
+    return None
+
+
+def _parse_json_content_diagnostic(exc: ModelJsonParseError) -> str:
+    if exc.category in {"not_object", "invalid_type", "wrapped_json"}:
+        return "model_response_contract"
+    if exc.category == "empty":
+        return "model_content_missing"
+    if exc.category in {"surrounding_text", "invalid_json"}:
+        return "model_output_not_json"
+    return "model_response_contract"
+
+
 async def _complete(request: PlannerCompletionRequest, settings: dict[str, str]) -> dict[str, Any]:
     if not settings["litellm_base_url"] or not settings["litellm_api_key"]:
         raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "Planning model is not configured.", "planner_unconfigured")
@@ -286,6 +415,7 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
     alias = _model_alias(request.task, settings)
     if alias is None:
         raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "The model for this task is not configured.", "model_alias_unconfigured")
+    format_mode = _response_format_mode(request.task, settings)
     payload = {
         "model": alias,
         "messages": [
@@ -294,7 +424,7 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
         ],
         "temperature": 0,
         "max_tokens": request.max_output_tokens,
-        "response_format": {"type": "json_object"},
+        "response_format": _litellm_response_format(request.task, settings),
     }
     started = time.monotonic()
     try:
@@ -314,6 +444,16 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
     if response.status_code >= 400:
         if response.status_code in (400, 413) and _is_context_error(response):
             raise PlannerError(422, "MODEL_CONTEXT_EXCEEDED", "model", False, "The planning request is too long.", "model_context_exceeded")
+        if format_mode == "json_schema" and _is_structured_output_rejection(response):
+            raise PlannerError(
+                502,
+                "MODEL_OUTPUT_INVALID",
+                "model",
+                False,
+                "The planning model rejected the structured output schema.",
+                "structured_output_schema_rejected",
+                log_fields={"model_alias": alias, "response_format_mode": format_mode},
+            )
         if response.status_code in (401, 403):
             raise PlannerError(503, "MODEL_UNAVAILABLE", "dependency", False, "The planning model rejected the planner.", "litellm_http_error")
         retryable = response.status_code == 429 or response.status_code >= 500
@@ -341,7 +481,13 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
             False,
             "The planning model returned no answer.",
             "model_content_missing",
-            log_fields=_output_failure_log(model_alias=alias, finish_reason=finish_reason, completion_tokens=completion_tokens, content=None),
+            log_fields=_output_failure_log(
+                model_alias=alias,
+                response_format_mode=format_mode,
+                finish_reason=finish_reason,
+                completion_tokens=completion_tokens,
+                content=None,
+            ),
         )
     content = message.get("content")
     if _is_truncated(finish_reason):
@@ -355,6 +501,7 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
             "model_output_truncated",
             log_fields=_output_failure_log(
                 model_alias=alias,
+                response_format_mode=format_mode,
                 finish_reason=finish_reason,
                 completion_tokens=completion_tokens,
                 content=content if isinstance(content, str) else None,
@@ -370,13 +517,14 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
             "model_content_missing",
             log_fields=_output_failure_log(
                 model_alias=alias,
+                response_format_mode=format_mode,
                 finish_reason=finish_reason,
                 completion_tokens=completion_tokens,
                 content=content if isinstance(content, str) else None,
             ),
         )
     try:
-        content_json = json.loads(content)
+        content_json = parse_model_json_object(content)
     except json.JSONDecodeError as exc:
         raise PlannerError(
             502,
@@ -387,27 +535,36 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
             "model_output_not_json",
             log_fields=_output_failure_log(
                 model_alias=alias,
+                response_format_mode=format_mode,
                 finish_reason=finish_reason,
                 completion_tokens=completion_tokens,
                 content=content,
                 json_error_category=_json_error_category(exc),
+                json_decode_exc=exc,
             ),
         ) from exc
-    if not isinstance(content_json, dict):
+    except ModelJsonParseError as exc:
+        diagnostic = _parse_json_content_diagnostic(exc)
+        parse_category = _parse_error_category(exc)
+        log_fields = _output_failure_log(
+            model_alias=alias,
+            response_format_mode=format_mode,
+            finish_reason=finish_reason,
+            completion_tokens=completion_tokens,
+            content=content,
+            json_error_category=parse_category,
+        )
+        if diagnostic == "model_output_not_json" and parse_category == "expecting_value":
+            log_fields.update({"json_error_line": 1, "json_error_column": 1, "json_error_position": 0})
         raise PlannerError(
             502,
             "MODEL_OUTPUT_INVALID",
             "model",
             False,
-            "The planning answer was not a JSON object.",
-            "model_response_contract",
-            log_fields=_output_failure_log(
-                model_alias=alias,
-                finish_reason=finish_reason,
-                completion_tokens=completion_tokens,
-                content=content,
-            ),
-        )
+            "The planning answer was not JSON.",
+            diagnostic,
+            log_fields=log_fields,
+        ) from exc
 
     return {
         "contract_version": CONTRACT_VERSION,
@@ -431,6 +588,7 @@ app = FastAPI(title="HiveForYou V4 Planner", version="0.1.0")
 @app.get("/health")
 async def health() -> dict[str, object]:
     settings = _settings()
+    structured_enabled = _study_structured_output_enabled(settings)
     return {
         "status": "ok",
         "model_alias": settings["litellm_alias"],
@@ -438,6 +596,12 @@ async def health() -> dict[str, object]:
         "task_aliases_configured": all(_model_alias(task, settings) for task in TASK_PROMPT_IDS),
         "litellm_configured": bool(settings["litellm_base_url"] and settings["litellm_api_key"]),
         "service_token_configured": bool(settings["service_token"]),
+        "study_structured_output": {
+            "enabled": structured_enabled,
+            "response_format_mode": "json_schema" if structured_enabled else "json_object",
+            "schema_loaded": _study_structured_schema is not None,
+            "schema_error": _study_structured_schema_error,
+        },
     }
 
 

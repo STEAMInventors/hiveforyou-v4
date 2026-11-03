@@ -41,6 +41,8 @@ const NON_RETRYABLE_MODEL_OUTPUT_REASONS = new Set([
   "model_content_missing",
   "model_output_invalid",
   "model_context_exceeded",
+  "structured_output_schema_rejected",
+  "structured_output_schema_unavailable",
 ]);
 
 function plannerError(

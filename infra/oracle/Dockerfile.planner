@@ -21,7 +21,8 @@ RUN pip install \
     'pydantic>=2,<3' \
     'httpx>=0.27,<1'
 
-COPY v4_planner.py /app/v4_planner.py
+COPY infra/oracle/v4_planner.py infra/oracle/model_json_parse.py infra/oracle/study_investigation_schema.py /app/
+COPY prompts/hive-study/hive.study-investigation-1.schema.json /app/schemas/hive.study-investigation-1.schema.json
 
 USER hiveplanner
 

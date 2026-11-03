@@ -153,6 +153,8 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "model_alias_unconfigured",
   "model_output_invalid",
   "model_context_exceeded",
+  "structured_output_schema_rejected",
+  "structured_output_schema_unavailable",
   "source_changed",
   "intent_missing",
   "document_read_active",

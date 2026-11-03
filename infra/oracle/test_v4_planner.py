@@ -7,7 +7,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+import model_json_parse
 import v4_planner
+from model_json_parse import parse_model_json_object
 from v4_planner import MAX_REQUEST_BYTES, app
 
 TOKEN = "planner-test-token"
@@ -259,6 +261,24 @@ def test_model_output_failure_logs_safe_diagnostics(client: TestClient, caplog: 
     assert "completion_tokens" in caplog.text
     assert "json_error_category" in caplog.text
     assert "finish_reason" in caplog.text
+    assert "content_start_category" in caplog.text
+    assert "content_end_category" in caplog.text
+    assert "json_error_line" in caplog.text
+    assert "json_error_column" in caplog.text
+    assert "json_error_position" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("content", "start", "end"),
+    [
+        ('{"schema": "hive.study-investigation/1"}', "json_object", "json_object_close"),
+        ("```json\n{}\n```", "markdown_fence", "markdown_fence_close"),
+        ("# Canonical Study\n\nAnswer in prose.", "other", "other"),
+    ],
+)
+def test_json_failure_content_categories(content: str, start: str, end: str) -> None:
+    assert v4_planner._first_content_category(content) == start
+    assert v4_planner._ending_structure_category(content) == end
 
 
 def test_network_failure_is_not_an_http_failure(client: TestClient) -> None:
@@ -296,21 +316,21 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
     monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
     monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
     data = client.get("/health").json()
-    assert data == {
-        "status": "ok",
-        "model_alias": "sorter",
-        "task_model_aliases": {
-            "intent": "sorter",
-            "domain": "sorter",
-            "intelligence": "sorter",
-            "plan": "sorter",
-            "study": "heavy_lifter",
-            "writer": "harvester",
-        },
-        "task_aliases_configured": True,
-        "litellm_configured": True,
-        "service_token_configured": True,
+    assert data["status"] == "ok"
+    assert data["model_alias"] == "sorter"
+    assert data["task_model_aliases"] == {
+        "intent": "sorter",
+        "domain": "sorter",
+        "intelligence": "sorter",
+        "plan": "sorter",
+        "study": "heavy_lifter",
+        "writer": "harvester",
     }
+    assert data["task_aliases_configured"] is True
+    assert data["litellm_configured"] is True
+    assert data["service_token_configured"] is True
+    assert data["study_structured_output"]["enabled"] is False
+    assert data["study_structured_output"]["schema_loaded"] is True
 
 
 def study_body(**overrides: object) -> dict[str, object]:
@@ -367,6 +387,98 @@ def test_study_accepts_large_pages_but_preparation_does_not(client: TestClient, 
     assert post(client, study_body(system_prompt=pages)).status_code == 200
     assert post(client, body(user_payload={"blob": pages})).status_code == 413
     assert post(client, study_body(max_output_tokens=32001)).status_code == 400
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"objectives": []}',
+        '\ufeff{"objectives": []}',
+        '```json\n{"objectives": []}\n```',
+        '  {"objectives": []}  ',
+    ],
+)
+def test_accepts_strict_json_shapes(client: TestClient, content: str) -> None:
+    use_litellm(lambda _: httpx.Response(200, json=completion(content)))
+    response = post(client, body())
+    assert response.status_code == 200
+    assert response.json()["content_json"] == {"objectives": []}
+
+
+@pytest.mark.parametrize(
+    "content,reason",
+    [
+        ('Here is JSON:\n{"objectives": []}', "model_response_contract"),
+        ('{"objectives": []}\nThanks.', "model_output_not_json"),
+        ('{"a":1}{"b":2}', "model_output_not_json"),
+        ("```json\n{}\n```\nextra", "model_response_contract"),
+        ("```json\n{}\n```\n```json\n{}\n```", "model_response_contract"),
+        ("```json\n{", "model_output_not_json"),
+    ],
+)
+def test_rejects_non_strict_json_shapes(client: TestClient, content: str, reason: str) -> None:
+    use_litellm(lambda _: httpx.Response(200, json=completion(content)))
+    response = post(client, body())
+    assert response.status_code == 502
+    assert response.json()["diagnostic_reason"] == reason
+
+
+def test_study_structured_output_sends_json_schema_when_enabled(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+    monkeypatch.setenv("PLANNER_STUDY_STRUCTURED_OUTPUT", "json_schema")
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"answers": []}')))
+    response = post(client, study_body())
+    assert response.status_code == 200
+    sent = json.loads(seen[0].content)
+    assert sent["response_format"]["type"] == "json_schema"
+    assert sent["response_format"]["json_schema"]["name"] == "hive_study_investigation_v1"
+    assert sent["response_format"]["json_schema"]["strict"] is True
+    assert sent["response_format"]["json_schema"]["schema"]["type"] == "object"
+    assert sent["response_format"]["json_schema"]["schema"]["$defs"]["formula"]["oneOf"]
+    assert sent["response_format"]["json_schema"]["schema"]["properties"]["schema"]["enum"] == [
+        "hive.study-investigation/1"
+    ]
+
+
+def test_study_structured_output_fails_closed_on_schema_rejection(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+    monkeypatch.setenv("PLANNER_STUDY_STRUCTURED_OUTPUT", "json_schema")
+    seen = use_litellm(
+        lambda _: httpx.Response(
+            400,
+            json={"error": {"message": "Invalid json_schema for structured output"}},
+        )
+    )
+    response = post(client, study_body())
+    assert response.status_code == 502
+    body_json = response.json()
+    assert body_json["diagnostic_reason"] == "structured_output_schema_rejected"
+    assert body_json["retryable"] is False
+    assert len(seen) == 1
+
+
+def test_writer_stays_json_object_when_study_structured_output_enabled(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    monkeypatch.setenv("PLANNER_STUDY_STRUCTURED_OUTPUT", "json_schema")
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"sections": []}')))
+    response = post(client, writer_body())
+    assert response.status_code == 200
+    assert json.loads(seen[0].content)["response_format"] == {"type": "json_object"}
+
+
+def test_parse_model_json_object_unit() -> None:
+    assert parse_model_json_object('{"a": 1}') == {"a": 1}
+    assert parse_model_json_object('\ufeff{"a": 1}') == {"a": 1}
+    assert parse_model_json_object('```json\n{"a": 1}\n```') == {"a": 1}
+    with pytest.raises(model_json_parse.ModelJsonParseError):
+        parse_model_json_object("Answer:\n{}")
 
 
 def test_study_timeout_is_longer_and_retryable(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
