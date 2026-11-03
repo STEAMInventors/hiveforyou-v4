@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { studyClaimCatalog, verifyStudyInvestigation } from "../analysis/study-verification";
+import { buildFailureDiagnostic } from "../errors/failure-diagnostic";
 import {
   MAYA_FILE_NAMES,
   MAYA_PAGES,
@@ -10,7 +11,7 @@ import {
   mayaWriterOutput,
 } from "../testing/maya-fixture";
 import { buildReport } from "./application-view-contracts";
-import { recomputeScenario, validateWriterReport } from "./writer-report-contracts";
+import { numbersIn, numericTokensIn, recomputeScenario, validateWriterReport } from "./writer-report-contracts";
 
 function mayaClaims() {
   const study = verifyStudyInvestigation(mayaStudyOutput(), {
@@ -400,5 +401,218 @@ describe("buildReport", () => {
     ]);
     const s3 = narratives.find((n) => n.component === "Narrative" && n.heading === "What is missing");
     expect(s3 && s3.component === "Narrative" && s3.blocks.some((b) => b.type === "NEXT_STEP")).toBe(false);
+  });
+
+  it("distinguishes canonical claim IDs from factual numbers and does not convert number words into digits", () => {
+    expect(numbersIn("Across P1, P1.F0, P1.F2, P2.C0, P1.A0, P1.U0, P1.K0, P1.D0 and P3.L0, see {{calc:P1.C0}} and {{result:S1.R1}}.")).toEqual(
+      [],
+    );
+    expect(numbersIn("Only one progress measurement across four days a week.")).toEqual([]);
+    expect(
+      numericTokensIn("1. On March 4, 2025 (p. 2, Section 3), P1.F0 rose 75% to 74.5 across 360 minutes."),
+    ).toEqual([
+      { normalized: "1", position: 0, category: "list_marker" },
+      { normalized: "4", position: 1, category: "date" },
+      { normalized: "2025", position: 2, category: "date" },
+      { normalized: "2", position: 3, category: "page_ref" },
+      { normalized: "3", position: 4, category: "identifier" },
+      { normalized: "75", position: 5, category: "percent" },
+      { normalized: "74.5", position: 6, category: "decimal" },
+      { normalized: "360", position: 7, category: "quantity" },
+    ]);
+  });
+
+  it(" enforces strict claim-level numeric grounding across Pro summary[1], Customer sections[4].blocks[2] and A2UI", () => {
+    // 1. Claim IDs in prose are not treated as factual numbers in Pro summary[1] or A2UI.
+    const proClaimIdsInProse = writer((o) => {
+      o.summary.push({
+        type: "INTERPRETATION",
+        text: "Per P1.A0 (supported by P1.F0 and P1.F2), Maya is improving toward the target but has not yet reached it.",
+        claimRefs: ["P1.A0"],
+      });
+    }, "PRO");
+    expect(validateWriterReport(proClaimIdsInProse, { audience: "PRO", claims }).ok).toBe(true);
+    expect(buildReport(proClaimIdsInProse, { audience: "PRO", claims, fileNames }).ok).toBe(true);
+
+    // 2. Assessment plus compatible atomic FACT and VERIFIED CALCULATION references pass in Pro summary[1].
+    const proGroundedInterpretation = writer((o) => {
+      o.summary.push({
+        type: "INTERPRETATION",
+        text: "Rising from 62 to 74 words correct per minute ({{calc:P1.C0}} words gained) toward the 90-word March 2026 goal shows progress.",
+        claimRefs: ["P1.A0", "P1.F0", "P1.F1", "P1.F2", "P1.C0"],
+      });
+    }, "PRO");
+    expect(validateWriterReport(proGroundedInterpretation, { audience: "PRO", claims }).ok).toBe(true);
+    expect(buildReport(proGroundedInterpretation, { audience: "PRO", claims, fileNames }).ok).toBe(true);
+
+    // 3. Customer sections[4].blocks[2]: UNCERTAINTY, QUESTION and NEXT_STEP blocks can cite specific supporting facts.
+    const customerGroundedSection4Block2 = writer((o) => {
+      o.sections.push(
+        {
+          id: "s4",
+          heading: "Service delivery details",
+          blocks: [{ type: "DOCUMENTED", text: "360 of 480 required speech minutes were delivered.", claimRefs: ["P2.F0", "P2.F1"] }],
+        },
+        {
+          id: "s5",
+          heading: "Preparing for the meeting",
+          blocks: [
+            {
+              type: "UNCERTAINTY",
+              text: "Only one progress measurement (74 words correct per minute in November 2025) was available after the 62-word baseline.",
+              claimRefs: ["P1.U0", "P1.F0", "P1.F2"],
+            },
+            {
+              type: "QUESTION",
+              text: "Whether the gain from 62 to 74 words correct per minute is sufficient is decided by the IEP team.",
+              claimRefs: ["P1.D0", "P1.F0", "P1.F2"],
+            },
+            {
+              type: "NEXT_STEP",
+              text: "Bring the November 2025 progress report showing 74 words correct per minute before the March 2026 review.",
+              claimRefs: ["P1.D0", "P1.F1", "P1.F2"],
+            },
+          ],
+        },
+      );
+    }, "CUSTOMER");
+    expect(validateWriterReport(customerGroundedSection4Block2, { audience: "CUSTOMER", claims }).ok).toBe(true);
+    expect(buildReport(customerGroundedSection4Block2, { audience: "CUSTOMER", claims, fileNames }).ok).toBe(true);
+
+    // 4. A measurement supported only by another claim (even in the same plan question P1) fails — no question-wide expansion.
+    const sameQuestionUncitedFact = writer((o) => {
+      o.sections[0].blocks[2] = {
+        type: "UNCERTAINTY",
+        text: "Only one measurement (74 words correct per minute in November 2025) was available after the baseline.",
+        claimRefs: ["P1.U0"],
+      };
+    }, "CUSTOMER");
+    expect(validateWriterReport(sameQuestionUncitedFact, { audience: "CUSTOMER", claims })).toMatchObject({
+      ok: false,
+      diagnosticReason: "writer_number_ungrounded",
+      diagnosticField: "sections[0].blocks[2]@num[0]:quantity",
+    });
+
+    const unrelatedClaimMeasurement = writer((o) => {
+      o.summary.push({
+        type: "INTERPRETATION",
+        text: "Maya received 360 of 480 speech minutes.",
+        claimRefs: ["P1.A0", "P1.F0"],
+      });
+    }, "PRO");
+    expect(validateWriterReport(unrelatedClaimMeasurement, { audience: "PRO", claims })).toMatchObject({
+      ok: false,
+      diagnosticReason: "writer_number_ungrounded",
+      diagnosticField: "summary[1]@num[0]:quantity",
+    });
+
+    // 5. Number words in source claims ("one" in P1.U0) do not ground digit "1" in prose.
+    const digitFromWord = writer((o) => {
+      o.summary.push({
+        type: "UNCERTAINTY",
+        text: "Only 1 progress measurement was available after the baseline.",
+        claimRefs: ["P1.U0"],
+      });
+    }, "PRO");
+    expect(validateWriterReport(digitFromWord, { audience: "PRO", claims })).toMatchObject({
+      ok: false,
+      diagnosticReason: "writer_number_ungrounded",
+      diagnosticField: "summary[1]@num[0]:quantity",
+    });
+
+    // 6. Ungrounded list numbering, dates, percentages, page refs and quantities at Customer sections[4].blocks[2] and Pro summary[1]
+    //    report safe token position + category without leaking the numeric value or prose.
+    const ungroundedCustomerBlock = writer((o) => {
+      o.sections.push(
+        {
+          id: "s4",
+          heading: "Service delivery details",
+          blocks: [{ type: "DOCUMENTED", text: "360 of 480 required speech minutes were delivered.", claimRefs: ["P2.F0", "P2.F1"] }],
+        },
+        {
+          id: "s5",
+          heading: "Preparing for the meeting",
+          blocks: [
+            { type: "QUESTION", text: "Who decides whether progress is sufficient?", claimRefs: ["P1.D0"] },
+            { type: "NEXT_STEP", text: "Bring the November 2025 progress report.", claimRefs: ["P1.F2"] },
+            {
+              type: "NEXT_STEP",
+              text: "2. Ask the IEP team for updated fluency data after the 62 wcpm baseline.",
+              claimRefs: ["P1.D0", "P1.F0"],
+            },
+          ],
+        },
+      );
+    }, "CUSTOMER");
+    const customerRejected = validateWriterReport(ungroundedCustomerBlock, { audience: "CUSTOMER", claims });
+    expect(customerRejected).toEqual({
+      ok: false,
+      message: "The report draft did not pass our checks against the Study.",
+      diagnosticReason: "writer_number_ungrounded",
+      diagnosticField: "sections[4].blocks[2]@num[0]:list_marker",
+    });
+
+    const proPercentRejected = validateWriterReport(
+      writer((o) => {
+        o.summary.push({
+          type: "INTERPRETATION",
+          text: "Fluency rose from 62 to 74 words correct per minute, reaching 82.2% of the goal.",
+          claimRefs: ["P1.A0", "P1.F0", "P1.F2"],
+        });
+      }, "PRO"),
+      { audience: "PRO", claims },
+    );
+    expect(proPercentRejected).toMatchObject({
+      ok: false,
+      diagnosticReason: "writer_number_ungrounded",
+      diagnosticField: "summary[1]@num[2]:percent",
+    });
+    if (!proPercentRejected.ok) {
+      const diag = buildFailureDiagnostic({
+        component: "writer",
+        operation: "validate_writer",
+        task: "writer",
+        stage: "VALIDATING",
+        errorCode: "MODEL_OUTPUT_INVALID",
+        diagnosticReason: proPercentRejected.diagnosticReason,
+        diagnosticField: proPercentRejected.diagnosticField,
+        retryable: true,
+        attempt: 1,
+      });
+      expect(diag).toMatchObject({
+        diagnosticReason: "writer_number_ungrounded",
+        diagnosticField: "summary[1]@num[2]:percent",
+      });
+      expect(JSON.stringify(diag)).not.toContain("82.2");
+    }
+
+    // 7. A2UI numerical grounding matches Writer validation (ignores claim IDs in prose, rejects ungrounded numbers with position + category).
+    const a2uiWithClaimId = writer((o) => {
+      o.view.push({
+        component: "Checklist",
+        props: {
+          title: "Meeting checklist",
+          items: [{ text: "Review the 360 delivered speech minutes (P2.F0)", claimRefs: ["P2.F0"] }],
+        },
+      } as never);
+    }, "CUSTOMER");
+    expect(buildReport(a2uiWithClaimId, { audience: "CUSTOMER", claims, fileNames }).ok).toBe(true);
+
+    const a2uiUngrounded = writer((o) => {
+      o.view.push({
+        component: "RecordTable",
+        props: {
+          title: "Speech log",
+          columns: ["Item", "Minutes"],
+          rows: [{ cells: ["Delivered (P2.F0)", "360 on p. 9"], claimRefs: ["P2.F0"] }],
+        },
+      } as never);
+    }, "CUSTOMER");
+    expect(buildReport(a2uiUngrounded, { audience: "CUSTOMER", claims, fileNames })).toMatchObject({
+      ok: false,
+      component: "a2ui",
+      diagnosticReason: "writer_number_ungrounded",
+      diagnosticField: "view[8].rows[0].cells[1]@num[1]:page_ref",
+    });
   });
 });

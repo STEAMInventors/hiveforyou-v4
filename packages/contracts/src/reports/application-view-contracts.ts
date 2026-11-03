@@ -3,7 +3,10 @@ import { diagnosticFieldFromMessage, type FailureComponent } from "../errors/fai
 import {
   BINDING_TOKEN,
   evaluateScenarios,
+  firstUngroundedNumericToken,
+  groundingNumbersForClaims,
   numbersIn,
+  numericDiagnosticField,
   type ReportAudience,
   type ReportBlockType,
   type ScenarioAnalysis,
@@ -122,8 +125,8 @@ class BindRejection extends Error {
   }
 }
 
-function reject(diagnosticReason: string, message: string): never {
-  throw new BindRejection(diagnosticReason, message, diagnosticFieldFromMessage(message));
+function reject(diagnosticReason: string, message: string, diagnosticField = diagnosticFieldFromMessage(message)): never {
+  throw new BindRejection(diagnosticReason, message, diagnosticField);
 }
 
 export type ReportBuildResult =
@@ -249,17 +252,13 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
     });
 
   const grounded = (value: string, claimIds: readonly string[], path: string) => {
-    const allowed = new Set<string>();
-    for (const id of claimIds) {
-      const claim = claims.get(id);
-      if (!claim) continue;
-      for (const source of [claim.text, ...(claim.criterion ? [claim.criterion] : []), ...claim.quotes]) {
-        for (const n of numbersIn(source)) allowed.add(n);
-      }
-      if (claim.numericStatus === "VERIFIED" && claim.computedValue) allowed.add(claim.computedValue);
-    }
-    for (const n of numbersIn(value.replace(BINDING_TOKEN, " "))) {
-      if (!allowed.has(n)) reject("writer_number_ungrounded", `${path} states a number its sources do not contain.`);
+    const ungrounded = firstUngroundedNumericToken(value, groundingNumbersForClaims(claims, claimIds));
+    if (ungrounded) {
+      reject(
+        "writer_number_ungrounded",
+        `${path} states a number its sources do not contain.`,
+        numericDiagnosticField(path, ungrounded),
+      );
     }
   };
   const str = (value: unknown, path: string, max = LIMITS.label): string => {
@@ -467,7 +466,11 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
           });
           const date = str(item.date, `${path}.events[${i}].date`, LIMITS.label);
           if (numbersIn(date).length === 0) {
-            reject("writer_number_ungrounded", `${path}.events[${i}].date states a date its sources do not contain.`);
+            reject(
+              "writer_number_ungrounded",
+              `${path}.events[${i}].date states a date its sources do not contain.`,
+              numericDiagnosticField(`${path}.events[${i}].date`, { position: 0, category: "date" }),
+            );
           }
           grounded(date, claimIds, `${path}.events[${i}].date`);
           const text = str(item.text, `${path}.events[${i}].text`, LIMITS.cell);

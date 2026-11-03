@@ -23,6 +23,9 @@ describe("loadPromptCatalog", () => {
     expect(() => JSON.parse(catalog.outputSchema.text)).not.toThrow();
     expect(catalog.writer.id).toBe("hive-writer/1");
     expect(catalog.writer.systemPrompt).toContain("writer_claim_kind");
+    expect(catalog.writer.systemPrompt).toContain("writer_number_ungrounded");
+    expect(catalog.writer.systemPrompt).toContain("Keep claim IDs in `claimRefs`, not prose.");
+    expect(catalog.writer.systemPrompt).toContain("Avoid numbered lists inside report block text.");
     expect(catalog.writer.systemPrompt).toContain("GENERAL_KNOWLEDGE");
     expect(catalog.writer.systemPrompt).toContain("Never cite a broad question-level `ANSWER` claim");
   });

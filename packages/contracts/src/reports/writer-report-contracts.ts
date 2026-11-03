@@ -105,6 +105,26 @@ export const WRITER_LIMITS = {
 /** `{{calc:P3.C1}}` binds a VERIFIED Study calculation; `{{result:S1.R1}}` binds a scenario result. */
 export const BINDING_TOKEN = /\{\{(calc|result):([A-Za-z0-9.]{1,32})\}\}/g;
 
+/** Canonical Study claim IDs (`P1`, `P1.F0`, `P2.C0`, `P1.A0`, `P1.U0`, `P1.K0`, `P1.D0`, `P3.L0`). */
+export const CLAIM_ID_TOKEN = /\bP[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?\b(?![0-9]|\.[0-9])/g;
+
+export const NUMERIC_TOKEN_CATEGORIES = [
+  "quantity",
+  "decimal",
+  "percent",
+  "date",
+  "list_marker",
+  "page_ref",
+  "identifier",
+] as const;
+export type NumericTokenCategory = (typeof NUMERIC_TOKEN_CATEGORIES)[number];
+
+export type NumericToken = {
+  readonly normalized: string;
+  readonly position: number;
+  readonly category: NumericTokenCategory;
+};
+
 const SECTION_ID = /^s[1-9][0-9]?$/;
 const SCENARIO_ID = /^S[1-9]$/;
 const RESULT_ID = /^R[1-9]$/;
@@ -120,8 +140,8 @@ class WriterRejection extends Error {
   }
 }
 
-function reject(diagnosticReason: string, message: string): never {
-  throw new WriterRejection(diagnosticReason, message, diagnosticFieldFromMessage(message));
+function reject(diagnosticReason: string, message: string, diagnosticField = diagnosticFieldFromMessage(message)): never {
+  throw new WriterRejection(diagnosticReason, message, diagnosticField);
 }
 
 function record(value: unknown, path: string): Record<string, unknown> {
@@ -147,19 +167,103 @@ function optionalText(value: unknown, path: string, max: number): string | null 
   return value === null || value === undefined ? null : text(value, path, max);
 }
 
-/** Numbers in prose, normalized: "1,234.50" → "1234.5", "03" → "3"; "4,5" is two numbers. */
-export function numbersIn(value: string): string[] {
-  const numbers: string[] = [];
-  for (const raw of value.match(/\d(?:[\d,]*\d)?(?:\.\d+)?/g) ?? []) {
+const MONTH_BEFORE =
+  /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*,?\s*$/i;
+const MONTH_AFTER =
+  /^\s*,?\s*(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i;
+
+/** Strips binding tokens (`{{calc:…}}`, `{{result:…}}`) and canonical Study claim IDs (`P1`, `P1.F0`, `P2.C0`). */
+export function stripReferenceTokens(value: string): string {
+  return value.replace(BINDING_TOKEN, " ").replace(CLAIM_ID_TOKEN, " ");
+}
+
+function classifyNumericToken(cleaned: string, matchIndex: number, raw: string, plain: string): NumericTokenCategory {
+  const before = cleaned.slice(0, matchIndex);
+  const after = cleaned.slice(matchIndex + raw.length);
+  if (/\b(?:pages?|pp?\.?)\s*$/i.test(before)) return "page_ref";
+  if (
+    /[A-Za-z_#§]$/.test(before) ||
+    /\b(?:section|sec|goal|item|part|table|figure|fig|doc|document|question|objective)\s*#?\s*$/i.test(before)
+  ) {
+    return "identifier";
+  }
+  if (
+    (/(?:^|[\r\n;:])\s*[([]?$/.test(before) && /^[)\].:](\s|$)/.test(after)) ||
+    /\bstep\s*$/i.test(before) ||
+    /^(?:st|nd|rd|th)\b/i.test(after)
+  ) {
+    return "list_marker";
+  }
+  if (/^\s*(?:%|percent\b|percentage\b)/i.test(after)) return "percent";
+  if (
+    MONTH_BEFORE.test(before) ||
+    MONTH_AFTER.test(after) ||
+    /\b\d{1,4}[/-]$/.test(before) ||
+    /^[/-]\d{1,4}\b/.test(after) ||
+    (/^(?:19|20)\d{2}$/.test(plain) && !/^\s*(?:minutes?|hours?|words?|days?|weeks?|months?|years?|items?|pages?)\b/i.test(after))
+  ) {
+    return "date";
+  }
+  if (plain.includes(".")) return "decimal";
+  return "quantity";
+}
+
+/**
+ * Extracts normalized numeric tokens from prose after stripping binding tokens and canonical Study
+ * claim IDs (`P1`, `P1.F0`, `P2.C0`, …), recording each token's 0-based position and safe category.
+ */
+export function numericTokensIn(value: string): NumericToken[] {
+  const cleaned = stripReferenceTokens(value);
+  const tokens: NumericToken[] = [];
+  for (const match of cleaned.matchAll(/\d(?:[\d,]*\d)?(?:\.\d+)?/g)) {
+    const raw = match[0];
+    const matchIndex = match.index ?? 0;
     const [whole, fraction] = raw.split(".");
     const parts = /^\d{1,3}(,\d{3})+$/.test(whole) ? [whole.replace(/,/g, "")] : whole.split(",");
     parts.forEach((part, index) => {
       const plain = index === parts.length - 1 && fraction !== undefined ? `${part}.${fraction}` : part;
       const parsed = decimalFromPlain(plain);
-      if (parsed) numbers.push(formatDecimal(parsed));
+      if (parsed) {
+        tokens.push({
+          normalized: formatDecimal(parsed),
+          position: tokens.length,
+          category: classifyNumericToken(cleaned, matchIndex, raw, plain),
+        });
+      }
     });
   }
+  return tokens;
+}
+
+/** Numbers in prose, normalized: "1,234.50" → "1234.5", "03" → "3"; "4,5" is two numbers. Claim IDs are ignored. */
+export function numbersIn(value: string): string[] {
+  return numericTokensIn(value).map((token) => token.normalized);
+}
+
+/** Strict claim-level numeric grounding set for the specific claims cited in `refs`. */
+export function groundingNumbersForClaims(claims: ReadonlyMap<string, StudyClaim>, refs: readonly string[]): Set<string> {
+  const numbers = new Set<string>();
+  for (const ref of refs) {
+    const claim = claims.get(ref);
+    if (!claim) continue;
+    for (const source of [claim.text, ...(claim.criterion ? [claim.criterion] : []), ...claim.quotes]) {
+      for (const n of numbersIn(source)) numbers.add(n);
+    }
+    if (claim.numericStatus === "VERIFIED" && claim.computedValue) numbers.add(claim.computedValue);
+  }
   return numbers;
+}
+
+export function firstUngroundedNumericToken(value: string, allowed: ReadonlySet<string>): NumericToken | null {
+  for (const token of numericTokensIn(value)) {
+    if (!allowed.has(token.normalized)) return token;
+  }
+  return null;
+}
+
+/** Safe `failure-diagnostic@1` field encoding token index and category without logging values or prose. */
+export function numericDiagnosticField(path: string, token: Pick<NumericToken, "position" | "category">): string {
+  return `${path}@num[${token.position}]:${token.category}`;
 }
 
 export type WriterValidationContext = {
@@ -172,7 +276,7 @@ const INTERPRETATION_KINDS = new Set(["ANSWER", "FACT", "ASSESSMENT", "DETERMINA
 const UNCERTAINTY_KINDS = new Set(["UNCERTAINTY", "CONFLICT", "LIMITATION", "ANSWER", "CALCULATION", "DETERMINATION", "FACT"]);
 
 function stripTokens(value: string): string {
-  return value.replace(BINDING_TOKEN, " ");
+  return stripReferenceTokens(value);
 }
 
 const UNCERTAINTY_CUE =
@@ -293,18 +397,7 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
     const surfaced = new Set<string>();
     const resultTokens: { scenarioId: string; resultId: string; path: string }[] = [];
 
-    const groundingFor = (refs: readonly string[]): Set<string> => {
-      const numbers = new Set<string>();
-      for (const ref of refs) {
-        const claim = claims.get(ref);
-        if (!claim) continue;
-        for (const source of [claim.text, ...(claim.criterion ? [claim.criterion] : []), ...claim.quotes]) {
-          for (const n of numbersIn(source)) numbers.add(n);
-        }
-        if (claim.numericStatus === "VERIFIED" && claim.computedValue) numbers.add(claim.computedValue);
-      }
-      return numbers;
-    };
+    const groundingFor = (refs: readonly string[]): Set<string> => groundingNumbersForClaims(claims, refs);
 
     const checkTokens = (value: string, path: string) => {
       for (const match of value.matchAll(BINDING_TOKEN)) {
@@ -325,9 +418,13 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
     };
 
     const checkGrounded = (value: string, refs: readonly string[], path: string) => {
-      const allowed = groundingFor(refs);
-      for (const n of numbersIn(stripTokens(value))) {
-        if (!allowed.has(n)) reject("writer_number_ungrounded", `${path} states a number its sources do not contain.`);
+      const ungrounded = firstUngroundedNumericToken(value, groundingFor(refs));
+      if (ungrounded) {
+        reject(
+          "writer_number_ungrounded",
+          `${path} states a number its sources do not contain.`,
+          numericDiagnosticField(path, ungrounded),
+        );
       }
     };
 
@@ -430,7 +527,15 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
           }
           const formatted = formatDecimal(decimalFromPlain(rawValue) as Decimal);
           if (!groundingFor([claim.id]).has(formatted)) {
-            reject("writer_number_ungrounded", `${pPath}.value does not appear in the claim it cites.`);
+            const token = numericTokensIn(rawValue)[0] ?? {
+              position: 0,
+              category: rawValue.includes(".") ? ("decimal" as const) : ("quantity" as const),
+            };
+            reject(
+              "writer_number_ungrounded",
+              `${pPath}.value does not appear in the claim it cites.`,
+              numericDiagnosticField(`${pPath}.value`, token),
+            );
           }
           cited.add(claim.id);
         } else if (claimRef !== null) {
