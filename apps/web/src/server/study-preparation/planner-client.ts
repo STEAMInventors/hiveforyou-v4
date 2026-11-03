@@ -3,10 +3,14 @@ import {
   type HiveError,
   normalizePlannerCompletion,
   normalizePlannerErrorEnvelope,
+  normalizeStudyAgentTurn,
   PLANNER_CONTRACT_VERSION,
   PLANNER_MAX_OUTPUT_TOKENS,
   type PlannerCompletion,
   type PlannerCompletionRequest,
+  STUDY_AGENT_TURN_CONTRACT_VERSION,
+  type StudyAgentTurn,
+  type StudyAgentTurnRequest,
 } from "@hiveforyou/contracts";
 
 import type { PlannerPrompt } from "./prompt-catalog";
@@ -14,8 +18,8 @@ import type { PlannerPrompt } from "./prompt-catalog";
 /** Above the planner's own 150 s LiteLLM timeout and below the 180 s stage lease. */
 export const PLANNER_HTTP_TIMEOUT_MS = 160_000;
 /**
- * Study and Writer calls: above the planner's 270 s model timeout and below the 300 s Vercel
- * function limit, so a planner timeout arrives as MODEL_TIMEOUT rather than a killed function.
+ * Writer calls: above the planner's 270 s model timeout and below the 300 s Vercel function
+ * limit, so a planner timeout arrives as MODEL_TIMEOUT rather than a killed function.
  */
 export const PLANNER_LONG_HTTP_TIMEOUT_MS = 280_000;
 
@@ -41,8 +45,6 @@ const NON_RETRYABLE_MODEL_OUTPUT_REASONS = new Set([
   "model_content_missing",
   "model_output_invalid",
   "model_context_exceeded",
-  "structured_output_schema_rejected",
-  "structured_output_schema_unavailable",
 ]);
 
 function plannerError(
@@ -177,6 +179,61 @@ function mapPlannerHttpError(
   });
 }
 
+type Exchange = {
+  readonly path: "/v1/plan-completion" | "/v1/study-agent-turn";
+  readonly body: unknown;
+  readonly timeoutMs: number;
+  readonly correlationId: string;
+  readonly processingRunId: string;
+};
+
+/** POSTs one request to the planner and returns the parsed success body; maps every failure to a HiveError. */
+async function exchange(deps: PlannerDeps, input: Exchange): Promise<unknown> {
+  const config = deps.getConfig();
+  let response: Response;
+  try {
+    response = await (deps.fetchFn ?? fetch)(`${config.baseUrl}${input.path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.serviceToken}`,
+        "Content-Type": "application/json",
+        "x-correlation-id": input.correlationId,
+        "x-study-run-id": input.processingRunId,
+      },
+      body: JSON.stringify(input.body),
+      signal: AbortSignal.timeout(input.timeoutMs),
+    });
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw plannerError({
+      errorCode: timedOut ? "MODEL_TIMEOUT" : "MODEL_UNAVAILABLE",
+      retryable: true,
+      safeMessage: timedOut ? "The analysis model took too long to answer. You can try again." : UNAVAILABLE_MESSAGE,
+      correlationId: input.correlationId,
+      operationId: input.processingRunId,
+      diagnosticReason: timedOut ? "planner_timeout" : "planner_network_error",
+      cause: error,
+    });
+  }
+  const { raw, unreadable } = await parsePlannerResponseBody(response);
+  if (!response.ok) {
+    throw mapPlannerHttpError(response.status, raw, unreadable, input.correlationId, input.processingRunId);
+  }
+  return raw;
+}
+
+function unexpectedResponse(diagnosticReason: string, correlationId: string, processingRunId: string): HiveError {
+  return plannerError({
+    errorCode: "MODEL_OUTPUT_INVALID",
+    category: "MODEL",
+    retryable: !NON_RETRYABLE_MODEL_OUTPUT_REASONS.has(diagnosticReason),
+    safeMessage: "The analysis service returned an unexpected response. You can try again.",
+    correlationId,
+    operationId: processingRunId,
+    diagnosticReason,
+  });
+}
+
 export type PlannerCallResult = PlannerCompletion & { readonly roundTripMs: number };
 
 /** One planning call through the Oracle planner; the planner, not the caller, picks the model. */
@@ -189,7 +246,6 @@ export async function callPlanner(
     readonly processingRunId: string;
   },
 ): Promise<PlannerCallResult> {
-  const { correlationId } = input;
   const config = deps.getConfig();
   const body: PlannerCompletionRequest = {
     contract_version: PLANNER_CONTRACT_VERSION,
@@ -201,51 +257,43 @@ export async function callPlanner(
     max_output_tokens: PLANNER_MAX_OUTPUT_TOKENS[input.prompt.task],
   };
   const started = Date.now();
-  let response: Response;
-  try {
-    response = await (deps.fetchFn ?? fetch)(`${config.baseUrl}/v1/plan-completion`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.serviceToken}`,
-        "Content-Type": "application/json",
-        "x-correlation-id": correlationId,
-        "x-study-run-id": input.processingRunId,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(
-        input.prompt.task === "study" || input.prompt.task === "writer"
-          ? (config.longTimeoutMs ?? PLANNER_LONG_HTTP_TIMEOUT_MS)
-          : config.timeoutMs,
-      ),
-    });
-  } catch (error) {
-    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-    throw plannerError({
-      errorCode: timedOut ? "MODEL_TIMEOUT" : "MODEL_UNAVAILABLE",
-      retryable: true,
-      safeMessage: timedOut ? "The analysis model took too long to answer. You can try again." : UNAVAILABLE_MESSAGE,
-      correlationId,
-      operationId: input.processingRunId,
-      diagnosticReason: timedOut ? "planner_timeout" : "planner_network_error",
-      cause: error,
-    });
-  }
-
-  const { raw, unreadable } = await parsePlannerResponseBody(response);
-  if (!response.ok) {
-    throw mapPlannerHttpError(response.status, raw, unreadable, correlationId, input.processingRunId);
-  }
+  const raw = await exchange(deps, {
+    path: "/v1/plan-completion",
+    body,
+    timeoutMs: input.prompt.task === "writer" ? (config.longTimeoutMs ?? PLANNER_LONG_HTTP_TIMEOUT_MS) : config.timeoutMs,
+    correlationId: input.correlationId,
+    processingRunId: input.processingRunId,
+  });
   const normalized = normalizePlannerCompletion(raw, input.prompt.task);
-  if (!normalized.ok) {
-    throw plannerError({
-      errorCode: "MODEL_OUTPUT_INVALID",
-      category: "MODEL",
-      retryable: !NON_RETRYABLE_MODEL_OUTPUT_REASONS.has(normalized.diagnosticReason),
-      safeMessage: "The analysis service returned an unexpected response. You can try again.",
-      correlationId,
-      operationId: input.processingRunId,
-      diagnosticReason: normalized.diagnosticReason,
-    });
-  }
+  if (!normalized.ok) throw unexpectedResponse(normalized.diagnosticReason, input.correlationId, input.processingRunId);
+  return { ...normalized.value, roundTripMs: Date.now() - started };
+}
+
+export type StudyAgentTurnResult = StudyAgentTurn & { readonly roundTripMs: number };
+
+/**
+ * One Canonical Study tool-calling turn (D-042). The planner relays the conversation to the model
+ * and returns its tool calls unexecuted; the caller's ledger executes them.
+ */
+export async function callStudyAgentTurn(
+  deps: PlannerDeps,
+  input: {
+    readonly request: Omit<StudyAgentTurnRequest, "contract_version">;
+    /** HTTP abort; set a little above `request.timeout_seconds` so a planner timeout arrives as an envelope. */
+    readonly abortMs: number;
+    readonly correlationId: string;
+    readonly processingRunId: string;
+  },
+): Promise<StudyAgentTurnResult> {
+  const started = Date.now();
+  const raw = await exchange(deps, {
+    path: "/v1/study-agent-turn",
+    body: { contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION, ...input.request } satisfies StudyAgentTurnRequest,
+    timeoutMs: input.abortMs,
+    correlationId: input.correlationId,
+    processingRunId: input.processingRunId,
+  });
+  const normalized = normalizeStudyAgentTurn(raw);
+  if (!normalized.ok) throw unexpectedResponse(normalized.diagnosticReason, input.correlationId, input.processingRunId);
   return { ...normalized.value, roundTripMs: Date.now() - started };
 }

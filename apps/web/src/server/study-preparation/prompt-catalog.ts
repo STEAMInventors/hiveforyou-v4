@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { PLANNER_TASK_PROMPT_IDS, type PlannerTask, type PreparationPlannerTask } from "@hiveforyou/contracts";
+import { PLANNER_TASK_PROMPT_IDS, type PlannerCompletionTask, type PreparationPlannerTask } from "@hiveforyou/contracts";
 
 /**
  * Loads the versioned preparation prompts from the repository `prompts/` folder (bundled with the
@@ -24,7 +24,7 @@ const WRITER_PROMPT_FILE = "hive-writer/HiveForYou-Writer-v1.md";
 const WRITER_SCHEMA_FILE = "hive-writer/hive.writer-report-1.schema.json";
 
 export type PlannerPrompt = {
-  readonly task: PlannerTask;
+  readonly task: PlannerCompletionTask;
   readonly id: string;
   readonly digest: string;
   readonly systemPrompt: string;

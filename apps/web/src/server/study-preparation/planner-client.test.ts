@@ -1,7 +1,7 @@
-import { PLANNER_CONTRACT_VERSION } from "@hiveforyou/contracts";
+import { PLANNER_CONTRACT_VERSION, STUDY_AGENT_TOOLS, STUDY_AGENT_TURN_CONTRACT_VERSION } from "@hiveforyou/contracts";
 import { describe, expect, it, vi } from "vitest";
 
-import { callPlanner, loadPlannerServiceConfig } from "./planner-client";
+import { callPlanner, callStudyAgentTurn, loadPlannerServiceConfig } from "./planner-client";
 import type { PlannerPrompt } from "./prompt-catalog";
 
 const CORRELATION_ID = "66666666-6666-4666-8666-666666666666";
@@ -91,7 +91,7 @@ describe("callPlanner", () => {
       message_safe: "The planning answer was not JSON.",
       correlation_id: CORRELATION_ID,
       processing_run_id: RUN_ID,
-      task: "study",
+      task: "intent",
       component: "planner",
       operation: "plan_completion",
       diagnostic_reason: "model_output_not_json",
@@ -143,5 +143,60 @@ describe("callPlanner", () => {
       throw Object.assign(new Error("timed out"), { name: "TimeoutError" });
     });
     await expect(call(fetchFn)).rejects.toMatchObject({ errorCode: "MODEL_TIMEOUT", retryable: true });
+  });
+});
+
+describe("callStudyAgentTurn", () => {
+  const request = {
+    prompt_id: "hive-study-preview/1",
+    prompt_digest: `sha256:${"b".repeat(64)}`,
+    system_prompt: "system",
+    messages: [{ role: "user" as const, content: "Begin." }],
+    tools: STUDY_AGENT_TOOLS,
+    max_output_tokens: 8000,
+    timeout_seconds: 100,
+  };
+  const turn = {
+    contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION,
+    model_alias: "heavy_lifter",
+    resolved_model: "synthetic-model",
+    message: { content: null, tool_calls: [{ id: "toolu_1", name: "search_case", arguments: '{"query":"goal"}' }] },
+    usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    latency_ms: 20,
+    finish_reason: "tool_calls",
+  };
+  const send = (fetchFn: ReturnType<typeof vi.fn>) =>
+    callStudyAgentTurn(
+      { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
+      { request, abortMs: 105_000, correlationId: CORRELATION_ID, processingRunId: RUN_ID },
+    );
+
+  it("posts one turn with the fixed tools and returns the unexecuted tool calls", async () => {
+    const fetchFn = respond(200, turn);
+    const result = await send(fetchFn);
+    expect(result.toolCalls).toEqual([{ id: "toolu_1", name: "search_case", arguments: '{"query":"goal"}' }]);
+    const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://reader.example.test/planner/v1/study-agent-turn");
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({ contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION, timeout_seconds: 100 });
+    expect(body.tools.map((tool: { function: { name: string } }) => tool.function.name)).toHaveLength(11);
+    expect(body).not.toHaveProperty("model");
+  });
+
+  it("maps a planner timeout to retryable MODEL_TIMEOUT and truncation to a non-retryable failure", async () => {
+    await expect(send(respond(504, { error_code: "MODEL_TIMEOUT", retryable: true }))).rejects.toMatchObject({
+      errorCode: "MODEL_TIMEOUT",
+      retryable: true,
+    });
+    await expect(
+      send(respond(502, { error_code: "MODEL_OUTPUT_INVALID", retryable: false, diagnostic_reason: "model_output_truncated" })),
+    ).rejects.toMatchObject({ errorCode: "MODEL_OUTPUT_INVALID", retryable: false, diagnosticReason: "model_output_truncated" });
+  });
+
+  it("rejects a turn that breaks the wire contract", async () => {
+    await expect(send(respond(200, { ...turn, contract_version: PLANNER_CONTRACT_VERSION }))).rejects.toMatchObject({
+      errorCode: "MODEL_OUTPUT_INVALID",
+      diagnosticReason: "planner_contract_version",
+    });
   });
 });

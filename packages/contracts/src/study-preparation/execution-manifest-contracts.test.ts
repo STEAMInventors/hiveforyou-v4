@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   EXECUTION_MANIFEST_SCHEMA,
-  SOURCE_PAGES_FORMAT,
+  SOURCE_PAGE_INDEX_FORMAT,
   SOURCE_PAGES_PLACEHOLDER,
   STUDY_INVESTIGATION_SCHEMA,
   validateExecutionManifest,
@@ -42,7 +42,7 @@ function manifest(overrides: Record<string, unknown> = {}) {
       investigationPlan: { schema: "hive.investigation-plan/1", planDigest: D("8"), questionIds: ["P1"] },
     },
     bindings: [
-      { placeholder: SOURCE_PAGES_PLACEHOLDER, input: "sourceDocuments", format: SOURCE_PAGES_FORMAT, rule: "x" },
+      { placeholder: SOURCE_PAGES_PLACEHOLDER, input: "sourceDocuments", format: SOURCE_PAGE_INDEX_FORMAT, rule: "x" },
     ],
     coverage: { complete: true, coverageDigest: D("9"), excludedDocuments: [], missingPages: [], emptyPages: [] },
     limits: { authorizedPageCount: 2, maxOutputTokensAdvisory: 8000 },

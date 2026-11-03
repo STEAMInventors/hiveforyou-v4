@@ -11,14 +11,14 @@ import {
   type ModelStageStatus,
   normalizeProcessingRun,
   pageKey,
-  PLANNER_MAX_REQUEST_BYTES_BY_TASK,
-  type PlannerTask,
   type ProcessingRun,
   type ProcessingRunStatus,
   resolveAudienceConfiguration,
   type SampleCoverage,
+  SOURCE_PAGE_INDEX_FORMAT,
   SOURCE_PAGES_PLACEHOLDER,
   type SourceSnapshot,
+  STUDY_AGENT_BUDGET,
   type StageMetric,
   type StoredIntent,
   validateDomainProposal,
@@ -47,11 +47,13 @@ import {
 import { buildStudyPrompt, canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 
 import type { Dispatch } from "./dispatch";
+import { renderSourcePageIndex, runStudyInvestigation, StudyAgentFailure, type StudyAgentTotals } from "./study-investigation";
 
 /**
  * The Analyze workflow (D-041): one durable run from reading documents to an accepted Canonical
- * Study. Each invocation claims the run's current stage, runs at most one model call, persists the
- * validated output and hands the next stage to a fresh invocation. Deterministic steps continue
+ * Study. Each invocation claims the run's current stage, runs at most one model call (the Study
+ * investigation runs one bounded tool-calling loop instead, D-042), persists the validated output
+ * and hands the next stage to a fresh invocation. Deterministic steps continue
  * inline. Timeouts and unavailable models retry the same stage (three attempts); invalid output
  * fails the run. Accepting the Study queues both Writer runs, which are dispatched here.
  */
@@ -115,8 +117,7 @@ const MODEL_OUTPUT_MESSAGE = "The analysis model returned an answer we couldn't 
 const SAVE_FAILED_MESSAGE = "We couldn't save your study prompt. You can try again.";
 const SOURCE_CHANGED_MESSAGE =
   "Your documents or request changed while analyzing. Analyze again to use the latest versions.";
-const STUDY_TOO_LARGE_MESSAGE =
-  "These documents are too long to study in one pass. Remove some documents, then analyze again.";
+const PREVIEW_OUTDATED_MESSAGE = "This analysis was prepared with an earlier version of Hive. Analyze again.";
 const READ_WAIT_SECONDS = 15;
 const MAX_STEPS_PER_INVOCATION = 12;
 /** Transient planner/network failures only; never auto-retry confirmed malformed model JSON. */
@@ -717,11 +718,6 @@ function manifestMismatch(context: Context): StageFailure {
   );
 }
 
-/** `hive.source-pages/1`: one heading per page, then its stored text, in manifest order. */
-export function renderSourcePages(ordered: SourcePages["ordered"]): string {
-  return ordered.map((page) => `### ${page.sourceDocumentId} · page ${page.pageNumber}\n\n${page.text}`).join("\n\n");
-}
-
 function verifyStudy(context: Context, raw: unknown, manifest: ExecutionManifest, pages: SourcePages) {
   return verifyStudyInvestigation(raw, {
     processingRunId: context.runId,
@@ -730,36 +726,91 @@ function verifyStudy(context: Context, raw: unknown, manifest: ExecutionManifest
   });
 }
 
+/**
+ * Canonical Study investigation (D-042): a bounded tool-calling loop over the case-wide corpus of
+ * frozen pages. Only a finished Study that still matches the current snapshot and passes the
+ * verifier is persisted; anything else fails the stage before acceptance.
+ */
 async function investigate(context: Context): Promise<StepResult> {
   const preview = await readPreview(context);
   if (!preview) throw manifestMismatch(context);
-  const pages = await loadSourcePages(context, preview.manifest);
-  const bound = preview.promptText.replace(SOURCE_PAGES_PLACEHOLDER, () => renderSourcePages(pages.ordered));
-  const userPayload = { task: "study", processingRunId: context.runId };
-  const prompt: PlannerPrompt = { task: "study", id: preview.promptId, digest: preview.promptDigest, systemPrompt: bound };
-  if (Buffer.byteLength(JSON.stringify({ system_prompt: bound, user_payload: userPayload }), "utf8") > requestBudget("study")) {
+  if (preview.manifest.bindings.some((binding) => binding.format !== SOURCE_PAGE_INDEX_FORMAT)) {
     throw new StageFailure(
       analysisError({
-        errorCode: "INVALID_DOCUMENT",
-        category: "DOCUMENT",
+        errorCode: "INTERNAL_ERROR",
         retryable: false,
-        safeMessage: STUDY_TOO_LARGE_MESSAGE,
+        safeMessage: PREVIEW_OUTDATED_MESSAGE,
         correlationId: context.correlationId,
-        diagnosticReason: "study_prompt_too_large",
+        diagnosticReason: "study_preview_outdated",
       }),
       null,
     );
   }
-  const study = await modelStage(context, "INVESTIGATING", prompt, userPayload, (raw) => verifyStudy(context, raw, preview.manifest, pages));
+  const pages = await loadSourcePages(context, preview.manifest);
+  const systemPrompt = preview.promptText.replace(SOURCE_PAGES_PLACEHOLDER, () => renderSourcePageIndex(pages.ordered));
+  const metric: StageMetric = {
+    stage: "INVESTIGATING",
+    attempt: context.stageAttempt,
+    promptId: preview.promptId,
+    promptDigest: preview.promptDigest,
+    modelAliasRequested: null,
+    startedAt: context.now().toISOString(),
+  };
+  const withTotals = (totals: StudyAgentTotals): StageMetric => ({
+    ...metric,
+    modelAliasRequested: totals.modelAlias,
+    resolvedModel: totals.resolvedModel,
+    promptTokens: totals.promptTokens,
+    completionTokens: totals.completionTokens,
+    totalTokens: totals.promptTokens + totals.completionTokens,
+    latencyMs: totals.latencyMs,
+    plannerLatencyMs: totals.roundTripMs,
+    finishReason: totals.finishReason,
+    completedAt: context.now().toISOString(),
+  });
+  let investigation: Awaited<ReturnType<typeof runStudyInvestigation>>;
+  try {
+    investigation = await runStudyInvestigation({
+      planner: context.deps.planner,
+      runId: context.runId,
+      correlationId: context.correlationId,
+      prompt: { id: preview.promptId, digest: preview.promptDigest, systemPrompt },
+      questionIds: preview.manifest.requiredInputs.investigationPlan.questionIds,
+      pages: pages.ordered,
+      deadline: context.startedAt + STUDY_AGENT_BUDGET.wallClockMs,
+    });
+  } catch (error) {
+    if (!(error instanceof StudyAgentFailure)) throw error;
+    const { hiveError } = error;
+    throw new StageFailure(hiveError, {
+      ...withTotals(error.totals),
+      outcome: "FAILED",
+      errorCode: hiveError.errorCode,
+      retryable: stageFailureRetryable(hiveError),
+    });
+  }
+  const done = withTotals(investigation.totals);
+  await loadInputs(context.deps.client, context.runId);
+  const verified = verifyStudy(context, investigation.study, preview.manifest, pages);
+  if (!verified.ok) {
+    throw new StageFailure(
+      analysisError({
+        errorCode: "MODEL_OUTPUT_INVALID",
+        category: "MODEL",
+        retryable: false,
+        safeMessage: MODEL_OUTPUT_MESSAGE,
+        correlationId: context.correlationId,
+        diagnosticReason: verified.diagnosticReason,
+        diagnosticField: verified.diagnosticField,
+      }),
+      { ...done, outcome: "FAILED", errorCode: "MODEL_OUTPUT_INVALID", retryable: false },
+    );
+  }
   const run = await advance(context, "INVESTIGATING", "VERIFYING_EVIDENCE", {
-    stage_outputs: { studyInvestigation: study.value.investigation },
-    stage_metric: study.metric,
+    stage_outputs: { studyInvestigation: verified.value.investigation },
+    stage_metric: { ...done, outcome: "SUCCEEDED" },
   });
   return { next: "continue", run };
-}
-
-function requestBudget(task: PlannerTask): number {
-  return PLANNER_MAX_REQUEST_BYTES_BY_TASK[task] - 4_096;
 }
 
 async function verifiedStudyFromRun(context: Context): Promise<{ inputs: RunInputs; verified: VerifiedStudy }> {

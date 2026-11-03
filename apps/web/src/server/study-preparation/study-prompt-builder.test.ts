@@ -2,6 +2,7 @@ import {
   buildDeterministicInvestigationPlan,
   resolveAudienceConfiguration,
   SOURCE_PAGES_PLACEHOLDER,
+  STUDY_AGENT_TOOL_NAMES,
   validateDomainProposal,
   validateExecutionManifest,
   validateIntentAnalysis,
@@ -87,11 +88,24 @@ describe("buildStudyPrompt", () => {
     expect(promptText).toContain("Market prices outside the quotes cannot be checked from these documents.");
   });
 
-  it("shows the JSON output example without Markdown code fences", () => {
+  it("instructs a tool-based investigation instead of one big JSON answer", () => {
     const { promptText } = buildStudyPrompt(inputs());
-    expect(promptText).not.toMatch(/```json/);
-    expect(promptText).not.toMatch(/\n```\n/);
-    expect(promptText).toContain('"schema": "hive.study-investigation/1"');
+    expect(promptText).not.toMatch(/```/);
+    expect(promptText).not.toContain("Return exactly one JSON object");
+    expect(promptText).not.toContain('"schema": "hive.study-investigation/1"');
+    expect(promptText).toContain("## 8. How to investigate");
+    expect(promptText).toContain("## 9. Case page index");
+    for (const tool of STUDY_AGENT_TOOL_NAMES) expect(promptText).toContain(`\`${tool}\``);
+    expect(promptText).toContain(`Hive assembles \`hive.study-investigation/1\``);
+    expect(promptText).toContain("it is never reported as missing evidence");
+  });
+
+  it("binds the page index format and the agent output budget in the manifest", () => {
+    const { executionManifest } = buildStudyPrompt(inputs());
+    expect(executionManifest.bindings).toEqual([
+      expect.objectContaining({ placeholder: SOURCE_PAGES_PLACEHOLDER, format: "hive.source-page-index/1" }),
+    ]);
+    expect(executionManifest.limits.maxOutputTokensAdvisory).toBe(48_000);
   });
 
   it("includes every investigation question with its logic, limits and answer structure", () => {
@@ -101,7 +115,7 @@ describe("buildStudyPrompt", () => {
     expect(promptText).toContain("#### P2 [COMPARISON] answers I2");
     expect(promptText).toContain("- Evaluation: Apply: Equivalence of line items");
     expect(promptText).toContain("#### P3 [LIST] answers I3");
-    expect(promptText).toContain("Include exactly one answer for each investigation question: P1, P2, P3.");
+    expect(promptText).toContain("Call `finish_question` exactly once for each investigation question: P1, P2, P3.");
   });
 
   it("states the domain with alternatives and advisory confidence", () => {

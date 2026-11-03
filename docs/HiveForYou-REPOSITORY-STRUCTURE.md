@@ -1,8 +1,8 @@
 # HiveForYou V4 — Repository structure and ownership
 
-**Version:** 0.2 | **Status:** Proposed paths only. The new repository and application code do not exist yet.
+**Version:** 0.3 | **Status:** The repository exists (`hiveforyou-v4`, in active development, not production). The tree below shows the current top-level layout; `packages/core` is still proposed only.
 
-## Proposed minimum repository
+## Repository layout
 
 ```text
 hiveforyou-v4/
@@ -23,20 +23,24 @@ hiveforyou-v4/
 │   ├── HiveForYou-DECISIONS.md
 │   └── brand/HiveForYou-Brand-Guide-v1.0.pdf
 ├── .cursor/rules/HiveForYou-*.mdc
-├── prompts/
-│   ├── hive-extract/HiveForYou-Extract-v1.md
-│   └── hive-prep/HiveForYou-Prep-v1.md
-├── apps/web/                       # Next.js app (V4-001+; auth, Hives, upload UI in progress)
+├── prompts/                        # hive-extract, hive-prep, hive-intent, hive-domain,
+│                                   # hive-intent-intelligence, hive-plan, hive-study, hive-writer
+├── apps/web/                       # Next.js app
 │   └── src/
 │       ├── app/                    # Next.js routes + server API handlers
-│       ├── components/             # brand shell, screens, approved renderer
+│       ├── components/             # brand shell, screens, A2UI renderer
 │       ├── server/                 # auth, persistence, model I/O, workflows
+│       │   ├── study-preparation/  # prompt catalog, planner client, prompt builder
+│       │   └── workflow/           # analysis workflow, agentic Study loop (study-investigation.ts), reports
 │       └── lib/                    # web-only helpers / typed clients
 ├── packages/
-│   ├── contracts/src/             # versioned trust-boundary schemas (as needed)
-│   └── core/src/                  # pure evidence/merge/calculation logic (as needed)
-├── supabase/migrations/            # created only with approved schema ticket
-└── tests/fixtures/                # synthetic sources; no real personal records
+│   ├── contracts/src/              # versioned trust-boundary contracts and pure checks
+│   │   ├── analysis/               # Study agent ledger (study-agent.ts), verifier, formulas
+│   │   └── reports/                # Writer validation, scenarios, A2UI catalog/binder
+│   └── core/src/                   # proposed: pure evidence/merge/calculation logic (not created)
+├── infra/oracle/                   # V4 Reader wrapper and v4-planner (FastAPI) + Docker/compose
+├── supabase/migrations/, tests/    # append-only SQL created only with approved schema tickets; pgTAP
+└── prototype/                      # visual reference (D-036)
 ```
 
 Do not scaffold empty directories or multiple packages simply to match this illustration. Build only what an approved ticket needs. Do not add `apps/worker`, Oracle runtime, Inngest, Python reader or extra API service by habit. Long-running execution remains a decision gate, and portable server modules should not depend on one deployment target.
@@ -69,7 +73,9 @@ Do not scaffold empty directories or multiple packages simply to match this illu
 
 Prompt ID and output schema are versioned (`hive-extract/1`, `hive.doc-extraction/1`). SQL tables, internal modules, functions and code packages are not suffixed V4. Persistent IDs are opaque UUIDs; `F001`, `R001`, `P1` are model-local references only. `docs/HiveForYou-NAMING-CONVENTIONS.md` governs concrete names.
 
-No V4 repository, live database schema, model gateway or frontend exists merely because this folder is distributed.
+The repository existing does not mean a migration is applied or a service is deployed; deployment state is tracked per ticket in `HiveForYou-NEXT.md`.
+
+The Oracle `v4-planner` relays model turns only (D-042): Study tools are executed by `StudyAgentLedger` in `packages/contracts/src/analysis/`, called from `apps/web/src/server/workflow/study-investigation.ts`. Do not add tool execution to `infra/oracle`.
 
 ## Analytical Intelligence logical ownership (future, not scaffolded)
 

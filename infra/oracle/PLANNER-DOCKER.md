@@ -6,9 +6,9 @@ Container for `v4_planner.py` (D-039): the only path from the web server to the 
 - **Host bind:** `127.0.0.1:8083` only. The existing Reader TLS proxy routes a path on the same HTTPS host to it.
 - **Credentials:** `v4-planner.env` (gitignored, `chmod 600`). `PLANNER_SERVICE_TOKEN` is distinct from `READER_SERVICE_TOKEN`; `PLANNER_LITELLM_API_KEY` is a scoped virtual key, never the master key.
 - **Per-task model (D-040):** `TASK_MODEL_ALIASES` in `v4_planner.py` overrides the alias for one task (code constant, no new variable). All four tasks (`intent`, `domain`, `intelligence`, `plan`) currently use `sorter`; to compare `harvester` for `intelligence`, change that entry, add `harvester` to the virtual key's `models`, rebuild and redeploy. `/health` reports `task_model_aliases`.
-- **Study and Writer models (D-041):** `study` uses `PLANNER_STUDY_LITELLM_ALIAS` (approved: `heavy_lifter`) and `writer` uses `PLANNER_WRITER_LITELLM_ALIAS` (approved: `harvester`). Both are required and never fall back to `sorter`; when unset the task fails closed with `MODEL_UNAVAILABLE` and `/health` reports `task_aliases_configured: false`. Add both aliases to the virtual key's `models`.
-- **Timeouts:** LiteLLM 150 s per preparation call and 270 s per `study`/`writer` call; the web client waits 160 s and 280 s respectively (Vercel limit 300 s). The proxy below must allow at least 290 s.
-- **Request limits:** 256 KB for preparation tasks, 1.5 MB for `study` (it carries every authorized page), 768 KB for `writer`.
+- **Study and Writer models (D-041, D-042):** the Study uses `PLANNER_STUDY_LITELLM_ALIAS` (approved: `heavy_lifter`) through `POST /v1/study-agent-turn` (`study-agent-turn@1`): one tool-calling turn per request, `tool_choice: required`, the model's tool calls returned unexecuted — the planner never runs Study tools. `writer` uses `PLANNER_WRITER_LITELLM_ALIAS` (approved: `harvester`) through `/v1/plan-completion`, which no longer accepts `task: study`. Both aliases are required and never fall back to `sorter`; when unset the call fails closed with `MODEL_UNAVAILABLE` and `/health` reports `task_aliases_configured: false`. Add both aliases to the virtual key's `models`.
+- **Timeouts:** LiteLLM 150 s per preparation call and 270 s per `writer` call; each Study turn uses the caller's `timeout_seconds` (5–240 s; the web loop sends at most 145 s). The web client waits 160 s and 280 s respectively (Vercel limit 300 s). The proxy below must allow at least 290 s.
+- **Request limits:** 256 KB for preparation tasks, 768 KB for `writer`, 1 MB per Study turn (system prompt with page index, tool definitions and the turn's message history).
 
 ## 1. Create the scoped LiteLLM virtual key (founder approval)
 
@@ -48,7 +48,8 @@ docker compose -f compose.planner.yml up -d
 docker compose -f compose.planner.yml ps
 curl -sS http://127.0.0.1:8083/health
 # Expect: status ok, model_alias sorter, task_model_aliases (preparation sorter, study heavy_lifter, writer harvester),
-# task_aliases_configured true, litellm_configured true, service_token_configured true
+# task_aliases_configured true, litellm_configured true, service_token_configured true,
+# contracts ["planner-completion@1", "study-agent-turn@1"]
 ```
 
 ## 4. TLS proxy route

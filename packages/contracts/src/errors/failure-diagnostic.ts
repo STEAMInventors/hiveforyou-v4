@@ -169,7 +169,7 @@ export function classifyFailure(input: {
     reason === "model_context_exceeded" ||
     reason === "model_alias_unconfigured";
   if (planner) {
-    return { component: "planner", operation: "plan_completion", task };
+    return { component: "planner", operation: input.stage === "INVESTIGATING" ? "study_agent_turn" : "plan_completion", task };
   }
   if (
     reason.startsWith("reader_") ||
@@ -188,6 +188,9 @@ export function classifyFailure(input: {
   }
   if (reason.startsWith("writer_")) {
     return { component: "writer", operation: "validate_writer", task: "writer" };
+  }
+  if (reason.startsWith("study_agent_")) {
+    return { component: "analysis", operation: "investigate", task: "study" };
   }
   if (reason.startsWith("study_") || reason === "quotation_mismatch") {
     return { component: "analysis", operation: "verify_study", task: "study" };

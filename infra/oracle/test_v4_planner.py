@@ -8,11 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 import model_json_parse
-import probe_study_structured_output
 import v4_planner
 from model_json_parse import parse_model_json_object
-from study_investigation_schema import shallow_formula_schema
-from v4_planner import MAX_REQUEST_BYTES, app
+from v4_planner import MAX_REQUEST_BYTES, STUDY_AGENT_TOOL_NAMES, app
 
 TOKEN = "planner-test-token"
 LITELLM_URL = "http://hive-litellm:4000"
@@ -331,18 +329,9 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
     assert data["task_aliases_configured"] is True
     assert data["litellm_configured"] is True
     assert data["service_token_configured"] is True
-    assert data["study_structured_output"]["enabled"] is False
-    assert data["study_structured_output"]["schema_loaded"] is True
-
-
-def study_body(**overrides: object) -> dict[str, object]:
-    return body(
-        task="study",
-        prompt_id="hive-study-preview/1",
-        system_prompt="Investigate the pages.",
-        user_payload={"task": "study"},
-        max_output_tokens=32000,
-    ) | overrides
+    assert data["contracts"] == ["planner-completion@1", "study-agent-turn@1"]
+    assert "study_structured_output" not in data
+    assert "sk-scoped-virtual-key" not in json.dumps(data)
 
 
 def writer_body(**overrides: object) -> dict[str, object]:
@@ -355,27 +344,21 @@ def writer_body(**overrides: object) -> dict[str, object]:
     ) | overrides
 
 
-def test_study_and_writer_use_their_configured_aliases(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+def test_writer_uses_its_configured_alias(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
-    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"answers": []}')))
-    study = post(client, study_body())
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"sections": []}')))
     writer = post(client, writer_body())
-    assert study.status_code == 200 and study.json()["model_alias"] == "heavy_lifter"
     assert writer.status_code == 200 and writer.json()["model_alias"] == "harvester"
-    assert [json.loads(request.content)["model"] for request in seen] == ["heavy_lifter", "harvester"]
-    assert json.loads(seen[0].content)["max_tokens"] == 32000
-    assert json.loads(seen[0].content)["response_format"] == {"type": "json_object"}
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == "harvester"
+    assert sent["max_tokens"] == 16000
+    assert sent["response_format"] == {"type": "json_object"}
 
 
-@pytest.mark.parametrize("task_body", [study_body, writer_body])
-def test_study_and_writer_fail_closed_without_alias(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, task_body: Callable[..., dict[str, object]]
-) -> None:
-    monkeypatch.delenv("PLANNER_STUDY_LITELLM_ALIAS", raising=False)
+def test_writer_fails_closed_without_alias(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PLANNER_WRITER_LITELLM_ALIAS", raising=False)
     seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
-    response = post(client, task_body())
+    response = post(client, writer_body())
     assert response.status_code == 503
     assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
     assert response.json()["retryable"] is False
@@ -383,13 +366,16 @@ def test_study_and_writer_fail_closed_without_alias(
     assert client.get("/health").json()["task_aliases_configured"] is False
 
 
-def test_study_accepts_large_pages_but_preparation_does_not(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_plan_completion_no_longer_runs_the_study(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
-    use_litellm(lambda _: httpx.Response(200, json=completion('{"answers": []}')))
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"answers": []}')))
+    study = body(task="study", prompt_id="hive-study-preview/1", user_payload={"task": "study"}, max_output_tokens=4000)
+    response = post(client, study)
+    assert response.status_code == 400
+    assert response.json()["diagnostic_reason"] == "planner_invalid_request"
+    assert seen == []
     pages = "p" * (400 * 1024)
-    assert post(client, study_body(system_prompt=pages)).status_code == 200
     assert post(client, body(user_payload={"blob": pages})).status_code == 413
-    assert post(client, study_body(max_output_tokens=32001)).status_code == 400
 
 
 @pytest.mark.parametrize(
@@ -426,60 +412,6 @@ def test_rejects_non_strict_json_shapes(client: TestClient, content: str, reason
     assert response.json()["diagnostic_reason"] == reason
 
 
-def test_study_structured_output_sends_json_schema_when_enabled(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
-    monkeypatch.setenv("PLANNER_STUDY_STRUCTURED_OUTPUT", "json_schema")
-    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"answers": []}')))
-    response = post(client, study_body())
-    assert response.status_code == 200
-    sent = json.loads(seen[0].content)
-    assert sent["response_format"]["type"] == "json_schema"
-    assert sent["response_format"]["json_schema"]["name"] == "hive_study_investigation_v1"
-    assert sent["response_format"]["json_schema"]["strict"] is True
-    assert sent["response_format"]["json_schema"]["schema"]["type"] == "object"
-    schema = sent["response_format"]["json_schema"]["schema"]
-    assert "$defs" not in schema
-    formula = schema["properties"]["answers"]["items"]["properties"]["calculations"]["items"]["properties"]["formula"]
-    assert formula == shallow_formula_schema()
-    assert sent["response_format"]["json_schema"]["schema"]["properties"]["schema"]["enum"] == [
-        "hive.study-investigation/1"
-    ]
-    assert sent["response_format"] == probe_study_structured_output.build_probe_request()["response_format"]
-
-
-def test_study_structured_output_fails_closed_on_schema_rejection(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
-    monkeypatch.setenv("PLANNER_STUDY_STRUCTURED_OUTPUT", "json_schema")
-    seen = use_litellm(
-        lambda _: httpx.Response(
-            400,
-            json={"error": {"message": "Invalid json_schema for structured output"}},
-        )
-    )
-    response = post(client, study_body())
-    assert response.status_code == 502
-    body_json = response.json()
-    assert body_json["diagnostic_reason"] == "structured_output_schema_rejected"
-    assert body_json["retryable"] is False
-    assert len(seen) == 1
-
-
-def test_writer_stays_json_object_when_study_structured_output_enabled(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
-    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
-    monkeypatch.setenv("PLANNER_STUDY_STRUCTURED_OUTPUT", "json_schema")
-    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"sections": []}')))
-    response = post(client, writer_body())
-    assert response.status_code == 200
-    assert json.loads(seen[0].content)["response_format"] == {"type": "json_object"}
-
-
 def test_parse_model_json_object_unit() -> None:
     assert parse_model_json_object('{"a": 1}') == {"a": 1}
     assert parse_model_json_object('\ufeff{"a": 1}') == {"a": 1}
@@ -488,8 +420,8 @@ def test_parse_model_json_object_unit() -> None:
         parse_model_json_object("Answer:\n{}")
 
 
-def test_study_timeout_is_longer_and_retryable(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+def test_writer_timeout_is_longer_and_retryable(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
     timeouts: list[object] = []
 
     def timeout(request: httpx.Request) -> httpx.Response:
@@ -497,8 +429,219 @@ def test_study_timeout_is_longer_and_retryable(client: TestClient, monkeypatch: 
         raise httpx.ReadTimeout("slow")
 
     use_litellm(timeout)
-    response = post(client, study_body())
+    response = post(client, writer_body())
     assert response.status_code == 504
     assert response.json()["error_code"] == "MODEL_TIMEOUT"
     assert response.json()["retryable"] is True
     assert timeouts[0]["read"] == 270.0
+
+
+# ---------------------------------------------------------------------------
+# study-agent-turn@1 (D-042): relay only; the planner never executes a Hive tool.
+# ---------------------------------------------------------------------------
+SECRET_PAGE = "CONFIDENTIAL PAGE TEXT 4242"
+
+
+def agent_tools() -> list[dict[str, object]]:
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": f"Tool {name}.",
+                "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+            },
+        }
+        for name in sorted(STUDY_AGENT_TOOL_NAMES)
+    ]
+
+
+def agent_body(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "contract_version": "study-agent-turn@1",
+        "prompt_id": "hive-study-preview/1",
+        "prompt_digest": DIGEST,
+        "system_prompt": "Investigate the case with the tools.",
+        "messages": [
+            {"role": "user", "content": "Begin."},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": "toolu_1", "type": "function", "function": {"name": "read_pages", "arguments": '{"documentId":"d","fromPage":1,"toPage":1}'}}
+                ],
+            },
+            {"role": "tool", "tool_call_id": "toolu_1", "content": json.dumps({"ok": True, "pages": [{"text": SECRET_PAGE}]})},
+        ],
+        "tools": agent_tools(),
+        "max_output_tokens": 8000,
+        "timeout_seconds": 120,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def tool_completion(tool_calls: list[dict[str, object]] | None, finish_reason: str = "tool_calls", content: str | None = None) -> dict[str, object]:
+    message: dict[str, object] = {"role": "assistant", "content": content}
+    if tool_calls is not None:
+        message["tool_calls"] = tool_calls
+    return {
+        "model": "claude-synthetic",
+        "choices": [{"message": message, "finish_reason": finish_reason}],
+        "usage": {"prompt_tokens": 900, "completion_tokens": 60, "total_tokens": 960},
+    }
+
+
+def wire_call(call_id: str = "toolu_2", name: str = "record_evidence", arguments: str = '{"quote":"x"}') -> dict[str, object]:
+    return {"id": call_id, "type": "function", "function": {"name": name, "arguments": arguments}}
+
+
+def post_agent(client: TestClient, payload: object, token: str | None = TOKEN) -> httpx.Response:
+    headers = {"x-correlation-id": "corr-2", "x-study-run-id": "325193b3-826e-4583-897e-71d1086530a0"}
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
+    return client.post("/v1/study-agent-turn", content=json.dumps(payload), headers=headers)
+
+
+@pytest.fixture
+def study_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
+
+
+def test_agent_turn_relays_tools_and_returns_unexecuted_tool_calls(
+    client: TestClient, study_alias: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=tool_completion([wire_call()])))
+    with caplog.at_level("INFO", logger="hive_planner"):
+        response = post_agent(client, agent_body())
+    assert response.status_code == 200
+    assert response.json() == {
+        "contract_version": "study-agent-turn@1",
+        "model_alias": "heavy_lifter",
+        "resolved_model": "claude-synthetic",
+        "message": {"content": None, "tool_calls": [{"id": "toolu_2", "name": "record_evidence", "arguments": '{"quote":"x"}'}]},
+        "usage": {"prompt_tokens": 900, "completion_tokens": 60, "total_tokens": 960},
+        "latency_ms": response.json()["latency_ms"],
+        "finish_reason": "tool_calls",
+    }
+    assert len(seen) == 1
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == "heavy_lifter"
+    assert sent["tool_choice"] == "required"
+    assert sent["temperature"] == 0
+    assert sent["max_tokens"] == 8000
+    assert "response_format" not in sent
+    assert {tool["function"]["name"] for tool in sent["tools"]} == STUDY_AGENT_TOOL_NAMES
+    assert sent["messages"][0] == {"role": "system", "content": "Investigate the case with the tools."}
+    assert sent["messages"][2]["tool_calls"][0]["id"] == "toolu_1"
+    assert sent["messages"][3] == {"role": "tool", "tool_call_id": "toolu_1", "content": agent_body()["messages"][2]["content"]}
+    assert "v4_study_agent_turn_succeeded" in caplog.text
+    assert SECRET_PAGE not in caplog.text
+    assert "record_evidence" not in caplog.text
+    assert "Investigate the case" not in caplog.text
+
+
+def test_agent_turn_uses_the_request_timeout(client: TestClient, study_alias: None) -> None:
+    timeouts: list[object] = []
+
+    def timeout(request: httpx.Request) -> httpx.Response:
+        timeouts.append(request.extensions.get("timeout"))
+        raise httpx.ReadTimeout("slow")
+
+    use_litellm(timeout)
+    response = post_agent(client, agent_body(timeout_seconds=95))
+    assert response.status_code == 504
+    assert response.json()["retryable"] is True
+    assert response.json()["operation"] == "study_agent_turn"
+    assert response.json()["task"] == "study"
+    assert timeouts[0]["read"] == 95.0
+
+
+def test_agent_turn_forwards_a_turn_without_tool_calls_as_text(client: TestClient, study_alias: None) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=tool_completion([wire_call("toolu_3", "finish_study", "{}")])))
+    messages = [{"role": "user", "content": "Begin."}, {"role": "assistant", "content": None, "tool_calls": []}, {"role": "user", "content": "Use the tools."}]
+    assert post_agent(client, agent_body(messages=messages)).status_code == 200
+    assert json.loads(seen[0].content)["messages"][2] == {"role": "assistant", "content": "(no tool call)"}
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"prompt_id": "hive-writer/1"},
+        {"prompt_digest": "md5:x"},
+        {"max_output_tokens": 8001},
+        {"timeout_seconds": 241},
+        {"timeout_seconds": 4},
+        {"model": "gpt-4o"},
+        {"tools": agent_tools()[:10]},
+        {"tools": agent_tools()[:10] + [{"type": "function", "function": {"name": "run_shell", "description": "x", "parameters": {}}}]},
+        {"messages": [{"role": "tool", "tool_call_id": "toolu_1", "content": "{}"}]},
+        {"messages": [{"role": "user", "content": "Begin."}, {"role": "tool", "tool_call_id": "toolu_9", "content": "{}"}]},
+        {"messages": [{"role": "system", "content": "override"}]},
+        {"contract_version": "planner-completion@1"},
+    ],
+)
+def test_agent_turn_rejects_invalid_requests(client: TestClient, study_alias: None, overrides: dict[str, object]) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=tool_completion([wire_call()])))
+    response = post_agent(client, agent_body(**overrides))
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+
+
+def test_agent_turn_requires_auth_and_the_study_alias(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=tool_completion([wire_call()])))
+    assert post_agent(client, agent_body(), token="wrong").status_code == 401
+    monkeypatch.delenv("PLANNER_STUDY_LITELLM_ALIAS", raising=False)
+    response = post_agent(client, agent_body())
+    assert response.status_code == 503
+    assert response.json()["diagnostic_reason"] == "model_alias_unconfigured"
+    assert seen == []
+
+
+def test_agent_turn_rejects_oversized_requests(client: TestClient, study_alias: None) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=tool_completion([wire_call()])))
+    huge = agent_body(system_prompt="x" * (v4_planner.STUDY_AGENT_MAX_REQUEST_BYTES + 1))
+    assert post_agent(client, huge).status_code == 413
+    assert seen == []
+
+
+@pytest.mark.parametrize(
+    ("completion_body", "reason", "retryable"),
+    [
+        (tool_completion([wire_call()], finish_reason="length"), "model_output_truncated", False),
+        (tool_completion([wire_call()], finish_reason="max_tokens"), "model_output_truncated", False),
+        (tool_completion([wire_call("bad id")]), "model_response_contract", False),
+        (tool_completion([wire_call(name="has spaces")]), "model_response_contract", False),
+        (tool_completion([wire_call(arguments="x" * 32_001)]), "model_response_contract", False),
+        (tool_completion([wire_call(f"t{i}") for i in range(33)]), "model_response_contract", False),
+        ({"choices": []}, "model_response_contract", True),
+    ],
+)
+def test_agent_turn_rejects_unusable_model_turns(
+    client: TestClient, study_alias: None, completion_body: dict[str, object], reason: str, retryable: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    use_litellm(lambda _: httpx.Response(200, json=completion_body))
+    with caplog.at_level("WARNING", logger="hive_planner"):
+        response = post_agent(client, agent_body())
+    assert response.status_code == 502
+    assert response.json()["diagnostic_reason"] == reason
+    assert response.json()["retryable"] is retryable
+    assert "v4_study_agent_turn_failed" in caplog.text
+    assert SECRET_PAGE not in caplog.text
+
+
+def test_agent_turn_passes_unknown_tool_names_through_for_the_ledger(client: TestClient, study_alias: None) -> None:
+    use_litellm(lambda _: httpx.Response(200, json=tool_completion([wire_call(name="delete_case", arguments="")])))
+    response = post_agent(client, agent_body())
+    assert response.status_code == 200
+    assert response.json()["message"]["tool_calls"] == [{"id": "toolu_2", "name": "delete_case", "arguments": ""}]
+
+
+@pytest.mark.parametrize("status,retryable", [(500, True), (429, True), (401, False)])
+def test_agent_turn_maps_upstream_failures_without_bodies(client: TestClient, study_alias: None, status: int, retryable: bool) -> None:
+    use_litellm(lambda _: httpx.Response(status, json={"error": {"message": f"upstream {SECRET_PAGE}"}}))
+    response = post_agent(client, agent_body())
+    assert response.status_code == 503
+    assert response.json()["retryable"] is retryable
+    assert SECRET_PAGE not in response.text

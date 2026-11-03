@@ -7,7 +7,12 @@ import type { ContractValidation } from "../source-documents/source-document-con
  */
 export const EXECUTION_MANIFEST_SCHEMA = "hive.study-execution-manifest/1";
 export const STUDY_INVESTIGATION_SCHEMA = "hive.study-investigation/1";
-export const SOURCE_PAGES_FORMAT = "hive.source-pages/1";
+/**
+ * At execution `{{SOURCE_PAGES}}` becomes an index of the authorized pages (D-042). Page text reaches
+ * the model only through the `read_pages` tool. Previews bound to the earlier full-text format
+ * (`hive.source-pages/1`) are not executed.
+ */
+export const SOURCE_PAGE_INDEX_FORMAT = "hive.source-page-index/1";
 export const SOURCE_PAGES_PLACEHOLDER = "{{SOURCE_PAGES}}";
 
 export type ManifestSourceDocument = {
@@ -44,7 +49,7 @@ export type ExecutionManifest = {
   bindings: {
     placeholder: typeof SOURCE_PAGES_PLACEHOLDER;
     input: "sourceDocuments";
-    format: typeof SOURCE_PAGES_FORMAT;
+    format: string;
     rule: string;
   }[];
   coverage: {

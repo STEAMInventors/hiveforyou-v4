@@ -53,7 +53,13 @@ describe("failure diagnostics", () => {
   it("classifies each workflow layer", () => {
     expect(classifyFailure({ stage: "INVESTIGATING", diagnosticReason: "model_output_truncated" })).toMatchObject({
       component: "planner",
-      operation: "plan_completion",
+      operation: "study_agent_turn",
+      task: "study",
+    });
+    expect(classifyFailure({ stage: "WRITING", diagnosticReason: "model_output_truncated" }).operation).toBe("plan_completion");
+    expect(classifyFailure({ stage: "INVESTIGATING", diagnosticReason: "study_agent_budget_exhausted" })).toEqual({
+      component: "analysis",
+      operation: "investigate",
       task: "study",
     });
     expect(classifyFailure({ stage: "UNDERSTANDING_REQUEST", diagnosticReason: "question_restates_intent" })).toMatchObject({

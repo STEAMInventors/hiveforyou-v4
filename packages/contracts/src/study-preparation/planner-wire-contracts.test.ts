@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   normalizePlannerCompletion,
+  normalizeStudyAgentTurn,
+  PLANNER_COMPLETION_TASKS,
   PLANNER_CONTRACT_VERSION,
   PLANNER_MAX_OUTPUT_TOKENS,
   PLANNER_MAX_REQUEST_BYTES_BY_TASK,
   PLANNER_TASK_PROMPT_IDS,
   PLANNER_TASKS,
   PREPARATION_PLANNER_TASKS,
+  STUDY_AGENT_TURN_CONTRACT_VERSION,
 } from "./planner-wire-contracts";
 
 describe("planner tasks", () => {
@@ -15,19 +18,69 @@ describe("planner tasks", () => {
     expect(PREPARATION_PLANNER_TASKS).toEqual(["intent", "domain", "intelligence"]);
     expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "study", "writer"]);
     expect(PLANNER_TASK_PROMPT_IDS.intelligence).toBe("hive-intent-intelligence/1");
+    expect(PLANNER_COMPLETION_TASKS).toEqual(["intent", "domain", "intelligence", "writer"]);
     expect(PLANNER_MAX_OUTPUT_TOKENS).toEqual({
       intent: 4000,
       domain: 4000,
       intelligence: 12000,
-      study: 32000,
       writer: 16000,
     });
   });
 
-  it("gives the study and writer their own prompts and larger request limits", () => {
+  it("keeps the study off the single-completion transport and gives the writer a larger request limit", () => {
     expect(PLANNER_TASK_PROMPT_IDS.study).toBe("hive-study-preview/1");
     expect(PLANNER_TASK_PROMPT_IDS.writer).toBe("hive-writer/1");
-    expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.study).toBeGreaterThan(PLANNER_MAX_REQUEST_BYTES_BY_TASK.intelligence);
+    expect(PLANNER_COMPLETION_TASKS).not.toContain("study");
+    expect("study" in PLANNER_MAX_REQUEST_BYTES_BY_TASK).toBe(false);
+    expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.writer).toBeGreaterThan(PLANNER_MAX_REQUEST_BYTES_BY_TASK.intelligence);
+  });
+});
+
+function agentTurn(overrides: Record<string, unknown> = {}) {
+  return {
+    contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION,
+    model_alias: "heavy_lifter",
+    resolved_model: "synthetic-model",
+    message: {
+      content: null,
+      tool_calls: [{ id: "toolu_01", name: "search_case", arguments: '{"query":"minutes"}' }],
+    },
+    usage: { prompt_tokens: 900, completion_tokens: 40, total_tokens: 940 },
+    latency_ms: 1200,
+    finish_reason: "tool_calls",
+    ...overrides,
+  };
+}
+
+describe("normalizeStudyAgentTurn", () => {
+  it("returns the tool calls exactly as sent, without parsing their arguments", () => {
+    expect(normalizeStudyAgentTurn(agentTurn())).toEqual({
+      ok: true,
+      value: {
+        modelAlias: "heavy_lifter",
+        resolvedModel: "synthetic-model",
+        usage: { promptTokens: 900, completionTokens: 40, totalTokens: 940 },
+        latencyMs: 1200,
+        finishReason: "tool_calls",
+        content: null,
+        toolCalls: [{ id: "toolu_01", name: "search_case", arguments: '{"query":"minutes"}' }],
+      },
+    });
+  });
+
+  it("keeps unknown tool names for the ledger to reject", () => {
+    const turn = agentTurn({ message: { content: "x", tool_calls: [{ id: "a", name: "delete_case", arguments: "{}" }] } });
+    expect(normalizeStudyAgentTurn(turn)).toMatchObject({ ok: true, value: { toolCalls: [{ name: "delete_case" }] } });
+  });
+
+  it.each([
+    [{ contract_version: "planner-completion@1" }, "planner_contract_version"],
+    [{ message: null }, "planner_content_missing"],
+    [{ message: { content: null, tool_calls: [{ id: "bad id", name: "search_case", arguments: "{}" }] } }, "planner_response_shape"],
+    [{ message: { content: null, tool_calls: [{ id: "a", name: "search_case", arguments: { query: "x" } }] } }, "planner_response_shape"],
+    [{ model_alias: "has spaces" }, "planner_model_alias"],
+  ])("rejects %j", (overrides, reason) => {
+    expect(normalizeStudyAgentTurn(agentTurn(overrides))).toMatchObject({ ok: false, diagnosticReason: reason });
   });
 });
 

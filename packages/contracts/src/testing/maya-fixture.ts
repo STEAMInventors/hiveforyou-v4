@@ -159,6 +159,121 @@ export function mayaStudyOutput() {
   };
 }
 
+type ScriptedCall = { id: string; name: string; arguments: string };
+
+/**
+ * A scripted Canonical Study investigation over the case-wide Maya corpus (D-042): one model turn
+ * per inner list. Evidence ids E1–E8, fact ids F1–F6 and calculation ids C1–C3 follow from the order.
+ * P1 draws on three documents and flags the differing 2024 and 2025 reading targets as a conflict.
+ */
+export function mayaStudyAgentTurns(): ScriptedCall[][] {
+  let n = 0;
+  const call = (name: string, args: Record<string, unknown>): ScriptedCall => ({
+    id: `toolu_maya_${(n += 1)}`,
+    name,
+    arguments: JSON.stringify(args),
+  });
+  const read = (doc: string, from: number, to = from) => call("read_pages", { documentId: doc, fromPage: from, toPage: to });
+  const cite = (doc: string, page: number, quote: string) => call("record_evidence", { documentId: doc, pageNumber: page, quote });
+  const fact = (questionId: string, statement: string, evidenceIds: string[]) => call("record_fact", { questionId, statement, evidenceIds });
+  const input = (label: string, valueAsWritten: string, evidenceIds: string[]) => ({ label, valueAsWritten, evidenceIds });
+  return [
+    [
+      call("search_case", { query: "words correct per minute" }),
+      read(MAYA_DOCS.iep2025, 1, 2),
+      read(MAYA_DOCS.iep2024, 1),
+      read(MAYA_DOCS.progressNov, 1),
+      read(MAYA_DOCS.serviceLog, 1),
+      read(MAYA_DOCS.evaluation, 1),
+    ],
+    [
+      cite(MAYA_DOCS.iep2025, 1, "Baseline: 62 words correct per minute."),
+      cite(MAYA_DOCS.iep2025, 1, "Maya will read 90 words correct per minute by March 2026."),
+      cite(MAYA_DOCS.iep2025, 1, "Meeting date: March 4, 2025."),
+      cite(MAYA_DOCS.progressNov, 1, "Goal 1 reading fluency: 74 words correct per minute."),
+      cite(MAYA_DOCS.serviceLog, 1, "Speech therapy minutes delivered September to November 2025: 360 minutes."),
+      cite(MAYA_DOCS.serviceLog, 1, "Minutes required by IEP: 480 minutes."),
+      cite(MAYA_DOCS.evaluation, 1, "The evaluator did not report a reading comprehension score."),
+      cite(MAYA_DOCS.iep2024, 1, "Goal 1: Maya will read 60 words correct per minute."),
+    ],
+    [
+      fact("P1", "The baseline was 62 words correct per minute.", ["E1"]),
+      fact("P1", "The goal is 90 words correct per minute by March 2026.", ["E2", "E3"]),
+      fact("P1", "In November 2025 Maya read 74 words correct per minute.", ["E4"]),
+      call("record_calculation", {
+        questionId: "P1",
+        description: "Gain since the baseline",
+        inputs: [input("Current", "74 words correct per minute", ["E4"]), input("Baseline", "62 words correct per minute", ["E1"])],
+        formula: { op: "-", args: [{ input: 0 }, { input: 1 }] },
+      }),
+      call("record_calculation", {
+        questionId: "P1",
+        description: "Remaining gap to the goal",
+        inputs: [input("Goal", "90 words correct per minute", ["E2"]), input("Current", "74 words correct per minute", ["E4"])],
+        formula: { op: "-", args: [{ input: 0 }, { input: 1 }] },
+      }),
+      call("record_assessment", {
+        questionId: "P1",
+        judgment: "Maya is improving but has not yet reached the goal.",
+        criterion: "Compare the latest measurement with the baseline and the goal.",
+        criterionSource: "GENERAL_KNOWLEDGE",
+        criterionEvidenceIds: [],
+        factIds: ["F1", "F2", "F3"],
+        reasoning: "The latest value is above the baseline and below the goal.",
+        strength: "MODERATE",
+        wouldChangeIf: ["A later progress report shows a different value."],
+      }),
+      call("record_professional_determination", {
+        questionId: "P1",
+        determination: "Whether progress is sufficient",
+        bearingFactIds: ["F1", "F3"],
+        decidedBy: "The IEP team",
+      }),
+      call("flag_conflict", {
+        questionId: "P1",
+        evidenceIds: ["E8", "E2"],
+        description: "The 2024 plan sets a reading goal of 60 words correct per minute; the 2025 plan sets 90.",
+      }),
+      fact("P2", "360 speech minutes were delivered.", ["E5"]),
+      fact("P2", "480 minutes are required.", ["E6"]),
+      call("record_calculation", {
+        questionId: "P2",
+        description: "Share of required minutes delivered",
+        inputs: [input("Delivered", "360 minutes", ["E5"]), input("Required", "480 minutes", ["E6"])],
+        formula: { op: "*", args: [{ op: "/", args: [{ input: 0 }, { input: 1 }] }, { value: "100" }] },
+      }),
+      fact("P3", "The evaluation did not report a comprehension score.", ["E7"]),
+    ],
+    [
+      call("finish_question", {
+        questionId: "P1",
+        status: "PARTIALLY_ANSWERED",
+        answer: "Reading fluency rose from 62 to 74 words correct per minute against a goal of 90.",
+        evidenceIds: ["E1", "E4"],
+        uncertainties: ["Only one progress measurement after the baseline was available."],
+        limitations: ["No progress measurement after November 2025 was available."],
+      }),
+      call("finish_question", {
+        questionId: "P2",
+        status: "ANSWERED",
+        answer: "The log shows 360 of 480 required speech minutes were delivered.",
+        evidenceIds: ["E5", "E6"],
+        uncertainties: [],
+        limitations: [],
+      }),
+      call("finish_question", {
+        questionId: "P3",
+        status: "MISSING_EVIDENCE",
+        answer: "No reading comprehension score was reported.",
+        evidenceIds: ["E7"],
+        uncertainties: [],
+        limitations: ["Comprehension cannot be assessed from these records."],
+      }),
+      call("finish_study", { coverageNotes: [] }),
+    ],
+  ];
+}
+
 export function mayaWriterOutput(audience: "CUSTOMER" | "PRO" = "CUSTOMER") {
   return {
     schema: "hive.writer-report/1",
