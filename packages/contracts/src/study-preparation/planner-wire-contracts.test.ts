@@ -11,6 +11,7 @@ import {
   PLANNER_TASKS,
   PREPARATION_PLANNER_TASKS,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
+  STUDY_AGENT_TURN_LIMITS,
   STUDY_AGENT_TURN_TASKS,
 } from "./planner-wire-contracts";
 
@@ -35,6 +36,7 @@ describe("planner tasks", () => {
     expect(PLANNER_COMPLETION_TASKS).not.toContain("writer");
     expect("study" in PLANNER_MAX_REQUEST_BYTES_BY_TASK).toBe(false);
     expect("writer" in PLANNER_MAX_REQUEST_BYTES_BY_TASK).toBe(false);
+    expect(STUDY_AGENT_TURN_LIMITS.maxUserContentChars).toBeGreaterThan(STUDY_AGENT_TURN_LIMITS.maxContentChars);
   });
 });
 

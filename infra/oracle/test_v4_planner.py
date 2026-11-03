@@ -662,3 +662,63 @@ def test_writer_agent_turn_fails_closed_without_writer_alias_and_validates_write
     }
     assert post_agent(client, writer_agent_body(tools=unclosed_tools)).status_code == 400
     assert seen == []
+
+
+def test_writer_agent_turn_accepts_real_multi_question_claim_catalog_over_32k_chars(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    seen = use_litellm(
+        lambda _: httpx.Response(
+            200,
+            json=tool_completion([wire_call("toolu_w1", "set_report_outline", '{"title":"Report","summary":[]}')]),
+        )
+    )
+    large_claims = [
+        {
+            "id": f"P{(i % 6) + 1}.F{i}",
+            "kind": "FACT",
+            "text": f"Documented finding {i} regarding service minutes and progress measurement: " + ("x" * 240),
+            "quotes": [
+                f"Verbatim quotation {i}a from the authorized record page: " + ("q" * 260),
+                f"Verbatim quotation {i}b from the authorized record page: " + ("r" * 260),
+            ],
+            "pages": ["Maya IEP 2025.pdf p.1", "Speech service log.xlsx p.1"],
+        }
+        for i in range(60)
+    ]
+    user_payload_json = json.dumps(
+        {
+            "task": "writer",
+            "audience": "CUSTOMER",
+            "audienceProfile": {
+                "role": "Parent",
+                "status": "STATED",
+                "tone": "Plain, calm and practical",
+                "detailLevel": "PLAIN",
+                "guidance": ["Explain progress and service minutes clearly."],
+            },
+            "requests": [{"intentRequestId": "5a5a5a5a-0000-4000-8000-0000000000a1", "text": "Prepare for the IEP meeting"}],
+            "domain": {"label": "Special education", "uncertain": False},
+            "coverage": {"complete": True, "notes": []},
+            "claims": large_claims,
+        }
+    )
+    assert len(user_payload_json) > v4_planner.STUDY_AGENT_MAX_CONTENT_CHARS
+    assert len(user_payload_json) < v4_planner.STUDY_AGENT_MAX_USER_CONTENT_CHARS
+
+    response = post_agent(
+        client,
+        writer_agent_body(messages=[{"role": "user", "content": user_payload_json}]),
+    )
+    assert response.status_code == 200
+    assert len(seen) == 1
+
+    # Still fails closed if a user message exceeds STUDY_AGENT_MAX_USER_CONTENT_CHARS.
+    too_long_user = "u" * (v4_planner.STUDY_AGENT_MAX_USER_CONTENT_CHARS + 1)
+    rejected = post_agent(
+        client,
+        writer_agent_body(messages=[{"role": "user", "content": too_long_user}]),
+    )
+    assert rejected.status_code == 400
+    assert rejected.json()["diagnostic_reason"] == "planner_invalid_request"

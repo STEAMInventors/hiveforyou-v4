@@ -117,6 +117,7 @@ AGENT_TASK_TOOLS: dict[str, frozenset[str]] = {
 }
 STUDY_AGENT_MAX_REQUEST_BYTES = 1024 * 1024
 STUDY_AGENT_MAX_SYSTEM_PROMPT_CHARS = 200_000
+STUDY_AGENT_MAX_USER_CONTENT_CHARS = 800_000
 STUDY_AGENT_MAX_OUTPUT_TOKENS = 8000
 STUDY_AGENT_MAX_MESSAGES = 600
 STUDY_AGENT_MAX_TOOL_CALLS = 32
@@ -164,7 +165,7 @@ class _ToolCall(_Strict):
 
 class _UserMessage(_Strict):
     role: Literal["user"]
-    content: str = Field(min_length=1, max_length=STUDY_AGENT_MAX_CONTENT_CHARS)
+    content: str = Field(min_length=1, max_length=STUDY_AGENT_MAX_USER_CONTENT_CHARS)
 
 
 class _AssistantMessage(_Strict):

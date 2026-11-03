@@ -142,6 +142,7 @@ export function normalizePlannerCompletion(
 /** Planner-side ceilings for one turn; the web budget stays below them. */
 export const STUDY_AGENT_TURN_LIMITS = {
   maxRequestBytes: 1024 * 1024,
+  maxUserContentChars: 800_000,
   maxOutputTokens: 8000,
   minTimeoutSeconds: 5,
   maxTimeoutSeconds: 240,

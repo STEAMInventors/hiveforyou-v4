@@ -20,7 +20,7 @@
 - **Contracts:** `packages/contracts/src/reports/writer-agent.ts`, `writer-report-contracts.ts`, `application-view-contracts.ts`, `study-preparation/planner-wire-contracts.ts`, `errors/failure-diagnostic.ts`, `testing/maya-fixture.ts` + focused tests in `writer-agent.test.ts`, `agentic-study-a2ui.test.ts`, `planner-wire-contracts.test.ts`, `failure-diagnostic.test.ts`.
 - **Web & Prompt:** `prompts/hive-writer/HiveForYou-Writer-v1.md`, `apps/web/src/server/study-preparation/prompt-catalog.ts`, `planner-client.ts`, `apps/web/src/server/workflow/report-generation.ts` + focused tests in `report-generation.test.ts`, `prompt-catalog.test.ts`, `planner-client.test.ts`.
 - **Oracle:** `infra/oracle/v4_planner.py` + `infra/oracle/test_v4_planner.py`.
-- **Verification (2026-11-03):** contracts 240 tests (20 files), web 318 tests (44 files), Oracle pytest 82 (78 planner + 4 reader) — all pass; typecheck pass; lint 0 errors (2 pre-existing warnings); production build pass; `git diff --check` clean.
+- **Verification (2026-11-03):** contracts 240 tests (20 files), web 320 tests (44 files), Oracle pytest 83 (79 planner + 4 reader) — all pass; typecheck pass; lint 0 errors (2 pre-existing warnings); production build pass; `git diff --check` clean.
 - **Approval stops:** deployment / `v4-planner` rebuild, live paid run, commit.
 
 **Done when:** founder approves the local implementation and verification results; after deployment, Customer and Pro Writer runs complete through the tool loop (recovering in-turn when a block or A2UI component is rejected) and persist verified reports without touching the accepted Canonical Study.

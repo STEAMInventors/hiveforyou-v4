@@ -1,8 +1,10 @@
 import {
   parseWriterAgentBudgetDiagnosticField,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
+  STUDY_AGENT_TURN_LIMITS,
   type StudyAgentTurnRequest,
   verifyStudyInvestigation,
+  WRITER_AGENT_TOOL_NAMES,
 } from "@hiveforyou/contracts";
 import {
   MAYA_DOCS,
@@ -485,4 +487,67 @@ describe("processReportRun", () => {
     expect(db.savedCount()).toBe(1);
     expect(db.studyUnchanged()).toBe(true);
   });
+
+  it.each(["CUSTOMER", "PRO"] as const)(
+    "serializes a valid study-agent-turn@1 Writer request when the claim catalog exceeds 32,000 characters (%s)",
+    async (audience) => {
+      const baseStudy = verifiedStudy();
+      const extraFacts = Array.from({ length: 45 }, (_, index) => ({
+        statement: `Documented progress observation ${index + 1}: In November 2025 Maya read 74 words correct per minute against the 90-word target (${"detail ".repeat(25).trim()}).`,
+        evidence: [
+          {
+            sourceDocumentId: MAYA_DOCS.progressNov,
+            pageNumber: 1,
+            quote: `Goal 1 reading fluency: 74 words correct per minute. Progress: making adequate progress (${"context ".repeat(35).trim()}).`,
+          },
+          {
+            sourceDocumentId: MAYA_DOCS.iep2025,
+            pageNumber: 1,
+            quote: `Maya will read 90 words correct per minute by March 2026 (${"baseline ".repeat(35).trim()}).`,
+          },
+        ],
+      }));
+      const largeInvestigation = structuredClone(baseStudy.investigation);
+      largeInvestigation.answers[0]!.facts.push(...extraFacts);
+      const db = fakeDatabase(audience);
+      const baseRpc = db.client.rpc;
+      db.client.rpc = vi.fn(async (fn: string, args: Record<string, unknown> = {}) => {
+        const res = await baseRpc(fn, args);
+        if (fn === "get_report_generation_inputs" && res.data && "studyRevision" in res.data) {
+          res.data.studyRevision.investigation = largeInvestigation;
+        }
+        return res;
+      }) as typeof db.client.rpc;
+
+      const model = planner(mayaWriterAgentTurns(audience));
+      await expect(
+        processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      ).resolves.toBe("SUCCEEDED");
+
+      expect(model.bodies).toHaveLength(1);
+      const req = model.bodies[0]!;
+      expect(req.contract_version).toBe("study-agent-turn@1");
+      expect(req.task).toBe("writer");
+      expect(req.prompt_id).toBe("hive-writer/1");
+      expect(req.prompt_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+      expect(req.system_prompt.length).toBeGreaterThan(100);
+      expect(req.system_prompt.length).toBeLessThanOrEqual(200_000);
+      expect(req.max_output_tokens).toBe(8000);
+      expect(req.timeout_seconds).toBeGreaterThanOrEqual(5);
+      expect(req.timeout_seconds).toBeLessThanOrEqual(240);
+      expect(req.tools.map((t) => t.function.name)).toEqual([...WRITER_AGENT_TOOL_NAMES]);
+      for (const tool of req.tools) {
+        expect(tool.type).toBe("function");
+        expect(tool.function.description.length).toBeGreaterThan(0);
+        expect(tool.function.description.length).toBeLessThanOrEqual(2000);
+        expect(tool.function.parameters).toMatchObject({
+          type: "object",
+          additionalProperties: false,
+        });
+      }
+      const userContent = req.messages[0]!.content ?? "";
+      expect(userContent.length).toBeGreaterThan(STUDY_AGENT_TURN_LIMITS.maxContentChars);
+      expect(userContent.length).toBeLessThanOrEqual(STUDY_AGENT_TURN_LIMITS.maxUserContentChars);
+    },
+  );
 });
