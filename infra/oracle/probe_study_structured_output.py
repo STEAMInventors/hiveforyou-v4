@@ -31,11 +31,13 @@ from typing import Any, Callable, Literal
 
 from model_json_parse import ModelJsonParseError, parse_model_json_object
 from study_investigation_schema import (
+    PROVIDER_FORMULA_MAX_DEPTH,
     STRUCTURED_OUTPUT_SCHEMA_NAME,
     STUDY_INVESTIGATION_SCHEMA_ID,
     StudySchemaError,
     load_study_investigation_structured_schema,
     prepare_study_investigation_structured_schema,
+    schema_uses_defs_or_ref,
     study_json_schema_response_format,
 )
 
@@ -207,13 +209,6 @@ def summarize_schema_complexity(response_format: dict[str, Any]) -> dict[str, An
     defs = schema.get("$defs")
     defs_keys = sorted(defs.keys()) if isinstance(defs, dict) else []
 
-    recursive_defs: list[str] = []
-    if isinstance(defs, dict):
-        for def_name, def_schema in sorted(defs.items()):
-            target_ref = f"#/$defs/{def_name}"
-            if target_ref in json.dumps(def_schema, separators=(",", ":")):
-                recursive_defs.append(def_name)
-
     return {
         "schema_id": STUDY_INVESTIGATION_SCHEMA_ID,
         "schema_name": str(json_schema_block.get("name", STRUCTURED_OUTPUT_SCHEMA_NAME)),
@@ -232,7 +227,9 @@ def summarize_schema_complexity(response_format: dict[str, Any]) -> dict[str, An
         "ref_count": ref_count,
         "ref_targets": sorted(ref_targets),
         "defs_keys": defs_keys,
-        "recursive_defs": recursive_defs,
+        "provider_formula_max_depth": PROVIDER_FORMULA_MAX_DEPTH,
+        "formula_recursion_strategy": "bounded_unroll",
+        "schema_uses_defs_or_ref": schema_uses_defs_or_ref(schema),
         "stripped_meta_key_count": stripped_meta_key_count,
         "constraint_counts": constraint_counts,
     }

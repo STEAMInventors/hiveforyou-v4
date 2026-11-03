@@ -69,11 +69,13 @@ def test_summarize_schema_complexity_reports_size_and_structure() -> None:
     assert summary["additional_properties_false_count"] == summary["object_count"]
     assert summary["enum_count"] >= 5
     assert summary["one_of_count"] >= 2
-    assert summary["ref_count"] == 2
-    assert summary["ref_targets"] == ["#/$defs/formula"]
-    assert summary["defs_keys"] == ["formula"]
-    assert summary["recursive_defs"] == ["formula"]
-    assert summary["stripped_meta_key_count"] == 0
+    assert summary["ref_count"] == 0
+    assert summary["ref_targets"] == []
+    assert summary["defs_keys"] == []
+    assert summary["provider_formula_max_depth"] == 12
+    assert summary["formula_recursion_strategy"] == "bounded_unroll"
+    assert summary["schema_uses_defs_or_ref"] is False
+    assert summary["stripped_meta_key_count"] >= 1
     assert summary["constraint_counts"]["pattern"] >= 2
     assert summary["constraint_counts"]["format"] >= 7
     assert summary["constraint_counts"]["maxLength"] >= 15

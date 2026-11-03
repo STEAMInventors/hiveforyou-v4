@@ -436,7 +436,11 @@ def test_study_structured_output_sends_json_schema_when_enabled(
     assert sent["response_format"]["json_schema"]["name"] == "hive_study_investigation_v1"
     assert sent["response_format"]["json_schema"]["strict"] is True
     assert sent["response_format"]["json_schema"]["schema"]["type"] == "object"
-    assert sent["response_format"]["json_schema"]["schema"]["$defs"]["formula"]["oneOf"]
+    schema = sent["response_format"]["json_schema"]["schema"]
+    assert "$defs" not in schema
+    formula = schema["properties"]["answers"]["items"]["properties"]["calculations"]["items"]["properties"]["formula"]
+    assert formula["oneOf"][0] == {"type": "null"}
+    assert formula["oneOf"][1]["oneOf"]
     assert sent["response_format"]["json_schema"]["schema"]["properties"]["schema"]["enum"] == [
         "hive.study-investigation/1"
     ]
