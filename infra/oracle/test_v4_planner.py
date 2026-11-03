@@ -8,8 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 import model_json_parse
+import probe_study_structured_output
 import v4_planner
 from model_json_parse import parse_model_json_object
+from study_investigation_schema import shallow_formula_schema
 from v4_planner import MAX_REQUEST_BYTES, app
 
 TOKEN = "planner-test-token"
@@ -363,6 +365,7 @@ def test_study_and_writer_use_their_configured_aliases(client: TestClient, monke
     assert writer.status_code == 200 and writer.json()["model_alias"] == "harvester"
     assert [json.loads(request.content)["model"] for request in seen] == ["heavy_lifter", "harvester"]
     assert json.loads(seen[0].content)["max_tokens"] == 32000
+    assert json.loads(seen[0].content)["response_format"] == {"type": "json_object"}
 
 
 @pytest.mark.parametrize("task_body", [study_body, writer_body])
@@ -439,11 +442,11 @@ def test_study_structured_output_sends_json_schema_when_enabled(
     schema = sent["response_format"]["json_schema"]["schema"]
     assert "$defs" not in schema
     formula = schema["properties"]["answers"]["items"]["properties"]["calculations"]["items"]["properties"]["formula"]
-    assert formula["oneOf"][0] == {"type": "null"}
-    assert formula["oneOf"][1]["oneOf"]
+    assert formula == shallow_formula_schema()
     assert sent["response_format"]["json_schema"]["schema"]["properties"]["schema"]["enum"] == [
         "hive.study-investigation/1"
     ]
+    assert sent["response_format"] == probe_study_structured_output.build_probe_request()["response_format"]
 
 
 def test_study_structured_output_fails_closed_on_schema_rejection(

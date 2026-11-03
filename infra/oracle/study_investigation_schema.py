@@ -1,9 +1,21 @@
 """
-Load and transform `hive.study-investigation/1` for provider structured-output APIs.
+Provider-facing structured-output schema for the `study` task, derived from `hive.study-investigation/1`.
 
-Evidence $refs are inlined. Recursive `formula` trees are unrolled to a fixed depth
-(matching trusted verification `FORMULA_MAX_DEPTH`) without `$defs` or `$ref`, which
-Anthropic structured output rejects via LiteLLM.
+The canonical schema file is unchanged and stays the contract. The provider schema is a compact,
+nonrecursive projection of it that keeps only `type`, `properties`, `required`,
+`additionalProperties`, `items` and `enum`:
+
+- annotations (`$schema`, `$id`, `title`, `description`) are dropped;
+- value constraints (`format`, `pattern`, `minLength`, `maxLength`, `minimum`, `maximum`, `minItems`)
+  are dropped and recorded as relaxations;
+- `const` becomes a single-value `enum`;
+- evidence `$ref`s are inlined;
+- the recursive nullable `formula` becomes an optional fixed three-level structure (operation, then
+  operation-or-leaf, then leaf) with no `$ref`, `$defs`, `oneOf` or `anyOf`.
+
+Anything else in the canonical schema fails closed with `StudySchemaError`, so a future canonical
+change cannot silently send an unreviewed keyword to the provider. Trusted verification
+(`verifyStudyInvestigation` in packages/contracts) enforces the complete contract on every output.
 """
 
 from __future__ import annotations
@@ -16,15 +28,21 @@ from typing import Any
 STUDY_INVESTIGATION_SCHEMA_ID = "hive.study-investigation/1"
 STRUCTURED_OUTPUT_SCHEMA_NAME = "hive_study_investigation_v1"
 
-# Align with packages/contracts/src/analysis/decimal-formula.ts (D-041).
-PROVIDER_FORMULA_MAX_DEPTH = 12
+PROVIDER_SCHEMA_KEYWORDS = frozenset({"type", "properties", "required", "additionalProperties", "items", "enum"})
+ANNOTATION_KEYWORDS = frozenset({"$schema", "$id", "title", "description"})
+RELAXED_CONSTRAINT_KEYWORDS = frozenset({"format", "pattern", "minLength", "maxLength", "minimum", "maximum", "minItems"})
+
+# Formula levels the provider schema can express; parseFormula accepts up to FORMULA_MAX_DEPTH (12).
+PROVIDER_FORMULA_DEPTH = 3
+FORMULA_OPERATORS = ["+", "-", "*", "/", "min", "max", "round"]
+
+_EVIDENCE_REF = "#/$defs/evidence"
+_FORMULA_REF = "#/$defs/formula"
 
 _DEFAULT_SCHEMA_PATH = (
     Path(__file__).resolve().parent.parent.parent / "prompts" / "hive-study" / "hive.study-investigation-1.schema.json"
 )
 _DOCKER_SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "hive.study-investigation-1.schema.json"
-
-_SCHEMA_STRIP_META_KEYS = frozenset({"$schema", "$id"})
 
 
 class StudySchemaError(Exception):
@@ -37,98 +55,106 @@ def _schema_source_path() -> Path:
     return _DEFAULT_SCHEMA_PATH
 
 
-def _normalize_for_provider(node: Any) -> Any:
-    if isinstance(node, list):
-        return [_normalize_for_provider(item) for item in node]
-    if not isinstance(node, dict):
-        return node
-    if "const" in node and len(node) == 1:
-        return {"enum": [node["const"]]}
-    normalized: dict[str, Any] = {}
-    for key, value in node.items():
-        if key in _SCHEMA_STRIP_META_KEYS:
-            continue
-        if key in {"title", "description"} and isinstance(value, str):
-            continue
-        normalized[key] = _normalize_for_provider(value)
-    return normalized
-
-
-def _formula_input_schema() -> dict[str, Any]:
-    return {
+def shallow_formula_schema() -> dict[str, Any]:
+    """
+    Formula as root operation -> operation-or-leaf -> leaf. Arity, `round` places, literal syntax and
+    input bounds are checked by `parseFormula`; a formula it rejects leaves the calculation UNVERIFIED.
+    """
+    leaf = {
         "type": "object",
         "additionalProperties": False,
-        "required": ["input"],
-        "properties": {"input": {"type": "integer", "minimum": 0}},
+        "properties": {"input": {"type": "integer"}, "value": {"type": "string"}},
     }
-
-
-def _formula_value_schema() -> dict[str, Any]:
-    return {
+    operation_or_leaf = {
         "type": "object",
         "additionalProperties": False,
-        "required": ["value"],
-        "properties": {"value": {"type": "string", "pattern": r"^-?[0-9]+(\.[0-9]+)?$"}},
+        "properties": {
+            "op": {"enum": list(FORMULA_OPERATORS)},
+            "args": {"type": "array", "items": leaf},
+            "places": {"type": "integer"},
+            "input": {"type": "integer"},
+            "value": {"type": "string"},
+        },
     }
-
-
-def _formula_op_schema(arg_schema: dict[str, Any]) -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
         "required": ["op", "args"],
         "properties": {
-            "op": {"enum": ["+", "-", "*", "/", "min", "max", "round"]},
-            "args": {"type": "array", "minItems": 1, "items": arg_schema},
-            "places": {"type": "integer", "minimum": 0, "maximum": 6},
+            "op": {"enum": list(FORMULA_OPERATORS)},
+            "args": {"type": "array", "items": operation_or_leaf},
+            "places": {"type": "integer"},
         },
     }
 
 
-def bounded_formula_schema(max_depth: int = PROVIDER_FORMULA_MAX_DEPTH) -> dict[str, Any]:
-    """
-    Provider-safe formula schema: leaf nodes plus `op` branches down to `max_depth`.
-
-    Depth counting matches `parseFormula` in decimal-formula.ts (each node consumes one
-    depth level). Formulas deeper than `max_depth` are rejected by trusted verification
-    anyway; they cannot be represented without `$ref` recursion on Anthropic.
-    """
-    if max_depth < 0:
-        raise StudySchemaError("Formula unroll depth must be non-negative")
-
-    def at_depth(remaining_levels: int) -> dict[str, Any]:
-        """`remaining_levels` is the max visit depth (1-based) allowed at this subtree root."""
-        leaves: list[dict[str, Any]] = [_formula_input_schema(), _formula_value_schema()]
-        if remaining_levels <= 1:
-            return {"oneOf": leaves}
-        child = at_depth(remaining_levels - 1)
-        return {"oneOf": leaves + [_formula_op_schema(child)]}
-
-    return at_depth(max_depth)
+def _is_nullable_formula(node: dict[str, Any]) -> bool:
+    branches = node.get("oneOf")
+    return (
+        isinstance(branches, list)
+        and len(branches) == 2
+        and {"type": "null"} in branches
+        and {"$ref": _FORMULA_REF} in branches
+    )
 
 
-def _inline_evidence_refs(node: Any, evidence_def: dict[str, Any]) -> Any:
-    if isinstance(node, list):
-        return [_inline_evidence_refs(item, evidence_def) for item in node]
-    if not isinstance(node, dict):
-        return node
-    ref = node.get("$ref")
-    if ref == "#/$defs/evidence":
-        return _normalize_for_provider(copy.deepcopy(evidence_def))
-    if ref == "#/$defs/formula":
-        return {"$ref": "#/$defs/formula"}
-    return {key: _inline_evidence_refs(value, evidence_def) for key, value in node.items()}
+class _ProviderProjection:
+    def __init__(self, evidence_def: dict[str, Any]) -> None:
+        self.evidence_def = evidence_def
+        self.relaxations: list[dict[str, Any]] = []
+
+    def schema(self, node: Any, path: str) -> dict[str, Any]:
+        if not isinstance(node, dict):
+            raise StudySchemaError(f"Schema node at {path} is not an object")
+        ref = node.get("$ref")
+        if ref is not None:
+            if ref != _EVIDENCE_REF or len(node) != 1:
+                raise StudySchemaError(f"Unsupported $ref at {path}")
+            return self.schema(self.evidence_def, path)
+        if "oneOf" in node:
+            if not _is_nullable_formula(node):
+                raise StudySchemaError(f"Unsupported oneOf at {path}")
+            self.relaxations.append({"path": path, "keyword": "formula", "value": "nullable recursive formula"})
+            return shallow_formula_schema()
+
+        out: dict[str, Any] = {}
+        for key, value in node.items():
+            if key in ANNOTATION_KEYWORDS:
+                continue
+            if key in RELAXED_CONSTRAINT_KEYWORDS:
+                self.relaxations.append({"path": path, "keyword": key, "value": value})
+                continue
+            if key == "const":
+                out["enum"] = [value]
+            elif key == "properties":
+                if not isinstance(value, dict):
+                    raise StudySchemaError(f"properties at {path} is not an object")
+                out["properties"] = {name: self.schema(child, f"{path}.{name}") for name, child in value.items()}
+            elif key == "items":
+                out["items"] = self.schema(value, f"{path}[]")
+            elif key in PROVIDER_SCHEMA_KEYWORDS:
+                out[key] = value
+            else:
+                raise StudySchemaError(f"Unsupported schema keyword {key} at {path}")
+        if out.get("type") == "object" and out.get("additionalProperties") is not False:
+            raise StudySchemaError(f"Object at {path} must set additionalProperties false")
+        return out
 
 
-def _substitute_formula_refs(node: Any, formula_schema: dict[str, Any]) -> Any:
-    if isinstance(node, list):
-        return [_substitute_formula_refs(item, formula_schema) for item in node]
-    if not isinstance(node, dict):
-        return node
-    ref = node.get("$ref")
-    if ref == "#/$defs/formula":
-        return copy.deepcopy(formula_schema)
-    return {key: _substitute_formula_refs(value, formula_schema) for key, value in node.items()}
+def _project(raw: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    if raw.get("$id") != STUDY_INVESTIGATION_SCHEMA_ID:
+        raise StudySchemaError("Schema file is not hive.study-investigation/1")
+    defs = raw.get("$defs")
+    if not isinstance(defs, dict):
+        raise StudySchemaError("Schema is missing $defs")
+    evidence = defs.get("evidence")
+    if not isinstance(evidence, dict) or not isinstance(defs.get("formula"), dict):
+        raise StudySchemaError("Schema is missing evidence or formula definitions")
+    projection = _ProviderProjection(evidence)
+    root = projection.schema({key: value for key, value in raw.items() if key != "$defs"}, "$")
+    if schema_uses_defs_or_ref(root):
+        raise StudySchemaError("Provider schema still contains $defs or $ref after transformation")
+    return root, projection.relaxations
 
 
 def schema_uses_defs_or_ref(node: Any) -> bool:
@@ -143,35 +169,15 @@ def schema_uses_defs_or_ref(node: Any) -> bool:
 
 
 def prepare_study_investigation_structured_schema(raw: dict[str, Any]) -> dict[str, Any]:
-    if raw.get("$id") != STUDY_INVESTIGATION_SCHEMA_ID:
-        schema_const = raw.get("properties", {})
-        if not isinstance(schema_const, dict):
-            raise StudySchemaError("Schema file is not hive.study-investigation/1")
-        inner = schema_const.get("schema", {})
-        if not isinstance(inner, dict) or inner.get("const") != STUDY_INVESTIGATION_SCHEMA_ID:
-            raise StudySchemaError("Schema file is not hive.study-investigation/1")
-    defs = raw.get("$defs")
-    if not isinstance(defs, dict):
-        raise StudySchemaError("Schema is missing $defs")
-    evidence = defs.get("evidence")
-    formula = defs.get("formula")
-    if not isinstance(evidence, dict) or not isinstance(formula, dict):
-        raise StudySchemaError("Schema is missing evidence or formula definitions")
-
-    formula_schema = bounded_formula_schema()
-    root = copy.deepcopy({key: value for key, value in raw.items() if key not in {"$schema", "$id", "title", "$defs"}})
-    inlined = _inline_evidence_refs(root, evidence)
-    if not isinstance(inlined, dict):
-        raise StudySchemaError("Schema root must be an object")
-    provider_schema = _substitute_formula_refs(inlined, formula_schema)
-    if not isinstance(provider_schema, dict):
-        raise StudySchemaError("Schema root must be an object")
-    if schema_uses_defs_or_ref(provider_schema):
-        raise StudySchemaError("Provider schema still contains $defs or $ref after transformation")
-    return _normalize_for_provider(provider_schema)
+    return _project(raw)[0]
 
 
-def load_study_investigation_structured_schema() -> dict[str, Any]:
+def provider_schema_relaxations(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every canonical constraint the provider schema omits, as `{path, keyword, value}`."""
+    return _project(raw)[1]
+
+
+def load_canonical_study_investigation_schema() -> dict[str, Any]:
     path = _schema_source_path()
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -181,7 +187,11 @@ def load_study_investigation_structured_schema() -> dict[str, Any]:
         raise StudySchemaError(f"Schema file is not valid JSON: {path}") from exc
     if not isinstance(raw, dict):
         raise StudySchemaError("Schema root must be an object")
-    return prepare_study_investigation_structured_schema(raw)
+    return raw
+
+
+def load_study_investigation_structured_schema() -> dict[str, Any]:
+    return prepare_study_investigation_structured_schema(load_canonical_study_investigation_schema())
 
 
 def study_json_schema_response_format(schema: dict[str, Any]) -> dict[str, Any]:
@@ -190,6 +200,6 @@ def study_json_schema_response_format(schema: dict[str, Any]) -> dict[str, Any]:
         "json_schema": {
             "name": STRUCTURED_OUTPUT_SCHEMA_NAME,
             "strict": True,
-            "schema": schema,
+            "schema": copy.deepcopy(schema),
         },
     }

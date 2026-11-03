@@ -57,29 +57,44 @@ def test_summarize_schema_complexity_reports_size_and_structure() -> None:
     assert summary["schema_id"] == "hive.study-investigation/1"
     assert summary["schema_name"] == "hive_study_investigation_v1"
     assert summary["strict"] is True
-    assert summary["schema_json_bytes"] > 2000
+    assert 2000 < summary["schema_json_bytes"] < 12_000
     assert summary["response_format_json_bytes"] > summary["schema_json_bytes"]
     assert summary["schema_sha256"].startswith("sha256:")
     assert len(summary["schema_sha256"]) == len("sha256:") + 64
-    assert summary["max_depth"] >= 8
-    assert summary["object_count"] >= 10
-    assert summary["array_count"] >= 10
-    assert summary["property_count"] >= 40
-    assert summary["required_property_count"] >= 35
+    assert summary["object_count"] >= 15
+    assert summary["array_count"] >= 15
+    assert summary["property_count"] >= 60
+    assert summary["optional_property_count"] == 9
     assert summary["additional_properties_false_count"] == summary["object_count"]
-    assert summary["enum_count"] >= 5
-    assert summary["one_of_count"] >= 2
-    assert summary["ref_count"] == 0
-    assert summary["ref_targets"] == []
-    assert summary["defs_keys"] == []
-    assert summary["provider_formula_max_depth"] == 12
-    assert summary["formula_recursion_strategy"] == "bounded_unroll"
+    assert summary["enum_count"] == 6
+    assert summary["union_count"] == 0
+    assert summary["unsupported_keywords"] == []
+    assert set(summary["keywords_used"]) == {"type", "properties", "required", "additionalProperties", "items", "enum"}
     assert summary["schema_uses_defs_or_ref"] is False
-    assert summary["stripped_meta_key_count"] >= 1
-    assert summary["constraint_counts"]["pattern"] >= 2
-    assert summary["constraint_counts"]["format"] >= 7
-    assert summary["constraint_counts"]["maxLength"] >= 15
-    assert summary["constraint_counts"]["minItems"] >= 5
+    assert summary["provider_formula_depth"] == 3
+    assert summary["formula_strategy"] == "shallow_fixed_depth"
+
+
+def test_summarize_schema_complexity_flags_unsupported_keywords() -> None:
+    response_format = probe.load_planner_study_response_format()
+    response_format["json_schema"]["schema"]["properties"]["coverageNotes"]["items"]["maxLength"] = 600
+    response_format["json_schema"]["schema"]["properties"]["extra"] = {"anyOf": [{"type": "string"}]}
+    summary = probe.summarize_schema_complexity(response_format)
+    assert summary["unsupported_keywords"] == ["anyOf", "maxLength"]
+    assert summary["union_count"] == 1
+    assert probe.summarize_schema_complexity(probe.load_planner_study_response_format())["unsupported_keywords"] == []
+
+
+def test_summarize_relaxed_constraints_counts_canonical_keywords() -> None:
+    assert probe.summarize_relaxed_constraints() == {
+        "format": 7,
+        "formula": 1,
+        "maxLength": 23,
+        "minItems": 5,
+        "minLength": 5,
+        "minimum": 8,
+        "pattern": 1,
+    }
 
 
 @pytest.mark.parametrize("finish_reason", ["length", "max_tokens"])
@@ -367,3 +382,5 @@ def test_cli_dry_run_prints_safe_complexity_summary_without_network(
     assert out["response_format_type"] == "json_schema"
     assert out["max_tokens"] == 150
     assert out["schema_complexity"]["schema_id"] == "hive.study-investigation/1"
+    assert out["schema_complexity"]["unsupported_keywords"] == []
+    assert out["relaxed_canonical_constraints"]["maxLength"] == 23

@@ -2,11 +2,12 @@
 HiveForYou V4 — Standalone compatibility probe for Canonical Study structured output.
 
 Verifies whether LiteLLM and the configured Study model (`heavy_lifter`, Claude Opus 4.6)
-accept the actual transformed `hive.study-investigation/1` JSON Schema via
+accept the provider-facing projection of `hive.study-investigation/1` via
 `response_format.type = "json_schema"` without executing a full Study investigation.
 
 Safety invariants:
-- Reuses the exact schema transformation used by `v4_planner.py` (`study_investigation_schema.py`).
+- Sends the exact `response_format` `v4_planner.py` sends for `study` when
+  `PLANNER_STUDY_STRUCTURED_OUTPUT=json_schema` (built by `study_investigation_schema.py`).
 - Uses a minimal synthetic prompt with `max_tokens = 150` and zero Maya or customer data.
 - Never prints or logs API keys, prompts, raw model completions, raw upstream error text, or documents.
 - Does not modify LiteLLM, Oracle environment files, Supabase, or Vercel.
@@ -31,12 +32,14 @@ from typing import Any, Callable, Literal
 
 from model_json_parse import ModelJsonParseError, parse_model_json_object
 from study_investigation_schema import (
-    PROVIDER_FORMULA_MAX_DEPTH,
+    PROVIDER_FORMULA_DEPTH,
+    PROVIDER_SCHEMA_KEYWORDS,
     STRUCTURED_OUTPUT_SCHEMA_NAME,
     STUDY_INVESTIGATION_SCHEMA_ID,
     StudySchemaError,
-    load_study_investigation_structured_schema,
+    load_canonical_study_investigation_schema,
     prepare_study_investigation_structured_schema,
+    provider_schema_relaxations,
     schema_uses_defs_or_ref,
     study_json_schema_response_format,
 )
@@ -50,7 +53,6 @@ PROBE_TIMEOUT_SECONDS = 90.0
 
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]{1,128}$")
 TRUNCATED_FINISH_REASONS = frozenset({"length", "max_tokens"})
-STRIPPED_SCHEMA_META_KEYS = frozenset({"$schema", "$id", "title", "description", "const"})
 
 # Minimal synthetic probe inputs — no Maya identifiers, document text, or customer data.
 SYNTHETIC_PROCESSING_RUN_ID = "00000000-0000-4000-8000-000000000001"
@@ -72,8 +74,9 @@ SYNTHETIC_USER_PAYLOAD: dict[str, Any] = {
 
 INTERPRETATION_NOTE = (
     "HTTP 200 with schema_accepted=true establishes that LiteLLM and the provider accepted "
-    "the transformed hive.study-investigation/1 json_schema for this probe. It does not prove "
-    "the model can generate a complete Canonical Study within 150 tokens."
+    "the provider-facing hive.study-investigation/1 json_schema for this probe. It does not prove "
+    "the model can generate a complete Canonical Study within 150 tokens. The provider schema omits "
+    "value constraints that trusted verification still enforces on every Study output."
 )
 
 # Fixed allowlist of JSON Schema feature patterns that may be reported if a 400/422 error mentions them.
@@ -114,7 +117,7 @@ def load_planner_study_response_format(schema_path: Path | None = None) -> dict[
     try:
         import v4_planner  # type: ignore[import-not-found]
     except ImportError:
-        transformed = load_study_investigation_structured_schema()
+        transformed = prepare_study_investigation_structured_schema(load_canonical_study_investigation_schema())
         return study_json_schema_response_format(transformed)
 
     return v4_planner._litellm_response_format(
@@ -138,76 +141,53 @@ def summarize_schema_complexity(response_format: dict[str, Any]) -> dict[str, An
     compact_format_bytes = json.dumps(response_format, separators=(",", ":"), sort_keys=True).encode("utf-8")
     schema_sha256 = "sha256:" + hashlib.sha256(compact_schema_bytes).hexdigest()
 
-    object_count = 0
-    array_count = 0
-    property_count = 0
-    required_property_count = 0
-    additional_properties_false_count = 0
-    enum_count = 0
-    one_of_count = 0
-    ref_count = 0
-    ref_targets: set[str] = set()
-    stripped_meta_key_count = 0
-    constraint_counts: dict[str, int] = {
-        "pattern": 0,
-        "format": 0,
-        "minLength": 0,
-        "maxLength": 0,
-        "minItems": 0,
-        "minimum": 0,
-        "maximum": 0,
+    counts = {
+        "object_count": 0,
+        "array_count": 0,
+        "property_count": 0,
+        "required_property_count": 0,
+        "optional_property_count": 0,
+        "additional_properties_false_count": 0,
+        "enum_count": 0,
+        "union_count": 0,
     }
+    keywords_used: set[str] = set()
 
     def walk(node: Any, depth: int) -> int:
-        nonlocal object_count, array_count, property_count, required_property_count
-        nonlocal additional_properties_false_count, enum_count, one_of_count, ref_count
-        nonlocal stripped_meta_key_count
-
-        if isinstance(node, list):
-            max_child = depth
-            for item in node:
-                max_child = max(max_child, walk(item, depth + 1))
-            return max_child
+        """Visits schema nodes only; property names are not mistaken for keywords."""
         if not isinstance(node, dict):
             return depth
-
+        keywords_used.update(node.keys())
         node_type = node.get("type")
         if node_type == "object":
-            object_count += 1
+            counts["object_count"] += 1
         elif node_type == "array":
-            array_count += 1
+            counts["array_count"] += 1
+        if isinstance(node_type, list) or any(key in node for key in ("oneOf", "anyOf", "allOf")):
+            counts["union_count"] += 1
+        if "enum" in node:
+            counts["enum_count"] += 1
+        if node.get("additionalProperties") is False:
+            counts["additional_properties_false_count"] += 1
 
+        children: list[Any] = []
         props = node.get("properties")
         if isinstance(props, dict):
-            property_count += len(props)
-        req = node.get("required")
-        if isinstance(req, list):
-            required_property_count += len(req)
-        if node.get("additionalProperties") is False:
-            additional_properties_false_count += 1
-        if "enum" in node:
-            enum_count += 1
-        if "oneOf" in node:
-            one_of_count += 1
-        ref_val = node.get("$ref")
-        if isinstance(ref_val, str):
-            ref_count += 1
-            ref_targets.add(ref_val)
-
-        for key in node:
-            if key in STRIPPED_SCHEMA_META_KEYS:
-                stripped_meta_key_count += 1
-            if key in constraint_counts:
-                constraint_counts[key] += 1
-
-        max_child = depth
-        for value in node.values():
-            max_child = max(max_child, walk(value, depth + 1))
-        return max_child
+            required = node.get("required") if isinstance(node.get("required"), list) else []
+            counts["property_count"] += len(props)
+            counts["required_property_count"] += len(required)
+            counts["optional_property_count"] += len([name for name in props if name not in required])
+            children.extend(props.values())
+        if "items" in node:
+            children.append(node["items"])
+        for key in ("oneOf", "anyOf", "allOf"):
+            if isinstance(node.get(key), list):
+                children.extend(node[key])
+        if isinstance(node.get("$defs"), dict):
+            children.extend(node["$defs"].values())
+        return max([depth, *(walk(child, depth + 1) for child in children)])
 
     max_depth = walk(schema, 1)
-    defs = schema.get("$defs")
-    defs_keys = sorted(defs.keys()) if isinstance(defs, dict) else []
 
     return {
         "schema_id": STUDY_INVESTIGATION_SCHEMA_ID,
@@ -217,22 +197,30 @@ def summarize_schema_complexity(response_format: dict[str, Any]) -> dict[str, An
         "response_format_json_bytes": len(compact_format_bytes),
         "schema_sha256": schema_sha256,
         "max_depth": max_depth,
-        "object_count": object_count,
-        "array_count": array_count,
-        "property_count": property_count,
-        "required_property_count": required_property_count,
-        "additional_properties_false_count": additional_properties_false_count,
-        "enum_count": enum_count,
-        "one_of_count": one_of_count,
-        "ref_count": ref_count,
-        "ref_targets": sorted(ref_targets),
-        "defs_keys": defs_keys,
-        "provider_formula_max_depth": PROVIDER_FORMULA_MAX_DEPTH,
-        "formula_recursion_strategy": "bounded_unroll",
+        **counts,
+        "keywords_used": sorted(keywords_used),
+        "unsupported_keywords": sorted(keywords_used - PROVIDER_SCHEMA_KEYWORDS),
         "schema_uses_defs_or_ref": schema_uses_defs_or_ref(schema),
-        "stripped_meta_key_count": stripped_meta_key_count,
-        "constraint_counts": constraint_counts,
+        "provider_formula_depth": PROVIDER_FORMULA_DEPTH,
+        "formula_strategy": "shallow_fixed_depth",
     }
+
+
+def summarize_relaxed_constraints(schema_path: Path | None = None) -> dict[str, int]:
+    """Count, by keyword, the canonical constraints the provider schema omits (enforced by trusted verification)."""
+    if schema_path is not None:
+        try:
+            raw = json.loads(schema_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise StudySchemaError(f"Schema file not readable: {schema_path}") from exc
+        if not isinstance(raw, dict):
+            raise StudySchemaError("Schema root must be an object")
+    else:
+        raw = load_canonical_study_investigation_schema()
+    tally: dict[str, int] = {}
+    for item in provider_schema_relaxations(raw):
+        tally[item["keyword"]] = tally.get(item["keyword"], 0) + 1
+    return dict(sorted(tally.items()))
 
 
 def build_probe_request(
@@ -765,6 +753,7 @@ def main(argv: list[str] | None = None) -> int:
                 "max_tokens": request_payload["max_tokens"],
                 "litellm_api_key_configured": bool(settings["litellm_api_key"]),
                 "schema_complexity": complexity,
+                "relaxed_canonical_constraints": summarize_relaxed_constraints(args.schema_path),
                 "interpretation_note": INTERPRETATION_NOTE,
             }
             print(json.dumps(report, indent=2, sort_keys=True))

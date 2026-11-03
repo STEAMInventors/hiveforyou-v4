@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { MAYA_DOCS, MAYA_PAGES, MAYA_PLAN_QUESTION_IDS, MAYA_RUN_ID, mayaStudyOutput } from "../testing/maya-fixture";
 import { studyClaimCatalog, verifyStudyInvestigation } from "./study-verification";
 
+type Output = ReturnType<typeof mayaStudyOutput>;
+
 const context = { processingRunId: MAYA_RUN_ID, planQuestionIds: MAYA_PLAN_QUESTION_IDS, pages: new Map(Object.entries(MAYA_PAGES)) };
 
 function verify(mutate: (output: ReturnType<typeof mayaStudyOutput>) => void = () => {}) {
@@ -77,6 +79,56 @@ describe("verifyStudyInvestigation", () => {
       ["P1.C1", "UNVERIFIED", "RESULT_MISMATCH"],
       ["P2.C0", "UNVERIFIED", "NO_FORMULA"],
     ]);
+  });
+
+  // The provider structured-output schema omits these canonical constraints; this verifier is what enforces them.
+  it.each([
+    ["evidence document id format", (o: Output) => (o.answers[0].facts[0].evidence[0].sourceDocumentId = "doc-1"), "study_evidence_invalid"],
+    ["evidence page minimum", (o: Output) => (o.answers[0].facts[0].evidence[0].pageNumber = 0), "study_evidence_invalid"],
+    ["empty quote", (o: Output) => (o.answers[0].facts[0].evidence[0].quote = " "), "study_output_shape"],
+    ["quote length", (o: Output) => (o.answers[0].facts[0].evidence[0].quote = "q".repeat(601)), "study_output_shape"],
+    ["answer length", (o: Output) => (o.answers[0].answer = "a".repeat(4001)), "study_output_shape"],
+    ["fact without evidence", (o: Output) => (o.answers[0].facts[0].evidence = []), "study_output_shape"],
+    ["calculation without inputs", (o: Output) => (o.answers[0].calculations[0].inputs = []), "study_output_shape"],
+    ["assessment without facts", (o: Output) => (o.answers[0].assessments[0].factIndexes = []), "study_output_shape"],
+    ["negative fact index", (o: Output) => (o.answers[0].assessments[0].factIndexes = [-1]), "study_fact_index_invalid"],
+    [
+      "conflict with one quote",
+      (o: Output) => {
+        (o.answers[0] as { conflicts: unknown[] }).conflicts = [
+          { description: "Conflict", evidence: [o.answers[0].facts[0].evidence[0]] },
+        ];
+      },
+      "study_output_shape",
+    ],
+    [
+      "ignored instruction on a page outside the run",
+      (o: Output) => {
+        (o as { instructionsIgnored: unknown[] }).instructionsIgnored = [
+          { sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 0, description: "Ignored" },
+        ];
+      },
+      "study_evidence_unauthorized",
+    ],
+  ])("rejects %s", (_label, mutate, diagnosticReason) => {
+    expect(verify(mutate)).toMatchObject({ ok: false, diagnosticReason });
+  });
+
+  it("marks formulas outside the canonical formula grammar unverified", () => {
+    const deep = (depth: number): unknown => (depth === 1 ? { input: 0 } : { op: "round", places: 0, args: [deep(depth - 1)] });
+    const cases: unknown[] = [
+      { op: "-", args: [{ input: 0 }, { value: "1,000" }] },
+      { op: "round", places: 7, args: [{ input: 0 }] },
+      { op: "+", args: [] },
+      { op: "-", args: [{ input: 0 }, {}] },
+      deep(13),
+    ];
+    for (const formula of cases) {
+      const result = verify((output) => {
+        (output.answers[0].calculations[0] as { formula?: unknown }).formula = formula;
+      });
+      expect(result.ok && result.value.verification.calculations[0]).toMatchObject({ status: "UNVERIFIED", reason: "FORMULA_INVALID" });
+    }
   });
 
   it("marks an input value that its quote does not contain as unverified", () => {
