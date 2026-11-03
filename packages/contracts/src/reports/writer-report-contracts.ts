@@ -135,13 +135,19 @@ export class WriterRejection extends Error {
     readonly diagnosticReason: string,
     message: string,
     readonly diagnosticField?: string,
+    readonly ungroundedValue?: string,
   ) {
     super(message);
   }
 }
 
-function reject(diagnosticReason: string, message: string, diagnosticField = diagnosticFieldFromMessage(message)): never {
-  throw new WriterRejection(diagnosticReason, message, diagnosticField);
+function reject(
+  diagnosticReason: string,
+  message: string,
+  diagnosticField = diagnosticFieldFromMessage(message),
+  ungroundedValue?: string,
+): never {
+  throw new WriterRejection(diagnosticReason, message, diagnosticField, ungroundedValue);
 }
 
 function record(value: unknown, path: string): Record<string, unknown> {
@@ -438,8 +444,9 @@ export function checkGroundedNumber(
   if (ungrounded) {
     reject(
       "writer_number_ungrounded",
-      `${path} states a number its sources do not contain.`,
+      `${path} states an unsupported number (${ungrounded.normalized}) that its cited claims do not contain.`,
       numericDiagnosticField(path, ungrounded),
+      ungrounded.normalized,
     );
   }
 }
@@ -571,8 +578,9 @@ export function validateScenarioDefinition(
         };
         reject(
           "writer_number_ungrounded",
-          `${pPath}.value does not appear in the claim it cites.`,
+          `${pPath}.value states an unsupported number (${formatted}) that does not appear in the claim it cites (${claim.id}).`,
           numericDiagnosticField(`${pPath}.value`, token),
+          formatted,
         );
       }
       cited.push(claim.id);

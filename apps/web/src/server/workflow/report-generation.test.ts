@@ -324,13 +324,13 @@ describe("processReportRun", () => {
     });
   });
 
-  it("fails closed without automatic retries, saving nothing, when invalid tool calls exhaust the Writer budget", async () => {
+  it("fails closed without automatic retries, saving nothing, when invalid turns exhaust the Writer round budget while recording rejectedUnits", async () => {
     const db = fakeDatabase("CUSTOMER");
     const dispatch = vi.fn(async () => true);
     const badDraft = mayaWriterOutput("CUSTOMER");
     badDraft.summary[0]!.claimRefs = ["P9.F0"];
     const [badTurn] = mayaWriterAgentTurns("CUSTOMER", badDraft);
-    // Repeat invalid calls across turns until the 8-rejected-call budget is exhausted.
+    // Repeat invalid calls across all 5 rounds; rejectedUnits are counted for observability while maxRounds terminates bounded execution.
     const turns = Array.from({ length: 5 }, (_, t) =>
       badTurn!.map((call, i) => ({ ...call, id: `bad_${t}_${i}` })),
     );
@@ -356,14 +356,183 @@ describe("processReportRun", () => {
     });
     const diag = lastTransition.details.failure_diagnostic as { diagnosticField?: string };
     expect(parseWriterAgentBudgetDiagnosticField(diag.diagnosticField)).toMatchObject({
-      dimension: "invalid_calls",
-      roundsUsed: 4,
+      dimension: "rounds",
+      roundsUsed: 5,
       roundsAllowed: 5,
-      invalidCalls: 8,
+      rejectedUnits: 14,
     });
     expect(dispatch).not.toHaveBeenCalled();
     expect(db.saved()).toBeNull();
     expect(db.studyUnchanged()).toBe(true);
+  });
+
+  it("completes a Customer report when Turn 1 and Turn 2 exceed 8 rejected units (r2/5:tc20:inv9:s5:v10 scenario) and finishes in Turn 3", async () => {
+    const db = fakeDatabase("CUSTOMER");
+    const base = mayaWriterOutput("CUSTOMER");
+
+    const sectionsTurn1 = [
+      base.sections[0]!,
+      {
+        id: "s2",
+        heading: "Speech services",
+        blocks: [{ type: "DOCUMENTED", text: "Maya received 999 of 480 required speech minutes.", claimRefs: ["P2.F0", "P2.F1"] }],
+      },
+      base.sections[2]!,
+      {
+        id: "s4",
+        heading: "Progress interpretation",
+        blocks: [{ type: "UNCERTAINTY", text: "Maya is improving toward the fluency goal.", claimRefs: ["P1.A0"] }],
+      },
+      {
+        id: "s5",
+        heading: "Questions for the IEP team",
+        blocks: [
+          {
+            type: "QUESTION",
+            text: "Whether the gain from 62 to 74 words correct per minute is sufficient is decided by the IEP team.",
+            claimRefs: ["P1.D0", "P1.F0", "P1.F2"],
+          },
+        ],
+      },
+    ];
+    const viewTurn1 = [
+      { component: "Narrative", props: { sectionId: "summary" } },
+      { component: "Metric", props: { label: "Reading gain", binding: "{{calc:P1.C0}}", unit: "words per minute" } },
+      { component: "Narrative", props: { sectionId: "s1" } },
+      {
+        component: "Timeline",
+        props: {
+          title: "Key dates",
+          events: [{ date: "March 4, 2025", text: "Reading goal of 90 words correct per minute set", claimRefs: ["P1"] }],
+        },
+      },
+      { component: "Narrative", props: { sectionId: "s2" } },
+      {
+        component: "Checklist",
+        props: {
+          title: "Meeting preparation",
+          items: [{ text: "Bring progress monitoring records.", claimRefs: ["P1.U0"] }],
+        },
+      },
+      { component: "ScenarioExplorer", props: { scenarioId: "S1" } },
+      {
+        component: "Comparison",
+        props: {
+          title: "Speech minutes",
+          leftLabel: "Delivered",
+          rightLabel: "Required",
+          items: [{ label: "Minutes", left: "360", right: "888", claimRefs: ["P2.F0", "P2.F1"] }],
+        },
+      },
+      { component: "Narrative", props: { sectionId: "s4" } },
+      {
+        component: "EvidencePanel",
+        props: {
+          title: "Supporting quotes",
+          claimIds: ["P1.U0"],
+        },
+      },
+    ];
+
+    const turn1: ToolCall[] = [
+      {
+        id: "toolu_cust_compose_1",
+        name: "compose_writer_report",
+        arguments: JSON.stringify({
+          presentationPlan: mayaWriterPresentationPlan("CUSTOMER"),
+          title: base.title,
+          summary: base.summary,
+          sections: sectionsTurn1,
+          scenarios: base.scenarios,
+          view: viewTurn1,
+        }),
+      },
+    ];
+    const turn2: ToolCall[] = [
+      {
+        id: "toolu_cust_patch_2",
+        name: "apply_writer_correction",
+        arguments: JSON.stringify({
+          sections: [
+            base.sections[1]!,
+            {
+              id: "s4",
+              heading: "Progress interpretation",
+              blocks: [{ type: "INTERPRETATION", text: "Maya is improving toward the fluency goal.", claimRefs: ["P1.A0"] }],
+            },
+          ],
+          view: [
+            {
+              index: 3,
+              component: "Timeline",
+              props: {
+                title: "Key dates",
+                events: [{ date: "March 4, 2025", text: "Reading goal of 90 words correct per minute set", claimRefs: ["P1.F1"] }],
+              },
+            },
+            { index: 5, ...viewTurn1[5]! },
+            { index: 7, ...viewTurn1[7]! },
+            { index: 9, ...viewTurn1[9]! },
+          ],
+        }),
+      },
+    ];
+    const turn3: ToolCall[] = [
+      {
+        id: "toolu_cust_patch_3",
+        name: "apply_writer_correction",
+        arguments: JSON.stringify({
+          view: [
+            {
+              index: 5,
+              component: "Checklist",
+              props: {
+                title: "Meeting preparation",
+                items: [{ text: "Bring the November 2025 progress report showing 74 words correct per minute.", claimRefs: ["P1.F2"] }],
+              },
+            },
+            {
+              index: 7,
+              component: "Comparison",
+              props: {
+                title: "Speech minutes",
+                leftLabel: "Delivered",
+                rightLabel: "Required",
+                items: [{ label: "Minutes", left: "360", right: "480", claimRefs: ["P2.F0", "P2.F1"] }],
+              },
+            },
+            {
+              index: 9,
+              component: "EvidencePanel",
+              props: {
+                title: "Supporting quotes",
+                claimIds: ["P1.F2", "P2.F0"],
+              },
+            },
+          ],
+        }),
+      },
+    ];
+
+    const model = planner([turn1, turn2, turn3]);
+    await expect(
+      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+    expect(model.bodies).toHaveLength(3);
+    expect(db.saved()).toMatchObject({
+      writer_output: {
+        schema: "hive.writer-report/1",
+        audience: "CUSTOMER",
+        sections: expect.arrayContaining([
+          expect.objectContaining({ id: "s1" }),
+          expect.objectContaining({ id: "s2" }),
+          expect.objectContaining({ id: "s3" }),
+          expect.objectContaining({ id: "s4" }),
+          expect.objectContaining({ id: "s5" }),
+        ]),
+      },
+      view: { audience: "CUSTOMER", schema: "hive-application-view/1" },
+    });
   });
 
   it("fails the Writer run as retryable from WRITING when the model times out", async () => {
@@ -587,21 +756,8 @@ describe("processReportRun", () => {
       ).resolves.toBe("SUCCEEDED");
 
       expect(model.bodies).toHaveLength(2);
-      const expectedSavedOutput = {
-        ...base,
-        view: [
-          base.view[0],
-          base.view[1],
-          base.view[2],
-          base.view[3],
-          base.view[4],
-          base.view[5],
-          base.view[7],
-          base.view[6],
-        ],
-      };
       expect(db.saved()).toMatchObject({
-        writer_output: expectedSavedOutput,
+        writer_output: base,
         view: { audience, schema: "hive-application-view/1" },
       });
 
@@ -621,6 +777,7 @@ describe("processReportRun", () => {
         audience,
         diagnosticReason: "writer_claim_kind",
         diagnosticField: "sections[2].blocks[3]",
+        rejectedUnits: 1,
       });
       const publicationEvent = events.find((e) => e.eventName === "writer.publication.completed")!;
       expect(publicationEvent).toMatchObject({
@@ -631,6 +788,7 @@ describe("processReportRun", () => {
         componentCount: 9,
         sectionCount: 3,
         scenarioCount: 1,
+        rejectedUnits: 1,
         rounds: 2,
       });
       const serializedEvents = JSON.stringify(events);

@@ -15,7 +15,6 @@ import {
   type ReportRunStatus,
   type SourceSnapshot,
   type StageMetric,
-  type StudyAgentBudgetDimension,
   type StudyAgentMessage,
   type StudyAgentTurnRequest,
   type StudyClaim,
@@ -24,6 +23,7 @@ import {
   WRITER_AGENT_BUDGET,
   WRITER_AGENT_TOOLS,
   WRITER_COMPOSE_TOOLS,
+  type WriterAgentBudgetDimension,
   WriterAgentLedger,
   type WriterPresentationPlan,
   type WriterReport,
@@ -81,7 +81,7 @@ export type WriterAgentTotals = {
   rounds: number;
   roundsAllowed: number;
   toolCalls: number;
-  invalidCalls: number;
+  rejectedUnits: number;
   sectionsRecorded: number;
   viewComponentsRecorded: number;
   promptTokens: number;
@@ -156,13 +156,14 @@ function log(
   startedAt: number,
   error?: HiveError,
   failureStage = "WRITING",
-  metrics?: {
+    metrics?: {
     readonly inputCount?: number | null;
     readonly outputCount?: number | null;
     readonly totalCount?: number | null;
     readonly componentCount?: number;
     readonly sectionCount?: number;
     readonly scenarioCount?: number;
+    readonly rejectedUnits?: number;
     readonly rounds?: number;
   },
 ): void {
@@ -189,6 +190,7 @@ function log(
     ...(metrics?.componentCount !== undefined ? { componentCount: metrics.componentCount } : {}),
     ...(metrics?.sectionCount !== undefined ? { sectionCount: metrics.sectionCount } : {}),
     ...(metrics?.scenarioCount !== undefined ? { scenarioCount: metrics.scenarioCount } : {}),
+    ...(metrics?.rejectedUnits !== undefined ? { rejectedUnits: metrics.rejectedUnits } : {}),
     ...(metrics?.rounds !== undefined ? { rounds: metrics.rounds } : {}),
     ...(error
       ? {
@@ -220,6 +222,7 @@ function logWriterRuntimeEvent(
     readonly componentCount?: number;
     readonly sectionCount?: number;
     readonly scenarioCount?: number;
+    readonly rejectedUnits?: number;
     readonly rounds?: number;
     readonly errorCode?: string;
     readonly diagnosticReason?: string;
@@ -248,6 +251,7 @@ function logWriterRuntimeEvent(
     ...(input.componentCount !== undefined ? { componentCount: input.componentCount } : {}),
     ...(input.sectionCount !== undefined ? { sectionCount: input.sectionCount } : {}),
     ...(input.scenarioCount !== undefined ? { scenarioCount: input.scenarioCount } : {}),
+    ...(input.rejectedUnits !== undefined ? { rejectedUnits: input.rejectedUnits } : {}),
     ...(input.rounds !== undefined ? { rounds: input.rounds } : {}),
     ...(input.errorCode ? { errorCode: input.errorCode } : {}),
     ...(input.diagnosticReason ? { diagnosticReason: input.diagnosticReason } : {}),
@@ -358,7 +362,7 @@ export async function runWriterAgent(
     rounds: 0,
     roundsAllowed: WRITER_AGENT_BUDGET.maxRounds,
     toolCalls: 0,
-    invalidCalls: 0,
+    rejectedUnits: 0,
     sectionsRecorded: 0,
     viewComponentsRecorded: 0,
     promptTokens: 0,
@@ -371,11 +375,11 @@ export async function runWriterAgent(
   };
   const sync = () => {
     totals.toolCalls = ledger.toolCalls;
-    totals.invalidCalls = ledger.invalidCalls;
+    totals.rejectedUnits = ledger.rejectedUnits;
     totals.sectionsRecorded = ledger.completedSectionCount;
     totals.viewComponentsRecorded = ledger.recordedViewComponentCount;
   };
-  const exhausted = (limit: StudyAgentBudgetDimension): never => {
+  const exhausted = (limit: WriterAgentBudgetDimension): never => {
     sync();
     throw new WriterAgentFailure(
       reportError({
@@ -391,7 +395,7 @@ export async function runWriterAgent(
           roundsUsed: totals.rounds,
           roundsAllowed: totals.roundsAllowed,
           toolCalls: totals.toolCalls,
-          invalidCalls: totals.invalidCalls,
+          rejectedUnits: totals.rejectedUnits,
           sectionsRecorded: totals.sectionsRecorded,
           viewComponentsRecorded: totals.viewComponentsRecorded,
         }),
@@ -403,7 +407,6 @@ export async function runWriterAgent(
   while (!ledger.finished) {
     if (totals.rounds >= WRITER_AGENT_BUDGET.maxRounds) exhausted("rounds");
     if (ledger.toolCalls >= WRITER_AGENT_BUDGET.maxToolCalls) exhausted("tool_calls");
-    if (ledger.invalidCalls >= WRITER_AGENT_BUDGET.maxInvalidCalls) exhausted("invalid_calls");
     const outputTokens = Math.min(
       WRITER_AGENT_BUDGET.turnOutputTokens,
       WRITER_AGENT_BUDGET.maxOutputTokens - totals.completionTokens,
@@ -536,6 +539,7 @@ export async function runWriterAgent(
         componentCount: ledger.recordedViewComponentCount,
         sectionCount: ledger.completedSectionCount,
         scenarioCount: ledger.recordedScenarioCount,
+        rejectedUnits: ledger.rejectedUnits,
         rounds: totals.rounds,
         diagnosticReason: firstTurnErrorReason,
         diagnosticField: firstTurnErrorField,
@@ -675,6 +679,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
       componentCount: built.value.view.components.length,
       sectionCount: built.value.writerOutput.sections.length,
       scenarioCount: built.value.scenarioAnalysis.scenarios.length,
+      rejectedUnits: agentResult.totals.rejectedUnits,
       rounds: agentResult.totals.rounds,
     });
 
@@ -701,6 +706,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
       componentCount: built.value.view.components.length,
       sectionCount: built.value.writerOutput.sections.length,
       scenarioCount: built.value.scenarioAnalysis.scenarios.length,
+      rejectedUnits: agentResult.totals.rejectedUnits,
       rounds: agentResult.totals.rounds,
     };
     if (done) log(done, done.status, startedAt, undefined, "WRITING", pubMetrics);

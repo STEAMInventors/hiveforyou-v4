@@ -25,6 +25,7 @@ export const ALLOWLISTED_LOG_FIELDS = [
   "componentCount",
   "sectionCount",
   "scenarioCount",
+  "rejectedUnits",
   "rounds",
 ] as const;
 

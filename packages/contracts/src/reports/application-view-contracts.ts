@@ -120,13 +120,19 @@ export class BindRejection extends Error {
     readonly diagnosticReason: string,
     message: string,
     readonly diagnosticField?: string,
+    readonly ungroundedValue?: string,
   ) {
     super(message);
   }
 }
 
-function reject(diagnosticReason: string, message: string, diagnosticField = diagnosticFieldFromMessage(message)): never {
-  throw new BindRejection(diagnosticReason, message, diagnosticField);
+function reject(
+  diagnosticReason: string,
+  message: string,
+  diagnosticField = diagnosticFieldFromMessage(message),
+  ungroundedValue?: string,
+): never {
+  throw new BindRejection(diagnosticReason, message, diagnosticField, ungroundedValue);
 }
 
 export type ReportBuildResult =
@@ -223,8 +229,9 @@ export function validateViewComponentProposal(
     if (ungrounded) {
       reject(
         "writer_number_ungrounded",
-        `${fieldPath} states a number its sources do not contain.`,
+        `${fieldPath} states an unsupported number (${ungrounded.normalized}) that its cited claims do not contain.`,
         numericDiagnosticField(fieldPath, ungrounded),
+        ungrounded.normalized,
       );
     }
   };
@@ -508,8 +515,9 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
     if (ungrounded) {
       reject(
         "writer_number_ungrounded",
-        `${path} states a number its sources do not contain.`,
+        `${path} states an unsupported number (${ungrounded.normalized}) that its cited claims do not contain.`,
         numericDiagnosticField(path, ungrounded),
+        ungrounded.normalized,
       );
     }
   };
