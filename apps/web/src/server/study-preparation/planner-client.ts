@@ -33,6 +33,16 @@ export type PlannerDeps = {
 
 const UNAVAILABLE_MESSAGE = "The analysis service is temporarily unavailable. You can try again.";
 
+/** Confirmed model-format failures; do not auto-retry the same expensive stage. */
+const NON_RETRYABLE_MODEL_OUTPUT_REASONS = new Set([
+  "model_output_not_json",
+  "model_output_truncated",
+  "model_response_contract",
+  "model_content_missing",
+  "model_output_invalid",
+  "model_context_exceeded",
+]);
+
 function plannerError(
   input: Omit<HiveError, "stage" | "category"> & { category?: HiveError["category"] },
 ): HiveError {
@@ -71,9 +81,32 @@ export function loadPlannerServiceConfig(
   return { baseUrl, serviceToken, timeoutMs: PLANNER_HTTP_TIMEOUT_MS, longTimeoutMs: PLANNER_LONG_HTTP_TIMEOUT_MS };
 }
 
+/** Parses planner HTTP bodies; never throws. */
+export async function parsePlannerResponseBody(response: Response): Promise<{ raw: unknown; unreadable: boolean }> {
+  let text: string;
+  try {
+    text = await response.text();
+  } catch {
+    return { raw: null, unreadable: true };
+  }
+  const trimmed = text.trim();
+  if (!trimmed) return { raw: null, unreadable: true };
+  try {
+    return { raw: JSON.parse(trimmed) as unknown, unreadable: false };
+  } catch {
+    return { raw: null, unreadable: true };
+  }
+}
+
+function modelOutputRetryable(upstream: string | null, envelopeRetryable: boolean): boolean {
+  if (upstream && NON_RETRYABLE_MODEL_OUTPUT_REASONS.has(upstream)) return false;
+  return envelopeRetryable;
+}
+
 function mapPlannerHttpError(
   status: number,
   raw: unknown,
+  unreadable: boolean,
   correlationId: string,
   processingRunId: string,
 ): HiveError {
@@ -104,14 +137,15 @@ function mapPlannerHttpError(
     });
   }
   if (code === "MODEL_OUTPUT_INVALID" || code === "MODEL_CONTEXT_EXCEEDED") {
+    const diagnosticReason =
+      upstream ?? (code === "MODEL_CONTEXT_EXCEEDED" ? "model_context_exceeded" : "model_output_invalid");
     return withRun({
       errorCode: "MODEL_OUTPUT_INVALID",
       category: "MODEL",
-      retryable: code === "MODEL_OUTPUT_INVALID" && retryable,
+      retryable: modelOutputRetryable(diagnosticReason, retryable),
       safeMessage: "The analysis model returned an answer we couldn't use. You can try again.",
       correlationId,
-      diagnosticReason:
-        upstream ?? (code === "MODEL_CONTEXT_EXCEEDED" ? "model_context_exceeded" : "model_output_invalid"),
+      diagnosticReason,
     });
   }
   if (code === "MODEL_UNAVAILABLE" || code === "DEPENDENCY_UNAVAILABLE") {
@@ -123,12 +157,21 @@ function mapPlannerHttpError(
       diagnosticReason: upstream ?? "planner_unavailable",
     });
   }
+  if (unreadable) {
+    return withRun({
+      errorCode: "MODEL_UNAVAILABLE",
+      retryable: status >= 500 || status === 429,
+      safeMessage: UNAVAILABLE_MESSAGE,
+      correlationId,
+      diagnosticReason: "planner_error_body_unparsed",
+    });
+  }
   return withRun({
     errorCode: "MODEL_UNAVAILABLE",
     retryable,
     safeMessage: UNAVAILABLE_MESSAGE,
     correlationId,
-    diagnosticReason: upstream ?? (raw == null ? "planner_response_unreadable" : "planner_unavailable"),
+    diagnosticReason: upstream ?? "planner_unavailable",
   });
 }
 
@@ -186,16 +229,16 @@ export async function callPlanner(
     });
   }
 
-  const raw: unknown = await response.json().catch(() => null);
+  const { raw, unreadable } = await parsePlannerResponseBody(response);
   if (!response.ok) {
-    throw mapPlannerHttpError(response.status, raw, correlationId, input.processingRunId);
+    throw mapPlannerHttpError(response.status, raw, unreadable, correlationId, input.processingRunId);
   }
   const normalized = normalizePlannerCompletion(raw, input.prompt.task);
   if (!normalized.ok) {
     throw plannerError({
       errorCode: "MODEL_OUTPUT_INVALID",
       category: "MODEL",
-      retryable: true,
+      retryable: !NON_RETRYABLE_MODEL_OUTPUT_REASONS.has(normalized.diagnosticReason),
       safeMessage: "The analysis service returned an unexpected response. You can try again.",
       correlationId,
       operationId: input.processingRunId,

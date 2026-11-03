@@ -135,6 +135,7 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "planner_invalid_request",
   "planner_network_error",
   "planner_response_unreadable",
+  "planner_error_body_unparsed",
   "planner_response_shape",
   "planner_contract_version",
   "planner_task_mismatch",

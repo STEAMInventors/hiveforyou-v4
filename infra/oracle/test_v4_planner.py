@@ -237,6 +237,28 @@ def test_distinguishes_completion_failures(
     assert response.status_code == 502
     assert response.json()["error_code"] == "MODEL_OUTPUT_INVALID"
     assert response.json()["diagnostic_reason"] == reason
+    assert response.json()["retryable"] is False
+
+
+def test_max_tokens_finish_reason_is_truncated(client: TestClient) -> None:
+    use_litellm(lambda _: httpx.Response(200, json=completion('{"schema":', "max_tokens")))
+    response = post(client, body())
+    assert response.status_code == 502
+    assert response.json()["diagnostic_reason"] == "model_output_truncated"
+
+
+def test_model_output_failure_logs_safe_diagnostics(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
+    payload = completion("not json", "stop")
+    payload["usage"] = {"prompt_tokens": 1, "completion_tokens": 99, "total_tokens": 100}
+    use_litellm(lambda _: httpx.Response(200, json=payload))
+    with caplog.at_level("WARNING", logger="hive_planner"):
+        response = post(client, body())
+    assert response.json()["diagnostic_reason"] == "model_output_not_json"
+    assert "not json" not in caplog.text
+    assert "content_char_count" in caplog.text
+    assert "completion_tokens" in caplog.text
+    assert "json_error_category" in caplog.text
+    assert "finish_reason" in caplog.text
 
 
 def test_network_failure_is_not_an_http_failure(client: TestClient) -> None:

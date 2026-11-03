@@ -87,6 +87,13 @@ describe("buildStudyPrompt", () => {
     expect(promptText).toContain("Market prices outside the quotes cannot be checked from these documents.");
   });
 
+  it("shows the JSON output example without Markdown code fences", () => {
+    const { promptText } = buildStudyPrompt(inputs());
+    expect(promptText).not.toMatch(/```json/);
+    expect(promptText).not.toMatch(/\n```\n/);
+    expect(promptText).toContain('"schema": "hive.study-investigation/1"');
+  });
+
   it("includes every investigation question with its logic, limits and answer structure", () => {
     const { promptText } = buildStudyPrompt(inputs());
     expect(promptText).toContain("#### P1 [COMPARISON] answers I1");

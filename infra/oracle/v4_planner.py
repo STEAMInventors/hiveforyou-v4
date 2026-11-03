@@ -87,6 +87,8 @@ TASK_LITELLM_TIMEOUT_SECONDS: dict[str, float] = {"study": 270.0, "writer": 270.
 
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/@+-]{1,128}$")
+TRUNCATED_FINISH_REASONS = frozenset({"length", "max_tokens"})
+JSON_ERROR_CATEGORY_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 # Tests replace this with httpx.MockTransport; production uses the default network transport.
 _transport: httpx.AsyncBaseTransport | None = None
@@ -113,6 +115,8 @@ class PlannerError(Exception):
         retryable: bool,
         message: str,
         diagnostic_reason: str,
+        *,
+        log_fields: dict[str, object] | None = None,
     ) -> None:
         super().__init__(code)
         self.status = status
@@ -121,6 +125,7 @@ class PlannerError(Exception):
         self.retryable = retryable
         self.message = message
         self.diagnostic_reason = diagnostic_reason
+        self.log_fields = log_fields or {}
 
 
 def _settings() -> dict[str, str]:
@@ -221,6 +226,51 @@ def _safe_token(value: Any) -> str | None:
     return value if isinstance(value, str) and SAFE_TOKEN_RE.match(value) else None
 
 
+def _json_error_category(exc: ValueError) -> str | None:
+    """Safe parser label for logs only; never includes model text."""
+    if not isinstance(exc, json.JSONDecodeError):
+        return "json_decode_error"
+    mapping = {
+        "Expecting value": "expecting_value",
+        "Unterminated string": "unterminated_string",
+        "Expecting property name": "expecting_property_name",
+        "Expecting ',' delimiter": "expecting_delimiter",
+        "Extra data": "extra_data",
+        "Invalid control character": "invalid_control_character",
+    }
+    for prefix, category in mapping.items():
+        if str(exc.msg).startswith(prefix):
+            return category if JSON_ERROR_CATEGORY_RE.match(category) else None
+    return "json_decode_error"
+
+
+def _output_failure_log(
+    *,
+    model_alias: str,
+    finish_reason: str | None,
+    completion_tokens: int | None,
+    content: str | None,
+    json_error_category: str | None = None,
+) -> dict[str, object]:
+    fields: dict[str, object] = {
+        "model_alias": model_alias,
+        "response_format_mode": "json_object",
+    }
+    if finish_reason:
+        fields["finish_reason"] = finish_reason
+    if completion_tokens is not None:
+        fields["completion_tokens"] = completion_tokens
+    if content is not None:
+        fields["content_char_count"] = len(content)
+    if json_error_category:
+        fields["json_error_category"] = json_error_category
+    return fields
+
+
+def _is_truncated(finish_reason: str | None) -> bool:
+    return finish_reason in TRUNCATED_FINISH_REASONS
+
+
 def _is_context_error(response: httpx.Response) -> bool:
     try:
         text = json.dumps(response.json()).lower()
@@ -280,22 +330,85 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
         raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.", "model_response_contract")
     choice = choices[0]
     message = choice.get("message")
-    if not isinstance(message, dict) or "content" not in message:
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.", "model_content_missing")
-    content = message.get("content")
+    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+    completion_tokens = _count(usage.get("completion_tokens"))
     finish_reason = _safe_token(choice.get("finish_reason"))
-    if finish_reason == "length":
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was cut off.", "model_output_truncated")
+    if not isinstance(message, dict) or "content" not in message:
+        raise PlannerError(
+            502,
+            "MODEL_OUTPUT_INVALID",
+            "model",
+            False,
+            "The planning model returned no answer.",
+            "model_content_missing",
+            log_fields=_output_failure_log(model_alias=alias, finish_reason=finish_reason, completion_tokens=completion_tokens, content=None),
+        )
+    content = message.get("content")
+    if _is_truncated(finish_reason):
+        content_len = len(content) if isinstance(content, str) else None
+        raise PlannerError(
+            502,
+            "MODEL_OUTPUT_INVALID",
+            "model",
+            False,
+            "The planning answer was cut off.",
+            "model_output_truncated",
+            log_fields=_output_failure_log(
+                model_alias=alias,
+                finish_reason=finish_reason,
+                completion_tokens=completion_tokens,
+                content=content if isinstance(content, str) else None,
+            ),
+        )
     if not isinstance(content, str) or not content.strip():
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning model returned no answer.", "model_content_missing")
+        raise PlannerError(
+            502,
+            "MODEL_OUTPUT_INVALID",
+            "model",
+            False,
+            "The planning model returned no answer.",
+            "model_content_missing",
+            log_fields=_output_failure_log(
+                model_alias=alias,
+                finish_reason=finish_reason,
+                completion_tokens=completion_tokens,
+                content=content if isinstance(content, str) else None,
+            ),
+        )
     try:
         content_json = json.loads(content)
-    except ValueError as exc:
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was not JSON.", "model_output_not_json") from exc
+    except json.JSONDecodeError as exc:
+        raise PlannerError(
+            502,
+            "MODEL_OUTPUT_INVALID",
+            "model",
+            False,
+            "The planning answer was not JSON.",
+            "model_output_not_json",
+            log_fields=_output_failure_log(
+                model_alias=alias,
+                finish_reason=finish_reason,
+                completion_tokens=completion_tokens,
+                content=content,
+                json_error_category=_json_error_category(exc),
+            ),
+        ) from exc
     if not isinstance(content_json, dict):
-        raise PlannerError(502, "MODEL_OUTPUT_INVALID", "model", True, "The planning answer was not a JSON object.", "model_response_contract")
+        raise PlannerError(
+            502,
+            "MODEL_OUTPUT_INVALID",
+            "model",
+            False,
+            "The planning answer was not a JSON object.",
+            "model_response_contract",
+            log_fields=_output_failure_log(
+                model_alias=alias,
+                finish_reason=finish_reason,
+                completion_tokens=completion_tokens,
+                content=content,
+            ),
+        )
 
-    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
     return {
         "contract_version": CONTRACT_VERSION,
         "task": request.task,
@@ -367,5 +480,6 @@ async def plan_completion(request: Request) -> JSONResponse:
             diagnostic_reason=error.diagnostic_reason,
             retryable=error.retryable,
             latency_ms=int((time.monotonic() - started) * 1000),
+            **error.log_fields,
         )
         return _error_response(error, correlation_id, run_id, task)

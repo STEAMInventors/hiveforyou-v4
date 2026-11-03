@@ -75,7 +75,7 @@ describe("callPlanner", () => {
   it.each([
     [401, { error_code: "AUTH_FAILED" }, "MODEL_UNAVAILABLE", false, "planner_auth_failed"],
     [504, { error_code: "MODEL_TIMEOUT", retryable: true }, "MODEL_TIMEOUT", true, "planner_timeout"],
-    [502, { error_code: "MODEL_OUTPUT_INVALID", retryable: true }, "MODEL_OUTPUT_INVALID", true, "model_output_invalid"],
+    [502, { error_code: "MODEL_OUTPUT_INVALID", retryable: true }, "MODEL_OUTPUT_INVALID", false, "model_output_invalid"],
     [422, { error_code: "MODEL_CONTEXT_EXCEEDED", retryable: false }, "MODEL_OUTPUT_INVALID", false, "model_context_exceeded"],
     [503, { error_code: "MODEL_UNAVAILABLE", retryable: true }, "MODEL_UNAVAILABLE", true, "planner_unavailable"],
   ])("maps HTTP %s to %s", async (status, body, errorCode, retryable, diagnosticReason) => {
@@ -100,7 +100,7 @@ describe("callPlanner", () => {
       errorCode: "MODEL_OUTPUT_INVALID",
       diagnosticReason: "model_output_not_json",
       operationId: RUN_ID,
-      retryable: true,
+      retryable: false,
     });
     await expect(
       call(respond(503, { ...envelope, error_code: "MODEL_UNAVAILABLE", diagnostic_reason: "litellm_http_error" })),
@@ -111,6 +111,30 @@ describe("callPlanner", () => {
     await expect(call(respond(200, { ...ok, task: "plan" }))).rejects.toMatchObject({
       errorCode: "MODEL_OUTPUT_INVALID",
       diagnosticReason: "planner_task_mismatch",
+    });
+  });
+
+  it("maps an empty 502 body to retryable MODEL_UNAVAILABLE without assuming invalid JSON", async () => {
+    const fetchFn = vi.fn(async () => new Response("", { status: 502 }));
+    await expect(call(fetchFn)).rejects.toMatchObject({
+      errorCode: "MODEL_UNAVAILABLE",
+      diagnosticReason: "planner_error_body_unparsed",
+      retryable: true,
+    });
+  });
+
+  it("parses a valid planner-error envelope from a 502 text body", async () => {
+    const envelope = {
+      contract_version: "planner-error@1",
+      error_code: "MODEL_OUTPUT_INVALID",
+      retryable: true,
+      diagnostic_reason: "model_output_not_json",
+    };
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify(envelope), { status: 502, headers: { "Content-Type": "application/json" } }));
+    await expect(call(fetchFn)).rejects.toMatchObject({
+      errorCode: "MODEL_OUTPUT_INVALID",
+      diagnosticReason: "model_output_not_json",
+      retryable: false,
     });
   });
 

@@ -695,11 +695,30 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
       errorCode: "MODEL_OUTPUT_INVALID",
       diagnosticReason: "model_output_not_json",
       diagnosticField: null,
-      retryable: true,
+      retryable: false,
       attempt: 1,
     });
     expect(JSON.stringify(stored)).not.toContain("raw model text");
     expect(db.accepted()).toBeNull();
+    expect(db.retries).toEqual([]);
+    expect(planner.calls.filter((task) => task === "study")).toHaveLength(1);
+  });
+
+  it("retries study when the planner returns 502 with an unreadable body", async () => {
+    const db = mayaDatabase();
+    const planner = fakePlanner(
+      {
+        study: (call) => (call === 1 ? new Response("", { status: 502 }) : null),
+      },
+      mayaOutputs(),
+    );
+
+    await drive(db, planner, MAYA_RUN_ID);
+
+    expect(planner.calls.filter((task) => task === "study")).toEqual(["study", "study"]);
+    expect(db.retries).toHaveLength(1);
+    expect(db.retries[0]?.details).toMatchObject({ error_code: "MODEL_UNAVAILABLE" });
+    expect(db.status()).toBe("SUCCEEDED");
   });
 
   it("fails the run and accepts nothing when a Study quote is not on its page", async () => {

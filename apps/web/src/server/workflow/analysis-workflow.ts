@@ -119,7 +119,13 @@ const STUDY_TOO_LARGE_MESSAGE =
   "These documents are too long to study in one pass. Remove some documents, then analyze again.";
 const READ_WAIT_SECONDS = 15;
 const MAX_STEPS_PER_INVOCATION = 12;
+/** Transient planner/network failures only; never auto-retry confirmed malformed model JSON. */
 const RETRYABLE_MODEL_ERRORS = new Set(["MODEL_TIMEOUT", "MODEL_UNAVAILABLE"]);
+
+function stageFailureRetryable(hiveError: HiveError): boolean {
+  if (hiveError.errorCode === "MODEL_OUTPUT_INVALID") return false;
+  return hiveError.retryable && RETRYABLE_MODEL_ERRORS.has(hiveError.errorCode);
+}
 
 class StageFailure extends Error {
   constructor(
@@ -900,7 +906,7 @@ async function failRun(context: Context, status: ProcessingRunStatus, run: Proce
     ...(failure.metric ? { stage_metric: failure.metric } : {}),
     ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
   };
-  if (failure.hiveError.retryable && RETRYABLE_MODEL_ERRORS.has(failure.hiveError.errorCode)) {
+  if (stageFailureRetryable(failure.hiveError)) {
     const payload = await rpc(client, "retry_processing_run_stage", { p_run_id: context.runId, p_status: status, p_details: details });
     const retried = payload?.retried === true;
     log(run, retried ? `${status}_retry` : "FAILED", context.startedAt, failure.hiveError, failureStage);
