@@ -101,14 +101,28 @@ function modelOutputRetryable(upstream: string | null, envelopeRetryable: boolea
   return envelopeRetryable;
 }
 
+function envelopeFromHeaders(headers?: Headers): ReturnType<typeof normalizePlannerErrorEnvelope> {
+  if (!headers) return null;
+  const errorCode = headers.get("x-planner-error-code")?.trim() ?? "";
+  if (!errorCode) return null;
+  const retryableHeader = headers.get("x-planner-retryable")?.trim().toLowerCase();
+  const diagnosticReason = headers.get("x-planner-diagnostic-reason")?.trim() ?? undefined;
+  return normalizePlannerErrorEnvelope({
+    error_code: errorCode,
+    retryable: retryableHeader === "true",
+    ...(diagnosticReason ? { diagnostic_reason: diagnosticReason } : {}),
+  });
+}
+
 function mapPlannerHttpError(
   status: number,
   raw: unknown,
   unreadable: boolean,
   correlationId: string,
   processingRunId: string,
+  headers?: Headers,
 ): HiveError {
-  const envelope = normalizePlannerErrorEnvelope(raw);
+  const envelope = normalizePlannerErrorEnvelope(raw) ?? envelopeFromHeaders(headers);
   const code = envelope?.errorCode ?? "";
   const retryable = envelope ? envelope.retryable : status >= 500;
   const operationId = envelope?.processingRunId ?? processingRunId;
@@ -211,7 +225,14 @@ async function exchange(deps: PlannerDeps, input: Exchange): Promise<unknown> {
   }
   const { raw, unreadable } = await parsePlannerResponseBody(response);
   if (!response.ok) {
-    throw mapPlannerHttpError(response.status, raw, unreadable, input.correlationId, input.processingRunId);
+    throw mapPlannerHttpError(
+      response.status,
+      raw,
+      unreadable,
+      input.correlationId,
+      input.processingRunId,
+      response.headers,
+    );
   }
   return raw;
 }

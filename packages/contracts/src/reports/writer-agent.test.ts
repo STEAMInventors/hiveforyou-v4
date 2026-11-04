@@ -2002,4 +2002,89 @@ describe("Writer editorial synthesis and Canonical Finding Resolution integratio
       "Narrative",
     ]);
   });
+
+  it("supports two-phase staged PRO composition (Turn 1: presentationPlan + outline + sections; Turn 2: scenarios + view) and segmented set_report_outline with presentationPlan (V4-004J)", () => {
+    const pro = createLedger("PRO");
+    const base = mayaWriterOutput("PRO");
+    const plan = mayaWriterPresentationPlan("PRO");
+
+    // Turn 1: compose_writer_report with ONLY presentationPlan, title, summary, and sections (omitting scenarios & view)
+    const stage1 = exec(pro, "compose_writer_report", {
+      presentationPlan: plan,
+      title: base.title,
+      summary: base.summary,
+      sections: base.sections,
+    });
+    expect(stage1).toMatchObject({
+      ok: true,
+      finished: false,
+      awaitingView: true,
+      acceptedSectionIds: ["s1", "s2", "s3"],
+      viewComponentCount: 0,
+    });
+    expect(pro.finished).toBe(false);
+    expect(pro.currentPresentationPlan).toEqual({
+      schema: WRITER_PRESENTATION_PLAN_SCHEMA,
+      ...plan,
+    });
+
+    // Turn 2: apply_writer_correction with scenarios and view completes and finalizes the report
+    const stage2 = exec(pro, "apply_writer_correction", {
+      scenarios: base.scenarios,
+      view: base.view,
+    });
+    expect(stage2).toMatchObject({
+      ok: true,
+      finished: true,
+      sectionCount: 3,
+      scenarioCount: 1,
+      viewComponentCount: base.view.length,
+    });
+    expect(pro.finished).toBe(true);
+    expect(pro.assemble()).toEqual(base);
+
+    // Also verify staged Turn 1 with a rejected section preserves accepted sections and awaitingView: true,
+    // and Turn 2 repairs the section + supplies view in one apply_writer_correction call.
+    const proWithError = createLedger("PRO");
+    const badSections = structuredClone(base.sections);
+    badSections[1]!.blocks[0]!.text = "Delivered 999 of 480 speech minutes.";
+    const stage1WithRejection = exec(proWithError, "compose_writer_report", {
+      presentationPlan: plan,
+      title: base.title,
+      summary: base.summary,
+      sections: badSections,
+    });
+    expect(stage1WithRejection).toMatchObject({
+      ok: false,
+      awaitingView: true,
+      error: "writer_number_ungrounded",
+      acceptedSectionIds: ["s1", "s3"],
+    });
+    expect(proWithError.finished).toBe(false);
+
+    const stage2RepairAndView = exec(proWithError, "apply_writer_correction", {
+      sections: [base.sections[1]!],
+      scenarios: base.scenarios,
+      view: base.view,
+    });
+    expect(stage2RepairAndView).toMatchObject({
+      ok: true,
+      finished: true,
+    });
+    expect(proWithError.assemble()).toEqual(base);
+
+    // Also verify segmented set_report_outline accepts presentationPlan
+    const segmentedLedger = createLedger("PRO");
+    expect(
+      exec(segmentedLedger, "set_report_outline", {
+        presentationPlan: plan,
+        title: base.title,
+        summary: base.summary,
+      }).ok,
+    ).toBe(true);
+    expect(segmentedLedger.currentPresentationPlan).toEqual({
+      schema: WRITER_PRESENTATION_PLAN_SCHEMA,
+      ...plan,
+    });
+  });
 });

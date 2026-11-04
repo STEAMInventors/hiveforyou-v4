@@ -194,8 +194,30 @@ describe("callStudyAgentTurn", () => {
       retryable: true,
     });
     await expect(
+      send(respond(422, { error_code: "MODEL_OUTPUT_INVALID", retryable: false, diagnostic_reason: "model_output_truncated" })),
+    ).rejects.toMatchObject({ errorCode: "MODEL_OUTPUT_INVALID", retryable: false, diagnosticReason: "model_output_truncated" });
+    await expect(
       send(respond(502, { error_code: "MODEL_OUTPUT_INVALID", retryable: false, diagnostic_reason: "model_output_truncated" })),
     ).rejects.toMatchObject({ errorCode: "MODEL_OUTPUT_INVALID", retryable: false, diagnosticReason: "model_output_truncated" });
+  });
+
+  it("preserves MODEL_OUTPUT_INVALID / model_output_truncated from x-planner-* headers even if an intermediary proxy strips the error body", async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response("<html><body>502 Bad Gateway</body></html>", {
+          status: 502,
+          headers: {
+            "x-planner-error-code": "MODEL_OUTPUT_INVALID",
+            "x-planner-diagnostic-reason": "model_output_truncated",
+            "x-planner-retryable": "false",
+          },
+        }),
+    );
+    await expect(send(fetchFn)).rejects.toMatchObject({
+      errorCode: "MODEL_OUTPUT_INVALID",
+      diagnosticReason: "model_output_truncated",
+      retryable: false,
+    });
   });
 
   it("rejects a turn that breaks the wire contract", async () => {

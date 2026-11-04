@@ -64,6 +64,13 @@ export const REPORT_RETRY_BACKOFF_SECONDS = 30;
 const NUDGE_MESSAGE =
   "No tool was called. Call compose_writer_report with your presentationPlan, title, summary, sections, scenarios and view (or apply_writer_correction to repair rejected units).";
 
+function buildTruncationRecoveryMessage(ledger: WriterAgentLedger): string {
+  if (ledger.completedSectionCount === 0) {
+    return "Your previous tool call exceeded the 8000-token single-turn output limit and was cut off before any unit could be recorded. Do NOT send the entire report in one call. In this turn, call compose_writer_report with ONLY presentationPlan, title, summary, and sections (omit scenarios and view, and keep presentationPlan concise with 3 to 8 synthesized insights). In the next turn, call apply_writer_correction with scenarios and view.";
+  }
+  return `Your previous tool call exceeded the 8000-token single-turn output limit and was cut off. Sections [${ledger.acceptedSectionIds.join(", ")}] are already accepted and preserved. Call apply_writer_correction with ONLY the remaining unrecorded units (such as scenarios and view components) in a compact batch.`;
+}
+
 export type ReportGenerationDeps = {
   readonly client: DocumentPageRpcClient;
   readonly planner: PlannerDeps;
@@ -691,6 +698,40 @@ export async function runWriterAgent(
         processingRunId: input.reportRunId,
       });
     } catch (error) {
+      if (isHiveError(error) && error.diagnosticReason === "model_output_truncated") {
+        totals.rounds += 1;
+        totals.promptTokens += Math.ceil(bytes / 3);
+        totals.completionTokens += outputTokens;
+        totals.finishReason = "length";
+        ledger.noteInvalidTurn();
+        sync();
+        const remainingOutputTokens = WRITER_AGENT_BUDGET.maxOutputTokens - totals.completionTokens;
+        const canRecoverInLoop =
+          totals.rounds < WRITER_AGENT_BUDGET.maxRounds &&
+          remainingOutputTokens >= WRITER_AGENT_BUDGET.minTurnOutputTokens &&
+          input.deadline - clock() >= WRITER_AGENT_BUDGET.minTurnMs;
+        if (canRecoverInLoop) {
+          logWriterRuntimeEvent("writer.correction.requested", {
+            correlationId: input.correlationId,
+            reportRunId: input.reportRunId,
+            hiveId: input.hiveId,
+            audience: input.audience,
+            attempt: input.attempt,
+            durationMs: clock() - startedAt,
+            outputCount: outputTokens,
+            componentCount: ledger.recordedViewComponentCount,
+            sectionCount: ledger.completedSectionCount,
+            scenarioCount: ledger.recordedScenarioCount,
+            rejectedUnits: ledger.rejectedUnits,
+            rounds: totals.rounds,
+            diagnosticReason: "model_output_truncated",
+          });
+          messages.push({ role: "assistant", content: null, tool_calls: [] });
+          messages.push({ role: "user", content: buildTruncationRecoveryMessage(ledger) });
+          continue;
+        }
+        throw new WriterAgentFailure(error, totals);
+      }
       sync();
       if (isHiveError(error)) throw new WriterAgentFailure(error, totals);
       throw new WriterAgentFailure(

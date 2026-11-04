@@ -169,6 +169,8 @@ export type WriterCorrectionPatch = {
 
 export type WriterCompileState = {
   readonly ok: boolean;
+  readonly finished?: boolean;
+  readonly awaitingView?: boolean;
   readonly presentationPlan: WriterPresentationPlan | null;
   readonly report: WriterReport | null;
   readonly acceptedSectionIds: readonly string[];
@@ -549,7 +551,7 @@ export const WRITER_COMPOSE_TOOLS: readonly WriterAgentToolDefinition[] = [
     function: {
       name: "compose_writer_report",
       description:
-        "Plans presentation and composes the audience-specific report (or a batch of sections/components) in one structured call. Trusted code validates every unit independently and preserves accepted units.",
+        "Plans presentation and composes the audience-specific report (or Stage 1: presentationPlan, title, summary, and sections before Stage 2: scenarios and view via apply_writer_correction). Trusted code validates every unit independently and preserves accepted units.",
       parameters: object(
         {
           presentationPlan: {
@@ -572,18 +574,18 @@ export const WRITER_COMPOSE_TOOLS: readonly WriterAgentToolDefinition[] = [
           },
           scenarios: {
             type: "array",
-            description: "Optional deterministic scenarios (empty [] when none needed).",
+            description: "Optional deterministic scenarios (empty [] or omit when staged for Turn 2).",
             maxItems: WRITER_LIMITS.scenarios,
             items: scenarioItemSchema,
           },
           view: {
             type: "array",
-            description: "Dynamic A2UI component composition from the 13-component catalog.",
+            description: "Dynamic A2UI component composition from the 13-component catalog (may be omitted in Turn 1 for large reports and supplied in Turn 2 via apply_writer_correction).",
             maxItems: WRITER_LIMITS.viewComponents,
             items: viewComponentItemSchema,
           },
         },
-        ["title", "summary", "sections", "scenarios", "view"],
+        ["title", "summary", "sections"],
       ),
     },
   },
@@ -638,9 +640,13 @@ export const WRITER_AGENT_TOOLS: readonly WriterAgentToolDefinition[] = [
     function: {
       name: "set_report_outline",
       description:
-        "Sets or replaces the report title and 1 to 6 summary blocks. Validated immediately for block-type vs claim-kind rules, verified calculation bindings, and claim-level numerical grounding.",
+        "Sets or replaces the report title, 1 to 6 summary blocks, and optional presentationPlan. Validated immediately for block-type vs claim-kind rules, verified calculation bindings, and claim-level numerical grounding.",
       parameters: object(
         {
+          presentationPlan: {
+            ...presentationPlanSchema,
+            description: "Optional compact presentation plan.",
+          },
           title: str("Report title (up to 160 characters).", WRITER_LIMITS.title),
           summary: {
             type: "array",
@@ -1819,7 +1825,13 @@ export class WriterAgentLedger {
       });
     });
 
-    if (rejections.length === 0) {
+    const awaitingView =
+      !this.finished &&
+      this.recordedViewComponentCount === 0 &&
+      this.pendingViewSlots.size === 0 &&
+      (this.outline !== null || this.sections.size > 0);
+
+    if (rejections.length === 0 && !awaitingView) {
       try {
         this.finishReport({});
         this.acceptedCallCount += 1;
@@ -1840,7 +1852,9 @@ export class WriterAgentLedger {
     }
 
     return {
-      ok: this.finished && rejections.length === 0 && this.pendingViewSlots.size === 0,
+      ok: rejections.length === 0 && this.pendingViewSlots.size === 0 && (this.finished || awaitingView),
+      finished: this.finished,
+      ...(awaitingView ? { awaitingView: true } : {}),
       presentationPlan: this.presentationPlan,
       report: this.finished ? this.assemble() : null,
       acceptedSectionIds: this.acceptedSectionIds,
@@ -1907,16 +1921,32 @@ export class WriterAgentLedger {
       const compiled = this.compileUnits(parsed);
       const firstRejection = compiled.rejections[0];
       const payload = compiled.ok
-        ? {
-            ok: true,
-            finished: true,
-            sectionCount: this.sections.size,
-            scenarioCount: this.scenarios.size,
-            viewComponentCount: this.recordedViewComponentCount,
-            rejectedUnits: compiled.rejectedUnits,
-          }
+        ? this.finished
+          ? {
+              ok: true,
+              finished: true,
+              sectionCount: this.sections.size,
+              scenarioCount: this.scenarios.size,
+              viewComponentCount: this.recordedViewComponentCount,
+              rejectedUnits: compiled.rejectedUnits,
+            }
+          : {
+              ok: true,
+              finished: false,
+              awaitingView: true,
+              sectionCount: this.sections.size,
+              scenarioCount: this.scenarios.size,
+              viewComponentCount: this.recordedViewComponentCount,
+              acceptedSectionIds: compiled.acceptedSectionIds,
+              acceptedScenarioIds: compiled.acceptedScenarioIds,
+              unsurfacedClaims: compiled.unsurfacedClaimIds,
+              rejectedUnits: compiled.rejectedUnits,
+              message:
+                "Presentation plan, outline, and narrative sections accepted. Now call apply_writer_correction with scenarios (if any) and view components to complete the report.",
+            }
         : {
             ok: false,
+            ...(compiled.awaitingView ? { awaitingView: true } : {}),
             error: firstRejection?.error ?? "writer_output_shape",
             ...(firstRejection?.field ? { field: firstRejection.field } : {}),
             ...(firstRejection?.ungroundedValue ? { ungroundedValue: firstRejection.ungroundedValue } : {}),
@@ -2100,7 +2130,10 @@ export class WriterAgentLedger {
   }
 
   private setReportOutline(args: Args): Record<string, unknown> {
-    this.only(args, ["title", "summary"]);
+    this.only(args, ["presentationPlan", "title", "summary"]);
+    if (args.presentationPlan !== undefined && args.presentationPlan !== null) {
+      this.recordPresentationPlan(args.presentationPlan);
+    }
     if (typeof args.title !== "string" || args.title.trim() === "" || args.title.length > WRITER_LIMITS.title) {
       throw new WriterRejection("writer_output_shape", `title must be text up to ${WRITER_LIMITS.title} characters.`, "title");
     }

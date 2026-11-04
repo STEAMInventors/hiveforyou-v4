@@ -307,7 +307,12 @@ def _error_response(
         content["processing_run_id"] = processing_run_id
     if task:
         content["task"] = task
-    return JSONResponse(status_code=error.status, content=content)
+    headers = {
+        "x-planner-error-code": error.code,
+        "x-planner-diagnostic-reason": error.diagnostic_reason,
+        "x-planner-retryable": "true" if error.retryable else "false",
+    }
+    return JSONResponse(status_code=error.status, content=content, headers=headers)
 
 
 def _authorize(header: str | None, expected: str) -> None:
@@ -507,7 +512,7 @@ def _parse_json_content_diagnostic(exc: ModelJsonParseError) -> str:
 
 def _no_answer(diagnostic_reason: str = "model_response_contract", *, retryable: bool = True, **log: object) -> PlannerError:
     return PlannerError(
-        502, "MODEL_OUTPUT_INVALID", "model", retryable, "The planning model returned no answer.", diagnostic_reason, log_fields=log or None
+        422, "MODEL_OUTPUT_INVALID", "model", retryable, "The planning model returned no answer.", diagnostic_reason, log_fields=log or None
     )
 
 
@@ -595,7 +600,7 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
     content = message.get("content")
     if _is_truncated(finish_reason):
         raise PlannerError(
-            502,
+            422,
             "MODEL_OUTPUT_INVALID",
             "model",
             False,
@@ -623,7 +628,7 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
         content_json = parse_model_json_object(content)
     except json.JSONDecodeError as exc:
         raise PlannerError(
-            502,
+            422,
             "MODEL_OUTPUT_INVALID",
             "model",
             False,
@@ -651,7 +656,7 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
         if diagnostic == "model_output_not_json" and parse_category == "expecting_value":
             log_fields.update({"json_error_line": 1, "json_error_column": 1, "json_error_position": 0})
         raise PlannerError(
-            502,
+            422,
             "MODEL_OUTPUT_INVALID",
             "model",
             False,
@@ -697,7 +702,7 @@ async def _agent_turn(request: StudyAgentTurnRequest, settings: dict[str, str]) 
     log = {"model_alias": alias, "finish_reason": finish_reason, "completion_tokens": usage["completion_tokens"]}
     if _is_truncated(finish_reason):
         raise PlannerError(
-            502, "MODEL_OUTPUT_INVALID", "model", False, "The planning answer was cut off.", "model_output_truncated", log_fields=log
+            422, "MODEL_OUTPUT_INVALID", "model", False, "The planning answer was cut off.", "model_output_truncated", log_fields=log
         )
     message = choice.get("message")
     if not isinstance(message, dict):

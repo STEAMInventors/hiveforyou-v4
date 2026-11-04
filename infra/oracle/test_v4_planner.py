@@ -173,8 +173,9 @@ def test_rejects_oversized_body(client: TestClient) -> None:
 def test_rejects_non_object_or_truncated_completion(client: TestClient, content: str, finish_reason: str) -> None:
     use_litellm(lambda _: httpx.Response(200, json=completion(content, finish_reason)))
     response = post(client, body())
-    assert response.status_code == 502
+    assert response.status_code == 422
     assert response.json()["error_code"] == "MODEL_OUTPUT_INVALID"
+    assert response.headers["x-planner-error-code"] == "MODEL_OUTPUT_INVALID"
 
 
 def test_maps_timeout(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
@@ -236,17 +237,20 @@ def test_distinguishes_completion_failures(
     message["content"] = content
     use_litellm(lambda _: httpx.Response(200, json=payload))
     response = post(client, body())
-    assert response.status_code == 502
+    assert response.status_code == 422
     assert response.json()["error_code"] == "MODEL_OUTPUT_INVALID"
     assert response.json()["diagnostic_reason"] == reason
     assert response.json()["retryable"] is False
+    assert response.headers["x-planner-diagnostic-reason"] == reason
+    assert response.headers["x-planner-retryable"] == "false"
 
 
 def test_max_tokens_finish_reason_is_truncated(client: TestClient) -> None:
     use_litellm(lambda _: httpx.Response(200, json=completion('{"schema":', "max_tokens")))
     response = post(client, body())
-    assert response.status_code == 502
+    assert response.status_code == 422
     assert response.json()["diagnostic_reason"] == "model_output_truncated"
+    assert response.headers["x-planner-diagnostic-reason"] == "model_output_truncated"
 
 
 def test_model_output_failure_logs_safe_diagnostics(client: TestClient, caplog: pytest.LogCaptureFixture) -> None:
@@ -379,7 +383,7 @@ def test_accepts_strict_json_shapes(client: TestClient, content: str) -> None:
 def test_rejects_non_strict_json_shapes(client: TestClient, content: str, reason: str) -> None:
     use_litellm(lambda _: httpx.Response(200, json=completion(content)))
     response = post(client, body())
-    assert response.status_code == 502
+    assert response.status_code == 422
     assert response.json()["diagnostic_reason"] == reason
 
 
@@ -579,9 +583,12 @@ def test_agent_turn_rejects_unusable_model_turns(
     use_litellm(lambda _: httpx.Response(200, json=completion_body))
     with caplog.at_level("WARNING", logger="hive_planner"):
         response = post_agent(client, agent_body())
-    assert response.status_code == 502
+    assert response.status_code == 422
     assert response.json()["diagnostic_reason"] == reason
     assert response.json()["retryable"] is retryable
+    assert response.headers["x-planner-error-code"] == "MODEL_OUTPUT_INVALID"
+    assert response.headers["x-planner-diagnostic-reason"] == reason
+    assert response.headers["x-planner-retryable"] == ("true" if retryable else "false")
     assert "v4_study_agent_turn_failed" in caplog.text
     assert SECRET_PAGE not in caplog.text
 

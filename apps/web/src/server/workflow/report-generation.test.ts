@@ -1645,4 +1645,112 @@ describe("processReportRun", () => {
     ]);
     expect(proPayload.documents).toEqual(customerPayload.documents);
   });
+
+  it("completes a PRO report via two-turn staged generation and recovers in-loop if Turn 1 hits model_output_truncated without triggering a second report-run attempt (V4-004J)", async () => {
+    vi.mocked(emitStructuredEvent).mockClear();
+    const db = fakeDatabase("PRO");
+    const dispatch = vi.fn(async () => true);
+    const base = mayaWriterOutput("PRO");
+    const plan = mayaWriterPresentationPlan("PRO");
+
+    // Turn 1: model attempts a single giant call and hits 8000-token truncation (HTTP 422 model_output_truncated).
+    // Turn 2: following the in-loop truncation recovery prompt, model calls compose_writer_report with ONLY presentationPlan, title, summary, and sections.
+    // Turn 3: model calls apply_writer_correction with scenarios and view to complete the PRO report in attempt 1.
+    const stagedTurn2: ToolCall[] = [
+      {
+        id: "toolu_pro_stage1",
+        name: "compose_writer_report",
+        arguments: JSON.stringify({
+          presentationPlan: plan,
+          title: base.title,
+          summary: base.summary,
+          sections: base.sections,
+        }),
+      },
+    ];
+    const stagedTurn3: ToolCall[] = [
+      {
+        id: "toolu_pro_stage2",
+        name: "apply_writer_correction",
+        arguments: JSON.stringify({
+          scenarios: base.scenarios,
+          view: base.view,
+        }),
+      },
+    ];
+
+    const bodies: StudyAgentTurnRequest[] = [];
+    let callCount = 0;
+    const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as StudyAgentTurnRequest;
+      bodies.push(body);
+      callCount += 1;
+      if (callCount === 1) {
+        return new Response(
+          JSON.stringify({
+            contract_version: "planner-error@1",
+            error_code: "MODEL_OUTPUT_INVALID",
+            category: "model",
+            retryable: false,
+            message_safe: "The planning answer was cut off.",
+            correlation_id: "66666666-6666-4666-8666-666666666666",
+            processing_run_id: REPORT_RUN_ID,
+            task: "writer",
+            component: "planner",
+            operation: "study_agent_turn",
+            diagnostic_reason: "model_output_truncated",
+          }),
+          {
+            status: 422,
+            headers: {
+              "Content-Type": "application/json",
+              "x-planner-error-code": "MODEL_OUTPUT_INVALID",
+              "x-planner-diagnostic-reason": "model_output_truncated",
+              "x-planner-retryable": "false",
+            },
+          },
+        );
+      }
+      if (callCount === 2) return turnResponse(stagedTurn2);
+      return turnResponse(stagedTurn3);
+    });
+
+    await expect(
+      processReportRun(
+        {
+          client: db.client,
+          planner: {
+            getConfig: () => ({ baseUrl: "https://reader.example.test/planner", serviceToken: "t", timeoutMs: 1000 }),
+            fetchFn: fetchFn as unknown as typeof fetch,
+          },
+          dispatch,
+          loadCatalog: () => loadPromptCatalog(),
+        },
+        REPORT_RUN_ID,
+      ),
+    ).resolves.toBe("SUCCEEDED");
+
+    expect(db.attemptCount()).toBe(1);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(bodies).toHaveLength(3);
+    // Verify Turn 2 received the truncation recovery prompt instructing staged generation
+    const turn2LastMessage = bodies[1]!.messages.at(-1)!;
+    expect(turn2LastMessage).toMatchObject({
+      role: "user",
+      content: expect.stringContaining("ONLY presentationPlan, title, summary, and sections"),
+    });
+    // Verify Turn 3 received awaitingView: true from Turn 2
+    const turn3ToolMessage = bodies[2]!.messages.at(-1)!;
+    expect(turn3ToolMessage.role).toBe("tool");
+    expect(JSON.parse(turn3ToolMessage.content)).toMatchObject({
+      ok: true,
+      finished: false,
+      awaitingView: true,
+      acceptedSectionIds: ["s1", "s2", "s3"],
+    });
+    expect(db.saved()).toMatchObject({
+      writer_output: base,
+      view: { audience: "PRO", schema: "hive-application-view/1" },
+    });
+  });
 });
