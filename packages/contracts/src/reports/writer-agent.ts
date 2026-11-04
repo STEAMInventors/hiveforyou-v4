@@ -65,6 +65,9 @@ export type WriterSummaryDetailLevel = (typeof WRITER_SUMMARY_DETAIL_LEVELS)[num
 export const WRITER_FINDING_PRIORITIES = ["HIGH", "MEDIUM", "LOW"] as const;
 export type WriterFindingPriority = (typeof WRITER_FINDING_PRIORITIES)[number];
 
+export const GOAL_ID_PATTERN = /^G[1-9][0-9]{0,2}$/;
+export const SPECIALIST_QUESTION_ID_PATTERN = /^I[1-9][0-9]{0,2}$/;
+
 export type WriterPriorityFinding = {
   readonly claimId: string;
   readonly priority: WriterFindingPriority;
@@ -75,6 +78,9 @@ export type WriterPlannedSection = {
   readonly heading: string;
   readonly priority: WriterFindingPriority;
   readonly claimIds: readonly string[];
+  readonly goalIds?: readonly string[];
+  readonly specialistQuestionIds?: readonly string[];
+  readonly purpose?: string;
 };
 
 export type WriterPlannedComponent = {
@@ -82,10 +88,12 @@ export type WriterPlannedComponent = {
   readonly sectionId?: string | null;
   readonly scenarioId?: string | null;
   readonly claimIds: readonly string[];
+  readonly purpose?: string;
 };
 
 export type WriterPresentationPlan = {
   readonly schema?: typeof WRITER_PRESENTATION_PLAN_SCHEMA;
+  readonly audienceObjective?: string;
   readonly summaryDetailLevel: WriterSummaryDetailLevel;
   readonly priorityFindings: readonly WriterPriorityFinding[];
   readonly sections: readonly WriterPlannedSection[];
@@ -379,6 +387,10 @@ const viewComponentItemSchema = object(
 
 const presentationPlanSchema = object(
   {
+    audienceObjective: nullableStr(
+      "What this specific audience (CUSTOMER or PRO) needs to accomplish with this report, grounded in the person's goals and the relevant professional's work.",
+      600,
+    ),
     summaryDetailLevel: {
       type: "string",
       enum: [...WRITER_SUMMARY_DETAIL_LEVELS],
@@ -398,7 +410,7 @@ const presentationPlanSchema = object(
     },
     sections: {
       type: "array",
-      description: "Planned narrative organization, section headings, priority, and supporting verified claim IDs.",
+      description: "Planned narrative organization, section headings, priority, goal/task alignment, and supporting verified claim IDs.",
       maxItems: WRITER_LIMITS.sections,
       items: object(
         {
@@ -406,13 +418,29 @@ const presentationPlanSchema = object(
           heading: str("Section heading.", WRITER_LIMITS.heading),
           priority: { type: "string", enum: [...WRITER_FINDING_PRIORITIES] },
           claimIds: claimRefsSchema("Verified Study claim IDs supporting this section."),
+          goalIds: {
+            type: "array",
+            description: "Optional user goal IDs (G1, G2, ...) this section serves.",
+            maxItems: 12,
+            items: { type: "string", maxLength: 8 },
+          },
+          specialistQuestionIds: {
+            type: "array",
+            description: "Optional specialist question IDs (I1, I2, ...) this section addresses.",
+            maxItems: 24,
+            items: { type: "string", maxLength: 8 },
+          },
+          purpose: nullableStr(
+            "What this section helps the reader understand, decide, or verify.",
+            400,
+          ),
         },
         ["id", "heading", "priority", "claimIds"],
       ),
     },
     components: {
       type: "array",
-      description: "Approved A2UI components chosen to communicate the findings, with supporting verified claim IDs.",
+      description: "Approved A2UI components chosen to accomplish this audience's objective, with supporting verified claim IDs.",
       maxItems: WRITER_LIMITS.viewComponents,
       items: object(
         {
@@ -420,6 +448,10 @@ const presentationPlanSchema = object(
           sectionId: nullableStr("Optional sectionId when component is Narrative.", 16),
           scenarioId: nullableStr("Optional scenarioId when component is ScenarioExplorer.", 16),
           claimIds: claimRefsSchema("Verified Study claim IDs supporting this component."),
+          purpose: nullableStr(
+            "Why this A2UI component best serves this audience's task on these claims.",
+            400,
+          ),
         },
         ["component", "claimIds"],
       ),
@@ -919,14 +951,30 @@ export class WriterAgentLedger {
   }
 
   /**
-   * Validates and records a compact `hive.writer-presentation-plan/1` (D-047 Responsibility A).
-   * Verifies every referenced claim ID against the accepted Canonical Study and checks component names.
+   * Validates and records a compact `hive.writer-presentation-plan/1` (D-047 Responsibility A; V4-004G).
+   * Verifies every referenced claim ID against the accepted Canonical Study, checks component names,
+   * and validates optional audienceObjective and goal/task alignment fields when present.
    */
   recordPresentationPlan(raw: unknown): WriterPresentationPlan {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
       throw new WriterRejection("writer_output_shape", "presentationPlan must be an object.", "presentationPlan");
     }
     const plan = raw as Record<string, unknown>;
+    let audienceObjective: string | undefined;
+    if (plan.audienceObjective !== undefined && plan.audienceObjective !== null) {
+      if (
+        typeof plan.audienceObjective !== "string" ||
+        plan.audienceObjective.trim() === "" ||
+        plan.audienceObjective.length > 600
+      ) {
+        throw new WriterRejection(
+          "writer_output_shape",
+          "presentationPlan.audienceObjective must be non-empty text up to 600 characters.",
+          "presentationPlan.audienceObjective",
+        );
+      }
+      audienceObjective = plan.audienceObjective.trim();
+    }
     const detailLevel = plan.summaryDetailLevel;
     if (
       typeof detailLevel !== "string" ||
@@ -991,11 +1039,57 @@ export class WriterAgentLedger {
         }
         return claimId;
       });
+      let goalIds: string[] | undefined;
+      if (entry.goalIds !== undefined && entry.goalIds !== null) {
+        if (!Array.isArray(entry.goalIds) || entry.goalIds.length > 12) {
+          throw new WriterRejection("writer_output_shape", `${path}.goalIds must be a list of up to 12 items.`, `${path}.goalIds`);
+        }
+        goalIds = entry.goalIds.map((goalId, gIdx) => {
+          if (typeof goalId !== "string" || !GOAL_ID_PATTERN.test(goalId)) {
+            throw new WriterRejection("writer_output_shape", `${path}.goalIds[${gIdx}] must be G1…G999.`, `${path}.goalIds[${gIdx}]`);
+          }
+          return goalId;
+        });
+      }
+      let specialistQuestionIds: string[] | undefined;
+      if (entry.specialistQuestionIds !== undefined && entry.specialistQuestionIds !== null) {
+        if (!Array.isArray(entry.specialistQuestionIds) || entry.specialistQuestionIds.length > 24) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.specialistQuestionIds must be a list of up to 24 items.`,
+            `${path}.specialistQuestionIds`,
+          );
+        }
+        specialistQuestionIds = entry.specialistQuestionIds.map((questionId, qIdx) => {
+          if (typeof questionId !== "string" || !SPECIALIST_QUESTION_ID_PATTERN.test(questionId)) {
+            throw new WriterRejection(
+              "writer_output_shape",
+              `${path}.specialistQuestionIds[${qIdx}] must be I1…I999.`,
+              `${path}.specialistQuestionIds[${qIdx}]`,
+            );
+          }
+          return questionId;
+        });
+      }
+      let purpose: string | undefined;
+      if (entry.purpose !== undefined && entry.purpose !== null) {
+        if (typeof entry.purpose !== "string" || entry.purpose.trim() === "" || entry.purpose.length > 400) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.purpose must be non-empty text up to 400 characters.`,
+            `${path}.purpose`,
+          );
+        }
+        purpose = entry.purpose.trim();
+      }
       return {
         id: entry.id,
         heading: entry.heading,
         priority: entry.priority as WriterFindingPriority,
         claimIds,
+        ...(goalIds !== undefined ? { goalIds } : {}),
+        ...(specialistQuestionIds !== undefined ? { specialistQuestionIds } : {}),
+        ...(purpose !== undefined ? { purpose } : {}),
       };
     });
 
@@ -1024,16 +1118,29 @@ export class WriterAgentLedger {
         }
         return claimId;
       });
+      let purpose: string | undefined;
+      if (entry.purpose !== undefined && entry.purpose !== null) {
+        if (typeof entry.purpose !== "string" || entry.purpose.trim() === "" || entry.purpose.length > 400) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.purpose must be non-empty text up to 400 characters.`,
+            `${path}.purpose`,
+          );
+        }
+        purpose = entry.purpose.trim();
+      }
       return {
         component: entry.component as A2uiComponentName,
         ...(typeof entry.sectionId === "string" ? { sectionId: entry.sectionId } : {}),
         ...(typeof entry.scenarioId === "string" ? { scenarioId: entry.scenarioId } : {}),
         claimIds,
+        ...(purpose !== undefined ? { purpose } : {}),
       };
     });
 
     const normalized: WriterPresentationPlan = {
       schema: WRITER_PRESENTATION_PLAN_SCHEMA,
+      ...(audienceObjective !== undefined ? { audienceObjective } : {}),
       summaryDetailLevel: detailLevel as WriterSummaryDetailLevel,
       priorityFindings,
       sections: plannedSections,

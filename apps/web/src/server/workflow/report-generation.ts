@@ -9,6 +9,9 @@ import {
   estimateWriterAgentUsd,
   formatWriterAgentBudgetDiagnosticField,
   type HiveError,
+  type IntentAnalysis,
+  type IntentIntelligence,
+  type InvestigationPlan,
   normalizeReportRun,
   type ReportAudience,
   type ReportRun,
@@ -67,14 +70,17 @@ export type ReportGenerationDeps = {
   readonly clock?: () => number;
 };
 
-type GenerationInputs = {
+export type GenerationInputs = {
   reportRun: ReportRun;
   verified: VerifiedStudy;
   audienceConfiguration: AudienceConfiguration;
   coverageComplete: boolean;
+  intentDecomposition?: IntentAnalysis | null;
   domainProposal: DomainProposal | null;
+  intentIntelligence?: IntentIntelligence | null;
+  investigationPlan?: InvestigationPlan | null;
   sourceSnapshot: SourceSnapshot | null;
-  intents: { id: string; intentText: string }[];
+  intents: { id: string; intentText: string; audience?: string | null }[];
 };
 
 export type WriterAgentTotals = {
@@ -285,9 +291,14 @@ async function loadGenerationInputs(client: DocumentPageRpcClient, reportRunId: 
     verified: { investigation: revision.investigation, verification: revision.verification } as VerifiedStudy,
     audienceConfiguration: revision.audienceConfiguration as AudienceConfiguration,
     coverageComplete: revision.coverageComplete === true,
+    intentDecomposition: (payload?.intentDecomposition ?? null) as IntentAnalysis | null,
     domainProposal: (payload?.domainProposal ?? null) as DomainProposal | null,
+    intentIntelligence: (payload?.intentIntelligence ?? null) as IntentIntelligence | null,
+    investigationPlan: (payload?.investigationPlan ?? null) as InvestigationPlan | null,
     sourceSnapshot: (payload?.sourceSnapshot ?? null) as SourceSnapshot | null,
-    intents: Array.isArray(payload?.intents) ? (payload.intents as { id: string; intentText: string }[]) : [],
+    intents: Array.isArray(payload?.intents)
+      ? (payload.intents as { id: string; intentText: string; audience?: string | null }[])
+      : [],
   };
 }
 
@@ -295,7 +306,96 @@ function fileNamesOf(snapshot: SourceSnapshot | null): Map<string, string> {
   return new Map((snapshot?.documents ?? []).map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]));
 }
 
-/** The Writer's user message (prompt `## User message shape`): validated claims only, no page text. */
+function buildWriterStudyContext(inputs: Pick<GenerationInputs, "intentDecomposition" | "intentIntelligence" | "investigationPlan">) {
+  const decomposition = inputs.intentDecomposition;
+  const intelligence = inputs.intentIntelligence;
+  const plan = inputs.investigationPlan;
+  const reviewsByGoal = new Map(
+    (Array.isArray(intelligence?.completenessReview) ? intelligence.completenessReview : []).map((review) => [
+      review.goalId,
+      review,
+    ]),
+  );
+  const subjects = (Array.isArray(decomposition?.subjects) ? decomposition.subjects : []).map((subject) => ({
+    name: subject.name,
+    statedAs: subject.statedAs,
+    intentRequestId: subject.intentRequestId,
+  }));
+  const goals = (Array.isArray(decomposition?.goals) ? decomposition.goals : []).map((goal) => {
+    const review = reviewsByGoal.get(goal.goalId);
+    const questions = (Array.isArray(goal.questions) ? goal.questions : []).map((question) => ({
+      questionId: question.questionId,
+      question: question.question,
+      answerForm: question.answerForm,
+      needsJudgment: question.needsJudgment,
+      ...(Array.isArray(question.dependsOn) && question.dependsOn.length > 0 ? { dependsOn: question.dependsOn } : {}),
+    }));
+    const unclear = (Array.isArray(goal.unclear) ? goal.unclear : []).map((item) => ({
+      unclearId: item.unclearId,
+      about: item.about,
+      askThePerson: item.askThePerson,
+      ...(item.likelyReading ? { likelyReading: item.likelyReading } : {}),
+      blocksAnswer: item.blocksAnswer,
+    }));
+    return {
+      goalId: goal.goalId,
+      intentRequestId: goal.intentRequestId,
+      statedAs: goal.statedAs,
+      goal: goal.goal,
+      questions,
+      ...(unclear.length > 0 ? { unclear } : {}),
+      ...(review && Array.isArray(review.remainingLimits) && review.remainingLimits.length > 0
+        ? { remainingLimits: review.remainingLimits }
+        : {}),
+    };
+  });
+  const reservedDecisions = (Array.isArray(decomposition?.reservedDecisions) ? decomposition.reservedDecisions : []).map(
+    (decision) => ({
+      questionId: decision.questionId,
+      decision: decision.decision,
+      decidedBy: decision.decidedBy ?? null,
+    }),
+  );
+  const specialistQuestions = (Array.isArray(intelligence?.questions) ? intelligence.questions : []).map((question) => ({
+    id: question.id,
+    goalId: question.goalId,
+    analysisQuestionIds: question.analysisQuestionIds,
+    question: question.question,
+    whyItMatters: question.whyItMatters,
+    supportsOutcome: question.supportsOutcome,
+    requiresJudgment: question.requiresJudgment,
+    ...(question.judgmentBasis ? { judgmentBasis: question.judgmentBasis } : {}),
+    ...(Array.isArray(question.dependsOn) && question.dependsOn.length > 0 ? { dependsOn: question.dependsOn } : {}),
+  }));
+  const investigationQuestions = (Array.isArray(plan?.questions) ? plan.questions : []).map((question) => ({
+    id: question.id,
+    goalId: question.goalId,
+    specialistQuestionIds: question.specialistQuestionIds,
+    establish: question.establish,
+    answerType: question.answerType,
+    deliverable: question.deliverable,
+    ...(question.comparison ? { comparison: question.comparison } : {}),
+    ...(question.chronology ? { chronology: question.chronology } : {}),
+    ...(question.calculation ? { calculation: question.calculation } : {}),
+    ...(question.evaluation ? { evaluation: question.evaluation } : {}),
+    ...(Array.isArray(question.missingEvidenceConditions) && question.missingEvidenceConditions.length > 0
+      ? { missingEvidenceConditions: question.missingEvidenceConditions }
+      : {}),
+    ...(Array.isArray(question.dependsOn) && question.dependsOn.length > 0 ? { dependsOn: question.dependsOn } : {}),
+  }));
+  return {
+    ...(subjects.length > 0 ? { subjects } : {}),
+    goals,
+    ...(reservedDecisions.length > 0 ? { reservedDecisions } : {}),
+    specialistQuestions,
+    investigationQuestions,
+  };
+}
+
+/**
+ * The Writer's user message (prompt `## User message shape`): validated claims and bounded
+ * upstream intent/domain/specialist/plan context only, never raw page text.
+ */
 export function buildWriterPayload(
   audience: ReportAudience,
   inputs: Omit<GenerationInputs, "reportRun">,
@@ -306,6 +406,17 @@ export function buildWriterPayload(
   const fileNames = fileNamesOf(inputs.sourceSnapshot);
   const page = (ref: { sourceDocumentId: string; pageNumber: number }) =>
     `${fileNames.get(ref.sourceDocumentId.toLowerCase()) ?? "Document"} p.${ref.pageNumber}`;
+  const considerations = (Array.isArray(inputs.investigationPlan?.domainBasis?.considerations)
+    ? inputs.investigationPlan.domainBasis.considerations
+    : []
+  ).map((item) => item.text);
+  const alternatives = (Array.isArray(inputs.domainProposal?.alternatives) ? inputs.domainProposal.alternatives : []).map(
+    (alt) => ({
+      label: alt.label,
+      ...(alt.subdomain ? { subdomain: alt.subdomain } : {}),
+      reasoning: alt.reasoning,
+    }),
+  );
   return {
     task: "writer",
     audience,
@@ -314,13 +425,40 @@ export function buildWriterPayload(
       status: profile.status,
       tone: profile.tone,
       detailLevel: profile.detailLevel,
-      guidance: audience === "CUSTOMER" ? config.writerGuidance.customer : config.writerGuidance.pro,
+      guidance: audience === "CUSTOMER" ? (config.writerGuidance?.customer ?? []) : (config.writerGuidance?.pro ?? []),
+      ...(audience === "PRO" && Array.isArray(config.pro?.alternativeRoles) && config.pro.alternativeRoles.length > 0
+        ? { alternativeRoles: config.pro.alternativeRoles }
+        : {}),
+      ...(Array.isArray(config.studyGuidance) && config.studyGuidance.length > 0
+        ? { studyGuidance: config.studyGuidance }
+        : {}),
     },
-    requests: inputs.intents.map((intent) => ({ intentRequestId: intent.id, text: intent.intentText })),
+    requests: inputs.intents.map((intent) => ({
+      intentRequestId: intent.id,
+      text: intent.intentText,
+      ...(typeof intent.audience === "string" && intent.audience.trim() !== ""
+        ? { statedAudience: intent.audience.trim() }
+        : {}),
+    })),
     domain: {
       label: inputs.domainProposal?.primary?.label ?? "Unknown",
-      uncertain: inputs.domainProposal ? inputs.domainProposal.ambiguous || inputs.domainProposal.unknownDomain : true,
+      ...(inputs.domainProposal?.primary?.subdomain ? { subdomain: inputs.domainProposal.primary.subdomain } : {}),
+      uncertain: inputs.domainProposal
+        ? Boolean(
+            inputs.domainProposal.ambiguous ||
+              inputs.domainProposal.unknownDomain ||
+              inputs.domainProposal.mixedDomain ||
+              inputs.domainProposal.primary?.confidence === "LOW",
+          )
+        : true,
+      ...(inputs.domainProposal?.primary?.reasoning ? { reasoning: inputs.domainProposal.primary.reasoning } : {}),
+      ...(alternatives.length > 0 ? { alternatives } : {}),
+      ...(Array.isArray(inputs.domainProposal?.ambiguityNotes) && inputs.domainProposal.ambiguityNotes.length > 0
+        ? { ambiguityNotes: inputs.domainProposal.ambiguityNotes }
+        : {}),
+      ...(considerations.length > 0 ? { considerations } : {}),
     },
+    studyContext: buildWriterStudyContext(inputs),
     coverage: {
       complete: inputs.coverageComplete,
       notes: (inputs.sourceSnapshot?.excluded ?? []).map((document) => `${document.fileName} was not read (${document.reason}).`),

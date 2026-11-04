@@ -31,6 +31,11 @@ describe("loadPromptCatalog", () => {
     expect(catalog.writer.systemPrompt).toContain("compose_writer_report");
     expect(catalog.writer.systemPrompt).toContain("apply_writer_correction");
     expect(catalog.writer.systemPrompt).toContain("presentationPlan");
+    expect(catalog.writer.systemPrompt).toContain("audienceObjective");
+    expect(catalog.writer.systemPrompt).toContain("studyContext");
+    expect(catalog.writer.systemPrompt).toContain("whyItMatters");
+    expect(catalog.writer.systemPrompt).toContain("supportsOutcome");
+    expect(catalog.writer.systemPrompt).toContain("deliverable");
     expect(catalog.writer.systemPrompt).toContain("set_report_outline");
     expect(catalog.writer.systemPrompt).toContain("record_section");
     expect(catalog.writer.systemPrompt).toContain("record_scenario");

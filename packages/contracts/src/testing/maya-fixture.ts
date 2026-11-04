@@ -540,11 +540,104 @@ export function mayaWriterOutput(audience: "CUSTOMER" | "PRO" = "CUSTOMER") {
 }
 
 /**
- * Compact presentation plan (`hive.writer-presentation-plan/1`) for Maya's Customer or Pro report (D-047).
+ * Compact presentation plan (`hive.writer-presentation-plan/1`) for Maya's Customer or Pro report (D-047, V4-004G).
+ * Customer and Pro plans reference the same verified Canonical Study claims while differentiating
+ * audienceObjective, priorityFindings, section organization/purpose, and A2UI component selection.
  */
 export function mayaWriterPresentationPlan(audience: "CUSTOMER" | "PRO" = "CUSTOMER") {
+  if (audience === "PRO") {
+    return {
+      audienceObjective:
+        "Audit source-backed baselines, service delivery shortfalls, assessment criteria, and evidentiary gaps to advise on compensatory services and IEP team determinations.",
+      summaryDetailLevel: "COMPREHENSIVE" as const,
+      priorityFindings: [
+        { claimId: "P2.C0", priority: "HIGH" as const },
+        { claimId: "P3", priority: "HIGH" as const },
+        { claimId: "P1.A0", priority: "HIGH" as const },
+        { claimId: "P1.D0", priority: "HIGH" as const },
+        { claimId: "P1.U0", priority: "MEDIUM" as const },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "Service delivery compliance and shortfall analysis",
+          priority: "HIGH" as const,
+          goalIds: ["G1", "G2"],
+          specialistQuestionIds: ["I2"],
+          purpose: "Verify delivered vs mandated speech therapy minutes from the service log before the review.",
+          claimIds: ["P2.F0", "P2.F1", "P2.C0"],
+        },
+        {
+          id: "s2",
+          heading: "Fluency trajectory, assessment criteria, and open determinations",
+          priority: "HIGH" as const,
+          goalIds: ["G3", "G1"],
+          specialistQuestionIds: ["I1"],
+          purpose: "Audit baseline and November progress against the declared criterion and reserved IEP team decision.",
+          claimIds: ["P1.F0", "P1.F1", "P1.F2", "P1.C0", "P1.A0", "P1.D0"],
+        },
+        {
+          id: "s3",
+          heading: "Evidentiary gaps and unassessed areas",
+          priority: "HIGH" as const,
+          goalIds: ["G2", "G3"],
+          specialistQuestionIds: ["I3"],
+          purpose: "Document missing comprehension evaluation data and single-point measurement limitations.",
+          claimIds: ["P1.U0", "P1.C1", "P3"],
+        },
+      ],
+      components: [
+        {
+          component: "Narrative" as const,
+          sectionId: "summary",
+          claimIds: ["P1.F0", "P1.F2", "P1.C0"],
+          purpose: "Synthesize case posture and verified calculations for specialist review.",
+        },
+        {
+          component: "Comparison" as const,
+          claimIds: ["P2.F0", "P2.F1", "P1.F0", "P1.F2"],
+          purpose: "Compare mandated vs delivered speech minutes and baseline vs progress side by side.",
+        },
+        {
+          component: "RecordTable" as const,
+          claimIds: ["P1.F0", "P1.F1", "P1.F2", "P2.F0", "P2.F1"],
+          purpose: "Provide a source-backed ledger of measurements, targets, and service logs.",
+        },
+        {
+          component: "EvidencePanel" as const,
+          claimIds: ["P1.A0", "P1.D0", "P2.C0"],
+          purpose: "Inspect verbatim quotes, general-knowledge assessment criteria, and reserved determinations.",
+        },
+        {
+          component: "IssueList" as const,
+          claimIds: ["P1.U0", "P3"],
+          purpose: "Track evidentiary gaps and unconfirmed measurements by severity.",
+        },
+        {
+          component: "Narrative" as const,
+          sectionId: "s1",
+          claimIds: ["P2.F0", "P2.F1", "P2.C0"],
+          purpose: "Detail service delivery compliance findings.",
+        },
+        {
+          component: "Narrative" as const,
+          sectionId: "s2",
+          claimIds: ["P1.F1", "P1.A0", "P1.D0"],
+          purpose: "Detail reading fluency trajectory and criterion analysis.",
+        },
+        {
+          component: "Narrative" as const,
+          sectionId: "s3",
+          claimIds: ["P1.U0", "P3"],
+          purpose: "Detail open evidentiary gaps for the IEP team.",
+        },
+      ],
+    };
+  }
   return {
-    summaryDetailLevel: (audience === "CUSTOMER" ? "BALANCED" : "COMPREHENSIVE") as "BALANCED" | "COMPREHENSIVE",
+    audienceObjective:
+      "Understand what Maya's IEP says, see whether she is progressing toward her reading goal, and prepare concrete questions and catch-up options for the IEP meeting.",
+    summaryDetailLevel: "BALANCED" as const,
     priorityFindings: [
       { claimId: "P1.C0", priority: "HIGH" as const },
       { claimId: "P2.C0", priority: "HIGH" as const },
@@ -552,20 +645,310 @@ export function mayaWriterPresentationPlan(audience: "CUSTOMER" | "PRO" = "CUSTO
       { claimId: "P3", priority: "HIGH" as const },
     ],
     sections: [
-      { id: "s1", heading: "Reading progress", priority: "HIGH" as const, claimIds: ["P1.F1", "P1.A0", "P1.U0", "P1.C1"] },
-      { id: "s2", heading: "Speech services", priority: "HIGH" as const, claimIds: ["P2.F0", "P2.F1", "P2.C0"] },
-      { id: "s3", heading: "What is missing", priority: "MEDIUM" as const, claimIds: ["P3"] },
+      {
+        id: "s1",
+        heading: "Reading progress",
+        priority: "HIGH" as const,
+        goalIds: ["G1", "G3"],
+        specialistQuestionIds: ["I1"],
+        purpose: "Explain reading baseline, November progress, and remaining uncertainty in plain words.",
+        claimIds: ["P1.F1", "P1.A0", "P1.U0", "P1.C1"],
+      },
+      {
+        id: "s2",
+        heading: "Speech services",
+        priority: "HIGH" as const,
+        goalIds: ["G1", "G2"],
+        specialistQuestionIds: ["I2"],
+        purpose: "Show delivered vs required speech minutes and what-if catch-up options for the meeting.",
+        claimIds: ["P2.F0", "P2.F1", "P2.C0"],
+      },
+      {
+        id: "s3",
+        heading: "What is missing",
+        priority: "MEDIUM" as const,
+        goalIds: ["G2", "G3"],
+        specialistQuestionIds: ["I3"],
+        purpose: "Highlight missing comprehension data and practical questions to ask the IEP team.",
+        claimIds: ["P3"],
+      },
     ],
     components: [
-      { component: "Narrative" as const, sectionId: "summary", claimIds: ["P1.F0", "P1.F2", "P1.C0"] },
-      { component: "Metric" as const, claimIds: ["P1.C0"] },
-      { component: "Narrative" as const, sectionId: "s1", claimIds: ["P1.F1", "P1.A0", "P1.U0"] },
-      { component: "Timeline" as const, claimIds: ["P1.F1"] },
-      { component: "Narrative" as const, sectionId: "s2", claimIds: ["P2.F0", "P2.F1", "P2.C0"] },
-      { component: "ScenarioExplorer" as const, scenarioId: "S1", claimIds: ["P2.F0", "P2.F1"] },
-      { component: "Narrative" as const, sectionId: "s3", claimIds: ["P3"] },
-      { component: "KeyFindings" as const, claimIds: ["P1.F2", "P2.C0"] },
+      {
+        component: "Narrative" as const,
+        sectionId: "summary",
+        claimIds: ["P1.F0", "P1.F2", "P1.C0"],
+        purpose: "Give a calm, plain-language overview of Maya's reading gain.",
+      },
+      {
+        component: "Metric" as const,
+        claimIds: ["P1.C0"],
+        purpose: "Highlight the verified 12-word reading gain at a glance.",
+      },
+      {
+        component: "Narrative" as const,
+        sectionId: "s1",
+        claimIds: ["P1.F1", "P1.A0", "P1.U0"],
+        purpose: "Walk through reading fluency progress and what remains uncertain.",
+      },
+      {
+        component: "Timeline" as const,
+        claimIds: ["P1.F1"],
+        purpose: "Show key IEP dates in chronological order.",
+      },
+      {
+        component: "Narrative" as const,
+        sectionId: "s2",
+        claimIds: ["P2.F0", "P2.F1", "P2.C0"],
+        purpose: "Explain the speech therapy minutes delivered vs required.",
+      },
+      {
+        component: "ScenarioExplorer" as const,
+        scenarioId: "S1",
+        claimIds: ["P2.F0", "P2.F1"],
+        purpose: "Let the parent explore how many weekly speech minutes would close the 120-minute gap.",
+      },
+      {
+        component: "Narrative" as const,
+        sectionId: "s3",
+        claimIds: ["P3"],
+        purpose: "Explain what evaluation data is missing and what to ask at the meeting.",
+      },
+      {
+        component: "KeyFindings" as const,
+        claimIds: ["P1.F2", "P2.C0"],
+        purpose: "Summarize the most important verified takeaways for the parent.",
+      },
     ],
+  };
+}
+
+/**
+ * Validated Study preparation context fixtures for Maya (V4-004G): intent decomposition,
+ * domain proposal, specialist questions (`whyItMatters`, `supportsOutcome`), and investigation plan.
+ */
+export function mayaStudyContextArtifacts() {
+  return {
+    intentDecomposition: {
+      schema: "hive.intent-analysis/1" as const,
+      processingRunId: MAYA_RUN_ID,
+      intents: [{ intentRequestId: MAYA_INTENT_ID, verbatimText: MAYA_INTENT_TEXT, audience: "Maya's parent" }],
+      subjects: [{ name: "Maya", statedAs: "Maya's IEP", intentRequestId: MAYA_INTENT_ID }],
+      goals: [
+        {
+          goalId: "G1",
+          intentRequestId: MAYA_INTENT_ID,
+          statedAs: "understand Maya's IEP",
+          goal: "Understand what Maya's IEP says and means",
+          questions: [
+            {
+              questionId: "Q1",
+              question: "What does Maya's IEP say about her goals and services?",
+              answerForm: "EXPLANATION" as const,
+              needsJudgment: false,
+              dependsOn: [],
+            },
+          ],
+          unclear: [],
+        },
+        {
+          goalId: "G2",
+          intentRequestId: MAYA_INTENT_ID,
+          statedAs: "Prep for the IEP meeting",
+          goal: "Prepare for the IEP meeting",
+          questions: [
+            {
+              questionId: "Q2",
+              question: "How can the parent prepare for the IEP meeting?",
+              answerForm: "PREPARATION" as const,
+              needsJudgment: false,
+              dependsOn: ["Q1"],
+            },
+          ],
+          unclear: [
+            {
+              unclearId: "U1",
+              about: "the IEP meeting",
+              possibleMeanings: ["annual review", "amendment meeting"],
+              likelyReading: "annual review",
+              likelyReadingBasis: "GLOSSARY" as const,
+              askThePerson: "Which IEP meeting are you preparing for, and what are your top priorities?",
+              blocksAnswer: false,
+            },
+          ],
+        },
+        {
+          goalId: "G3",
+          intentRequestId: MAYA_INTENT_ID,
+          statedAs: "want to know if Maya is progressing",
+          goal: "Determine whether Maya is progressing",
+          questions: [
+            {
+              questionId: "Q3",
+              question: "Is Maya progressing toward her reading goal?",
+              answerForm: "YES_NO_WITH_REASONS" as const,
+              needsJudgment: true,
+              dependsOn: ["Q1"],
+            },
+          ],
+          unclear: [],
+        },
+      ],
+      reservedDecisions: [
+        {
+          questionId: "Q3",
+          decision: "Whether Maya's progress is sufficient or requires IEP revision",
+          decidedBy: "The IEP team",
+        },
+      ],
+      instructionsIgnored: [],
+    },
+    domainProposal: {
+      schema: "hive.domain-proposal/1" as const,
+      primary: {
+        label: "Special education",
+        subdomain: "Individualized Education Program (IEP) & progress monitoring",
+        confidence: "HIGH" as const,
+        reasoning: "The records include dated IEPs, progress monitoring probes, a speech service log, and an evaluation.",
+        supportingRefs: [{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1 }],
+      },
+      alternatives: [],
+      unknownDomain: false,
+      mixedDomain: false,
+      ambiguous: false,
+      ambiguityNotes: [],
+      confidenceIsAdvisory: true as const,
+    },
+    intentIntelligence: {
+      schema: "hive.intent-intelligence/1" as const,
+      questions: [
+        {
+          id: "I1",
+          goalId: "G3",
+          analysisQuestionIds: ["Q1", "Q3"],
+          question: "How does Maya's November 2025 reading fluency measurement compare with her March 2025 baseline and March 2026 annual target?",
+          whyItMatters: "Comparing the baseline, interim probe, and annual target shows whether fluency is moving in the right direction before the annual review.",
+          supportsOutcome: "Deciding what progress data and instructional adjustments to discuss at the IEP meeting.",
+          dependsOn: [],
+          requiresJudgment: true,
+          judgmentBasis: "Compare the latest measurement with the baseline and the goal.",
+          contextRefs: [{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1 }],
+        },
+        {
+          id: "I2",
+          goalId: "G1",
+          analysisQuestionIds: ["Q1", "Q2"],
+          question: "Were the speech-language therapy minutes required by the IEP actually delivered during the reporting period?",
+          whyItMatters: "A shortfall between mandated and delivered service minutes directly affects whether the plan was implemented as written.",
+          supportsOutcome: "Preparing concrete questions about missed service minutes and make-up options at the meeting.",
+          dependsOn: [],
+          requiresJudgment: false,
+          judgmentBasis: null,
+          contextRefs: [{ sourceDocumentId: MAYA_DOCS.serviceLog, pageNumber: 1 }],
+        },
+        {
+          id: "I3",
+          goalId: "G2",
+          analysisQuestionIds: ["Q2", "Q3"],
+          question: "Does the psychoeducational evaluation report a reading comprehension score alongside fluency?",
+          whyItMatters: "Fluency alone does not show whether Maya understands what she reads, and missing evaluation scores need to be requested.",
+          supportsOutcome: "Identifying missing evaluation metrics to request before or during the IEP meeting.",
+          dependsOn: ["I1"],
+          requiresJudgment: false,
+          judgmentBasis: null,
+          contextRefs: [{ sourceDocumentId: MAYA_DOCS.evaluation, pageNumber: 1 }],
+        },
+      ],
+      completenessReview: [
+        {
+          goalId: "G1",
+          wouldFulfilIntent: true as const,
+          gapsFound: ["Service log implementation needed alongside plan text."],
+          revisions: ["Added I2 on speech service delivery."],
+          remainingLimits: ["Classroom work samples outside the uploaded records are not available."],
+        },
+        {
+          goalId: "G2",
+          wouldFulfilIntent: true as const,
+          gapsFound: ["Missing comprehension score affects meeting questions."],
+          revisions: ["Added I3 on comprehension evaluation coverage."],
+          remainingLimits: ["Only the IEP team can decide compensatory service terms."],
+        },
+        {
+          goalId: "G3",
+          wouldFulfilIntent: true as const,
+          gapsFound: [],
+          revisions: [],
+          remainingLimits: ["Only one interim fluency measurement after the baseline is in the record."],
+        },
+      ],
+    },
+    investigationPlan: {
+      schema: "hive.investigation-plan/1" as const,
+      domainBasis: {
+        primaryDomain: "Special education",
+        uncertain: false,
+        considerations: [
+          {
+            text: "Compare baseline measurements, interim progress probes, and annual goal targets alongside mandated vs delivered service logs.",
+            supportingRefs: [{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1 }],
+          },
+        ],
+      },
+      questions: [
+        {
+          id: "P1",
+          goalId: "G3",
+          specialistQuestionIds: ["I1"],
+          establish: "Maya's reading fluency baseline, annual target, and November 2025 progress measurement.",
+          requiredEvidence: ["2025 IEP reading goal and baseline", "November 2025 progress report"],
+          sourceDependencies: ["Maya IEP 2025.pdf", "Progress report Nov 2025.pdf"],
+          comparison: "Compare the 62 wcpm baseline and 74 wcpm November measurement against the 90 wcpm target.",
+          chronology: "Order baseline, interim measurement, and target dates chronologically.",
+          calculation: "Compute the gain from baseline and remaining gap to the goal.",
+          evaluation: "Apply: Compare the latest measurement with the baseline and the goal.",
+          missingEvidenceConditions: ["No post-November 2025 progress measurement is present"],
+          answerType: "COMPARISON" as const,
+          deliverable: "A sourced comparison and chronology of reading fluency baseline, interim progress, and target",
+          dependsOn: [],
+          domainConsiderationRefs: [{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1 }],
+        },
+        {
+          id: "P2",
+          goalId: "G1",
+          specialistQuestionIds: ["I2"],
+          establish: "Delivered vs required speech-language therapy minutes from the service log.",
+          requiredEvidence: ["Speech service log delivered and required minutes"],
+          sourceDependencies: ["Speech service log.xlsx"],
+          comparison: "Compare delivered speech minutes against IEP required minutes.",
+          chronology: null,
+          calculation: "Compute percentage of required speech minutes delivered.",
+          evaluation: null,
+          missingEvidenceConditions: ["No service log or minute totals in the record"],
+          answerType: "CALCULATION" as const,
+          deliverable: "A sourced numeric result comparing delivered and required speech therapy minutes",
+          dependsOn: [],
+          domainConsiderationRefs: [],
+        },
+        {
+          id: "P3",
+          goalId: "G2",
+          specialistQuestionIds: ["I3"],
+          establish: "Whether the psychoeducational evaluation reports a reading comprehension score.",
+          requiredEvidence: ["Psychoeducational evaluation reading comprehension section"],
+          sourceDependencies: ["Psychoeducational evaluation.pdf"],
+          comparison: null,
+          chronology: null,
+          calculation: null,
+          evaluation: null,
+          missingEvidenceConditions: ["The evaluation does not report a reading comprehension score"],
+          answerType: "FACT" as const,
+          deliverable: "A sourced finding on whether a reading comprehension score was reported",
+          dependsOn: ["P1"],
+          domainConsiderationRefs: [],
+        },
+      ],
+    },
   };
 }
 

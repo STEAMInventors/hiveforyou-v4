@@ -453,6 +453,13 @@ SELECT is(
   (SELECT revision::text FROM t_reports),
   'the Writer reads the accepted revision only');
 
+SELECT is(
+  (SELECT (r -> 'intentDecomposition' ->> 'schema') || ':' || (r -> 'domainProposal' ->> 'schema') || ':'
+          || (r -> 'intentIntelligence' ->> 'schema') || ':' || (r -> 'investigationPlan' ->> 'schema')
+     FROM (SELECT public.get_report_generation_inputs((SELECT pro FROM t_reports)) AS r) x),
+  'hive.intent-analysis/1:hive.domain-proposal/1:hive.intent-intelligence/1:hive.investigation-plan/1',
+  'get_report_generation_inputs returns persisted intent decomposition, domain proposal, specialist questions and investigation plan');
+
 -- ---------------------------------------------------------------------------
 -- Writer runs retry independently and never touch the accepted Study
 -- ---------------------------------------------------------------------------

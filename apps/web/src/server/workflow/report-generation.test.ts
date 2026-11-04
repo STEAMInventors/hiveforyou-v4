@@ -3,6 +3,7 @@ import {
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   STUDY_AGENT_TURN_LIMITS,
   type StudyAgentTurnRequest,
+  studyClaimCatalog,
   verifyStudyInvestigation,
   WRITER_ALL_TOOL_NAMES,
 } from "@hiveforyou/contracts";
@@ -14,6 +15,7 @@ import {
   MAYA_PAGES,
   MAYA_PLAN_QUESTION_IDS,
   MAYA_RUN_ID,
+  mayaStudyContextArtifacts,
   mayaStudyOutput,
   mayaWriterAgentTurns,
   mayaWriterComposeTurns,
@@ -26,7 +28,7 @@ import { emitStructuredEvent } from "@/server/observability/logger";
 import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { UNKNOWN_AUDIENCE } from "@/server/study-preparation/study-preparation.fixtures";
 
-import { processReportRun } from "./report-generation";
+import { buildWriterPayload, processReportRun } from "./report-generation";
 
 vi.mock("@/server/observability/logger", () => ({ emitStructuredEvent: vi.fn() }));
 
@@ -67,7 +69,12 @@ function reportRunJson(status: string, audience: "CUSTOMER" | "PRO", overrides: 
 
 function fakeDatabase(
   audience: "CUSTOMER" | "PRO" = "CUSTOMER",
-  options: { claimed?: boolean; maxAttempts?: number; nowMs?: () => number } = {},
+  options: {
+    claimed?: boolean;
+    maxAttempts?: number;
+    nowMs?: () => number;
+    inputsOverrides?: Record<string, unknown>;
+  } = {},
 ) {
   let status = "QUEUED";
   let attemptCount = 0;
@@ -78,6 +85,7 @@ function fakeDatabase(
   const transitions: { from: string; to: string; details: Record<string, unknown> }[] = [];
   const savedReports: Record<string, unknown>[] = [];
   const study = verifiedStudy();
+  const contextArtifacts = mayaStudyContextArtifacts();
   const initialStudySnapshot = JSON.stringify(study);
   const rpc = vi.fn(async (fn: string, args: Record<string, unknown> = {}) => {
     const currentNow = nowMs();
@@ -128,16 +136,34 @@ function fakeDatabase(
               processingRunId: MAYA_RUN_ID,
               investigation: study.investigation,
               verification: study.verification,
-              audienceConfiguration: { ...UNKNOWN_AUDIENCE, customer: { ...UNKNOWN_AUDIENCE.customer, role: "Parent", status: "STATED" } },
+              audienceConfiguration: {
+                ...UNKNOWN_AUDIENCE,
+                customer: { ...UNKNOWN_AUDIENCE.customer, role: "Parent", status: "STATED" },
+                pro: {
+                  ...UNKNOWN_AUDIENCE.pro,
+                  primaryRole: "Special education advocate",
+                  alternativeRoles: ["Special education attorney"],
+                  status: "PROVISIONAL",
+                },
+                studyGuidance: ["Keep every dated measurement, goal and service with its source page."],
+                writerGuidance: {
+                  customer: ["Explain what the plan says in plain words and end with questions for the meeting."],
+                  pro: ["Audit measurements, service delivery logs, criteria, and open determinations."],
+                },
+              },
               coverageComplete: true,
             },
-            domainProposal: { primary: { label: "Special education" }, ambiguous: false, unknownDomain: false },
+            intentDecomposition: contextArtifacts.intentDecomposition,
+            domainProposal: contextArtifacts.domainProposal,
+            intentIntelligence: contextArtifacts.intentIntelligence,
+            investigationPlan: contextArtifacts.investigationPlan,
             sourceSnapshot: {
               documents: Object.values(MAYA_DOCS).map((id) => ({ sourceDocumentId: id, fileName: MAYA_FILE_NAMES[id] })),
               excluded: [],
               coverageComplete: true,
             },
-            intents: [{ id: MAYA_INTENT_ID, intentText: MAYA_INTENT_TEXT }],
+            intents: [{ id: MAYA_INTENT_ID, intentText: MAYA_INTENT_TEXT, audience: "Maya's parent" }],
+            ...(options.inputsOverrides ?? {}),
           },
           error: null,
         };
@@ -796,4 +822,148 @@ describe("processReportRun", () => {
       expect(serializedEvents).not.toContain("Baseline: 62 words correct per minute.");
     },
   );
+
+  it("passes persisted intent goals, specialist whyItMatters/supportsOutcome, investigation deliverables, domain context, and audience guidance to Writer (V4-004G)", async () => {
+    const customerDb = fakeDatabase("CUSTOMER");
+    const proDb = fakeDatabase("PRO");
+    const customerModel = planner(mayaWriterComposeTurns("CUSTOMER"));
+    const proModel = planner(mayaWriterComposeTurns("PRO"));
+
+    await expect(
+      processReportRun({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+    await expect(
+      processReportRun({ client: proDb.client, planner: proModel.deps }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+
+    const customerPayload = JSON.parse(customerModel.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
+    const proPayload = JSON.parse(proModel.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
+
+    expect(customerPayload.audienceProfile).toMatchObject({
+      role: "Parent",
+      status: "STATED",
+      guidance: ["Explain what the plan says in plain words and end with questions for the meeting."],
+      studyGuidance: ["Keep every dated measurement, goal and service with its source page."],
+    });
+    expect(proPayload.audienceProfile).toMatchObject({
+      role: "Special education advocate",
+      alternativeRoles: ["Special education attorney"],
+      status: "PROVISIONAL",
+      guidance: ["Audit measurements, service delivery logs, criteria, and open determinations."],
+    });
+
+    expect(customerPayload.requests).toEqual([
+      {
+        intentRequestId: MAYA_INTENT_ID,
+        text: MAYA_INTENT_TEXT,
+        statedAudience: "Maya's parent",
+      },
+    ]);
+    expect(customerPayload.domain).toMatchObject({
+      label: "Special education",
+      subdomain: "Individualized Education Program (IEP) & progress monitoring",
+      uncertain: false,
+      reasoning: expect.stringContaining("dated IEPs"),
+      considerations: [expect.stringContaining("Compare baseline measurements")],
+    });
+
+    const studyContext = customerPayload.studyContext as {
+      subjects: { name: string }[];
+      goals: { goalId: string; goal: string; unclear?: { askThePerson: string }[]; remainingLimits?: string[] }[];
+      reservedDecisions: { questionId: string; decision: string; decidedBy: string | null }[];
+      specialistQuestions: { id: string; goalId: string; whyItMatters: string; supportsOutcome: string; judgmentBasis?: string }[];
+      investigationQuestions: { id: string; goalId: string; establish: string; answerType: string; deliverable: string }[];
+    };
+    expect(studyContext.subjects).toEqual([{ name: "Maya", statedAs: "Maya's IEP", intentRequestId: MAYA_INTENT_ID }]);
+    expect(studyContext.goals.map((g) => g.goalId)).toEqual(["G1", "G2", "G3"]);
+    expect(studyContext.goals[1]?.unclear?.[0]?.askThePerson).toContain("Which IEP meeting");
+    expect(studyContext.goals[0]?.remainingLimits).toContain("Classroom work samples outside the uploaded records are not available.");
+    expect(studyContext.reservedDecisions).toEqual([
+      {
+        questionId: "Q3",
+        decision: "Whether Maya's progress is sufficient or requires IEP revision",
+        decidedBy: "The IEP team",
+      },
+    ]);
+    expect(studyContext.specialistQuestions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "I1",
+          goalId: "G3",
+          whyItMatters: expect.stringContaining("moving in the right direction"),
+          supportsOutcome: expect.stringContaining("IEP meeting"),
+          judgmentBasis: "Compare the latest measurement with the baseline and the goal.",
+        }),
+        expect.objectContaining({
+          id: "I2",
+          goalId: "G1",
+          whyItMatters: expect.stringContaining("shortfall between mandated and delivered"),
+          supportsOutcome: expect.stringContaining("missed service minutes"),
+        }),
+      ]),
+    );
+    expect(studyContext.investigationQuestions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "P1",
+          goalId: "G3",
+          answerType: "COMPARISON",
+          deliverable: expect.stringContaining("comparison and chronology"),
+        }),
+        expect.objectContaining({
+          id: "P2",
+          goalId: "G1",
+          answerType: "CALCULATION",
+          deliverable: expect.stringContaining("numeric result"),
+        }),
+      ]),
+    );
+
+    // Ensure no raw page text leaked into studyContext
+    expect(JSON.stringify(customerPayload)).not.toContain(MAYA_PAGES[`${MAYA_DOCS.teacherNotes}:1`]);
+  });
+
+  it("handles missing or older study preparation context payloads gracefully without failing or inventing objectives (V4-004G)", async () => {
+    const db = fakeDatabase("CUSTOMER", {
+      inputsOverrides: {
+        intentDecomposition: null,
+        domainProposal: null,
+        intentIntelligence: null,
+        investigationPlan: null,
+        intents: [{ id: MAYA_INTENT_ID, intentText: MAYA_INTENT_TEXT }],
+      },
+    });
+    const model = planner(mayaWriterComposeTurns("CUSTOMER"));
+
+    await expect(
+      processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+
+    const payload = JSON.parse(model.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
+    expect(payload.domain).toEqual({ label: "Unknown", uncertain: true });
+    expect(payload.studyContext).toEqual({
+      goals: [],
+      specialistQuestions: [],
+      investigationQuestions: [],
+    });
+
+    const study = verifiedStudy();
+    const directPayload = buildWriterPayload(
+      "PRO",
+      {
+        verified: study,
+        audienceConfiguration: UNKNOWN_AUDIENCE as never,
+        coverageComplete: true,
+        domainProposal: null,
+        sourceSnapshot: null,
+        intents: [],
+      },
+      studyClaimCatalog(study),
+    );
+    expect(directPayload.studyContext).toEqual({
+      goals: [],
+      specialistQuestions: [],
+      investigationQuestions: [],
+    });
+  });
 });

@@ -898,5 +898,288 @@ describe("WriterCompiler structured composition and targeted unit correction (D-
         components: [],
       }),
     ).toThrow(expect.objectContaining({ diagnosticReason: "writer_claim_unknown" }));
+
+    expect(() =>
+      compiler.recordPresentationPlan({
+        audienceObjective: "   ",
+        summaryDetailLevel: "BALANCED",
+        priorityFindings: [],
+        sections: [],
+        components: [],
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        diagnosticReason: "writer_output_shape",
+        diagnosticField: "presentationPlan.audienceObjective",
+      }),
+    );
+
+    expect(() =>
+      compiler.recordPresentationPlan({
+        audienceObjective: "Prepare for the meeting.",
+        summaryDetailLevel: "BALANCED",
+        priorityFindings: [],
+        sections: [
+          {
+            id: "s1",
+            heading: "Reading progress",
+            priority: "HIGH",
+            goalIds: ["BAD_GOAL"],
+            claimIds: ["P1.F0"],
+          },
+        ],
+        components: [],
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        diagnosticReason: "writer_output_shape",
+        diagnosticField: "presentationPlan.sections[0].goalIds[0]",
+      }),
+    );
+
+    expect(() =>
+      compiler.recordPresentationPlan({
+        audienceObjective: "Prepare for the meeting.",
+        summaryDetailLevel: "BALANCED",
+        priorityFindings: [],
+        sections: [
+          {
+            id: "s1",
+            heading: "Reading progress",
+            priority: "HIGH",
+            specialistQuestionIds: ["P1"],
+            claimIds: ["P1.F0"],
+          },
+        ],
+        components: [],
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        diagnosticReason: "writer_output_shape",
+        diagnosticField: "presentationPlan.sections[0].specialistQuestionIds[0]",
+      }),
+    );
+  });
+
+  it("validates meaningfully different Customer vs Pro and objective-specific presentation plans and A2UI compositions over the identical verified Study claims (V4-004G)", () => {
+    const customerPlan = mayaWriterPresentationPlan("CUSTOMER");
+    const proPlan = mayaWriterPresentationPlan("PRO");
+
+    // 1. Customer vs Pro plans over the exact same Study claims differ in audienceObjective, detail level,
+    //    priority findings, section headings/purpose/goal alignment, and A2UI component selection.
+    expect(customerPlan.audienceObjective).not.toBe(proPlan.audienceObjective);
+    expect(customerPlan.summaryDetailLevel).toBe("BALANCED");
+    expect(proPlan.summaryDetailLevel).toBe("COMPREHENSIVE");
+    expect(customerPlan.priorityFindings[0]?.claimId).toBe("P1.C0");
+    expect(proPlan.priorityFindings[0]?.claimId).toBe("P2.C0");
+    expect(customerPlan.sections.map((s) => s.heading)).not.toEqual(proPlan.sections.map((s) => s.heading));
+    expect(customerPlan.components.map((c) => c.component)).toContain("ScenarioExplorer");
+    expect(proPlan.components.map((c) => c.component)).toEqual(
+      expect.arrayContaining(["Comparison", "RecordTable", "EvidencePanel", "IssueList"]),
+    );
+
+    // 2. Compile a full Pro audit deliverable that follows proPlan's structure over the exact same CLAIMS.
+    const proCompiler = createLedger("PRO");
+    const proState = proCompiler.compileUnits({
+      presentationPlan: proPlan,
+      title: "Special education evidentiary audit and service compliance review",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "The service log documents 360 of 480 required speech-language therapy minutes ({{calc:P2.C0}}%), while reading fluency rose from 62 to 74 words correct per minute ({{calc:P1.C0}} words gained).",
+          claimRefs: ["P2.F0", "P2.F1", "P2.C0", "P1.F0", "P1.F2", "P1.C0"],
+        },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "Service delivery compliance and shortfall analysis",
+          blocks: [
+            {
+              type: "DOCUMENTED",
+              text: "Between September and November 2025, 360 of 480 required speech therapy minutes ({{calc:P2.C0}}%) were delivered.",
+              claimRefs: ["P2.F0", "P2.F1", "P2.C0"],
+            },
+          ],
+        },
+        {
+          id: "s2",
+          heading: "Fluency trajectory, assessment criteria, and open determinations",
+          blocks: [
+            {
+              type: "INTERPRETATION",
+              text: "Applying the general-knowledge criterion of comparing the latest measurement (74 words correct per minute) with the 62-word baseline and 90-word target indicates positive trajectory ({{calc:P1.C0}} words gained).",
+              claimRefs: ["P1.A0", "P1.F0", "P1.F1", "P1.F2", "P1.C0"],
+            },
+            {
+              type: "QUESTION",
+              text: "Whether progress from 62 to 74 words correct per minute is sufficient is reserved for the IEP team.",
+              claimRefs: ["P1.D0", "P1.F0", "P1.F2"],
+            },
+          ],
+        },
+        {
+          id: "s3",
+          heading: "Evidentiary gaps and unassessed areas",
+          blocks: [
+            {
+              type: "UNCERTAINTY",
+              text: "Only one post-baseline fluency measurement was available, the remaining gap calculation was not confirmed, and the psychoeducational evaluation reported no reading comprehension score.",
+              claimRefs: ["P1.U0", "P1.C1", "P3"],
+            },
+          ],
+        },
+      ],
+      scenarios: [],
+      view: [
+        { component: "Narrative", props: { sectionId: "summary" } },
+        {
+          component: "Comparison",
+          props: {
+            title: "Mandated vs documented performance",
+            leftLabel: "Mandated / Baseline",
+            rightLabel: "Documented / Current",
+            items: [
+              { label: "Speech therapy minutes", left: "480 minutes", right: "360 minutes", claimRefs: ["P2.F1", "P2.F0"] },
+              { label: "Reading fluency (wcpm)", left: "62", right: "74", claimRefs: ["P1.F0", "P1.F2"] },
+            ],
+          },
+        },
+        {
+          component: "RecordTable",
+          props: {
+            title: "Verified case measurement ledger",
+            columns: ["Measure", "Value", "Target / Requirement"],
+            rows: [
+              { cells: ["Reading fluency", "74 words correct per minute", "90 words correct per minute"], claimRefs: ["P1.F2", "P1.F1"] },
+              { cells: ["Speech therapy", "360 minutes", "480 minutes"], claimRefs: ["P2.F0", "P2.F1"] },
+            ],
+          },
+        },
+        {
+          component: "EvidencePanel",
+          props: {
+            title: "Criterion and determination provenance",
+            claimIds: ["P1.A0", "P1.D0", "P2.C0"],
+          },
+        },
+        {
+          component: "IssueList",
+          props: {
+            title: "Evidentiary gaps and limitations",
+            issues: [
+              { text: "No reading comprehension score was reported in the evaluation.", severity: "HIGH", claimRefs: ["P3"] },
+              { text: "Only one progress measurement after the baseline was available.", severity: "MEDIUM", claimRefs: ["P1.U0"] },
+            ],
+          },
+        },
+        { component: "Narrative", props: { sectionId: "s1" } },
+        { component: "Narrative", props: { sectionId: "s2" } },
+        { component: "Narrative", props: { sectionId: "s3" } },
+      ],
+    });
+
+    expect(proState.ok).toBe(true);
+    expect(proCompiler.currentPresentationPlan).toEqual({
+      schema: WRITER_PRESENTATION_PLAN_SCHEMA,
+      ...proPlan,
+    });
+    const builtPro = buildReport(proState.report, { audience: "PRO", claims: CLAIMS, fileNames: FILE_NAMES });
+    expect(builtPro.ok).toBe(true);
+
+    // 3. Same audience (CUSTOMER), different customer objective:
+    //    Objective A = Meeting preparation & service catch-up (uses Checklist, QuestionList, ScenarioExplorer)
+    //    Objective B = Reading progress check (uses Metric, Comparison, KeyFindings)
+    const customerMeetingPrepCompiler = createLedger("CUSTOMER");
+    const meetingPrepState = customerMeetingPrepCompiler.compileUnits({
+      presentationPlan: {
+        audienceObjective: "Prepare an action checklist, catch-up options, and concrete questions to bring to the March 2026 IEP meeting.",
+        summaryDetailLevel: "CONCISE",
+        priorityFindings: [
+          { claimId: "P2.C0", priority: "HIGH" },
+          { claimId: "P3", priority: "HIGH" },
+          { claimId: "P1.D0", priority: "HIGH" },
+        ],
+        sections: [
+          {
+            id: "s1",
+            heading: "Questions and missed service minutes for the meeting",
+            priority: "HIGH",
+            goalIds: ["G2"],
+            specialistQuestionIds: ["I2", "I3"],
+            purpose: "Give the parent concrete questions and a make-up calculator for the 120-minute speech gap and missing comprehension score.",
+            claimIds: ["P2.F0", "P2.F1", "P2.C0", "P1.U0", "P3", "P1.D0"],
+          },
+        ],
+        components: [
+          { component: "Narrative", sectionId: "summary", claimIds: ["P2.F0", "P2.F1", "P2.C0"], purpose: "Lead with what to raise at the meeting." },
+          { component: "Checklist", claimIds: ["P2.F0", "P2.F1", "P1.F2"], purpose: "Give a practical pre-meeting preparation checklist." },
+          { component: "QuestionList", claimIds: ["P1.D0", "P3"], purpose: "List specific questions to ask the IEP team." },
+          { component: "ScenarioExplorer", scenarioId: "S1", claimIds: ["P2.F0", "P2.F1"], purpose: "Explore weekly make-up minutes." },
+          { component: "Narrative", sectionId: "s1", claimIds: ["P1.U0", "P3"], purpose: "Explain the open uncertainties before the meeting." },
+        ],
+      },
+      title: "Preparing for Maya's IEP meeting",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "Before the meeting, the records show 360 of 480 required speech minutes were delivered ({{calc:P2.C0}}%).",
+          claimRefs: ["P2.F0", "P2.F1", "P2.C0"],
+        },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "Questions and missed service minutes for the meeting",
+          blocks: [
+            {
+              type: "UNCERTAINTY",
+              text: "Only one reading measurement after the baseline was available, and the evaluation did not report a reading comprehension score.",
+              claimRefs: ["P1.U0", "P3"],
+            },
+          ],
+        },
+      ],
+      scenarios: mayaWriterOutput("CUSTOMER").scenarios,
+      view: [
+        { component: "Narrative", props: { sectionId: "summary" } },
+        {
+          component: "Checklist",
+          props: {
+            title: "What to bring to the meeting",
+            items: [
+              { text: "Bring the speech service log showing 360 of 480 required minutes delivered.", claimRefs: ["P2.F0", "P2.F1"] },
+              { text: "Bring the November 2025 progress report showing 74 words correct per minute.", claimRefs: ["P1.F2"] },
+            ],
+          },
+        },
+        {
+          component: "QuestionList",
+          props: {
+            title: "Questions to ask the IEP team",
+            questions: [
+              { text: "How will the IEP team determine whether Maya's reading progress is sufficient?", claimRefs: ["P1.D0"] },
+              { text: "Can the team provide or conduct a reading comprehension assessment?", claimRefs: ["P3"] },
+            ],
+          },
+        },
+        { component: "ScenarioExplorer", props: { scenarioId: "S1" } },
+        { component: "Narrative", props: { sectionId: "s1" } },
+      ],
+    });
+
+    expect(meetingPrepState.ok).toBe(true);
+    expect(meetingPrepState.presentationPlan?.audienceObjective).toContain("March 2026 IEP meeting");
+    expect(meetingPrepState.presentationPlan?.sections[0]?.goalIds).toEqual(["G2"]);
+    expect(meetingPrepState.presentationPlan?.components.map((c) => c.component)).toEqual([
+      "Narrative",
+      "Checklist",
+      "QuestionList",
+      "ScenarioExplorer",
+      "Narrative",
+    ]);
+    expect(proState.presentationPlan?.components.map((c) => c.component)).not.toEqual(
+      meetingPrepState.presentationPlan?.components.map((c) => c.component),
+    );
   });
 });
