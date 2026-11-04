@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { resolveCanonicalFindings } from "../analysis/canonical-finding-resolver";
+import { StudyAgentLedger } from "../analysis/study-agent";
 import { studyClaimCatalog, verifyStudyInvestigation } from "../analysis/study-verification";
 import { buildFailureDiagnostic } from "../errors/failure-diagnostic";
 import {
+  L001_INITIAL_IEP_DOC_ID,
+  L001_INITIAL_IEP_FILE_NAMES,
+  L001_INITIAL_IEP_PAGES,
+  L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+  l001InitialIepStudyAgentTurns,
   MAYA_FILE_NAMES,
   MAYA_PAGES,
   MAYA_PLAN_QUESTION_IDS,
@@ -2086,5 +2092,551 @@ describe("Writer editorial synthesis and Canonical Finding Resolution integratio
       schema: WRITER_PRESENTATION_PLAN_SCHEMA,
       ...plan,
     });
+  });
+
+  it("validates thematic DF insight subsets, unlinked DF findings, direct question requirements, unknown questions/claims, and 7-section staged PRO recovery with history compaction (V4-004J.1)", () => {
+    const l001Corpus = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const studyLedger = new StudyAgentLedger({
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+      pages: l001Corpus,
+    });
+    for (const turn of l001InitialIepStudyAgentTurns()) {
+      for (const call of turn) {
+        const res = studyLedger.execute(call);
+        if (!res.ok) throw new Error(`L001 ledger call failed: ${res.content}`);
+      }
+    }
+    const verifiedL001 = verifyStudyInvestigation(studyLedger.assemble(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: [...L001_INITIAL_IEP_PLAN_QUESTION_IDS],
+      pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+    });
+    if (!verifiedL001.ok) throw new Error(verifiedL001.message);
+    const baseClaims = studyClaimCatalog(verifiedL001.value);
+    // Add an unlinked DF38 finding (questionIds: []) to test unlinked DF handling
+    const df1Ref = baseClaims.find((c) => c.id === "DF1")!;
+    const claimsWithUnlinked = [
+      ...baseClaims,
+      {
+        ...df1Ref,
+        id: "DF38",
+        planQuestionId: null,
+        questionIds: [],
+        text: "Procedural safeguards notice provided on 2024-11-12.",
+      },
+    ];
+    const canonicalFindings = resolveCanonicalFindings(verifiedL001.value, claimsWithUnlinked, {
+      asOf: "2026-11-04",
+    });
+    const l001FileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+
+    const ledger = new WriterAgentLedger({
+      reportRunId: REPORT_RUN_ID,
+      audience: "PRO",
+      claims: claimsWithUnlinked,
+      fileNames: l001FileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+
+    // 1. Reusable DF claims (DF17 spans P2, P3, P4, P6; DF19/DF20 span P2, P4, P6; DF8 spans P1, P5, P6)
+    //    permit thematic subsets (e.g. ["P2", "P4"] or ["P3"]) and unlinked DF38 permits valid plan questions (["P5"]),
+    //    without mutating canonical claim.questionIds.
+    const df17Before = [...(claimsWithUnlinked.find((c) => c.id === "DF17")?.questionIds ?? [])];
+    const validPlan = ledger.recordPresentationPlan({
+      audienceObjective: "Audit L001 IEP provisions, baselines, services, and monitoring gaps.",
+      summaryDetailLevel: "COMPREHENSIVE",
+      insights: [
+        {
+          id: "INS1",
+          meaning: "Goal baseline is 42 WCPM (86% accuracy) and target is 75 WCPM (95% accuracy) with +33 WCPM gain.",
+          claimIds: ["DF8", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "P2.C0", "P2.C1"],
+          questionIds: ["P2", "P4"], // Thematic subset (omits P1, P3, P5, P6 from DF8/DF17 fan-out while keeping P2 from P2.C0/P2.C1)
+          role: "CENTRAL",
+        },
+        {
+          id: "INS2",
+          meaning: "Specialized reading instruction is 150 minutes weekly with classroom assessment accommodations.",
+          claimIds: ["DF17", "DF26", "DF27", "DF28", "DF30", "DF31"],
+          questionIds: ["P3"], // Thematic subset for services & accommodations (DF17 also touches P2, P4, P6; DF27 touches P3, P6)
+          role: "CENTRAL",
+        },
+        {
+          id: "INS3",
+          meaning: "IEP team participation and procedural notice.",
+          claimIds: ["DF38"], // Unlinked DF claim (questionIds: [])
+          questionIds: ["P5"],
+          role: "SUPPORTING",
+        },
+      ],
+      priorityFindings: [
+        { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
+        { claimId: "DF27", priority: "HIGH", insightId: "INS2" },
+      ],
+      sections: [
+        { id: "s1", heading: "Goal Audit", priority: "HIGH", insightIds: ["INS1"], claimIds: ["DF19", "DF20", "P2.C0"] },
+      ],
+      components: [
+        { component: "Narrative", sectionId: "s1", claimIds: ["DF19", "DF20", "P2.C0"] },
+      ],
+    });
+    expect(validPlan.insights?.map((i) => i.questionIds)).toEqual([["P2", "P4"], ["P3"], ["P5"]]);
+    expect(claimsWithUnlinked.find((c) => c.id === "DF17")?.questionIds).toEqual(df17Before);
+
+    // 2. Rejects missing direct question for question-scoped claim (P2.C0 requires P2 in questionIds)
+    expect(() =>
+      ledger.recordPresentationPlan({
+        summaryDetailLevel: "COMPREHENSIVE",
+        insights: [
+          {
+            id: "INS_MISSING_DIRECT",
+            meaning: "Fluency calculation.",
+            claimIds: ["DF19", "DF20", "P2.C0"],
+            questionIds: ["P4"], // Missing P2 required by P2.C0!
+            role: "CENTRAL",
+          },
+        ],
+        priorityFindings: [{ claimId: "DF19", priority: "HIGH" }],
+        sections: [],
+        components: [],
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        diagnosticReason: "writer_insight_mapping_invalid",
+        diagnosticField: "presentationPlan.insights[0].questionIds",
+      }),
+    );
+
+    // 3. Rejects unsupported question ID ("P1") when DF19 is only linked to ["P2", "P4", "P6"] and no unlinked DF is cited
+    expect(() =>
+      ledger.recordPresentationPlan({
+        summaryDetailLevel: "COMPREHENSIVE",
+        insights: [
+          {
+            id: "INS_UNSUPPORTED_Q",
+            meaning: "Baseline 42 WCPM.",
+            claimIds: ["DF19"],
+            questionIds: ["P1"], // DF19 is linked to P2, P4, P6 — not P1!
+            role: "CENTRAL",
+          },
+        ],
+        priorityFindings: [{ claimId: "DF19", priority: "HIGH" }],
+        sections: [],
+        components: [],
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        diagnosticReason: "writer_insight_mapping_invalid",
+        diagnosticField: "presentationPlan.insights[0].questionIds",
+      }),
+    );
+
+    // 4. Rejects unknown plan question ID ("P99" not in P1..P6) and unknown claim ID ("DF999")
+    expect(() =>
+      ledger.recordPresentationPlan({
+        summaryDetailLevel: "COMPREHENSIVE",
+        insights: [
+          {
+            id: "INS_UNKNOWN_Q",
+            meaning: "Unlinked DF with nonexistent P99.",
+            claimIds: ["DF38"],
+            questionIds: ["P99"],
+            role: "SUPPORTING",
+          },
+        ],
+        priorityFindings: [{ claimId: "DF19", priority: "HIGH" }],
+        sections: [],
+        components: [],
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        diagnosticReason: "writer_insight_mapping_invalid",
+        diagnosticField: "presentationPlan.insights[0].questionIds[0]",
+      }),
+    );
+
+    expect(() =>
+      ledger.recordPresentationPlan({
+        summaryDetailLevel: "COMPREHENSIVE",
+        insights: [
+          {
+            id: "INS_UNKNOWN_CLAIM",
+            meaning: "Unknown claim.",
+            claimIds: ["DF999"],
+            questionIds: ["P1"],
+            role: "CENTRAL",
+          },
+        ],
+        priorityFindings: [{ claimId: "DF19", priority: "HIGH" }],
+        sections: [],
+        components: [],
+      }),
+    ).toThrow(
+      expect.objectContaining({
+        diagnosticReason: "writer_claim_unknown",
+        diagnosticField: "presentationPlan.insights[0].claimIds[0]",
+      }),
+    );
+
+    // 5. Staged PRO flow: 7 accepted sections (s1..s7) + rejected presentationPlan.insights[1].questionIds in Turn 1
+    //    returns awaitingView: true and explicit nextStep/hint guidance, compacts accepted sections in history,
+    //    and completes in Turn 2 when presentationPlan + view are supplied without resending s1..s7.
+    const stagedProLedger = new WriterAgentLedger({
+      reportRunId: REPORT_RUN_ID,
+      audience: "PRO",
+      claims: baseClaims,
+      fileNames: l001FileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+
+    const sevenSections = [
+      {
+        id: "s1",
+        heading: "Student Profile and Historical IEP Period",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "Maya Carter (born 2017-04-18, Grade 2, Synthetic Elementary School, Synthetic District) has an Initial IEP dated 2024-11-12 for 2024-11-12 through 2025-11-11, which ended before the 2026-11-04 report date.",
+            claimRefs: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "DF7", "DF8"],
+          },
+        ],
+      },
+      {
+        id: "s2",
+        heading: "Eligibility Determination",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "On 2024-11-01, Maya Carter was found eligible under Specific Learning Disability (SLD) - Reading with Reading Fluency as her primary educational need.",
+            claimRefs: ["DF9", "DF10", "DF11"],
+          },
+        ],
+      },
+      {
+        id: "s3",
+        heading: "Present Levels and Baseline Evaluation",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "The 2024-10-18 academic evaluation documents a reading fluency baseline of 42 WCPM and 86% oral reading accuracy.",
+            claimRefs: ["DF12", "DF13", "DF14", "DF15", "DF16"],
+          },
+        ],
+      },
+      {
+        id: "s4",
+        heading: "Annual Goal Criteria and Quantitative Gain",
+        blocks: [
+          {
+            type: "INTERPRETATION" as const,
+            text: "GOAL_READING_FLUENCY requires a {{calc:P2.C0}} WCPM increase (from 42 WCPM to 75 WCPM) and a {{calc:P2.C1}} percentage-point accuracy increase (from 86% to 95%) across three consecutive probes from 2024-11-12 to 2025-11-11.",
+            claimRefs: ["P2.A0", "DF17", "DF18", "DF19", "DF20", "DF21", "DF22", "DF23", "DF24", "DF25", "P2.C0", "P2.C1"],
+          },
+        ],
+      },
+      {
+        id: "s5",
+        heading: "Special Education Services and Accommodations",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "Specialized reading instruction is provided Weekly for 150 minutes in the special education setting starting 2024-11-12, with extended time and read-aloud directions.",
+            claimRefs: ["DF26", "DF27", "DF28", "DF29", "DF30", "DF31"],
+          },
+        ],
+      },
+      {
+        id: "s6",
+        heading: "Progress Reporting and Team Participation",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "Progress is measured with oral-reading-fluency probes and reported quarterly; Parent/Guardian, General Education Teacher, Special Education Teacher, and District Representative participated on 2024-11-12.",
+            claimRefs: ["DF32", "DF33", "DF34", "DF35", "DF36", "DF37"],
+          },
+        ],
+      },
+      {
+        id: "s7",
+        heading: "Evidentiary Gaps and Reserved Determinations",
+        blocks: [
+          {
+            type: "UNCERTAINTY" as const,
+            text: "The documented 2024-11-12 through 2025-11-11 IEP period ended before the 2026-11-04 report date without establishing current plan status; no post-2024-11-12 quarterly oral-reading-fluency probe results or 2024-10-18 evaluation reports are attached, and the IEP team decides whether the 75 WCPM and 95% accuracy goal was met.",
+            claimRefs: ["DF7", "DF8", "DF12", "DF20", "DF21", "P6", "P6.U0", "P6.L0", "P6.D0"],
+          },
+        ],
+      },
+    ];
+
+    const turn1Call = makeCall("compose_writer_report", {
+      presentationPlan: {
+        audienceObjective: "Deliver a 7-section professional IEP audit.",
+        summaryDetailLevel: "COMPREHENSIVE",
+        insights: [
+          {
+            id: "INS1",
+            meaning: "Baseline 42 WCPM (86% accuracy) to target 75 WCPM (95% accuracy).",
+            claimIds: ["DF13", "DF14", "DF19", "DF20", "DF21", "P2.C0", "P2.C1"],
+            questionIds: ["P2", "P4"],
+            role: "CENTRAL",
+          },
+          {
+            id: "INS2",
+            meaning: "150 minutes weekly reading instruction and accommodations.",
+            claimIds: ["DF26", "DF27", "DF30", "DF31"],
+            questionIds: ["P99"], // Invalid plan question triggers presentationPlan.insights[1].questionIds[0]
+            role: "CENTRAL",
+          },
+        ],
+        priorityFindings: [
+          { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
+          { claimId: "DF27", priority: "HIGH", insightId: "INS2" },
+        ],
+        sections: sevenSections.map((s) => ({
+          id: s.id,
+          heading: s.heading,
+          priority: "HIGH" as const,
+          claimIds: s.blocks[0]!.claimRefs,
+        })),
+        components: sevenSections.map((s) => ({
+          component: "Narrative" as const,
+          sectionId: s.id,
+          claimIds: s.blocks[0]!.claimRefs,
+        })),
+      },
+      title: "Comprehensive Professional Audit: Maya Carter Initial IEP",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "Maya Carter (born 2017-04-18, Grade 2) has an Initial IEP for 2024-11-12 through 2025-11-11 (ended before the 2026-11-04 report date) targeting a {{calc:P2.C0}} WCPM fluency gain (42 WCPM to 75 WCPM) and {{calc:P2.C1}}% accuracy gain (86% to 95%) with 150 minutes weekly specialized reading instruction.",
+          claimRefs: ["DF1", "DF2", "DF3", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
+        },
+      ],
+      sections: sevenSections,
+    });
+
+    const turn1ToolRes = stagedProLedger.execute(turn1Call);
+    expect(turn1ToolRes.ok).toBe(false);
+    const turn1Parsed = JSON.parse(turn1ToolRes.content) as Record<string, unknown>;
+    expect(turn1Parsed).toMatchObject({
+      ok: false,
+      awaitingView: true,
+      error: "writer_insight_mapping_invalid",
+      field: "presentationPlan.insights[1].questionIds[0]",
+      acceptedSectionIds: ["s1", "s2", "s3", "s4", "s5", "s6", "s7"],
+      acceptedViewComponentCount: 0,
+      nextStep: expect.stringContaining("do NOT resend accepted sections"),
+      hint: expect.stringContaining("PLUS your view components"),
+    });
+
+    // Verify historical compaction removes the 7 accepted section prose blocks while keeping the rejected presentationPlan
+    // and keeping every compacted unit 100% valid against the closed tool schema (no invented fields or invalid stubs).
+    const validateAgainstToolSchema = (
+      value: unknown,
+      schema: Record<string, unknown>,
+      path = "$",
+    ): void => {
+      const schemaType = schema.type;
+      const allowedTypes = Array.isArray(schemaType) ? schemaType : [schemaType];
+      if (value === null) {
+        expect(allowedTypes, `${path} nullability`).toContain("null");
+        return;
+      }
+      if (allowedTypes.includes("string") && typeof value === "string") {
+        if (typeof schema.maxLength === "number") {
+          expect(value.length, `${path} maxLength`).toBeLessThanOrEqual(schema.maxLength);
+        }
+        if (Array.isArray(schema.enum)) {
+          expect(schema.enum, `${path} enum`).toContain(value);
+        }
+        return;
+      }
+      if (allowedTypes.includes("integer") && typeof value === "number") {
+        expect(Number.isInteger(value), `${path} integer`).toBe(true);
+        if (typeof schema.minimum === "number") {
+          expect(value, `${path} minimum`).toBeGreaterThanOrEqual(schema.minimum);
+        }
+        return;
+      }
+      if (allowedTypes.includes("array") && Array.isArray(value)) {
+        if (typeof schema.maxItems === "number") {
+          expect(value.length, `${path} maxItems`).toBeLessThanOrEqual(schema.maxItems);
+        }
+        if (schema.items && typeof schema.items === "object") {
+          value.forEach((item, idx) =>
+            validateAgainstToolSchema(item, schema.items as Record<string, unknown>, `${path}[${idx}]`),
+          );
+        }
+        return;
+      }
+      if (allowedTypes.includes("object") && typeof value === "object" && !Array.isArray(value)) {
+        const obj = value as Record<string, unknown>;
+        const props = (schema.properties ?? {}) as Record<string, Record<string, unknown>>;
+        const req = (schema.required ?? []) as string[];
+        for (const reqKey of req) {
+          expect(obj, `${path} missing required ${reqKey}`).toHaveProperty(reqKey);
+        }
+        if (schema.additionalProperties === false) {
+          for (const key of Object.keys(obj)) {
+            expect(props, `${path} unexpected property ${key}`).toHaveProperty(key);
+          }
+        }
+        for (const [key, val] of Object.entries(obj)) {
+          if (val !== undefined && props[key]) {
+            validateAgainstToolSchema(val, props[key], `${path}.${key}`);
+          }
+        }
+        return;
+      }
+      throw new Error(`Value at ${path} did not match schema type ${JSON.stringify(schemaType)}`);
+    };
+
+    const composeToolSchema = WRITER_COMPOSE_TOOLS.find(
+      (t) => t.function.name === "compose_writer_report",
+    )!.function.parameters;
+    const compactedTurn1Args = stagedProLedger.compactHistoricalCallArguments(turn1Call, {
+      resultContent: turn1ToolRes.content,
+      isLatestTurn: true,
+    });
+    expect(compactedTurn1Args.length).toBeLessThan(turn1Call.arguments.length);
+    const compactedParsed = JSON.parse(compactedTurn1Args) as {
+      presentationPlan: { insights: unknown[] };
+      summary: { type: string; text: string; claimRefs: string[]; accepted?: unknown }[];
+      sections: {
+        id: string;
+        heading: string;
+        accepted?: unknown;
+        claimRefs?: unknown;
+        blocks: { type: string; text: string; claimRefs: string[]; accepted?: unknown }[];
+      }[];
+    };
+    validateAgainstToolSchema(compactedParsed, composeToolSchema);
+    expect(compactedTurn1Args).not.toContain('"accepted"');
+    expect(compactedParsed.presentationPlan.insights).toHaveLength(2);
+    expect(compactedParsed.summary[0]?.text).toBe("[accepted]");
+    expect(compactedParsed.sections).toHaveLength(7);
+    expect(
+      compactedParsed.sections.every(
+        (s) =>
+          s.accepted === undefined &&
+          s.claimRefs === undefined &&
+          Array.isArray(s.blocks) &&
+          s.blocks.length === 1 &&
+          s.blocks[0]!.text === "[accepted]" &&
+          s.blocks[0]!.claimRefs.length > 0,
+      ),
+    ).toBe(true);
+
+    // Turn 2: repair presentationPlan (using thematic subset ["P3"] on INS2) AND submit view without resending s1..s7 -> finishes!
+    const turn2Res = exec(stagedProLedger, "apply_writer_correction", {
+      presentationPlan: {
+        audienceObjective: "Deliver a 7-section professional IEP audit.",
+        summaryDetailLevel: "COMPREHENSIVE",
+        insights: [
+          {
+            id: "INS1",
+            meaning: "Baseline 42 WCPM (86% accuracy) to target 75 WCPM (95% accuracy).",
+            claimIds: ["DF13", "DF14", "DF19", "DF20", "DF21", "P2.C0", "P2.C1"],
+            questionIds: ["P2", "P4"],
+            role: "CENTRAL",
+          },
+          {
+            id: "INS2",
+            meaning: "150 minutes weekly reading instruction and accommodations.",
+            claimIds: ["DF26", "DF27", "DF30", "DF31"],
+            questionIds: ["P3"], // Thematic subset (DF27 also links to P6)
+            role: "CENTRAL",
+          },
+        ],
+        priorityFindings: [
+          { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
+          { claimId: "DF27", priority: "HIGH", insightId: "INS2" },
+        ],
+        sections: sevenSections.map((s) => ({
+          id: s.id,
+          heading: s.heading,
+          priority: "HIGH" as const,
+          claimIds: s.blocks[0]!.claimRefs,
+        })),
+        components: [
+          { component: "Narrative", sectionId: "summary", claimIds: ["DF1", "DF8", "DF19", "DF20", "P2.C0"] },
+          ...sevenSections.map((s) => ({
+            component: "Narrative" as const,
+            sectionId: s.id,
+            claimIds: s.blocks[0]!.claimRefs,
+          })),
+        ],
+      },
+      view: [
+        { component: "Narrative", props: { sectionId: "summary" } },
+        ...sevenSections.map((s) => ({ component: "Narrative", props: { sectionId: s.id } })),
+      ],
+    });
+
+    // Also verify non-latest-turn compaction of presentationPlan, set_report_outline, record_section, and record_scenario against their closed tool schemas
+    const compactedTurn1AfterPlanAccepted = JSON.parse(
+      stagedProLedger.compactHistoricalCallArguments(turn1Call, {
+        resultContent: turn1ToolRes.content,
+        isLatestTurn: false,
+      }),
+    ) as Record<string, unknown>;
+    validateAgainstToolSchema(compactedTurn1AfterPlanAccepted, composeToolSchema);
+    expect(JSON.stringify(compactedTurn1AfterPlanAccepted)).not.toContain('"accepted"');
+    expect(JSON.stringify(compactedTurn1AfterPlanAccepted)).not.toContain('"insightIds"');
+    expect(JSON.stringify(compactedTurn1AfterPlanAccepted)).not.toContain('"sectionIds"');
+
+    const recordSecSchema = WRITER_AGENT_TOOLS.find((t) => t.function.name === "record_section")!.function.parameters;
+    const compactedRecordSec = JSON.parse(
+      stagedProLedger.compactHistoricalCallArguments(
+        makeCall("record_section", sevenSections[0]),
+        { resultContent: JSON.stringify({ ok: true }), isLatestTurn: true },
+      ),
+    ) as Record<string, unknown>;
+    validateAgainstToolSchema(compactedRecordSec, recordSecSchema);
+
+    const outlineSchema = WRITER_AGENT_TOOLS.find((t) => t.function.name === "set_report_outline")!.function.parameters;
+    const compactedOutline = JSON.parse(
+      stagedProLedger.compactHistoricalCallArguments(
+        makeCall("set_report_outline", {
+          presentationPlan: compactedTurn1AfterPlanAccepted.presentationPlan,
+          title: "Comprehensive Professional Audit: Maya Carter Initial IEP",
+          summary: [
+            {
+              type: "DOCUMENTED",
+              text: "Full summary prose.",
+              claimRefs: ["DF1"],
+            },
+          ],
+        }),
+        { resultContent: JSON.stringify({ ok: true }), isLatestTurn: true },
+      ),
+    ) as Record<string, unknown>;
+    validateAgainstToolSchema(compactedOutline, outlineSchema);
+
+    expect(turn2Res).toMatchObject({
+      ok: true,
+      finished: true,
+      sectionCount: 7,
+      viewComponentCount: 8,
+    });
+    expect(stagedProLedger.finished).toBe(true);
+    const assembled = stagedProLedger.assemble();
+    expect(assembled.sections.map((s) => s.blocks[0]!.text)).toEqual(
+      sevenSections.map((s) => s.blocks[0]!.text),
+    );
+    const built = buildReport(assembled, {
+      audience: "PRO",
+      claims: baseClaims,
+      fileNames: l001FileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    expect(built.ok).toBe(true);
   });
 });

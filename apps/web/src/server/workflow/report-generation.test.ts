@@ -1753,4 +1753,397 @@ describe("processReportRun", () => {
       view: { audience: "PRO", schema: "hive-application-view/1" },
     });
   });
+
+  it("recovers from a Turn-1 presentationPlan.insights[1].questionIds rejection with 7 accepted sections, compacts accepted narrative JSON in Turn-2 history, and completes with A2UI view within budgets (V4-004J.1)", async () => {
+    const l001Corpus = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const studyLedger = new StudyAgentLedger({
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+      pages: l001Corpus,
+    });
+    for (const turn of l001InitialIepStudyAgentTurns()) {
+      for (const call of turn) {
+        const res = studyLedger.execute(call);
+        if (!res.ok) throw new Error(`L001 ledger call failed: ${res.content}`);
+      }
+    }
+    const verifiedL001 = verifyStudyInvestigation(studyLedger.assemble(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: [...L001_INITIAL_IEP_PLAN_QUESTION_IDS],
+      pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+    });
+    if (!verifiedL001.ok) throw new Error(verifiedL001.message);
+    const l001Study = verifiedL001.value;
+
+    const db = fakeDatabase("PRO", {
+      inputsOverrides: {
+        reportRun: reportRunJson("WRITING", "PRO", {
+          attemptCount: 1,
+          maxAttempts: 3,
+          createdAt: "2026-11-04T14:30:00.000Z",
+        }),
+        studyRevision: {
+          id: REVISION_ID,
+          revisionNumber: 7,
+          processingRunId: MAYA_RUN_ID,
+          investigation: l001Study.investigation,
+          verification: l001Study.verification,
+          audienceConfiguration: {
+            ...UNKNOWN_AUDIENCE,
+            pro: {
+              ...UNKNOWN_AUDIENCE.pro,
+              primaryRole: "Special education advocate",
+              status: "PROVISIONAL",
+            },
+          },
+          coverageComplete: true,
+        },
+        sourceSnapshot: {
+          documents: [
+            {
+              sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+              fileName: L001_INITIAL_IEP_FILE_NAMES[L001_INITIAL_IEP_DOC_ID]!,
+            },
+          ],
+          excluded: [],
+          coverageComplete: true,
+        },
+      },
+    });
+
+    const sevenSections = [
+      {
+        id: "s1",
+        heading: "Student Profile and Historical IEP Period",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "Maya Carter (born 2017-04-18, Grade 2, Synthetic Elementary School, Synthetic District) has an Initial IEP dated 2024-11-12 for 2024-11-12 through 2025-11-11, which ended before the 2026-11-04 report date.",
+            claimRefs: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "DF7", "DF8"],
+          },
+        ],
+      },
+      {
+        id: "s2",
+        heading: "Eligibility Determination",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "On 2024-11-01, Maya Carter was found eligible under Specific Learning Disability (SLD) - Reading with Reading Fluency as her primary educational need.",
+            claimRefs: ["DF9", "DF10", "DF11"],
+          },
+        ],
+      },
+      {
+        id: "s3",
+        heading: "Present Levels and Baseline Evaluation",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "The 2024-10-18 academic evaluation documents a reading fluency baseline of 42 WCPM and 86% oral reading accuracy.",
+            claimRefs: ["DF12", "DF13", "DF14", "DF15", "DF16"],
+          },
+        ],
+      },
+      {
+        id: "s4",
+        heading: "Annual Goal Criteria and Quantitative Gain",
+        blocks: [
+          {
+            type: "INTERPRETATION" as const,
+            text: "GOAL_READING_FLUENCY requires a {{calc:P2.C0}} WCPM increase (from 42 WCPM to 75 WCPM) and a {{calc:P2.C1}} percentage-point accuracy increase (from 86% to 95%) across three consecutive probes from 2024-11-12 to 2025-11-11.",
+            claimRefs: ["P2.A0", "DF17", "DF18", "DF19", "DF20", "DF21", "DF22", "DF23", "DF24", "DF25", "P2.C0", "P2.C1"],
+          },
+        ],
+      },
+      {
+        id: "s5",
+        heading: "Special Education Services and Accommodations",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "Specialized reading instruction is provided Weekly for 150 minutes in the special education setting starting 2024-11-12, with extended time and read-aloud directions.",
+            claimRefs: ["DF26", "DF27", "DF28", "DF29", "DF30", "DF31"],
+          },
+        ],
+      },
+      {
+        id: "s6",
+        heading: "Progress Reporting and Team Participation",
+        blocks: [
+          {
+            type: "DOCUMENTED" as const,
+            text: "Progress is measured with oral-reading-fluency probes and reported quarterly; Parent/Guardian, General Education Teacher, Special Education Teacher, and District Representative participated on 2024-11-12.",
+            claimRefs: ["DF32", "DF33", "DF34", "DF35", "DF36", "DF37"],
+          },
+        ],
+      },
+      {
+        id: "s7",
+        heading: "Evidentiary Gaps and Reserved Determinations",
+        blocks: [
+          {
+            type: "UNCERTAINTY" as const,
+            text: "The documented 2024-11-12 through 2025-11-11 IEP period ended before the 2026-11-04 report date without establishing current plan status; no post-2024-11-12 quarterly oral-reading-fluency probe results or 2024-10-18 evaluation reports are attached, and the IEP team decides whether the 75 WCPM and 95% accuracy goal was met.",
+            claimRefs: ["DF7", "DF8", "DF12", "DF20", "DF21", "P6", "P6.U0", "P6.L0", "P6.D0"],
+          },
+        ],
+      },
+    ];
+
+    const turn1: ToolCall[] = [
+      {
+        id: "toolu_j1_turn1",
+        name: "compose_writer_report",
+        arguments: JSON.stringify({
+          presentationPlan: {
+            audienceObjective: "Deliver a 7-section professional IEP audit.",
+            summaryDetailLevel: "COMPREHENSIVE",
+            insights: [
+              {
+                id: "INS1",
+                meaning: "Baseline 42 WCPM (86% accuracy) to target 75 WCPM (95% accuracy).",
+                claimIds: ["DF13", "DF14", "DF19", "DF20", "DF21", "P2.C0", "P2.C1"],
+                questionIds: ["P2", "P4"],
+                role: "CENTRAL",
+              },
+              {
+                id: "INS2",
+                meaning: "150 minutes weekly reading instruction and accommodations.",
+                claimIds: ["DF26", "DF27", "DF30", "DF31"],
+                questionIds: ["P1"], // Unsupported question for DF26/DF27/DF30/DF31 (which only link to P3/P6)
+                role: "CENTRAL",
+              },
+            ],
+            priorityFindings: [
+              { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
+              { claimId: "DF27", priority: "HIGH", insightId: "INS2" },
+            ],
+            sections: sevenSections.map((s) => ({
+              id: s.id,
+              heading: s.heading,
+              priority: "HIGH" as const,
+              claimIds: s.blocks[0]!.claimRefs,
+            })),
+            components: [
+              { component: "Narrative", sectionId: "summary", claimIds: ["DF1", "DF8", "DF19", "DF20", "P2.C0"] },
+              { component: "Comparison", claimIds: ["DF13", "DF14", "DF19", "DF20", "DF21"] },
+              ...sevenSections.map((s) => ({
+                component: "Narrative" as const,
+                sectionId: s.id,
+                claimIds: s.blocks[0]!.claimRefs,
+              })),
+            ],
+          },
+          title: "Comprehensive Professional Audit: Maya Carter Initial IEP",
+          summary: [
+            {
+              type: "DOCUMENTED",
+              text: "Maya Carter (born 2017-04-18, Grade 2) has an Initial IEP for 2024-11-12 through 2025-11-11 (ended before the 2026-11-04 report date) targeting a {{calc:P2.C0}} WCPM fluency gain (42 WCPM to 75 WCPM) and {{calc:P2.C1}}% accuracy gain (86% to 95%) with 150 minutes weekly specialized reading instruction.",
+              claimRefs: ["DF1", "DF2", "DF3", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
+            },
+          ],
+          sections: sevenSections,
+        }),
+      },
+    ];
+
+    const turn2: ToolCall[] = [
+      {
+        id: "toolu_j1_turn2",
+        name: "apply_writer_correction",
+        arguments: JSON.stringify({
+          presentationPlan: {
+            audienceObjective: "Deliver a 7-section professional IEP audit.",
+            summaryDetailLevel: "COMPREHENSIVE",
+            insights: [
+              {
+                id: "INS1",
+                meaning: "Baseline 42 WCPM (86% accuracy) to target 75 WCPM (95% accuracy).",
+                claimIds: ["DF13", "DF14", "DF19", "DF20", "DF21", "P2.C0", "P2.C1"],
+                questionIds: ["P2", "P4"],
+                role: "CENTRAL",
+              },
+              {
+                id: "INS2",
+                meaning: "150 minutes weekly reading instruction and accommodations.",
+                claimIds: ["DF26", "DF27", "DF30", "DF31"],
+                questionIds: ["P3"], // Repaired to thematic subset ["P3"]!
+                role: "CENTRAL",
+              },
+            ],
+            priorityFindings: [
+              { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
+              { claimId: "DF27", priority: "HIGH", insightId: "INS2" },
+            ],
+            sections: sevenSections.map((s) => ({
+              id: s.id,
+              heading: s.heading,
+              priority: "HIGH" as const,
+              claimIds: s.blocks[0]!.claimRefs,
+            })),
+            components: [
+              { component: "Narrative", sectionId: "summary", claimIds: ["DF1", "DF8", "DF19", "DF20", "P2.C0"] },
+              { component: "Comparison", claimIds: ["DF13", "DF14", "DF19", "DF20", "DF21"] },
+              ...sevenSections.map((s) => ({
+                component: "Narrative" as const,
+                sectionId: s.id,
+                claimIds: s.blocks[0]!.claimRefs,
+              })),
+            ],
+          },
+          view: [
+            { component: "Narrative", props: { sectionId: "summary" } },
+            {
+              component: "Comparison",
+              props: {
+                title: "Reading Fluency Baseline vs. Annual Goal Criterion",
+                leftLabel: "Baseline (2024-10-18)",
+                rightLabel: "Annual Target (2025-11-11)",
+                items: [
+                  { label: "Fluency Rate", left: "42 WCPM", right: "75 WCPM", claimRefs: ["DF13", "DF19", "DF20"] },
+                  { label: "Accuracy", left: "86%", right: "at least 95% accuracy", claimRefs: ["DF14", "DF21"] },
+                ],
+              },
+            },
+            ...sevenSections.map((s) => ({ component: "Narrative" as const, props: { sectionId: s.id } })),
+          ],
+        }),
+      },
+    ];
+
+    const model = planner([turn1, turn2]);
+    await expect(
+      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+
+    expect(model.bodies).toHaveLength(2);
+    // Validate the actual serialized Turn-2 StudyAgentTurnRequest against the declared closed tool schemas
+    // and Oracle Planner's assistant->tool pairing invariant.
+    const validateAgainstClosedSchema = (
+      value: unknown,
+      schema: Record<string, unknown>,
+      path = "$",
+    ): void => {
+      const schemaType = schema.type;
+      const allowedTypes = Array.isArray(schemaType) ? schemaType : [schemaType];
+      if (value === null) {
+        expect(allowedTypes, `${path} nullability`).toContain("null");
+        return;
+      }
+      if (allowedTypes.includes("string") && typeof value === "string") {
+        if (typeof schema.maxLength === "number") {
+          expect(value.length, `${path} maxLength`).toBeLessThanOrEqual(schema.maxLength);
+        }
+        if (Array.isArray(schema.enum)) {
+          expect(schema.enum, `${path} enum`).toContain(value);
+        }
+        return;
+      }
+      if (allowedTypes.includes("integer") && typeof value === "number") {
+        expect(Number.isInteger(value), `${path} integer`).toBe(true);
+        if (typeof schema.minimum === "number") {
+          expect(value, `${path} minimum`).toBeGreaterThanOrEqual(schema.minimum);
+        }
+        return;
+      }
+      if (allowedTypes.includes("array") && Array.isArray(value)) {
+        if (typeof schema.maxItems === "number") {
+          expect(value.length, `${path} maxItems`).toBeLessThanOrEqual(schema.maxItems);
+        }
+        if (schema.items && typeof schema.items === "object") {
+          value.forEach((item, idx) =>
+            validateAgainstClosedSchema(item, schema.items as Record<string, unknown>, `${path}[${idx}]`),
+          );
+        }
+        return;
+      }
+      if (allowedTypes.includes("object") && typeof value === "object" && !Array.isArray(value)) {
+        const obj = value as Record<string, unknown>;
+        const props = (schema.properties ?? {}) as Record<string, Record<string, unknown>>;
+        const req = (schema.required ?? []) as string[];
+        for (const reqKey of req) {
+          expect(obj, `${path} missing required ${reqKey}`).toHaveProperty(reqKey);
+        }
+        if (schema.additionalProperties === false) {
+          for (const key of Object.keys(obj)) {
+            expect(props, `${path} unexpected property ${key}`).toHaveProperty(key);
+          }
+        }
+        for (const [key, val] of Object.entries(obj)) {
+          if (val !== undefined && props[key]) {
+            validateAgainstClosedSchema(val, props[key], `${path}.${key}`);
+          }
+        }
+        return;
+      }
+      throw new Error(`Value at ${path} did not match schema type ${JSON.stringify(schemaType)}`);
+    };
+
+    const turn2Body = model.bodies[1]!;
+    const toolSchemasByName = new Map(
+      turn2Body.tools.map((t) => [t.function.name, t.function.parameters as Record<string, unknown>]),
+    );
+    // Verify exact message sequence: [user, assistant(toolu_j1_turn1), tool(toolu_j1_turn1)]
+    expect(turn2Body.messages.map((m) => m.role)).toEqual(["user", "assistant", "tool"]);
+    const turn2AssistantMsg = turn2Body.messages[1]!;
+    const turn2ToolMsg = turn2Body.messages[2]!;
+    expect(turn2AssistantMsg.role).toBe("assistant");
+    expect(turn2ToolMsg.role).toBe("tool");
+    if (turn2AssistantMsg.role === "assistant" && turn2ToolMsg.role === "tool") {
+      expect(turn2AssistantMsg.tool_calls).toHaveLength(1);
+      const tc = turn2AssistantMsg.tool_calls[0]!;
+      expect(tc.id).toBe("toolu_j1_turn1");
+      expect(turn2ToolMsg.tool_call_id).toBe("toolu_j1_turn1");
+      expect(tc.function.arguments.length).toBeLessThan(turn1[0]!.arguments.length);
+      expect(tc.function.arguments).not.toContain('"accepted"');
+      const compactedArgs = JSON.parse(tc.function.arguments) as {
+        summary: { type: string; text: string; claimRefs: string[] }[];
+        sections: {
+          id: string;
+          heading: string;
+          accepted?: unknown;
+          claimRefs?: unknown;
+          blocks: { type: string; text: string; claimRefs: string[] }[];
+        }[];
+      };
+      validateAgainstClosedSchema(compactedArgs, toolSchemasByName.get(tc.function.name)!);
+      expect(compactedArgs.summary[0]?.text).toBe("[accepted]");
+      expect(compactedArgs.sections).toHaveLength(7);
+      expect(
+        compactedArgs.sections.every(
+          (s, idx) =>
+            s.id === sevenSections[idx]!.id &&
+            s.heading === sevenSections[idx]!.heading &&
+            s.accepted === undefined &&
+            s.claimRefs === undefined &&
+            s.blocks.length === 1 &&
+            s.blocks[0]!.text === "[accepted]" &&
+            JSON.stringify(s.blocks[0]!.claimRefs) === JSON.stringify(sevenSections[idx]!.blocks[0]!.claimRefs),
+        ),
+      ).toBe(true);
+      expect(JSON.parse(turn2ToolMsg.content)).toMatchObject({
+        ok: false,
+        awaitingView: true,
+        field: "presentationPlan.insights[1].questionIds",
+        acceptedSectionIds: ["s1", "s2", "s3", "s4", "s5", "s6", "s7"],
+        nextStep: expect.stringContaining("do NOT resend accepted sections"),
+      });
+    }
+    const saved = db.saved()!;
+    expect(saved).toMatchObject({
+      writer_output: {
+        audience: "PRO",
+        sections: sevenSections,
+      },
+      view: {
+        schema: "hive-application-view/1",
+        audience: "PRO",
+      },
+    });
+    expect(db.studyUnchanged()).toBe(true);
+  });
 });

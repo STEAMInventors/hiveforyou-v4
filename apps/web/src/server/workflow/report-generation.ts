@@ -818,6 +818,39 @@ export async function runWriterAgent(
       messages.push({ role: "tool", tool_call_id: result.toolCallId, content: result.content });
     });
     sync();
+    if (!ledger.finished) {
+      const toolResultById = new Map<string, string>();
+      for (const msg of messages) {
+        if (msg.role === "tool") {
+          toolResultById.set(msg.tool_call_id, msg.content);
+        }
+      }
+      const assistantIndices = messages
+        .map((msg, idx) => (msg.role === "assistant" ? idx : -1))
+        .filter((idx) => idx >= 0);
+      const latestAssistantIndex = assistantIndices.at(-1) ?? -1;
+      for (const idx of assistantIndices) {
+        const msg = messages[idx];
+        if (!msg || msg.role !== "assistant" || msg.tool_calls.length === 0) continue;
+        const isLatestTurn = idx === latestAssistantIndex;
+        messages[idx] = {
+          ...msg,
+          tool_calls: msg.tool_calls.map((tc) => ({
+            ...tc,
+            function: {
+              ...tc.function,
+              arguments: ledger.compactHistoricalCallArguments(
+                { id: tc.id, name: tc.function.name, arguments: tc.function.arguments },
+                {
+                  resultContent: toolResultById.get(tc.id),
+                  isLatestTurn,
+                },
+              ),
+            },
+          })),
+        };
+      }
+    }
     if (!ledger.finished && firstTurnErrorReason) {
       logWriterRuntimeEvent("writer.correction.requested", {
         correlationId: input.correlationId,

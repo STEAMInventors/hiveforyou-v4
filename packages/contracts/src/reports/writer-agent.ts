@@ -785,6 +785,7 @@ function allowedClaimKindsForBlockType(blockType: ReportBlockType | undefined): 
 
 export class WriterAgentLedger {
   private readonly claims: ReadonlyMap<string, StudyClaim>;
+  private readonly planQuestionIds: ReadonlySet<string>;
   private readonly questionsWithFacts: ReadonlySet<string>;
   private readonly allCatalogNumbers: ReadonlySet<string>;
   private readonly fileNames: ReadonlyMap<string, string>;
@@ -811,6 +812,18 @@ export class WriterAgentLedger {
 
   constructor(private readonly context: WriterAgentContext) {
     this.claims = new Map(context.claims.map((claim) => [claim.id, claim]));
+    const planQuestions = new Set<string>();
+    for (const claim of context.claims) {
+      if (claim.planQuestionId && PLAN_QUESTION_ID_PATTERN.test(claim.planQuestionId)) {
+        planQuestions.add(claim.planQuestionId);
+      }
+      for (const qId of claim.questionIds ?? []) {
+        if (PLAN_QUESTION_ID_PATTERN.test(qId)) {
+          planQuestions.add(qId);
+        }
+      }
+    }
+    this.planQuestionIds = planQuestions;
     this.questionsWithFacts = questionsWithAtomicFacts(context.claims);
     this.canonicalFindings = context.canonicalFindings ?? null;
     const historicalByClaimId = buildHistoricalTemporalMap(context.claims, {
@@ -1181,39 +1194,61 @@ export class WriterAgentLedger {
           }
           return claimId;
         });
-        const expectedQuestions = new Set<string>(
-          claimIds.flatMap((cId) => {
-            const c = this.claims.get(cId)!;
-            return [
-              ...(c.planQuestionId ? [c.planQuestionId] : []),
-              ...(c.questionIds ?? []),
-            ];
-          }),
-        );
-        if (!Array.isArray(entry.questionIds) || entry.questionIds.length > 24 || (expectedQuestions.size > 0 && entry.questionIds.length === 0)) {
+        const directQuestions = new Set<string>();
+        const linkedDfQuestions = new Set<string>();
+        let hasUnlinkedDfClaim = false;
+        for (const cId of claimIds) {
+          const c = this.claims.get(cId)!;
+          if (c.planQuestionId) {
+            directQuestions.add(c.planQuestionId);
+          } else if (c.questionIds && c.questionIds.length > 0) {
+            for (const qId of c.questionIds) linkedDfQuestions.add(qId);
+          } else {
+            hasUnlinkedDfClaim = true;
+          }
+        }
+        const supportedQuestions = new Set<string>([...directQuestions, ...linkedDfQuestions]);
+        if (
+          !Array.isArray(entry.questionIds) ||
+          entry.questionIds.length > 24 ||
+          (supportedQuestions.size > 0 && entry.questionIds.length === 0)
+        ) {
           throw new WriterRejection(
             "writer_insight_mapping_invalid",
-            `${path}.questionIds must list the originating plan questions ([${[...expectedQuestions].join(", ")}]) for ${path}.claimIds.`,
+            `${path}.questionIds must list at least one originating plan question ([${[...supportedQuestions].join(", ")}]) for ${path}.claimIds.`,
             `${path}.questionIds`,
           );
         }
         const questionIds = entry.questionIds.map((qId, qIdx) => {
-          if (typeof qId !== "string" || !PLAN_QUESTION_ID_PATTERN.test(qId)) {
+          if (
+            typeof qId !== "string" ||
+            !PLAN_QUESTION_ID_PATTERN.test(qId) ||
+            (this.planQuestionIds.size > 0 && !this.planQuestionIds.has(qId))
+          ) {
             throw new WriterRejection(
               "writer_insight_mapping_invalid",
-              `${path}.questionIds[${qIdx}] must be a valid plan question ID (P1…Pn).`,
+              `${path}.questionIds[${qIdx}] must be a valid plan question ID (${[...this.planQuestionIds].join(", ") || "P1…Pn"}).`,
               `${path}.questionIds[${qIdx}]`,
             );
           }
           return qId;
         });
         const providedQuestions = new Set<string>(questionIds);
-        const missingQ = [...expectedQuestions].filter((q) => !providedQuestions.has(q));
-        const extraQ = [...providedQuestions].filter((q) => !expectedQuestions.has(q));
-        if (missingQ.length > 0 || extraQ.length > 0) {
+        const missingDirectQ = [...directQuestions].filter((q) => !providedQuestions.has(q));
+        if (missingDirectQ.length > 0) {
           throw new WriterRejection(
             "writer_insight_mapping_invalid",
-            `${path}.questionIds ([${questionIds.join(", ")}]) does not match the originating plan questions ([${[...expectedQuestions].join(", ")}]) of ${path}.claimIds.`,
+            `${path}.questionIds ([${questionIds.join(", ")}]) is missing required plan question(s) ([${missingDirectQ.join(", ")}]) for question-scoped claim(s) in ${path}.claimIds.`,
+            `${path}.questionIds`,
+          );
+        }
+        const extraQ = hasUnlinkedDfClaim
+          ? []
+          : [...providedQuestions].filter((q) => !supportedQuestions.has(q));
+        if (extraQ.length > 0) {
+          throw new WriterRejection(
+            "writer_insight_mapping_invalid",
+            `${path}.questionIds ([${questionIds.join(", ")}]) includes plan question(s) ([${extraQ.join(", ")}]) not supported by ${path}.claimIds (supported: [${[...supportedQuestions].join(", ")}]).`,
             `${path}.questionIds`,
           );
         }
@@ -1920,6 +1955,11 @@ export class WriterAgentLedger {
       }
       const compiled = this.compileUnits(parsed);
       const firstRejection = compiled.rejections[0];
+      const stagedRepairGuidance =
+        !compiled.ok && compiled.awaitingView
+          ? `${this.outline ? "Title, summary, and sections" : "Sections"} [${compiled.acceptedSectionIds.join(", ")}] are already accepted and preserved in state — do NOT resend accepted sections${this.outline ? ", title, or summary" : ""}. In your next apply_writer_correction call, submit ONLY the repaired rejected unit(s) (${compiled.rejections.map((r) => (r.id ? `${r.unit}:${r.id}` : r.index !== undefined ? `${r.unit}[${r.index}]` : r.unit)).join(", ")}) PLUS your view components (and optional scenarios) to complete the report.`
+          : undefined;
+      const combinedHint = [firstRejection?.hint, stagedRepairGuidance].filter(Boolean).join(" ");
       const payload = compiled.ok
         ? this.finished
           ? {
@@ -1951,7 +1991,8 @@ export class WriterAgentLedger {
             ...(firstRejection?.field ? { field: firstRejection.field } : {}),
             ...(firstRejection?.ungroundedValue ? { ungroundedValue: firstRejection.ungroundedValue } : {}),
             message: firstRejection?.message ?? "One or more units did not pass validation.",
-            ...(firstRejection?.hint ? { hint: firstRejection.hint } : {}),
+            ...(combinedHint ? { hint: combinedHint } : {}),
+            ...(stagedRepairGuidance ? { nextStep: stagedRepairGuidance } : {}),
             ...(firstRejection?.candidateClaimIds ? { candidateClaimIds: firstRejection.candidateClaimIds } : {}),
             acceptedSectionIds: compiled.acceptedSectionIds,
             acceptedScenarioIds: compiled.acceptedScenarioIds,
@@ -2674,7 +2715,7 @@ export class WriterAgentLedger {
     if (reason === "writer_insight_mapping_invalid") {
       return {
         ...base,
-        hint: "Ensure each insight's questionIds match the exact planQuestionIds of its claimIds, and that any insightId/insightIds referenced in priorityFindings, sections, or components is declared in presentationPlan.insights and shares supporting claimIds.",
+        hint: "Ensure each insight's questionIds are valid plan question IDs (P1…Pn) from this Study, include the planQuestionId of every question-scoped claim in claimIds, and use a non-empty subset of the questions supported by its claimIds. Also ensure any insightId/insightIds referenced in priorityFindings, sections, or components is declared in presentationPlan.insights and shares supporting claimIds.",
       };
     }
 
@@ -2738,6 +2779,244 @@ export class WriterAgentLedger {
       }
     }
     return candidates;
+  }
+
+  private compactAcceptedBlocks(blocks: readonly ReportBlock[]): ReportBlock[] {
+    return blocks.map((b) => ({
+      type: b.type,
+      text: "[accepted]",
+      claimRefs: [...b.claimRefs],
+    }));
+  }
+
+  private compactAcceptedSection(sec: ReportSection): ReportSection {
+    return {
+      id: sec.id,
+      heading: sec.heading,
+      blocks: this.compactAcceptedBlocks(sec.blocks),
+    };
+  }
+
+  private compactAcceptedScenario(scen: ScenarioDefinition): ScenarioDefinition {
+    return {
+      id: scen.id,
+      title: scen.title,
+      question: "[accepted]",
+      rationale: "[accepted]",
+      claimRefs: [...scen.claimRefs],
+      parameters: scen.parameters.map((p) => ({ ...p })),
+      results: scen.results.map((r) => ({ ...r })),
+    };
+  }
+
+  private compactAcceptedPresentationPlan(plan: WriterPresentationPlan): Record<string, unknown> {
+    return {
+      summaryDetailLevel: plan.summaryDetailLevel,
+      ...(plan.insights
+        ? {
+            insights: plan.insights.map((ins) => ({
+              id: ins.id,
+              meaning: "[accepted]",
+              claimIds: [...ins.claimIds],
+              questionIds: [...ins.questionIds],
+              role: ins.role,
+            })),
+          }
+        : {}),
+      priorityFindings: plan.priorityFindings.map((pf) => ({
+        claimId: pf.claimId,
+        priority: pf.priority,
+        ...(pf.insightId ? { insightId: pf.insightId } : {}),
+      })),
+      sections: plan.sections.map((s) => ({
+        id: s.id,
+        heading: s.heading,
+        priority: s.priority,
+        claimIds: [...s.claimIds],
+        ...(s.goalIds ? { goalIds: [...s.goalIds] } : {}),
+        ...(s.specialistQuestionIds ? { specialistQuestionIds: [...s.specialistQuestionIds] } : {}),
+        ...(s.insightIds ? { insightIds: [...s.insightIds] } : {}),
+      })),
+      components: plan.components.map((c) => ({
+        component: c.component,
+        ...(c.sectionId !== undefined ? { sectionId: c.sectionId } : {}),
+        ...(c.scenarioId !== undefined ? { scenarioId: c.scenarioId } : {}),
+        claimIds: [...c.claimIds],
+        ...(c.insightIds ? { insightIds: [...c.insightIds] } : {}),
+        ...(c.purpose !== undefined ? { purpose: c.purpose } : {}),
+        ...(c.reuseReason !== undefined ? { reuseReason: c.reuseReason } : {}),
+      })),
+    };
+  }
+
+  /**
+   * Compacts already-accepted narrative sections, summary blocks, presentationPlan, and scenarios
+   * in historical tool-call arguments so multi-turn repairs do not resend accepted narrative JSON
+   * on every subsequent turn while preserving tool-call IDs, closed tool schema validity, rejected
+   * units, and repair context.
+   */
+  compactHistoricalCallArguments(
+    call: WriterAgentToolCall,
+    options?: { readonly resultContent?: string; readonly isLatestTurn?: boolean },
+  ): string {
+    const parsed = this.parseCallArgs(call);
+    if (!parsed) return call.arguments;
+    const isLatestTurn = options?.isLatestTurn ?? true;
+    let parsedResult: Record<string, unknown> | null = null;
+    if (typeof options?.resultContent === "string") {
+      try {
+        const raw = JSON.parse(options.resultContent) as unknown;
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          parsedResult = raw as Record<string, unknown>;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (call.name === "compose_writer_report" || call.name === "apply_writer_correction") {
+      const rejections = Array.isArray(parsedResult?.rejections)
+        ? (parsedResult.rejections as Partial<WriterRejectedUnit>[])
+        : [];
+      const rejectedPlan = rejections.some((r) => r?.unit === "plan");
+      const rejectedOutline = rejections.some(
+        (r) => r?.unit === "title" || r?.unit === "summary" || r?.unit === "uncertainty",
+      );
+      const rejectedSectionIds = new Set<string>(
+        rejections
+          .filter((r) => r?.unit === "section" && typeof r?.id === "string")
+          .map((r) => r.id as string),
+      );
+      const rejectedSectionIndexes = new Set<number>(
+        rejections
+          .filter((r) => r?.unit === "section" && typeof r?.index === "number")
+          .map((r) => r.index as number),
+      );
+      const rejectedScenarioIds = new Set<string>(
+        rejections
+          .filter((r) => r?.unit === "scenario" && typeof r?.id === "string")
+          .map((r) => r.id as string),
+      );
+      const rejectedScenarioIndexes = new Set<number>(
+        rejections
+          .filter((r) => r?.unit === "scenario" && typeof r?.index === "number")
+          .map((r) => r.index as number),
+      );
+
+      const next: Record<string, unknown> = { ...parsed };
+      let changed = false;
+
+      if (
+        next.presentationPlan &&
+        typeof next.presentationPlan === "object" &&
+        !Array.isArray(next.presentationPlan) &&
+        this.presentationPlan !== null &&
+        !this.unresolvedSlots.has("presentationPlan") &&
+        (!isLatestTurn || !rejectedPlan)
+      ) {
+        next.presentationPlan = this.compactAcceptedPresentationPlan(this.presentationPlan);
+        changed = true;
+      }
+
+      if (
+        Array.isArray(next.summary) &&
+        this.outline !== null &&
+        !this.unresolvedSlots.has("outline") &&
+        (!isLatestTurn || !rejectedOutline)
+      ) {
+        next.summary = this.compactAcceptedBlocks(this.outline.summary);
+        changed = true;
+      }
+
+      if (Array.isArray(next.sections)) {
+        next.sections = next.sections.map((sec, idx) => {
+          if (!sec || typeof sec !== "object" || Array.isArray(sec)) return sec;
+          const secObj = sec as Record<string, unknown>;
+          const secId = typeof secObj.id === "string" ? secObj.id : undefined;
+          if (!secId) return sec;
+          const isAcceptedInLedger =
+            this.sections.has(secId) && !this.unresolvedSlots.has(`section:${secId}`);
+          const wasRejectedInCall =
+            rejectedSectionIds.has(secId) || rejectedSectionIndexes.has(idx);
+          if (isAcceptedInLedger && (!isLatestTurn || !wasRejectedInCall)) {
+            const acceptedSec = this.sections.get(secId)!;
+            changed = true;
+            return this.compactAcceptedSection(acceptedSec);
+          }
+          return sec;
+        });
+      }
+
+      if (Array.isArray(next.scenarios)) {
+        next.scenarios = next.scenarios.map((scen, idx) => {
+          if (!scen || typeof scen !== "object" || Array.isArray(scen)) return scen;
+          const scenObj = scen as Record<string, unknown>;
+          const scenId = typeof scenObj.id === "string" ? scenObj.id : undefined;
+          if (!scenId) return scen;
+          const isAcceptedInLedger =
+            this.scenarios.has(scenId) && !this.unresolvedSlots.has(`scenario:${scenId}`);
+          const wasRejectedInCall =
+            rejectedScenarioIds.has(scenId) || rejectedScenarioIndexes.has(idx);
+          if (isAcceptedInLedger && (!isLatestTurn || !wasRejectedInCall)) {
+            const acceptedScen = this.scenarios.get(scenId)!;
+            changed = true;
+            return this.compactAcceptedScenario(acceptedScen);
+          }
+          return scen;
+        });
+      }
+
+      return changed ? JSON.stringify(next) : call.arguments;
+    }
+
+    if (call.name === "record_section") {
+      const secId = typeof parsed.id === "string" ? parsed.id : undefined;
+      if (
+        secId &&
+        this.sections.has(secId) &&
+        !this.unresolvedSlots.has(`section:${secId}`) &&
+        (!isLatestTurn || parsedResult?.ok !== false)
+      ) {
+        return JSON.stringify(this.compactAcceptedSection(this.sections.get(secId)!));
+      }
+      return call.arguments;
+    }
+
+    if (call.name === "record_scenario") {
+      const scenId = typeof parsed.id === "string" ? parsed.id : undefined;
+      if (
+        scenId &&
+        this.scenarios.has(scenId) &&
+        !this.unresolvedSlots.has(`scenario:${scenId}`) &&
+        (!isLatestTurn || parsedResult?.ok !== false)
+      ) {
+        return JSON.stringify(this.compactAcceptedScenario(this.scenarios.get(scenId)!));
+      }
+      return call.arguments;
+    }
+
+    if (call.name === "set_report_outline") {
+      if (
+        this.outline !== null &&
+        !this.unresolvedSlots.has("outline") &&
+        (!isLatestTurn || parsedResult?.ok !== false)
+      ) {
+        return JSON.stringify({
+          ...(parsed.presentationPlan &&
+          typeof parsed.presentationPlan === "object" &&
+          !Array.isArray(parsed.presentationPlan) &&
+          this.presentationPlan &&
+          !this.unresolvedSlots.has("presentationPlan")
+            ? { presentationPlan: this.compactAcceptedPresentationPlan(this.presentationPlan) }
+            : {}),
+          title: this.outline.title,
+          summary: this.compactAcceptedBlocks(this.outline.summary),
+        });
+      }
+      return call.arguments;
+    }
+
+    return call.arguments;
   }
 
   /** Deterministic assembly of the exact `hive.writer-report/1` shape. Only after `finish_report`. */
