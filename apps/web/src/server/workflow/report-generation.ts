@@ -1,5 +1,7 @@
 import {
   buildFailureDiagnostic,
+  buildWriterCanonicalFindingsProjection,
+  type CanonicalFindingResolution,
   classifyFailure,
   type AudienceConfiguration,
   audienceRoleLabel,
@@ -16,6 +18,7 @@ import {
   type ReportAudience,
   type ReportRun,
   type ReportRunStatus,
+  resolveCanonicalFindings,
   type SourceSnapshot,
   type StageMetric,
   type StudyAgentMessage,
@@ -119,6 +122,7 @@ export type WriterAgentInput = {
   readonly userPayload: Record<string, unknown>;
   readonly claims: readonly StudyClaim[];
   readonly fileNames: ReadonlyMap<string, string>;
+  readonly canonicalFindings?: CanonicalFindingResolution | null;
   /** Epoch ms by which the last turn must have returned; validation and persistence follow. */
   readonly deadline: number;
   readonly clock?: () => number;
@@ -393,13 +397,17 @@ function buildWriterStudyContext(inputs: Pick<GenerationInputs, "intentDecomposi
 }
 
 /**
- * The Writer's user message (prompt `## User message shape`): validated claims and bounded
- * upstream intent/domain/specialist/plan context only, never raw page text.
+ * The Writer's user message (prompt `## User message shape`): validated claims, bounded
+ * upstream intent/domain/specialist/plan context, and bounded Gate 1 canonical finding resolution
+ * advisory metadata only, never raw page text.
  */
 export function buildWriterPayload(
   audience: ReportAudience,
-  inputs: Omit<GenerationInputs, "reportRun">,
+  inputs: Omit<GenerationInputs, "reportRun"> & {
+    readonly reportRun?: Pick<ReportRun, "createdAt"> | null;
+  },
   claims: readonly StudyClaim[],
+  canonicalFindings?: CanonicalFindingResolution | null,
 ): Record<string, unknown> {
   const config = inputs.audienceConfiguration;
   const profile = audience === "CUSTOMER" ? config.customer : config.pro;
@@ -417,6 +425,11 @@ export function buildWriterPayload(
       reasoning: alt.reasoning,
     }),
   );
+  const resolvedCanonicalFindings =
+    canonicalFindings ??
+    resolveCanonicalFindings(inputs.verified, claims, {
+      asOf: inputs.reportRun?.createdAt ?? null,
+    });
   return {
     task: "writer",
     audience,
@@ -459,6 +472,7 @@ export function buildWriterPayload(
       ...(considerations.length > 0 ? { considerations } : {}),
     },
     studyContext: buildWriterStudyContext(inputs),
+    canonicalFindings: buildWriterCanonicalFindingsProjection(resolvedCanonicalFindings),
     coverage: {
       complete: inputs.coverageComplete,
       notes: (inputs.sourceSnapshot?.excluded ?? []).map((document) => `${document.fileName} was not read (${document.reason}).`),
@@ -493,6 +507,7 @@ export async function runWriterAgent(
     audience: input.audience,
     claims: input.claims,
     fileNames: input.fileNames,
+    canonicalFindings: input.canonicalFindings,
   });
   const writerTools = [...WRITER_COMPOSE_TOOLS, ...WRITER_AGENT_TOOLS];
   const messages: StudyAgentMessage[] = [{ role: "user", content: JSON.stringify(input.userPayload) }];
@@ -734,6 +749,9 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
     const inputs = await loadGenerationInputs(deps.client, reportRunId);
     const audience = claimed.audience;
     const claims = studyClaimCatalog(inputs.verified);
+    const canonicalFindings = resolveCanonicalFindings(inputs.verified, claims, {
+      asOf: inputs.reportRun.createdAt || claimed.createdAt,
+    });
     const fileNames = fileNamesOf(inputs.sourceSnapshot);
     const catalog = (deps.loadCatalog ?? loadPromptCatalog)();
     const baseMetric: StageMetric = {
@@ -767,9 +785,10 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
         correlationId,
         audience,
         prompt: catalog.writer,
-        userPayload: buildWriterPayload(audience, inputs, claims),
+        userPayload: buildWriterPayload(audience, inputs, claims, canonicalFindings),
         claims,
         fileNames,
+        canonicalFindings,
         deadline: startedAt + WRITER_AGENT_BUDGET.wallClockMs,
         clock,
       });
@@ -792,7 +811,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
     if (!validating.applied) return validating.reportRun?.status ?? null;
     current = "VALIDATING";
 
-    const built = buildReport(agentResult.report, { audience, claims, fileNames });
+    const built = buildReport(agentResult.report, { audience, claims, fileNames, canonicalFindings });
     if (!built.ok) {
       metric = { ...metric, outcome: "FAILED", errorCode: "MODEL_OUTPUT_INVALID", retryable: false };
       throw reportError({

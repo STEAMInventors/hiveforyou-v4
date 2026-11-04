@@ -1,3 +1,8 @@
+import {
+  buildActiveTemporalClaimIds,
+  buildHistoricalTemporalMap,
+  type CanonicalFindingResolution,
+} from "../analysis/canonical-finding-resolver";
 import type { StudyAgentBudgetDimension } from "../analysis/study-agent";
 import type { StudyClaim } from "../analysis/study-verification";
 import {
@@ -13,6 +18,7 @@ import {
   type ViewComponentValidationContext,
 } from "./application-view-contracts";
 import {
+  checkTemporalSafety,
   collectVisibleStructuredUncertainties,
   DOCUMENTED_KINDS,
   evaluateScenarios,
@@ -39,6 +45,7 @@ import {
   WRITER_REPORT_SCHEMA,
   type WriterReport,
   WriterRejection,
+  type WriterTemporalValidationContext,
 } from "./writer-report-contracts";
 
 /**
@@ -65,12 +72,27 @@ export type WriterSummaryDetailLevel = (typeof WRITER_SUMMARY_DETAIL_LEVELS)[num
 export const WRITER_FINDING_PRIORITIES = ["HIGH", "MEDIUM", "LOW"] as const;
 export type WriterFindingPriority = (typeof WRITER_FINDING_PRIORITIES)[number];
 
+export const WRITER_INSIGHT_ROLES = ["CENTRAL", "SUPPORTING"] as const;
+export type WriterInsightRole = (typeof WRITER_INSIGHT_ROLES)[number];
+
 export const GOAL_ID_PATTERN = /^G[1-9][0-9]{0,2}$/;
 export const SPECIALIST_QUESTION_ID_PATTERN = /^I[1-9][0-9]{0,2}$/;
+export const PLAN_QUESTION_ID_PATTERN = /^P[1-9][0-9]{0,2}$/;
+export const INSIGHT_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]{0,31}$/;
+
+export type WriterEditorialInsight = {
+  readonly id: string;
+  readonly meaning: string;
+  readonly claimIds: readonly string[];
+  readonly questionIds: readonly string[];
+  readonly role: WriterInsightRole;
+  readonly reuseReason?: string;
+};
 
 export type WriterPriorityFinding = {
   readonly claimId: string;
   readonly priority: WriterFindingPriority;
+  readonly insightId?: string;
 };
 
 export type WriterPlannedSection = {
@@ -80,6 +102,7 @@ export type WriterPlannedSection = {
   readonly claimIds: readonly string[];
   readonly goalIds?: readonly string[];
   readonly specialistQuestionIds?: readonly string[];
+  readonly insightIds?: readonly string[];
   readonly purpose?: string;
 };
 
@@ -88,19 +111,29 @@ export type WriterPlannedComponent = {
   readonly sectionId?: string | null;
   readonly scenarioId?: string | null;
   readonly claimIds: readonly string[];
+  readonly insightIds?: readonly string[];
   readonly purpose?: string;
+  readonly reuseReason?: string;
 };
 
 export type WriterPresentationPlan = {
   readonly schema?: typeof WRITER_PRESENTATION_PLAN_SCHEMA;
   readonly audienceObjective?: string;
   readonly summaryDetailLevel: WriterSummaryDetailLevel;
+  readonly insights?: readonly WriterEditorialInsight[];
   readonly priorityFindings: readonly WriterPriorityFinding[];
   readonly sections: readonly WriterPlannedSection[];
   readonly components: readonly WriterPlannedComponent[];
 };
 
-export type WriterRejectedUnitKind = "title" | "summary" | "section" | "scenario" | "view" | "uncertainty";
+export type WriterRejectedUnitKind =
+  | "plan"
+  | "title"
+  | "summary"
+  | "section"
+  | "scenario"
+  | "view"
+  | "uncertainty";
 
 export type WriterRejectedUnit = {
   readonly unit: WriterRejectedUnitKind;
@@ -126,6 +159,7 @@ export type WriterPendingViewComponent = {
 };
 
 export type WriterCorrectionPatch = {
+  readonly presentationPlan?: WriterPresentationPlan;
   readonly title?: string;
   readonly summary?: readonly ReportBlock[];
   readonly sections?: readonly ReportSection[];
@@ -396,21 +430,51 @@ const presentationPlanSchema = object(
       enum: [...WRITER_SUMMARY_DETAIL_LEVELS],
       description: "Appropriate summary/detail level for this audience: CONCISE, BALANCED, or COMPREHENSIVE.",
     },
+    insights: {
+      type: "array",
+      description:
+        "Model-authored editorial synthesis mapping distinct insights to their supporting original Study claim IDs and originating plan questions (P1..Pn).",
+      maxItems: 24,
+      items: object(
+        {
+          id: str("Distinct insight identifier (e.g. INS1, INS2).", 32),
+          meaning: str("Core synthesized meaning or editorial purpose of this distinct insight.", 600),
+          claimIds: claimRefsSchema("Supporting original Study claim IDs united in this insight."),
+          questionIds: {
+            type: "array",
+            description: "Originating investigation question IDs (P1, P2, ...) for the claims in this insight.",
+            maxItems: 24,
+            items: { type: "string", maxLength: 8 },
+          },
+          role: {
+            type: "string",
+            enum: [...WRITER_INSIGHT_ROLES],
+            description: "Whether this insight is CENTRAL to the person's goals or SUPPORTING context.",
+          },
+          reuseReason: nullableStr(
+            "Optional justification when claims in this insight are deliberately reused across narrative and structured A2UI components.",
+            400,
+          ),
+        },
+        ["id", "meaning", "claimIds", "questionIds", "role"],
+      ),
+    },
     priorityFindings: {
       type: "array",
-      description: "Important findings and their priority, referencing verified Canonical Study claim IDs.",
+      description: "Distinct priority findings referencing verified Canonical Study claim IDs (never repeat claims from the same resolved finding group).",
       maxItems: 24,
       items: object(
         {
           claimId: str("Verified Canonical Study claim ID.", 16),
           priority: { type: "string", enum: [...WRITER_FINDING_PRIORITIES] },
+          insightId: nullableStr("Optional synthesized insight ID (INS1...) this priority finding anchors.", 32),
         },
         ["claimId", "priority"],
       ),
     },
     sections: {
       type: "array",
-      description: "Planned narrative organization, section headings, priority, goal/task alignment, and supporting verified claim IDs.",
+      description: "Planned narrative organization around distinct insights and audience goals, with section headings, priority, purpose, and supporting verified claim IDs.",
       maxItems: WRITER_LIMITS.sections,
       items: object(
         {
@@ -430,6 +494,12 @@ const presentationPlanSchema = object(
             maxItems: 24,
             items: { type: "string", maxLength: 8 },
           },
+          insightIds: {
+            type: "array",
+            description: "Optional synthesized insight IDs (INS1, INS2, ...) covered in this section.",
+            maxItems: 12,
+            items: { type: "string", maxLength: 32 },
+          },
           purpose: nullableStr(
             "What this section helps the reader understand, decide, or verify.",
             400,
@@ -440,7 +510,7 @@ const presentationPlanSchema = object(
     },
     components: {
       type: "array",
-      description: "Approved A2UI components chosen to accomplish this audience's objective, with supporting verified claim IDs.",
+      description: "Approved A2UI components chosen for their distinct informational value to this audience, with supporting verified claim IDs.",
       maxItems: WRITER_LIMITS.viewComponents,
       items: object(
         {
@@ -448,8 +518,18 @@ const presentationPlanSchema = object(
           sectionId: nullableStr("Optional sectionId when component is Narrative.", 16),
           scenarioId: nullableStr("Optional scenarioId when component is ScenarioExplorer.", 16),
           claimIds: claimRefsSchema("Verified Study claim IDs supporting this component."),
+          insightIds: {
+            type: "array",
+            description: "Optional synthesized insight IDs (INS1, INS2, ...) visualized by this component.",
+            maxItems: 12,
+            items: { type: "string", maxLength: 32 },
+          },
           purpose: nullableStr(
             "Why this A2UI component best serves this audience's task on these claims.",
+            400,
+          ),
+          reuseReason: nullableStr(
+            "Optional justification when this component reuses claims also discussed in narrative or another component.",
             400,
           ),
         },
@@ -475,7 +555,7 @@ export const WRITER_COMPOSE_TOOLS: readonly WriterAgentToolDefinition[] = [
           presentationPlan: {
             ...presentationPlanSchema,
             description:
-              "Compact presentation plan: priority findings, narrative section organization, summary/detail level, chosen A2UI components, and supporting claim IDs.",
+              "Compact presentation plan: editorial synthesis insights, priority findings, narrative section organization, summary/detail level, chosen A2UI components, and supporting claim IDs.",
           },
           title: str("Report title (up to 160 characters).", WRITER_LIMITS.title),
           summary: {
@@ -512,9 +592,13 @@ export const WRITER_COMPOSE_TOOLS: readonly WriterAgentToolDefinition[] = [
     function: {
       name: "apply_writer_correction",
       description:
-        "Applies a targeted correction to only the rejected content units (title, summary, specific sections by id, specific scenarios by id, or specific view components by index), preserving all previously accepted units.",
+        "Applies a targeted correction to only the rejected content units (presentationPlan, title, summary, specific sections by id, specific scenarios by id, or specific view components by index), preserving all previously accepted units.",
       parameters: object(
         {
+          presentationPlan: {
+            ...presentationPlanSchema,
+            description: "Optional corrected presentation plan.",
+          },
           title: str("Optional corrected report title.", WRITER_LIMITS.title),
           summary: {
             type: "array",
@@ -612,6 +696,8 @@ export type WriterAgentContext = {
   readonly audience: ReportAudience;
   readonly claims: readonly StudyClaim[];
   readonly fileNames?: ReadonlyMap<string, string>;
+  readonly canonicalFindings?: CanonicalFindingResolution | null;
+  readonly asOf?: string | Date | null;
 };
 
 export type WriterAgentToolCall = { readonly id: string; readonly name: string; readonly arguments: string };
@@ -696,8 +782,12 @@ export class WriterAgentLedger {
   private readonly questionsWithFacts: ReadonlySet<string>;
   private readonly allCatalogNumbers: ReadonlySet<string>;
   private readonly fileNames: ReadonlyMap<string, string>;
+  private readonly canonicalFindings: CanonicalFindingResolution | null;
+  private readonly temporalContext: WriterTemporalValidationContext;
+  private readonly conflictingFactLinks: ReadonlyMap<string, ReadonlySet<string>>;
   private readonly calls = new Map<string, { name: string; arguments: string; result: WriterAgentToolResult }>();
   private presentationPlan: WriterPresentationPlan | null = null;
+  private acceptedTitle: string | null = null;
   private outline: { title: string; summary: ReportBlock[] } | null = null;
   private readonly sections = new Map<string, ReportSection>();
   private readonly sectionOrder: string[] = [];
@@ -718,10 +808,40 @@ export class WriterAgentLedger {
     this.questionsWithFacts = new Set(
       context.claims.filter((claim) => claim.kind === "FACT").map((claim) => claim.planQuestionId),
     );
+    this.canonicalFindings = context.canonicalFindings ?? null;
+    const historicalByClaimId = buildHistoricalTemporalMap(context.claims, {
+      canonicalFindings: this.canonicalFindings,
+      asOf: context.asOf,
+    });
+    const activeClaimIds = buildActiveTemporalClaimIds(context.claims, {
+      canonicalFindings: this.canonicalFindings,
+      asOf: context.asOf,
+    });
+    this.temporalContext = { historicalByClaimId, activeClaimIds };
     this.allCatalogNumbers = groundingNumbersForClaims(
       this.claims,
       context.claims.map((claim) => claim.id),
+      historicalByClaimId,
     );
+    const conflictLinks = new Map<string, Set<string>>();
+    if (this.canonicalFindings) {
+      for (const group of this.canonicalFindings.groups) {
+        if (group.kind !== "FACT" || group.conflictingWithClaimIds.length === 0) continue;
+        const otherFactIds = group.conflictingWithClaimIds.filter(
+          (id) => this.claims.get(id)?.kind === "FACT",
+        );
+        if (otherFactIds.length === 0) continue;
+        for (const claimId of group.originalClaimIds) {
+          let set = conflictLinks.get(claimId);
+          if (!set) {
+            set = new Set<string>();
+            conflictLinks.set(claimId, set);
+          }
+          for (const otherId of otherFactIds) set.add(otherId);
+        }
+      }
+    }
+    this.conflictingFactLinks = conflictLinks;
     this.fileNames = context.fileNames ?? new Map<string, string>();
   }
 
@@ -951,9 +1071,12 @@ export class WriterAgentLedger {
   }
 
   /**
-   * Validates and records a compact `hive.writer-presentation-plan/1` (D-047 Responsibility A; V4-004G).
+   * Validates and records a compact `hive.writer-presentation-plan/1` (D-047 Responsibility A; V4-004G; V4-004H Gate 2).
    * Verifies every referenced claim ID against the accepted Canonical Study, checks component names,
-   * and validates optional audienceObjective and goal/task alignment fields when present.
+   * validates optional audienceObjective, editorial synthesis insights, and goal/task alignment fields,
+   * and rejects duplicate priority findings (`writer_duplicate_finding`), collapsed conflicting facts
+   * (`writer_conflict_collapsed`), unsound insight-to-claim mappings (`writer_insight_mapping_invalid`),
+   * and redundant duplicate A2UI components (`writer_duplicate_component`).
    */
   recordPresentationPlan(raw: unknown): WriterPresentationPlan {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -986,6 +1109,147 @@ export class WriterAgentLedger {
         "presentationPlan.summaryDetailLevel",
       );
     }
+
+    let insights: WriterEditorialInsight[] | undefined;
+    const insightsById = new Map<string, WriterEditorialInsight>();
+    const rawInsights = plan.insights;
+    if (rawInsights !== undefined && rawInsights !== null) {
+      if (!Array.isArray(rawInsights) || rawInsights.length > 24) {
+        throw new WriterRejection(
+          "writer_output_shape",
+          "presentationPlan.insights must be a list of up to 24 items.",
+          "presentationPlan.insights",
+        );
+      }
+      insights = rawInsights.map((item, index) => {
+        const path = `presentationPlan.insights[${index}]`;
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          throw new WriterRejection("writer_output_shape", `${path} must be an object.`, path);
+        }
+        const entry = item as Record<string, unknown>;
+        if (typeof entry.id !== "string" || !INSIGHT_ID_PATTERN.test(entry.id)) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.id must be a valid insight identifier (e.g. INS1).`,
+            `${path}.id`,
+          );
+        }
+        if (insightsById.has(entry.id)) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.id (${entry.id}) is duplicated.`,
+            `${path}.id`,
+          );
+        }
+        const rawMeaning = entry.meaning ?? entry.purpose;
+        if (typeof rawMeaning !== "string" || rawMeaning.trim() === "" || rawMeaning.length > 600) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.meaning must be non-empty text up to 600 characters.`,
+            `${path}.meaning`,
+          );
+        }
+        if (typeof entry.role !== "string" || !(WRITER_INSIGHT_ROLES as readonly string[]).includes(entry.role)) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.role must be CENTRAL or SUPPORTING.`,
+            `${path}.role`,
+          );
+        }
+        if (
+          !Array.isArray(entry.claimIds) ||
+          entry.claimIds.length === 0 ||
+          entry.claimIds.length > WRITER_LIMITS.claimRefsPerBlock
+        ) {
+          throw new WriterRejection(
+            "writer_claim_missing",
+            `${path}.claimIds must be a non-empty list of 1–${WRITER_LIMITS.claimRefsPerBlock} Study claims.`,
+            `${path}.claimIds`,
+          );
+        }
+        const claimIds = entry.claimIds.map((claimId, cIdx) => {
+          if (typeof claimId !== "string" || !this.claims.has(claimId)) {
+            throw new WriterRejection(
+              "writer_claim_unknown",
+              `${path}.claimIds[${cIdx}] is not a Study claim.`,
+              `${path}.claimIds[${cIdx}]`,
+            );
+          }
+          return claimId;
+        });
+        const expectedQuestions = new Set<string>(
+          claimIds.map((cId) => this.claims.get(cId)!.planQuestionId),
+        );
+        if (!Array.isArray(entry.questionIds) || entry.questionIds.length === 0 || entry.questionIds.length > 24) {
+          throw new WriterRejection(
+            "writer_insight_mapping_invalid",
+            `${path}.questionIds must list the originating plan questions ([${[...expectedQuestions].join(", ")}]) for ${path}.claimIds.`,
+            `${path}.questionIds`,
+          );
+        }
+        const questionIds = entry.questionIds.map((qId, qIdx) => {
+          if (typeof qId !== "string" || !PLAN_QUESTION_ID_PATTERN.test(qId)) {
+            throw new WriterRejection(
+              "writer_insight_mapping_invalid",
+              `${path}.questionIds[${qIdx}] must be a valid plan question ID (P1…Pn).`,
+              `${path}.questionIds[${qIdx}]`,
+            );
+          }
+          return qId;
+        });
+        const providedQuestions = new Set<string>(questionIds);
+        const missingQ = [...expectedQuestions].filter((q) => !providedQuestions.has(q));
+        const extraQ = [...providedQuestions].filter((q) => !expectedQuestions.has(q));
+        if (missingQ.length > 0 || extraQ.length > 0) {
+          throw new WriterRejection(
+            "writer_insight_mapping_invalid",
+            `${path}.questionIds ([${questionIds.join(", ")}]) does not match the originating plan questions ([${[...expectedQuestions].join(", ")}]) of ${path}.claimIds.`,
+            `${path}.questionIds`,
+          );
+        }
+
+        // Ensure contradictory FACT claims are not silently merged into one insight without citing the CONFLICT (.K) claim.
+        const hasConflictClaim = claimIds.some((cId) => this.claims.get(cId)?.kind === "CONFLICT");
+        if (!hasConflictClaim && this.conflictingFactLinks.size > 0) {
+          for (let i = 0; i < claimIds.length; i += 1) {
+            const leftId = claimIds[i]!;
+            const conflictsWith = this.conflictingFactLinks.get(leftId);
+            if (!conflictsWith) continue;
+            const conflictingPartner = claimIds.find((rightId, j) => j > i && conflictsWith.has(rightId));
+            if (conflictingPartner) {
+              throw new WriterRejection(
+                "writer_conflict_collapsed",
+                `${path} combines conflicting fact claims (${leftId}, ${conflictingPartner}) without including the conflict record (.K) or keeping conflicting findings distinct.`,
+                `${path}.claimIds`,
+              );
+            }
+          }
+        }
+
+        let reuseReason: string | undefined;
+        if (entry.reuseReason !== undefined && entry.reuseReason !== null) {
+          if (typeof entry.reuseReason !== "string" || entry.reuseReason.trim() === "" || entry.reuseReason.length > 400) {
+            throw new WriterRejection(
+              "writer_output_shape",
+              `${path}.reuseReason must be non-empty text up to 400 characters.`,
+              `${path}.reuseReason`,
+            );
+          }
+          reuseReason = entry.reuseReason.trim();
+        }
+        const normalizedInsight: WriterEditorialInsight = {
+          id: entry.id,
+          meaning: rawMeaning.trim(),
+          claimIds: [...new Set(claimIds)],
+          questionIds: [...new Set(questionIds)],
+          role: entry.role as WriterInsightRole,
+          ...(reuseReason !== undefined ? { reuseReason } : {}),
+        };
+        insightsById.set(normalizedInsight.id, normalizedInsight);
+        return normalizedInsight;
+      });
+    }
+
     if (!Array.isArray(plan.priorityFindings) || plan.priorityFindings.length > 24) {
       throw new WriterRejection(
         "writer_output_shape",
@@ -993,6 +1257,8 @@ export class WriterAgentLedger {
         "presentationPlan.priorityFindings",
       );
     }
+    const seenPriorityClaims = new Set<string>();
+    const seenPriorityGroups = new Map<string, string>();
     const priorityFindings: WriterPriorityFinding[] = plan.priorityFindings.map((item, index) => {
       const path = `presentationPlan.priorityFindings[${index}]`;
       if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -1005,7 +1271,57 @@ export class WriterAgentLedger {
       if (typeof entry.priority !== "string" || !(WRITER_FINDING_PRIORITIES as readonly string[]).includes(entry.priority)) {
         throw new WriterRejection("writer_output_shape", `${path}.priority is invalid.`, `${path}.priority`);
       }
-      return { claimId: entry.claimId, priority: entry.priority as WriterFindingPriority };
+      if (seenPriorityClaims.has(entry.claimId)) {
+        throw new WriterRejection(
+          "writer_duplicate_finding",
+          `${path}.claimId repeats ${entry.claimId} as a separate priority finding.`,
+          `${path}.claimId`,
+        );
+      }
+      seenPriorityClaims.add(entry.claimId);
+      const groupId = this.canonicalFindings?.claimToGroupId[entry.claimId];
+      if (groupId) {
+        const earlierClaimId = seenPriorityGroups.get(groupId);
+        if (earlierClaimId) {
+          throw new WriterRejection(
+            "writer_duplicate_finding",
+            `${path}.claimId (${entry.claimId}) duplicates resolved finding group ${groupId} already represented by priority finding ${earlierClaimId}.`,
+            `${path}.claimId`,
+          );
+        }
+        seenPriorityGroups.set(groupId, entry.claimId);
+      }
+      let insightId: string | undefined;
+      if (entry.insightId !== undefined && entry.insightId !== null) {
+        if (typeof entry.insightId !== "string" || !INSIGHT_ID_PATTERN.test(entry.insightId)) {
+          throw new WriterRejection(
+            "writer_insight_mapping_invalid",
+            `${path}.insightId must be a valid insight ID.`,
+            `${path}.insightId`,
+          );
+        }
+        if (insights && !insightsById.has(entry.insightId)) {
+          throw new WriterRejection(
+            "writer_insight_mapping_invalid",
+            `${path}.insightId (${entry.insightId}) is not declared in presentationPlan.insights.`,
+            `${path}.insightId`,
+          );
+        }
+        const linkedInsight = insightsById.get(entry.insightId);
+        if (linkedInsight && !linkedInsight.claimIds.includes(entry.claimId)) {
+          throw new WriterRejection(
+            "writer_insight_mapping_invalid",
+            `${path}.claimId (${entry.claimId}) is not included in insight ${entry.insightId}.claimIds.`,
+            `${path}.insightId`,
+          );
+        }
+        insightId = entry.insightId;
+      }
+      return {
+        claimId: entry.claimId,
+        priority: entry.priority as WriterFindingPriority,
+        ...(insightId !== undefined ? { insightId } : {}),
+      };
     });
 
     if (!Array.isArray(plan.sections) || plan.sections.length > WRITER_LIMITS.sections) {
@@ -1015,15 +1331,17 @@ export class WriterAgentLedger {
         "presentationPlan.sections",
       );
     }
+    const seenPlannedSectionIds = new Set<string>();
     const plannedSections: WriterPlannedSection[] = plan.sections.map((item, index) => {
       const path = `presentationPlan.sections[${index}]`;
       if (!item || typeof item !== "object" || Array.isArray(item)) {
         throw new WriterRejection("writer_output_shape", `${path} must be an object.`, path);
       }
       const entry = item as Record<string, unknown>;
-      if (typeof entry.id !== "string" || !SECTION_ID_PATTERN.test(entry.id)) {
-        throw new WriterRejection("writer_output_shape", `${path}.id must be s1…s99.`, `${path}.id`);
+      if (typeof entry.id !== "string" || !SECTION_ID_PATTERN.test(entry.id) || seenPlannedSectionIds.has(entry.id)) {
+        throw new WriterRejection("writer_output_shape", `${path}.id must be a unique s1…s99 id.`, `${path}.id`);
       }
+      seenPlannedSectionIds.add(entry.id);
       if (typeof entry.heading !== "string" || entry.heading.trim() === "" || entry.heading.length > WRITER_LIMITS.heading) {
         throw new WriterRejection("writer_output_shape", `${path}.heading must be short text.`, `${path}.heading`);
       }
@@ -1071,6 +1389,41 @@ export class WriterAgentLedger {
           return questionId;
         });
       }
+      let insightIds: string[] | undefined;
+      if (entry.insightIds !== undefined && entry.insightIds !== null) {
+        if (!Array.isArray(entry.insightIds) || entry.insightIds.length > 12) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.insightIds must be a list of up to 12 items.`,
+            `${path}.insightIds`,
+          );
+        }
+        insightIds = entry.insightIds.map((insId, iIdx) => {
+          if (typeof insId !== "string" || !INSIGHT_ID_PATTERN.test(insId)) {
+            throw new WriterRejection(
+              "writer_insight_mapping_invalid",
+              `${path}.insightIds[${iIdx}] must be a valid insight ID.`,
+              `${path}.insightIds[${iIdx}]`,
+            );
+          }
+          if (insights && !insightsById.has(insId)) {
+            throw new WriterRejection(
+              "writer_insight_mapping_invalid",
+              `${path}.insightIds[${iIdx}] (${insId}) is not declared in presentationPlan.insights.`,
+              `${path}.insightIds[${iIdx}]`,
+            );
+          }
+          const linked = insightsById.get(insId);
+          if (linked && !claimIds.some((cId) => linked.claimIds.includes(cId))) {
+            throw new WriterRejection(
+              "writer_insight_mapping_invalid",
+              `${path} references insight ${insId} but cites none of its supporting claims.`,
+              `${path}.insightIds[${iIdx}]`,
+            );
+          }
+          return insId;
+        });
+      }
       let purpose: string | undefined;
       if (entry.purpose !== undefined && entry.purpose !== null) {
         if (typeof entry.purpose !== "string" || entry.purpose.trim() === "" || entry.purpose.length > 400) {
@@ -1089,6 +1442,7 @@ export class WriterAgentLedger {
         claimIds,
         ...(goalIds !== undefined ? { goalIds } : {}),
         ...(specialistQuestionIds !== undefined ? { specialistQuestionIds } : {}),
+        ...(insightIds !== undefined ? { insightIds } : {}),
         ...(purpose !== undefined ? { purpose } : {}),
       };
     });
@@ -1100,6 +1454,9 @@ export class WriterAgentLedger {
         "presentationPlan.components",
       );
     }
+    const seenNarrativeSectionIds = new Set<string>();
+    const seenScenarioExplorerIds = new Set<string>();
+    const seenStructuredComponentByClaims = new Map<string, { purpose: string | undefined; reuseReason: string | undefined }>();
     const plannedComponents: WriterPlannedComponent[] = plan.components.map((item, index) => {
       const path = `presentationPlan.components[${index}]`;
       if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -1118,6 +1475,41 @@ export class WriterAgentLedger {
         }
         return claimId;
       });
+      let insightIds: string[] | undefined;
+      if (entry.insightIds !== undefined && entry.insightIds !== null) {
+        if (!Array.isArray(entry.insightIds) || entry.insightIds.length > 12) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.insightIds must be a list of up to 12 items.`,
+            `${path}.insightIds`,
+          );
+        }
+        insightIds = entry.insightIds.map((insId, iIdx) => {
+          if (typeof insId !== "string" || !INSIGHT_ID_PATTERN.test(insId)) {
+            throw new WriterRejection(
+              "writer_insight_mapping_invalid",
+              `${path}.insightIds[${iIdx}] must be a valid insight ID.`,
+              `${path}.insightIds[${iIdx}]`,
+            );
+          }
+          if (insights && !insightsById.has(insId)) {
+            throw new WriterRejection(
+              "writer_insight_mapping_invalid",
+              `${path}.insightIds[${iIdx}] (${insId}) is not declared in presentationPlan.insights.`,
+              `${path}.insightIds[${iIdx}]`,
+            );
+          }
+          const linked = insightsById.get(insId);
+          if (linked && !claimIds.some((cId) => linked.claimIds.includes(cId))) {
+            throw new WriterRejection(
+              "writer_insight_mapping_invalid",
+              `${path} references insight ${insId} but cites none of its supporting claims.`,
+              `${path}.insightIds[${iIdx}]`,
+            );
+          }
+          return insId;
+        });
+      }
       let purpose: string | undefined;
       if (entry.purpose !== undefined && entry.purpose !== null) {
         if (typeof entry.purpose !== "string" || entry.purpose.trim() === "" || entry.purpose.length > 400) {
@@ -1129,12 +1521,67 @@ export class WriterAgentLedger {
         }
         purpose = entry.purpose.trim();
       }
+      let reuseReason: string | undefined;
+      if (entry.reuseReason !== undefined && entry.reuseReason !== null) {
+        if (typeof entry.reuseReason !== "string" || entry.reuseReason.trim() === "" || entry.reuseReason.length > 400) {
+          throw new WriterRejection(
+            "writer_output_shape",
+            `${path}.reuseReason must be non-empty text up to 400 characters.`,
+            `${path}.reuseReason`,
+          );
+        }
+        reuseReason = entry.reuseReason.trim();
+      }
+      if (entry.component === "Narrative" && typeof entry.sectionId === "string") {
+        if (seenNarrativeSectionIds.has(entry.sectionId)) {
+          throw new WriterRejection(
+            "writer_duplicate_component",
+            `${path} places Narrative section "${entry.sectionId}" more than once.`,
+            `${path}.sectionId`,
+          );
+        }
+        seenNarrativeSectionIds.add(entry.sectionId);
+      } else if (entry.component === "ScenarioExplorer" && typeof entry.scenarioId === "string") {
+        if (seenScenarioExplorerIds.has(entry.scenarioId)) {
+          throw new WriterRejection(
+            "writer_duplicate_component",
+            `${path} places ScenarioExplorer "${entry.scenarioId}" more than once.`,
+            `${path}.scenarioId`,
+          );
+        }
+        seenScenarioExplorerIds.add(entry.scenarioId);
+      } else if (
+        entry.component !== "Narrative" &&
+        entry.component !== "ScenarioExplorer" &&
+        entry.component !== "SourceReferences"
+      ) {
+        const canonicalGroupSet = [
+          ...new Set(claimIds.map((cId) => this.canonicalFindings?.claimToGroupId[cId] ?? cId)),
+        ].sort();
+        const sig = `${entry.component}::${canonicalGroupSet.join(",")}`;
+        const prev = seenStructuredComponentByClaims.get(sig);
+        if (prev) {
+          const prevJustification = (prev.reuseReason ?? prev.purpose ?? "").toLowerCase();
+          const nextJustification = (reuseReason ?? purpose ?? "").toLowerCase();
+          if (!prevJustification || !nextJustification || prevJustification === nextJustification) {
+            throw new WriterRejection(
+              "writer_duplicate_component",
+              `${path} duplicates ${entry.component} over the same resolved findings without a distinct informational purpose or reuseReason.`,
+              `${path}.component`,
+            );
+          }
+        } else {
+          seenStructuredComponentByClaims.set(sig, { purpose, reuseReason });
+        }
+      }
       return {
         component: entry.component as A2uiComponentName,
         ...(typeof entry.sectionId === "string" ? { sectionId: entry.sectionId } : {}),
         ...(typeof entry.scenarioId === "string" ? { scenarioId: entry.scenarioId } : {}),
         claimIds,
+        ...(insightIds !== undefined ? { insightIds } : {}),
         ...(purpose !== undefined ? { purpose } : {}),
+        ...(reuseReason !== undefined ? { reuseReason } : {}),
       };
     });
 
@@ -1142,11 +1589,13 @@ export class WriterAgentLedger {
       schema: WRITER_PRESENTATION_PLAN_SCHEMA,
       ...(audienceObjective !== undefined ? { audienceObjective } : {}),
       summaryDetailLevel: detailLevel as WriterSummaryDetailLevel,
+      ...(insights !== undefined ? { insights } : {}),
       priorityFindings,
       sections: plannedSections,
       components: plannedComponents,
     };
     this.presentationPlan = normalized;
+    this.unresolvedSlots.delete("presentationPlan");
     return normalized;
   }
 
@@ -1216,14 +1665,15 @@ export class WriterAgentLedger {
     if (input.presentationPlan !== undefined && input.presentationPlan !== null) {
       try {
         this.recordPresentationPlan(input.presentationPlan);
+        this.acceptedCallCount += 1;
       } catch (error) {
         if (!(error instanceof WriterRejection || error instanceof BindRejection)) throw error;
-        recordUnitRejection("summary", error, input.presentationPlan, { slot: "presentationPlan" });
+        recordUnitRejection("plan", error, input.presentationPlan, { slot: "presentationPlan" });
       }
     }
 
     if (input.title !== undefined || input.summary !== undefined) {
-      const nextTitle = typeof input.title === "string" ? input.title : this.outline?.title;
+      const nextTitle = typeof input.title === "string" ? input.title : (this.outline?.title ?? this.acceptedTitle ?? undefined);
       const nextSummary = input.summary !== undefined ? input.summary : this.outline?.summary;
       try {
         this.setReportOutline({ title: nextTitle, summary: nextSummary });
@@ -1659,6 +2109,7 @@ export class WriterAgentLedger {
         ungroundedTitle.normalized,
       );
     }
+    this.acceptedTitle = args.title;
     if (!Array.isArray(args.summary) || args.summary.length < 1 || args.summary.length > WRITER_LIMITS.summaryBlocks) {
       throw new WriterRejection(
         "writer_output_shape",
@@ -1666,7 +2117,11 @@ export class WriterAgentLedger {
         "summary",
       );
     }
-    const summary = args.summary.map((item, index) => validateReportBlock(item, `summary[${index}]`, this.claims).block);
+    const summary = args.summary.map(
+      (item, index) => validateReportBlock(item, `summary[${index}]`, this.claims, this.temporalContext).block,
+    );
+    const summaryRefs = summary.flatMap((b) => b.claimRefs);
+    checkTemporalSafety(args.title, summaryRefs, this.temporalContext, "title");
     this.outline = { title: args.title, summary };
     this.unresolvedSlots.delete("outline");
     return {
@@ -1716,7 +2171,11 @@ export class WriterAgentLedger {
         `${path}.blocks`,
       );
     }
-    const blocks = args.blocks.map((block, index) => validateReportBlock(block, `${path}.blocks[${index}]`, this.claims).block);
+    const blocks = args.blocks.map(
+      (block, index) => validateReportBlock(block, `${path}.blocks[${index}]`, this.claims, this.temporalContext).block,
+    );
+    const sectionRefs = blocks.flatMap((b) => b.claimRefs);
+    checkTemporalSafety(args.heading, sectionRefs, this.temporalContext, `sections.${id}.heading`);
     this.sections.set(id, { id, heading: args.heading, blocks });
     this.unresolvedSlots.delete("section:invalid");
     this.unresolvedSlots.delete(`section:${id}`);
@@ -1828,6 +2287,7 @@ export class WriterAgentLedger {
       sectionIds: new Set(this.sections.keys()),
       scenarioResultIds: this.scenarioResultIds(),
       scenarioIds: new Set(this.scenarios.keys()),
+      temporalContext: this.temporalContext,
     };
     validateViewComponentProposal({ component, props }, path, validationContext);
     this.ensureViewSlotCapacity(targetIndex);
@@ -1900,6 +2360,8 @@ export class WriterAgentLedger {
     const validated = validateWriterReport(candidate, {
       audience: this.context.audience,
       claims: this.context.claims,
+      canonicalFindings: this.canonicalFindings,
+      asOf: this.context.asOf,
     });
     if (!validated.ok) {
       throw new WriterRejection(validated.diagnosticReason, validated.message, validated.diagnosticField);
@@ -1908,6 +2370,8 @@ export class WriterAgentLedger {
       audience: this.context.audience,
       claims: this.context.claims,
       fileNames: this.fileNames,
+      canonicalFindings: this.canonicalFindings,
+      asOf: this.context.asOf,
     });
     if (!built.ok) {
       throw new BindRejection(built.diagnosticReason, built.message, built.diagnosticField);
@@ -2150,6 +2614,47 @@ export class WriterAgentLedger {
       };
     }
 
+    if (reason === "writer_duplicate_finding") {
+      return {
+        ...base,
+        hint: "Do not list multiple claims from the same resolved canonical finding group as separate priorityFindings. Keep one representative claimId in priorityFindings and cite all supporting original claimIds together in your insights, sections, and components.",
+      };
+    }
+
+    if (reason === "writer_duplicate_component") {
+      return {
+        ...base,
+        hint: "Avoid duplicate Narrative sectionIds, duplicate ScenarioExplorer scenarioIds, or duplicate structured A2UI components over the same claims without a distinct informational purpose or reuseReason.",
+      };
+    }
+
+    if (reason === "writer_insight_mapping_invalid") {
+      return {
+        ...base,
+        hint: "Ensure each insight's questionIds match the exact planQuestionIds of its claimIds, and that any insightId/insightIds referenced in priorityFindings, sections, or components is declared in presentationPlan.insights and shares supporting claimIds.",
+      };
+    }
+
+    if (reason === "writer_conflict_collapsed") {
+      const conflictClaims = this.context.claims
+        .filter((claim) => claim.kind === "CONFLICT")
+        .map((claim) => claim.id);
+      return {
+        ...base,
+        ...(conflictClaims.length > 0 ? { candidateClaimIds: conflictClaims } : {}),
+        hint: `Contradictory fact claims must remain distinguishable. Either keep conflicting facts in separate insights or include the corresponding CONFLICT claim (${conflictClaims.join(", ") || ".K"}) in the insight's claimIds.`,
+      };
+    }
+
+    if (reason === "writer_temporal_status_invalid") {
+      const historicalIds = [...(this.temporalContext.historicalByClaimId?.keys() ?? [])];
+      return {
+        ...base,
+        ...(historicalIds.length > 0 ? { candidateClaimIds: historicalIds } : {}),
+        hint: "This item cites a finding whose documented effective period ended before the report date (HISTORICAL_AS_OF_REPORT_DATE). State clearly that the documented period ended before the report date and distinguish historical coverage from unknown current applicability; never call it the current/active plan or infer that a replacement exists or does not exist.",
+      };
+    }
+
     return base;
   }
 
@@ -2164,7 +2669,7 @@ export class WriterAgentLedger {
     }
     const parsed = this.parseCallArgs(call);
     if (parsed) {
-      for (const token of firstUngroundedTokensInObject(parsed, this.claims)) {
+      for (const token of firstUngroundedTokensInObject(parsed, this.claims, this.temporalContext.historicalByClaimId)) {
         ungroundedNumbers.add(token);
       }
       if (ungroundedNumbers.size === 0) {
@@ -2184,7 +2689,7 @@ export class WriterAgentLedger {
         if (compRules.requireRefs && claim.refs.length === 0) continue;
       }
       if (blockKinds && !blockKinds.has(claim.kind)) continue;
-      const claimNumbers = groundingNumbersForClaims(this.claims, [claim.id]);
+      const claimNumbers = groundingNumbersForClaims(this.claims, [claim.id], this.temporalContext.historicalByClaimId);
       if ([...ungroundedNumbers].some((num) => claimNumbers.has(num))) {
         candidates.push(claim.id);
       }
@@ -2226,6 +2731,7 @@ export type WriterCompiler = WriterAgentLedger;
 function firstUngroundedTokensInObject(
   node: unknown,
   claims: ReadonlyMap<string, StudyClaim>,
+  historicalByClaimId?: WriterTemporalValidationContext["historicalByClaimId"],
 ): string[] {
   const found: string[] = [];
   const visit = (value: unknown) => {
@@ -2241,7 +2747,7 @@ function firstUngroundedTokensInObject(
         ? [record.claimRef]
         : null;
     if (refs) {
-      const allowed = groundingNumbersForClaims(claims, refs);
+      const allowed = groundingNumbersForClaims(claims, refs, historicalByClaimId);
       for (const field of ["text", "date", "label", "left", "right", "value"]) {
         if (typeof record[field] === "string") {
           const token = firstUngroundedNumericToken(record[field] as string, allowed);

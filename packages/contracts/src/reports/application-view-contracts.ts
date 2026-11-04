@@ -1,7 +1,13 @@
+import {
+  buildActiveTemporalClaimIds,
+  buildHistoricalTemporalMap,
+  type CanonicalFindingResolution,
+} from "../analysis/canonical-finding-resolver";
 import type { NumericStatus, StudyClaim } from "../analysis/study-verification";
 import { diagnosticFieldFromMessage, type FailureComponent } from "../errors/failure-diagnostic";
 import {
   BINDING_TOKEN,
+  checkTemporalSafety,
   evaluateScenarios,
   firstUngroundedNumericToken,
   groundingNumbersForClaims,
@@ -12,6 +18,8 @@ import {
   type ScenarioAnalysis,
   validateWriterReport,
   type WriterReport,
+  WriterRejection,
+  type WriterTemporalValidationContext,
 } from "./writer-report-contracts";
 
 /**
@@ -111,6 +119,8 @@ export type ReportBuildContext = {
   readonly claims: readonly StudyClaim[];
   /** File names by lowercase source document id, for display only. */
   readonly fileNames: ReadonlyMap<string, string>;
+  readonly canonicalFindings?: CanonicalFindingResolution | null;
+  readonly asOf?: string | Date | null;
 };
 
 const LIMITS = { label: 200, cell: 600, rows: 40, columns: 8, items: 30 };
@@ -152,7 +162,12 @@ function reportLayer(diagnosticReason: string): "writer" | "scenario" {
 
 /** Validates a Writer output, computes its scenarios and binds its view. Any failure rejects the draft. */
 export function buildReport(raw: unknown, context: ReportBuildContext): ReportBuildResult {
-  const validated = validateWriterReport(raw, { audience: context.audience, claims: context.claims });
+  const validated = validateWriterReport(raw, {
+    audience: context.audience,
+    claims: context.claims,
+    canonicalFindings: context.canonicalFindings,
+    asOf: context.asOf,
+  });
   if (!validated.ok) {
     return {
       ok: false,
@@ -208,6 +223,7 @@ export type ViewComponentValidationContext = {
   readonly sectionIds: ReadonlySet<string>;
   readonly scenarioResultIds: ReadonlySet<string>;
   readonly scenarioIds: ReadonlySet<string>;
+  readonly temporalContext?: WriterTemporalValidationContext;
 };
 
 /**
@@ -219,13 +235,16 @@ export function validateViewComponentProposal(
   path: string,
   context: ViewComponentValidationContext,
 ): void {
-  const { claims, questionsWithFacts } = context;
+  const { claims, questionsWithFacts, temporalContext } = context;
   const props = proposal.props;
   if (!(A2UI_COMPONENTS as readonly string[]).includes(proposal.component)) {
     reject("view_component_unknown", `${path} uses a component outside the allowed catalog.`);
   }
   const grounded = (value: string, claimIds: readonly string[], fieldPath: string) => {
-    const ungrounded = firstUngroundedNumericToken(value, groundingNumbersForClaims(claims, claimIds));
+    const ungrounded = firstUngroundedNumericToken(
+      value,
+      groundingNumbersForClaims(claims, claimIds, temporalContext?.historicalByClaimId),
+    );
     if (ungrounded) {
       reject(
         "writer_number_ungrounded",
@@ -233,6 +252,14 @@ export function validateViewComponentProposal(
         numericDiagnosticField(fieldPath, ungrounded),
         ungrounded.normalized,
       );
+    }
+    try {
+      checkTemporalSafety(value, claimIds, temporalContext, fieldPath);
+    } catch (error) {
+      if (error instanceof WriterRejection) {
+        reject(error.diagnosticReason, error.message, error.diagnosticField ?? fieldPath);
+      }
+      throw error;
     }
   };
   const str = (value: unknown, fieldPath: string, max = LIMITS.label): string => {
@@ -461,6 +488,16 @@ function normalizeProse(value: string): string {
 function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, context: ReportBuildContext): ApplicationView {
   const claims = new Map(context.claims.map((claim) => [claim.id, claim]));
   const questionsWithFacts = new Set(context.claims.filter((claim) => claim.kind === "FACT").map((claim) => claim.planQuestionId));
+  const temporalContext: WriterTemporalValidationContext = {
+    historicalByClaimId: buildHistoricalTemporalMap(context.claims, {
+      canonicalFindings: context.canonicalFindings,
+      asOf: context.asOf,
+    }),
+    activeClaimIds: buildActiveTemporalClaimIds(context.claims, {
+      canonicalFindings: context.canonicalFindings,
+      asOf: context.asOf,
+    }),
+  };
   const mustSurfaceIds = new Set(
     context.claims
       .filter(
@@ -511,7 +548,10 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
     });
 
   const grounded = (value: string, claimIds: readonly string[], path: string) => {
-    const ungrounded = firstUngroundedNumericToken(value, groundingNumbersForClaims(claims, claimIds));
+    const ungrounded = firstUngroundedNumericToken(
+      value,
+      groundingNumbersForClaims(claims, claimIds, temporalContext.historicalByClaimId),
+    );
     if (ungrounded) {
       reject(
         "writer_number_ungrounded",
@@ -519,6 +559,14 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
         numericDiagnosticField(path, ungrounded),
         ungrounded.normalized,
       );
+    }
+    try {
+      checkTemporalSafety(value, claimIds, temporalContext, path);
+    } catch (error) {
+      if (error instanceof WriterRejection) {
+        reject(error.diagnosticReason, error.message, error.diagnosticField ?? path);
+      }
+      throw error;
     }
   };
   const str = (value: unknown, path: string, max = LIMITS.label): string => {

@@ -1469,3 +1469,172 @@ export function verifyProposedAtomicFindings(
     },
   };
 }
+
+export type WriterCanonicalFindingGroupProjection = {
+  readonly id: string;
+  readonly kind: ClaimKind;
+  readonly originalClaimIds: readonly string[];
+  readonly questionIds: readonly string[];
+  readonly exactEquivalence: "EXACT_DUPLICATE_GROUP" | "SINGLE_CLAIM";
+  readonly resolutionStatus: "RESOLVED" | "UNRESOLVED";
+  readonly unresolvedReasons: readonly CanonicalUnresolvedReason[];
+  readonly atomicity: {
+    readonly status: AtomicityStatus;
+    readonly reasons?: readonly AtomicityReason[];
+    readonly canLosslesslySplitWithoutModel: boolean;
+  };
+  readonly temporal: {
+    readonly status: TemporalStatus;
+    readonly asOfDate: string | null;
+    readonly startDate?: string | null;
+    readonly endDate?: string | null;
+    readonly currentnessResolved: boolean;
+    readonly unresolvedReason?: TemporalUnresolvedReason | null;
+  };
+  readonly ambiguousWithClaimIds?: readonly string[];
+  readonly conflictingWithClaimIds?: readonly string[];
+};
+
+export type WriterCanonicalFindingsProjection = {
+  readonly schema: typeof CANONICAL_FINDINGS_SCHEMA;
+  readonly advisoryOnly: true;
+  readonly asOfDate: string | null;
+  readonly counts: CanonicalFindingResolution["counts"];
+  readonly groups: readonly WriterCanonicalFindingGroupProjection[];
+  readonly ambiguousPairs: readonly CanonicalAmbiguousFindingLink[];
+};
+
+/**
+ * Builds a bounded advisory `canonicalFindings` projection for the Writer user payload (V4-004H Gate 2).
+ * Exposes exact-equivalence group IDs, original claim IDs, originating question IDs, atomicity flags,
+ * ambiguity/conflict links, and temporal classifications without duplicating raw quote text.
+ */
+export function buildWriterCanonicalFindingsProjection(
+  resolution: CanonicalFindingResolution,
+): WriterCanonicalFindingsProjection {
+  return {
+    schema: CANONICAL_FINDINGS_SCHEMA,
+    advisoryOnly: true,
+    asOfDate: resolution.asOfDate,
+    counts: { ...resolution.counts },
+    groups: resolution.groups.map((group) => ({
+      id: group.id,
+      kind: group.kind,
+      originalClaimIds: [...group.originalClaimIds],
+      questionIds: [...group.questionIds],
+      exactEquivalence: group.originalClaimIds.length > 1 ? "EXACT_DUPLICATE_GROUP" : "SINGLE_CLAIM",
+      resolutionStatus: group.resolutionStatus,
+      unresolvedReasons: [...group.unresolvedReasons],
+      atomicity: {
+        status: group.atomicity.status,
+        ...(group.atomicity.reasons.length > 0 ? { reasons: [...group.atomicity.reasons] } : {}),
+        canLosslesslySplitWithoutModel: group.atomicity.canLosslesslySplitWithoutModel,
+      },
+      temporal: {
+        status: group.temporal.status,
+        asOfDate: group.temporal.asOfDate,
+        ...(group.temporal.startDate ? { startDate: group.temporal.startDate } : {}),
+        ...(group.temporal.endDate ? { endDate: group.temporal.endDate } : {}),
+        currentnessResolved: group.temporal.currentnessResolved,
+        ...(group.temporal.unresolvedReason ? { unresolvedReason: group.temporal.unresolvedReason } : {}),
+      },
+      ...(group.ambiguousWithClaimIds.length > 0
+        ? { ambiguousWithClaimIds: [...group.ambiguousWithClaimIds] }
+        : {}),
+      ...(group.conflictingWithClaimIds.length > 0
+        ? { conflictingWithClaimIds: [...group.conflictingWithClaimIds] }
+        : {}),
+    })),
+    ambiguousPairs: resolution.ambiguousPairs.map((pair) => ({
+      leftGroupId: pair.leftGroupId,
+      rightGroupId: pair.rightGroupId,
+      leftClaimIds: [...pair.leftClaimIds],
+      rightClaimIds: [...pair.rightClaimIds],
+      reason: pair.reason,
+    })),
+  };
+}
+
+function claimEvidenceForTemporal(claim: StudyClaim): CanonicalEvidenceItem[] {
+  return claim.quotes.map((quote, idx) => {
+    const ref = claim.refs[Math.min(idx, Math.max(0, claim.refs.length - 1))];
+    return {
+      sourceDocumentId: ref?.sourceDocumentId.toLowerCase() ?? "unknown",
+      pageNumber: ref?.pageNumber ?? 1,
+      quote,
+    };
+  });
+}
+
+/**
+ * Returns a map from `claimId` to its `CanonicalFindingTemporalClassification` for all claims
+ * classified as `HISTORICAL_AS_OF_REPORT_DATE`.
+ */
+export function buildHistoricalTemporalMap(
+  claims: readonly StudyClaim[],
+  options?: {
+    readonly canonicalFindings?: CanonicalFindingResolution | null;
+    readonly asOf?: string | Date | null;
+  },
+): ReadonlyMap<string, CanonicalFindingTemporalClassification> {
+  const map = new Map<string, CanonicalFindingTemporalClassification>();
+  if (options?.canonicalFindings) {
+    for (const group of options.canonicalFindings.groups) {
+      if (group.temporal.status === "HISTORICAL_AS_OF_REPORT_DATE") {
+        for (const claimId of group.originalClaimIds) {
+          map.set(claimId, group.temporal);
+        }
+      }
+    }
+    return map;
+  }
+  if (options?.asOf !== undefined && options?.asOf !== null) {
+    for (const claim of claims) {
+      const temporal = classifyFindingTemporalStatus(
+        claimEvidenceForTemporal(claim),
+        claim.text,
+        options.asOf,
+      );
+      if (temporal.status === "HISTORICAL_AS_OF_REPORT_DATE") {
+        map.set(claim.id, temporal);
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * Returns the set of `claimId`s classified as `ACTIVE_AS_OF_REPORT_DATE`.
+ */
+export function buildActiveTemporalClaimIds(
+  claims: readonly StudyClaim[],
+  options?: {
+    readonly canonicalFindings?: CanonicalFindingResolution | null;
+    readonly asOf?: string | Date | null;
+  },
+): ReadonlySet<string> {
+  const active = new Set<string>();
+  if (options?.canonicalFindings) {
+    for (const group of options.canonicalFindings.groups) {
+      if (group.temporal.status === "ACTIVE_AS_OF_REPORT_DATE") {
+        for (const claimId of group.originalClaimIds) {
+          active.add(claimId);
+        }
+      }
+    }
+    return active;
+  }
+  if (options?.asOf !== undefined && options?.asOf !== null) {
+    for (const claim of claims) {
+      const temporal = classifyFindingTemporalStatus(
+        claimEvidenceForTemporal(claim),
+        claim.text,
+        options.asOf,
+      );
+      if (temporal.status === "ACTIVE_AS_OF_REPORT_DATE") {
+        active.add(claim.id);
+      }
+    }
+  }
+  return active;
+}

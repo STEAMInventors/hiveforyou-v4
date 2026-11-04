@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveCanonicalFindings } from "../analysis/canonical-finding-resolver";
 import { studyClaimCatalog, verifyStudyInvestigation } from "../analysis/study-verification";
 import { buildFailureDiagnostic } from "../errors/failure-diagnostic";
 import {
   MAYA_FILE_NAMES,
   MAYA_PAGES,
   MAYA_PLAN_QUESTION_IDS,
+  MAYA_REVISION_6_PAGES,
+  MAYA_REVISION_6_PLAN_QUESTION_IDS,
   MAYA_RUN_ID,
+  mayaRevision6StudyOutput,
   mayaStudyOutput,
   mayaWriterAgentTurns,
   mayaWriterComposeTurns,
@@ -1181,5 +1185,821 @@ describe("WriterCompiler structured composition and targeted unit correction (D-
     expect(proState.presentationPlan?.components.map((c) => c.component)).not.toEqual(
       meetingPrepState.presentationPlan?.components.map((c) => c.component),
     );
+  });
+});
+
+function revision6Context(asOf = "2026-11-04") {
+  const verified = verifyStudyInvestigation(mayaRevision6StudyOutput(), {
+    processingRunId: MAYA_RUN_ID,
+    planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+    pages: new Map(Object.entries(MAYA_REVISION_6_PAGES)),
+  });
+  if (!verified.ok) throw new Error(verified.message);
+  const claims = studyClaimCatalog(verified.value);
+  const canonicalFindings = resolveCanonicalFindings(verified.value, claims, { asOf });
+  return { study: verified.value, claims, canonicalFindings };
+}
+
+function createRevision6Ledger(audience: ReportAudience = "CUSTOMER", asOf = "2026-11-04") {
+  const { study, claims, canonicalFindings } = revision6Context(asOf);
+  const ledger = new WriterAgentLedger({
+    reportRunId: REPORT_RUN_ID,
+    audience,
+    claims,
+    fileNames: FILE_NAMES,
+    canonicalFindings,
+    asOf,
+  });
+  return { ledger, study, claims, canonicalFindings };
+}
+
+describe("Writer editorial synthesis and Canonical Finding Resolution integration (V4-004H Gate 2)", () => {
+  it("synthesizes P1/P2/P7 baseline and goal into one model-planned insight with all original references and rejects duplicate priorityFindings", () => {
+    const { ledger, claims, canonicalFindings } = createRevision6Ledger("CUSTOMER");
+
+    // 1. Attempting to list P1.F0 and P2.F0 (same canonical finding group CF2) as separate priorityFindings is rejected.
+    const dupPlanRes = exec(ledger, "compose_writer_report", {
+      presentationPlan: {
+        audienceObjective: "Understand Maya's reading progress and prepare for the March 3, 2026 meeting.",
+        summaryDetailLevel: "BALANCED",
+        insights: [
+          {
+            id: "INS1",
+            meaning: "Reading fluency rose from the 62 wcpm baseline to 74 wcpm (+12 wcpm) in Nov 2025 and held at 74 wcpm in Jan 2026.",
+            claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P2.F1"],
+            questionIds: ["P1", "P2", "P5", "P7"],
+            role: "CENTRAL",
+            reuseReason: "Synthesized in narrative and compared in structured table/timeline.",
+          },
+        ],
+        priorityFindings: [
+          { claimId: "P1.F0", priority: "HIGH", insightId: "INS1" },
+          { claimId: "P2.F0", priority: "HIGH", insightId: "INS1" }, // Duplicate of P1.F0 in group CF2!
+        ],
+        sections: [
+          {
+            id: "s1",
+            heading: "Reading fluency progress and goal conflict",
+            priority: "HIGH",
+            insightIds: ["INS1"],
+            purpose: "Synthesize baseline, progress probes, and the 2024 vs 2025 target conflict.",
+            claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P1.K0", "P1"],
+          },
+        ],
+        components: [
+          { component: "Narrative", sectionId: "summary", claimIds: ["P1.F0", "P1.F2", "P1.C0"] },
+          { component: "Narrative", sectionId: "s1", claimIds: ["P1.K0", "P1.U0", "P6.U0", "P6"] },
+        ],
+      },
+      title: "Maya's IEP review",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "Maya's reading fluency rose from a baseline of 62 words correct per minute to 74 words correct per minute ({{calc:P1.C0}} words gained).",
+          claimRefs: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P1.C0"],
+        },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "Reading fluency progress and open questions",
+          blocks: [
+            {
+              type: "DOCUMENTED",
+              text: "Across the November 14, 2025 and January 15, 2026 progress reports, reading fluency was 74 words correct per minute after the 62 words correct per minute baseline, while the 2024 and 2025 plans state different goals of 60 and 90 words correct per minute.",
+              claimRefs: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.F3", "P2.F1", "P1.K0", "P1"],
+            },
+            {
+              type: "UNCERTAINTY",
+              text: "Comprehension probe data after November 2025 was not available in the record, and the evaluation did not report a reading comprehension score before the March 3, 2026 meeting.",
+              claimRefs: ["P1.U0", "P6.U0", "P6", "P6.F0", "P6.F1"],
+            },
+          ],
+        },
+      ],
+      scenarios: [],
+      view: [
+        { component: "Narrative", props: { sectionId: "summary" } },
+        { component: "Narrative", props: { sectionId: "s1" } },
+      ],
+    });
+
+    expect(dupPlanRes.ok).toBe(false);
+    expect(dupPlanRes.error).toBe("writer_duplicate_finding");
+    expect(dupPlanRes.field).toBe("presentationPlan.priorityFindings[1].claimId");
+    // Meanwhile, valid outline, s1, and view were preserved!
+    expect(dupPlanRes.acceptedSectionIds).toEqual(["s1"]);
+    expect(dupPlanRes.acceptedViewComponentCount).toBe(2);
+
+    // 2. Repair only the presentationPlan in Turn 2 via apply_writer_correction -> succeeds!
+    const repaired = exec(ledger, "apply_writer_correction", {
+      presentationPlan: {
+        audienceObjective: "Understand Maya's reading progress and prepare for the March 3, 2026 meeting.",
+        summaryDetailLevel: "BALANCED",
+        insights: [
+          {
+            id: "INS1",
+            meaning: "Reading fluency rose from the 62 wcpm baseline to 74 wcpm (+12 wcpm) in Nov 2025 and held at 74 wcpm in Jan 2026.",
+            claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P2.F1"],
+            questionIds: ["P1", "P2", "P5", "P7"],
+            role: "CENTRAL",
+            reuseReason: "Synthesized in narrative and compared in structured table/timeline.",
+          },
+        ],
+        priorityFindings: [
+          { claimId: "P1.F0", priority: "HIGH", insightId: "INS1" },
+          { claimId: "P1.C0", priority: "HIGH", insightId: "INS1" },
+        ],
+        sections: [
+          {
+            id: "s1",
+            heading: "Reading fluency progress and goal conflict",
+            priority: "HIGH",
+            insightIds: ["INS1"],
+            purpose: "Synthesize baseline, progress probes, and the 2024 vs 2025 target conflict.",
+            claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P1.K0", "P1"],
+          },
+        ],
+        components: [
+          { component: "Narrative", sectionId: "summary", claimIds: ["P1.F0", "P1.F2", "P1.C0"] },
+          { component: "Narrative", sectionId: "s1", claimIds: ["P1.K0", "P1.U0", "P6.U0", "P6"] },
+        ],
+      },
+    });
+
+    expect(repaired.ok).toBe(true);
+    expect(ledger.finished).toBe(true);
+    expect(ledger.currentPresentationPlan?.insights?.[0]?.claimIds).toEqual([
+      "P1.F0",
+      "P2.F0",
+      "P7.F0",
+      "P1.F2",
+      "P5.F0",
+      "P1.C0",
+      "P2.F1",
+    ]);
+    expect(ledger.currentPresentationPlan?.insights?.[0]?.questionIds).toEqual(["P1", "P2", "P5", "P7"]);
+    expect(buildReport(ledger.assemble(), { audience: "CUSTOMER", claims, fileNames: FILE_NAMES, canonicalFindings }).ok).toBe(true);
+  });
+
+  it("allows P1/P6 monitoring concerns to form one synthesized uncertainty issue citing all original claims, while rejecting omitted or distinct overlapping uncertainties", () => {
+    const { ledger, claims } = createRevision6Ledger("PRO");
+
+    // 1. Omit P6.U0 while citing only P1.U0 -> rejected with writer_uncertainty_hidden listing P6.U0!
+    const missingP6U0 = exec(ledger, "compose_writer_report", {
+      presentationPlan: {
+        summaryDetailLevel: "CONCISE",
+        priorityFindings: [{ claimId: "P1.K0", priority: "HIGH" }],
+        sections: [{ id: "s1", heading: "Audit", priority: "HIGH", claimIds: ["P1", "P1.K0", "P1.U0", "P6"] }],
+        components: [{ component: "Narrative", sectionId: "s1", claimIds: ["P1", "P1.K0", "P1.U0", "P6"] }],
+      },
+      title: "IEP Evidence Audit",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "The 2024 and 2025 plans state conflicting reading goals of 60 vs 90 words correct per minute.",
+          claimRefs: ["P1.F3", "P2.F1", "P1.K0", "P1"],
+        },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "Monitoring gaps",
+          blocks: [
+            {
+              type: "UNCERTAINTY",
+              text: "Comprehension probe data after November 2025 was not available, and the evaluation reported no comprehension score.",
+              claimRefs: ["P1.U0", "P6"], // P6.U0 omitted!
+            },
+          ],
+        },
+      ],
+      scenarios: [],
+      view: [{ component: "Narrative", props: { sectionId: "s1" } }],
+    });
+
+    expect(missingP6U0.ok).toBe(false);
+    expect(missingP6U0.error).toBe("writer_uncertainty_hidden");
+    expect(missingP6U0.unsurfacedClaims).toEqual(["P6.U0"]);
+
+    // 2. Patch s1 to cite both P1.U0 and P6.U0 (and P6) in the single synthesized uncertainty block -> succeeds!
+    const fixed = exec(ledger, "apply_writer_correction", {
+      sections: [
+        {
+          id: "s1",
+          heading: "Monitoring gaps",
+          blocks: [
+            {
+              type: "UNCERTAINTY",
+              text: "Comprehension probe data after November 2025 was not available, and the evaluation reported no comprehension score.",
+              claimRefs: ["P1.U0", "P6.U0", "P6"],
+            },
+          ],
+        },
+      ],
+    });
+    expect(fixed.ok).toBe(true);
+    expect(ledger.finished).toBe(true);
+
+    // 3. Verify that a distinct uncertainty with overlapping wording (e.g. P4.U0 about fluency probes vs comprehension probes)
+    //    is not deduplicated away and causes writer_uncertainty_hidden if omitted.
+    const claimsWithDistinctUncertainty = [
+      ...claims,
+      {
+        id: "P4.U0",
+        kind: "UNCERTAINTY" as const,
+        planQuestionId: "P4",
+        text: "Oral reading fluency probe data after January 2026 was not available in the record.",
+        refs: [],
+        quotes: [],
+      },
+    ];
+    const ledgerDistinct = new WriterAgentLedger({
+      reportRunId: REPORT_RUN_ID,
+      audience: "PRO",
+      claims: claimsWithDistinctUncertainty,
+      fileNames: FILE_NAMES,
+    });
+    const omittedDistinctRes = exec(ledgerDistinct, "compose_writer_report", {
+      presentationPlan: {
+        summaryDetailLevel: "CONCISE",
+        priorityFindings: [{ claimId: "P1.K0", priority: "HIGH" }],
+        sections: [{ id: "s1", heading: "Audit", priority: "HIGH", claimIds: ["P1", "P1.K0", "P1.U0", "P6.U0", "P6"] }],
+        components: [{ component: "Narrative", sectionId: "s1", claimIds: ["P1", "P1.K0", "P1.U0", "P6.U0", "P6"] }],
+      },
+      title: "IEP Evidence Audit",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "The 2024 and 2025 plans state conflicting reading goals of 60 vs 90 words correct per minute.",
+          claimRefs: ["P1.F3", "P2.F1", "P1.K0", "P1"],
+        },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "Monitoring gaps",
+          blocks: [
+            {
+              type: "UNCERTAINTY",
+              text: "Comprehension probe data after November 2025 was not available, and the evaluation reported no comprehension score.",
+              claimRefs: ["P1.U0", "P6.U0", "P6"],
+            },
+          ],
+        },
+      ],
+      scenarios: [],
+      view: [{ component: "Narrative", props: { sectionId: "s1" } }],
+    });
+    expect(omittedDistinctRes.ok).toBe(false);
+    expect(omittedDistinctRes.error).toBe("writer_uncertainty_hidden");
+    expect(omittedDistinctRes.unsurfacedClaims).toEqual(["P4.U0"]);
+  });
+
+  it("keeps contradictory findings (P1.F3 vs P2.F1) and different-date findings (P1.F2 vs P5.F0) distinguishable and leaves compound P1.F1/P4.F0 claims intact", () => {
+    const { ledger, canonicalFindings } = createRevision6Ledger("PRO");
+
+    // 1. Compound claims P1.F1 and P4.F0 remain intact in canonicalFindings with REQUIRES_SEMANTIC_ATOMIZATION.
+    const p1F1Group = canonicalFindings.groups.find((g) => g.originalClaimIds.includes("P1.F1"));
+    const p4F0Group = canonicalFindings.groups.find((g) => g.originalClaimIds.includes("P4.F0"));
+    expect(p1F1Group?.atomicity.status).toBe("REQUIRES_SEMANTIC_ATOMIZATION");
+    expect(p4F0Group?.atomicity.status).toBe("REQUIRES_SEMANTIC_ATOMIZATION");
+
+    // 2. Citing an unverified split sub-claim ID (P4.F0.a1) is rejected as writer_claim_unknown.
+    expect(() =>
+      ledger.recordPresentationPlan({
+        summaryDetailLevel: "BALANCED",
+        priorityFindings: [{ claimId: "P4.F0.a1", priority: "HIGH" }],
+        sections: [],
+        components: [],
+      }),
+    ).toThrow(expect.objectContaining({ diagnosticReason: "writer_claim_unknown" }));
+
+    // 3. Merging conflicting facts P1.F3 (60 wcpm) and P2.F1 (90 wcpm) into one insight without P1.K0 is rejected with writer_conflict_collapsed.
+    expect(() =>
+      ledger.recordPresentationPlan({
+        summaryDetailLevel: "COMPREHENSIVE",
+        insights: [
+          {
+            id: "INS_CONFLICT_COLLAPSED",
+            meaning: "Annual reading fluency goal.",
+            claimIds: ["P1.F3", "P2.F1"], // Missing P1.K0!
+            questionIds: ["P1", "P2"],
+            role: "CENTRAL",
+          },
+        ],
+        priorityFindings: [{ claimId: "P1.F3", priority: "HIGH" }],
+        sections: [],
+        components: [],
+      }),
+    ).toThrow(expect.objectContaining({ diagnosticReason: "writer_conflict_collapsed" }));
+
+    // 4. Including P1.K0 alongside P1.F3 and P2.F1 in the conflict insight succeeds, and P1.F2 (Nov 2025) + P5.F0 (Jan 2026) stay distinct claims.
+    const validPlan = ledger.recordPresentationPlan({
+      summaryDetailLevel: "COMPREHENSIVE",
+      insights: [
+        {
+          id: "INS_GOAL_CONFLICT",
+          meaning: "The 2024 IEP sets a 60 wcpm goal whereas the March 2025 amendment sets a 90 wcpm goal.",
+          claimIds: ["P1.F3", "P2.F1", "P1.K0"],
+          questionIds: ["P1", "P2"],
+          role: "CENTRAL",
+        },
+        {
+          id: "INS_FLUENCY_PROBES",
+          meaning: "Fluency measured 74 wcpm in both November 2025 and January 2026.",
+          claimIds: ["P1.F2", "P5.F0"],
+          questionIds: ["P1", "P5"],
+          role: "CENTRAL",
+        },
+      ],
+      priorityFindings: [
+        { claimId: "P1.K0", priority: "HIGH", insightId: "INS_GOAL_CONFLICT" },
+        { claimId: "P1.F2", priority: "HIGH", insightId: "INS_FLUENCY_PROBES" },
+        { claimId: "P5.F0", priority: "MEDIUM", insightId: "INS_FLUENCY_PROBES" },
+      ],
+      sections: [],
+      components: [],
+    });
+    expect(validPlan.insights).toHaveLength(2);
+  });
+
+  it("enforces temporal editorial safety on historical IEP period 2024-11-12 to 2025-11-11 as of 2026-11-04 and recovers within Writer budgets", () => {
+    const { ledger, claims, canonicalFindings } = createRevision6Ledger("CUSTOMER", "2026-11-04");
+
+    // 1. Calling the 2024-11-12 to 2025-11-11 IEP "the current IEP" or "currently in effect" is rejected.
+    const overclaimCurrent = exec(ledger, "set_report_outline", {
+      title: "Maya's IEP review",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "Under Maya's current IEP (2024-11-12 to 2025-11-11), which remains in effect, the baseline was 62 words correct per minute.",
+          claimRefs: ["P1.F4", "P1.F0"],
+        },
+      ],
+    });
+    expect(overclaimCurrent).toMatchObject({
+      ok: false,
+      error: "writer_temporal_status_invalid",
+      field: "summary[0]",
+      hint: expect.stringContaining("HISTORICAL_AS_OF_REPORT_DATE"),
+    });
+
+    // 2. Claiming that the 2024-11-12 to 2025-11-11 IEP was replaced by a newer 2026 IEP is rejected.
+    const overclaimReplaced = exec(ledger, "set_report_outline", {
+      title: "Maya's IEP review",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "The 2024-11-12 to 2025-11-11 IEP was replaced by a newer IEP.",
+          claimRefs: ["P1.F4"],
+        },
+      ],
+    });
+    expect(overclaimReplaced).toMatchObject({
+      ok: false,
+      error: "writer_temporal_status_invalid",
+      field: "summary[0]",
+    });
+
+    // 3. Claiming that no replacement IEP exists after 2025-11-11 is rejected.
+    const overclaimNoReplacement = exec(ledger, "set_report_outline", {
+      title: "Maya's IEP review",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "The 2024-11-12 to 2025-11-11 IEP ended and no replacement IEP exists.",
+          claimRefs: ["P1.F4"],
+        },
+      ],
+    });
+    expect(overclaimNoReplacement).toMatchObject({
+      ok: false,
+      error: "writer_temporal_status_invalid",
+      field: "summary[0]",
+    });
+
+    // 4. Stating "The IEP effective period is 2024-11-12 to 2025-11-11." in present tense without historical framing is rejected.
+    const presentTenseUnframed = exec(ledger, "set_report_outline", {
+      title: "Maya's IEP review",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "The IEP effective period is 2024-11-12 to 2025-11-11.",
+          claimRefs: ["P1.F4"],
+        },
+      ],
+    });
+    expect(presentTenseUnframed).toMatchObject({
+      ok: false,
+      error: "writer_temporal_status_invalid",
+      field: "summary[0]",
+    });
+
+    // 5. Explicitly framing the 2024-11-12 to 2025-11-11 period as having ended before 2026-11-04 without inferring replacement or current status succeeds!
+    const validHistorical = exec(ledger, "set_report_outline", {
+      title: "Maya's IEP review as of 2026-11-04",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "The documented 2024 IEP effective period of 2024-11-12 to 2025-11-11 ended before the 2026-11-04 report date, and whether a newer annual plan is currently in effect is not established by that historical range alone.",
+          claimRefs: ["P1.F4"],
+        },
+      ],
+    });
+    expect(validHistorical.ok).toBe(true);
+
+    // Complete the report and verify buildReport also passes.
+    expect(
+      exec(ledger, "record_section", {
+        id: "s1",
+        heading: "Historical period and open questions",
+        blocks: [
+          {
+            type: "DOCUMENTED",
+            text: "The 2024 and 2025 plans state different reading goals of 60 vs 90 words correct per minute.",
+            claimRefs: ["P1.F3", "P2.F1", "P1.K0", "P1"],
+          },
+          {
+            type: "UNCERTAINTY",
+            text: "Comprehension probe data after November 2025 was not available, and the evaluation reported no comprehension score.",
+            claimRefs: ["P1.U0", "P6.U0", "P6"],
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+    expect(exec(ledger, "record_view_component", { component: "Narrative", props: { sectionId: "summary" } }).ok).toBe(true);
+    expect(exec(ledger, "record_view_component", { component: "Narrative", props: { sectionId: "s1" } }).ok).toBe(true);
+    expect(exec(ledger, "finish_report", {}).ok).toBe(true);
+    expect(buildReport(ledger.assemble(), { audience: "CUSTOMER", claims, fileNames: FILE_NAMES, canonicalFindings }).ok).toBe(true);
+  });
+
+  it("rejects redundant duplicate A2UI components while supporting legitimate dual-use across narrative and structured components", () => {
+    const { ledger } = createRevision6Ledger("PRO");
+
+    // 1. Two RecordTable components over the exact same resolved claims without a distinct purpose/reuseReason is rejected.
+    expect(() =>
+      ledger.recordPresentationPlan({
+        summaryDetailLevel: "COMPREHENSIVE",
+        priorityFindings: [{ claimId: "P1.F0", priority: "HIGH" }],
+        sections: [{ id: "s1", heading: "Audit", priority: "HIGH", claimIds: ["P1.F0", "P1.F2"] }],
+        components: [
+          { component: "RecordTable", claimIds: ["P1.F0", "P1.F2"], purpose: "Show fluency scores." },
+          { component: "RecordTable", claimIds: ["P2.F0", "P1.F2"], purpose: "Show fluency scores." }, // P2.F0 maps to same CF group as P1.F0!
+        ],
+      }),
+    ).toThrow(expect.objectContaining({ diagnosticReason: "writer_duplicate_component" }));
+
+    // 2. Duplicate Narrative sectionId is rejected.
+    expect(() =>
+      ledger.recordPresentationPlan({
+        summaryDetailLevel: "COMPREHENSIVE",
+        priorityFindings: [{ claimId: "P1.F0", priority: "HIGH" }],
+        sections: [{ id: "s1", heading: "Audit", priority: "HIGH", claimIds: ["P1.F0", "P1.F2"] }],
+        components: [
+          { component: "Narrative", sectionId: "s1", claimIds: ["P1.F0"] },
+          { component: "Narrative", sectionId: "s1", claimIds: ["P1.F2"] },
+        ],
+      }),
+    ).toThrow(expect.objectContaining({ diagnosticReason: "writer_duplicate_component" }));
+
+    // 3. Legitimate dual-use of the same claims across Narrative, Comparison, RecordTable, and EvidencePanel succeeds.
+    const dualUsePlan = ledger.recordPresentationPlan({
+      summaryDetailLevel: "COMPREHENSIVE",
+      insights: [
+        {
+          id: "INS1",
+          meaning: "Baseline 62 wcpm and Nov 2025 / Jan 2026 progress at 74 wcpm (+12 wcpm).",
+          claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0"],
+          questionIds: ["P1", "P2", "P5", "P7"],
+          role: "CENTRAL",
+          reuseReason: "Explained in narrative synthesis and audited across Comparison and RecordTable.",
+        },
+      ],
+      priorityFindings: [{ claimId: "P1.C0", priority: "HIGH", insightId: "INS1" }],
+      sections: [
+        {
+          id: "s1",
+          heading: "Fluency trajectory analysis",
+          priority: "HIGH",
+          insightIds: ["INS1"],
+          purpose: "Interpret fluency gain and stagnation between Nov 2025 and Jan 2026.",
+          claimIds: ["P1.F0", "P1.F2", "P5.F0", "P1.C0"],
+        },
+      ],
+      components: [
+        {
+          component: "Narrative",
+          sectionId: "s1",
+          insightIds: ["INS1"],
+          claimIds: ["P1.F0", "P1.F2", "P5.F0", "P1.C0"],
+          purpose: "Provide analytical narrative synthesis.",
+        },
+        {
+          component: "Comparison",
+          insightIds: ["INS1"],
+          claimIds: ["P1.F0", "P1.F2"],
+          purpose: "Compare baseline vs November 2025 probe side by side.",
+          reuseReason: "Visual side-by-side comparison complements narrative synthesis.",
+        },
+        {
+          component: "RecordTable",
+          insightIds: ["INS1"],
+          claimIds: ["P1.F0", "P1.F2", "P5.F0"],
+          purpose: "Provide dated measurement ledger across all probes.",
+          reuseReason: "Tabular audit ledger across three dated documents.",
+        },
+      ],
+    });
+    expect(dualUsePlan.components).toHaveLength(3);
+  });
+
+  it("produces substantially different Customer and Pro reports from the identical revision-6 Study claims and canonicalFindings", () => {
+    const customer = createRevision6Ledger("CUSTOMER", "2026-11-04");
+    const pro = createRevision6Ledger("PRO", "2026-11-04");
+
+    const customerRes = exec(customer.ledger, "compose_writer_report", {
+      presentationPlan: {
+        audienceObjective: "Help Maya's parent understand her reading progress, speech therapy shortfall, and questions to ask at the March 3, 2026 IEP meeting.",
+        summaryDetailLevel: "BALANCED",
+        insights: [
+          {
+            id: "INS_PROGRESS",
+            meaning: "Maya's reading fluency improved from 62 to 74 wcpm (+12 wcpm) by Nov 2025 and stayed at 74 wcpm in Jan 2026, while the 2024 (ended 2025-11-11) and 2025 plans list different targets (60 vs 90 wcpm).",
+            claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P1.F3", "P2.F1", "P1.K0", "P1.F4", "P1.A0", "P1.D0", "P1"],
+            questionIds: ["P1", "P2", "P5", "P7"],
+            role: "CENTRAL",
+            reuseReason: "Summarized in plain prose and highlighted in Metric and Timeline.",
+          },
+          {
+            id: "INS_SPEECH",
+            meaning: "360 of 480 required speech therapy minutes (75%) were delivered between September and November 2025.",
+            claimIds: ["P3.F0", "P3.F1", "P3.C0"],
+            questionIds: ["P3"],
+            role: "CENTRAL",
+          },
+          {
+            id: "INS_GAPS",
+            meaning: "No reading comprehension score or post-November comprehension probes are in the record before the March 3, 2026 meeting.",
+            claimIds: ["P1.U0", "P6.U0", "P6", "P6.F0", "P6.F1"],
+            questionIds: ["P1", "P6"],
+            role: "CENTRAL",
+          },
+        ],
+        priorityFindings: [
+          { claimId: "P1.C0", priority: "HIGH", insightId: "INS_PROGRESS" },
+          { claimId: "P3.C0", priority: "HIGH", insightId: "INS_SPEECH" },
+          { claimId: "P6", priority: "HIGH", insightId: "INS_GAPS" },
+        ],
+        sections: [
+          {
+            id: "s1",
+            heading: "How Maya is progressing in reading",
+            priority: "HIGH",
+            goalIds: ["G1", "G3"],
+            specialistQuestionIds: ["I1"],
+            insightIds: ["INS_PROGRESS"],
+            purpose: "Explain reading fluency gains, the historical 2024-2025 plan period, and the 60 vs 90 wcpm goal conflict in plain words.",
+            claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P1.F3", "P2.F1", "P1.K0", "P1.F4", "P1.A0", "P1"],
+          },
+          {
+            id: "s2",
+            heading: "Speech therapy minutes and missing comprehension data for the March 3, 2026 meeting",
+            priority: "HIGH",
+            goalIds: ["G1", "G2"],
+            specialistQuestionIds: ["I2", "I3"],
+            insightIds: ["INS_SPEECH", "INS_GAPS"],
+            purpose: "Show the 360/480 speech minute delivery and what to ask the IEP team about missing comprehension data.",
+            claimIds: ["P3.F0", "P3.F1", "P3.C0", "P1.U0", "P6.U0", "P6", "P6.F0", "P6.F1", "P1.D0"],
+          },
+        ],
+        components: [
+          { component: "Narrative", sectionId: "summary", claimIds: ["P1.F0", "P1.F2", "P1.C0"], purpose: "Lead with plain-language summary." },
+          { component: "Metric", claimIds: ["P1.C0"], insightIds: ["INS_PROGRESS"], purpose: "Show the +12 wcpm reading gain at a glance.", reuseReason: "Highlights key calculation from summary." },
+          { component: "Narrative", sectionId: "s1", claimIds: ["P1.F4", "P1.K0", "P1.A0"], purpose: "Walk through reading progress and plan dates." },
+          { component: "Timeline", claimIds: ["P1.F4", "P1.F2", "P5.F0", "P6.F1"], insightIds: ["INS_PROGRESS", "INS_GAPS"], purpose: "Order key dates through the March 3, 2026 meeting." },
+          { component: "Narrative", sectionId: "s2", claimIds: ["P3.F0", "P3.F1", "P3.C0", "P1.U0", "P6.U0", "P6"], purpose: "Explain speech minutes and missing comprehension scores." },
+          { component: "QuestionList", claimIds: ["P1.D0", "P1.K0", "P6"], insightIds: ["INS_PROGRESS", "INS_GAPS"], purpose: "Give concrete questions to bring to the March 3, 2026 IEP meeting." },
+        ],
+      },
+      title: "Maya's IEP progress and meeting guide",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "Maya's reading fluency rose from a baseline of 62 words correct per minute to 74 words correct per minute ({{calc:P1.C0}} words gained), and 360 of 480 required speech therapy minutes ({{calc:P3.C0}}) were delivered.",
+          claimRefs: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P1.C0", "P3.F0", "P3.F1", "P3.C0"],
+        },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "How Maya is progressing in reading",
+          blocks: [
+            {
+              type: "DOCUMENTED",
+              text: "The documented 2024 IEP effective period of 2024-11-12 to 2025-11-11 ended before the 2026-11-04 report date; the 2024 and 2025 plans state different reading goals of 60 vs 90 words correct per minute.",
+              claimRefs: ["P1.F4", "P1.F3", "P2.F1", "P1.K0", "P1"],
+            },
+            {
+              type: "INTERPRETATION",
+              text: "Based on the general-knowledge criterion of comparing interim progress probes against the 62 words correct per minute baseline, Maya's 74 words correct per minute in November 2025 and January 2026 shows improvement above baseline.",
+              claimRefs: ["P1.A0", "P1.F0", "P1.F2", "P5.F0"],
+            },
+          ],
+        },
+        {
+          id: "s2",
+          heading: "Speech therapy minutes and missing comprehension data for the March 3, 2026 meeting",
+          blocks: [
+            {
+              type: "DOCUMENTED",
+              text: "Between September and November 2025, 360 of 480 required speech therapy minutes ({{calc:P3.C0}}) were delivered before the annual review scheduled for March 3, 2026.",
+              claimRefs: ["P3.F0", "P3.F1", "P3.C0", "P6.F1"],
+            },
+            {
+              type: "UNCERTAINTY",
+              text: "Comprehension probe data after November 2025 was not available in the record, and the psychoeducational evaluation did not report a reading comprehension score.",
+              claimRefs: ["P1.U0", "P6.U0", "P6", "P6.F0"],
+            },
+          ],
+        },
+      ],
+      scenarios: [],
+      view: [
+        { component: "Narrative", props: { sectionId: "summary" } },
+        { component: "Metric", props: { label: "Reading fluency gain", binding: "{{calc:P1.C0}}", unit: "words per minute" } },
+        { component: "Narrative", props: { sectionId: "s1" } },
+        {
+          component: "Timeline",
+          props: {
+            title: "Documented dates in Maya's record",
+            events: [
+              { date: "2024-11-12 to 2025-11-11", text: "Documented 2024 IEP effective period (ended before the 2026-11-04 report date)", claimRefs: ["P1.F4"] },
+              { date: "November 14, 2025", text: "Reading fluency measured at 74 words correct per minute", claimRefs: ["P1.F2"] },
+              { date: "January 15, 2026", text: "Reading fluency remained 74 words correct per minute", claimRefs: ["P5.F0"] },
+              { date: "March 3, 2026", text: "Scheduled annual review meeting", claimRefs: ["P6.F1"] },
+            ],
+          },
+        },
+        { component: "Narrative", props: { sectionId: "s2" } },
+        {
+          component: "QuestionList",
+          props: {
+            title: "Questions to bring to the March 3, 2026 meeting",
+            questions: [
+              { text: "How will the IEP team determine whether Maya's reading fluency progress from 62 to 74 words correct per minute is sufficient?", claimRefs: ["P1.D0", "P1.F0", "P1.F2"] },
+              { text: "Does the 90 words correct per minute target in the 2025 amendment supersede the 60 words correct per minute goal in the 2024 plan?", claimRefs: ["P1.K0", "P1.F3", "P2.F1"] },
+              { text: "When will a reading comprehension score and updated comprehension probes be collected?", claimRefs: ["P6", "P1.U0", "P6.U0"] },
+            ],
+          },
+        },
+      ],
+    });
+
+    const proRes = exec(pro.ledger, "compose_writer_report", {
+      presentationPlan: {
+        audienceObjective: "Deliver an evidentiary audit of plan period currentness, target conflicts, fluency probe trajectory, speech service compliance, and reserved FAPE determinations.",
+        summaryDetailLevel: "COMPREHENSIVE",
+        insights: [
+          {
+            id: "INS_AUDIT_CONFLICT_TEMPORAL",
+            meaning: "The 2024 IEP period (2024-11-12 to 2025-11-11) ended before 2026-11-04 and conflicts with the 2025 amendment on the annual reading target (60 vs 90 wcpm).",
+            claimIds: ["P1.F4", "P1.F3", "P2.F1", "P1.K0", "P1"],
+            questionIds: ["P1", "P2"],
+            role: "CENTRAL",
+            reuseReason: "Audited in Comparison and narrative compliance section.",
+          },
+          {
+            id: "INS_AUDIT_METRICS",
+            meaning: "Fluency rose +12 wcpm over the 62 wcpm baseline to 74 wcpm on 2025-11-14 and plateaued at 74 wcpm on 2026-01-15; speech delivery reached 360/480 minutes (75%).",
+            claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P3.F0", "P3.F1", "P3.C0", "P1.A0", "P1.D0"],
+            questionIds: ["P1", "P2", "P3", "P5", "P7"],
+            role: "CENTRAL",
+            reuseReason: "Tabulated in RecordTable and backed by verbatim quotes in EvidencePanel.",
+          },
+          {
+            id: "INS_AUDIT_GAPS",
+            meaning: "Missing psychoeducational comprehension score and post-November comprehension probes limit FAPE evaluation prior to the 2026-03-03 review.",
+            claimIds: ["P1.U0", "P6.U0", "P6", "P6.F0", "P6.F1", "P6.L0"],
+            questionIds: ["P1", "P6"],
+            role: "CENTRAL",
+          },
+        ],
+        priorityFindings: [
+          { claimId: "P1.K0", priority: "HIGH", insightId: "INS_AUDIT_CONFLICT_TEMPORAL" },
+          { claimId: "P1.F4", priority: "HIGH", insightId: "INS_AUDIT_CONFLICT_TEMPORAL" },
+          { claimId: "P3.C0", priority: "HIGH", insightId: "INS_AUDIT_METRICS" },
+          { claimId: "P1.D0", priority: "HIGH", insightId: "INS_AUDIT_METRICS" },
+        ],
+        sections: [
+          {
+            id: "s1",
+            heading: "Plan period status, target discrepancy, and FAPE determination posture",
+            priority: "HIGH",
+            goalIds: ["G1", "G3"],
+            specialistQuestionIds: ["I1", "I2"],
+            insightIds: ["INS_AUDIT_CONFLICT_TEMPORAL", "INS_AUDIT_METRICS"],
+            purpose: "Audit historical plan period expiration, 60 vs 90 wcpm target discrepancy, probe plateau, 75% speech delivery, and open IEP team determinations.",
+            claimIds: ["P1.F4", "P1.F3", "P2.F1", "P1.K0", "P1.F0", "P1.F2", "P5.F0", "P1.C0", "P1.A0", "P1.D0", "P3.F0", "P3.F1", "P3.C0", "P1"],
+          },
+        ],
+        components: [
+          { component: "Narrative", sectionId: "summary", claimIds: ["P1.F4", "P1.K0", "P3.C0"], purpose: "Executive evidentiary synthesis." },
+          { component: "Comparison", claimIds: ["P1.F3", "P2.F1", "P1.K0", "P3.F0", "P3.F1"], insightIds: ["INS_AUDIT_CONFLICT_TEMPORAL", "INS_AUDIT_METRICS"], purpose: "Contrast conflicting 2024 vs 2025 targets and delivered vs mandated minutes." },
+          { component: "RecordTable", claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P3.F0", "P3.F1"], insightIds: ["INS_AUDIT_METRICS"], purpose: "Audit source-by-source measurements across all probes and logs." },
+          { component: "EvidencePanel", claimIds: ["P1.F4", "P1.K0", "P1.A0", "P1.D0", "P3.C0"], insightIds: ["INS_AUDIT_CONFLICT_TEMPORAL", "INS_AUDIT_METRICS"], purpose: "Inspect verbatim quotes, general-knowledge criterion, and reserved IEP team determination." },
+          { component: "IssueList", claimIds: ["P1.U0", "P6.U0", "P6", "P1.K0", "P1"], insightIds: ["INS_AUDIT_CONFLICT_TEMPORAL", "INS_AUDIT_GAPS"], purpose: "Track evidentiary gaps and target conflicts by severity." },
+          { component: "Narrative", sectionId: "s1", claimIds: ["P1.A0", "P1.D0"], purpose: "Detail criterion evaluation and reserved determination." },
+        ],
+      },
+      title: "Special education evidentiary audit and compliance matrix",
+      summary: [
+        {
+          type: "DOCUMENTED",
+          text: "The documented 2024 IEP period (2024-11-12 to 2025-11-11) ended before the 2026-11-04 report date without establishing whether a newer annual plan is currently in effect; the 2024 plan and 2025 amendment state conflicting reading goals of 60 vs 90 words correct per minute, while speech delivery reached 360 of 480 minutes ({{calc:P3.C0}}).",
+          claimRefs: ["P1.F4", "P1.F3", "P2.F1", "P1.K0", "P3.F0", "P3.F1", "P3.C0", "P1"],
+        },
+      ],
+      sections: [
+        {
+          id: "s1",
+          heading: "Plan period status, target discrepancy, and FAPE determination posture",
+          blocks: [
+            {
+              type: "INTERPRETATION",
+              text: "Applying the general-knowledge criterion of comparing interim progress probes against the 62 words correct per minute baseline shows a {{calc:P1.C0}} words correct per minute gain to 74 words correct per minute on November 14, 2025 and January 15, 2026, while whether fluency progress is sufficient for FAPE is reserved for the IEP team.",
+              claimRefs: ["P1.A0", "P1.D0", "P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0"],
+            },
+          ],
+        },
+      ],
+      scenarios: [],
+      view: [
+        { component: "Narrative", props: { sectionId: "summary" } },
+        {
+          component: "Comparison",
+          props: {
+            title: "Plan target conflict and service delivery compliance",
+            leftLabel: "2024 IEP / Mandated",
+            rightLabel: "2025 Amendment / Delivered",
+            items: [
+              { label: "Annual reading fluency goal", left: "60 words correct per minute", right: "90 words correct per minute", claimRefs: ["P1.F3", "P2.F1", "P1.K0"] },
+              { label: "Speech therapy minutes", left: "480 minutes", right: "360 minutes", claimRefs: ["P3.F1", "P3.F0"] },
+            ],
+          },
+        },
+        {
+          component: "RecordTable",
+          props: {
+            title: "Chronological measurement ledger",
+            columns: ["Record", "Measurement", "Status / Notes"],
+            rows: [
+              { cells: ["Baseline (P1/P2/P7)", "62 words correct per minute", "Documented baseline"], claimRefs: ["P1.F0", "P2.F0", "P7.F0"] },
+              { cells: ["November 14, 2025 probe", "74 words correct per minute", "Interim probe"], claimRefs: ["P1.F2"] },
+              { cells: ["January 15, 2026 probe", "74 words correct per minute", "Subsequent probe"], claimRefs: ["P5.F0"] },
+            ],
+          },
+        },
+        {
+          component: "EvidencePanel",
+          props: {
+            title: "Verbatim evidence, criteria, and determinations",
+            claimIds: ["P1.F4", "P1.K0", "P1.A0", "P1.D0", "P3.C0"],
+          },
+        },
+        {
+          component: "IssueList",
+          props: {
+            title: "Evidentiary gaps and conflicts",
+            issues: [
+              { text: "Comprehension probe data after November 2025 was not available, and the evaluation did not report a reading comprehension score.", severity: "HIGH", claimRefs: ["P1.U0", "P6.U0", "P6"] },
+              { text: "The 2024 plan sets a reading goal of 60 words correct per minute while the 2025 plan sets 90 words correct per minute.", severity: "HIGH", claimRefs: ["P1.K0", "P1"] },
+            ],
+          },
+        },
+        { component: "Narrative", props: { sectionId: "s1" } },
+      ],
+    });
+
+    expect(customerRes.ok).toBe(true);
+    expect(proRes.ok).toBe(true);
+    expect(customer.ledger.currentPresentationPlan?.summaryDetailLevel).toBe("BALANCED");
+    expect(pro.ledger.currentPresentationPlan?.summaryDetailLevel).toBe("COMPREHENSIVE");
+    expect(customer.ledger.currentPresentationPlan?.components.map((c) => c.component)).toEqual([
+      "Narrative",
+      "Metric",
+      "Narrative",
+      "Timeline",
+      "Narrative",
+      "QuestionList",
+    ]);
+    expect(pro.ledger.currentPresentationPlan?.components.map((c) => c.component)).toEqual([
+      "Narrative",
+      "Comparison",
+      "RecordTable",
+      "EvidencePanel",
+      "IssueList",
+      "Narrative",
+    ]);
   });
 });

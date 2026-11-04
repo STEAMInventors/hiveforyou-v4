@@ -1006,3 +1006,300 @@ export function mayaWriterAgentTurns(
     ],
   ];
 }
+
+export const MAYA_REVISION_6_PLAN_QUESTION_IDS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"] as const;
+
+export const MAYA_REVISION_6_PAGES: Record<string, string> = {
+  [`${MAYA_DOCS.iep2024}:1`]: [
+    "Individualized Education Program for Maya.",
+    "Effective period: 2024-11-12 to 2025-11-11.",
+    "Baseline: 62 words correct per minute.",
+    "Goal 1: Maya will read 60 words correct per minute.",
+  ].join("\n"),
+  [`${MAYA_DOCS.iep2025}:1`]: [
+    "Individualized Education Program Amendment for Maya.",
+    "Meeting date: March 4, 2025.",
+    "Baseline: 62 words correct per minute.",
+    "Goal 1: Maya will read 90 words correct per minute by March 2026.",
+  ].join("\n"),
+  [`${MAYA_DOCS.progressNov}:1`]: [
+    "Progress report, November 14, 2025.",
+    "Goal 1 reading fluency: 74 words correct per minute.",
+  ].join("\n"),
+  [`${MAYA_DOCS.progressJan}:1`]: [
+    "Progress report, January 15, 2026.",
+    "Goal 1 reading fluency: 74 words correct per minute.",
+    "Comprehension probe data was not collected in January 2026.",
+  ].join("\n"),
+  [`${MAYA_DOCS.serviceLog}:1`]: [
+    "Speech therapy minutes delivered September to November 2025: 360 minutes.",
+    "Minutes required by IEP: 480 minutes.",
+  ].join("\n"),
+  [`${MAYA_DOCS.evaluation}:1`]: [
+    "Psychoeducational evaluation.",
+    "The evaluator did not report a reading comprehension score.",
+  ].join("\n"),
+  [`${MAYA_DOCS.meetingNotice}:1`]: [
+    "Notice of IEP meeting.",
+    "The annual review meeting is scheduled for March 3, 2026.",
+  ].join("\n"),
+};
+
+/**
+ * Synthetic 7-question revision-6 Study fixture (`P1`–`P7`) exercising Gate 1 and Gate 2:
+ * - Repeated baseline facts across `P1.F0`, `P2.F0`, `P7.F0`
+ * - Repeated uncertainties across `P1.U0` and `P6.U0`
+ * - Distinct same-text measurements from different dates (`P1.F2` Nov 2025 vs `P5.F0` Jan 2026)
+ * - Conflicting annual reading goals (`P1.F3` 60 wcpm vs `P2.F1` 90 wcpm, plus `P1.K0`)
+ * - Compound facts flagged `REQUIRES_SEMANTIC_ATOMIZATION` (`P1.F1`, `P4.F0`)
+ * - Historical IEP effective period `2024-11-12 to 2025-11-11` (`P1.F4`)
+ */
+export function mayaRevision6StudyOutput() {
+  const baselineEv = quote(MAYA_DOCS.iep2024, 1, "Baseline: 62 words correct per minute.");
+  const period2024Ev = quote(MAYA_DOCS.iep2024, 1, "Effective period: 2024-11-12 to 2025-11-11.");
+  const goal60Ev = quote(MAYA_DOCS.iep2024, 1, "Goal 1: Maya will read 60 words correct per minute.");
+  const goal90Ev = quote(MAYA_DOCS.iep2025, 1, "Goal 1: Maya will read 90 words correct per minute by March 2026.");
+  const nov74Ev = quote(
+    MAYA_DOCS.progressNov,
+    1,
+    "Progress report, November 14, 2025. Goal 1 reading fluency: 74 words correct per minute.",
+  );
+  const jan74Ev = quote(
+    MAYA_DOCS.progressJan,
+    1,
+    "Progress report, January 15, 2026. Goal 1 reading fluency: 74 words correct per minute.",
+  );
+  const janMissingEv = quote(
+    MAYA_DOCS.progressJan,
+    1,
+    "Comprehension probe data was not collected in January 2026.",
+  );
+  const deliveredEv = quote(
+    MAYA_DOCS.serviceLog,
+    1,
+    "Speech therapy minutes delivered September to November 2025: 360 minutes.",
+  );
+  const requiredEv = quote(MAYA_DOCS.serviceLog, 1, "Minutes required by IEP: 480 minutes.");
+  const evalMissingEv = quote(
+    MAYA_DOCS.evaluation,
+    1,
+    "The evaluator did not report a reading comprehension score.",
+  );
+  const meetingEv = quote(
+    MAYA_DOCS.meetingNotice,
+    1,
+    "The annual review meeting is scheduled for March 3, 2026.",
+  );
+
+  return {
+    schema: "hive.study-investigation/1",
+    processingRunId: MAYA_RUN_ID,
+    answers: [
+      {
+        planQuestionId: "P1",
+        status: "CONFLICTING",
+        answer: "Baseline is 62 wcpm; November fluency is 74 wcpm; 2024 and 2025 plans state different targets.",
+        facts: [
+          {
+            statement: "The baseline was 62 words correct per minute.",
+            evidence: [baselineEv],
+          },
+          {
+            statement:
+              "Under the 2024-11-12 to 2025-11-11 IEP, reading fluency rose from 62 to 74 words correct per minute against the 90 words correct per minute goal.",
+            evidence: [period2024Ev, baselineEv, nov74Ev, goal90Ev],
+          },
+          {
+            statement: "Goal 1 reading fluency was 74 words correct per minute.",
+            evidence: [nov74Ev],
+          },
+          {
+            statement: "The annual reading goal is 60 words correct per minute.",
+            evidence: [goal60Ev],
+          },
+          {
+            statement: "The IEP effective period is 2024-11-12 to 2025-11-11.",
+            evidence: [period2024Ev],
+          },
+        ],
+        calculations: [
+          {
+            description: "Gain since the baseline",
+            inputs: [
+              { label: "Current", valueAsWritten: "74 words correct per minute", evidence: [nov74Ev] },
+              { label: "Baseline", valueAsWritten: "62 words correct per minute", evidence: [baselineEv] },
+            ],
+            arithmetic: "74 - 62 = 12",
+            result: "12 words correct per minute",
+            formula: { op: "-", args: [{ input: 0 }, { input: 1 }] },
+          },
+        ],
+        assessments: [
+          {
+            judgment: "Maya is improving above baseline toward the annual target.",
+            criterion: "Compare interim progress probes against the documented baseline.",
+            criterionSource: "GENERAL_KNOWLEDGE" as const,
+            criterionEvidence: [],
+            factIndexes: [0, 2],
+            reasoning: "74 wcpm exceeds the 62 wcpm baseline by 12 wcpm.",
+            strength: "MODERATE" as const,
+            wouldChangeIf: ["Subsequent probes show regression."],
+          },
+        ],
+        uncertainties: ["Comprehension probe data after November 2025 was not available in the record."],
+        professionalDeterminations: [
+          {
+            determination: "Whether reading fluency progress is sufficient for FAPE",
+            bearingFacts: [0, 2],
+            decidedBy: "The IEP team",
+          },
+        ],
+        evidence: [baselineEv, nov74Ev],
+        conflicts: [
+          {
+            description: "The 2024 plan sets a reading goal of 60 words correct per minute; the 2025 plan sets 90.",
+            evidence: [goal60Ev, goal90Ev],
+          },
+        ],
+        limitations: [],
+      },
+      {
+        planQuestionId: "P2",
+        status: "ANSWERED",
+        answer: "Baseline was 62 wcpm and the 2025 target is 90 wcpm.",
+        facts: [
+          {
+            statement: "baseline: 62 words correct per minute",
+            evidence: [baselineEv],
+          },
+          {
+            statement: "The annual reading goal is 90 words correct per minute.",
+            evidence: [goal90Ev],
+          },
+        ],
+        calculations: [],
+        assessments: [],
+        uncertainties: [],
+        professionalDeterminations: [],
+        evidence: [baselineEv, goal90Ev],
+        conflicts: [],
+        limitations: [],
+      },
+      {
+        planQuestionId: "P3",
+        status: "ANSWERED",
+        answer: "360 of 480 speech minutes were delivered.",
+        facts: [
+          {
+            statement: "360 speech therapy minutes were delivered between September and November 2025.",
+            evidence: [deliveredEv],
+          },
+          {
+            statement: "480 speech therapy minutes are required by the IEP.",
+            evidence: [requiredEv],
+          },
+        ],
+        calculations: [
+          {
+            description: "Share of required speech minutes delivered",
+            inputs: [
+              { label: "Delivered", valueAsWritten: "360 minutes", evidence: [deliveredEv] },
+              { label: "Required", valueAsWritten: "480 minutes", evidence: [requiredEv] },
+            ],
+            arithmetic: "360 / 480 * 100 = 75",
+            result: "75%",
+            formula: {
+              op: "*",
+              args: [{ op: "/", args: [{ input: 0 }, { input: 1 }] }, { value: "100" }],
+            },
+          },
+        ],
+        assessments: [],
+        uncertainties: [],
+        professionalDeterminations: [],
+        evidence: [deliveredEv, requiredEv],
+        conflicts: [],
+        limitations: [],
+      },
+      {
+        planQuestionId: "P4",
+        status: "PARTIALLY_ANSWERED",
+        answer: "Composite review of reading trajectory, speech minutes, and missing comprehension data.",
+        facts: [
+          {
+            statement:
+              "Reading fluency rose from 62 to 74 words correct per minute while speech therapy delivered 360 of 480 required minutes, and comprehension probe data was not collected in January 2026.",
+            evidence: [baselineEv, nov74Ev, deliveredEv, requiredEv, janMissingEv],
+          },
+        ],
+        calculations: [],
+        assessments: [],
+        uncertainties: [],
+        professionalDeterminations: [],
+        evidence: [baselineEv, nov74Ev, deliveredEv, janMissingEv],
+        conflicts: [],
+        limitations: [],
+      },
+      {
+        planQuestionId: "P5",
+        status: "ANSWERED",
+        answer: "In January 2026 reading fluency remained 74 words correct per minute.",
+        facts: [
+          {
+            statement: "Goal 1 reading fluency was 74 words correct per minute.",
+            evidence: [jan74Ev],
+          },
+        ],
+        calculations: [],
+        assessments: [],
+        uncertainties: [],
+        professionalDeterminations: [],
+        evidence: [jan74Ev],
+        conflicts: [],
+        limitations: [],
+      },
+      {
+        planQuestionId: "P6",
+        status: "MISSING_EVIDENCE",
+        answer: "Comprehension score and post-November comprehension probes are missing before the March 3, 2026 meeting.",
+        facts: [
+          {
+            statement: "The psychoeducational evaluation did not report a reading comprehension score.",
+            evidence: [evalMissingEv],
+          },
+          {
+            statement: "The annual review meeting is scheduled for March 3, 2026.",
+            evidence: [meetingEv],
+          },
+        ],
+        calculations: [],
+        assessments: [],
+        uncertainties: ["Comprehension probe data after November 2025 was not available in the record"],
+        professionalDeterminations: [],
+        evidence: [evalMissingEv, meetingEv],
+        conflicts: [],
+        limitations: ["Comprehension progress cannot be determined from the current record."],
+      },
+      {
+        planQuestionId: "P7",
+        status: "ANSWERED",
+        answer: "Baseline reading fluency was 62 words correct per minute.",
+        facts: [
+          {
+            statement: "Baseline was 62 words correct per minute.",
+            evidence: [baselineEv],
+          },
+        ],
+        calculations: [],
+        assessments: [],
+        uncertainties: [],
+        professionalDeterminations: [],
+        evidence: [baselineEv],
+        conflicts: [],
+        limitations: [],
+      },
+    ],
+    coverageNotes: [],
+    instructionsIgnored: [],
+  };
+}

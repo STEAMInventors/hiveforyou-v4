@@ -33,6 +33,12 @@ describe("loadPromptCatalog", () => {
     expect(catalog.writer.systemPrompt).toContain("presentationPlan");
     expect(catalog.writer.systemPrompt).toContain("audienceObjective");
     expect(catalog.writer.systemPrompt).toContain("studyContext");
+    expect(catalog.writer.systemPrompt).toContain("canonicalFindings");
+    expect(catalog.writer.systemPrompt).toContain("insights");
+    expect(catalog.writer.systemPrompt).toContain("HISTORICAL_AS_OF_REPORT_DATE");
+    expect(catalog.writer.systemPrompt).toContain("writer_temporal_status_invalid");
+    expect(catalog.writer.systemPrompt).toContain("writer_duplicate_finding");
+    expect(catalog.writer.systemPrompt).toContain("writer_duplicate_component");
     expect(catalog.writer.systemPrompt).toContain("whyItMatters");
     expect(catalog.writer.systemPrompt).toContain("supportsOutcome");
     expect(catalog.writer.systemPrompt).toContain("deliverable");
@@ -41,6 +47,30 @@ describe("loadPromptCatalog", () => {
     expect(catalog.writer.systemPrompt).toContain("record_scenario");
     expect(catalog.writer.systemPrompt).toContain("record_view_component");
     expect(catalog.writer.systemPrompt).toContain("finish_report");
+  });
+
+  it("enforces the domain-agnostic editorial writing standard for both CUSTOMER and PRO audiences in hive-writer/1", () => {
+    const catalog = loadPromptCatalog();
+    const writerPrompt = catalog.writer.systemPrompt;
+
+    expect(writerPrompt).toContain("Writing standard — both audiences");
+    expect(writerPrompt).toContain("U.S. 7th-grade reading level");
+    expect(writerPrompt).toContain("Use short sentences, common words, active voice, and brief paragraphs.");
+    expect(writerPrompt).toContain("Explain technical and domain-specific terms the first time they appear.");
+    expect(writerPrompt).toContain(
+      "Keep exact legal terms, measurements, dates, technical labels, and source quotations when required for accuracy.",
+    );
+    expect(writerPrompt).toContain("Avoid jargon, repetition, filler, inflated language, and unnecessary complexity.");
+    expect(writerPrompt).toContain(
+      "For `PRO` reports, increase analytical depth, evidence precision, and professional usefulness — NOT reading difficulty.",
+    );
+    expect(writerPrompt).toContain(
+      "For `CUSTOMER` reports, prioritize understanding, significance, and clear next steps.",
+    );
+    expect(writerPrompt).toContain(
+      "Apply this standard everywhere in the report:** report title, section headings, summaries, narrative blocks, tables (`RecordTable`), comparisons (`Comparison`), timelines (`Timeline`), other A2UI components, questions (`QUESTION` blocks and `QuestionList`), and recommendations/actions (`NEXT_STEP` blocks and `Checklist`).",
+    );
+    expect(writerPrompt).toContain("never from fixed domain templates");
   });
 });
 

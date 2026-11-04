@@ -1,4 +1,10 @@
 import {
+  buildActiveTemporalClaimIds,
+  buildHistoricalTemporalMap,
+  type CanonicalFindingResolution,
+  type CanonicalFindingTemporalClassification,
+} from "../analysis/canonical-finding-resolver";
+import {
   type Decimal,
   decimalFromPlain,
   evaluateFormula,
@@ -264,7 +270,11 @@ export function numbersIn(value: string): string[] {
 }
 
 /** Strict claim-level numeric grounding set for the specific claims cited in `refs`. */
-export function groundingNumbersForClaims(claims: ReadonlyMap<string, StudyClaim>, refs: readonly string[]): Set<string> {
+export function groundingNumbersForClaims(
+  claims: ReadonlyMap<string, StudyClaim>,
+  refs: readonly string[],
+  historicalByClaimId?: ReadonlyMap<string, CanonicalFindingTemporalClassification>,
+): Set<string> {
   const numbers = new Set<string>();
   for (const ref of refs) {
     const claim = claims.get(ref);
@@ -273,6 +283,10 @@ export function groundingNumbersForClaims(claims: ReadonlyMap<string, StudyClaim
       for (const n of numbersIn(source)) numbers.add(n);
     }
     if (claim.numericStatus === "VERIFIED" && claim.computedValue) numbers.add(claim.computedValue);
+    const historical = historicalByClaimId?.get(ref);
+    if (historical?.asOfDate) {
+      for (const n of numbersIn(historical.asOfDate)) numbers.add(n);
+    }
   }
   return numbers;
 }
@@ -293,6 +307,13 @@ export function numericDiagnosticField(path: string, token: Pick<NumericToken, "
 export type WriterValidationContext = {
   readonly audience: ReportAudience;
   readonly claims: readonly StudyClaim[];
+  readonly canonicalFindings?: CanonicalFindingResolution | null;
+  readonly asOf?: string | Date | null;
+};
+
+export type WriterTemporalValidationContext = {
+  readonly historicalByClaimId?: ReadonlyMap<string, CanonicalFindingTemporalClassification>;
+  readonly activeClaimIds?: ReadonlySet<string>;
 };
 
 export const DOCUMENTED_KINDS: ReadonlySet<StudyClaim["kind"]> = new Set(["ANSWER", "FACT", "CALCULATION", "CONFLICT"]);
@@ -439,14 +460,94 @@ export function checkGroundedNumber(
   refs: readonly string[],
   claims: ReadonlyMap<string, StudyClaim>,
   path: string,
+  historicalByClaimId?: ReadonlyMap<string, CanonicalFindingTemporalClassification>,
 ): void {
-  const ungrounded = firstUngroundedNumericToken(value, groundingNumbersForClaims(claims, refs));
+  const ungrounded = firstUngroundedNumericToken(
+    value,
+    groundingNumbersForClaims(claims, refs, historicalByClaimId),
+  );
   if (ungrounded) {
     reject(
       "writer_number_ungrounded",
       `${path} states an unsupported number (${ungrounded.normalized}) that its cited claims do not contain.`,
       numericDiagnosticField(path, ungrounded),
       ungrounded.normalized,
+    );
+  }
+}
+
+const REPLACEMENT_INFERRED_RE =
+  /\b(?:(?:has\s+been|was|is)\s+(?:replaced|superseded)\s+by\s+(?:a\s+|an\s+|the\s+)?(?:new|newer|subsequent|replacement|current|later|updated|20\d{2})|(?:a|an|the)\s+(?:replacement|newer|subsequent)\s+(?:iep|plan|program|policy|agreement|contract|document|record)\s+(?:exists?|is\s+in\s+(?:place|effect)|took\s+effect|governs?|replaced\s+it))\b/i;
+
+const NO_REPLACEMENT_INFERRED_RE =
+  /\b(?:no\s+(?:replacement|newer|subsequent|updated)\s+(?:iep|plan|program|policy|agreement|contract|document|record)\s+(?:exists?|is\s+in\s+(?:place|effect)|was\s+(?:created|adopted|provided)|has\s+been\s+(?:created|adopted|provided))|expired\s+with(?:out)?\s+(?:a|no)\s+replacement|remains?\s+unreplaced|never\s+(?:been\s+)?replaced|without\s+a\s+replacement\s+(?:iep|plan|program|policy|agreement|contract|document))\b/i;
+
+const TEMPORAL_UNCERTAINTY_QUALIFIER_RE =
+  /\b(?:whether|unknown|unclear|unconfirmed|not\s+(?:establish|established|confirm|confirmed|show|shown|state|stated|indicate|indicated)|does\s+not\s+(?:establish|confirm|show|state|indicate)|cannot\s+(?:confirm|determine|establish))\b/i;
+
+const CURRENT_STATUS_OVERCLAIM_RE =
+  /\b(?:is\s+the\s+current|under\s+the\s+current|in\s+the\s+current|(?:the|her|his|their|[a-z]+'s)\s+current\s+(?:iep|plan|program|policy|agreement|contract|service\s+plan|effective\s+period)|currently\s+(?:in\s+effect|effective|active|governing|operative)|remains?\s+(?:currently\s+)?(?:in\s+effect|effective|active|current|governing|operative)|still\s+(?:in\s+effect|effective|active|current|governing|operative))\b/i;
+
+const NEGATED_CURRENT_QUALIFIER_RE =
+  /\b(?:not\s+(?:the\s+current|currently|in\s+effect|effective|active|confirmed)|no\s+longer|whether|unknown|unclear|unconfirmed|does\s+not\s+(?:establish|confirm|show)|cannot\s+(?:confirm|determine)|rather\s+than\s+(?:the\s+)?current|instead\s+of\s+(?:the\s+)?current)\b/i;
+
+const PRESENT_EFFECTIVE_PERIOD_RE = /\beffective\s+period\s+is\b/i;
+
+const HISTORICAL_FRAMING_RE =
+  /\b(?:ended|historical|prior|past|former|previous|expired|was|covered|documented|before|as\s+of|unknown|unclear|unconfirmed|whether)\b/i;
+
+/**
+ * Enforces temporal editorial safety on blocks and A2UI items citing `HISTORICAL_AS_OF_REPORT_DATE`
+ * findings (V4-004H Gate 2): rejects calling a historical period/document currently effective or
+ * inferring that a replacement does or does not exist.
+ */
+export function checkTemporalSafety(
+  value: string,
+  refs: readonly string[],
+  temporalContext: WriterTemporalValidationContext | undefined,
+  path: string,
+): void {
+  const historicalByClaimId = temporalContext?.historicalByClaimId;
+  if (!historicalByClaimId || historicalByClaimId.size === 0) return;
+  const citedHistorical = refs
+    .map((ref) => historicalByClaimId.get(ref))
+    .filter((item): item is CanonicalFindingTemporalClassification => item !== undefined);
+  if (citedHistorical.length === 0) return;
+
+  const hasActiveClaim = refs.some((ref) => temporalContext?.activeClaimIds?.has(ref) === true);
+
+  if (
+    (REPLACEMENT_INFERRED_RE.test(value) || NO_REPLACEMENT_INFERRED_RE.test(value)) &&
+    !TEMPORAL_UNCERTAINTY_QUALIFIER_RE.test(value)
+  ) {
+    reject(
+      "writer_temporal_status_invalid",
+      `${path} infers that a replacement exists or does not exist for a historical period (${citedHistorical[0]!.startDate ?? "start"} to ${citedHistorical[0]!.endDate ?? "end"}) whose currentness is unresolved.`,
+      path,
+    );
+  }
+
+  if (
+    !hasActiveClaim &&
+    CURRENT_STATUS_OVERCLAIM_RE.test(value) &&
+    !NEGATED_CURRENT_QUALIFIER_RE.test(value)
+  ) {
+    reject(
+      "writer_temporal_status_invalid",
+      `${path} describes a historical period (${citedHistorical[0]!.startDate ?? "start"} to ${citedHistorical[0]!.endDate ?? "end"}, ended before ${citedHistorical[0]!.asOfDate ?? "the report date"}) as currently in effect.`,
+      path,
+    );
+  }
+
+  if (
+    !hasActiveClaim &&
+    PRESENT_EFFECTIVE_PERIOD_RE.test(value) &&
+    !HISTORICAL_FRAMING_RE.test(value)
+  ) {
+    reject(
+      "writer_temporal_status_invalid",
+      `${path} states a historical effective period (${citedHistorical[0]!.startDate ?? "start"} to ${citedHistorical[0]!.endDate ?? "end"}) in the present tense without noting that the period ended before ${citedHistorical[0]!.asOfDate ?? "the report date"}.`,
+      path,
     );
   }
 }
@@ -462,6 +563,7 @@ export function validateReportBlock(
   value: unknown,
   path: string,
   claims: ReadonlyMap<string, StudyClaim>,
+  temporalContext?: WriterTemporalValidationContext,
 ): ValidatedReportBlock {
   const item = record(value, path);
   const type = item.type;
@@ -504,7 +606,10 @@ export function validateReportBlock(
       resultTokens.push({ scenarioId, resultId, path });
     }
   }
-  if (blockType !== "GENERAL_INFORMATION") checkGroundedNumber(blockText, claimRefs, claims, path);
+  if (blockType !== "GENERAL_INFORMATION") {
+    checkGroundedNumber(blockText, claimRefs, claims, path, temporalContext?.historicalByClaimId);
+    checkTemporalSafety(blockText, claimRefs, temporalContext, path);
+  }
   for (const ref of claimRefs) {
     cited.push(ref);
     const claim = claims.get(ref);
@@ -643,6 +748,18 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
   try {
     const claims = new Map(context.claims.map((claim) => [claim.id, claim]));
     const questionsWithFacts = new Set(context.claims.filter((claim) => claim.kind === "FACT").map((claim) => claim.planQuestionId));
+    const historicalByClaimId = buildHistoricalTemporalMap(context.claims, {
+      canonicalFindings: context.canonicalFindings,
+      asOf: context.asOf,
+    });
+    const activeClaimIds = buildActiveTemporalClaimIds(context.claims, {
+      canonicalFindings: context.canonicalFindings,
+      asOf: context.asOf,
+    });
+    const temporalContext: WriterTemporalValidationContext = {
+      historicalByClaimId,
+      activeClaimIds,
+    };
     const root = record(raw, "output");
     if (root.schema !== WRITER_REPORT_SCHEMA) reject("writer_output_schema", "The report schema is wrong.");
     if (root.audience !== context.audience) reject("writer_audience_mismatch", "The report is for the other audience.");
@@ -652,7 +769,7 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
     const resultTokens: { scenarioId: string; resultId: string; path: string }[] = [];
 
     const block = (value: unknown, path: string): ReportBlock => {
-      const validated = validateReportBlock(value, path, claims);
+      const validated = validateReportBlock(value, path, claims, temporalContext);
       for (const ref of validated.cited) cited.add(ref);
       for (const ref of validated.surfaced) surfaced.add(ref);
       resultTokens.push(...validated.resultTokens);
@@ -677,8 +794,12 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
       };
     });
     const allRefs = [...cited];
-    checkGroundedNumber(title, allRefs, claims, "title");
-    for (const section of sections) checkGroundedNumber(section.heading, allRefs, claims, `sections.${section.id}.heading`);
+    checkGroundedNumber(title, allRefs, claims, "title", historicalByClaimId);
+    checkTemporalSafety(title, allRefs, temporalContext, "title");
+    for (const section of sections) {
+      checkGroundedNumber(section.heading, allRefs, claims, `sections.${section.id}.heading`, historicalByClaimId);
+      checkTemporalSafety(section.heading, allRefs, temporalContext, `sections.${section.id}.heading`);
+    }
 
     const scenarioIds = new Set<string>();
     const scenarios = list(root.scenarios ?? [], "scenarios", WRITER_LIMITS.scenarios).map((value, index) => {

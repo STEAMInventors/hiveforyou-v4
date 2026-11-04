@@ -14,7 +14,10 @@ import {
   MAYA_INTENT_TEXT,
   MAYA_PAGES,
   MAYA_PLAN_QUESTION_IDS,
+  MAYA_REVISION_6_PAGES,
+  MAYA_REVISION_6_PLAN_QUESTION_IDS,
   MAYA_RUN_ID,
+  mayaRevision6StudyOutput,
   mayaStudyContextArtifacts,
   mayaStudyOutput,
   mayaWriterAgentTurns,
@@ -965,5 +968,212 @@ describe("processReportRun", () => {
       specialistQuestions: [],
       investigationQuestions: [],
     });
+  });
+
+  it("integrates Canonical Finding Resolution into buildWriterPayload and processReportRun with reportRun.createdAt as asOf and enforces temporal/editorial checks (V4-004H Gate 2)", async () => {
+    const rev6Verified = verifyStudyInvestigation(mayaRevision6StudyOutput(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+      pages: new Map(Object.entries(MAYA_REVISION_6_PAGES)),
+    });
+    if (!rev6Verified.ok) throw new Error(rev6Verified.message);
+    const rev6Study = rev6Verified.value;
+    const rev6Claims = studyClaimCatalog(rev6Study);
+
+    const db = fakeDatabase("CUSTOMER", {
+      inputsOverrides: {
+        reportRun: reportRunJson("WRITING", "CUSTOMER", {
+          attemptCount: 1,
+          maxAttempts: 3,
+          createdAt: "2026-11-04T14:30:00.000Z",
+        }),
+        studyRevision: {
+          id: REVISION_ID,
+          revisionNumber: 6,
+          processingRunId: MAYA_RUN_ID,
+          investigation: rev6Study.investigation,
+          verification: rev6Study.verification,
+          audienceConfiguration: {
+            ...UNKNOWN_AUDIENCE,
+            customer: { ...UNKNOWN_AUDIENCE.customer, role: "Parent", status: "STATED" },
+          },
+          coverageComplete: true,
+        },
+      },
+    });
+
+    // Turn 1: has duplicate priorityFindings (P1.F0 and P2.F0 in same CF group) AND calls the 2024-2025 IEP "the current IEP" in summary[0]
+    const turn1: ToolCall[] = [
+      {
+        id: "toolu_rev6_turn1",
+        name: "compose_writer_report",
+        arguments: JSON.stringify({
+          presentationPlan: {
+            audienceObjective: "Understand Maya's reading progress and prepare for the March 3, 2026 meeting.",
+            summaryDetailLevel: "BALANCED",
+            insights: [
+              {
+                id: "INS1",
+                meaning: "Baseline 62 wcpm and progress to 74 wcpm (+12 wcpm).",
+                claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0"],
+                questionIds: ["P1", "P2", "P5", "P7"],
+                role: "CENTRAL",
+                reuseReason: "Used in summary and section s1.",
+              },
+            ],
+            priorityFindings: [
+              { claimId: "P1.F0", priority: "HIGH", insightId: "INS1" },
+              { claimId: "P2.F0", priority: "HIGH", insightId: "INS1" }, // Duplicate canonical group!
+            ],
+            sections: [
+              {
+                id: "s1",
+                heading: "Reading progress and open questions",
+                priority: "HIGH",
+                insightIds: ["INS1"],
+                purpose: "Explain reading fluency progress, plan conflict, and missing comprehension data.",
+                claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P1.K0", "P1", "P1.U0", "P6.U0", "P6"],
+              },
+            ],
+            components: [
+              { component: "Narrative", sectionId: "summary", claimIds: ["P1.F4", "P1.F0", "P1.F2", "P1.C0"], purpose: "Overview." },
+              { component: "Narrative", sectionId: "s1", claimIds: ["P1.K0", "P1.U0", "P6.U0", "P6"], purpose: "Details." },
+            ],
+          },
+          title: "Maya's IEP review",
+          summary: [
+            {
+              type: "DOCUMENTED",
+              text: "Under Maya's current IEP (2024-11-12 to 2025-11-11), reading fluency rose from 62 to 74 words correct per minute ({{calc:P1.C0}} words gained).",
+              claimRefs: ["P1.F4", "P1.F0", "P2.F0", "P7.F0", "P1.F2", "P1.C0"],
+            },
+          ],
+          sections: [
+            {
+              id: "s1",
+              heading: "Reading progress and open questions",
+              blocks: [
+                {
+                  type: "DOCUMENTED",
+                  text: "The 2024 and 2025 plans state different reading goals of 60 vs 90 words correct per minute.",
+                  claimRefs: ["P1.F3", "P2.F1", "P1.K0", "P1"],
+                },
+                {
+                  type: "UNCERTAINTY",
+                  text: "Comprehension probe data after November 2025 was not available, and the evaluation reported no comprehension score.",
+                  claimRefs: ["P1.U0", "P6.U0", "P6"],
+                },
+              ],
+            },
+          ],
+          scenarios: [],
+          view: [
+            { component: "Narrative", props: { sectionId: "summary" } },
+            { component: "Narrative", props: { sectionId: "s1" } },
+          ],
+        }),
+      },
+    ];
+
+    // Turn 2: repairs presentationPlan (deduplicated priorityFindings) and summary (explicit historical framing as of 2026-11-04)
+    const turn2: ToolCall[] = [
+      {
+        id: "toolu_rev6_turn2",
+        name: "apply_writer_correction",
+        arguments: JSON.stringify({
+          presentationPlan: {
+            audienceObjective: "Understand Maya's reading progress and prepare for the March 3, 2026 meeting.",
+            summaryDetailLevel: "BALANCED",
+            insights: [
+              {
+                id: "INS1",
+                meaning: "Baseline 62 wcpm and progress to 74 wcpm (+12 wcpm).",
+                claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0"],
+                questionIds: ["P1", "P2", "P5", "P7"],
+                role: "CENTRAL",
+                reuseReason: "Used in summary and section s1.",
+              },
+            ],
+            priorityFindings: [
+              { claimId: "P1.F0", priority: "HIGH", insightId: "INS1" },
+              { claimId: "P1.C0", priority: "HIGH", insightId: "INS1" },
+            ],
+            sections: [
+              {
+                id: "s1",
+                heading: "Reading progress and open questions",
+                priority: "HIGH",
+                insightIds: ["INS1"],
+                purpose: "Explain reading fluency progress, plan conflict, and missing comprehension data.",
+                claimIds: ["P1.F0", "P2.F0", "P7.F0", "P1.F2", "P5.F0", "P1.C0", "P1.K0", "P1", "P1.U0", "P6.U0", "P6"],
+              },
+            ],
+            components: [
+              { component: "Narrative", sectionId: "summary", claimIds: ["P1.F4", "P1.F0", "P1.F2", "P1.C0"], purpose: "Overview." },
+              { component: "Narrative", sectionId: "s1", claimIds: ["P1.K0", "P1.U0", "P6.U0", "P6"], purpose: "Details." },
+            ],
+          },
+          summary: [
+            {
+              type: "DOCUMENTED",
+              text: "The documented 2024 IEP effective period of 2024-11-12 to 2025-11-11 ended before the 2026-11-04 report date without establishing current plan status; reading fluency rose from a baseline of 62 to 74 words correct per minute ({{calc:P1.C0}} words gained).",
+              claimRefs: ["P1.F4", "P1.F0", "P2.F0", "P7.F0", "P1.F2", "P1.C0"],
+            },
+          ],
+          view: [{ index: 0, component: "Narrative", props: { sectionId: "summary" } }],
+        }),
+      },
+    ];
+
+    const model = planner([turn1, turn2]);
+    await expect(
+      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+
+    expect(model.bodies).toHaveLength(2);
+    const sentPayload = JSON.parse(model.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
+    const canonicalFindings = sentPayload.canonicalFindings as {
+      schema: string;
+      advisoryOnly: boolean;
+      asOfDate: string;
+      counts: Record<string, number>;
+      groups: {
+        id: string;
+        originalClaimIds: string[];
+        questionIds: string[];
+        exactEquivalence: string;
+        atomicity: { status: string };
+        temporal: { status: string; startDate?: string; endDate?: string; asOfDate: string | null };
+        ambiguousWithClaimIds?: string[];
+        conflictingWithClaimIds?: string[];
+      }[];
+    };
+
+    expect(canonicalFindings.schema).toBe("hive.canonical-findings/1");
+    expect(canonicalFindings.advisoryOnly).toBe(true);
+    expect(canonicalFindings.asOfDate).toBe("2026-11-04");
+    expect(canonicalFindings.counts.mergedGroups).toBeGreaterThanOrEqual(2);
+
+    const baselineGroup = canonicalFindings.groups.find((g) => g.originalClaimIds.includes("P1.F0"));
+    expect(baselineGroup).toMatchObject({
+      originalClaimIds: ["P1.F0", "P2.F0", "P7.F0"],
+      questionIds: ["P1", "P2", "P7"],
+      exactEquivalence: "EXACT_DUPLICATE_GROUP",
+    });
+
+    const historicalGroup = canonicalFindings.groups.find((g) => g.originalClaimIds.includes("P1.F4"));
+    expect(historicalGroup?.temporal).toMatchObject({
+      status: "HISTORICAL_AS_OF_REPORT_DATE",
+      asOfDate: "2026-11-04",
+      startDate: "2024-11-12",
+      endDate: "2025-11-11",
+    });
+
+    const compoundGroup = canonicalFindings.groups.find((g) => g.originalClaimIds.includes("P4.F0"));
+    expect(compoundGroup?.atomicity.status).toBe("REQUIRES_SEMANTIC_ATOMIZATION");
+
+    // Original claims array is retained unchanged
+    const payloadClaims = sentPayload.claims as { id: string }[];
+    expect(payloadClaims.map((c) => c.id)).toEqual(rev6Claims.map((c) => c.id));
   });
 });
