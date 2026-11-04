@@ -3,6 +3,7 @@ import {
   STUDY_AGENT_BUDGET,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   type StudyAgentTurnRequest,
+  verifyStudyInvestigation,
 } from "@hiveforyou/contracts";
 import {
   L001_INITIAL_IEP_DOC_ID,
@@ -162,6 +163,204 @@ describe("runStudyInvestigation", () => {
     expect(study.answers.map((a) => a.planQuestionId)).toEqual([...L001_INITIAL_IEP_PLAN_QUESTION_IDS]);
     expect(study.answers.every((a) => a.facts.length === 0)).toBe(true);
     expect(study.answers.every((a) => (a.findingIds?.length ?? 0) > 0)).toBe(true);
+  });
+
+  it("reproduces the live Round 2 16-call / 13-invalid failure pattern (r2/18:tc16:inv13:q0/6), delivers tool error feedback in Round 3, emits privacy-safe rejection telemetry, and recovers to complete the 37-finding L001 Maya Carter Study (V4-004I Gate 4C)", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const l001Pages = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+        const [sourceDocumentId, page] = key.split(":");
+        return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+      });
+      const goldenTurns = l001InitialIepStudyAgentTurns();
+
+      // Round 1 (1 valid call): read_pages(1..3) on 08_initial_iep.pdf
+      const round1Calls: Call[] = [goldenTurns[0]![0]!];
+
+      // Round 2 (15 calls: 2 valid record_evidence calls + 13 invalid calls in one batch -> total tc=16, inv=13, q=0/6):
+      // Simulates premature record_document and record_document_finding calls citing unrecorded predicted E3..E12/DF12 ids,
+      // an ungrounded number (45 WCPM vs 42 WCPM), and premature finish_question before DF findings exist.
+      const round2Calls: Call[] = [
+        goldenTurns[1]![0]!, // E1 valid
+        goldenTurns[1]![1]!, // E2 valid
+        {
+          id: "toolu_r2_bad_doc",
+          name: "record_document",
+          arguments: JSON.stringify({
+            documentId: L001_INITIAL_IEP_DOC_ID,
+            role: "PRIMARY",
+            roleReasoning: "Primary Initial IEP for Maya Carter.",
+            documentType: "Initial Individualized Education Program (IEP)",
+            temporalStatus: "HISTORICAL",
+            declaredReadCoverage: "FULL_DOCUMENT_READ",
+            evidenceIds: ["E1", "E2", "E6", "E8"], // E6 & E8 not yet recorded -> unknown_evidence
+          }),
+        },
+        ...Array.from({ length: 10 }, (_, idx) => ({
+          id: `toolu_r2_bad_df_${idx + 1}`,
+          name: "record_document_finding",
+          arguments: JSON.stringify({
+            documentId: L001_INITIAL_IEP_DOC_ID,
+            category: "student_profile",
+            subject: "Maya Carter",
+            attribute: `premature_attr_${idx + 1}`,
+            valueAsWritten: "Maya Carter",
+            statement: "Student is Maya Carter.",
+            evidenceIds: [`E${idx + 3}`], // Predicted E3..E12 before record_evidence returned -> unknown_evidence
+          }),
+        })),
+        {
+          id: "toolu_r2_bad_num",
+          name: "record_document_finding",
+          arguments: JSON.stringify({
+            documentId: L001_INITIAL_IEP_DOC_ID,
+            category: "annual_goal",
+            subject: "GOAL_READING_FLUENCY",
+            attribute: "baseline",
+            valueAsWritten: "45 WCPM",
+            statement: "Baseline is 45 WCPM.",
+            evidenceIds: ["E1"], // 45 not in E1 -> finding_number_ungrounded
+          }),
+        },
+        {
+          id: "toolu_r2_bad_finish_q",
+          name: "finish_question",
+          arguments: JSON.stringify({
+            questionId: "P1",
+            status: "ANSWERED",
+            answer: "Premature closure citing unrecorded DF1.",
+            findingIds: ["DF1"], // DF1 not yet recorded -> unknown_finding
+            uncertainties: [],
+            limitations: [],
+          }),
+        },
+      ];
+      expect(round1Calls.length + round2Calls.length).toBe(16);
+
+      // Rounds 3–7: After receiving the 13 error results in Round 3, the agent records the remaining evidence (E3..E34),
+      // records the document, records all 37 DF findings using confirmed E... ids, and closes P1..P6 + finish_study.
+      const recoveryTurns: Call[][] = [
+        round1Calls,
+        round2Calls,
+        goldenTurns[1]!.slice(2), // Remaining E3..E16 from Page 1
+        goldenTurns[2]!, // E17..E34 + record_document
+        goldenTurns[3]!, // DF1..DF19
+        goldenTurns[4]!, // DF20..DF37
+        goldenTurns[5]!, // Calculations, assessment, determination, finish_question P1..P6, finish_study
+      ];
+
+      const p = planner((turn) => new Response(JSON.stringify(turnBody(recoveryTurns[turn] ?? [])), { status: 200 }));
+      const { study, totals } = await run(p, {
+        questionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+        pages: l001Pages,
+      });
+
+      // Verify Round 3 received the exact error feedback for all 13 rejected calls from Round 2
+      const round3Request = p.bodies[2]!;
+      const round2ToolReplies = round3Request.messages.slice(-15);
+      expect(round2ToolReplies).toHaveLength(15);
+      const parsedReplies = round2ToolReplies.map((m) => JSON.parse(m.content) as { ok: boolean; error?: string; message?: string });
+      expect(parsedReplies.filter((r) => r.ok)).toHaveLength(2);
+      expect(parsedReplies.filter((r) => !r.ok)).toHaveLength(13);
+      expect(parsedReplies.find((r) => r.error === "unknown_evidence")?.message).toContain("use only confirmed E... ids");
+      expect(parsedReplies.find((r) => r.error === "unknown_finding")?.message).toContain("use only confirmed DF... ids");
+      expect(parsedReplies.find((r) => r.error === "finding_number_ungrounded")?.message).toContain("45");
+
+      // Verify the Study recovered and completed within the 18-round budget with all 13 rejections recorded
+      expect(totals).toMatchObject({
+        rounds: 7,
+        roundsAllowed: 18,
+        invalidCalls: 13,
+        invalidBudgetUsed: 1,
+        rejectionCounts: {
+          unknown_evidence: 11,
+          finding_number_ungrounded: 1,
+          unknown_finding: 1,
+        },
+        rejectionSummary: "unknown_evidence:11,finding_number_ungrounded:1,unknown_finding:1",
+        questionsCompleted: 6,
+        questionsTotal: 6,
+      });
+
+      // Verify privacy-safe telemetry was emitted with rejection codes and counts, and zero document text or quotes
+      const telemetryLines = logSpy.mock.calls.map((c) => String(c[0]));
+      expect(telemetryLines).toHaveLength(1);
+      const telemetryEvent = JSON.parse(telemetryLines[0]!) as Record<string, unknown>;
+      expect(telemetryEvent).toMatchObject({
+        eventName: "study.turn.rejected",
+        severity: "WARN",
+        component: "analysis",
+        operation: "investigate",
+        stage: "ANALYZE",
+        task: "study",
+        correlationId: CORRELATION_ID,
+        processingRunId: MAYA_RUN_ID,
+        rounds: 2,
+        rejectedUnits: 13,
+        diagnosticReason: "unknown_evidence",
+        rejectionSummary: "unknown_evidence:11,finding_number_ungrounded:1,unknown_finding:1",
+      });
+      expect(telemetryLines[0]).not.toContain("Maya Carter");
+      expect(telemetryLines[0]).not.toContain("45 WCPM");
+      expect(telemetryLines[0]).not.toContain("Synthetic Elementary");
+
+      // Verify the recovered Study passes verifyStudyInvestigation with all 37 DF findings and 0 duplicate question facts
+      expect(study.documentFindings).toHaveLength(37);
+      expect(study.answers.every((a) => a.facts.length === 0)).toBe(true);
+      const verified = verifyStudyInvestigation(study, {
+        processingRunId: MAYA_RUN_ID,
+        planQuestionIds: [...L001_INITIAL_IEP_PLAN_QUESTION_IDS],
+        pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+      });
+      expect(verified.ok).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it("still terminates with study_agent_budget_exhausted (budget.invalid_calls) when the model fails to recover across allowance.invalidCalls turns", async () => {
+    const p = planner((turn) =>
+      new Response(
+        JSON.stringify(
+          turnBody([
+            {
+              id: `bad_a_${turn}`,
+              name: "record_document_finding",
+              arguments: JSON.stringify({
+                documentId: L001_INITIAL_IEP_DOC_ID,
+                category: "annual_goal",
+                subject: "GOAL_READING_FLUENCY",
+                attribute: "baseline",
+                valueAsWritten: "42 WCPM",
+                evidenceIds: ["E99"],
+              }),
+            },
+            {
+              id: `bad_b_${turn}`,
+              name: "finish_question",
+              arguments: JSON.stringify({
+                questionId: "P1",
+                status: "ANSWERED",
+                answer: "Unbacked.",
+                findingIds: ["DF99"],
+                uncertainties: [],
+                limitations: [],
+              }),
+            },
+          ]),
+        ),
+        { status: 200 },
+      ),
+    );
+    const l001Pages = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const failed = await failure(run(p, { questionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS, pages: l001Pages }));
+    // 6 questions -> allowance.invalidCalls = 10 turns, stopping at r10/18 with 20 total calls and 20 invalid calls
+    expect(p.bodies).toHaveLength(10);
+    expect(failed.hiveError.diagnosticField).toBe("budget.invalid_calls:r10/18:tc20:inv20:q0/6");
+    expect(failed.totals.rejectionSummary).toBe("unknown_evidence:10,unknown_finding:10");
   });
 
   it("derives each turn timeout from the remaining stage time and never starts a turn that cannot fit", async () => {

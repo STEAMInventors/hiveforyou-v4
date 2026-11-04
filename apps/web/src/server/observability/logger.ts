@@ -26,6 +26,7 @@ export const ALLOWLISTED_LOG_FIELDS = [
   "sectionCount",
   "scenarioCount",
   "rejectedUnits",
+  "rejectionSummary",
   "rounds",
 ] as const;
 
@@ -207,6 +208,44 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "study_manifest_mismatch",
   "study_preview_outdated",
   "study_agent_budget_exhausted",
+  "study_document_duplicate",
+  "study_finding_cross_document_evidence",
+  "study_page_not_read",
+  "study_coverage_claim_misleading",
+  "study_primary_document_unread_pages",
+  "study_primary_document_findings_missing",
+  "study_finding_duplicate_id",
+  "study_finding_number_ungrounded",
+  "study_finding_ref_invalid",
+  "unknown_tool",
+  "invalid_arguments",
+  "page_not_authorized",
+  "page_not_read",
+  "quote_not_on_page",
+  "coverage_claim_misleading",
+  "primary_document_unread_pages",
+  "primary_document_findings_missing",
+  "finding_cross_document_evidence",
+  "finding_number_ungrounded",
+  "unknown_question",
+  "question_closed",
+  "unknown_evidence",
+  "unknown_finding",
+  "unknown_fact",
+  "fact_other_question",
+  "input_not_numeric",
+  "input_not_quoted",
+  "formula_invalid",
+  "formula_not_calculable",
+  "criterion_evidence_missing",
+  "conflict_evidence_insufficient",
+  "status_inconsistent",
+  "questions_unfinished",
+  "study_finished",
+  "result_too_large",
+  "tool_call_conflict",
+  "too_many_calls",
+  "no_tool_call",
   "writer_agent_budget_exhausted",
   "writer_output_shape",
   "writer_output_schema",
@@ -281,6 +320,12 @@ export function buildStructuredLogRecord(
       if (!ALLOWED_EXCEPTION_TYPES.has(raw)) {
         output[key] = "Error";
       } else {
+        output[key] = raw;
+      }
+      continue;
+    }
+    if (key === "rejectionSummary" && typeof raw === "string") {
+      if (/^[a-z][a-z0-9_]{0,63}:[0-9]{1,4}(?:,[a-z][a-z0-9_]{0,63}:[0-9]{1,4})*$/.test(raw) && raw.length <= 200) {
         output[key] = raw;
       }
       continue;

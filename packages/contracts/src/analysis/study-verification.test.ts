@@ -18,7 +18,7 @@ import {
   mayaStudyOutput,
 } from "../testing/maya-fixture";
 import { StudyAgentLedger } from "./study-agent";
-import { studyClaimCatalog, verifyStudyInvestigation } from "./study-verification";
+import { firstUngroundedFindingNumber, parseFindingDateTokenToIso, studyClaimCatalog, verifyStudyInvestigation } from "./study-verification";
 
 type Output = ReturnType<typeof mayaStudyOutput>;
 
@@ -295,5 +295,53 @@ describe("studyClaimCatalog", () => {
     };
     expect(verifyStudyInvestigation(l001Output, l001Context).ok).toBe(true);
     expect(L001_INITIAL_IEP_DOC_ID).toBeDefined();
+
+    // V4-004I Gate 4C: verify empty optional strings and numeric normalization false-positive fixes in verifyStudyInvestigation
+    const normalizedOptionalOutput = structuredClone(l001Output);
+    normalizedOptionalOutput.documents![0]!.titleAsPrinted = "" as unknown as null;
+    normalizedOptionalOutput.documents![0]!.issuer = "   " as unknown as null;
+    normalizedOptionalOutput.documentFindings![0]!.unit = "" as unknown as null;
+    normalizedOptionalOutput.documentFindings![0]!.per = "  " as unknown as null;
+    normalizedOptionalOutput.documentFindings![0]!.attributedTo = "" as unknown as null;
+    const verifiedNormalized = verifyStudyInvestigation(normalizedOptionalOutput, l001Context);
+    expect(verifiedNormalized.ok).toBe(true);
+    if (verifiedNormalized.ok) {
+      expect(verifiedNormalized.value.investigation.documents![0]!.titleAsPrinted).toBeNull();
+      expect(verifiedNormalized.value.investigation.documents![0]!.issuer).toBeNull();
+      expect(verifiedNormalized.value.investigation.documentFindings![0]!.unit).toBeNull();
+      expect(verifiedNormalized.value.investigation.documentFindings![0]!.per).toBeNull();
+      expect(verifiedNormalized.value.investigation.documentFindings![0]!.attributedTo).toBeNull();
+    }
+
+    // Numeric normalization: English number word "three" in quote grounds "3", ordinal/day-first dates normalize to ISO, while invented numbers/dates fail
+    expect(parseFindingDateTokenToIso("November 1st, 2024")).toBe("2024-11-01");
+    expect(parseFindingDateTokenToIso("12 November 2024")).toBe("2024-11-12");
+    expect(
+      firstUngroundedFindingNumber({
+        valueAsWritten: "3 consecutive probes",
+        statement: "In L001 (E20, p. 2), mastery requires 3 consecutive probes as of 2024-11-12.",
+        dates: ["2024-11-12"],
+        modality: "PLANNED",
+        quotes: ["Mastery Criterion: across three consecutive probes", "Date: 12 November 2024"],
+      }),
+    ).toBeNull();
+    expect(
+      firstUngroundedFindingNumber({
+        valueAsWritten: "4 consecutive probes",
+        statement: "Mastery requires 4 consecutive probes.",
+        dates: [],
+        modality: "PLANNED",
+        quotes: ["Mastery Criterion: across three consecutive probes"],
+      }),
+    ).toBe("4");
+    expect(
+      firstUngroundedFindingNumber({
+        valueAsWritten: "2024-11-15",
+        statement: "Date is 2024-11-15.",
+        dates: ["2024-11-15"],
+        modality: "STATED",
+        quotes: ["Date: 12 November 2024"],
+      }),
+    ).toBe("11");
   });
 });

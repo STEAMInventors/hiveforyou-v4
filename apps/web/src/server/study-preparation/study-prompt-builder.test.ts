@@ -106,14 +106,17 @@ describe("buildStudyPrompt", () => {
     expect(promptText).toContain("Investigate the authorized case corpus as a document-centered study first, then answer all investigation questions (`P…`) together rather than finishing `P1` before starting `P2`");
     expect(promptText).toContain("Do not investigate and finish `P1` in isolation before starting `P2`.");
     expect(promptText).toContain("1. **Locate and read relevant pages across all questions.**");
-    expect(promptText).toContain("2. **Batch verified evidence and document roles.**");
-    expect(promptText).toContain("3. **Batch source-backed findings, facts, calculations and conflicts.**");
-    expect(promptText).toContain("4. **Record assessments and professional determinations using returned fact IDs.**");
+    expect(promptText).toContain("2. **Batch verified evidence quotes and wait for confirmed `E…` IDs.**");
+    expect(promptText).toContain("3. **Record document roles and atomic document findings using confirmed `E…` IDs.**");
+    expect(promptText).toContain("4. **Record relationships, calculations, conflicts, assessments and professional determinations using confirmed `DF…` IDs.**");
     expect(promptText).toContain("5. **Close completed questions and finish the Study.**");
     expect(promptText).toContain("Evidence IDs (`E…`) and document finding IDs (`DF…`) can be shared across questions.");
     expect(promptText).toContain("Fact IDs (`F…`) used in assessments or determinations must belong to the same plan question.");
     expect(promptText).toContain("fact_other_question");
-    expect(promptText).toContain("never assume an ID before the tool result that creates it");
+    expect(promptText).toContain("never assume or predict an ID before the tool result that creates it");
+    expect(promptText).toContain("never predict `E…` or `DF…` identifiers");
+    expect(promptText).toContain("`ANSWERED` and `PARTIALLY_ANSWERED` can be closed directly with confirmed `DF…` `findingIds` without duplicate `record_fact` calls");
+    expect(promptText).toContain("without duplicating `DF…` findings as `record_fact` calls");
     expect(promptText).toContain("Full page read coverage never proves complete semantic extraction.");
   });
 

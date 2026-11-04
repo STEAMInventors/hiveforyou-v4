@@ -23,6 +23,7 @@ import {
 import { resolveCanonicalFindings } from "./canonical-finding-resolver";
 import {
   formatStudyAgentBudgetDiagnosticField,
+  formatStudyAgentRejectionSummary,
   parseStudyAgentBudgetDiagnosticField,
   STUDY_AGENT_TOOL_NAMES,
   STUDY_AGENT_TOOLS,
@@ -1784,5 +1785,201 @@ describe("V4-004I Gate 2 — Independent L001 Original-Document Golden (08_initi
         evidenceIds: ["E1"],
       }),
     ).toMatchObject({ ok: false, error: "finding_number_ungrounded" });
+  });
+
+  it("7. V4-004I Gate 4C — normalizes empty optional strings, resolves numeric-normalization false positives without relaxing grounding, and deduplicates batch rejections per turn", () => {
+    const target = ledger(L001_INITIAL_IEP_CORPUS, ["P1"]);
+    run(target, "read_pages", { documentId: L001_INITIAL_IEP_DOC_ID, fromPage: 1, toPage: 3 });
+
+    // Record verbatim quotes from L001 08_initial_iep.pdf
+    expect(
+      run(target, "record_evidence", {
+        documentId: L001_INITIAL_IEP_DOC_ID,
+        pageNumber: 1,
+        quote: "1. Student / IEP Information\nStudent: Maya Carter",
+      }),
+    ).toMatchObject({ ok: true, evidenceId: "E1" });
+    expect(
+      run(target, "record_evidence", {
+        documentId: L001_INITIAL_IEP_DOC_ID,
+        pageNumber: 2,
+        quote: "Mastery Criterion: across three consecutive probes",
+      }),
+    ).toMatchObject({ ok: true, evidenceId: "E2" });
+    expect(
+      run(target, "record_evidence", {
+        documentId: L001_INITIAL_IEP_DOC_ID,
+        pageNumber: 2,
+        quote: "Baseline: 42 WCPM",
+      }),
+    ).toMatchObject({ ok: true, evidenceId: "E3" });
+
+    // Empty optional strings on record_document normalize safely to null / defaults
+    expect(
+      run(target, "record_document", {
+        documentId: L001_INITIAL_IEP_DOC_ID,
+        role: "PRIMARY",
+        roleReasoning: "Primary Initial IEP for Maya Carter.",
+        documentType: "Initial Individualized Education Program (IEP)",
+        temporalStatus: "",
+        declaredReadCoverage: "   ",
+        titleAsPrinted: "",
+        issuer: "   ",
+        subjects: ["Maya Carter", "", "   "],
+        effectivePeriod: {
+          startDate: "",
+          endDate: "   ",
+          asWritten: "",
+        },
+        evidenceIds: ["E1"],
+      }),
+    ).toMatchObject({
+      ok: true,
+      role: "PRIMARY",
+      temporalStatus: "UNSPECIFIED",
+      declaredReadCoverage: "FULL_DOCUMENT_READ",
+      readCoverageStatus: "ALL_AUTHORIZED_PAGES_READ",
+    });
+
+    // Empty optional strings on record_document_finding + English number word "three" in quote grounding "3" in statement/valueAsWritten + L001/E2/page ref in statement
+    expect(
+      run(target, "record_document_finding", {
+        documentId: L001_INITIAL_IEP_DOC_ID,
+        category: "annual_goal",
+        subject: "GOAL_READING_FLUENCY",
+        attribute: "mastery_criterion",
+        valueAsWritten: "across 3 consecutive probes",
+        statement: "In L001 (E2, p. 2), mastery requires 3 consecutive probes.",
+        modality: "",
+        itemKey: "   ",
+        dates: ["", "   "],
+        unit: "",
+        per: "   ",
+        section: "",
+        attributedTo: "  ",
+        relatedFindingIds: [""],
+        evidenceIds: ["E2"],
+      }),
+    ).toMatchObject({ ok: true, findingId: "DF1" });
+
+    // Number "1" inside section heading "1. Student / IEP Information" in quote E1 grounds "1" in valueAsWritten
+    expect(
+      run(target, "record_document_finding", {
+        documentId: L001_INITIAL_IEP_DOC_ID,
+        category: "iep_metadata",
+        subject: "Student / IEP Information",
+        attribute: "section_number",
+        valueAsWritten: "1",
+        statement: "",
+        evidenceIds: ["E1"],
+      }),
+    ).toMatchObject({ ok: true, findingId: "DF2" });
+
+    // Strict numeric grounding is preserved: "three" in E2 does NOT ground "4", and "42 WCPM" in E3 does NOT ground "45 WCPM"
+    expect(
+      run(target, "record_document_finding", {
+        documentId: L001_INITIAL_IEP_DOC_ID,
+        category: "annual_goal",
+        subject: "GOAL_READING_FLUENCY",
+        attribute: "mastery_criterion_invented",
+        valueAsWritten: "across 4 consecutive probes",
+        statement: "Mastery requires 4 consecutive probes.",
+        evidenceIds: ["E2"],
+      }),
+    ).toMatchObject({ ok: false, error: "finding_number_ungrounded" });
+
+    expect(
+      run(target, "record_document_finding", {
+        documentId: L001_INITIAL_IEP_DOC_ID,
+        category: "annual_goal",
+        subject: "GOAL_READING_FLUENCY",
+        attribute: "baseline_invented",
+        valueAsWritten: "45 WCPM",
+        statement: "Baseline is 45 WCPM.",
+        evidenceIds: ["E3"],
+      }),
+    ).toMatchObject({ ok: false, error: "finding_number_ungrounded" });
+
+    // Batch rejection accounting within a single model turn (beginTurn):
+    // 13 rejected calls in one turn record all 13 in invalidCalls & rejectionCounts, but consume only 1 invalidBudgetUsed strike
+    const batchTarget = ledger(L001_INITIAL_IEP_CORPUS, L001_INITIAL_IEP_PLAN_QUESTION_IDS);
+    batchTarget.beginTurn();
+    expect(run(batchTarget, "read_pages", { documentId: L001_INITIAL_IEP_DOC_ID, fromPage: 1, toPage: 3 })).toMatchObject({
+      ok: true,
+    });
+    for (let i = 1; i <= 11; i += 1) {
+      expect(
+        run(batchTarget, "record_document_finding", {
+          documentId: L001_INITIAL_IEP_DOC_ID,
+          category: "annual_goal",
+          subject: "GOAL_READING_FLUENCY",
+          attribute: `attr_${i}`,
+          valueAsWritten: "val",
+          evidenceIds: [`E${i}`],
+        }),
+      ).toMatchObject({ ok: false, error: "unknown_evidence" });
+    }
+    expect(
+      run(batchTarget, "finish_question", {
+        questionId: "P1",
+        status: "ANSWERED",
+        answer: "Premature closure.",
+        findingIds: ["DF1"],
+        uncertainties: [],
+        limitations: [],
+      }),
+    ).toMatchObject({ ok: false, error: "unknown_finding" });
+    expect(run(batchTarget, "finish_study", { coverageNotes: [] })).toMatchObject({
+      ok: false,
+      error: "questions_unfinished",
+    });
+
+    expect(batchTarget.invalidCalls).toBe(13);
+    expect(batchTarget.invalidBudgetUsed).toBe(1);
+    expect(batchTarget.rejectionCounts).toEqual({
+      unknown_evidence: 11,
+      unknown_finding: 1,
+      questions_unfinished: 1,
+    });
+    expect(formatStudyAgentRejectionSummary(batchTarget.rejectionCounts)).toBe(
+      "unknown_evidence:11,questions_unfinished:1,unknown_finding:1",
+    );
+
+    // Finish P1 on target and verify assembled output passes verifyStudyInvestigation with normalized nulls
+    expect(
+      run(target, "finish_question", {
+        questionId: "P1",
+        status: "ANSWERED",
+        answer: "Maya Carter's mastery criterion is across three consecutive probes.",
+        findingIds: ["DF1", "DF2"],
+        uncertainties: [""],
+        limitations: ["   "],
+      }),
+    ).toMatchObject({ ok: true });
+    expect(run(target, "finish_study", { coverageNotes: [""] })).toMatchObject({ ok: true, finished: true });
+
+    const assembled = target.assemble();
+    expect(assembled.documents![0]).toMatchObject({
+      titleAsPrinted: null,
+      issuer: null,
+      subjects: ["Maya Carter"],
+      effectivePeriod: { startDate: null, endDate: null, asWritten: null },
+    });
+    expect(assembled.documentFindings![0]).toMatchObject({
+      id: "DF1",
+      modality: "STATED",
+      itemKey: null,
+      dates: [],
+      unit: null,
+      per: null,
+      section: null,
+      attributedTo: null,
+    });
+    const verified = verifyStudyInvestigation(assembled, {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: ["P1"],
+      pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+    });
+    expect(verified.ok).toBe(true);
   });
 });

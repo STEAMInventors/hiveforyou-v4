@@ -166,9 +166,91 @@ const VERIFIER_MONTH_INDEX: Readonly<Record<string, number>> = {
   dec: 12,
 };
 
-const VERIFIER_DATE_TOKEN_SOURCE =
-  "(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\/\\d{1,2}\\/\\d{4}|(?:January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\.?\\s+\\d{1,2},?\\s+\\d{4})";
+const VERIFIER_MONTH_PATTERN =
+  "(?:January|February|March|April|May|June|July|August|September|Sept|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\.?";
+const VERIFIER_DATE_TOKEN_SOURCE = `(?:\\d{4}[/-]\\d{1,2}[/-]\\d{1,2}|\\d{1,2}[/-]\\d{1,2}[/-]\\d{4}|${VERIFIER_MONTH_PATTERN}\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s+\\d{4}|\\d{1,2}(?:st|nd|rd|th)?\\s+${VERIFIER_MONTH_PATTERN},?\\s+\\d{4})`;
 const VERIFIER_SINGLE_DATE_RE = new RegExp(`\\b(${VERIFIER_DATE_TOKEN_SOURCE})\\b`, "gi");
+
+const QUOTE_NUMBER_WORDS: Readonly<Record<string, number>> = {
+  zero: 0,
+  one: 1,
+  first: 1,
+  once: 1,
+  two: 2,
+  second: 2,
+  twice: 2,
+  biweekly: 2,
+  three: 3,
+  third: 3,
+  thrice: 3,
+  four: 4,
+  fourth: 4,
+  quarterly: 4,
+  five: 5,
+  fifth: 5,
+  six: 6,
+  sixth: 6,
+  seven: 7,
+  seventh: 7,
+  eight: 8,
+  eighth: 8,
+  nine: 9,
+  ninth: 9,
+  ten: 10,
+  tenth: 10,
+  eleven: 11,
+  eleventh: 11,
+  twelve: 12,
+  twelfth: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+  hundred: 100,
+};
+
+const QUOTE_TENS_WORDS: Readonly<Record<string, number>> = {
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+};
+
+const QUOTE_ONES_WORDS: Readonly<Record<string, number>> = {
+  one: 1,
+  first: 1,
+  two: 2,
+  second: 2,
+  three: 3,
+  third: 3,
+  four: 4,
+  fourth: 4,
+  five: 5,
+  fifth: 5,
+  six: 6,
+  sixth: 6,
+  seven: 7,
+  seventh: 7,
+  eight: 8,
+  eighth: 8,
+  nine: 9,
+  ninth: 9,
+};
 
 function isValidVerifierCalendarDate(year: number, month: number, day: number): boolean {
   if (year < 1900 || year > 2200 || month < 1 || month > 12 || day < 1 || day > 31) return false;
@@ -182,34 +264,38 @@ function formatVerifierIsoDate(year: number, month: number, day: number): string
 
 export function parseFindingDateTokenToIso(raw: string): string | null {
   const trimmed = raw.trim();
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  const iso = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/.exec(trimmed);
   if (iso) {
     const y = Number(iso[1]);
     const m = Number(iso[2]);
     const d = Number(iso[3]);
     return isValidVerifierCalendarDate(y, m, d) ? formatVerifierIsoDate(y, m, d) : null;
   }
-  const slash = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed);
-  if (slash) {
-    const m = Number(slash[1]);
-    const d = Number(slash[2]);
-    const y = Number(slash[3]);
+  const mdy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
+  if (mdy) {
+    const m = Number(mdy[1]);
+    const d = Number(mdy[2]);
+    const y = Number(mdy[3]);
     return isValidVerifierCalendarDate(y, m, d) ? formatVerifierIsoDate(y, m, d) : null;
   }
-  const named = /^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(trimmed);
-  if (named) {
-    const m = VERIFIER_MONTH_INDEX[named[1]!.toLowerCase()];
-    const d = Number(named[2]);
-    const y = Number(named[3]);
+  const namedMdy = /^([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/.exec(trimmed);
+  if (namedMdy) {
+    const m = VERIFIER_MONTH_INDEX[namedMdy[1]!.toLowerCase()];
+    const d = Number(namedMdy[2]);
+    const y = Number(namedMdy[3]);
+    return m && isValidVerifierCalendarDate(y, m, d) ? formatVerifierIsoDate(y, m, d) : null;
+  }
+  const namedDmy = /^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?,?\s+(\d{4})$/.exec(trimmed);
+  if (namedDmy) {
+    const d = Number(namedDmy[1]);
+    const m = VERIFIER_MONTH_INDEX[namedDmy[2]!.toLowerCase()];
+    const y = Number(namedDmy[3]);
     return m && isValidVerifierCalendarDate(y, m, d) ? formatVerifierIsoDate(y, m, d) : null;
   }
   return null;
 }
 
-function extractNormalizedDecimals(textValue: string): string[] {
-  const cleaned = textValue
-    .replace(/\b(?:P[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?|DF[1-9][0-9]{0,3})\b/g, " ")
-    .replace(/\b(?:goal|accommodation|section|part|item|table|figure|step)\s*#?\s*\d+\b/gi, " ");
+function extractRawDecimalTokens(cleaned: string): string[] {
   const out: string[] = [];
   for (const match of cleaned.matchAll(/\d(?:[\d,]*\d)?(?:\.\d+)?/g)) {
     const raw = match[0];
@@ -222,6 +308,37 @@ function extractNormalizedDecimals(textValue: string): string[] {
     });
   }
   return out;
+}
+
+function extractQuoteGroundingNumbers(quoteText: string): Set<string> {
+  const numbers = new Set<string>(extractRawDecimalTokens(quoteText));
+  const lower = quoteText.toLowerCase();
+  for (const match of lower.matchAll(/\b([a-z]+)(?:[-\s]+([a-z]+))?\b/g)) {
+    const first = match[1]!;
+    const second = match[2];
+    if (second && first in QUOTE_TENS_WORDS && second in QUOTE_ONES_WORDS) {
+      numbers.add(String(QUOTE_TENS_WORDS[first]! + QUOTE_ONES_WORDS[second]!));
+    }
+    if (first in QUOTE_NUMBER_WORDS) {
+      numbers.add(String(QUOTE_NUMBER_WORDS[first]!));
+    }
+    if (second && second in QUOTE_NUMBER_WORDS) {
+      numbers.add(String(QUOTE_NUMBER_WORDS[second]!));
+    }
+  }
+  return numbers;
+}
+
+function extractCandidateDecimals(textValue: string, options: { isStatement?: boolean } = {}): string[] {
+  let cleaned = textValue
+    .replace(/\b[A-Za-z_]+\d+(?:\.[A-Za-z0-9_]+)*\b/g, " ")
+    .replace(/\b(?:goal|accommodation|section|sec|part|item|table|figure|fig|step)\s*\.?\s*#?\s*\d+\b/gi, " ");
+  if (options.isStatement) {
+    cleaned = cleaned
+      .replace(/\b(?:pages?|pp?\.?)\s*#?\s*\d+(?:\s*[-–—]\s*\d+)?\b/gi, " ")
+      .replace(/(?:^|\n)\s*(?:[-*•]\s+)?(?:\(\d{1,2}\)|\d{1,2}[.)])(?=\s)/g, " ");
+  }
+  return extractRawDecimalTokens(cleaned);
 }
 
 function extractIsoDatesFromText(textValue: string): Set<string> {
@@ -248,7 +365,7 @@ export function firstUngroundedFindingNumber(input: {
   readonly quotes: readonly string[];
 }): string | null {
   const quoteText = input.quotes.join(" \n ");
-  const allowedNumbers = new Set(extractNormalizedDecimals(quoteText));
+  const allowedNumbers = extractQuoteGroundingNumbers(quoteText);
   const allowedIsoDates = extractIsoDatesFromText(quoteText);
 
   const stripGroundedDates = (source: string): string =>
@@ -257,9 +374,9 @@ export function firstUngroundedFindingNumber(input: {
       return iso && allowedIsoDates.has(iso) ? " " : fullMatch;
     });
 
-  const checkString = (candidate: string): string | null => {
+  const checkString = (candidate: string, options: { isStatement?: boolean } = {}): string | null => {
     const remaining = stripGroundedDates(candidate);
-    for (const num of extractNormalizedDecimals(remaining)) {
+    for (const num of extractCandidateDecimals(remaining, options)) {
       if (!allowedNumbers.has(num)) return num;
     }
     return null;
@@ -269,7 +386,7 @@ export function firstUngroundedFindingNumber(input: {
     const ungroundedValue = checkString(input.valueAsWritten);
     if (ungroundedValue !== null) return ungroundedValue;
   }
-  const ungroundedStatement = checkString(input.statement);
+  const ungroundedStatement = checkString(input.statement, { isStatement: true });
   if (ungroundedStatement !== null) return ungroundedStatement;
 
   for (const dateEntry of input.dates) {
@@ -449,6 +566,7 @@ function checkCalculation(
 function optionalTextField(value: unknown, path: string, max: number): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
   return text(value, path, max);
 }
 

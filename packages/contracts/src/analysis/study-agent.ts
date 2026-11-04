@@ -98,6 +98,59 @@ export const STUDY_AGENT_BUDGET_DIMENSIONS = [
 ] as const;
 export type StudyAgentBudgetDimension = (typeof STUDY_AGENT_BUDGET_DIMENSIONS)[number];
 
+export const STUDY_AGENT_REJECTION_CODES = [
+  "unknown_tool",
+  "invalid_arguments",
+  "page_not_authorized",
+  "page_not_read",
+  "quote_not_on_page",
+  "coverage_claim_misleading",
+  "primary_document_unread_pages",
+  "primary_document_findings_missing",
+  "finding_cross_document_evidence",
+  "finding_number_ungrounded",
+  "unknown_question",
+  "question_closed",
+  "unknown_evidence",
+  "unknown_finding",
+  "unknown_fact",
+  "fact_other_question",
+  "input_not_numeric",
+  "input_not_quoted",
+  "formula_invalid",
+  "formula_not_calculable",
+  "criterion_evidence_missing",
+  "conflict_evidence_insufficient",
+  "status_inconsistent",
+  "questions_unfinished",
+  "study_finished",
+  "result_too_large",
+  "tool_call_conflict",
+  "too_many_calls",
+  "no_tool_call",
+] as const;
+export type StudyAgentRejectionCode = (typeof STUDY_AGENT_REJECTION_CODES)[number];
+
+const ALLOWED_REJECTION_CODE_SET: ReadonlySet<string> = new Set(STUDY_AGENT_REJECTION_CODES);
+
+/**
+ * Formats allowlisted tool-rejection codes and counts into a privacy-safe telemetry string
+ * (e.g. `unknown_evidence:10,unknown_finding:2,finding_number_ungrounded:1`). Never includes raw text or arguments.
+ */
+export function formatStudyAgentRejectionSummary(
+  counts: Readonly<Record<string, number>> | null | undefined,
+): string | null {
+  if (!counts) return null;
+  const entries = Object.entries(counts)
+    .filter(([code, count]) => ALLOWED_REJECTION_CODE_SET.has(code) && Number.isInteger(count) && count > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (entries.length === 0) return null;
+  return entries
+    .map(([code, count]) => `${code}:${Math.min(9999, count)}`)
+    .join(",")
+    .slice(0, 120);
+}
+
 export type StudyAgentBudgetDiagnostic = {
   readonly dimension: StudyAgentBudgetDimension;
   readonly roundsUsed: number;
@@ -540,28 +593,48 @@ function text(args: Args, field: string, max: number): string {
   return value;
 }
 
-function textList(args: Args, field: string): string[] {
+function optionalText(args: Args, field: string, max: number): string | null | undefined {
   const value = args[field];
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  return text(args, field, max);
+}
+
+function optionalTextList(args: Args, field: string): string[] {
+  const value = args[field];
+  if (value === undefined || value === null) return [];
   if (!Array.isArray(value) || value.length > STUDY_AGENT_LIMITS.listItems) {
     refuse("invalid_arguments", `${field} must be a list of at most ${STUDY_AGENT_LIMITS.listItems} items.`);
   }
-  return value.map((item) => {
-    if (typeof item !== "string" || item.trim() === "" || item.length > TEXT.short) {
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.length > TEXT.short) {
       refuse("invalid_arguments", `${field} items must be text up to ${TEXT.short} characters.`);
     }
-    return item;
-  });
+    if (item.trim() !== "") out.push(item);
+  }
+  return out;
 }
 
 function idList(args: Args, field: string, min = 0): string[] {
   const value = args[field];
+  if ((value === undefined || value === null) && min === 0) return [];
   if (!Array.isArray(value) || value.length < min || value.length > STUDY_AGENT_LIMITS.listItems) {
     refuse("invalid_arguments", `${field} must list ${min > 0 ? `at least ${min} and ` : ""}at most ${STUDY_AGENT_LIMITS.listItems} ids.`);
   }
   const out: string[] = [];
   for (const item of value) {
     if (typeof item !== "string" || item.length > 16) refuse("invalid_arguments", `${field} must contain ids.`);
-    if (!out.includes(item)) out.push(item);
+    const trimmed = item.trim();
+    if (trimmed === "") {
+      if (min > 0) refuse("invalid_arguments", `${field} must contain ids.`);
+      continue;
+    }
+    if (!out.includes(trimmed)) out.push(trimmed);
+  }
+  if (out.length < min) {
+    refuse("invalid_arguments", `${field} must list ${min > 0 ? `at least ${min} and ` : ""}at most ${STUDY_AGENT_LIMITS.listItems} ids.`);
   }
   return out;
 }
@@ -619,6 +692,11 @@ export class StudyAgentLedger {
   private searches = 0;
   private toolCallCount = 0;
   private invalidCallCount = 0;
+  private invalidBudgetCount = 0;
+  private inTurn = false;
+  private turnHasRejection = false;
+  private readonly rejectionCountsByCode = new Map<string, number>();
+  private readonly turnRejectionCounts = new Map<string, number>();
 
   constructor(private readonly context: StudyAgentContext) {
     context.pages.forEach((page, order) => {
@@ -656,6 +734,26 @@ export class StudyAgentLedger {
     return this.invalidCallCount;
   }
 
+  /**
+   * Invalid-call budget strikes consumed toward `allowance.invalidCalls`.
+   * When `beginTurn()` is used by the multi-turn investigation loop, a batch of rejected calls in a
+   * single turn counts as one invalid-turn strike so a related batch rejection never terminates the
+   * Study before the model receives the tool errors and can recover in the next turn.
+   */
+  get invalidBudgetUsed(): number {
+    return this.invalidBudgetCount;
+  }
+
+  /** Cumulative allowlisted rejection code counts across the run (privacy-safe; no text or arguments). */
+  get rejectionCounts(): Record<string, number> {
+    return Object.fromEntries(this.rejectionCountsByCode.entries());
+  }
+
+  /** Allowlisted rejection code counts from the current/most recent turn. */
+  get lastTurnRejectionCounts(): Record<string, number> {
+    return Object.fromEntries(this.turnRejectionCounts.entries());
+  }
+
   get completedQuestionCount(): number {
     return this.finishedQuestions.size;
   }
@@ -664,15 +762,43 @@ export class StudyAgentLedger {
     return this.context.planQuestionIds.filter((id) => !this.finishedQuestions.has(id));
   }
 
+  /** Starts a new model turn so a batch of rejected calls in the same turn consumes at most one budget strike. */
+  beginTurn(): void {
+    this.inTurn = true;
+    this.turnHasRejection = false;
+    this.turnRejectionCounts.clear();
+  }
+
+  private recordRejection(code: string): void {
+    const safeCode = ALLOWED_REJECTION_CODE_SET.has(code) ? code : "invalid_arguments";
+    this.invalidCallCount += 1;
+    this.rejectionCountsByCode.set(safeCode, (this.rejectionCountsByCode.get(safeCode) ?? 0) + 1);
+    this.turnRejectionCounts.set(safeCode, (this.turnRejectionCounts.get(safeCode) ?? 0) + 1);
+    if (this.inTurn) {
+      if (!this.turnHasRejection) {
+        this.turnHasRejection = true;
+        this.invalidBudgetCount += 1;
+      }
+    } else {
+      this.invalidBudgetCount += 1;
+    }
+  }
+
   /** Counts a model turn that issued no tool call. */
   noteInvalidTurn(): void {
+    this.inTurn = false;
+    this.turnHasRejection = true;
+    this.turnRejectionCounts.clear();
     this.invalidCallCount += 1;
+    this.invalidBudgetCount += 1;
+    this.rejectionCountsByCode.set("no_tool_call", (this.rejectionCountsByCode.get("no_tool_call") ?? 0) + 1);
+    this.turnRejectionCounts.set("no_tool_call", 1);
   }
 
   /** Answers a call without executing it (per-turn cap, or after `finish_study`). */
   decline(call: StudyAgentToolCall, code: string, message: string): StudyAgentToolResult {
     this.toolCallCount += 1;
-    if (!this.finished) this.invalidCallCount += 1;
+    if (!this.finished) this.recordRejection(code);
     return { toolCallId: call.id, ok: false, content: JSON.stringify({ ok: false, error: code, message }) };
   }
 
@@ -697,7 +823,7 @@ export class StudyAgentLedger {
       result = { toolCallId: call.id, ok: true, content };
     } catch (error) {
       if (!(error instanceof ToolRejection)) throw error;
-      if (!this.finished) this.invalidCallCount += 1;
+      if (!this.finished) this.recordRejection(error.code);
       result = { toolCallId: call.id, ok: false, content: JSON.stringify({ ok: false, error: error.code, message: error.message }) };
     }
     this.calls.set(key, { name: call.name, arguments: call.arguments, result });
@@ -764,26 +890,29 @@ export class StudyAgentLedger {
   }
 
   private evidenceIds(args: Args, field: string, min = 0): string[] {
+    if ((args[field] === undefined || args[field] === null) && min === 0) return [];
     const list = idList(args, field, min);
     for (const id of list) {
-      if (!this.evidence.some((item) => item.id === id)) refuse("unknown_evidence", `${id} is not a recorded evidence id.`);
+      if (!this.evidence.some((item) => item.id === id)) {
+        refuse("unknown_evidence", `${id} is not a recorded evidence id. Call record_evidence first and use only confirmed E... ids.`);
+      }
     }
     return list;
   }
 
   private findingIds(args: Args, field: string, min = 0): string[] {
-    if (args[field] === undefined && min === 0) return [];
+    if ((args[field] === undefined || args[field] === null) && min === 0) return [];
     const list = idList(args, field, min);
     for (const id of list) {
       if (!this.documentFindings.some((item) => item.id === id)) {
-        refuse("unknown_finding", `${id} is not a recorded document finding id.`);
+        refuse("unknown_finding", `${id} is not a recorded document finding id. Call record_document_finding first and use only confirmed DF... ids.`);
       }
     }
     return list;
   }
 
   private factIds(args: Args, field: string, questionId: string, min = 0): string[] {
-    if (args[field] === undefined && min === 0) return [];
+    if ((args[field] === undefined || args[field] === null) && min === 0) return [];
     const list = idList(args, field, min);
     for (const id of list) {
       const fact = this.facts.find((item) => item.id === id);
@@ -796,7 +925,12 @@ export class StudyAgentLedger {
   private searchCase(args: Args): Record<string, unknown> {
     only(args, ["query", "documentId"]);
     const query = text(args, "query", STUDY_AGENT_LIMITS.queryChars);
-    const scope = args.documentId === undefined || args.documentId === null ? null : this.document(args);
+    const scope =
+      args.documentId === undefined ||
+      args.documentId === null ||
+      (typeof args.documentId === "string" && args.documentId.trim() === "")
+        ? null
+        : this.document(args);
     const terms = [...new Set((query.toLowerCase().match(WORD) ?? []).filter((term) => term.length >= 2))].slice(
       0,
       STUDY_AGENT_LIMITS.searchTerms,
@@ -928,7 +1062,9 @@ export class StudyAgentLedger {
     const roleReasoning = text(args, "roleReasoning", TEXT.short);
     const documentType = text(args, "documentType", TEXT.label);
     const temporalStatus =
-      args.temporalStatus === undefined || args.temporalStatus === null
+      args.temporalStatus === undefined ||
+      args.temporalStatus === null ||
+      (typeof args.temporalStatus === "string" && args.temporalStatus.trim() === "")
         ? "UNSPECIFIED"
         : oneOf(args, "temporalStatus", STUDY_DOCUMENT_TEMPORAL_STATUSES);
     const pagesRead = this.pagesReadForDocument(sourceDocumentId);
@@ -937,7 +1073,9 @@ export class StudyAgentLedger {
     const defaultDeclaredReadCoverage: StudyDocumentReadCoverage =
       readCoverageStatus === "ALL_AUTHORIZED_PAGES_READ" ? "FULL_DOCUMENT_READ" : "PARTIAL_DOCUMENT_READ";
     const declaredReadCoverage =
-      args.declaredReadCoverage === undefined || args.declaredReadCoverage === null
+      args.declaredReadCoverage === undefined ||
+      args.declaredReadCoverage === null ||
+      (typeof args.declaredReadCoverage === "string" && args.declaredReadCoverage.trim() === "")
         ? defaultDeclaredReadCoverage
         : oneOf(args, "declaredReadCoverage", STUDY_DOCUMENT_READ_COVERAGES);
     if (declaredReadCoverage === "FULL_DOCUMENT_READ" && readCoverageStatus !== "ALL_AUTHORIZED_PAGES_READ") {
@@ -952,19 +1090,9 @@ export class StudyAgentLedger {
         "Read all authorized non-empty pages of a PRIMARY document with read_pages before recording it as PRIMARY.",
       );
     }
-    const titleAsPrinted =
-      args.titleAsPrinted === undefined || args.titleAsPrinted === null
-        ? args.titleAsPrinted === null
-          ? null
-          : undefined
-        : text(args, "titleAsPrinted", TEXT.label);
-    const issuer =
-      args.issuer === undefined || args.issuer === null
-        ? args.issuer === null
-          ? null
-          : undefined
-        : text(args, "issuer", TEXT.label);
-    const subjects = args.subjects === undefined ? undefined : textList(args, "subjects");
+    const titleAsPrinted = optionalText(args, "titleAsPrinted", TEXT.label);
+    const issuer = optionalText(args, "issuer", TEXT.label);
+    const subjects = args.subjects === undefined || args.subjects === null ? undefined : optionalTextList(args, "subjects");
     let effectivePeriod: RecordedDocument["effectivePeriod"];
     if (args.effectivePeriod !== undefined) {
       if (args.effectivePeriod === null) {
@@ -975,15 +1103,10 @@ export class StudyAgentLedger {
         }
         const ep = args.effectivePeriod as Args;
         only(ep, ["startDate", "endDate", "asWritten"]);
-        const optStr = (field: string, max: number): string | null => {
-          const val = ep[field];
-          if (val === null || val === undefined) return null;
-          return text(ep, field, max);
-        };
         effectivePeriod = {
-          startDate: optStr("startDate", 40),
-          endDate: optStr("endDate", 40),
-          asWritten: optStr("asWritten", TEXT.label),
+          startDate: optionalText(ep, "startDate", 40) ?? null,
+          endDate: optionalText(ep, "endDate", 40) ?? null,
+          asWritten: optionalText(ep, "asWritten", TEXT.label) ?? null,
         };
       }
     }
@@ -1045,25 +1168,23 @@ export class StudyAgentLedger {
     const attribute = text(args, "attribute", TEXT.label);
     const valueAsWritten = text(args, "valueAsWritten", TEXT.short);
     const statement =
-      args.statement === undefined || args.statement === null
+      args.statement === undefined ||
+      args.statement === null ||
+      (typeof args.statement === "string" && args.statement.trim() === "")
         ? `${subject} — ${attribute}: ${valueAsWritten}`
         : text(args, "statement", TEXT.statement);
     const modality: StudyFindingModality =
-      args.modality === undefined || args.modality === null
+      args.modality === undefined ||
+      args.modality === null ||
+      (typeof args.modality === "string" && args.modality.trim() === "")
         ? "STATED"
         : oneOf(args, "modality", STUDY_FINDING_MODALITIES);
-    const itemKey =
-      args.itemKey === undefined || args.itemKey === null ? null : text(args, "itemKey", TEXT.label);
-    const dates = args.dates === undefined || args.dates === null ? [] : textList(args, "dates");
-    const optText = (field: string, max: number): string | null | undefined => {
-      if (args[field] === undefined) return undefined;
-      if (args[field] === null) return null;
-      return text(args, field, max);
-    };
-    const unit = optText("unit", 100);
-    const per = optText("per", 100);
-    const section = optText("section", TEXT.label);
-    const attributedTo = optText("attributedTo", TEXT.label);
+    const itemKey = optionalText(args, "itemKey", TEXT.label) ?? null;
+    const dates = optionalTextList(args, "dates");
+    const unit = optionalText(args, "unit", 100);
+    const per = optionalText(args, "per", 100);
+    const section = optionalText(args, "section", TEXT.label);
+    const attributedTo = optionalText(args, "attributedTo", TEXT.label);
     const relatedFindingIds = this.findingIds(args, "relatedFindingIds");
     const evidenceIds = this.evidenceIds(args, "evidenceIds", 1);
     const quotes: string[] = [];
@@ -1117,7 +1238,7 @@ export class StudyAgentLedger {
       ...(per !== undefined ? { per } : {}),
       ...(section !== undefined ? { section } : {}),
       ...(attributedTo !== undefined ? { attributedTo } : {}),
-      ...(args.relatedFindingIds !== undefined ? { relatedFindingIds } : {}),
+      ...(args.relatedFindingIds !== undefined && args.relatedFindingIds !== null ? { relatedFindingIds } : {}),
       evidenceIds,
     });
     return { findingId };
@@ -1149,7 +1270,7 @@ export class StudyAgentLedger {
       const label = text(input, "label", TEXT.label);
       const valueAsWritten = text(input, "valueAsWritten", TEXT.label);
       const findingIds = this.findingIds(input, "findingIds");
-      const explicitEvidenceIds = input.evidenceIds === undefined ? [] : this.evidenceIds(input, "evidenceIds");
+      const explicitEvidenceIds = this.evidenceIds(input, "evidenceIds");
       const findingEvidenceIds = findingIds.flatMap(
         (fId) => this.documentFindings.find((item) => item.id === fId)!.evidenceIds,
       );
@@ -1168,7 +1289,7 @@ export class StudyAgentLedger {
         label,
         valueAsWritten,
         evidenceIds,
-        ...(input.findingIds !== undefined ? { findingIds } : {}),
+        ...(input.findingIds !== undefined && input.findingIds !== null ? { findingIds } : {}),
       };
     });
     const parsed = parseFormula(args.formula);
@@ -1215,7 +1336,7 @@ export class StudyAgentLedger {
     const factIds = this.factIds(args, "factIds", questionId, minFacts);
     const reasoning = text(args, "reasoning", TEXT.reasoning);
     const strength = oneOf(args, "strength", ["STRONG", "MODERATE", "TENTATIVE"] as const);
-    const wouldChangeIf = textList(args, "wouldChangeIf");
+    const wouldChangeIf = optionalTextList(args, "wouldChangeIf");
     const assessmentId = `A${this.assessments.length + 1}`;
     this.assessments.push({
       id: assessmentId,
@@ -1225,7 +1346,7 @@ export class StudyAgentLedger {
       criterionSource,
       criterionEvidenceIds,
       factIds,
-      ...(args.findingIds !== undefined ? { findingIds } : {}),
+      ...(args.findingIds !== undefined && args.findingIds !== null ? { findingIds } : {}),
       reasoning,
       strength,
       wouldChangeIf,
@@ -1246,7 +1367,7 @@ export class StudyAgentLedger {
       questionId,
       determination,
       bearingFactIds,
-      ...(args.bearingFindingIds !== undefined ? { bearingFindingIds } : {}),
+      ...(args.bearingFindingIds !== undefined && args.bearingFindingIds !== null ? { bearingFindingIds } : {}),
       decidedBy,
     });
     return { determinationId };
@@ -1256,7 +1377,7 @@ export class StudyAgentLedger {
     only(args, ["questionId", "evidenceIds", "findingIds", "description"]);
     const questionId = this.openQuestion(args);
     const findingIds = this.findingIds(args, "findingIds");
-    const explicitEvidenceIds = args.evidenceIds === undefined ? [] : this.evidenceIds(args, "evidenceIds");
+    const explicitEvidenceIds = this.evidenceIds(args, "evidenceIds");
     const findingEvidenceIds = findingIds.flatMap(
       (fId) => this.documentFindings.find((item) => item.id === fId)!.evidenceIds,
     );
@@ -1268,7 +1389,7 @@ export class StudyAgentLedger {
       id: conflictId,
       questionId,
       evidenceIds,
-      ...(args.findingIds !== undefined ? { findingIds } : {}),
+      ...(args.findingIds !== undefined && args.findingIds !== null ? { findingIds } : {}),
       description,
     });
     return { conflictId };
@@ -1290,18 +1411,13 @@ export class StudyAgentLedger {
     const status = oneOf(args, "status", INVESTIGATION_ANSWER_STATUSES);
     const answer = text(args, "answer", TEXT.answer);
     const findingIds = this.findingIds(args, "findingIds");
-    const explicitEvidenceIds =
-      args.evidenceIds === undefined
-        ? findingIds.length > 0
-          ? []
-          : this.evidenceIds(args, "evidenceIds")
-        : this.evidenceIds(args, "evidenceIds");
+    const explicitEvidenceIds = this.evidenceIds(args, "evidenceIds");
     const findingEvidenceIds = findingIds.flatMap(
       (fId) => this.documentFindings.find((item) => item.id === fId)!.evidenceIds,
     );
     const evidenceIds = [...new Set([...explicitEvidenceIds, ...findingEvidenceIds])];
-    const uncertainties = textList(args, "uncertainties");
-    const limitations = textList(args, "limitations");
+    const uncertainties = optionalTextList(args, "uncertainties");
+    const limitations = optionalTextList(args, "limitations");
     const findings =
       findingIds.length +
       this.facts.filter((item) => item.questionId === questionId).length +
@@ -1331,7 +1447,7 @@ export class StudyAgentLedger {
     this.finishedQuestions.set(questionId, {
       status,
       answer,
-      ...(args.findingIds !== undefined ? { findingIds } : {}),
+      ...(args.findingIds !== undefined && args.findingIds !== null ? { findingIds } : {}),
       evidenceIds,
       uncertainties,
       limitations,
@@ -1341,7 +1457,7 @@ export class StudyAgentLedger {
 
   private finishStudy(args: Args): Record<string, unknown> {
     only(args, ["coverageNotes"]);
-    const coverageNotes = textList(args, "coverageNotes");
+    const coverageNotes = optionalTextList(args, "coverageNotes");
     const unfinished = this.unfinishedQuestions();
     if (unfinished.length > 0) refuse("questions_unfinished", `Finish ${unfinished.join(", ")} first.`);
     let hasPartiallyReadOrUnreadDoc = false;
