@@ -2007,10 +2007,10 @@ describe("processReportRun", () => {
     const proBoundViewBytes = Buffer.byteLength(JSON.stringify(proDb.saved()!.view), "utf8");
     expect(custPlanBytes).toBe(3473);
     expect(proPlanBytes).toBe(6513);
-    expect(custCompiledWriterBytes).toBe(2651);
-    expect(proCompiledWriterBytes).toBe(6311);
-    expect(custBoundViewBytes).toBe(4560);
-    expect(proBoundViewBytes).toBe(13944);
+    expect(custCompiledWriterBytes).toBe(2657);
+    expect(proCompiledWriterBytes).toBe(6335);
+    expect(custBoundViewBytes).toBe(4566);
+    expect(proBoundViewBytes).toBe(13968);
     expect(custPromptBytes).toBe(52480);
     expect(proPromptBytes).toBe(52563);
     expect(custWireBytes).toBe(104553);

@@ -96,8 +96,8 @@ export type EditorialPlanCompileFailure = {
 
 export type EditorialPlanCompileResult = EditorialPlanCompileSuccess | EditorialPlanCompileFailure;
 
-const HISTORICAL_DOCUMENTED_SUFFIX =
-  " which ended before the report date; whether a newer plan exists is not established in the record.";
+const HISTORICAL_DOCUMENTED_SENTENCE =
+  "This documented period ended before the report date; whether a newer plan exists is not established in the record.";
 
 function claimMap(claims: readonly StudyClaim[]): ReadonlyMap<string, StudyClaim> {
   return new Map(claims.map((claim) => [claim.id, claim]));
@@ -174,29 +174,76 @@ function assertUncertaintyKinds(ids: readonly string[], claims: ReadonlyMap<stri
   });
 }
 
+function ensureSentencePunctuation(value: string): string {
+  const trimmed = value.replace(/\s+/g, " ").trim();
+  if (!trimmed) return "";
+  return /[.!?][)"'\]]*$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function normalizeExactPhraseKey(value: string): string {
+  return ensureSentencePunctuation(value).toLowerCase();
+}
+
+function hasExplicitHistoricalFraming(value: string): boolean {
+  return /\bended before\b/i.test(value) || /\bnot established in the record\b/i.test(value);
+}
+
 function documentedPhraseForClaim(claim: StudyClaim): string {
-  return claim.text.trim();
+  return ensureSentencePunctuation(claim.text);
 }
 
-function joinDocumentedPhrases(claimIds: readonly string[], claims: ReadonlyMap<string, StudyClaim>): string {
-  const parts = claimIds.map((id) => documentedPhraseForClaim(claims.get(id)!));
-  return parts.join(" ");
-}
-
-function appendHistoricalFramingIfNeeded(
-  text: string,
-  claimRefs: readonly string[],
-  temporalContext: WriterTemporalValidationContext,
+function joinDocumentedPhrases(
+  claimIds: readonly string[],
+  claims: ReadonlyMap<string, StudyClaim>,
+  temporalContext?: WriterTemporalValidationContext,
 ): string {
-  const historicalByClaimId = temporalContext.historicalByClaimId;
-  if (!historicalByClaimId || historicalByClaimId.size === 0) return text;
-  const citedHistorical = claimRefs.some((ref) => historicalByClaimId.has(ref));
-  const hasActive = claimRefs.some((ref) => temporalContext.activeClaimIds?.has(ref));
-  if (!citedHistorical || hasActive) return text;
-  if (/\bended before\b/i.test(text) || /\bnot established in the record\b/i.test(text)) return text;
-  const trimmed = text.trimEnd();
-  const ending = trimmed.endsWith(".") ? trimmed.slice(0, -1) : trimmed;
-  return `${ending}${HISTORICAL_DOCUMENTED_SUFFIX}`;
+  const historicalByClaimId = temporalContext?.historicalByClaimId;
+  const entries: { phrase: string; claimIds: string[] }[] = [];
+  const entryByKey = new Map<string, { phrase: string; claimIds: string[] }>();
+
+  for (const id of claimIds) {
+    const phrase = documentedPhraseForClaim(claims.get(id)!);
+    if (!phrase) continue;
+    const key = normalizeExactPhraseKey(phrase);
+    const existing = entryByKey.get(key);
+    if (existing) {
+      existing.claimIds.push(id);
+    } else {
+      const entry = { phrase, claimIds: [id] };
+      entryByKey.set(key, entry);
+      entries.push(entry);
+    }
+  }
+
+  const framedPeriodKeys = new Set<string>();
+  if (historicalByClaimId && historicalByClaimId.size > 0) {
+    for (const entry of entries) {
+      if (!hasExplicitHistoricalFraming(entry.phrase)) continue;
+      for (const id of entry.claimIds) {
+        const historical = historicalByClaimId.get(id);
+        if (historical) {
+          framedPeriodKeys.add(`${historical.startDate ?? ""}..${historical.endDate ?? ""}`);
+        }
+      }
+    }
+  }
+
+  const parts: string[] = [];
+  for (const entry of entries) {
+    if (historicalByClaimId && historicalByClaimId.size > 0 && !hasExplicitHistoricalFraming(entry.phrase)) {
+      const historical = entry.claimIds
+        .map((id) => historicalByClaimId.get(id))
+        .find((item) => item !== undefined && !framedPeriodKeys.has(`${item.startDate ?? ""}..${item.endDate ?? ""}`));
+      if (historical) {
+        const periodKey = `${historical.startDate ?? ""}..${historical.endDate ?? ""}`;
+        framedPeriodKeys.add(periodKey);
+        parts.push(`${entry.phrase} ${HISTORICAL_DOCUMENTED_SENTENCE}`);
+        continue;
+      }
+    }
+    parts.push(entry.phrase);
+  }
+  return parts.join(" ");
 }
 
 function compileSummaryBlock(
@@ -214,8 +261,8 @@ function compileSummaryBlock(
   }
   assertKnownClaims(plan.documentedClaimIds, claims, "summary.documentedClaimIds");
   assertDocumentedKinds(plan.documentedClaimIds, claims, "summary.documentedClaimIds");
-  let text = joinDocumentedPhrases(plan.documentedClaimIds, claims);
   const claimRefs = [...plan.documentedClaimIds];
+  const calcTokens: string[] = [];
   for (const binding of plan.calculationBindings ?? []) {
     if (!claims.has(binding.calcId)) {
       reject("editorial_plan_claim_unknown", `summary.calculationBindings calcId ${binding.calcId} is not a Study claim.`);
@@ -228,9 +275,12 @@ function compileSummaryBlock(
       );
     }
     if (!claimRefs.includes(binding.calcId)) claimRefs.push(binding.calcId);
-    text += ` ({{calc:${binding.calcId}}}${binding.suffix ?? ""})`;
+    calcTokens.push(`({{calc:${binding.calcId}}}${binding.suffix ?? ""})`);
   }
-  text = appendHistoricalFramingIfNeeded(text, claimRefs, temporalContext);
+  let text = joinDocumentedPhrases(plan.documentedClaimIds, claims, temporalContext);
+  if (calcTokens.length > 0) {
+    text = `${text} ${calcTokens.join(" ")}`;
+  }
   return validateReportBlock(
     { type: "DOCUMENTED", text, claimRefs },
     path,
@@ -298,17 +348,27 @@ function compileDocumentedBlock(
 ): ReportBlock {
   assertKnownClaims(claimIds, claims, path);
   assertDocumentedKinds(claimIds, claims, path);
-  let text = joinDocumentedPhrases(claimIds, claims);
-  text = appendHistoricalFramingIfNeeded(text, claimIds, temporalContext);
+  const text = joinDocumentedPhrases(claimIds, claims, temporalContext);
   return validateReportBlock({ type: "DOCUMENTED", text, claimRefs: [...claimIds] }, path, claims, temporalContext).block;
 }
 
+function normalizeCellValueKey(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 function formatCellFromClaims(cellClaimIds: readonly string[], claims: ReadonlyMap<string, StudyClaim>): string {
-  const parts = cellClaimIds.map((id) => {
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const id of cellClaimIds) {
     const claim = claims.get(id)!;
     const value = claim.documentFinding?.valueAsWritten?.trim();
-    return value && value.length > 0 ? value : claim.text.trim();
-  });
+    const display = (value && value.length > 0 ? value : claim.text.trim()).replace(/\s+/g, " ").trim();
+    if (!display) continue;
+    const key = normalizeCellValueKey(display);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    parts.push(display);
+  }
   return parts.join(" · ");
 }
 
