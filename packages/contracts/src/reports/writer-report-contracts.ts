@@ -13,7 +13,7 @@ import {
   formulaLeaves,
   parseFormula,
 } from "../analysis/decimal-formula";
-import type { StudyClaim } from "../analysis/study-verification";
+import { questionsWithAtomicFacts, type StudyClaim } from "../analysis/study-verification";
 import { diagnosticFieldFromMessage } from "../errors/failure-diagnostic";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 
@@ -111,8 +111,8 @@ export const WRITER_LIMITS = {
 /** `{{calc:P3.C1}}` binds a VERIFIED Study calculation; `{{result:S1.R1}}` binds a scenario result. */
 export const BINDING_TOKEN = /\{\{(calc|result):([A-Za-z0-9.]{1,32})\}\}/g;
 
-/** Canonical Study claim IDs (`P1`, `P1.F0`, `P2.C0`, `P1.A0`, `P1.U0`, `P1.K0`, `P1.D0`, `P3.L0`). */
-export const CLAIM_ID_TOKEN = /\bP[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?\b(?![0-9]|\.[0-9])/g;
+/** Canonical Study claim IDs (`DF1`, `P1`, `P1.F0`, `P2.C0`, `P1.A0`, `P1.U0`, `P1.K0`, `P1.D0`, `P3.L0`). */
+export const CLAIM_ID_TOKEN = /\b(?:DF[1-9][0-9]{0,3}|P[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?)\b(?![0-9]|\.[0-9])/g;
 
 export const NUMERIC_TOKEN_CATEGORIES = [
   "quantity",
@@ -647,7 +647,7 @@ export function validateScenarioDefinition(
   const claimRefs = list(item.claimRefs, `${path}.claimRefs`, WRITER_LIMITS.claimRefsPerBlock, 1).map((ref, i) => {
     if (typeof ref !== "string" || !claims.has(ref)) reject("writer_claim_unknown", `${path}.claimRefs[${i}] is not a Study claim.`);
     const claim = claims.get(ref) as StudyClaim;
-    if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+    if (claim.kind === "ANSWER" && claim.planQuestionId !== null && questionsWithFacts.has(claim.planQuestionId)) {
       reject("writer_claim_kind", `${path}.claimRefs[${i}] cites broad answer ${ref} when specific facts exist.`);
     }
     cited.push(ref);
@@ -672,7 +672,7 @@ export function validateScenarioDefinition(
       if (!claim || (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED")) {
         reject("writer_scenario_unsupported", `${pPath} is documented but cites no verified Study claim.`);
       }
-      if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+      if (claim.kind === "ANSWER" && claim.planQuestionId !== null && questionsWithFacts.has(claim.planQuestionId)) {
         reject("writer_claim_kind", `${pPath}.claimRef cites broad answer ${claim.id} when specific facts exist.`);
       }
       const formatted = formatDecimal(decimalFromPlain(rawValue) as Decimal);
@@ -747,7 +747,7 @@ export function validateScenarioDefinition(
 export function validateWriterReport(raw: unknown, context: WriterValidationContext): ContractValidation<WriterReport> {
   try {
     const claims = new Map(context.claims.map((claim) => [claim.id, claim]));
-    const questionsWithFacts = new Set(context.claims.filter((claim) => claim.kind === "FACT").map((claim) => claim.planQuestionId));
+    const questionsWithFacts = questionsWithAtomicFacts(context.claims);
     const historicalByClaimId = buildHistoricalTemporalMap(context.claims, {
       canonicalFindings: context.canonicalFindings,
       asOf: context.asOf,

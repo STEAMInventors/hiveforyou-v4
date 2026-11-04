@@ -184,7 +184,7 @@ describe("callStudyAgentTurn", () => {
     expect(url).toBe("https://reader.example.test/planner/v1/study-agent-turn");
     const body = JSON.parse(String(init.body));
     expect(body).toMatchObject({ contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION, timeout_seconds: 100 });
-    expect(body.tools.map((tool: { function: { name: string } }) => tool.function.name)).toHaveLength(11);
+    expect(body.tools.map((tool: { function: { name: string } }) => tool.function.name)).toHaveLength(13);
     expect(body).not.toHaveProperty("model");
   });
 

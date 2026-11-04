@@ -24,9 +24,9 @@ import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation
  */
 
 const START_MESSAGE =
-  "Investigate the authorized case corpus across all investigation questions together using the tools, following the instructions above. Batch independent calls across questions (locate/read pages -> record evidence -> record facts/calculations/conflicts -> record assessments/determinations -> close every question with finish_question -> call finish_study).";
+  "Investigate the authorized case corpus using the tools, following the instructions above: (1) identify important documents from the request and domain context and read all authorized non-empty pages of PRIMARY documents with read_pages; (2) batch record_evidence and record document roles, temporal status, and coverage with record_document; (3) extract significant atomic facts once as reusable DF findings with record_document_finding; (4) analyze relationships, calculations, contradictions (flag_conflict), assessments, and open professional determinations citing DF... findings; (5) answer every investigation question briefly with finish_question using existing DF... findingIds while preserving uncertainties and limitations, then call finish_study without claiming that full page coverage proves complete semantic extraction.";
 const NUDGE_MESSAGE =
-  "No tool was called. Continue with the tools across the remaining investigation questions: batch independent calls, close every question with finish_question, then call finish_study.";
+  "No tool was called. Continue with the tools: ensure PRIMARY documents have all non-empty pages read, record document metadata (record_document) and reusable atomic findings (record_document_finding), close every question briefly with finish_question citing DF... findingIds, then call finish_study.";
 const BUDGET_MESSAGE = "The analysis could not finish investigating your documents within its limits. You can try again.";
 
 export type StudyAgentTotals = {

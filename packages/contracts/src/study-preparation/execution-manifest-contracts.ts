@@ -71,19 +71,110 @@ export const INVESTIGATION_ANSWER_STATUSES = [
 ] as const;
 export type InvestigationAnswerStatus = (typeof INVESTIGATION_ANSWER_STATUSES)[number];
 
-type InvestigationEvidence = { sourceDocumentId: string; pageNumber: number; quote: string };
+/** Model-defined document relevance (V4-004I). Temporal status is tracked independently. */
+export const STUDY_DOCUMENT_ROLES = [
+  "PRIMARY",
+  "SUPPORTING",
+  "REFERENCE",
+  "UNCERTAIN",
+] as const;
+export type StudyDocumentRole = (typeof STUDY_DOCUMENT_ROLES)[number];
+
+/** Document temporal status, tracked independently of document relevance (`role`). */
+export const STUDY_DOCUMENT_TEMPORAL_STATUSES = [
+  "CURRENT",
+  "HISTORICAL",
+  "UPCOMING",
+  "UNSPECIFIED",
+] as const;
+export type StudyDocumentTemporalStatus = (typeof STUDY_DOCUMENT_TEMPORAL_STATUSES)[number];
+
+export const STUDY_DOCUMENT_READ_COVERAGES = [
+  "FULL_DOCUMENT_READ",
+  "PARTIAL_DOCUMENT_READ",
+] as const;
+export type StudyDocumentReadCoverage = (typeof STUDY_DOCUMENT_READ_COVERAGES)[number];
+
+export const STUDY_FINDING_MODALITIES = [
+  "STATED",
+  "MEASURED",
+  "PLANNED",
+  "RECOMMENDED",
+  "REQUESTED",
+  "DECLINED",
+  "REPORTED",
+  "OPINION",
+  "HISTORICAL",
+  "EMPTY_FIELD",
+] as const;
+export type StudyFindingModality = (typeof STUDY_FINDING_MODALITIES)[number];
+
+export type InvestigationEvidence = { sourceDocumentId: string; pageNumber: number; quote: string };
+
+export type StudyDocumentRecord = {
+  sourceDocumentId: string;
+  role: StudyDocumentRole;
+  roleReasoning: string;
+  documentType: string;
+  titleAsPrinted?: string | null;
+  issuer?: string | null;
+  subjects?: string[];
+  temporalStatus: StudyDocumentTemporalStatus;
+  effectivePeriod?: {
+    startDate: string | null;
+    endDate: string | null;
+    asWritten: string | null;
+  } | null;
+  declaredReadCoverage: StudyDocumentReadCoverage;
+  /** Physical page numbers of this document actually read in full via `read_pages`. */
+  pagesRead: number[];
+  /** Physical page numbers of this document cited in verified evidence. */
+  pagesCited: number[];
+  evidence: InvestigationEvidence[];
+};
+
+export type StudyDocumentFinding = {
+  /** Stable case-wide document finding identifier (`DF1`, `DF2`, …). */
+  id: string;
+  sourceDocumentId: string;
+  category: string;
+  subject: string;
+  attribute: string;
+  valueAsWritten: string;
+  statement: string;
+  modality: StudyFindingModality;
+  itemKey: string | null;
+  dates: string[];
+  unit?: string | null;
+  per?: string | null;
+  section?: string | null;
+  attributedTo?: string | null;
+  relatedFindingIds?: string[];
+  evidence: InvestigationEvidence[];
+};
 
 export type StudyInvestigationOutput = {
   schema: typeof STUDY_INVESTIGATION_SCHEMA;
   processingRunId: string;
+  /** Optional additive document inventory (V4-004I); absent on earlier accepted Study revisions. */
+  documents?: StudyDocumentRecord[];
+  /** Optional additive atomic document findings (`DF1…`, V4-004I); absent on earlier accepted Study revisions. */
+  documentFindings?: StudyDocumentFinding[];
   answers: {
     planQuestionId: string;
     status: InvestigationAnswerStatus;
     answer: string;
+    /** Optional references to reusable `DF…` document findings supporting this answer (V4-004I). */
+    findingIds?: string[];
     facts: { statement: string; evidence: InvestigationEvidence[] }[];
     calculations: {
       description: string;
-      inputs: { label: string; valueAsWritten: string; evidence: InvestigationEvidence[] }[];
+      inputs: {
+        label: string;
+        valueAsWritten: string;
+        evidence: InvestigationEvidence[];
+        findingIds?: string[];
+      }[];
       arithmetic: string;
       result: string;
       /** Restricted formula tree over `inputs` (D-041); recomputed by `verifyStudyInvestigation`. */
@@ -95,14 +186,24 @@ export type StudyInvestigationOutput = {
       criterionSource: "DOCUMENT" | "GENERAL_KNOWLEDGE";
       criterionEvidence: InvestigationEvidence[];
       factIndexes: number[];
+      findingIds?: string[];
       reasoning: string;
       strength: "STRONG" | "MODERATE" | "TENTATIVE";
       wouldChangeIf: string[];
     }[];
     uncertainties: string[];
-    professionalDeterminations: { determination: string; bearingFacts: number[]; decidedBy: string }[];
+    professionalDeterminations: {
+      determination: string;
+      bearingFacts: number[];
+      bearingFindingIds?: string[];
+      decidedBy: string;
+    }[];
     evidence: InvestigationEvidence[];
-    conflicts: { description: string; evidence: InvestigationEvidence[] }[];
+    conflicts: {
+      description: string;
+      evidence: InvestigationEvidence[];
+      findingIds?: string[];
+    }[];
     limitations: string[];
   }[];
   coverageNotes: string[];

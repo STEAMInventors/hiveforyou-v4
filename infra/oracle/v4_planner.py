@@ -87,7 +87,7 @@ MAX_SYSTEM_PROMPT_CHARS = max(TASK_MAX_SYSTEM_PROMPT_CHARS.values())
 LITELLM_TIMEOUT_SECONDS = 150.0
 
 # study-agent-turn@1 ceilings; the web budget stays below them.
-STUDY_AGENT_TOOL_NAMES = frozenset(
+STUDY_AGENT_LEGACY_TOOL_NAMES = frozenset(
     {
         "search_case",
         "read_pages",
@@ -101,6 +101,17 @@ STUDY_AGENT_TOOL_NAMES = frozenset(
         "finish_question",
         "finish_study",
     }
+)
+STUDY_AGENT_DOCUMENT_TOOL_NAMES = frozenset(
+    {
+        "record_document",
+        "record_document_finding",
+    }
+)
+STUDY_AGENT_TOOL_NAMES = STUDY_AGENT_LEGACY_TOOL_NAMES | STUDY_AGENT_DOCUMENT_TOOL_NAMES
+STUDY_ALLOWED_TOOL_SETS: tuple[frozenset[str], ...] = (
+    STUDY_AGENT_LEGACY_TOOL_NAMES,
+    STUDY_AGENT_TOOL_NAMES,
 )
 WRITER_AGENT_TOOL_NAMES = frozenset(
     {
@@ -344,6 +355,9 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
     if parsed.task == "writer":
         if len(names) != len(name_set) or name_set not in WRITER_ALLOWED_TOOL_SETS:
             raise _invalid_request("Tools do not match the writer tool set.")
+    elif parsed.task == "study":
+        if len(names) != len(name_set) or name_set not in STUDY_ALLOWED_TOOL_SETS:
+            raise _invalid_request("Tools do not match the study tool set.")
     elif len(names) != len(expected_tools) or name_set != expected_tools:
         raise _invalid_request(f"Tools do not match the {parsed.task} tool set.")
     for tool in parsed.tools:

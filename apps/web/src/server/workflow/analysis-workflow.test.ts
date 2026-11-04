@@ -12,6 +12,11 @@ import {
   validateIntentIntelligence,
 } from "@hiveforyou/contracts";
 import {
+  L001_INITIAL_IEP_DOC_ID,
+  L001_INITIAL_IEP_FILE_NAMES,
+  L001_INITIAL_IEP_PAGES,
+  L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+  l001InitialIepStudyAgentTurns,
   MAYA_DOCS,
   MAYA_FILE_NAMES,
   MAYA_INTENT_ID,
@@ -676,7 +681,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     const first = planner.agentBodies[0]!;
     expect(first.prompt_id).toBe(saved.prompt_id);
     expect(first.prompt_digest).toBe(saved.prompt_digest);
-    expect(first.tools.map((tool) => tool.function.name)).toHaveLength(11);
+    expect(first.tools.map((tool) => tool.function.name)).toHaveLength(13);
     expect(first.system_prompt).not.toContain(SOURCE_PAGES_PLACEHOLDER);
     expect(first.system_prompt).toContain("9 authorized pages in 8 documents:");
     for (const id of MAYA_DOC_IDS) expect(first.system_prompt).toContain(`- documentId ${id} · pages`);
@@ -913,6 +918,170 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     });
     expect(planner.agentBodies.map((body) => body.messages.length)).toEqual([1, 8, 17, 1, 8, 17, 30]);
     expect(db.status()).toBe("SUCCEEDED");
+  });
+
+  it("executes the document-centered L001 Maya Carter golden (08_initial_iep.pdf) end-to-end through processAnalysisRun, persists documents/documentFindings/documentCoverage on the accepted revision, and queues both Writer runs (V4-004I Gate 3)", async () => {
+    const l001Snapshot = sourceSnapshot({
+      documents: [
+        snapshotDocument(L001_INITIAL_IEP_DOC_ID, L001_INITIAL_IEP_FILE_NAMES[L001_INITIAL_IEP_DOC_ID]!, {
+          pageSetDigest: MAYA_SHA,
+          totalPhysicalPages: 3,
+          verifiedPageCount: 3,
+        }),
+      ],
+    });
+    loadFrozen.mockResolvedValue([
+      {
+        sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+        pages: [1, 2, 3].map((pageNumber) => ({
+          pageNumber,
+          text: L001_INITIAL_IEP_PAGES[`${L001_INITIAL_IEP_DOC_ID}:${pageNumber}`]!,
+        })),
+      },
+    ]);
+
+    const question = (id: string, text: string) => ({
+      questionId: id,
+      question: text,
+      answerForm: "EXPLANATION",
+      needsJudgment: false,
+      dependsOn: [],
+    });
+    const specialistQuestion = (id: string, q: string, text: string, judgmentBasis: string | null = null) => ({
+      id,
+      goalId: "G1",
+      analysisQuestionIds: [q],
+      question: text,
+      whyItMatters: `Why ${id} matters for Maya Carter's Initial IEP review.`,
+      supportsOutcome: "Understand the Initial IEP and prepare next steps.",
+      dependsOn: [],
+      requiresJudgment: judgmentBasis !== null,
+      judgmentBasis,
+      contextRefs: [{ sourceDocumentId: L001_INITIAL_IEP_DOC_ID, pageNumber: 1 }],
+    });
+
+    const l001Outputs = {
+      intent: {
+        schema: "hive.intent-analysis/1",
+        processingRunId: MAYA_RUN_ID,
+        subjects: [],
+        goals: [
+          {
+            goalId: "G1",
+            intentRequestId: MAYA_INTENT_ID,
+            statedAs: MAYA_INTENT_TEXT,
+            goal: "Review Maya Carter's Initial IEP profile, goal, services, accommodations, team participation, and period status",
+            questions: [
+              question("Q1", "What are Maya Carter's profile, eligibility, and IEP dates?"),
+              question("Q2", "What are the baseline and annual reading fluency goal criteria?"),
+              question("Q3", "What special education services and accommodations are required?"),
+              question("Q4", "How is progress measured and reported?"),
+              question("Q5", "Which team roles participated in developing the IEP?"),
+              question("Q6", "What is the status of the IEP period and what records remain open?"),
+            ],
+            unclear: [],
+          },
+        ],
+        reservedDecisions: [],
+        instructionsIgnored: [],
+        audienceAnalysis: UNKNOWN_AUDIENCE,
+      },
+      domain: {
+        primary: {
+          label: "Special education",
+          subdomain: "Initial Individualized Education Program (IEP)",
+          confidence: "HIGH",
+          reasoning: "Initial IEP for Maya Carter in Synthetic District.",
+          supportingRefs: [{ sourceDocumentId: L001_INITIAL_IEP_DOC_ID, pageNumber: 1 }],
+        },
+        alternatives: [],
+        unknownDomain: false,
+        mixedDomain: false,
+        ambiguous: false,
+        ambiguityNotes: [],
+      },
+      intelligence: {
+        questions: [
+          specialistQuestion("I1", "Q1", "What student profile, eligibility category, and effective dates does the Initial IEP establish?"),
+          specialistQuestion(
+            "I2",
+            "Q2",
+            "How does the 42 WCPM / 86% accuracy baseline compare against the 75 WCPM / 95% accuracy annual target?",
+            "Compare the documented baseline measurements against the annual goal target, accuracy, and mastery criteria.",
+          ),
+          specialistQuestion("I3", "Q3", "What specialized reading instruction minutes, frequency, setting, and classroom accommodations are specified?"),
+          specialistQuestion("I4", "Q4", "What probe method and reporting schedule govern progress monitoring?"),
+          specialistQuestion("I5", "Q5", "Which IEP team roles participated on 2024-11-12?"),
+          specialistQuestion("I6", "Q6", "Has the 2024-11-12 through 2025-11-11 IEP period ended and what post-period evidence is missing?"),
+        ],
+        completenessReview: [{ goalId: "G1", wouldFulfilIntent: true, gapsFound: [], revisions: [], remainingLimits: [] }],
+        audience: UNKNOWN_AUDIENCE,
+        audienceChanges: [],
+      },
+      study: l001InitialIepStudyAgentTurns(),
+    };
+
+    const db = fakeDatabase({
+      runId: MAYA_RUN_ID,
+      intents: [{ id: MAYA_INTENT_ID, intentText: MAYA_INTENT_TEXT, audience: null }],
+      snapshot: l001Snapshot,
+      pages: L001_INITIAL_IEP_PAGES,
+    });
+    const planner = fakePlanner({}, l001Outputs);
+
+    const { dispatched } = await drive(db, planner, MAYA_RUN_ID);
+    expect(db.status()).toBe("SUCCEEDED");
+
+    const accepted = db.accepted()!;
+    const investigation = accepted.investigation as {
+      documents?: { sourceDocumentId: string; role: string; temporalStatus: string; pagesRead: number[]; pagesCited: number[] }[];
+      documentFindings?: { id: string; sourceDocumentId: string }[];
+      answers: { planQuestionId: string; findingIds?: string[]; facts: unknown[] }[];
+    };
+    const verification = accepted.verification as {
+      documentCoverage?: {
+        sourceDocumentId: string;
+        role: string;
+        temporalStatus: string;
+        readCoverageStatus: string;
+        extractionCompletenessStatus: string;
+        findingCount: number;
+      }[];
+      counts: { documentFindings?: number; facts: number; verifiedCalculations: number };
+    };
+
+    expect(investigation.documents).toHaveLength(1);
+    expect(investigation.documents![0]).toMatchObject({
+      sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+      role: "PRIMARY",
+      temporalStatus: "HISTORICAL",
+      pagesRead: [1, 2, 3],
+      pagesCited: [1, 2, 3],
+    });
+    expect(investigation.documentFindings).toHaveLength(37);
+    expect(investigation.answers.map((a) => a.planQuestionId)).toEqual([...L001_INITIAL_IEP_PLAN_QUESTION_IDS]);
+    expect(investigation.answers.every((a) => a.facts.length === 0)).toBe(true);
+    expect(investigation.answers.every((a) => (a.findingIds?.length ?? 0) > 0)).toBe(true);
+
+    expect(verification.counts).toMatchObject({
+      documentFindings: 37,
+      facts: 0,
+      verifiedCalculations: 2,
+    });
+    expect(verification.documentCoverage).toEqual([
+      expect.objectContaining({
+        sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+        role: "PRIMARY",
+        temporalStatus: "HISTORICAL",
+        readCoverageStatus: "ALL_AUTHORIZED_PAGES_READ",
+        extractionCompletenessStatus: "UNVERIFIED_BY_READ_COVERAGE",
+        findingCount: 37,
+      }),
+    ]);
+
+    expect(dispatched.filter((item) => item.kind === "report")).toEqual(
+      REPORT_RUN_IDS.map((id) => ({ kind: "report", id, delaySeconds: 0 })),
+    );
   });
 });
 

@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { MAYA_DOCS, MAYA_PAGES, MAYA_PLAN_QUESTION_IDS, MAYA_RUN_ID, mayaStudyOutput } from "../testing/maya-fixture";
+import {
+  L001_INITIAL_IEP_DOC_ID,
+  L001_INITIAL_IEP_PAGES,
+  L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+  l001InitialIepStudyAgentTurns,
+  MAYA_DOCS,
+  MAYA_LIN_VARIANT_IEP_DOC_ID,
+  MAYA_LIN_VARIANT_IEP_PAGES,
+  MAYA_PAGES,
+  MAYA_PLAN_QUESTION_IDS,
+  MAYA_REVISION_6_PAGES,
+  MAYA_REVISION_6_PLAN_QUESTION_IDS,
+  MAYA_RUN_ID,
+  mayaLinVariantDocumentCenteredStudyAgentTurns,
+  mayaRevision6StudyOutput,
+  mayaStudyOutput,
+} from "../testing/maya-fixture";
+import { StudyAgentLedger } from "./study-agent";
 import { studyClaimCatalog, verifyStudyInvestigation } from "./study-verification";
 
 type Output = ReturnType<typeof mayaStudyOutput>;
@@ -155,5 +172,128 @@ describe("studyClaimCatalog", () => {
     });
     expect(assessment?.quotes).not.toContain("The baseline was 62 words correct per minute.");
     expect(assessment?.quotes).toContain("Baseline: 62 words correct per minute.");
+  });
+
+  it("preserves revision 6 backward compatibility without modification and verifies document-centered output and negative checks", () => {
+    const rev6 = verifyStudyInvestigation(mayaRevision6StudyOutput(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+      pages: new Map(Object.entries(MAYA_REVISION_6_PAGES)),
+    });
+    expect(rev6.ok).toBe(true);
+    if (!rev6.ok) return;
+    expect(rev6.value.investigation.documents).toBeUndefined();
+    expect(rev6.value.investigation.documentFindings).toBeUndefined();
+    const rev6Claims = studyClaimCatalog(rev6.value);
+    expect(rev6Claims.every((c) => c.planQuestionId !== null)).toBe(true);
+
+    // Build document-centered Study from Maya Lin variant ledger and run negative verifier checks
+    const iepPages = Object.entries(MAYA_LIN_VARIANT_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const docLedger = new StudyAgentLedger({
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+      pages: iepPages,
+    });
+    for (const turn of mayaLinVariantDocumentCenteredStudyAgentTurns()) {
+      for (const call of turn) docLedger.execute(call);
+    }
+    const baseDocOutput = docLedger.assemble();
+    const iepContext = {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+      pages: new Map(Object.entries(MAYA_LIN_VARIANT_IEP_PAGES)),
+    };
+    expect(verifyStudyInvestigation(baseDocOutput, iepContext).ok).toBe(true);
+
+    // Cross-document evidence on a documentFinding -> study_finding_cross_document_evidence
+    const crossDocFinding = structuredClone(baseDocOutput);
+    crossDocFinding.documentFindings![0]!.evidence.push({
+      sourceDocumentId: MAYA_DOCS.progressNov,
+      pageNumber: 1,
+      quote: "Goal 1 reading fluency: 74 words correct per minute.",
+    });
+    expect(verifyStudyInvestigation(crossDocFinding, iepContext)).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_finding_cross_document_evidence",
+    });
+
+    // Unsupported number on a documentFinding -> study_finding_number_ungrounded
+    const ungroundedFinding = structuredClone(baseDocOutput);
+    ungroundedFinding.documentFindings![2]!.valueAsWritten = "5";
+    expect(verifyStudyInvestigation(ungroundedFinding, iepContext)).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_finding_number_ungrounded",
+    });
+
+    // Bad relatedFindingIds reference -> study_finding_ref_invalid
+    const badRelated = structuredClone(baseDocOutput);
+    badRelated.documentFindings![13]!.relatedFindingIds = ["DF999"];
+    expect(verifyStudyInvestigation(badRelated, iepContext)).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_finding_ref_invalid",
+    });
+
+    // Bad answer findingIds reference -> study_finding_ref_invalid
+    const badAnswerRef = structuredClone(baseDocOutput);
+    badAnswerRef.answers[0]!.findingIds = ["DF999"];
+    expect(verifyStudyInvestigation(badAnswerRef, iepContext)).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_finding_ref_invalid",
+    });
+
+    // Incomplete page reads on PRIMARY document -> study_primary_document_unread_pages
+    const unreadPrimary = structuredClone(baseDocOutput);
+    unreadPrimary.documents![0]!.declaredReadCoverage = "PARTIAL_DOCUMENT_READ";
+    unreadPrimary.documents![0]!.pagesRead = [1, 2];
+    expect(verifyStudyInvestigation(unreadPrimary, iepContext)).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_primary_document_unread_pages",
+    });
+
+    // Misleading coverage claim (declaring FULL_DOCUMENT_READ when pagesRead is incomplete) -> study_coverage_claim_misleading
+    const misleadingDoc = structuredClone(baseDocOutput);
+    misleadingDoc.documents![0]!.role = "SUPPORTING";
+    misleadingDoc.documents![0]!.declaredReadCoverage = "FULL_DOCUMENT_READ";
+    misleadingDoc.documents![0]!.pagesRead = [1, 2];
+    expect(verifyStudyInvestigation(misleadingDoc, iepContext)).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_coverage_claim_misleading",
+    });
+
+    // Citing evidence from a page not in pagesRead -> study_page_not_read
+    const citedUnreadPage = structuredClone(baseDocOutput);
+    citedUnreadPage.documents![0]!.role = "SUPPORTING";
+    citedUnreadPage.documents![0]!.declaredReadCoverage = "PARTIAL_DOCUMENT_READ";
+    citedUnreadPage.documents![0]!.pagesRead = [1, 2];
+    expect(verifyStudyInvestigation(citedUnreadPage, iepContext)).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_page_not_read",
+    });
+    expect(MAYA_LIN_VARIANT_IEP_DOC_ID).toBeDefined();
+
+    // Independent L001 08_initial_iep.pdf golden (Maya Carter) verifies cleanly and enforces strict quote/number grounding
+    const l001Pages = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const l001Ledger = new StudyAgentLedger({
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+      pages: l001Pages,
+    });
+    for (const turn of l001InitialIepStudyAgentTurns()) {
+      for (const call of turn) l001Ledger.execute(call);
+    }
+    const l001Output = l001Ledger.assemble();
+    const l001Context = {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+      pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+    };
+    expect(verifyStudyInvestigation(l001Output, l001Context).ok).toBe(true);
+    expect(L001_INITIAL_IEP_DOC_ID).toBeDefined();
   });
 });

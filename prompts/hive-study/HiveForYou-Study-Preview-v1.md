@@ -52,9 +52,12 @@ The domain is a proposal from a sample of pages. Treat it as context for which r
 
 {{OBJECTIVES}}
 
-Investigate the authorized case corpus across all investigation questions (`P…`) together rather than finishing `P1` before starting `P2`. Call `finish_question` once for each investigation question under its question id (`P…`), respecting any `Answer after` dependencies during synthesis and closure, and call `finish_study` only after every required question is closed.
+Investigate the authorized case corpus as a document-centered study first, then answer all investigation questions (`P…`) together rather than finishing `P1` before starting `P2`:
 
-Answer at the depth a specialist would. Reuse verified evidence across questions instead of rereading pages unnecessarily. Trace what each finding means for the specialist question it serves (`I…`) and the outcome it supports, and point out inconsistencies, gaps and what remains open: without going beyond the evidence. Where an investigation question states an evaluation, carry it out under rule 6.
+1. **Identify important documents and read PRIMARY documents in full.** Using the person's intent, the domain context in section 3, and the document manifest in section 5, identify the role of each relevant document (`PRIMARY`, `SUPPORTING`, `REFERENCE`, or `UNCERTAIN`) and its independent temporal status (`CURRENT`, `HISTORICAL`, `UPCOMING`, or `UNSPECIFIED`). Read **all** available non-empty authorized pages of every `PRIMARY` document with `read_pages`, and record each relevant document's metadata, role, temporal status, effective period, and read coverage with `record_document`.
+2. **Extract significant atomic facts once as reusable document findings (`DF…`).** As you read each document, record its significant atomic facts once with `record_document_finding` (`DF1`, `DF2`, …) with open-vocabulary `category`, `subject`, `attribute`, exact `valueAsWritten`, `modality`, optional `itemKey` and `dates`, and same-document `evidenceIds`. Reuse those `DF…` finding ids across all questions, calculations, assessments, determinations, and conflicts instead of re-recording duplicate question-scoped facts.
+3. **Analyze relationships, contradictions, and missing information.** Compare findings across documents and dates, compute required arithmetic with `record_calculation`, flag contradictions across documents or sections with `flag_conflict`, carry out required evaluations with `record_assessment` (under rule 6), and record open institutional or professional decisions with `record_professional_determination` (under rule 7).
+4. **Answer every investigation question briefly using existing `DF…` references.** Call `finish_question` once for each investigation question under its question id (`P…`), keeping `answer` brief and direct, citing the supporting `DF…` `findingIds` (and any question-scoped items) rather than repeating raw fact lists, preserving `uncertainties` and `limitations`, and respecting any `Answer after` dependencies. Call `finish_study` only after every `PRIMARY` document is reviewed and every required question is closed.
 
 ## 5. Source coverage and authorized document manifest
 
@@ -63,11 +66,13 @@ Answer at the depth a specialist would. Reuse verified evidence across questions
 ## 6. Evidence and provenance requirements
 
 - Evidence is a quote from one physical page, identified by `documentId` and `pageNumber` as listed in section 9. Read a page before quoting it.
-- Evidence ids (`E…`) are case-wide and may be shared across any investigation question (`P…`). Reuse recorded `E…` ids instead of rereading or re-quoting the same page.
-- Fact ids (`F…`) belong to the `questionId` they were recorded under. `record_assessment` (`factIds`) and `record_professional_determination` (`bearingFactIds`) accept only fact ids recorded under that same `questionId`. When a dependent question builds on a fact established for an earlier question, record a `record_fact` under the dependent `questionId` citing the shared `E…` evidence id(s), then reference that new `F…` id in the assessment or determination.
-- For comparisons, cite each side. For chronologies, cite each dated event. For calculations, cite every input value; Hive computes the result from your formula, so do not supply one.
+- Evidence ids (`E…`) and document finding ids (`DF…`) are case-wide and may be shared across any investigation question (`P…`). Reuse recorded `E…` and `DF…` ids instead of rereading pages, re-quoting the same text, or duplicating facts across questions.
+- Every `record_document` and `record_document_finding` call must cite `evidenceIds` from that **same** `documentId` (`finding_cross_document_evidence` otherwise). Every number or date in a document finding's `valueAsWritten`, `statement`, or `dates` must appear in its cited evidence quotes (`finding_number_ungrounded` otherwise).
+- Question-scoped fact ids (`F…`, when `record_fact` is used) belong to the `questionId` they were recorded under. `record_assessment` and `record_professional_determination` can cite case-wide `DF…` ids (`findingIds` / `bearingFindingIds`) across any question, whereas `factIds` / `bearingFactIds` accept only `F…` ids recorded under that same `questionId` (`fact_other_question` otherwise).
+- For comparisons, cite each side (`DF…` or `E…`). For chronologies, cite each dated event. For calculations, cite every input value via `findingIds` or `evidenceIds`; Hive computes the result from your formula, so do not supply one.
 - Keep each value exactly as written in the document; do not round or convert without saying so.
-- Every assessment names the facts of the same question it relies on by fact id. A document criterion carries its own evidence.
+- Every assessment names the `DF…` findings (`findingIds`) or same-question `F…` facts (`factIds`) it relies on. A document criterion carries its own evidence.
+- **Full page read coverage never proves complete semantic extraction.** Reading every page of a document establishes read coverage (`FULL_DOCUMENT_READ` / `ALL_AUTHORIZED_PAGES_READ`), never that every domain-significant fact was extracted. Never claim in `coverageNotes` or answers that reading all pages guarantees or proves complete or 100% fact extraction (`coverage_claim_misleading`).
 
 ## 7. Uncertain, missing and conflicting information
 

@@ -3,7 +3,7 @@ import {
   buildHistoricalTemporalMap,
   type CanonicalFindingResolution,
 } from "../analysis/canonical-finding-resolver";
-import type { NumericStatus, StudyClaim } from "../analysis/study-verification";
+import { type NumericStatus, questionsWithAtomicFacts, type StudyClaim } from "../analysis/study-verification";
 import { diagnosticFieldFromMessage, type FailureComponent } from "../errors/failure-diagnostic";
 import {
   BINDING_TOKEN,
@@ -301,7 +301,7 @@ export function validateViewComponentProposal(
         }
         reject("writer_claim_kind", `${fieldPath}[${i}] cites ${id}, which cannot support this item.`);
       }
-      if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+      if (claim.kind === "ANSWER" && claim.planQuestionId !== null && questionsWithFacts.has(claim.planQuestionId)) {
         const allowedMissingAnswer =
           options.allowMissingEvidenceAnswer === true &&
           (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING");
@@ -487,7 +487,7 @@ function normalizeProse(value: string): string {
 
 function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, context: ReportBuildContext): ApplicationView {
   const claims = new Map(context.claims.map((claim) => [claim.id, claim]));
-  const questionsWithFacts = new Set(context.claims.filter((claim) => claim.kind === "FACT").map((claim) => claim.planQuestionId));
+  const questionsWithFacts = questionsWithAtomicFacts(context.claims);
   const temporalContext: WriterTemporalValidationContext = {
     historicalByClaimId: buildHistoricalTemporalMap(context.claims, {
       canonicalFindings: context.canonicalFindings,
@@ -606,7 +606,7 @@ function bindApplicationView(report: WriterReport, analysis: ScenarioAnalysis, c
         }
         reject("writer_claim_kind", `${path}[${i}] cites ${id}, which cannot support this item.`);
       }
-      if (claim.kind === "ANSWER" && questionsWithFacts.has(claim.planQuestionId)) {
+      if (claim.kind === "ANSWER" && claim.planQuestionId !== null && questionsWithFacts.has(claim.planQuestionId)) {
         const allowedMissingAnswer =
           options.allowMissingEvidenceAnswer === true &&
           (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING");

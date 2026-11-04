@@ -47,6 +47,10 @@ describe("loadPromptCatalog", () => {
     expect(catalog.writer.systemPrompt).toContain("record_scenario");
     expect(catalog.writer.systemPrompt).toContain("record_view_component");
     expect(catalog.writer.systemPrompt).toContain("finish_report");
+    expect(catalog.writer.systemPrompt).toContain("documentFinding");
+    expect(catalog.writer.systemPrompt).toContain("UNVERIFIED_BY_READ_COVERAGE");
+    expect(catalog.writer.systemPrompt).toContain("concise document overview, direct answers to the person's goals, and practical next steps");
+    expect(catalog.writer.systemPrompt).toContain("complete relevant document details, cross-document comparisons, evidentiary gaps, and professional analysis");
   });
 
   it("enforces the domain-agnostic editorial writing standard for both CUSTOMER and PRO audiences in hive-writer/1", () => {

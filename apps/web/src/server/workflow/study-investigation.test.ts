@@ -5,6 +5,10 @@ import {
   type StudyAgentTurnRequest,
 } from "@hiveforyou/contracts";
 import {
+  L001_INITIAL_IEP_DOC_ID,
+  L001_INITIAL_IEP_PAGES,
+  L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+  l001InitialIepStudyAgentTurns,
   MAYA_DOCS,
   MAYA_PAGES,
   MAYA_PLAN_QUESTION_IDS,
@@ -99,7 +103,7 @@ describe("runStudyInvestigation", () => {
       completionTokens: 800,
       modelAlias: "heavy_lifter",
     });
-    expect(p.bodies[0]!.tools).toHaveLength(11);
+    expect(p.bodies[0]!.tools).toHaveLength(13);
     expect(p.bodies[0]!.messages).toEqual([{ role: "user", content: expect.stringContaining("finish_study") }]);
     expect(p.bodies[1]!.messages[1]).toMatchObject({ role: "assistant", content: null });
     expect((p.bodies[1]!.messages[1] as { tool_calls: unknown[] }).tool_calls[0]).toEqual({
@@ -122,6 +126,42 @@ describe("runStudyInvestigation", () => {
       questionsCompleted: 6,
       questionsTotal: 6,
     });
+  });
+
+  it("runs the document-centered L001 Maya Carter golden (08_initial_iep.pdf) through runStudyInvestigation with 37 DF findings and zero duplicate question facts (V4-004I Gate 3)", async () => {
+    const l001Pages = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const turns = l001InitialIepStudyAgentTurns();
+    const p = planner((turn) => new Response(JSON.stringify(turnBody(turns[turn] ?? [])), { status: 200 }));
+    const { study, totals } = await run(p, {
+      questionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+      pages: l001Pages,
+    });
+
+    expect(totals).toMatchObject({
+      rounds: 6,
+      roundsAllowed: 18,
+      invalidCalls: 0,
+      questionsCompleted: 6,
+      questionsTotal: 6,
+    });
+    expect(p.bodies[0]!.messages[0]?.content).toContain("read all authorized non-empty pages of PRIMARY documents");
+    expect(p.bodies[0]!.messages[0]?.content).toContain("record_document_finding");
+    expect(study.documents).toHaveLength(1);
+    expect(study.documents![0]).toMatchObject({
+      sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+      role: "PRIMARY",
+      temporalStatus: "HISTORICAL",
+      declaredReadCoverage: "FULL_DOCUMENT_READ",
+      pagesRead: [1, 2, 3],
+      pagesCited: [1, 2, 3],
+    });
+    expect(study.documentFindings).toHaveLength(37);
+    expect(study.answers.map((a) => a.planQuestionId)).toEqual([...L001_INITIAL_IEP_PLAN_QUESTION_IDS]);
+    expect(study.answers.every((a) => a.facts.length === 0)).toBe(true);
+    expect(study.answers.every((a) => (a.findingIds?.length ?? 0) > 0)).toBe(true);
   });
 
   it("derives each turn timeout from the remaining stage time and never starts a turn that cannot fit", async () => {

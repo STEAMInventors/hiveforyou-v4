@@ -2,12 +2,18 @@ import {
   parseWriterAgentBudgetDiagnosticField,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   STUDY_AGENT_TURN_LIMITS,
+  StudyAgentLedger,
   type StudyAgentTurnRequest,
   studyClaimCatalog,
   verifyStudyInvestigation,
   WRITER_ALL_TOOL_NAMES,
 } from "@hiveforyou/contracts";
 import {
+  L001_INITIAL_IEP_DOC_ID,
+  L001_INITIAL_IEP_FILE_NAMES,
+  L001_INITIAL_IEP_PAGES,
+  L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+  l001InitialIepStudyAgentTurns,
   MAYA_DOCS,
   MAYA_FILE_NAMES,
   MAYA_INTENT_ID,
@@ -1175,5 +1181,468 @@ describe("processReportRun", () => {
     // Original claims array is retained unchanged
     const payloadClaims = sentPayload.claims as { id: string }[];
     expect(payloadClaims.map((c) => c.id)).toEqual(rev6Claims.map((c) => c.id));
+    expect(sentPayload.documents).toEqual([]);
+  });
+
+  it("propagates document records, roles, temporal status, coverage, and 37 DF findings to Writer and generates validated CUSTOMER and PRO reports on the independent L001 Maya Carter golden (V4-004I Gate 3)", async () => {
+    const l001Corpus = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const studyLedger = new StudyAgentLedger({
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+      pages: l001Corpus,
+    });
+    for (const turn of l001InitialIepStudyAgentTurns()) {
+      for (const call of turn) {
+        const res = studyLedger.execute(call);
+        if (!res.ok) throw new Error(`L001 ledger call failed: ${res.content}`);
+      }
+    }
+    const verifiedL001 = verifyStudyInvestigation(studyLedger.assemble(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: [...L001_INITIAL_IEP_PLAN_QUESTION_IDS],
+      pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+    });
+    if (!verifiedL001.ok) throw new Error(verifiedL001.message);
+    const l001Study = verifiedL001.value;
+
+    const makeL001Db = (audience: "CUSTOMER" | "PRO") =>
+      fakeDatabase(audience, {
+        inputsOverrides: {
+          reportRun: reportRunJson("WRITING", audience, {
+            attemptCount: 1,
+            maxAttempts: 3,
+            createdAt: "2026-11-04T14:30:00.000Z",
+          }),
+          studyRevision: {
+            id: REVISION_ID,
+            revisionNumber: 7,
+            processingRunId: MAYA_RUN_ID,
+            investigation: l001Study.investigation,
+            verification: l001Study.verification,
+            audienceConfiguration: {
+              ...UNKNOWN_AUDIENCE,
+              customer: { ...UNKNOWN_AUDIENCE.customer, role: "Parent", status: "STATED" },
+              pro: {
+                ...UNKNOWN_AUDIENCE.pro,
+                primaryRole: "Special education advocate",
+                alternativeRoles: ["Special education attorney"],
+                status: "PROVISIONAL",
+              },
+            },
+            coverageComplete: true,
+          },
+          sourceSnapshot: {
+            documents: [
+              {
+                sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+                fileName: L001_INITIAL_IEP_FILE_NAMES[L001_INITIAL_IEP_DOC_ID]!,
+              },
+            ],
+            excluded: [],
+            coverageComplete: true,
+          },
+        },
+      });
+
+    const customerComposeTurn: ToolCall[] = [
+      {
+        id: "toolu_l001_customer_compose",
+        name: "compose_writer_report",
+        arguments: JSON.stringify({
+          presentationPlan: {
+            audienceObjective:
+              "Give Maya Carter's parent a concise overview of the Initial IEP, direct answers on reading goals and services, and practical next steps.",
+            summaryDetailLevel: "CONCISE",
+            insights: [
+              {
+                id: "INS1",
+                meaning:
+                  "Maya Carter's Initial IEP (2024-11-12 through 2025-11-11) sets a reading fluency goal from 42 WCPM (86% accuracy) to 75 WCPM (95% accuracy) with 150 minutes weekly specialized reading instruction.",
+                claimIds: ["DF1", "DF2", "DF3", "DF6", "DF8", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
+                questionIds: ["P1", "P2", "P3", "P4", "P5", "P6"],
+                role: "CENTRAL",
+                reuseReason: "Summarized in overview and quantified in key metrics and checklist.",
+              },
+            ],
+            priorityFindings: [
+              { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
+              { claimId: "DF20", priority: "HIGH", insightId: "INS1" },
+              { claimId: "DF27", priority: "HIGH", insightId: "INS1" },
+            ],
+            sections: [
+              {
+                id: "s1",
+                heading: "Reading Goal, Weekly Services, and Next Steps",
+                priority: "HIGH",
+                insightIds: ["INS1"],
+                claimIds: ["DF6", "DF7", "DF8", "DF12", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "DF26", "DF27", "DF30", "DF31", "DF32", "P2.C0", "P2.C1", "P2.A0", "P6", "P6.U0", "P6.L0", "P6.D0"],
+                purpose: "Explain the reading goal, accommodations, expired IEP period, and questions to ask the school team.",
+              },
+            ],
+            components: [
+              {
+                component: "Narrative",
+                sectionId: "summary",
+                claimIds: ["DF1", "DF2", "DF3", "DF6", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
+                purpose: "Concise document overview and direct summary of Maya Carter's Initial IEP.",
+              },
+              {
+                component: "Metric",
+                claimIds: ["P2.C0"],
+                purpose: "Show the 33 WCPM reading fluency gain targeted by the annual goal.",
+              },
+              {
+                component: "Narrative",
+                sectionId: "s1",
+                claimIds: ["DF8", "P2.A0", "P6", "P6.U0", "P6.L0", "P6.D0"],
+                purpose: "Explain progress rules, the ended 2024-11-12 through 2025-11-11 period, and missing quarterly probe records.",
+              },
+              {
+                component: "Checklist",
+                claimIds: ["DF8", "DF25", "DF27", "DF30", "DF31", "DF32"],
+                purpose: "Practical next steps for the parent.",
+              },
+            ],
+          },
+          title: "Maya Carter Initial IEP Overview",
+          summary: [
+            {
+              type: "DOCUMENTED",
+              text: "Maya Carter (Grade 2, born 2017-04-18) has an Initial IEP covering 2024-11-12 through 2025-11-11 (which ended before the 2026-11-04 report date without establishing current plan status); it sets a reading fluency goal from 42 WCPM to 75 WCPM ({{calc:P2.C0}} WCPM gain) and from 86% to 95% accuracy ({{calc:P2.C1}}% gain), supported by 150 minutes weekly of specialized reading instruction.",
+              claimRefs: ["DF1", "DF2", "DF3", "DF6", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
+            },
+          ],
+          sections: [
+            {
+              id: "s1",
+              heading: "Reading Goal, Weekly Services, and What Is Missing",
+              blocks: [
+                {
+                  type: "INTERPRETATION",
+                  text: "Reaching GOAL_READING_FLUENCY requires gaining 33 WCPM (from 42 WCPM to 75 WCPM) and 9 percentage points in accuracy (from 86% to 95%) across three consecutive probes by 2025-11-11.",
+                  claimRefs: ["P2.A0", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "P2.C0", "P2.C1"],
+                },
+                {
+                  type: "UNCERTAINTY",
+                  text: "The documented 2024-11-12 through 2025-11-11 IEP period ended before the 2026-11-04 report date, no quarterly oral-reading-fluency probe results after 2024-11-12 or newer IEP records are included in this file, the 2024-10-18 academic evaluation is not separately attached, and the IEP team decides whether the 75 WCPM and 95% accuracy goal was met.",
+                  claimRefs: ["DF7", "DF8", "DF12", "DF20", "DF21", "P6", "P6.U0", "P6.L0", "P6.D0"],
+                },
+              ],
+            },
+          ],
+          scenarios: [],
+          view: [
+            { component: "Narrative", props: { sectionId: "summary" } },
+            { component: "Metric", props: { label: "Target fluency gain", binding: "{{calc:P2.C0}}", unit: "WCPM" } },
+            { component: "Narrative", props: { sectionId: "s1" } },
+            {
+              component: "Checklist",
+              props: {
+                title: "Practical next steps",
+                items: [
+                  {
+                    text: "Ask the school for the quarterly oral-reading-fluency probe reports and any IEP covering the period after 2025-11-11.",
+                    claimRefs: ["DF8", "DF25", "DF32"],
+                  },
+                  {
+                    text: "Confirm that 150 minutes weekly of specialized reading instruction and the classroom reading assessment accommodations were provided.",
+                    claimRefs: ["DF27", "DF30", "DF31"],
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      },
+    ];
+
+    const proComposeTurn: ToolCall[] = [
+      {
+        id: "toolu_l001_pro_compose",
+        name: "compose_writer_report",
+        arguments: JSON.stringify({
+          presentationPlan: {
+            audienceObjective:
+              "Provide complete relevant Initial IEP provisions, quantitative baseline-to-target comparisons, evidentiary gaps, and professional analysis for an advocate or specialist.",
+            summaryDetailLevel: "COMPREHENSIVE",
+            insights: [
+              {
+                id: "INS1",
+                meaning:
+                  "GOAL_READING_FLUENCY requires a 33 WCPM fluency increase (42 to 75 WCPM) and 9% accuracy increase (86% to 95%) across three consecutive probes, backed by 150 minutes weekly specialized reading instruction.",
+                claimIds: ["DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF27", "P2.C0", "P2.C1"],
+                questionIds: ["P2", "P3", "P4", "P6"],
+                role: "CENTRAL",
+                reuseReason: "Core quantitative findings paired across summary narrative, Comparison, and RecordTable.",
+              },
+            ],
+            priorityFindings: [
+              { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
+              { claimId: "DF20", priority: "HIGH", insightId: "INS1" },
+              { claimId: "DF27", priority: "HIGH", insightId: "INS1" },
+            ],
+            sections: [
+              {
+                id: "s1",
+                heading: "Documented Provisions, Quantitative Analysis, and Evidentiary Gaps",
+                priority: "HIGH",
+                insightIds: ["INS1"],
+                claimIds: ["DF6", "DF7", "DF8", "DF12", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "DF27", "P2.C0", "P2.C1", "P2.A0", "P6", "P6.U0", "P6.D0"],
+                purpose: "Deliver professional analysis of baseline vs target criteria, historical effective period, and missing monitoring records.",
+              },
+            ],
+            components: [
+              {
+                component: "Narrative",
+                sectionId: "summary",
+                claimIds: ["DF1", "DF2", "DF3", "DF6", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
+                purpose: "Technical executive summary of Maya Carter's Initial IEP.",
+              },
+              {
+                component: "Comparison",
+                claimIds: ["DF12", "DF13", "DF14", "DF19", "DF20", "DF21", "DF24"],
+                insightIds: ["INS1"],
+                purpose: "Compare 2024-10-18 evaluation baseline against annual goal criteria.",
+                reuseReason: "Side-by-side baseline vs target verification for specialist audit.",
+              },
+              {
+                component: "RecordTable",
+                claimIds: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF9", "DF11", "DF17", "DF19", "DF20", "DF21", "DF22", "DF26", "DF27", "DF28", "DF29", "DF30", "DF31", "DF33", "DF34", "DF35", "DF36"],
+                purpose: "Complete relevant document details across student profile, eligibility, goal, service, accommodations, and team participation.",
+              },
+              {
+                component: "Narrative",
+                sectionId: "s1",
+                claimIds: ["DF8", "P2.A0", "P6", "P6.U0", "P6.D0"],
+                purpose: "Professional analysis of goal criteria, historical period status, and evidentiary gaps.",
+              },
+            ],
+          },
+          title: "Professional Audit: Maya Carter Initial IEP",
+          summary: [
+            {
+              type: "DOCUMENTED",
+              text: "Maya Carter (DOB 2017-04-18, Grade 2, Synthetic Elementary School, Synthetic District) has an Initial IEP dated 2024-11-12 with a documented effective period of 2024-11-12 through 2025-11-11 (ended before the 2026-11-04 report date without establishing current plan status), targeting a {{calc:P2.C0}} WCPM fluency increase (42 WCPM to 75 WCPM) and {{calc:P2.C1}}% accuracy increase (86% to 95%) with 150 minutes weekly specialized reading instruction.",
+              claimRefs: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "DF7", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
+            },
+          ],
+          sections: [
+            {
+              id: "s1",
+              heading: "Documented Provisions, Quantitative Analysis, and Evidentiary Gaps",
+              blocks: [
+                {
+                  type: "INTERPRETATION",
+                  text: "Based on the document's baseline and goal criteria, GOAL_READING_FLUENCY requires a 33 WCPM fluency increase (from 42 WCPM to at least 75 WCPM) and a 9 percentage-point accuracy increase (from 86% to at least 95%) across three consecutive probes by 2025-11-11.",
+                  claimRefs: ["P2.A0", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "P2.C0", "P2.C1"],
+                },
+                {
+                  type: "UNCERTAINTY",
+                  text: "The documented 2024-11-12 through 2025-11-11 IEP period ended before the 2026-11-04 report date without establishing whether a successor plan exists; no post-2024-11-12 quarterly oral-reading-fluency probe results or 2024-10-18 evaluation reports are attached in this single-document corpus, and the IEP team decides whether the 75 WCPM and 95% accuracy goal was achieved.",
+                  claimRefs: ["DF7", "DF8", "DF12", "DF20", "DF21", "P6", "P6.U0", "P6.D0"],
+                },
+              ],
+            },
+          ],
+          scenarios: [],
+          view: [
+            { component: "Narrative", props: { sectionId: "summary" } },
+            {
+              component: "Comparison",
+              props: {
+                title: "Reading Fluency Baseline vs. Annual Goal Criterion",
+                leftLabel: "Baseline (2024-10-18 Evaluation)",
+                rightLabel: "Annual Target (2025-11-11)",
+                items: [
+                  {
+                    label: "Oral Reading Fluency Rate",
+                    left: "42 WCPM",
+                    right: "75 WCPM",
+                    claimRefs: ["DF13", "DF19", "DF20"],
+                  },
+                  {
+                    label: "Oral Reading Accuracy",
+                    left: "86%",
+                    right: "at least 95% accuracy",
+                    claimRefs: ["DF14", "DF21"],
+                  },
+                ],
+              },
+            },
+            {
+              component: "RecordTable",
+              props: {
+                title: "Initial IEP Documented Provisions",
+                columns: ["Section", "Subject", "Provision"],
+                rows: [
+                  {
+                    cells: [
+                      "Student & Eligibility",
+                      "Maya Carter (Grade 2)",
+                      "DOB 2017-04-18 · Synthetic Elementary · Synthetic District · SLD - Reading (2024-11-01)",
+                    ],
+                    claimRefs: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF9", "DF11"],
+                  },
+                  {
+                    cells: [
+                      "Annual Goal",
+                      "GOAL_READING_FLUENCY",
+                      "Baseline 42 WCPM · Target 75 WCPM · at least 95% accuracy across three consecutive probes",
+                    ],
+                    claimRefs: ["DF17", "DF19", "DF20", "DF21", "DF22"],
+                  },
+                  {
+                    cells: [
+                      "Special Education Services",
+                      "Specialized reading instruction",
+                      "Weekly · 150 minutes · special education setting · starts 2024-11-12",
+                    ],
+                    claimRefs: ["DF26", "DF27", "DF28", "DF29"],
+                  },
+                  {
+                    cells: [
+                      "Accommodations",
+                      "Classroom & Assessment",
+                      "Extended time for classroom reading assessments; directions read aloud when reading ability is not being assessed",
+                    ],
+                    claimRefs: ["DF30", "DF31"],
+                  },
+                  {
+                    cells: [
+                      "Team Participation",
+                      "IEP Team (2024-11-12)",
+                      "Parent/Guardian, General Education Teacher, Special Education Teacher, District Representative",
+                    ],
+                    claimRefs: ["DF33", "DF34", "DF35", "DF36"],
+                  },
+                ],
+              },
+            },
+            { component: "Narrative", props: { sectionId: "s1" } },
+          ],
+        }),
+      },
+    ];
+
+    const customerDb = makeL001Db("CUSTOMER");
+    const proDb = makeL001Db("PRO");
+    const customerModel = planner([customerComposeTurn]);
+    const proModel = planner([proComposeTurn]);
+
+    await expect(
+      processReportRun({ client: customerDb.client, planner: customerModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+    await expect(
+      processReportRun({ client: proDb.client, planner: proModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+
+    const customerPayload = JSON.parse(customerModel.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
+    const proPayload = JSON.parse(proModel.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
+
+    // Proof of end-to-end DF and document metadata propagation to Writer
+    expect(customerPayload.documents).toEqual([
+      expect.objectContaining({
+        sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+        fileName: "08_initial_iep.pdf",
+        role: "PRIMARY",
+        temporalStatus: "HISTORICAL",
+        declaredReadCoverage: "FULL_DOCUMENT_READ",
+        readCoverageStatus: "ALL_AUTHORIZED_PAGES_READ",
+        extractionCompletenessStatus: "UNVERIFIED_BY_READ_COVERAGE",
+        pagesRead: [1, 2, 3],
+        pagesCited: [1, 2, 3],
+        findingCount: 37,
+        effectivePeriod: {
+          startDate: "2024-11-12",
+          endDate: "2025-11-11",
+          asWritten: "2024-11-12 through 2025-11-11",
+        },
+      }),
+    ]);
+    expect(customerPayload.coverage).toMatchObject({
+      complete: true,
+      studyCoverageNotes: ["All 3 pages of L001 08_initial_iep.pdf were read."],
+      documentCoverage: [
+        expect.objectContaining({
+          sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+          role: "PRIMARY",
+          temporalStatus: "HISTORICAL",
+          readCoverageStatus: "ALL_AUTHORIZED_PAGES_READ",
+          extractionCompletenessStatus: "UNVERIFIED_BY_READ_COVERAGE",
+          findingCount: 37,
+        }),
+      ],
+    });
+
+    const payloadClaims = customerPayload.claims as {
+      id: string;
+      kind: string;
+      planQuestionId?: string;
+      questionIds?: string[];
+      findingIds?: string[];
+      documentFinding?: {
+        sourceDocumentId: string;
+        fileName: string;
+        category: string;
+        subject: string;
+        attribute: string;
+        valueAsWritten: string;
+        modality: string;
+        section?: string;
+      };
+      pages?: string[];
+    }[];
+    const dfClaimsInPayload = payloadClaims.filter((c) => c.id.startsWith("DF"));
+    expect(dfClaimsInPayload).toHaveLength(37);
+    expect(dfClaimsInPayload.find((c) => c.id === "DF19")).toMatchObject({
+      id: "DF19",
+      kind: "FACT",
+      questionIds: ["P2", "P4", "P6"],
+      pages: ["08_initial_iep.pdf p.2"],
+      documentFinding: {
+        sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+        fileName: "08_initial_iep.pdf",
+        category: "annual_goal",
+        subject: "GOAL_READING_FLUENCY",
+        attribute: "baseline",
+        valueAsWritten: "42 WCPM",
+        modality: "MEASURED",
+        section: "5. Annual Goal",
+      },
+    });
+    expect(payloadClaims.find((c) => c.id === "P2")).toMatchObject({
+      id: "P2",
+      kind: "ANSWER",
+      planQuestionId: "P2",
+      findingIds: expect.arrayContaining(["DF19", "DF20", "DF21"]),
+    });
+
+    // Verify saved reports and bound A2UI views for both audiences
+    const savedCustomer = customerDb.saved()!;
+    const savedPro = proDb.saved()!;
+    expect(savedCustomer.view).toMatchObject({
+      schema: "hive-application-view/1",
+      audience: "CUSTOMER",
+      layout: "PROPOSED",
+    });
+    expect(savedPro.view).toMatchObject({
+      schema: "hive-application-view/1",
+      audience: "PRO",
+      layout: "PROPOSED",
+    });
+    const proComponents = (savedPro.view as { components: { component: string; rows?: { refs: { fileName: string; pageNumber: number }[] }[] }[] }).components;
+    const recordTable = proComponents.find((c) => c.component === "RecordTable")!;
+    expect(recordTable.rows).toHaveLength(5);
+    expect(recordTable.rows![0]!.refs).toEqual([
+      {
+        sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+        pageNumber: 1,
+        fileName: "08_initial_iep.pdf",
+      },
+    ]);
+    expect(proPayload.documents).toEqual(customerPayload.documents);
   });
 });

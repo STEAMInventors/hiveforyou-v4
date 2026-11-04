@@ -4,7 +4,7 @@ import {
   type CanonicalFindingResolution,
 } from "../analysis/canonical-finding-resolver";
 import type { StudyAgentBudgetDimension } from "../analysis/study-agent";
-import type { StudyClaim } from "../analysis/study-verification";
+import { questionsWithAtomicFacts, type StudyClaim } from "../analysis/study-verification";
 import {
   A2UI_COMPONENTS,
   type A2uiComponentName,
@@ -805,9 +805,7 @@ export class WriterAgentLedger {
 
   constructor(private readonly context: WriterAgentContext) {
     this.claims = new Map(context.claims.map((claim) => [claim.id, claim]));
-    this.questionsWithFacts = new Set(
-      context.claims.filter((claim) => claim.kind === "FACT").map((claim) => claim.planQuestionId),
-    );
+    this.questionsWithFacts = questionsWithAtomicFacts(context.claims);
     this.canonicalFindings = context.canonicalFindings ?? null;
     const historicalByClaimId = buildHistoricalTemporalMap(context.claims, {
       canonicalFindings: this.canonicalFindings,
@@ -1178,9 +1176,15 @@ export class WriterAgentLedger {
           return claimId;
         });
         const expectedQuestions = new Set<string>(
-          claimIds.map((cId) => this.claims.get(cId)!.planQuestionId),
+          claimIds.flatMap((cId) => {
+            const c = this.claims.get(cId)!;
+            return [
+              ...(c.planQuestionId ? [c.planQuestionId] : []),
+              ...(c.questionIds ?? []),
+            ];
+          }),
         );
-        if (!Array.isArray(entry.questionIds) || entry.questionIds.length === 0 || entry.questionIds.length > 24) {
+        if (!Array.isArray(entry.questionIds) || entry.questionIds.length > 24 || (expectedQuestions.size > 0 && entry.questionIds.length === 0)) {
           throw new WriterRejection(
             "writer_insight_mapping_invalid",
             `${path}.questionIds must list the originating plan questions ([${[...expectedQuestions].join(", ")}]) for ${path}.claimIds.`,
@@ -2435,7 +2439,7 @@ export class WriterAgentLedger {
     options: {
       readonly componentName?: string;
       readonly blockType?: ReportBlockType;
-      readonly questionId?: string;
+      readonly questionId?: string | null;
       readonly requireRefs?: boolean;
     },
   ): string[] {
@@ -2444,9 +2448,14 @@ export class WriterAgentLedger {
     const requireRefs = options.requireRefs ?? compRules?.requireRefs ?? false;
     return claims
       .filter((claim) => {
-        if (options.questionId && claim.planQuestionId !== options.questionId) return false;
+        if (options.questionId) {
+          const matchesQ =
+            claim.planQuestionId === options.questionId ||
+            (claim.questionIds?.includes(options.questionId) ?? false);
+          if (!matchesQ) return false;
+        }
         if (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED") return false;
-        if (claim.kind === "ANSWER" && this.questionsWithFacts.has(claim.planQuestionId)) {
+        if (claim.kind === "ANSWER" && claim.planQuestionId !== null && this.questionsWithFacts.has(claim.planQuestionId)) {
           const allowMissing =
             compRules?.allowMissingEvidenceAnswer === true &&
             (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING");
@@ -2505,14 +2514,15 @@ export class WriterAgentLedger {
           hint: `${allowedDesc}Do not cite broad question answer ${questionId} when atomic facts exist. Cite the specific compatible claim(s) for this item instead: ${atomicIds.join(", ")}.`,
         };
       }
-      const claimMatch = /cites (P[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?)\b/.exec(error.message);
+      const claimMatch = /cites ((?:DF[1-9][0-9]{0,3}|P[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?))\b/.exec(error.message);
       const claim = claimMatch ? this.claims.get(claimMatch[1]!) : undefined;
       if (claim) {
+        const primaryQuestionId = claim.planQuestionId ?? claim.questionIds?.[0];
         if (compRules && componentName) {
           const allowedKindsList = [...compRules.allowedKinds].join(", ");
           const sameQuestionCandidates = this.filterCompatibleCandidates(this.context.claims, {
             componentName,
-            questionId: claim.planQuestionId,
+            questionId: primaryQuestionId,
           });
           const candidateClaimIds =
             sameQuestionCandidates.length > 0
@@ -2528,7 +2538,7 @@ export class WriterAgentLedger {
         const compatibleInQuestion = blockType
           ? this.filterCompatibleCandidates(this.context.claims, {
               blockType,
-              questionId: claim.planQuestionId,
+              questionId: primaryQuestionId,
             })
           : [];
         return {
@@ -2557,12 +2567,12 @@ export class WriterAgentLedger {
     }
 
     if (reason === "writer_unverified_number") {
-      const listMatch = /lists (P[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?) as a finding/.exec(error.message);
+      const listMatch = /lists ((?:DF[1-9][0-9]{0,3}|P[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?)) as a finding/.exec(error.message);
       if (listMatch && compRules && componentName) {
         const badClaim = this.claims.get(listMatch[1]!);
         const candidateClaimIds = this.filterCompatibleCandidates(this.context.claims, {
           componentName,
-          questionId: badClaim?.planQuestionId,
+          questionId: badClaim?.planQuestionId ?? badClaim?.questionIds?.[0],
         });
         return {
           ...base,
@@ -2577,7 +2587,7 @@ export class WriterAgentLedger {
     }
 
     if (reason === "writer_claim_missing" || reason === "writer_claim_unknown") {
-      const noPageMatch = /cites (P[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?), which has no source page reference/.exec(
+      const noPageMatch = /cites ((?:DF[1-9][0-9]{0,3}|P[1-9][0-9]{0,2}(?:\.[FCAUKDL][0-9]{1,3})?)), which has no source page reference/.exec(
         error.message,
       );
       if (noPageMatch) {
@@ -2585,7 +2595,7 @@ export class WriterAgentLedger {
         const sameQuestionPageBacked = this.filterCompatibleCandidates(this.context.claims, {
           componentName,
           blockType,
-          questionId: pagelessClaim?.planQuestionId,
+          questionId: pagelessClaim?.planQuestionId ?? pagelessClaim?.questionIds?.[0],
           requireRefs: true,
         });
         const pageBackedCandidates =
@@ -2683,7 +2693,7 @@ export class WriterAgentLedger {
     const candidates: string[] = [];
     for (const claim of this.context.claims) {
       if (claim.kind === "CALCULATION" && claim.numericStatus !== "VERIFIED") continue;
-      if (claim.kind === "ANSWER" && this.questionsWithFacts.has(claim.planQuestionId)) continue;
+      if (claim.kind === "ANSWER" && claim.planQuestionId !== null && this.questionsWithFacts.has(claim.planQuestionId)) continue;
       if (compRules) {
         if (!compRules.allowedKinds.has(claim.kind)) continue;
         if (compRules.requireRefs && claim.refs.length === 0) continue;

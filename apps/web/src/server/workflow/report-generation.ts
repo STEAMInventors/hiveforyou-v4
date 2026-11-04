@@ -396,8 +396,51 @@ function buildWriterStudyContext(inputs: Pick<GenerationInputs, "intentDecomposi
   };
 }
 
+function buildWriterDocumentsPayload(
+  verified: VerifiedStudy,
+  fileNames: ReadonlyMap<string, string>,
+) {
+  const docs = verified.investigation.documents ?? [];
+  const covByDoc = new Map(
+    (verified.verification.documentCoverage ?? []).map((cov) => [cov.sourceDocumentId.toLowerCase(), cov]),
+  );
+  return docs.map((doc) => {
+    const docId = doc.sourceDocumentId.toLowerCase();
+    const cov = covByDoc.get(docId);
+    const fileName = fileNames.get(docId) ?? "Document";
+    const page = (ref: { sourceDocumentId: string; pageNumber: number }) =>
+      `${fileNames.get(ref.sourceDocumentId.toLowerCase()) ?? "Document"} p.${ref.pageNumber}`;
+    return {
+      sourceDocumentId: doc.sourceDocumentId,
+      fileName,
+      role: doc.role,
+      roleReasoning: doc.roleReasoning,
+      documentType: doc.documentType,
+      ...(doc.titleAsPrinted !== undefined ? { titleAsPrinted: doc.titleAsPrinted } : {}),
+      ...(doc.issuer !== undefined ? { issuer: doc.issuer } : {}),
+      ...(doc.subjects !== undefined && doc.subjects.length > 0 ? { subjects: [...doc.subjects] } : {}),
+      temporalStatus: doc.temporalStatus,
+      ...(doc.effectivePeriod !== undefined ? { effectivePeriod: doc.effectivePeriod } : {}),
+      declaredReadCoverage: doc.declaredReadCoverage,
+      readCoverageStatus: cov?.readCoverageStatus ?? "PARTIAL_PAGES_READ",
+      extractionCompletenessStatus: cov?.extractionCompletenessStatus ?? "UNVERIFIED_BY_READ_COVERAGE",
+      ...(cov
+        ? {
+            authorizedPageNumbers: [...cov.authorizedPageNumbers],
+            authorizedNonEmptyPageNumbers: [...cov.authorizedNonEmptyPageNumbers],
+          }
+        : {}),
+      pagesRead: [...doc.pagesRead],
+      pagesCited: [...doc.pagesCited],
+      findingCount: cov?.findingCount ?? 0,
+      ...(doc.evidence.length > 0 ? { pages: doc.evidence.map(page) } : {}),
+    };
+  });
+}
+
 /**
- * The Writer's user message (prompt `## User message shape`): validated claims, bounded
+ * The Writer's user message (prompt `## User message shape`): validated claims (including structured
+ * `DF…` document finding metadata), document inventory with roles/temporal status/coverage, bounded
  * upstream intent/domain/specialist/plan context, and bounded Gate 1 canonical finding resolution
  * advisory metadata only, never raw page text.
  */
@@ -430,6 +473,21 @@ export function buildWriterPayload(
     resolveCanonicalFindings(inputs.verified, claims, {
       asOf: inputs.reportRun?.createdAt ?? null,
     });
+  const documents = buildWriterDocumentsPayload(inputs.verified, fileNames);
+  const documentCoverage = (inputs.verified.verification.documentCoverage ?? []).map((cov) => ({
+    sourceDocumentId: cov.sourceDocumentId,
+    fileName: fileNames.get(cov.sourceDocumentId.toLowerCase()) ?? "Document",
+    role: cov.role,
+    temporalStatus: cov.temporalStatus,
+    declaredReadCoverage: cov.declaredReadCoverage,
+    readCoverageStatus: cov.readCoverageStatus,
+    extractionCompletenessStatus: cov.extractionCompletenessStatus,
+    authorizedPageNumbers: [...cov.authorizedPageNumbers],
+    authorizedNonEmptyPageNumbers: [...cov.authorizedNonEmptyPageNumbers],
+    pagesRead: [...cov.pagesRead],
+    pagesCited: [...cov.pagesCited],
+    findingCount: cov.findingCount,
+  }));
   return {
     task: "writer",
     audience,
@@ -472,14 +530,52 @@ export function buildWriterPayload(
       ...(considerations.length > 0 ? { considerations } : {}),
     },
     studyContext: buildWriterStudyContext(inputs),
+    documents,
     canonicalFindings: buildWriterCanonicalFindingsProjection(resolvedCanonicalFindings),
     coverage: {
       complete: inputs.coverageComplete,
       notes: (inputs.sourceSnapshot?.excluded ?? []).map((document) => `${document.fileName} was not read (${document.reason}).`),
+      ...(Array.isArray(inputs.verified.investigation.coverageNotes) && inputs.verified.investigation.coverageNotes.length > 0
+        ? { studyCoverageNotes: [...inputs.verified.investigation.coverageNotes] }
+        : {}),
+      ...(documentCoverage.length > 0 ? { documentCoverage } : {}),
     },
     claims: claims.map((claim) => ({
       id: claim.id,
       kind: claim.kind,
+      ...(claim.planQuestionId !== null ? { planQuestionId: claim.planQuestionId } : {}),
+      ...(claim.questionIds && claim.questionIds.length > 0 ? { questionIds: [...claim.questionIds] } : {}),
+      ...(claim.findingIds && claim.findingIds.length > 0 ? { findingIds: [...claim.findingIds] } : {}),
+      ...(claim.documentFinding
+        ? {
+            documentFinding: {
+              sourceDocumentId: claim.documentFinding.sourceDocumentId,
+              fileName: fileNames.get(claim.documentFinding.sourceDocumentId.toLowerCase()) ?? "Document",
+              category: claim.documentFinding.category,
+              subject: claim.documentFinding.subject,
+              attribute: claim.documentFinding.attribute,
+              valueAsWritten: claim.documentFinding.valueAsWritten,
+              modality: claim.documentFinding.modality,
+              itemKey: claim.documentFinding.itemKey,
+              ...(claim.documentFinding.dates.length > 0 ? { dates: [...claim.documentFinding.dates] } : {}),
+              ...(claim.documentFinding.unit !== undefined && claim.documentFinding.unit !== null
+                ? { unit: claim.documentFinding.unit }
+                : {}),
+              ...(claim.documentFinding.per !== undefined && claim.documentFinding.per !== null
+                ? { per: claim.documentFinding.per }
+                : {}),
+              ...(claim.documentFinding.section !== undefined && claim.documentFinding.section !== null
+                ? { section: claim.documentFinding.section }
+                : {}),
+              ...(claim.documentFinding.attributedTo !== undefined && claim.documentFinding.attributedTo !== null
+                ? { attributedTo: claim.documentFinding.attributedTo }
+                : {}),
+              ...(claim.documentFinding.relatedFindingIds.length > 0
+                ? { relatedFindingIds: [...claim.documentFinding.relatedFindingIds] }
+                : {}),
+            },
+          }
+        : {}),
       text: claim.text,
       ...(claim.quotes.length > 0 ? { quotes: claim.quotes } : {}),
       ...(claim.refs.length > 0 ? { pages: claim.refs.map(page) } : {}),

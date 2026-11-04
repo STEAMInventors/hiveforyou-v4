@@ -1,11 +1,13 @@
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 import type {
   InvestigationAnswerStatus,
+  StudyDocumentFinding,
   StudyInvestigationOutput,
 } from "../study-preparation/execution-manifest-contracts";
 import {
   type CalculationCheck,
   type ClaimKind,
+  DOCUMENT_FINDING_ID_RE,
   type EvidenceRef,
   normalizeQuoteText,
   type NumericStatus,
@@ -129,7 +131,8 @@ export type CanonicalDeterminationRecord = {
 
 export type CanonicalOriginalClaimRecord = {
   readonly claimId: string;
-  readonly planQuestionId: string;
+  readonly planQuestionId: string | null;
+  readonly questionIds?: readonly string[];
   readonly kind: ClaimKind;
   readonly text: string;
   readonly refs: readonly EvidenceRef[];
@@ -273,6 +276,7 @@ const CLAIM_KIND_ORDER: Readonly<Record<ClaimKind, number>> = {
 };
 
 const CLAIM_ID_PARSE_RE = /^P([1-9][0-9]{0,2})(?:\.([FCAUKDL])([0-9]{1,3}))?$/;
+const DF_ID_PARSE_RE = /^DF([1-9][0-9]{0,3})$/;
 
 const MONTH_INDEX: Readonly<Record<string, number>> = {
   january: 1,
@@ -314,6 +318,11 @@ function compareQuestionIds(left: string, right: string): number {
 }
 
 function compareClaimIds(left: string, right: string): number {
+  const lDf = DF_ID_PARSE_RE.exec(left);
+  const rDf = DF_ID_PARSE_RE.exec(right);
+  if (lDf && rDf) return Number(lDf[1]) - Number(rDf[1]);
+  if (lDf) return -1;
+  if (rDf) return 1;
   const lMatch = CLAIM_ID_PARSE_RE.exec(left);
   const rMatch = CLAIM_ID_PARSE_RE.exec(right);
   if (!lMatch || !rMatch) return left.localeCompare(right);
@@ -767,9 +776,38 @@ function indexStudyDetails(
     string,
     StudyInvestigationOutput["answers"][number]
   >(verifiedStudy.investigation.answers.map((ans) => [ans.planQuestionId, ans]));
+  const docFindingsById = new Map<string, StudyDocumentFinding>(
+    (verifiedStudy.investigation.documentFindings ?? []).map((finding) => [finding.id, finding]),
+  );
+  const findingEvidence = (ids: readonly string[] | undefined): CanonicalEvidenceItem[] =>
+    (ids ?? []).flatMap((fId) => docFindingsById.get(fId)?.evidence ?? []);
 
   return claims.map((claim) => {
-    const answer = answersByQuestionId.get(claim.planQuestionId);
+    if (DOCUMENT_FINDING_ID_RE.test(claim.id)) {
+      const df = docFindingsById.get(claim.id);
+      const ev = df
+        ? df.evidence
+        : claim.refs.length > 0 && claim.quotes.length > 0
+          ? claim.quotes.map((quote, idx) => {
+              const ref = claim.refs[Math.min(idx, claim.refs.length - 1)]!;
+              return {
+                sourceDocumentId: ref.sourceDocumentId.toLowerCase(),
+                pageNumber: ref.pageNumber,
+                quote,
+              };
+            })
+          : [];
+      return {
+        claim,
+        evidence: canonicalizeEvidenceList(ev),
+        calculation: null,
+        assessment: null,
+        conflict: null,
+        determination: null,
+      };
+    }
+
+    const answer = claim.planQuestionId ? answersByQuestionId.get(claim.planQuestionId) : undefined;
     const parsed = CLAIM_ID_PARSE_RE.exec(claim.id);
     const subKind = parsed?.[2] ?? "";
     const subIndex = parsed?.[3] !== undefined ? Number(parsed[3]) : -1;
@@ -803,7 +841,7 @@ function indexStudyDetails(
     if (claim.kind === "ANSWER" && subKind === "") {
       return {
         claim,
-        evidence: canonicalizeEvidenceList(answer.evidence),
+        evidence: canonicalizeEvidenceList([...answer.evidence, ...findingEvidence(answer.findingIds)]),
         calculation: null,
         assessment: null,
         conflict: null,
@@ -837,7 +875,7 @@ function indexStudyDetails(
         computedValue: claim.computedValue ?? null,
         statedValue: null,
       };
-      const allEv = calc.inputs.flatMap((inp) => inp.evidence);
+      const allEv = calc.inputs.flatMap((inp) => [...inp.evidence, ...findingEvidence(inp.findingIds)]);
       return {
         claim,
         evidence: canonicalizeEvidenceList(allEv),
@@ -846,7 +884,7 @@ function indexStudyDetails(
           inputs: calc.inputs.map((inp) => ({
             label: inp.label,
             valueAsWritten: inp.valueAsWritten,
-            evidence: canonicalizeEvidenceList(inp.evidence),
+            evidence: canonicalizeEvidenceList([...inp.evidence, ...findingEvidence(inp.findingIds)]),
           })),
           arithmetic: calc.arithmetic,
           result: calc.result,
@@ -869,6 +907,7 @@ function indexStudyDetails(
       const combinedEv = [
         ...assessment.criterionEvidence,
         ...factEvidence(assessment.factIndexes),
+        ...findingEvidence(assessment.findingIds),
       ];
       return {
         claim,
@@ -880,7 +919,10 @@ function indexStudyDetails(
           criterionSource: assessment.criterionSource,
           criterionEvidence: canonicalizeEvidenceList(assessment.criterionEvidence),
           factIndexes: [...assessment.factIndexes],
-          supportingFactClaimIds: assessment.factIndexes.map((idx) => `${p}.F${idx}`),
+          supportingFactClaimIds: [
+            ...(assessment.findingIds ?? []),
+            ...assessment.factIndexes.map((idx) => `${p}.F${idx}`),
+          ],
           reasoning: assessment.reasoning,
           strength: assessment.strength,
           wouldChangeIf: [...assessment.wouldChangeIf],
@@ -897,14 +939,15 @@ function indexStudyDetails(
       answer.conflicts[subIndex]
     ) {
       const conflict = answer.conflicts[subIndex]!;
+      const conflictEv = [...conflict.evidence, ...findingEvidence(conflict.findingIds)];
       return {
         claim,
-        evidence: canonicalizeEvidenceList(conflict.evidence),
+        evidence: canonicalizeEvidenceList(conflictEv),
         calculation: null,
         assessment: null,
         conflict: {
           description: conflict.description,
-          evidence: canonicalizeEvidenceList(conflict.evidence),
+          evidence: canonicalizeEvidenceList(conflictEv),
         },
         determination: null,
       };
@@ -917,7 +960,7 @@ function indexStudyDetails(
       answer.professionalDeterminations[subIndex]
     ) {
       const det = answer.professionalDeterminations[subIndex]!;
-      const ev = factEvidence(det.bearingFacts);
+      const ev = [...factEvidence(det.bearingFacts), ...findingEvidence(det.bearingFindingIds)];
       return {
         claim,
         evidence: canonicalizeEvidenceList(ev),
@@ -927,7 +970,10 @@ function indexStudyDetails(
         determination: {
           determination: det.determination,
           bearingFacts: [...det.bearingFacts],
-          bearingFactClaimIds: det.bearingFacts.map((idx) => `${p}.F${idx}`),
+          bearingFactClaimIds: [
+            ...(det.bearingFindingIds ?? []),
+            ...det.bearingFacts.map((idx) => `${p}.F${idx}`),
+          ],
           decidedBy: det.decidedBy,
         },
       };
@@ -1180,7 +1226,11 @@ export function resolveCanonicalFindings(
       claimToGroupId[claimId] = id;
     }
 
-    const questionIdSet = new Set<string>(orderedItems.map((it) => it.claim.planQuestionId));
+    const questionIdSet = new Set<string>();
+    for (const it of orderedItems) {
+      if (it.claim.planQuestionId) questionIdSet.add(it.claim.planQuestionId);
+      for (const qId of it.claim.questionIds ?? []) questionIdSet.add(qId);
+    }
     const questionIds = [...questionIdSet].sort(compareQuestionIds);
 
     const evidence = mergeEvidencePreservingOrder(orderedItems.map((it) => it.evidence));
@@ -1190,6 +1240,7 @@ export function resolveCanonicalFindings(
     const originalClaims: CanonicalOriginalClaimRecord[] = orderedItems.map((it) => ({
       claimId: it.claim.id,
       planQuestionId: it.claim.planQuestionId,
+      ...(it.claim.questionIds !== undefined ? { questionIds: [...it.claim.questionIds] } : {}),
       kind: it.claim.kind,
       text: it.claim.text,
       refs: it.claim.refs.map((r) => ({
@@ -1207,7 +1258,13 @@ export function resolveCanonicalFindings(
 
     const atomicity: CanonicalFindingAtomicity =
       bucket.kind === "FACT"
-        ? classifyFactAtomicity(primary.claim.text, evidence)
+        ? orderedItems.some((it) => it.claim.documentFinding !== undefined)
+          ? {
+              status: "ATOMIC",
+              reasons: [],
+              canLosslesslySplitWithoutModel: true,
+            }
+          : classifyFactAtomicity(primary.claim.text, evidence)
         : {
             status: "NOT_APPLICABLE",
             reasons: [],
@@ -1378,10 +1435,16 @@ export function verifyProposedAtomicFindings(
     if (!parent || parent.claim.kind !== "FACT") {
       return fail("atomic_finding_parent_unknown", `${path}.parentClaimId must reference an existing FACT claim.`, `${path}.parentClaimId`);
     }
-    if (typeof planQuestionId !== "string" || planQuestionId !== parent.claim.planQuestionId) {
+    const parentExpectedQuestionIds = new Set<string>(
+      [
+        ...(parent.claim.planQuestionId ? [parent.claim.planQuestionId] : []),
+        ...(parent.claim.questionIds ?? []),
+      ],
+    );
+    if (typeof planQuestionId !== "string" || !parentExpectedQuestionIds.has(planQuestionId)) {
       return fail(
         "atomic_finding_question_mismatch",
-        `${path}.planQuestionId must match parent claim ${parentClaimId} (${parent.claim.planQuestionId}).`,
+        `${path}.planQuestionId must match parent claim ${parentClaimId} (${parent.claim.planQuestionId ?? [...parentExpectedQuestionIds].join(", ")}).`,
         `${path}.planQuestionId`,
       );
     }

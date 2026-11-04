@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { MAYA_DOCS, MAYA_RUN_ID } from "../testing/maya-fixture";
+import {
+  MAYA_DOCS,
+  MAYA_LIN_VARIANT_IEP_PAGES,
+  MAYA_REVISION_6_PLAN_QUESTION_IDS,
+  MAYA_RUN_ID,
+  mayaLinVariantDocumentCenteredStudyAgentTurns,
+} from "../testing/maya-fixture";
 import {
   CANONICAL_FINDINGS_SCHEMA,
   PROPOSED_ATOMIC_FINDING_SCHEMA,
   resolveCanonicalFindings,
   verifyProposedAtomicFindings,
 } from "./canonical-finding-resolver";
+import { StudyAgentLedger } from "./study-agent";
 import { studyClaimCatalog, verifyStudyInvestigation } from "./study-verification";
 
 const PLAN_QUESTION_IDS = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"] as const;
@@ -701,5 +708,38 @@ describe("resolveCanonicalFindings (V4-004H Gate 1)", () => {
     expect(baselineRun.groups.map((g) => g.id)).toEqual(
       baselineRun.groups.map((_, idx) => `CF${idx + 1}`),
     );
+  });
+
+  it("resolves DF document findings across P1-P7 without inventing placeholder planQuestionIds", () => {
+    const pages = Object.entries(MAYA_LIN_VARIANT_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const ledger = new StudyAgentLedger({
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+      pages,
+    });
+    for (const turn of mayaLinVariantDocumentCenteredStudyAgentTurns()) {
+      for (const call of turn) ledger.execute(call);
+    }
+    const verified = verifyStudyInvestigation(ledger.assemble(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+      pages: new Map(Object.entries(MAYA_LIN_VARIANT_IEP_PAGES)),
+    });
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+
+    const claims = studyClaimCatalog(verified.value);
+    const resolved = resolveCanonicalFindings(verified.value, claims, { asOf: "2026-11-04" });
+    const df14Group = resolved.groups.find((g) => g.originalClaimIds.includes("DF14"))!;
+    expect(df14Group.originalClaims[0]?.planQuestionId).toBeNull();
+    expect(df14Group.questionIds).toEqual(["P1", "P2", "P4", "P7"]);
+    expect(df14Group.atomicity.status).toBe("ATOMIC");
+
+    const df8Group = resolved.groups.find((g) => g.originalClaimIds.includes("DF8"))!;
+    expect(df8Group.temporal.status).toBe("HISTORICAL_AS_OF_REPORT_DATE");
+    expect(df8Group.questionIds).toEqual(["P1", "P7"]);
   });
 });

@@ -8,6 +8,104 @@
   "properties": {
     "schema": { "const": "hive.study-investigation/1" },
     "processingRunId": { "type": "string", "format": "uuid" },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceDocumentId",
+          "role",
+          "roleReasoning",
+          "documentType",
+          "temporalStatus",
+          "declaredReadCoverage",
+          "pagesRead",
+          "pagesCited",
+          "evidence"
+        ],
+        "properties": {
+          "sourceDocumentId": { "type": "string", "format": "uuid" },
+          "role": { "enum": ["PRIMARY", "SUPPORTING", "REFERENCE", "UNCERTAIN"] },
+          "roleReasoning": { "type": "string", "maxLength": 600 },
+          "documentType": { "type": "string", "maxLength": 200 },
+          "titleAsPrinted": { "type": ["string", "null"], "maxLength": 200 },
+          "issuer": { "type": ["string", "null"], "maxLength": 200 },
+          "subjects": { "type": "array", "items": { "type": "string", "maxLength": 200 } },
+          "temporalStatus": { "enum": ["CURRENT", "HISTORICAL", "UPCOMING", "UNSPECIFIED"] },
+          "effectivePeriod": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["startDate", "endDate", "asWritten"],
+                "properties": {
+                  "startDate": { "type": ["string", "null"], "maxLength": 40 },
+                  "endDate": { "type": ["string", "null"], "maxLength": 40 },
+                  "asWritten": { "type": ["string", "null"], "maxLength": 200 }
+                }
+              }
+            ]
+          },
+          "declaredReadCoverage": { "enum": ["FULL_DOCUMENT_READ", "PARTIAL_DOCUMENT_READ"] },
+          "pagesRead": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+          "pagesCited": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+          "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+        }
+      }
+    },
+    "documentFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sourceDocumentId",
+          "category",
+          "subject",
+          "attribute",
+          "valueAsWritten",
+          "statement",
+          "modality",
+          "itemKey",
+          "dates",
+          "evidence"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^DF[1-9][0-9]{0,3}$" },
+          "sourceDocumentId": { "type": "string", "format": "uuid" },
+          "category": { "type": "string", "maxLength": 200 },
+          "subject": { "type": "string", "maxLength": 200 },
+          "attribute": { "type": "string", "maxLength": 200 },
+          "valueAsWritten": { "type": "string", "maxLength": 600 },
+          "statement": { "type": "string", "maxLength": 1200 },
+          "modality": {
+            "enum": [
+              "STATED",
+              "MEASURED",
+              "PLANNED",
+              "RECOMMENDED",
+              "REQUESTED",
+              "DECLINED",
+              "REPORTED",
+              "OPINION",
+              "HISTORICAL",
+              "EMPTY_FIELD"
+            ]
+          },
+          "itemKey": { "type": ["string", "null"], "maxLength": 200 },
+          "dates": { "type": "array", "items": { "type": "string", "maxLength": 200 } },
+          "unit": { "type": ["string", "null"], "maxLength": 100 },
+          "per": { "type": ["string", "null"], "maxLength": 100 },
+          "section": { "type": ["string", "null"], "maxLength": 200 },
+          "attributedTo": { "type": ["string", "null"], "maxLength": 200 },
+          "relatedFindingIds": { "type": "array", "items": { "type": "string", "pattern": "^DF[1-9][0-9]{0,3}$" } },
+          "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+        }
+      }
+    },
     "answers": {
       "type": "array",
       "items": {
@@ -30,6 +128,7 @@
           "planQuestionId": { "type": "string", "pattern": "^P[1-9][0-9]{0,2}$" },
           "status": { "enum": ["ANSWERED", "PARTIALLY_ANSWERED", "MISSING_EVIDENCE", "CONFLICTING"] },
           "answer": { "type": "string", "maxLength": 4000 },
+          "findingIds": { "type": "array", "items": { "type": "string", "pattern": "^DF[1-9][0-9]{0,3}$" } },
           "facts": {
             "type": "array",
             "items": {
@@ -60,7 +159,8 @@
                     "properties": {
                       "label": { "type": "string", "maxLength": 200 },
                       "valueAsWritten": { "type": "string", "maxLength": 200 },
-                      "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } }
+                      "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } },
+                      "findingIds": { "type": "array", "items": { "type": "string", "pattern": "^DF[1-9][0-9]{0,3}$" } }
                     }
                   }
                 },
@@ -93,7 +193,8 @@
                 "criterion": { "type": "string", "maxLength": 600 },
                 "criterionSource": { "enum": ["DOCUMENT", "GENERAL_KNOWLEDGE"] },
                 "criterionEvidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
-                "factIndexes": { "type": "array", "minItems": 1, "items": { "type": "integer", "minimum": 0 } },
+                "factIndexes": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+                "findingIds": { "type": "array", "items": { "type": "string", "pattern": "^DF[1-9][0-9]{0,3}$" } },
                 "reasoning": { "type": "string", "maxLength": 2000 },
                 "strength": { "enum": ["STRONG", "MODERATE", "TENTATIVE"] },
                 "wouldChangeIf": { "type": "array", "items": { "type": "string", "maxLength": 600 } }
@@ -110,6 +211,7 @@
               "properties": {
                 "determination": { "type": "string", "maxLength": 600 },
                 "bearingFacts": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+                "bearingFindingIds": { "type": "array", "items": { "type": "string", "pattern": "^DF[1-9][0-9]{0,3}$" } },
                 "decidedBy": { "type": "string", "maxLength": 200 }
               }
             }
@@ -123,7 +225,8 @@
               "required": ["description", "evidence"],
               "properties": {
                 "description": { "type": "string", "maxLength": 1200 },
-                "evidence": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/evidence" } }
+                "evidence": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/evidence" } },
+                "findingIds": { "type": "array", "items": { "type": "string", "pattern": "^DF[1-9][0-9]{0,3}$" } }
               }
             }
           },
