@@ -1,14 +1,22 @@
 // @vitest-environment jsdom
 import {
   buildReport,
+  compileEditorialPlan,
   type GetHiveReportsResponse,
   type HiveReport,
   type ReportAudience,
   type ReportRun,
+  resolveCanonicalFindings,
+  StudyAgentLedger,
   studyClaimCatalog,
   verifyStudyInvestigation,
 } from "@hiveforyou/contracts";
 import {
+  L001_INITIAL_IEP_FILE_NAMES,
+  L001_INITIAL_IEP_PAGES,
+  L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+  l001InitialIepStudyAgentTurns,
+  l001ProEditorialPlan,
   MAYA_FILE_NAMES,
   MAYA_PAGES,
   MAYA_PLAN_QUESTION_IDS,
@@ -209,5 +217,69 @@ describe("A2uiView", () => {
     const quotes = Array.from(document.querySelectorAll("q")).map((node) => node.textContent);
     expect(quotes).toContain("Baseline: 62 words correct per minute.");
     expect(quotes).not.toContain("The baseline was 62 words correct per minute.");
+  });
+
+  it("compiles and renders L001 37-DF PRO RecordTable, Comparison, Timeline, Metric, and EvidencePanel through existing binders (V4-004K.4)", () => {
+    const l001Corpus = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const studyLedger = new StudyAgentLedger({
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+      pages: l001Corpus,
+    });
+    for (const turn of l001InitialIepStudyAgentTurns()) {
+      for (const call of turn) {
+        const res = studyLedger.execute(call);
+        if (!res.ok) throw new Error(res.content);
+      }
+    }
+    const verified = verifyStudyInvestigation(studyLedger.assemble(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: [...L001_INITIAL_IEP_PLAN_QUESTION_IDS],
+      pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+    });
+    if (!verified.ok) throw new Error(verified.message);
+    const l001Claims = studyClaimCatalog(verified.value);
+    const canonicalFindings = resolveCanonicalFindings(verified.value, l001Claims, { asOf: "2026-11-04" });
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+
+    const compiled = compileEditorialPlan(l001ProEditorialPlan(), {
+      reportRunId: "cccccccc-0000-4000-8000-000000000099",
+      claims: l001Claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+
+    const built = buildReport(compiled.writerReport, {
+      audience: "PRO",
+      claims: l001Claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+
+    render(<A2uiView view={built.value.view} />);
+    expect(document.querySelector('[data-component="Metric"]')?.textContent).toContain("33 WCPM");
+    expect(document.querySelector('[data-component="Comparison"]')?.textContent).toContain("42 WCPM");
+    expect(document.querySelector('[data-component="Comparison"]')?.textContent).toContain("75 WCPM");
+    expect(document.querySelector('[data-component="Comparison"]')?.textContent).toContain("86%");
+    expect(document.querySelector('[data-component="Comparison"]')?.textContent).toContain("at least 95% accuracy");
+    expect(document.querySelector('[data-component="RecordTable"]')?.textContent).toContain("Specific Learning Disability (SLD) - Reading");
+    expect(document.querySelector('[data-component="RecordTable"]')?.textContent).toContain("150 minutes");
+    expect(document.querySelector('[data-component="RecordTable"]')?.textContent).toContain("Parent/Guardian");
+    expect(document.querySelector('[data-component="Timeline"]')?.textContent).toContain("2024-10-18");
+    expect(document.querySelector('[data-component="Timeline"]')?.textContent).toContain("2024-11-01");
+    expect(document.querySelector('[data-component="Timeline"]')?.textContent).toContain("2024-11-12");
+    expect(document.querySelector('[data-component="Timeline"]')?.textContent).toContain("2025-11-11");
+    expect(document.querySelector('[data-component="EvidencePanel"]')?.textContent).toContain("Interpretation · Document criterion");
+    expect(document.querySelector('[data-component="EvidencePanel"]')?.textContent).toContain("Reserved determination");
+    expect(document.querySelector('[data-component="SourceReferences"]')?.textContent).toContain("08_initial_iep.pdf");
   });
 });

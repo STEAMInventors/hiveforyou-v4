@@ -24,13 +24,13 @@ describe("loadPromptCatalog", () => {
     expect(catalog.writer.id).toBe("hive-writer/1");
     expect(catalog.writer.systemPrompt).toContain("writer_claim_kind");
     expect(catalog.writer.systemPrompt).toContain("writer_number_ungrounded");
-    expect(catalog.writer.systemPrompt).toContain("Keep claim IDs in `claimRefs`, not prose.");
+    expect(catalog.writer.systemPrompt).toContain("Keep claim IDs in `claimRefs` / `claimIds`, not prose.");
     expect(catalog.writer.systemPrompt).toContain("Avoid numbered lists inside report block text.");
     expect(catalog.writer.systemPrompt).toContain("GENERAL_KNOWLEDGE");
-    expect(catalog.writer.systemPrompt).toContain("Never cite a broad question-level `ANSWER` claim");
-    expect(catalog.writer.systemPrompt).toContain("compose_writer_report");
-    expect(catalog.writer.systemPrompt).toContain("apply_writer_correction");
-    expect(catalog.writer.systemPrompt).toContain("presentationPlan");
+    expect(catalog.writer.systemPrompt).toContain("Never select a broad question-level `ANSWER` claim");
+    expect(catalog.writer.systemPrompt).toContain("submit_editorial_plan");
+    expect(catalog.writer.systemPrompt).toContain("patch_editorial_plan");
+    expect(catalog.writer.systemPrompt).toContain("EditorialPlan");
     expect(catalog.writer.systemPrompt).toContain("audienceObjective");
     expect(catalog.writer.systemPrompt).toContain("studyContext");
     expect(catalog.writer.systemPrompt).toContain("canonicalFindings");
@@ -42,17 +42,14 @@ describe("loadPromptCatalog", () => {
     expect(catalog.writer.systemPrompt).toContain("whyItMatters");
     expect(catalog.writer.systemPrompt).toContain("supportsOutcome");
     expect(catalog.writer.systemPrompt).toContain("deliverable");
-    expect(catalog.writer.systemPrompt).toContain("set_report_outline");
-    expect(catalog.writer.systemPrompt).toContain("record_section");
-    expect(catalog.writer.systemPrompt).toContain("record_scenario");
-    expect(catalog.writer.systemPrompt).toContain("record_view_component");
-    expect(catalog.writer.systemPrompt).toContain("finish_report");
     expect(catalog.writer.systemPrompt).toContain("documentFinding");
     expect(catalog.writer.systemPrompt).toContain("UNVERIFIED_BY_READ_COVERAGE");
     expect(catalog.writer.systemPrompt).toContain("concise document overview, direct answers to the person's goals, and practical next steps");
     expect(catalog.writer.systemPrompt).toContain("complete relevant document details, cross-document comparisons, evidentiary gaps, and professional analysis");
-    expect(catalog.writer.systemPrompt).toContain("Turn 1 (Plan + Narrative)");
-    expect(catalog.writer.systemPrompt).toContain("awaitingView: true");
+    expect(catalog.writer.systemPrompt).toContain("Never reproduce full source text or raw A2UI cell JSON.");
+    expect(catalog.writer.systemPrompt).not.toContain("compose_writer_report");
+    expect(catalog.writer.systemPrompt).not.toContain("apply_writer_correction");
+    expect(catalog.writer.systemPrompt).not.toContain("set_report_outline");
   });
 
   it("enforces the domain-agnostic editorial writing standard for both CUSTOMER and PRO audiences in hive-writer/1", () => {

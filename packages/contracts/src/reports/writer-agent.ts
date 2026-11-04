@@ -47,6 +47,13 @@ import {
   WriterRejection,
   type WriterTemporalValidationContext,
 } from "./writer-report-contracts";
+import type { EditorialPlan } from "./editorial-plan-contracts";
+import { compileEditorialPlan } from "./editorial-plan-compiler";
+import { mergeEditorialPlan, type EditorialPlanPatch } from "./editorial-plan-merge";
+import {
+  patchEditorialPlanParametersSchema,
+  submitEditorialPlanParametersSchema,
+} from "./editorial-plan-tool-schema";
 
 /**
  * Application-orchestrated Writer compiler and validator (D-047; retains D-045 ledger compatibility).
@@ -188,6 +195,9 @@ export const WRITER_COMPOSE_TOOL_NAMES = [
 ] as const;
 export type WriterComposeToolName = (typeof WRITER_COMPOSE_TOOL_NAMES)[number];
 
+export const WRITER_EDITORIAL_TOOL_NAMES = ["submit_editorial_plan", "patch_editorial_plan"] as const;
+export type WriterEditorialToolName = (typeof WRITER_EDITORIAL_TOOL_NAMES)[number];
+
 export const WRITER_LEGACY_TOOL_NAMES = [
   "set_report_outline",
   "record_section",
@@ -199,10 +209,14 @@ export const WRITER_LEGACY_TOOL_NAMES = [
 export const WRITER_AGENT_TOOL_NAMES = [
   ...WRITER_LEGACY_TOOL_NAMES,
 ] as const;
-export type WriterAgentToolName = (typeof WRITER_AGENT_TOOL_NAMES)[number] | WriterComposeToolName;
+export type WriterAgentToolName =
+  | (typeof WRITER_AGENT_TOOL_NAMES)[number]
+  | WriterComposeToolName
+  | WriterEditorialToolName;
 
 export const WRITER_ALL_TOOL_NAMES = [
   ...WRITER_COMPOSE_TOOL_NAMES,
+  ...WRITER_EDITORIAL_TOOL_NAMES,
   ...WRITER_LEGACY_TOOL_NAMES,
 ] as const;
 
@@ -633,6 +647,28 @@ export const WRITER_COMPOSE_TOOLS: readonly WriterAgentToolDefinition[] = [
   },
 ];
 
+/** Provider-compatible closed tool schemas for compact editorial plan submission (V4-004K.2). */
+export const WRITER_EDITORIAL_TOOLS: readonly WriterAgentToolDefinition[] = [
+  {
+    type: "function",
+    function: {
+      name: "submit_editorial_plan",
+      description:
+        "Submits a compact hive.editorial-plan/1 for deterministic compilation into hive.writer-report/1. Trusted code validates claim selections, compiles DOCUMENTED blocks and A2UI props, preserves model-authored interpretation and uncertainty prose, and finishes the report only when buildReport() succeeds.",
+      parameters: submitEditorialPlanParametersSchema,
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "patch_editorial_plan",
+      description:
+        "Repairs rejected editorial units by stable section id or zero-based component index after submit_editorial_plan, preserving all unmentioned plan elements. Returns compile diagnostics separately from tool argument schema failures.",
+      parameters: patchEditorialPlanParametersSchema,
+    },
+  },
+];
+
 /** Provider-compatible closed tool schemas for the five Writer tools. */
 export const WRITER_AGENT_TOOLS: readonly WriterAgentToolDefinition[] = [
   {
@@ -807,6 +843,7 @@ export class WriterAgentLedger {
   >();
   private readonly unresolvedSlots = new Map<string, string>();
   private finishedReport: WriterReport | null = null;
+  private editorialPlanDraft: EditorialPlan | null = null;
   private acceptedCallCount = 0;
   private rejectedUnitCount = 0;
 
@@ -1902,6 +1939,174 @@ export class WriterAgentLedger {
     };
   }
 
+  private hasSegmentedWriterProgress(): boolean {
+    if (this.outline !== null) return true;
+    if (this.sections.size > 0) return true;
+    if (this.scenarios.size > 0) return true;
+    return this.viewSlots.some((slot) => slot !== null);
+  }
+
+  private assertEditorialPathAvailable(): void {
+    if (this.hasSegmentedWriterProgress()) {
+      throw new WriterRejection(
+        "writer_output_shape",
+        "Cannot mix segmented Writer tools with editorial plan submission.",
+        "plan",
+      );
+    }
+  }
+
+  private parseEditorialPlan(args: Args): EditorialPlan {
+    this.only(args, [
+      "schema",
+      "audience",
+      "title",
+      "audienceObjective",
+      "summaryDetailLevel",
+      "insights",
+      "priorityFindings",
+      "summary",
+      "sections",
+      "components",
+      "scenarios",
+    ]);
+    if (args.audience !== this.context.audience) {
+      throw new WriterRejection(
+        "writer_output_shape",
+        `Editorial plan audience ${String(args.audience)} does not match report run audience ${this.context.audience}.`,
+        "audience",
+      );
+    }
+    return args as EditorialPlan;
+  }
+
+  private parseEditorialPatch(args: Args): EditorialPlanPatch {
+    this.only(args, [
+      "title",
+      "audienceObjective",
+      "summaryDetailLevel",
+      "insights",
+      "priorityFindings",
+      "summary",
+      "sections",
+      "components",
+      "scenarios",
+    ]);
+    if (Object.keys(args).length === 0) {
+      throw new WriterRejection("invalid_arguments", "patch_editorial_plan requires at least one field to repair.", "patch");
+    }
+    return args as EditorialPlanPatch;
+  }
+
+  private commitCompiledEditorialPlan(
+    plan: EditorialPlan,
+    compiled: Extract<ReturnType<typeof compileEditorialPlan>, { ok: true }>,
+  ): void {
+    const built = buildReport(compiled.writerReport, {
+      audience: plan.audience,
+      claims: this.context.claims,
+      fileNames: this.fileNames,
+      canonicalFindings: this.canonicalFindings,
+      asOf: this.context.asOf,
+    });
+    if (!built.ok) {
+      throw new BindRejection(built.diagnosticReason, built.message, built.diagnosticField);
+    }
+    this.presentationPlan = compiled.presentationPlan;
+    this.outline = {
+      title: compiled.writerReport.title,
+      summary: compiled.writerReport.summary.map((block) => ({ ...block, claimRefs: [...block.claimRefs] })),
+    };
+    this.sections.clear();
+    this.sectionOrder.length = 0;
+    for (const section of compiled.writerReport.sections) {
+      this.registerSectionOrder(section.id);
+      this.sections.set(section.id, {
+        id: section.id,
+        heading: section.heading,
+        blocks: section.blocks.map((block) => ({ ...block, claimRefs: [...block.claimRefs] })),
+      });
+    }
+    this.scenarios.clear();
+    this.scenarioOrder.length = 0;
+    for (const scenario of compiled.writerReport.scenarios) {
+      this.registerScenarioOrder(scenario.id);
+      this.scenarios.set(scenario.id, {
+        ...scenario,
+        claimRefs: [...scenario.claimRefs],
+        parameters: scenario.parameters.map((param) => ({ ...param })),
+        results: scenario.results.map((result) => ({ ...result })),
+      });
+    }
+    this.viewSlots.length = 0;
+    this.pendingViewSlots.clear();
+    for (const [index, component] of compiled.writerReport.view.entries()) {
+      this.ensureViewSlotCapacity(index);
+      this.viewSlots[index] = { component: component.component, props: { ...component.props } };
+    }
+    this.finishedReport = built.value.writerOutput;
+    this.unresolvedSlots.clear();
+  }
+
+  private compileAndFinishEditorialPlan(plan: EditorialPlan): Record<string, unknown> {
+    this.editorialPlanDraft = plan;
+    const compiled = compileEditorialPlan(plan, {
+      reportRunId: this.context.reportRunId,
+      claims: this.context.claims,
+      fileNames: this.fileNames,
+      canonicalFindings: this.canonicalFindings,
+      asOf: this.context.asOf,
+    });
+    if (!compiled.ok) {
+      return {
+        ok: false,
+        finished: false,
+        compileFailed: true,
+        error: compiled.diagnosticReason,
+        message: compiled.message,
+        ...(compiled.diagnosticField ? { field: compiled.diagnosticField } : {}),
+        ...(compiled.component ? { component: compiled.component } : {}),
+      };
+    }
+    this.commitCompiledEditorialPlan(plan, compiled);
+    this.acceptedCallCount += 1;
+    return {
+      ok: true,
+      finished: true,
+      compileFailed: false,
+      sectionCount: this.sections.size,
+      scenarioCount: this.scenarios.size,
+      viewComponentCount: this.recordedViewComponentCount,
+    };
+  }
+
+  private submitEditorialPlan(args: Args): Record<string, unknown> {
+    this.assertEditorialPathAvailable();
+    const plan = this.parseEditorialPlan(args);
+    return this.compileAndFinishEditorialPlan(plan);
+  }
+
+  private patchEditorialPlan(args: Args): Record<string, unknown> {
+    this.assertEditorialPathAvailable();
+    if (!this.editorialPlanDraft) {
+      throw new WriterRejection(
+        "editorial_plan_patch_requires_base",
+        "Call submit_editorial_plan before patch_editorial_plan.",
+        "patch",
+      );
+    }
+    const patch = this.parseEditorialPatch(args);
+    try {
+      const merged = mergeEditorialPlan(this.editorialPlanDraft, patch);
+      return this.compileAndFinishEditorialPlan(merged);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("editorial_plan_patch")) {
+        throw new WriterRejection("invalid_arguments", "Component index is out of range for the current editorial plan.", "components");
+      }
+      throw error;
+    }
+  }
+
   /** Clears per-turn unresolved rejection tracking at the start of a new model turn. */
   beginTurn(): void {
     this.unresolvedSlots.clear();
@@ -1929,12 +2134,66 @@ export class WriterAgentLedger {
       if (previous.name === call.name && previous.arguments === call.arguments) return previous.result;
       return this.decline(call, "tool_call_conflict", "This tool call id was already used for a different call.");
     }
-    if (call.name === "compose_writer_report" || call.name === "apply_writer_correction") {
+    if (
+      call.name === "compose_writer_report" ||
+      call.name === "apply_writer_correction" ||
+      call.name === "submit_editorial_plan" ||
+      call.name === "patch_editorial_plan"
+    ) {
       if (this.finished) {
         const result: WriterAgentToolResult = {
           toolCallId: call.id,
           ok: false,
           content: JSON.stringify({ ok: false, error: "report_finished", message: "The report is already finished." }),
+        };
+        this.calls.set(key, { name: call.name, arguments: call.arguments, result });
+        return result;
+      }
+      if (call.name === "submit_editorial_plan" || call.name === "patch_editorial_plan") {
+        let parsed: Args;
+        try {
+          parsed = this.parse(call);
+        } catch (error) {
+          if (!(error instanceof WriterRejection)) throw error;
+          const result: WriterAgentToolResult = {
+            toolCallId: call.id,
+            ok: false,
+            content: JSON.stringify({
+              ok: false,
+              compileFailed: false,
+              error: error.diagnosticReason,
+              message: error.message,
+              ...(error.diagnosticField ? { field: error.diagnosticField } : {}),
+            }),
+          };
+          this.rejectedUnitCount += 1;
+          this.calls.set(key, { name: call.name, arguments: call.arguments, result });
+          return result;
+        }
+        let payload: Record<string, unknown>;
+        try {
+          payload =
+            call.name === "submit_editorial_plan"
+              ? this.submitEditorialPlan(parsed)
+              : this.patchEditorialPlan(parsed);
+        } catch (error) {
+          if (!(error instanceof WriterRejection || error instanceof BindRejection)) throw error;
+          payload = {
+            ok: false,
+            compileFailed: false,
+            error: error.diagnosticReason,
+            message: error.message,
+            ...(error.diagnosticField ? { field: error.diagnosticField } : {}),
+          };
+          this.rejectedUnitCount += 1;
+        }
+        if (payload.ok !== true && payload.compileFailed === true) {
+          this.rejectedUnitCount += 1;
+        }
+        const result: WriterAgentToolResult = {
+          toolCallId: call.id,
+          ok: payload.ok === true,
+          content: JSON.stringify(payload),
         };
         this.calls.set(key, { name: call.name, arguments: call.arguments, result });
         return result;
@@ -2118,6 +2377,8 @@ export class WriterAgentLedger {
     switch (name) {
       case "compose_writer_report":
       case "apply_writer_correction":
+      case "submit_editorial_plan":
+      case "patch_editorial_plan":
         return "compose";
       case "set_report_outline":
         return "outline";
@@ -2156,6 +2417,8 @@ export class WriterAgentLedger {
     switch (name) {
       case "compose_writer_report":
       case "apply_writer_correction":
+      case "submit_editorial_plan":
+      case "patch_editorial_plan":
         return this.compileUnits(args) as unknown as Record<string, unknown>;
       case "set_report_outline":
         return this.setReportOutline(args);

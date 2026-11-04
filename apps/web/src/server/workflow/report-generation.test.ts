@@ -6,14 +6,20 @@ import {
   type StudyAgentTurnRequest,
   studyClaimCatalog,
   verifyStudyInvestigation,
-  WRITER_ALL_TOOL_NAMES,
+  WRITER_AGENT_BUDGET,
+  WRITER_AGENT_TOOLS,
+  WRITER_COMPOSE_TOOLS,
+  WRITER_EDITORIAL_TOOL_NAMES,
+  WRITER_EDITORIAL_TOOLS,
 } from "@hiveforyou/contracts";
 import {
   L001_INITIAL_IEP_DOC_ID,
   L001_INITIAL_IEP_FILE_NAMES,
   L001_INITIAL_IEP_PAGES,
   L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+  l001CustomerEditorialPlan,
   l001InitialIepStudyAgentTurns,
+  l001ProEditorialPlan,
   MAYA_DOCS,
   MAYA_FILE_NAMES,
   MAYA_INTENT_ID,
@@ -28,8 +34,10 @@ import {
   mayaStudyOutput,
   mayaWriterAgentTurns,
   mayaWriterComposeTurns,
+  mayaWriterEditorialTurns,
   mayaWriterOutput,
   mayaWriterPresentationPlan,
+  revision6CustomerEditorialPlan,
 } from "@hiveforyou/contracts/testing";
 import { describe, expect, it, vi } from "vitest";
 
@@ -243,7 +251,7 @@ function turnResponse(toolCalls: ToolCall[], overrides: Record<string, unknown> 
   );
 }
 
-function planner(turns: ToolCall[][] = mayaWriterAgentTurns("CUSTOMER"), status = 200) {
+function planner(turns: ToolCall[][] = mayaWriterEditorialTurns("CUSTOMER"), status = 200) {
   const bodies: StudyAgentTurnRequest[] = [];
   const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as StudyAgentTurnRequest;
@@ -269,7 +277,7 @@ function planner(turns: ToolCall[][] = mayaWriterAgentTurns("CUSTOMER"), status 
 describe("processReportRun", () => {
   it.each(["CUSTOMER", "PRO"] as const)("writes, validates and saves one %s report from the accepted Study", async (audience) => {
     const db = fakeDatabase(audience);
-    const model = planner(mayaWriterAgentTurns(audience));
+    const model = planner(mayaWriterEditorialTurns(audience));
 
     await expect(
       processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
@@ -278,15 +286,7 @@ describe("processReportRun", () => {
     expect(model.bodies).toHaveLength(1);
     expect(model.bodies[0]!.task).toBe("writer");
     expect(model.bodies[0]!.prompt_id).toBe("hive-writer/1");
-    expect(model.bodies[0]!.tools.map((t) => t.function.name)).toEqual([
-      "compose_writer_report",
-      "apply_writer_correction",
-      "set_report_outline",
-      "record_section",
-      "record_scenario",
-      "record_view_component",
-      "finish_report",
-    ]);
+    expect(model.bodies[0]!.tools.map((t) => t.function.name)).toEqual([...WRITER_EDITORIAL_TOOL_NAMES]);
 
     const payload = JSON.parse(model.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
     expect(payload).toMatchObject({ task: "writer", audience, coverage: { complete: true } });
@@ -305,7 +305,7 @@ describe("processReportRun", () => {
       criterion: "Compare the latest measurement with the baseline and the goal.",
       criterionSource: "GENERAL_KNOWLEDGE",
     });
-    expect(assessment?.quotes).not.toContain("The baseline was 62 words correct per minute.");
+    expect(claims.every((claim) => !("quotes" in claim))).toBe(true);
 
     expect(db.transitions.map((t) => t.to)).toEqual(["VALIDATING", "SAVING"]);
     expect(db.transitions[1]!.details.stage_metric).toMatchObject({ stage: "WRITING", outcome: "SUCCEEDED", modelAliasRequested: "harvester" });
@@ -702,7 +702,7 @@ describe("processReportRun", () => {
     async (audience) => {
       const baseStudy = verifiedStudy();
       const extraFacts = Array.from({ length: 45 }, (_, index) => ({
-        statement: `Documented progress observation ${index + 1}: In November 2025 Maya read 74 words correct per minute against the 90-word target (${"detail ".repeat(25).trim()}).`,
+        statement: `Documented progress observation ${index + 1}: In November 2025 Maya read 74 words correct per minute against the 90-word target (${"detail ".repeat(90).trim()}).`,
         evidence: [
           {
             sourceDocumentId: MAYA_DOCS.progressNov,
@@ -728,7 +728,7 @@ describe("processReportRun", () => {
         return res;
       }) as typeof db.client.rpc;
 
-      const model = planner(mayaWriterAgentTurns(audience));
+      const model = planner(mayaWriterEditorialTurns(audience));
       await expect(
         processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
       ).resolves.toBe("SUCCEEDED");
@@ -744,7 +744,7 @@ describe("processReportRun", () => {
       expect(req.max_output_tokens).toBe(8000);
       expect(req.timeout_seconds).toBeGreaterThanOrEqual(5);
       expect(req.timeout_seconds).toBeLessThanOrEqual(240);
-      expect(req.tools.map((t) => t.function.name)).toEqual([...WRITER_ALL_TOOL_NAMES]);
+      expect(req.tools.map((t) => t.function.name)).toEqual([...WRITER_EDITORIAL_TOOL_NAMES]);
       for (const tool of req.tools) {
         expect(tool.type).toBe("function");
         expect(tool.function.description.length).toBeGreaterThan(0);
@@ -1247,290 +1247,26 @@ describe("processReportRun", () => {
         },
       });
 
-    const customerComposeTurn: ToolCall[] = [
+    const customerEditorialTurn: ToolCall[] = [
       {
-        id: "toolu_l001_customer_compose",
-        name: "compose_writer_report",
-        arguments: JSON.stringify({
-          presentationPlan: {
-            audienceObjective:
-              "Give Maya Carter's parent a concise overview of the Initial IEP, direct answers on reading goals and services, and practical next steps.",
-            summaryDetailLevel: "CONCISE",
-            insights: [
-              {
-                id: "INS1",
-                meaning:
-                  "Maya Carter's Initial IEP (2024-11-12 through 2025-11-11) sets a reading fluency goal from 42 WCPM (86% accuracy) to 75 WCPM (95% accuracy) with 150 minutes weekly specialized reading instruction.",
-                claimIds: ["DF1", "DF2", "DF3", "DF6", "DF8", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
-                questionIds: ["P1", "P2", "P3", "P4", "P5", "P6"],
-                role: "CENTRAL",
-                reuseReason: "Summarized in overview and quantified in key metrics and checklist.",
-              },
-            ],
-            priorityFindings: [
-              { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
-              { claimId: "DF20", priority: "HIGH", insightId: "INS1" },
-              { claimId: "DF27", priority: "HIGH", insightId: "INS1" },
-            ],
-            sections: [
-              {
-                id: "s1",
-                heading: "Reading Goal, Weekly Services, and Next Steps",
-                priority: "HIGH",
-                insightIds: ["INS1"],
-                claimIds: ["DF6", "DF7", "DF8", "DF12", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "DF26", "DF27", "DF30", "DF31", "DF32", "P2.C0", "P2.C1", "P2.A0", "P6", "P6.U0", "P6.L0", "P6.D0"],
-                purpose: "Explain the reading goal, accommodations, expired IEP period, and questions to ask the school team.",
-              },
-            ],
-            components: [
-              {
-                component: "Narrative",
-                sectionId: "summary",
-                claimIds: ["DF1", "DF2", "DF3", "DF6", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
-                purpose: "Concise document overview and direct summary of Maya Carter's Initial IEP.",
-              },
-              {
-                component: "Metric",
-                claimIds: ["P2.C0"],
-                purpose: "Show the 33 WCPM reading fluency gain targeted by the annual goal.",
-              },
-              {
-                component: "Narrative",
-                sectionId: "s1",
-                claimIds: ["DF8", "P2.A0", "P6", "P6.U0", "P6.L0", "P6.D0"],
-                purpose: "Explain progress rules, the ended 2024-11-12 through 2025-11-11 period, and missing quarterly probe records.",
-              },
-              {
-                component: "Checklist",
-                claimIds: ["DF8", "DF25", "DF27", "DF30", "DF31", "DF32"],
-                purpose: "Practical next steps for the parent.",
-              },
-            ],
-          },
-          title: "Maya Carter Initial IEP Overview",
-          summary: [
-            {
-              type: "DOCUMENTED",
-              text: "Maya Carter (Grade 2, born 2017-04-18) has an Initial IEP covering 2024-11-12 through 2025-11-11 (which ended before the 2026-11-04 report date without establishing current plan status); it sets a reading fluency goal from 42 WCPM to 75 WCPM ({{calc:P2.C0}} WCPM gain) and from 86% to 95% accuracy ({{calc:P2.C1}}% gain), supported by 150 minutes weekly of specialized reading instruction.",
-              claimRefs: ["DF1", "DF2", "DF3", "DF6", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
-            },
-          ],
-          sections: [
-            {
-              id: "s1",
-              heading: "Reading Goal, Weekly Services, and What Is Missing",
-              blocks: [
-                {
-                  type: "INTERPRETATION",
-                  text: "Reaching GOAL_READING_FLUENCY requires gaining 33 WCPM (from 42 WCPM to 75 WCPM) and 9 percentage points in accuracy (from 86% to 95%) across three consecutive probes by 2025-11-11.",
-                  claimRefs: ["P2.A0", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "P2.C0", "P2.C1"],
-                },
-                {
-                  type: "UNCERTAINTY",
-                  text: "The documented 2024-11-12 through 2025-11-11 IEP period ended before the 2026-11-04 report date, no quarterly oral-reading-fluency probe results after 2024-11-12 or newer IEP records are included in this file, the 2024-10-18 academic evaluation is not separately attached, and the IEP team decides whether the 75 WCPM and 95% accuracy goal was met.",
-                  claimRefs: ["DF7", "DF8", "DF12", "DF20", "DF21", "P6", "P6.U0", "P6.L0", "P6.D0"],
-                },
-              ],
-            },
-          ],
-          scenarios: [],
-          view: [
-            { component: "Narrative", props: { sectionId: "summary" } },
-            { component: "Metric", props: { label: "Target fluency gain", binding: "{{calc:P2.C0}}", unit: "WCPM" } },
-            { component: "Narrative", props: { sectionId: "s1" } },
-            {
-              component: "Checklist",
-              props: {
-                title: "Practical next steps",
-                items: [
-                  {
-                    text: "Ask the school for the quarterly oral-reading-fluency probe reports and any IEP covering the period after 2025-11-11.",
-                    claimRefs: ["DF8", "DF25", "DF32"],
-                  },
-                  {
-                    text: "Confirm that 150 minutes weekly of specialized reading instruction and the classroom reading assessment accommodations were provided.",
-                    claimRefs: ["DF27", "DF30", "DF31"],
-                  },
-                ],
-              },
-            },
-          ],
-        }),
+        id: "toolu_l001_customer_editorial",
+        name: "submit_editorial_plan",
+        arguments: JSON.stringify(l001CustomerEditorialPlan()),
       },
     ];
 
-    const proComposeTurn: ToolCall[] = [
+    const proEditorialTurn: ToolCall[] = [
       {
-        id: "toolu_l001_pro_compose",
-        name: "compose_writer_report",
-        arguments: JSON.stringify({
-          presentationPlan: {
-            audienceObjective:
-              "Provide complete relevant Initial IEP provisions, quantitative baseline-to-target comparisons, evidentiary gaps, and professional analysis for an advocate or specialist.",
-            summaryDetailLevel: "COMPREHENSIVE",
-            insights: [
-              {
-                id: "INS1",
-                meaning:
-                  "GOAL_READING_FLUENCY requires a 33 WCPM fluency increase (42 to 75 WCPM) and 9% accuracy increase (86% to 95%) across three consecutive probes, backed by 150 minutes weekly specialized reading instruction.",
-                claimIds: ["DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF27", "P2.C0", "P2.C1"],
-                questionIds: ["P2", "P3", "P4", "P6"],
-                role: "CENTRAL",
-                reuseReason: "Core quantitative findings paired across summary narrative, Comparison, and RecordTable.",
-              },
-            ],
-            priorityFindings: [
-              { claimId: "DF19", priority: "HIGH", insightId: "INS1" },
-              { claimId: "DF20", priority: "HIGH", insightId: "INS1" },
-              { claimId: "DF27", priority: "HIGH", insightId: "INS1" },
-            ],
-            sections: [
-              {
-                id: "s1",
-                heading: "Documented Provisions, Quantitative Analysis, and Evidentiary Gaps",
-                priority: "HIGH",
-                insightIds: ["INS1"],
-                claimIds: ["DF6", "DF7", "DF8", "DF12", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "DF27", "P2.C0", "P2.C1", "P2.A0", "P6", "P6.U0", "P6.D0"],
-                purpose: "Deliver professional analysis of baseline vs target criteria, historical effective period, and missing monitoring records.",
-              },
-            ],
-            components: [
-              {
-                component: "Narrative",
-                sectionId: "summary",
-                claimIds: ["DF1", "DF2", "DF3", "DF6", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
-                purpose: "Technical executive summary of Maya Carter's Initial IEP.",
-              },
-              {
-                component: "Comparison",
-                claimIds: ["DF12", "DF13", "DF14", "DF19", "DF20", "DF21", "DF24"],
-                insightIds: ["INS1"],
-                purpose: "Compare 2024-10-18 evaluation baseline against annual goal criteria.",
-                reuseReason: "Side-by-side baseline vs target verification for specialist audit.",
-              },
-              {
-                component: "RecordTable",
-                claimIds: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF9", "DF11", "DF17", "DF19", "DF20", "DF21", "DF22", "DF26", "DF27", "DF28", "DF29", "DF30", "DF31", "DF33", "DF34", "DF35", "DF36"],
-                purpose: "Complete relevant document details across student profile, eligibility, goal, service, accommodations, and team participation.",
-              },
-              {
-                component: "Narrative",
-                sectionId: "s1",
-                claimIds: ["DF8", "P2.A0", "P6", "P6.U0", "P6.D0"],
-                purpose: "Professional analysis of goal criteria, historical period status, and evidentiary gaps.",
-              },
-            ],
-          },
-          title: "Professional Audit: Maya Carter Initial IEP",
-          summary: [
-            {
-              type: "DOCUMENTED",
-              text: "Maya Carter (DOB 2017-04-18, Grade 2, Synthetic Elementary School, Synthetic District) has an Initial IEP dated 2024-11-12 with a documented effective period of 2024-11-12 through 2025-11-11 (ended before the 2026-11-04 report date without establishing current plan status), targeting a {{calc:P2.C0}} WCPM fluency increase (42 WCPM to 75 WCPM) and {{calc:P2.C1}}% accuracy increase (86% to 95%) with 150 minutes weekly specialized reading instruction.",
-              claimRefs: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "DF7", "DF8", "DF13", "DF14", "DF19", "DF20", "DF21", "DF27", "P2.C0", "P2.C1"],
-            },
-          ],
-          sections: [
-            {
-              id: "s1",
-              heading: "Documented Provisions, Quantitative Analysis, and Evidentiary Gaps",
-              blocks: [
-                {
-                  type: "INTERPRETATION",
-                  text: "Based on the document's baseline and goal criteria, GOAL_READING_FLUENCY requires a 33 WCPM fluency increase (from 42 WCPM to at least 75 WCPM) and a 9 percentage-point accuracy increase (from 86% to at least 95%) across three consecutive probes by 2025-11-11.",
-                  claimRefs: ["P2.A0", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "P2.C0", "P2.C1"],
-                },
-                {
-                  type: "UNCERTAINTY",
-                  text: "The documented 2024-11-12 through 2025-11-11 IEP period ended before the 2026-11-04 report date without establishing whether a successor plan exists; no post-2024-11-12 quarterly oral-reading-fluency probe results or 2024-10-18 evaluation reports are attached in this single-document corpus, and the IEP team decides whether the 75 WCPM and 95% accuracy goal was achieved.",
-                  claimRefs: ["DF7", "DF8", "DF12", "DF20", "DF21", "P6", "P6.U0", "P6.D0"],
-                },
-              ],
-            },
-          ],
-          scenarios: [],
-          view: [
-            { component: "Narrative", props: { sectionId: "summary" } },
-            {
-              component: "Comparison",
-              props: {
-                title: "Reading Fluency Baseline vs. Annual Goal Criterion",
-                leftLabel: "Baseline (2024-10-18 Evaluation)",
-                rightLabel: "Annual Target (2025-11-11)",
-                items: [
-                  {
-                    label: "Oral Reading Fluency Rate",
-                    left: "42 WCPM",
-                    right: "75 WCPM",
-                    claimRefs: ["DF13", "DF19", "DF20"],
-                  },
-                  {
-                    label: "Oral Reading Accuracy",
-                    left: "86%",
-                    right: "at least 95% accuracy",
-                    claimRefs: ["DF14", "DF21"],
-                  },
-                ],
-              },
-            },
-            {
-              component: "RecordTable",
-              props: {
-                title: "Initial IEP Documented Provisions",
-                columns: ["Section", "Subject", "Provision"],
-                rows: [
-                  {
-                    cells: [
-                      "Student & Eligibility",
-                      "Maya Carter (Grade 2)",
-                      "DOB 2017-04-18 · Synthetic Elementary · Synthetic District · SLD - Reading (2024-11-01)",
-                    ],
-                    claimRefs: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF9", "DF11"],
-                  },
-                  {
-                    cells: [
-                      "Annual Goal",
-                      "GOAL_READING_FLUENCY",
-                      "Baseline 42 WCPM · Target 75 WCPM · at least 95% accuracy across three consecutive probes",
-                    ],
-                    claimRefs: ["DF17", "DF19", "DF20", "DF21", "DF22"],
-                  },
-                  {
-                    cells: [
-                      "Special Education Services",
-                      "Specialized reading instruction",
-                      "Weekly · 150 minutes · special education setting · starts 2024-11-12",
-                    ],
-                    claimRefs: ["DF26", "DF27", "DF28", "DF29"],
-                  },
-                  {
-                    cells: [
-                      "Accommodations",
-                      "Classroom & Assessment",
-                      "Extended time for classroom reading assessments; directions read aloud when reading ability is not being assessed",
-                    ],
-                    claimRefs: ["DF30", "DF31"],
-                  },
-                  {
-                    cells: [
-                      "Team Participation",
-                      "IEP Team (2024-11-12)",
-                      "Parent/Guardian, General Education Teacher, Special Education Teacher, District Representative",
-                    ],
-                    claimRefs: ["DF33", "DF34", "DF35", "DF36"],
-                  },
-                ],
-              },
-            },
-            { component: "Narrative", props: { sectionId: "s1" } },
-          ],
-        }),
+        id: "toolu_l001_pro_editorial",
+        name: "submit_editorial_plan",
+        arguments: JSON.stringify(l001ProEditorialPlan()),
       },
     ];
 
     const customerDb = makeL001Db("CUSTOMER");
     const proDb = makeL001Db("PRO");
-    const customerModel = planner([customerComposeTurn]);
-    const proModel = planner([proComposeTurn]);
+    const customerModel = planner([customerEditorialTurn]);
+    const proModel = planner([proEditorialTurn]);
 
     await expect(
       processReportRun({ client: customerDb.client, planner: customerModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
@@ -1539,10 +1275,15 @@ describe("processReportRun", () => {
       processReportRun({ client: proDb.client, planner: proModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
+    expect(customerModel.bodies).toHaveLength(1);
+    expect(proModel.bodies).toHaveLength(1);
+    expect(customerModel.bodies[0]!.tools.map((t) => t.function.name)).toEqual([...WRITER_EDITORIAL_TOOL_NAMES]);
+    expect(proModel.bodies[0]!.tools.map((t) => t.function.name)).toEqual([...WRITER_EDITORIAL_TOOL_NAMES]);
+
     const customerPayload = JSON.parse(customerModel.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
     const proPayload = JSON.parse(proModel.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
 
-    // Proof of end-to-end DF and document metadata propagation to Writer
+    // Proof of end-to-end DF and document metadata propagation to Writer (without redundant page lists or duplicated coverage)
     expect(customerPayload.documents).toEqual([
       expect.objectContaining({
         sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
@@ -1562,19 +1303,14 @@ describe("processReportRun", () => {
         },
       }),
     ]);
-    expect(customerPayload.coverage).toMatchObject({
+    const docEntry = (customerPayload.documents as Record<string, unknown>[])[0]!;
+    expect("authorizedPageNumbers" in docEntry).toBe(false);
+    expect("authorizedNonEmptyPageNumbers" in docEntry).toBe(false);
+    expect("pages" in docEntry).toBe(false);
+    expect(customerPayload.coverage).toEqual({
       complete: true,
+      notes: [],
       studyCoverageNotes: ["All 3 pages of L001 08_initial_iep.pdf were read."],
-      documentCoverage: [
-        expect.objectContaining({
-          sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
-          role: "PRIMARY",
-          temporalStatus: "HISTORICAL",
-          readCoverageStatus: "ALL_AUTHORIZED_PAGES_READ",
-          extractionCompletenessStatus: "UNVERIFIED_BY_READ_COVERAGE",
-          findingCount: 37,
-        }),
-      ],
     });
 
     const payloadClaims = customerPayload.claims as {
@@ -1594,9 +1330,11 @@ describe("processReportRun", () => {
         section?: string;
       };
       pages?: string[];
+      quotes?: string[];
     }[];
     const dfClaimsInPayload = payloadClaims.filter((c) => c.id.startsWith("DF"));
     expect(dfClaimsInPayload).toHaveLength(37);
+    expect(payloadClaims.every((c) => !("quotes" in c))).toBe(true);
     expect(dfClaimsInPayload.find((c) => c.id === "DF19")).toMatchObject({
       id: "DF19",
       kind: "FACT",
@@ -1733,11 +1471,11 @@ describe("processReportRun", () => {
     expect(db.attemptCount()).toBe(1);
     expect(dispatch).not.toHaveBeenCalled();
     expect(bodies).toHaveLength(3);
-    // Verify Turn 2 received the truncation recovery prompt instructing staged generation
+    // Verify Turn 2 received the truncation recovery prompt instructing compact EditorialPlan submission
     const turn2LastMessage = bodies[1]!.messages.at(-1)!;
     expect(turn2LastMessage).toMatchObject({
       role: "user",
-      content: expect.stringContaining("ONLY presentationPlan, title, summary, and sections"),
+      content: expect.stringContaining("submit_editorial_plan"),
     });
     // Verify Turn 3 received awaitingView: true from Turn 2
     const turn3ToolMessage = bodies[2]!.messages.at(-1)!;
@@ -2085,7 +1823,10 @@ describe("processReportRun", () => {
 
     const turn2Body = model.bodies[1]!;
     const toolSchemasByName = new Map(
-      turn2Body.tools.map((t) => [t.function.name, t.function.parameters as Record<string, unknown>]),
+      [...WRITER_EDITORIAL_TOOLS, ...WRITER_COMPOSE_TOOLS, ...WRITER_AGENT_TOOLS].map((t) => [
+        t.function.name,
+        t.function.parameters as Record<string, unknown>,
+      ]),
     );
     // Verify exact message sequence: [user, assistant(toolu_j1_turn1), tool(toolu_j1_turn1)]
     expect(turn2Body.messages.map((m) => m.role)).toEqual(["user", "assistant", "tool"]);
@@ -2145,5 +1886,279 @@ describe("processReportRun", () => {
       },
     });
     expect(db.studyUnchanged()).toBe(true);
+  });
+
+  it("activates Claim-Driven Writer in runtime with WRITER_EDITORIAL_TOOLS only, focused patch_editorial_plan recovery, legacy Revision 6 compatibility, and measured payload/plan sizes (V4-004K.3)", async () => {
+    // 1. Verify WRITER_AGENT_BUDGET is unchanged (no unapproved model budget increases)
+    expect(WRITER_AGENT_BUDGET).toEqual({
+      wallClockMs: 235_000,
+      maxTurnMs: 150_000,
+      minTurnMs: 20_000,
+      turnAbortMarginMs: 5_000,
+      maxRounds: 5,
+      maxToolCalls: 48,
+      maxCallsPerTurn: 32,
+      maxInputTokens: 200_000,
+      maxOutputTokens: 24_000,
+      turnOutputTokens: 8_000,
+      minTurnOutputTokens: 1_000,
+      inputUsdPerMillion: 3,
+      outputUsdPerMillion: 15,
+      maxEstimatedUsd: 1.5,
+      maxRequestBytes: 768 * 1024,
+    });
+
+    // 2. Build L001 37-DF verified Study
+    const l001Corpus = Object.entries(L001_INITIAL_IEP_PAGES).map(([key, text]) => {
+      const [sourceDocumentId, page] = key.split(":");
+      return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
+    });
+    const studyLedger = new StudyAgentLedger({
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS,
+      pages: l001Corpus,
+    });
+    for (const turn of l001InitialIepStudyAgentTurns()) {
+      for (const call of turn) {
+        const res = studyLedger.execute(call);
+        if (!res.ok) throw new Error(`L001 ledger call failed: ${res.content}`);
+      }
+    }
+    const verifiedL001 = verifyStudyInvestigation(studyLedger.assemble(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: [...L001_INITIAL_IEP_PLAN_QUESTION_IDS],
+      pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+    });
+    if (!verifiedL001.ok) throw new Error(verifiedL001.message);
+    const l001Study = verifiedL001.value;
+
+    const makeL001Db = (audience: "CUSTOMER" | "PRO") =>
+      fakeDatabase(audience, {
+        inputsOverrides: {
+          reportRun: reportRunJson("WRITING", audience, {
+            attemptCount: 1,
+            maxAttempts: 3,
+            createdAt: "2026-11-04T14:30:00.000Z",
+          }),
+          studyRevision: {
+            id: REVISION_ID,
+            revisionNumber: 7,
+            processingRunId: MAYA_RUN_ID,
+            investigation: l001Study.investigation,
+            verification: l001Study.verification,
+            audienceConfiguration: {
+              ...UNKNOWN_AUDIENCE,
+              customer: { ...UNKNOWN_AUDIENCE.customer, role: "Parent", status: "STATED" },
+              pro: {
+                ...UNKNOWN_AUDIENCE.pro,
+                primaryRole: "Special education advocate",
+                alternativeRoles: ["Special education attorney"],
+                status: "PROVISIONAL",
+              },
+            },
+            coverageComplete: true,
+          },
+          sourceSnapshot: {
+            documents: [
+              {
+                sourceDocumentId: L001_INITIAL_IEP_DOC_ID,
+                fileName: L001_INITIAL_IEP_FILE_NAMES[L001_INITIAL_IEP_DOC_ID]!,
+              },
+            ],
+            excluded: [],
+            coverageComplete: true,
+          },
+        },
+      });
+
+    // 3. L001 CUSTOMER and PRO runs use editorial tools only and complete in 1 round / 1 tool call
+    const custPlan = l001CustomerEditorialPlan();
+    const proPlan = l001ProEditorialPlan();
+    const custPlanBytes = Buffer.byteLength(JSON.stringify(custPlan), "utf8");
+    const proPlanBytes = Buffer.byteLength(JSON.stringify(proPlan), "utf8");
+    expect(custPlanBytes).toBeLessThan(3500);
+    expect(proPlanBytes).toBeLessThan(8000);
+    expect(proPlanBytes).toBeLessThan(STUDY_AGENT_TURN_LIMITS.maxArgumentChars);
+
+    const custDb = makeL001Db("CUSTOMER");
+    const proDb = makeL001Db("PRO");
+    const custModel = planner([[{ id: "toolu_k3_cust", name: "submit_editorial_plan", arguments: JSON.stringify(custPlan) }]]);
+    const proModel = planner([[{ id: "toolu_k3_pro", name: "submit_editorial_plan", arguments: JSON.stringify(proPlan) }]]);
+
+    await expect(
+      processReportRun({ client: custDb.client, planner: custModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+    await expect(
+      processReportRun({ client: proDb.client, planner: proModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+
+    expect(custModel.bodies).toHaveLength(1);
+    expect(proModel.bodies).toHaveLength(1);
+    expect(custModel.bodies[0]!.tools.map((t) => t.function.name)).toEqual(["submit_editorial_plan", "patch_editorial_plan"]);
+    expect(proModel.bodies[0]!.tools.map((t) => t.function.name)).toEqual(["submit_editorial_plan", "patch_editorial_plan"]);
+
+    const custPromptBytes = Buffer.byteLength(custModel.bodies[0]!.messages[0]!.content ?? "", "utf8");
+    const proPromptBytes = Buffer.byteLength(proModel.bodies[0]!.messages[0]!.content ?? "", "utf8");
+    const custWireBytes = Buffer.byteLength(JSON.stringify(custModel.bodies[0]!), "utf8");
+    const proWireBytes = Buffer.byteLength(JSON.stringify(proModel.bodies[0]!), "utf8");
+    const custCompiledWriterBytes = Buffer.byteLength(JSON.stringify(custDb.saved()!.writer_output), "utf8");
+    const proCompiledWriterBytes = Buffer.byteLength(JSON.stringify(proDb.saved()!.writer_output), "utf8");
+    const custBoundViewBytes = Buffer.byteLength(JSON.stringify(custDb.saved()!.view), "utf8");
+    const proBoundViewBytes = Buffer.byteLength(JSON.stringify(proDb.saved()!.view), "utf8");
+    expect(custPlanBytes).toBe(3473);
+    expect(proPlanBytes).toBe(6513);
+    expect(custCompiledWriterBytes).toBe(2651);
+    expect(proCompiledWriterBytes).toBe(6311);
+    expect(custBoundViewBytes).toBe(4560);
+    expect(proBoundViewBytes).toBe(13944);
+    expect(custPromptBytes).toBe(52480);
+    expect(proPromptBytes).toBe(52563);
+    expect(custWireBytes).toBe(104553);
+    expect(proWireBytes).toBe(104640);
+
+    // 4. Invalid editorial content (unsupported A2UI component + ungrounded number) triggers focused patch_editorial_plan recovery without partial persistence
+    const patchDb = makeL001Db("PRO");
+    const badProPlan = {
+      ...proPlan,
+      sections: [
+        {
+          ...proPlan.sections[0]!,
+          interpretation: {
+            text: "Achieving GOAL_READING_FLUENCY requires 999 WCPM by tomorrow.",
+            claimRefs: ["P2.A0", "DF19"],
+          },
+        },
+      ],
+    };
+    const patchModel = planner([
+      [{ id: "toolu_k3_bad_1", name: "submit_editorial_plan", arguments: JSON.stringify(badProPlan) }],
+      [
+        {
+          id: "toolu_k3_patch_2",
+          name: "patch_editorial_plan",
+          arguments: JSON.stringify({ sections: [proPlan.sections[0]!] }),
+        },
+      ],
+    ]);
+    await expect(
+      processReportRun({ client: patchDb.client, planner: patchModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+    expect(patchModel.bodies).toHaveLength(2);
+    const turn2ToolMsg = patchModel.bodies[1]!.messages.at(-1)!;
+    expect(turn2ToolMsg.role).toBe("tool");
+    if (turn2ToolMsg.role === "tool") {
+      expect(JSON.parse(turn2ToolMsg.content)).toMatchObject({
+        ok: false,
+        finished: false,
+        compileFailed: true,
+        error: "writer_number_ungrounded",
+      });
+    }
+    expect(patchDb.savedCount()).toBe(1);
+
+    // 5. Legacy revision 6 report generation remains valid via revision6CustomerEditorialPlan()
+    const rev6Verified = verifyStudyInvestigation(mayaRevision6StudyOutput(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+      pages: new Map(Object.entries(MAYA_REVISION_6_PAGES)),
+    });
+    if (!rev6Verified.ok) throw new Error(rev6Verified.message);
+    const rev6Db = fakeDatabase("CUSTOMER", {
+      inputsOverrides: {
+        reportRun: reportRunJson("WRITING", "CUSTOMER", {
+          attemptCount: 1,
+          maxAttempts: 3,
+          createdAt: "2026-11-04T14:30:00.000Z",
+        }),
+        studyRevision: {
+          id: REVISION_ID,
+          revisionNumber: 6,
+          processingRunId: MAYA_RUN_ID,
+          investigation: rev6Verified.value.investigation,
+          verification: rev6Verified.value.verification,
+          audienceConfiguration: {
+            ...UNKNOWN_AUDIENCE,
+            customer: { ...UNKNOWN_AUDIENCE.customer, role: "Parent", status: "STATED" },
+          },
+          coverageComplete: true,
+        },
+      },
+    });
+    const rev6Model = planner([
+      [{ id: "toolu_k3_rev6", name: "submit_editorial_plan", arguments: JSON.stringify(revision6CustomerEditorialPlan()) }],
+    ]);
+    await expect(
+      processReportRun({ client: rev6Db.client, planner: rev6Model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+    expect(rev6Model.bodies).toHaveLength(1);
+    expect(rev6Db.saved()).toMatchObject({
+      view: { schema: "hive-application-view/1", audience: "CUSTOMER" },
+    });
+
+    // 6. Missing or un-rebuilt Oracle deployment fails closed with a clear diagnostic instead of falling back to legacy mode (V4-004K.4)
+    const staleOracleDb = makeL001Db("PRO");
+    const staleOracleDispatch = vi.fn(async () => true);
+    const staleOracleBodies: StudyAgentTurnRequest[] = [];
+    const staleOracleFetch = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      staleOracleBodies.push(JSON.parse(String(init?.body)) as StudyAgentTurnRequest);
+      return new Response(
+        JSON.stringify({
+          contract_version: "planner-error@1",
+          error_code: "INVALID_REQUEST",
+          category: "validation",
+          retryable: false,
+          message_safe: "Tools do not match the writer tool set.",
+          correlation_id: "66666666-6666-4666-8666-666666666666",
+          processing_run_id: REPORT_RUN_ID,
+          task: "writer",
+          component: "planner",
+          operation: "study_agent_turn",
+          diagnostic_reason: "planner_invalid_request",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "x-planner-error-code": "INVALID_REQUEST",
+            "x-planner-diagnostic-reason": "planner_invalid_request",
+            "x-planner-retryable": "false",
+          },
+        },
+      );
+    });
+    await expect(
+      processReportRun(
+        {
+          client: staleOracleDb.client,
+          planner: {
+            getConfig: () => ({ baseUrl: "https://reader.example.test/planner", serviceToken: "t", timeoutMs: 1000 }),
+            fetchFn: staleOracleFetch as unknown as typeof fetch,
+          },
+          dispatch: staleOracleDispatch,
+          loadCatalog: () => loadPromptCatalog(),
+        },
+        REPORT_RUN_ID,
+      ),
+    ).resolves.toBe("FAILED");
+    // Exactly 1 call was made with WRITER_EDITORIAL_TOOLS; no silent fallback to legacy tools or retry
+    expect(staleOracleBodies).toHaveLength(1);
+    expect(staleOracleBodies[0]!.tools.map((t) => t.function.name)).toEqual(["submit_editorial_plan", "patch_editorial_plan"]);
+    expect(staleOracleDispatch).not.toHaveBeenCalled();
+    expect(staleOracleDb.saved()).toBeNull();
+    expect(staleOracleDb.transitions.at(-1)).toMatchObject({
+      from: "WRITING",
+      to: "FAILED",
+      details: {
+        error_code: "MODEL_UNAVAILABLE",
+        retryable: false,
+        failure_diagnostic: {
+          component: "planner",
+          operation: "study_agent_turn",
+          task: "writer",
+          diagnosticReason: "planner_invalid_request",
+          retryable: false,
+        },
+      },
+    });
   });
 });

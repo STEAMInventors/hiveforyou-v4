@@ -27,8 +27,7 @@ import {
   studyClaimCatalog,
   type VerifiedStudy,
   WRITER_AGENT_BUDGET,
-  WRITER_AGENT_TOOLS,
-  WRITER_COMPOSE_TOOLS,
+  WRITER_EDITORIAL_TOOLS,
   type WriterAgentBudgetDimension,
   WriterAgentLedger,
   type WriterPresentationPlan,
@@ -62,13 +61,13 @@ import type { Dispatch } from "./dispatch";
 export const REPORT_RETRY_BACKOFF_SECONDS = 30;
 
 const NUDGE_MESSAGE =
-  "No tool was called. Call compose_writer_report with your presentationPlan, title, summary, sections, scenarios and view (or apply_writer_correction to repair rejected units).";
+  "No tool was called. Call submit_editorial_plan with your compact EditorialPlan (or patch_editorial_plan to repair rejected editorial units).";
 
 function buildTruncationRecoveryMessage(ledger: WriterAgentLedger): string {
-  if (ledger.completedSectionCount === 0) {
-    return "Your previous tool call exceeded the 8000-token single-turn output limit and was cut off before any unit could be recorded. Do NOT send the entire report in one call. In this turn, call compose_writer_report with ONLY presentationPlan, title, summary, and sections (omit scenarios and view, and keep presentationPlan concise with 3 to 8 synthesized insights). In the next turn, call apply_writer_correction with scenarios and view.";
+  if (ledger.completedSectionCount > 0) {
+    return `Your previous tool call exceeded the 8000-token single-turn output limit and was cut off. Sections [${ledger.acceptedSectionIds.join(", ")}] are already accepted and preserved. Call apply_writer_correction with ONLY the remaining unrecorded units (such as scenarios and view components) in a compact batch.`;
   }
-  return `Your previous tool call exceeded the 8000-token single-turn output limit and was cut off. Sections [${ledger.acceptedSectionIds.join(", ")}] are already accepted and preserved. Call apply_writer_correction with ONLY the remaining unrecorded units (such as scenarios and view components) in a compact batch.`;
+  return "Your previous tool call exceeded the 8000-token single-turn output limit and was cut off before any unit could be recorded. Call submit_editorial_plan with a compact EditorialPlan that selects verified Study claim IDs for documented content and A2UI layouts instead of repeating full source text or cell JSON.";
 }
 
 export type ReportGenerationDeps = {
@@ -130,6 +129,7 @@ export type WriterAgentInput = {
   readonly claims: readonly StudyClaim[];
   readonly fileNames: ReadonlyMap<string, string>;
   readonly canonicalFindings?: CanonicalFindingResolution | null;
+  readonly asOf?: string | Date | null;
   /** Epoch ms by which the last turn must have returned; validation and persistence follow. */
   readonly deadline: number;
   readonly clock?: () => number;
@@ -415,8 +415,6 @@ function buildWriterDocumentsPayload(
     const docId = doc.sourceDocumentId.toLowerCase();
     const cov = covByDoc.get(docId);
     const fileName = fileNames.get(docId) ?? "Document";
-    const page = (ref: { sourceDocumentId: string; pageNumber: number }) =>
-      `${fileNames.get(ref.sourceDocumentId.toLowerCase()) ?? "Document"} p.${ref.pageNumber}`;
     return {
       sourceDocumentId: doc.sourceDocumentId,
       fileName,
@@ -431,16 +429,9 @@ function buildWriterDocumentsPayload(
       declaredReadCoverage: doc.declaredReadCoverage,
       readCoverageStatus: cov?.readCoverageStatus ?? "PARTIAL_PAGES_READ",
       extractionCompletenessStatus: cov?.extractionCompletenessStatus ?? "UNVERIFIED_BY_READ_COVERAGE",
-      ...(cov
-        ? {
-            authorizedPageNumbers: [...cov.authorizedPageNumbers],
-            authorizedNonEmptyPageNumbers: [...cov.authorizedNonEmptyPageNumbers],
-          }
-        : {}),
       pagesRead: [...doc.pagesRead],
       pagesCited: [...doc.pagesCited],
       findingCount: cov?.findingCount ?? 0,
-      ...(doc.evidence.length > 0 ? { pages: doc.evidence.map(page) } : {}),
     };
   });
 }
@@ -449,7 +440,7 @@ function buildWriterDocumentsPayload(
  * The Writer's user message (prompt `## User message shape`): validated claims (including structured
  * `DF…` document finding metadata), document inventory with roles/temporal status/coverage, bounded
  * upstream intent/domain/specialist/plan context, and bounded Gate 1 canonical finding resolution
- * advisory metadata only, never raw page text.
+ * advisory metadata only, never raw page text or redundant quote copies.
  */
 export function buildWriterPayload(
   audience: ReportAudience,
@@ -481,20 +472,6 @@ export function buildWriterPayload(
       asOf: inputs.reportRun?.createdAt ?? null,
     });
   const documents = buildWriterDocumentsPayload(inputs.verified, fileNames);
-  const documentCoverage = (inputs.verified.verification.documentCoverage ?? []).map((cov) => ({
-    sourceDocumentId: cov.sourceDocumentId,
-    fileName: fileNames.get(cov.sourceDocumentId.toLowerCase()) ?? "Document",
-    role: cov.role,
-    temporalStatus: cov.temporalStatus,
-    declaredReadCoverage: cov.declaredReadCoverage,
-    readCoverageStatus: cov.readCoverageStatus,
-    extractionCompletenessStatus: cov.extractionCompletenessStatus,
-    authorizedPageNumbers: [...cov.authorizedPageNumbers],
-    authorizedNonEmptyPageNumbers: [...cov.authorizedNonEmptyPageNumbers],
-    pagesRead: [...cov.pagesRead],
-    pagesCited: [...cov.pagesCited],
-    findingCount: cov.findingCount,
-  }));
   return {
     task: "writer",
     audience,
@@ -545,7 +522,6 @@ export function buildWriterPayload(
       ...(Array.isArray(inputs.verified.investigation.coverageNotes) && inputs.verified.investigation.coverageNotes.length > 0
         ? { studyCoverageNotes: [...inputs.verified.investigation.coverageNotes] }
         : {}),
-      ...(documentCoverage.length > 0 ? { documentCoverage } : {}),
     },
     claims: claims.map((claim) => ({
       id: claim.id,
@@ -584,8 +560,7 @@ export function buildWriterPayload(
           }
         : {}),
       text: claim.text,
-      ...(claim.quotes.length > 0 ? { quotes: claim.quotes } : {}),
-      ...(claim.refs.length > 0 ? { pages: claim.refs.map(page) } : {}),
+      ...(claim.refs.length > 0 ? { pages: [...new Set(claim.refs.map(page))] } : {}),
       ...(claim.answerStatus ? { answerStatus: claim.answerStatus } : {}),
       ...(claim.numericStatus ? { numericStatus: claim.numericStatus, computedValue: claim.computedValue ?? null } : {}),
       ...(claim.criterion ? { criterion: claim.criterion } : {}),
@@ -595,10 +570,11 @@ export function buildWriterPayload(
 }
 
 /**
- * Application-orchestrated Writer loop (D-045, D-047).
- * Supports both single-turn structured composition (`compose_writer_report`) + targeted unit
- * correction (`apply_writer_correction`) and segmented unit tool calls in `WriterAgentLedger`
- * under hard budgets, returning the validated `hive.writer-report/1` object and presentation plan.
+ * Application-orchestrated Writer loop (D-045, D-047, V4-004K.3).
+ * Uses `WRITER_EDITORIAL_TOOLS` (`submit_editorial_plan`, `patch_editorial_plan`) as the default
+ * generation path for new CUSTOMER and PRO report runs without offering competing tool strategies
+ * in the same model request, while `WriterAgentLedger` preserves legacy tool execution and
+ * persisted report compatibility.
  */
 export async function runWriterAgent(
   input: WriterAgentInput,
@@ -611,8 +587,9 @@ export async function runWriterAgent(
     claims: input.claims,
     fileNames: input.fileNames,
     canonicalFindings: input.canonicalFindings,
+    asOf: input.asOf ?? input.canonicalFindings?.asOfDate ?? null,
   });
-  const writerTools = [...WRITER_COMPOSE_TOOLS, ...WRITER_AGENT_TOOLS];
+  const writerTools = [...WRITER_EDITORIAL_TOOLS];
   const messages: StudyAgentMessage[] = [{ role: "user", content: JSON.stringify(input.userPayload) }];
   const totals: WriterAgentTotals = {
     rounds: 0,
@@ -919,8 +896,9 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
     const inputs = await loadGenerationInputs(deps.client, reportRunId);
     const audience = claimed.audience;
     const claims = studyClaimCatalog(inputs.verified);
+    const asOf = inputs.reportRun.createdAt || claimed.createdAt;
     const canonicalFindings = resolveCanonicalFindings(inputs.verified, claims, {
-      asOf: inputs.reportRun.createdAt || claimed.createdAt,
+      asOf,
     });
     const fileNames = fileNamesOf(inputs.sourceSnapshot);
     const catalog = (deps.loadCatalog ?? loadPromptCatalog)();
@@ -959,6 +937,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
         claims,
         fileNames,
         canonicalFindings,
+        asOf,
         deadline: startedAt + WRITER_AGENT_BUDGET.wallClockMs,
         clock,
       });
@@ -981,7 +960,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
     if (!validating.applied) return validating.reportRun?.status ?? null;
     current = "VALIDATING";
 
-    const built = buildReport(agentResult.report, { audience, claims, fileNames, canonicalFindings });
+    const built = buildReport(agentResult.report, { audience, claims, fileNames, canonicalFindings, asOf });
     if (!built.ok) {
       metric = { ...metric, outcome: "FAILED", errorCode: "MODEL_OUTPUT_INVALID", retryable: false };
       throw reportError({

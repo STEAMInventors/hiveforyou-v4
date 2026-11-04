@@ -952,6 +952,39 @@ export function mayaStudyContextArtifacts() {
   };
 }
 
+import {
+  l001CustomerEditorialPlan,
+  l001ProEditorialPlan,
+  mayaEditorialPlan,
+  revision6CustomerEditorialPlan,
+} from "../reports/editorial-plan-fixtures";
+import type { EditorialPlan } from "../reports/editorial-plan-contracts";
+
+export {
+  l001CustomerEditorialPlan,
+  l001ProEditorialPlan,
+  mayaEditorialPlan,
+  revision6CustomerEditorialPlan,
+};
+
+/**
+ * Single-call editorial Writer submission (V4-004K.3) using `submit_editorial_plan`.
+ */
+export function mayaWriterEditorialTurns(
+  audience: "CUSTOMER" | "PRO" = "CUSTOMER",
+  plan: EditorialPlan = mayaEditorialPlan(audience),
+): ScriptedCall[][] {
+  return [
+    [
+      {
+        id: `toolu_editorial_${audience.toLowerCase()}_1`,
+        name: "submit_editorial_plan",
+        arguments: JSON.stringify(plan),
+      },
+    ],
+  ];
+}
+
 /**
  * Single-call structured Writer composition (D-047) with presentation planning and dynamic A2UI composition.
  */

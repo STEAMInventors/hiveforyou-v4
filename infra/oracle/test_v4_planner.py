@@ -10,7 +10,14 @@ from fastapi.testclient import TestClient
 import model_json_parse
 import v4_planner
 from model_json_parse import parse_model_json_object
-from v4_planner import MAX_REQUEST_BYTES, STUDY_AGENT_TOOL_NAMES, WRITER_AGENT_TOOL_NAMES, WRITER_COMPOSE_TOOL_NAMES, app
+from v4_planner import (
+    MAX_REQUEST_BYTES,
+    STUDY_AGENT_TOOL_NAMES,
+    WRITER_AGENT_TOOL_NAMES,
+    WRITER_COMPOSE_TOOL_NAMES,
+    WRITER_EDITORIAL_TOOL_NAMES,
+    app,
+)
 
 TOKEN = "planner-test-token"
 LITELLM_URL = "http://hive-litellm:4000"
@@ -681,6 +688,22 @@ def test_writer_agent_turn_fails_closed_without_writer_alias_and_validates_write
     assert post_agent(client, writer_agent_body(tools=agent_tools(WRITER_COMPOSE_TOOL_NAMES | WRITER_AGENT_TOOL_NAMES))).status_code == 200
     assert len(seen_compose) == 2
 
+    seen_editorial = use_litellm(
+        lambda _: httpx.Response(
+            200,
+            json=tool_completion([wire_call("toolu_e1", "submit_editorial_plan", '{"audience":"CUSTOMER","title":"T"}')]),
+        )
+    )
+    assert post_agent(client, writer_agent_body(tools=agent_tools(WRITER_EDITORIAL_TOOL_NAMES))).status_code == 200
+    assert (
+        post_agent(
+            client,
+            writer_agent_body(tools=agent_tools(WRITER_EDITORIAL_TOOL_NAMES | WRITER_COMPOSE_TOOL_NAMES | WRITER_AGENT_TOOL_NAMES)),
+        ).status_code
+        == 200
+    )
+    assert len(seen_editorial) == 2
+
 
 def test_writer_agent_turn_accepts_real_multi_question_claim_catalog_over_32k_chars(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -740,3 +763,117 @@ def test_writer_agent_turn_accepts_real_multi_question_claim_catalog_over_32k_ch
     )
     assert rejected.status_code == 400
     assert rejected.json()["diagnostic_reason"] == "planner_invalid_request"
+
+
+def test_writer_editorial_wire_compatibility_and_rebuild_requirement(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    editorial_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "submit_editorial_plan",
+                "description": (
+                    "Submits a compact hive.editorial-plan/1 for deterministic compilation into hive.writer-report/1. "
+                    "Trusted code validates claim selections, compiles DOCUMENTED blocks and A2UI props, preserves "
+                    "model-authored interpretation and uncertainty prose, and finishes the report only when buildReport() succeeds."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "schema": {"type": "string", "enum": ["hive.editorial-plan/1"]},
+                        "audience": {"type": "string", "enum": ["CUSTOMER", "PRO"]},
+                        "title": {"type": "string", "maxLength": 160},
+                        "audienceObjective": {"type": "string", "maxLength": 600},
+                        "summaryDetailLevel": {"type": "string", "enum": ["CONCISE", "BALANCED", "COMPREHENSIVE"]},
+                        "priorityFindings": {"type": "array", "maxItems": 24, "items": {"type": "object"}},
+                        "summary": {"type": "object"},
+                        "sections": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "object"}},
+                        "components": {"type": "array", "minItems": 1, "maxItems": 30, "items": {"type": "object"}},
+                    },
+                    "required": [
+                        "audience",
+                        "title",
+                        "audienceObjective",
+                        "summaryDetailLevel",
+                        "priorityFindings",
+                        "summary",
+                        "sections",
+                        "components",
+                    ],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "patch_editorial_plan",
+                "description": (
+                    "Repairs rejected editorial units by stable section id or zero-based component index after "
+                    "submit_editorial_plan, preserving all unmentioned plan elements. Returns compile diagnostics "
+                    "separately from tool argument schema failures."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "sections": {"type": "array", "maxItems": 12, "items": {"type": "object"}},
+                        "components": {"type": "array", "maxItems": 30, "items": {"type": "object"}},
+                    },
+                    "required": [],
+                    "additionalProperties": False,
+                },
+            },
+        },
+    ]
+    repair_messages = [
+        {"role": "user", "content": '{"task":"writer","audience":"PRO"}'},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "toolu_editorial_pro_1",
+                    "type": "function",
+                    "function": {
+                        "name": "submit_editorial_plan",
+                        "arguments": '{"audience":"PRO","title":"Maya Carter Initial IEP Review"}',
+                    },
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "toolu_editorial_pro_1",
+            "content": '{"ok":false,"finished":false,"compileFailed":true,"error":"writer_number_ungrounded"}',
+        },
+    ]
+    seen = use_litellm(
+        lambda _: httpx.Response(
+            200,
+            json=tool_completion([wire_call("toolu_editorial_pro_2", "patch_editorial_plan", '{"sections":[]}')]),
+        )
+    )
+    accepted = post_agent(client, writer_agent_body(tools=editorial_tools, messages=repair_messages))
+    assert accepted.status_code == 200
+    assert accepted.json()["message"]["tool_calls"] == [
+        {"id": "toolu_editorial_pro_2", "name": "patch_editorial_plan", "arguments": '{"sections":[]}'}
+    ]
+    assert len(seen) == 1
+
+    # Simulate an un-rebuilt Oracle Planner without WRITER_EDITORIAL_TOOL_NAMES in WRITER_ALLOWED_TOOL_SETS:
+    monkeypatch.setattr(
+        v4_planner,
+        "WRITER_ALLOWED_TOOL_SETS",
+        (
+            WRITER_COMPOSE_TOOL_NAMES,
+            WRITER_AGENT_TOOL_NAMES,
+            WRITER_COMPOSE_TOOL_NAMES | WRITER_AGENT_TOOL_NAMES,
+        ),
+    )
+    stale_response = post_agent(client, writer_agent_body(tools=editorial_tools, messages=repair_messages))
+    assert stale_response.status_code == 400
+    assert stale_response.json()["error_code"] == "INVALID_REQUEST"
+    assert stale_response.json()["diagnostic_reason"] == "planner_invalid_request"
+    assert stale_response.json()["retryable"] is False
