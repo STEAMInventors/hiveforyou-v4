@@ -96,6 +96,7 @@ jobs:
             supabase/tests/database/document_reads.test.sql
             supabase/tests/database/study_preparation.test.sql
             supabase/tests/database/analysis_workflow.test.sql
+            supabase/tests/database/doc_extractions_v5_pipeline.test.sql
           )
           for f in "${TEST_FILES[@]}"; do
             if [ ! -f "$f" ]; then

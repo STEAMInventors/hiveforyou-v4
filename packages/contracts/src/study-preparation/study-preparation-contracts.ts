@@ -8,7 +8,7 @@ import type {
   InvestigationPlan,
 } from "./planning-output-contracts";
 
-/** Mirrored in supabase/migrations/20261102150000_analysis_workflow.sql. */
+/** Mirrored in supabase/migrations (latest status CHECK: 20261105162000_doc_extractions_and_v5_stages.sql). */
 export const PROCESSING_RUN_STATUSES = [
   "QUEUED",
   "READING_DOCUMENTS",
@@ -21,6 +21,9 @@ export const PROCESSING_RUN_STATUSES = [
   "BUILDING_PROMPT",
   "SAVING",
   "INVESTIGATING",
+  /** V5 pipeline: one document per workflow invocation (`20261105162000`). */
+  "EXTRACTING",
+  "CANONICALIZING",
   "VERIFYING_EVIDENCE",
   "ACCEPTING_STUDY",
   "SUCCEEDED",
