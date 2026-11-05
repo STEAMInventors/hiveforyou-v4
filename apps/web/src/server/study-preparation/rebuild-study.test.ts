@@ -47,7 +47,7 @@ function database() {
   ];
   let session: "owner" | "other" | null = "owner";
   let documentsRead = true;
-  let intent = true;
+  const intent = true;
   let acceptedStudy = true;
   let seq = 1;
 
