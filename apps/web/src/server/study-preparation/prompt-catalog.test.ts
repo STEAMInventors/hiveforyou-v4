@@ -81,6 +81,17 @@ describe("loadPromptCatalog", () => {
     expect(writerPrompt).toContain("missingDocumentRequests");
     expect(writerPrompt).toContain("writer_unsupported_conclusion");
   });
+
+  it("loads hive-canonicalize/1 as the System and Output sections", () => {
+    const { canonicalize } = loadPromptCatalog();
+    expect(canonicalize).toMatchObject({ task: "canonicalize", id: "hive-canonicalize/1" });
+    expect(canonicalize.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(canonicalize.systemPrompt).not.toMatch(/^## |^---$/m);
+    expect(canonicalize.systemPrompt).toContain("Cite only fact ids present in the input.");
+    expect(canonicalize.systemPrompt).toContain("Every element needs at least one fact id.");
+    expect(canonicalize.systemPrompt).toContain("no document plays the anchor role");
+    expect(canonicalize.systemPrompt).toContain('"schema": "hive.canonical-study/1"');
+  });
 });
 
 describe("buildPromptCatalog", () => {
@@ -104,6 +115,8 @@ describe("buildPromptCatalog", () => {
       "hive-writer/HiveForYou-Writer-v1.md": planner("hive-writer/1"),
       "hive-writer/HiveForYou-Writer-Semantic-Review-v1.md": planner("hive.writer-semantic-review/1"),
       "hive-writer/hive.writer-report-1.schema.json": "{}",
+      "hive-extract/HiveForYou-Extract-v1.md": [planner("hive-extract/1"), "## User (template)", "Document id: `{{documentId}}`"].join(eol),
+      "hive-canonicalize/HiveForYou-Canonicalize-v1.md": [planner("hive-canonicalize/1"), "## Output", "Return JSON."].join(eol),
     };
   };
 
@@ -113,6 +126,8 @@ describe("buildPromptCatalog", () => {
     expect(crlf.planner.intent.digest).toBe(lf.planner.intent.digest);
     expect(crlf.studyTemplate.digest).toBe(lf.studyTemplate.digest);
     expect(lf.planner.intent.systemPrompt).toContain("Analyze faithfully.");
+    expect(crlf.canonicalize.digest).toBe(lf.canonicalize.digest);
+    expect(lf.canonicalize.systemPrompt).toBe("Be exact.\n\nReturn JSON.");
   });
 
   it("fails closed when a prompt file carries the wrong id", () => {

@@ -1,0 +1,127 @@
+{
+  "anchorDocument": null,
+  "spineSource": ["PARTIES_AND_OBLIGATIONS", "TIMELINE"],
+  "spine": [
+    {
+      "id": "G1",
+      "label": "Brightwater Electric bill of $142.37 due August 22, 2026",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        { "file": "01_electric_bill.pdf", "page": 1, "quoteFragment": "Amount due: $142.37" },
+        { "file": "01_electric_bill.pdf", "page": 1, "quoteFragment": "Payment due date: August 22, 2026" }
+      ]
+    },
+    {
+      "id": "G2",
+      "label": "Fernhill Municipal Water bill of $88.60 due September 15, 2026",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        { "file": "02_water_bill.pdf", "page": 1, "quoteFragment": "Amount due: $88.60" },
+        { "file": "02_water_bill.pdf", "page": 1, "quoteFragment": "Payment due date: September 15, 2026" }
+      ]
+    },
+    {
+      "id": "G3",
+      "label": "Leak adjustment may be requested within 60 days of the water bill date, with the repair invoice",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "02_water_bill.pdf", "page": 1, "quoteFragment": "within 60 days of the bill date" }]
+    },
+    {
+      "id": "G4",
+      "label": "Renters insurance renewal premium of $312.00 (previously $276.00) due by September 1, 2026",
+      "kind": "figure",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        { "file": "03_insurance_renewal.pdf", "page": 1, "quoteFragment": "Annual premium: $312.00" },
+        { "file": "03_insurance_renewal.pdf", "page": 1, "quoteFragment": "Premium due by: September 1, 2026" }
+      ]
+    },
+    {
+      "id": "G5",
+      "label": "Landlord pays for plumbing repairs unless caused by tenant negligence or misuse",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "04_lease_clause.pdf", "page": 1, "quoteFragment": "will pay for repairs to those systems" }]
+    },
+    {
+      "id": "G6",
+      "label": "Tenant must report a leak to the landlord in writing within 48 hours",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "04_lease_clause.pdf", "page": 1, "quoteFragment": "in writing within 48 hours" }]
+    },
+    {
+      "id": "G7",
+      "label": "Leak reported to the property manager by email on August 14, 2026",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "06_email_leak_report.pdf", "page": 1, "quoteFragment": "Date: August 14, 2026" }]
+    },
+    {
+      "id": "G8",
+      "label": "Repair invoice total of $386.50; cause recorded as corrosion due to age, no misuse",
+      "kind": "figure",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        { "file": "05_repair_invoice.pdf", "page": 1, "quoteFragment": "Invoice total: $386.50" },
+        { "file": "05_repair_invoice.pdf", "page": 1, "quoteFragment": "corrosion of the original fitting due to age" }
+      ]
+    },
+    {
+      "id": "G9",
+      "label": "Property manager asks the tenants to reimburse $468.50 with September rent",
+      "kind": "claim",
+      "expectedStatus": "CONFLICTED",
+      "evidence": [{ "file": "07_email_reimbursement_request.pdf", "page": 1, "quoteFragment": "invoice of $468.50" }]
+    },
+    {
+      "id": "G10",
+      "label": "Lease term ends September 30, 2026",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "04_lease_clause.pdf", "page": 1, "quoteFragment": "October 1, 2025 to September 30, 2026" }]
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "C1",
+      "description": "Repair amount: the Keel and Sons invoice totals $386.50; the property manager's email cites an invoice of $468.50.",
+      "evidence": [
+        { "file": "05_repair_invoice.pdf", "page": 1, "quoteFragment": "Invoice total: $386.50" },
+        { "file": "07_email_reimbursement_request.pdf", "page": 1, "quoteFragment": "invoice of $468.50" }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "id": "X1",
+      "description": "The move-in inspection checklist that lease section 14.5 says is attached as Exhibit B is not in the corpus, so the recorded move-in condition of the plumbing cannot be checked."
+    }
+  ],
+  "negativeControls": [
+    {
+      "id": "N1",
+      "statement": "The repair invoice total is $468.50.",
+      "why": "The invoice itself totals $386.50; $468.50 appears only in the property manager's email."
+    },
+    {
+      "id": "N2",
+      "statement": "The tenants are responsible for the repair cost under the lease.",
+      "why": "Lease 14.1 puts plumbing repairs on the landlord except for tenant negligence, and the invoice records corrosion due to age with no sign of misuse."
+    },
+    {
+      "id": "N3",
+      "statement": "The leak was reported late, outside the lease's 48-hour window.",
+      "why": "The tenant emailed the property manager the morning she found the leak (August 14, 2026)."
+    },
+    {
+      "id": "N4",
+      "statement": "The renters insurance policy pays for the plumbing repair.",
+      "why": "The policy covers the tenants' property and liability; the repair was billed to the landlord and nothing in the corpus shows an insurance claim."
+    }
+  ],
+  "reviewed": false
+}

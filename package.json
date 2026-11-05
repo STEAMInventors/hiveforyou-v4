@@ -10,10 +10,15 @@
     "build": "npm run build -w @hiveforyou/web",
     "typecheck": "npm run typecheck -w @hiveforyou/contracts && npm run typecheck -w @hiveforyou/web",
     "lint": "npm run lint -w @hiveforyou/web",
-    "test": "npm run test -w @hiveforyou/contracts && npm run test -w @hiveforyou/web"
+    "test": "npm run test -w @hiveforyou/contracts && npm run test -w @hiveforyou/web",
+    "eval": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/eval.ts",
+    "extract": "vite-node --config apps/web/vitest.config.ts scripts/run-extract.ts --",
+    "canonicalize": "vite-node --config apps/web/vitest.config.ts scripts/run-canonicalize.ts --"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.2"
+    "pdf-lib": "^1.17.1",
+    "typescript": "^5.7.2",
+    "unpdf": "^1.9.1"
   }
 }

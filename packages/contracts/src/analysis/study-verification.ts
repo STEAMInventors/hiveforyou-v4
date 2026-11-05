@@ -1,4 +1,5 @@
 import { diagnosticFieldFromMessage } from "../errors/failure-diagnostic";
+import { normalizeQuoteText } from "../pipeline/verify-quotes";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 import {
   INVESTIGATION_ANSWER_STATUSES,
@@ -469,17 +470,7 @@ function rejectReconciliation(problem: CorpusReconciliationProblem | null): void
   if (problem) reject(`study_${problem.code}`, problem.message);
 }
 
-/** Maps typographic punctuation to ASCII so quotes still match after the same normalization on both sides. */
-function foldTypographicPunctuation(text: string): string {
-  return text
-    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")
-    .replace(/[\u201C\u201D\u201E\u2033]/g, '"')
-    .replace(/\u00A0/g, " ");
-}
-
-export function normalizeQuoteText(text: string): string {
-  return foldTypographicPunctuation(text.replace(/\r\n?/g, "\n").replace(/\s+/g, " ")).trim();
-}
+export { normalizeQuoteText };
 
 export function pageKey(sourceDocumentId: string, pageNumber: number): string {
   return `${sourceDocumentId.toLowerCase()}:${pageNumber}`;
