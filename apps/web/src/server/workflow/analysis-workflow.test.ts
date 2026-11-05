@@ -84,7 +84,7 @@ function fakeDatabase(
 ) {
   const runId = options.runId ?? RUN_ID;
   const snapshot = options.snapshot ?? sourceSnapshot();
-  let status = options.status ?? "QUEUED";
+  let status = options.status ?? "UNDERSTANDING_REQUEST";
   let leased = options.leased ?? false;
   let stageAttempt = 1;
   const stageMetrics: Record<string, unknown>[] = [];
@@ -94,6 +94,7 @@ function fakeDatabase(
   const retries: { status: string; details: Record<string, unknown> }[] = [];
   let saved: Record<string, unknown> | null = null;
   let accepted: Record<string, unknown> | null = null;
+  const docExtractions: { sourceDocumentId: string }[] = [];
   const preparationMode = options.preparationMode ?? "ANALYZE";
   const run = () =>
     runJson(status, { id: runId, stageAttempt, stageMetrics: [...stageMetrics], snapshotFrozen: true, preparationMode });
@@ -179,6 +180,15 @@ function fakeDatabase(
           },
           error: null,
         };
+      case "get_doc_extractions_for_run":
+        return { data: { extractions: docExtractions.map((row) => ({ sourceDocumentId: row.sourceDocumentId })) }, error: null };
+      case "put_doc_extraction": {
+        const id = String(args.p_source_document_id ?? "").toLowerCase();
+        if (id && !docExtractions.some((row) => row.sourceDocumentId.toLowerCase() === id)) {
+          docExtractions.push({ sourceDocumentId: id });
+        }
+        return { data: { saved: true }, error: null };
+      }
       case "get_study_source_pages": {
         const pages = Object.entries(options.pages ?? {}).map(([key, text], index) => {
           const [sourceDocumentId, pageNumber] = key.split(":");
@@ -361,7 +371,6 @@ describe("processAnalysisRun: planning stages", () => {
     expect(planner.calls).toEqual(["intent", "domain", "intelligence"]);
     expect(modelCallsPerInvocation.every((count) => count <= 1)).toBe(true);
     expect(db.transitions.map((t) => t.to)).toEqual([
-      "UNDERSTANDING_REQUEST",
       "IDENTIFYING_DOMAIN",
       "DEVELOPING_QUESTIONS",
       "BUILDING_PROMPT",
@@ -371,8 +380,8 @@ describe("processAnalysisRun: planning stages", () => {
     expect(db.releases.map((r) => r.status)).toEqual(["IDENTIFYING_DOMAIN", "DEVELOPING_QUESTIONS", "INVESTIGATING"]);
     expect(dispatched.every((item) => item.kind === "analysis" && item.id === RUN_ID)).toBe(true);
 
-    const toDeveloping = db.transitions[2];
-    const toPrompt = db.transitions[3];
+    const toDeveloping = db.transitions.find((t) => t.to === "DEVELOPING_QUESTIONS")!;
+    const toPrompt = db.transitions.find((t) => t.to === "BUILDING_PROMPT")!;
     expect(Object.keys(toDeveloping!.details.stage_outputs as object).sort()).toEqual(["domainProposal", "sampleCoverage"]);
     expect(Object.keys(toPrompt!.details.stage_outputs as object).sort()).toEqual(["intentIntelligence", "investigationPlan"]);
     expect(toPrompt!.details.stage_metric).toMatchObject({
@@ -526,7 +535,7 @@ describe("processAnalysisRun: reading documents", () => {
     const db = fakeDatabase({ status: "READING_DOCUMENTS" });
     const planner = fakePlanner();
     const h = harness(db, planner);
-    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("UNDERSTANDING_REQUEST");
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
     expect(planner.calls).toEqual([]);
     expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 0 }]);
   });
@@ -1403,7 +1412,9 @@ describe.each([
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
 
-    expect(db.transitions[3]!.details.stage_outputs).toMatchObject({ intentIntelligence: { schema: "hive.intent-intelligence/1" } });
+    expect(db.transitions.find((t) => t.to === "BUILDING_PROMPT")!.details.stage_outputs).toMatchObject({
+      intentIntelligence: { schema: "hive.intent-intelligence/1" },
+    });
     for (const intent of scenario.intents) {
       expect(promptText).toContain(intent.intentText);
       if (intent.audience) expect(promptText).toContain(`For: ${intent.audience}`);

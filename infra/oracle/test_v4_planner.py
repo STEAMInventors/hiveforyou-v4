@@ -447,7 +447,7 @@ def test_completion_caps_mirror_the_wire_contract() -> None:
 
 @pytest.mark.parametrize(
     ("task", "expected_read_timeout"),
-    [("extract", 280.0), ("canonicalize", 280.0), ("write", 150.0), ("intent", 150.0), ("domain", 150.0), ("intelligence", 150.0), ("plan", 150.0)],
+    [("extract", 260.0), ("canonicalize", 260.0), ("write", 260.0), ("intent", 150.0), ("domain", 150.0), ("intelligence", 150.0), ("plan", 150.0)],
 )
 def test_completion_uses_the_per_task_litellm_timeout(
     client: TestClient, pipeline_aliases: None, task: str, expected_read_timeout: float

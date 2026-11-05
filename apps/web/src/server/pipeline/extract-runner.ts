@@ -29,6 +29,7 @@ export type ExtractCallRecord = {
   readonly latencyMs: number | null;
   readonly roundTripMs: number;
   readonly finishReason: string | null;
+  readonly modelAlias: string | null;
   readonly resolvedModel: string | null;
   readonly errorCode: string | null;
   readonly diagnosticReason: string | null;
@@ -132,6 +133,7 @@ async function extractRange(
         latencyMs: completion.latencyMs,
         roundTripMs: completion.roundTripMs,
         finishReason: completion.finishReason,
+        modelAlias: completion.modelAlias,
         resolvedModel: completion.resolvedModel,
         errorCode: null,
         diagnosticReason: validated.ok ? null : validated.reason,
@@ -160,6 +162,7 @@ async function extractRange(
         latencyMs: null,
         roundTripMs: Date.now() - started,
         finishReason: null,
+        modelAlias: null,
         resolvedModel: null,
         errorCode: hiveError.errorCode,
         diagnosticReason: hiveError.diagnosticReason ?? null,

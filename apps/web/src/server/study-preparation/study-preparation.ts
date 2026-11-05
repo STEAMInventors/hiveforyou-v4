@@ -195,8 +195,9 @@ export async function startStudyPreparation(
 
 /**
  * Starts an explicit Rebuild Study. A new request freezes the current sources and intent and
- * queues a Study investigation. The same client request replays that run. An in-flight rebuild is
- * not started twice. This path never queues document reads or Writer runs.
+ * queues the V5 pipeline (re-extract only documents whose content changed, then re-run
+ * CANONICALIZING from cached extractions — the cheap path). The same client request replays that
+ * run. An in-flight rebuild is not started twice. This path never queues document reads or Writer runs.
  */
 export async function rebuildStudy(
   userClient: StudyPreparationRpcClient,

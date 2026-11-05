@@ -27,6 +27,7 @@ import {
   validateIntentAnalysis,
   validateIntentIntelligence,
   buildDeterministicInvestigationPlan,
+  type CanonicalStudy,
   type VerifiedStudy,
   verifyStudyInvestigation,
 } from "@hiveforyou/contracts";
@@ -49,6 +50,15 @@ import { buildStudyPrompt, canonicalJson } from "@/server/study-preparation/stud
 
 import type { Dispatch } from "./dispatch";
 import { renderSourcePageIndex, runStudyInvestigation, StudyAgentFailure, type StudyAgentTotals } from "./study-investigation";
+import {
+  buildV5AcceptRevision,
+  extractOneDocument,
+  extractedDocumentIds,
+  isV5CanonicalStudy,
+  loadVerifiedExtractions,
+  nextDocumentNeedingExtraction,
+  runCanonicalizeForRun,
+} from "./v5-pipeline-stages";
 
 /**
  * The Analyze workflow (D-041): one durable run from reading documents to an accepted Canonical
@@ -77,6 +87,7 @@ type StageOutputs = {
   intentIntelligence?: IntentIntelligence;
   investigationPlan?: InvestigationPlan;
   studyInvestigation?: unknown;
+  canonicalStudy?: CanonicalStudy;
 };
 
 type TransitionDetails = {
@@ -453,10 +464,10 @@ async function readDocuments(context: Context, run: ProcessingRun): Promise<Step
   if (readIds.length > 0) {
     await processDocumentReads({ client: context.deps.client, reader: context.deps.reader }, readIds);
   }
-  const result = await transition(context.deps.client, context.runId, "READING_DOCUMENTS", "UNDERSTANDING_REQUEST");
+  const result = await transition(context.deps.client, context.runId, "READING_DOCUMENTS", "EXTRACTING");
   if (result.applied && result.run) {
-    log(result.run, "UNDERSTANDING_REQUEST", context.startedAt);
-    return { next: "handoff", status: "UNDERSTANDING_REQUEST", delaySeconds: 0 };
+    log(result.run, "EXTRACTING", context.startedAt);
+    return { next: "handoff", status: "EXTRACTING", delaySeconds: 0 };
   }
   if (result.waiting) return { next: "handoff", status: "READING_DOCUMENTS", delaySeconds: READ_WAIT_SECONDS };
   if (result.run) log(result.run, result.run.status, context.startedAt);
@@ -845,7 +856,128 @@ async function verifyEvidence(context: Context): Promise<StepResult> {
   return { next: "continue", run };
 }
 
+async function extractDocuments(context: Context): Promise<StepResult> {
+  const inputs = await loadInputs(context.deps.client, context.runId);
+  if (inputs.intents.length === 0) {
+    throw new StageFailure(
+      analysisError({
+        errorCode: "INVALID_REQUEST",
+        category: "VALIDATION",
+        retryable: false,
+        safeMessage: "Tell us what you want to understand from these documents, then analyze again.",
+        correlationId: context.correlationId,
+        diagnosticReason: "intent_missing",
+      }),
+      null,
+    );
+  }
+  const catalog = context.catalog();
+  const payload = await rpc(context.deps.client, "get_doc_extractions_for_run", { p_processing_run_id: context.runId });
+  const extracted = extractedDocumentIds(payload);
+  const document = nextDocumentNeedingExtraction(inputs.sourceSnapshot, extracted);
+  if (!document) {
+    await advance(context, "EXTRACTING", "CANONICALIZING");
+    return { next: "handoff", status: "CANONICALIZING", delaySeconds: 0 };
+  }
+  const outcome = await extractOneDocument({
+    deps: context.deps,
+    run: inputs.run,
+    document,
+    catalog,
+    correlationId: context.correlationId,
+    stageAttempt: context.stageAttempt,
+    now: context.now,
+  });
+  if (!outcome.ok) {
+    throw new StageFailure(outcome.error, outcome.metric);
+  }
+  await advance(context, "EXTRACTING", "EXTRACTING", { stage_metric: outcome.metric });
+  return { next: "handoff", status: "EXTRACTING", delaySeconds: 0 };
+}
+
+async function canonicalizeStudy(context: Context): Promise<StepResult> {
+  const inputs = await loadInputs(context.deps.client, context.runId);
+  const extractions = await loadVerifiedExtractions(context.deps.client, context.runId);
+  if (extractions.length === 0) {
+    throw new StageFailure(
+      analysisError({
+        errorCode: "MODEL_OUTPUT_INVALID",
+        category: "MODEL",
+        retryable: false,
+        safeMessage: MODEL_OUTPUT_MESSAGE,
+        correlationId: context.correlationId,
+        diagnosticReason: "canonicalize_no_extractions",
+      }),
+      null,
+    );
+  }
+  // Rebuild Study: re-run CANONICALIZING from cached extractions; re-extract only changed documents (cheap path).
+  const result = await runCanonicalizeForRun({
+    deps: context.deps,
+    run: inputs.run,
+    extractions,
+    catalog: context.catalog(),
+    correlationId: context.correlationId,
+    stageAttempt: context.stageAttempt,
+    now: context.now,
+    rebuildMode: inputs.run.preparationMode === "REBUILD",
+  });
+  if (!result.ok) {
+    throw new StageFailure(result.error, result.metric);
+  }
+  await advance(context, "CANONICALIZING", "ACCEPTING_STUDY", {
+    stage_outputs: { canonicalStudy: result.study },
+    stage_metric: result.metric,
+  });
+  return { next: "handoff", status: "ACCEPTING_STUDY", delaySeconds: 0 };
+}
+
+async function acceptV5Study(context: Context, inputs: RunInputs, study: CanonicalStudy): Promise<StepResult> {
+  const catalog = context.catalog();
+  const canonicalMetric = [...inputs.run.stageMetrics].reverse().find((metric) => metric.stage === "CANONICALIZING" && metric.outcome === "SUCCEEDED");
+  const revision = buildV5AcceptRevision({ study, intents: inputs.intents, canonicalMetric, catalog });
+  let payload: Record<string, unknown> | null;
+  try {
+    payload = await rpc(context.deps.client, "accept_study_revision", { p_run_id: context.runId, p_revision: revision });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("study_documents_incomplete")) {
+      throw new StageFailure(
+        analysisError({
+          errorCode: "MODEL_OUTPUT_INVALID",
+          category: "MODEL",
+          retryable: false,
+          safeMessage:
+            "The study did not record a document inventory, so it was not accepted. Your earlier study is unchanged.",
+          correlationId: context.correlationId,
+          diagnosticReason: "study_documents_incomplete",
+        }),
+        null,
+      );
+    }
+    throw error;
+  }
+  if (payload?.sourceChanged === true) throw new SourceChanged(true);
+  const run = normalizeProcessingRun(payload?.processingRun);
+  if (run) log(run, run.status, context.startedAt);
+  if (inputs.run.preparationMode !== "REBUILD") {
+    const reportRuns = Array.isArray(payload?.reportRuns) ? (payload.reportRuns as { id?: unknown; status?: unknown }[]) : [];
+    await Promise.all(
+      reportRuns
+        .filter((reportRun) => typeof reportRun.id === "string" && reportRun.status === "QUEUED")
+        .map((reportRun) =>
+          context.deps.dispatch({ kind: "report", id: reportRun.id as string }, context.correlationId, { delaySeconds: 0 }),
+        ),
+    );
+  }
+  return { next: "stop", status: run?.status ?? "SUCCEEDED" };
+}
+
 async function acceptStudy(context: Context): Promise<StepResult> {
+  const loaded = await loadInputs(context.deps.client, context.runId);
+  if (isV5CanonicalStudy(loaded.stageOutputs.canonicalStudy)) {
+    return acceptV5Study(context, loaded, loaded.stageOutputs.canonicalStudy);
+  }
   const { inputs, verified } = await verifiedStudyFromRun(context);
   if (inputs.run.preparationMode === "REBUILD") {
     const assessed = assessDocumentCenteredStudy(verified.investigation);
@@ -919,9 +1051,16 @@ async function acceptStudy(context: Context): Promise<StepResult> {
 async function runStage(context: Context, run: ProcessingRun): Promise<StepResult> {
   switch (run.status) {
     case "QUEUED":
-      return { next: "continue", run: await advance(context, "QUEUED", "UNDERSTANDING_REQUEST") };
+      if (run.snapshotFrozen) {
+        return { next: "continue", run: await advance(context, "QUEUED", "EXTRACTING") };
+      }
+      return { next: "continue", run: await advance(context, "QUEUED", "READING_DOCUMENTS") };
     case "READING_DOCUMENTS":
       return readDocuments(context, run);
+    case "EXTRACTING":
+      return extractDocuments(context);
+    case "CANONICALIZING":
+      return canonicalizeStudy(context);
     case "UNDERSTANDING_REQUEST":
       return understandRequest(context);
     case "IDENTIFYING_DOMAIN":

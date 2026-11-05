@@ -331,22 +331,25 @@ describe("normalizeReportRun", () => {
 });
 
 describe("stages", () => {
-  it("maps statuses onto the visible stages from reading to checking the evidence", () => {
+  it("maps V5 statuses onto the visible stages from reading through accepting", () => {
     expect(STUDY_PREPARATION_STAGES.map((stage) => stage.label)).toEqual([
       "Reading your documents",
-      "Understanding your request",
-      "Identifying the domain",
-      "Developing specialist questions",
-      "Constructing your study prompt",
-      "Investigating your documents",
-      "Checking the evidence",
+      "Extracting",
+      "Building study",
+      "Accepting",
     ]);
     expect(stageIndexForStatus("QUEUED")).toBe(-1);
     expect(stageIndexForStatus("READING_DOCUMENTS")).toBe(0);
-    expect(stageIndexForStatus("DEVELOPING_QUESTIONS")).toBe(3);
-    expect(stageIndexForStatus("SAVING")).toBe(4);
-    expect(stageIndexForStatus("INVESTIGATING")).toBe(5);
-    expect(stageIndexForStatus("ACCEPTING_STUDY")).toBe(6);
+    expect(stageIndexForStatus("EXTRACTING")).toBe(1);
+    expect(stageIndexForStatus("CANONICALIZING")).toBe(2);
+    expect(stageIndexForStatus("ACCEPTING_STUDY")).toBe(3);
+  });
+
+  it("maps legacy agentic statuses onto LEGACY_STUDY_PREPARATION_STAGES", () => {
+    expect(stageIndexForStatus("DEVELOPING_QUESTIONS")).toBe(2);
+    expect(stageIndexForStatus("SAVING")).toBe(3);
+    expect(stageIndexForStatus("INVESTIGATING")).toBe(4);
+    expect(stageIndexForStatus("VERIFYING_EVIDENCE")).toBe(5);
   });
 });
 

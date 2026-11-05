@@ -104,11 +104,11 @@ TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {
 }
 MAX_SYSTEM_PROMPT_CHARS = max(TASK_MAX_SYSTEM_PROMPT_CHARS.values())
 LITELLM_TIMEOUT_SECONDS = 150.0
-# Per-task override; tasks not listed use LITELLM_TIMEOUT_SECONDS. The web client waits longer (290 s).
+# Per-task override; tasks not listed use LITELLM_TIMEOUT_SECONDS. Web client waits 270 s (10 s above these).
 TASK_LITELLM_TIMEOUT_SECONDS: dict[str, float] = {
-    "extract": 280.0,
-    "canonicalize": 280.0,
-    "write": 150.0,
+    "extract": 260.0,
+    "canonicalize": 260.0,
+    "write": 260.0,
 }
 
 # study-agent-turn@1 ceilings; the web budget stays below them.
