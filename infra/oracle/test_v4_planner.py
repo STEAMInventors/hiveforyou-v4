@@ -626,6 +626,48 @@ def writer_agent_body(**overrides: object) -> dict[str, object]:
     ) | overrides
 
 
+def test_writer_semantic_review_turn_accepts_empty_tools_and_returns_json_content(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    findings_json = json.dumps({"schema": "hive.writer-semantic-review/1", "findings": []})
+    seen = use_litellm(
+        lambda _: httpx.Response(
+            200,
+            json={
+                "model": "claude-synthetic",
+                "choices": [{"message": {"role": "assistant", "content": findings_json}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+            },
+        )
+    )
+    payload = {
+        "contract_version": "study-agent-turn@1",
+        "task": "writer",
+        "prompt_id": "hive.writer-semantic-review/1",
+        "prompt_digest": DIGEST,
+        "system_prompt": "Review assertions.",
+        "messages": [{"role": "user", "content": '{"schema":"hive.writer-semantic-review/1","assertions":[]}'}],
+        "tools": [],
+        "max_output_tokens": 4000,
+        "timeout_seconds": 120,
+    }
+    response = post_agent(client, payload)
+    assert response.status_code == 200
+    assert response.json()["message"]["tool_calls"] == []
+    assert response.json()["message"]["content"] == findings_json
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == "harvester"
+    assert sent["response_format"] == {"type": "json_object"}
+    assert "tool_choice" not in sent
+    assert sent.get("tools", []) == []
+
+
+def test_writer_agent_turn_rejects_empty_tools(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    assert post_agent(client, writer_agent_body(tools=[])).status_code == 400
+
+
 def test_writer_agent_turn_relays_writer_tools_with_configured_alias(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

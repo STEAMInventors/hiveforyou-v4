@@ -851,4 +851,416 @@ describe("V4-004K.1 editorial plan compiler", () => {
       ),
     ).toBe(false);
   });
+
+  it("compiles a valid missing progress-report request for CUSTOMER and PRO with identical deterministic requestId, bound source refs, and audience-appropriate detail (V4-004K.5B)", () => {
+    const { claims, canonicalFindings } = buildVerifiedL001();
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+    const custBase = l001CustomerEditorialPlan();
+    const proBase = l001ProEditorialPlan();
+
+    const custPlan: EditorialPlan = {
+      ...custBase,
+      sections: [
+        {
+          ...custBase.sections[0]!,
+          missingDocumentRequests: [
+            {
+              gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+              supportingClaimIds: ["DF25", "DF32"],
+              text: "Do you have the quarterly progress reports?",
+            },
+          ],
+        },
+      ],
+    };
+
+    const proPlan: EditorialPlan = {
+      ...proBase,
+      sections: [
+        {
+          ...proBase.sections[0]!,
+          missingDocumentRequests: [
+            {
+              gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+              supportingClaimIds: ["DF25", "DF32"],
+              text: "Can you provide the quarterly oral-reading-fluency progress reports scheduled under Section 8?",
+              blockedAnalysis:
+                "Quarterly probe records after 2024-11-12 are needed to evaluate progress toward the 75 WCPM and 95% accuracy goal across three consecutive probes",
+            },
+          ],
+        },
+      ],
+    };
+
+    const compiledCust = compileEditorialPlan(custPlan, {
+      reportRunId: REPORT_RUN_ID,
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    const compiledPro = compileEditorialPlan(proPlan, {
+      reportRunId: `${REPORT_RUN_ID}-pro`,
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+
+    expect(compiledCust.ok).toBe(true);
+    expect(compiledPro.ok).toBe(true);
+    if (!compiledCust.ok || !compiledPro.ok) return;
+
+    // Both CUSTOMER and PRO compile the request to a QUESTION block with the exact same deterministic requestId
+    const custQuestionBlock = compiledCust.writerReport.sections[0]!.blocks.find((b) => b.type === "QUESTION")!;
+    const proQuestionBlock = compiledPro.writerReport.sections[0]!.blocks.find((b) => b.type === "QUESTION")!;
+    expect(custQuestionBlock).toBeDefined();
+    expect(proQuestionBlock).toBeDefined();
+    expect(custQuestionBlock.text).toBe("Do you have the quarterly progress reports?");
+    expect(proQuestionBlock.text).toContain("Can you provide the quarterly oral-reading-fluency progress reports scheduled under Section 8?");
+    expect(proQuestionBlock.text).toContain(
+      "Blocked analysis: Quarterly probe records after 2024-11-12 are needed to evaluate progress toward the 75 WCPM and 95% accuracy goal across three consecutive probes.",
+    );
+
+    expect(custQuestionBlock.missingDocumentRequest).toEqual({
+      requestId: "mdr:p6:progress_reports",
+      targetKey: "progress_reports",
+      gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+      supportingClaimIds: ["DF25", "DF32"],
+      refs: [{ sourceDocumentId: "5a5a5a5a-0000-4000-8000-000000000108", pageNumber: 2 }],
+    });
+    expect(proQuestionBlock.missingDocumentRequest).toEqual({
+      requestId: "mdr:p6:progress_reports",
+      targetKey: "progress_reports",
+      gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+      supportingClaimIds: ["DF25", "DF32"],
+      refs: [{ sourceDocumentId: "5a5a5a5a-0000-4000-8000-000000000108", pageNumber: 2 }],
+      blockedAnalysis:
+        "Quarterly probe data after 2024-11-12 is needed to evaluate progress toward the 75 WCPM and 95% accuracy goal across three consecutive probes".replace(
+          "data",
+          "records",
+        ).replace("is needed", "are needed"),
+    });
+    expect(custQuestionBlock.missingDocumentRequest?.requestId).toBe(
+      proQuestionBlock.missingDocumentRequest?.requestId,
+    );
+
+    // Verify bound A2UI Narrative block preserves missingDocumentRequest and source page references
+    const builtCust = buildReport(compiledCust.writerReport, {
+      audience: "CUSTOMER",
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    const builtPro = buildReport(compiledPro.writerReport, {
+      audience: "PRO",
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    expect(builtCust.ok).toBe(true);
+    expect(builtPro.ok).toBe(true);
+    if (!builtCust.ok || !builtPro.ok) return;
+
+    const custS1Narrative = builtCust.value.view.components.find(
+      (c) => c.component === "Narrative" && c.heading !== null,
+    );
+    expect(custS1Narrative?.component).toBe("Narrative");
+    if (custS1Narrative?.component === "Narrative") {
+      const boundQ = custS1Narrative.blocks.find((b) => b.type === "QUESTION")!;
+      expect(boundQ.text).toBe("Do you have the quarterly progress reports?");
+      expect(boundQ.claimIds).toEqual(["P6", "P6.U0", "P6.L0", "DF25", "DF32"]);
+      expect(boundQ.refs).toEqual(
+        expect.arrayContaining([
+          {
+            sourceDocumentId: "5a5a5a5a-0000-4000-8000-000000000108",
+            pageNumber: 2,
+            fileName: "08_initial_iep.pdf",
+          },
+        ]),
+      );
+    }
+    expect(builtCust.value.writerOutput.sections[0]?.blocks.find((b) => b.type === "QUESTION")?.missingDocumentRequest).toEqual({
+      requestId: "mdr:p6:progress_reports",
+      targetKey: "progress_reports",
+      gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+      supportingClaimIds: ["DF25", "DF32"],
+      refs: [{ sourceDocumentId: "5a5a5a5a-0000-4000-8000-000000000108", pageNumber: 2 }],
+    });
+  });
+
+  it("rejects invented missing-document requests and PRO requests missing blockedAnalysis (V4-004K.5B)", () => {
+    const { claims, canonicalFindings } = buildVerifiedL001();
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+    const custBase = l001CustomerEditorialPlan();
+    const proBase = l001ProEditorialPlan();
+
+    // 1. Invented document type (Functional Behavioral Assessment / BIP) not supported by verified gap
+    const inventedArtifact = compileEditorialPlan(
+      {
+        ...custBase,
+        sections: [
+          {
+            ...custBase.sections[0]!,
+            missingDocumentRequests: [
+              {
+                gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+                supportingClaimIds: ["DF25", "DF32"],
+                text: "Do you have the Functional Behavioral Assessment and Behavior Intervention Plan?",
+              },
+            ],
+          },
+        ],
+      },
+      { reportRunId: REPORT_RUN_ID, claims, fileNames, canonicalFindings, asOf: "2026-11-04" },
+    );
+    expect(inventedArtifact.ok).toBe(false);
+    if (!inventedArtifact.ok) {
+      expect(inventedArtifact.diagnosticReason).toBe("editorial_plan_request_ungrounded");
+      expect(inventedArtifact.diagnosticField).toBe("sections[0].missingDocumentRequests[0].text");
+    }
+
+    // 2. Requesting service logs against a progress-report / evaluation gap where no service log is missing
+    const mismatchedTarget = compileEditorialPlan(
+      {
+        ...custBase,
+        sections: [
+          {
+            ...custBase.sections[0]!,
+            missingDocumentRequests: [
+              {
+                gapClaimIds: ["P6.L0"],
+                supportingClaimIds: ["DF32"],
+                text: "Do you have the speech therapy attendance logs?",
+              },
+            ],
+          },
+        ],
+      },
+      { reportRunId: REPORT_RUN_ID, claims, fileNames, canonicalFindings, asOf: "2026-11-04" },
+    );
+    expect(mismatchedTarget.ok).toBe(false);
+    if (!mismatchedTarget.ok) {
+      expect(mismatchedTarget.diagnosticReason).toBe("editorial_plan_request_ungrounded");
+    }
+
+    // 3. Citing a non-gap FACT claim in gapClaimIds is rejected
+    const nonGapClaim = compileEditorialPlan(
+      {
+        ...custBase,
+        sections: [
+          {
+            ...custBase.sections[0]!,
+            missingDocumentRequests: [
+              {
+                gapClaimIds: ["DF27"],
+                supportingClaimIds: ["DF32"],
+                text: "Do you have the progress reports?",
+              },
+            ],
+          },
+        ],
+      },
+      { reportRunId: REPORT_RUN_ID, claims, fileNames, canonicalFindings, asOf: "2026-11-04" },
+    );
+    expect(nonGapClaim.ok).toBe(false);
+    if (!nonGapClaim.ok) {
+      expect(nonGapClaim.diagnosticReason).toBe("editorial_plan_claim_kind");
+    }
+
+    // 4. PRO missing-document request without blockedAnalysis is rejected
+    const proMissingBlocked = compileEditorialPlan(
+      {
+        ...proBase,
+        sections: [
+          {
+            ...proBase.sections[0]!,
+            missingDocumentRequests: [
+              {
+                gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+                supportingClaimIds: ["DF25", "DF32"],
+                text: "Can you provide the quarterly progress reports?",
+              },
+            ],
+          },
+        ],
+      },
+      { reportRunId: REPORT_RUN_ID, claims, fileNames, canonicalFindings, asOf: "2026-11-04" },
+    );
+    expect(proMissingBlocked.ok).toBe(false);
+    if (!proMissingBlocked.ok) {
+      expect(proMissingBlocked.diagnosticReason).toBe("editorial_plan_shape");
+      expect(proMissingBlocked.diagnosticField).toBe("sections[0].missingDocumentRequests[0].blockedAnalysis");
+    }
+  });
+
+  it("surfaces PARTIALLY_ANSWERED limitations (P6.L0) visibly in reports and rejects plans that omit PARTIALLY_ANSWERED limitations (V4-004K.5B)", () => {
+    const { claims, canonicalFindings } = buildVerifiedL001();
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+    const custBase = l001CustomerEditorialPlan();
+
+    // Case 1: Section cites P6.U0 on PARTIALLY_ANSWERED P6 without explicitly mentioning P6.L0's 2024-10-18 evaluation gap;
+    // compiler automatically includes P6.L0 and appends its limitation sentence so it is visibly surfaced in the report
+    const planWithOmittedLimitationProse: EditorialPlan = {
+      ...custBase,
+      sections: [
+        {
+          ...custBase.sections[0]!,
+          uncertainty: {
+            text: "No quarterly oral-reading-fluency probe results after 2024-11-12 are included in this file, and the IEP team decides whether the 75 WCPM and 95% accuracy goal was met.",
+            claimRefs: ["DF7", "DF8", "DF20", "DF21", "P6", "P6.U0", "P6.D0"],
+          },
+        },
+      ],
+      components: custBase.components.map((c) =>
+        c.component === "Narrative" && c.sectionId === "s1"
+          ? { ...c, claimIds: ["DF8", "DF26", "DF27", "DF30", "DF31", "DF32", "P2.A0", "P6", "P6.U0", "P6.L0", "P6.D0"] }
+          : c,
+      ),
+    };
+
+    const compiled = compileEditorialPlan(planWithOmittedLimitationProse, {
+      reportRunId: REPORT_RUN_ID,
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+
+    const uncBlock = compiled.writerReport.sections[0]!.blocks.find((b) => b.type === "UNCERTAINTY")!;
+    expect(uncBlock.claimRefs).toContain("P6.L0");
+    expect(uncBlock.text).toContain("academic evaluation referenced in Section 3 and quarterly progress reports referenced in Section 8 are not separately attached");
+
+    // Case 2: Compiled uncertainty mode that omits PARTIALLY_ANSWERED limitation P6.L0 is rejected with writer_uncertainty_hidden
+    const planOmittingCompiledLimitation: EditorialPlan = {
+      ...custBase,
+      sections: [
+        {
+          ...custBase.sections[0]!,
+          uncertainty: {
+            mode: "compiled",
+            claimIds: ["P6.U0"],
+          },
+        },
+      ],
+      components: custBase.components.map((c) =>
+        c.component === "Narrative" && c.sectionId === "s1"
+          ? { ...c, claimIds: ["DF8", "DF26", "DF27", "DF30", "DF31", "DF32", "P2.A0", "P6.U0"] }
+          : c,
+      ),
+    };
+
+    const rejectedMissingLimitation = compileEditorialPlan(planOmittingCompiledLimitation, {
+      reportRunId: REPORT_RUN_ID,
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    expect(rejectedMissingLimitation.ok).toBe(false);
+    if (!rejectedMissingLimitation.ok) {
+      expect(rejectedMissingLimitation.diagnosticReason).toBe("writer_uncertainty_hidden");
+    }
+  });
+
+  it("rejects unsupported legal/compliance conclusions, adequacy verdicts, and absent-record non-occurrence claims while allowing neutral questions and grounded quotes (V4-004K.5B)", () => {
+    const { claims, canonicalFindings } = buildVerifiedL001();
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+    const base = l001ProEditorialPlan();
+
+    // 1. Rejects claiming an absent progress report proves probes were never conducted
+    const nonOccurrenceClaim = compileEditorialPlan(
+      {
+        ...base,
+        sections: [
+          {
+            ...base.sections[0]!,
+            uncertainty: {
+              text: "Because no quarterly progress reports are in the file, oral-reading-fluency probes were never conducted and progress was never monitored.",
+              claimRefs: ["DF7", "DF8", "DF12", "DF20", "DF21", "P6", "P6.U0", "P6.L0", "P6.D0"],
+            },
+          },
+        ],
+      },
+      { reportRunId: REPORT_RUN_ID, claims, fileNames, canonicalFindings, asOf: "2026-11-04" },
+    );
+    expect(nonOccurrenceClaim.ok).toBe(false);
+    if (!nonOccurrenceClaim.ok) {
+      expect(nonOccurrenceClaim.diagnosticReason).toBe("writer_unsupported_conclusion");
+      expect(nonOccurrenceClaim.diagnosticField).toBe("sections[0].uncertainty");
+    }
+
+    // 2. Rejects unsupported legal/FAPE violation conclusion
+    const legalViolationClaim = compileEditorialPlan(
+      {
+        ...base,
+        sections: [
+          {
+            ...base.sections[0]!,
+            interpretation: {
+              text: "The district violated IDEA and denied FAPE by failing to attach quarterly probe reports.",
+              claimRefs: ["P2.A0", "DF32"],
+            },
+          },
+        ],
+      },
+      { reportRunId: REPORT_RUN_ID, claims, fileNames, canonicalFindings, asOf: "2026-11-04" },
+    );
+    expect(legalViolationClaim.ok).toBe(false);
+    if (!legalViolationClaim.ok) {
+      expect(legalViolationClaim.diagnosticReason).toBe("writer_unsupported_conclusion");
+      expect(legalViolationClaim.diagnosticField).toBe("sections[0].interpretation");
+    }
+
+    // 3. Rejects unsupported adequacy / goal failure verdict
+    const adequacyVerdict = compileEditorialPlan(
+      {
+        ...base,
+        sections: [
+          {
+            ...base.sections[0]!,
+            interpretation: {
+              text: "Maya's reading progress is inadequate and the annual goal was not met.",
+              claimRefs: ["P2.A0", "DF19", "DF20"],
+            },
+          },
+        ],
+      },
+      { reportRunId: REPORT_RUN_ID, claims, fileNames, canonicalFindings, asOf: "2026-11-04" },
+    );
+    expect(adequacyVerdict.ok).toBe(false);
+    if (!adequacyVerdict.ok) {
+      expect(adequacyVerdict.diagnosticReason).toBe("writer_unsupported_conclusion");
+    }
+
+    // 4. Allows neutral questions and reserved determinations
+    const validNeutralAndReserved = compileEditorialPlan(
+      {
+        ...base,
+        sections: [
+          {
+            ...base.sections[0]!,
+            interpretation: {
+              text: "Whether progress is adequate to meet GOAL_READING_FLUENCY is decided by the IEP team once quarterly probes are reviewed.",
+              claimRefs: ["P2.A0", "P6.D0", "DF13", "DF14", "DF17", "DF19", "DF20", "DF21", "DF22", "DF24", "P2.C0", "P2.C1"],
+            },
+            missingDocumentRequests: [
+              {
+                gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+                supportingClaimIds: ["DF25", "DF32"],
+                text: "Do you have the quarterly oral-reading-fluency progress reports?",
+                blockedAnalysis: "Quarterly probe results are needed to evaluate progress toward the annual goal.",
+              },
+            ],
+          },
+        ],
+      },
+      { reportRunId: REPORT_RUN_ID, claims, fileNames, canonicalFindings, asOf: "2026-11-04" },
+    );
+    expect(validNeutralAndReserved.ok).toBe(true);
+  });
 });

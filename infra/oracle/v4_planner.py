@@ -51,6 +51,7 @@ TASK_PROMPT_IDS: dict[str, str] = {
     "study": "hive-study-preview/1",
     "writer": "hive-writer/1",
 }
+WRITER_SEMANTIC_REVIEW_PROMPT_ID = "hive.writer-semantic-review/1"
 DEFAULT_MODEL_ALIAS = "sorter"
 # Per-task model override; preparation tasks not listed use PLANNER_LITELLM_ALIAS.
 TASK_MODEL_ALIASES: dict[str, str] = {
@@ -233,7 +234,7 @@ class StudyAgentTurnRequest(_Strict):
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=STUDY_AGENT_MAX_SYSTEM_PROMPT_CHARS)
     messages: list[_Message] = Field(min_length=1, max_length=STUDY_AGENT_MAX_MESSAGES)
-    tools: list[_ToolDefinition] = Field(min_length=1, max_length=len(STUDY_AGENT_TOOL_NAMES))
+    tools: list[_ToolDefinition] = Field(min_length=0, max_length=len(STUDY_AGENT_TOOL_NAMES))
     max_output_tokens: int = Field(ge=1, le=STUDY_AGENT_MAX_OUTPUT_TOKENS)
     timeout_seconds: int = Field(ge=5, le=240)
 
@@ -360,14 +361,25 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
         parsed = StudyAgentTurnRequest.model_validate_json(body)
     except ValidationError as exc:
         raise _invalid_request("Planner request is invalid.") from exc
-    if parsed.prompt_id != TASK_PROMPT_IDS[parsed.task]:
-        raise _invalid_request("Prompt does not match the task.")
     if not DIGEST_RE.match(parsed.prompt_digest):
         raise _invalid_request("Prompt digest is invalid.")
+    if parsed.prompt_id == WRITER_SEMANTIC_REVIEW_PROMPT_ID:
+        if parsed.task != "writer":
+            raise _invalid_request("Semantic review requires task writer.")
+        if len(parsed.tools) != 0:
+            raise _invalid_request("Semantic review turns must not include tools.")
+        if len(parsed.messages) != 1 or not isinstance(parsed.messages[0], _UserMessage):
+            raise _invalid_request("Semantic review requires a single user message.")
+    elif parsed.prompt_id != TASK_PROMPT_IDS[parsed.task]:
+        raise _invalid_request("Prompt does not match the task.")
     expected_tools = AGENT_TASK_TOOLS[parsed.task]
     names = [tool.function.name for tool in parsed.tools]
     name_set = set(names)
-    if parsed.task == "writer":
+    if parsed.prompt_id != WRITER_SEMANTIC_REVIEW_PROMPT_ID and len(parsed.tools) == 0:
+        raise _invalid_request("Tool-calling turns require at least one tool.")
+    if parsed.prompt_id == WRITER_SEMANTIC_REVIEW_PROMPT_ID:
+        pass
+    elif parsed.task == "writer":
         if len(names) != len(name_set) or name_set not in WRITER_ALLOWED_TOOL_SETS:
             raise _invalid_request("Tools do not match the writer tool set.")
     elif parsed.task == "study":
@@ -694,6 +706,71 @@ def _dump_message(message: _UserMessage | _AssistantMessage | _ToolMessage) -> d
     return dumped
 
 
+async def _agent_json_content_turn(request: StudyAgentTurnRequest, settings: dict[str, str]) -> dict[str, Any]:
+    """One Writer semantic-review turn: JSON completion in message content, no tools (V4-005)."""
+    _require_litellm(settings)
+    alias = _require_alias(request.task, settings)
+    user = request.messages[0]
+    if not isinstance(user, _UserMessage):
+        raise _invalid_request("Semantic review requires a single user message.")
+    payload: dict[str, object] = {
+        "model": alias,
+        "messages": [{"role": "system", "content": request.system_prompt}, {"role": "user", "content": user.content}],
+        "temperature": 0,
+        "max_tokens": request.max_output_tokens,
+        "response_format": {"type": "json_object"},
+    }
+    data, choice, latency_ms = await _post_litellm(settings, payload, float(request.timeout_seconds))
+    usage = _usage(data)
+    completion_tokens = usage["completion_tokens"]
+    finish_reason = _safe_token(choice.get("finish_reason"))
+    if _is_truncated(finish_reason):
+        raise PlannerError(
+            422, "MODEL_OUTPUT_INVALID", "model", False, "The planning answer was cut off.", "model_output_truncated",
+            log_fields=_output_failure_log(model_alias=alias, finish_reason=finish_reason, completion_tokens=completion_tokens, content=None),
+        )
+    message = choice.get("message")
+    if not isinstance(message, dict):
+        raise _no_answer(retryable=False, model_alias=alias, finish_reason=finish_reason, completion_tokens=completion_tokens)
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip() or len(content) > STUDY_AGENT_MAX_CONTENT_CHARS:
+        raise _no_answer(
+            "model_content_missing",
+            retryable=False,
+            model_alias=alias,
+            finish_reason=finish_reason,
+            completion_tokens=completion_tokens,
+            content=content if isinstance(content, str) else None,
+        )
+    try:
+        parse_model_json_object(content)
+    except (json.JSONDecodeError, ModelJsonParseError) as exc:
+        diagnostic = _parse_json_content_diagnostic(exc) if isinstance(exc, ModelJsonParseError) else "model_output_not_json"
+        raise PlannerError(
+            422,
+            "MODEL_OUTPUT_INVALID",
+            "model",
+            False,
+            "The planning answer was not JSON.",
+            diagnostic,
+            log_fields=_output_failure_log(
+                model_alias=alias,
+                finish_reason=finish_reason,
+                completion_tokens=completion_tokens,
+                content=content,
+            ),
+        ) from exc
+    return {
+        "contract_version": STUDY_AGENT_CONTRACT_VERSION,
+        "model_alias": alias,
+        "resolved_model": _safe_token(data.get("model")),
+        "message": {"content": content.strip(), "tool_calls": []},
+        "usage": usage,
+        "latency_ms": latency_ms,
+        "finish_reason": finish_reason,
+    }
+
+
 async def _agent_turn(request: StudyAgentTurnRequest, settings: dict[str, str]) -> dict[str, Any]:
     """Relays one Study or Writer tool-calling turn. Returns the model's tool calls; never executes them."""
     _require_litellm(settings)
@@ -831,7 +908,10 @@ async def study_agent_turn(request: Request) -> JSONResponse:
             pass
         parsed = _parse_agent_request(raw_body)
         task = parsed.task
-        result = await _agent_turn(parsed, settings)
+        if parsed.prompt_id == WRITER_SEMANTIC_REVIEW_PROMPT_ID:
+            result = await _agent_json_content_turn(parsed, settings)
+        else:
+            result = await _agent_turn(parsed, settings)
         usage = result["usage"]
         _log(
             "v4_study_agent_turn_succeeded",

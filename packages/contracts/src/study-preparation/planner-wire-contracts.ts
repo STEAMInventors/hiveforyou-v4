@@ -32,6 +32,9 @@ export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask, string> = {
   writer: "hive-writer/1",
 };
 
+/** Independent Writer semantic review (`study-agent-turn@1`, tool-free JSON completion on `task: "writer"`). */
+export const WRITER_SEMANTIC_REVIEW_PROMPT_ID = "hive.writer-semantic-review/1" as const;
+
 /** Per-task output caps; the planner enforces the same limits. */
 export const PLANNER_MAX_OUTPUT_TOKENS: Record<PlannerCompletionTask, number> = {
   intent: 4000,

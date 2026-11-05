@@ -24,7 +24,9 @@ import {
   evaluateScenarios,
   firstUngroundedNumericToken,
   groundingNumbersForClaims,
+  hasClaimTokenOverlap,
   INTERPRETATION_KINDS,
+  type MissingDocumentRequestMetadata,
   mustSurfaceClaims,
   numericDiagnosticField,
   REPORT_BLOCK_TYPES,
@@ -40,6 +42,7 @@ import {
   validateScenarioDefinition,
   validateWriterReport,
   type ViewComponentProposal,
+  visiblyCoversLimitation,
   visiblyPresentsUncertainty,
   WRITER_LIMITS,
   WRITER_REPORT_SCHEMA,
@@ -131,6 +134,7 @@ export type WriterPresentationPlan = {
   readonly priorityFindings: readonly WriterPriorityFinding[];
   readonly sections: readonly WriterPlannedSection[];
   readonly components: readonly WriterPlannedComponent[];
+  readonly missingDocumentRequests?: readonly MissingDocumentRequestMetadata[];
 };
 
 export type WriterRejectedUnitKind =
@@ -231,6 +235,8 @@ export const WRITER_AGENT_BUDGET = {
   /** The web call aborts this long after the planner's own model timeout. */
   turnAbortMarginMs: 5_000,
   maxRounds: 5,
+  /** Independent semantic-review repair cycles after a compiled finish (patch_editorial_plan). */
+  maxSemanticReviewRepairs: 2,
   /** Maximum accepted (successful) tool calls per Writer attempt. */
   maxToolCalls: 48,
   maxCallsPerTurn: 32,
@@ -960,6 +966,18 @@ export class WriterAgentLedger {
     return this.presentationPlan;
   }
 
+  /**
+   * Reopens an editorial-plan finish so `patch_editorial_plan` can repair semantic review failures.
+   * Preserves `editorialPlanDraft` and recorded sections/view state.
+   */
+  reopenForSemanticReview(): void {
+    if (!this.finishedReport || !this.editorialPlanDraft) {
+      throw new Error("writer_semantic_reopen_invalid");
+    }
+    this.finishedReport = null;
+    this.rejectedUnitCount += 1;
+  }
+
   private registerSectionOrder(id: string): void {
     if (SECTION_ID_PATTERN.test(id) && !this.sectionOrder.includes(id)) {
       this.sectionOrder.push(id);
@@ -1675,6 +1693,9 @@ export class WriterAgentLedger {
       priorityFindings,
       sections: plannedSections,
       components: plannedComponents,
+      ...(Array.isArray(plan.missingDocumentRequests) && plan.missingDocumentRequests.length > 0
+        ? { missingDocumentRequests: plan.missingDocumentRequests as MissingDocumentRequestMetadata[] }
+        : {}),
     };
     this.presentationPlan = normalized;
     this.unresolvedSlots.delete("presentationPlan");
@@ -2024,7 +2045,20 @@ export class WriterAgentLedger {
       this.sections.set(section.id, {
         id: section.id,
         heading: section.heading,
-        blocks: section.blocks.map((block) => ({ ...block, claimRefs: [...block.claimRefs] })),
+        blocks: section.blocks.map((block) => ({
+          ...block,
+          claimRefs: [...block.claimRefs],
+          ...(block.missingDocumentRequest
+            ? {
+                missingDocumentRequest: {
+                  ...block.missingDocumentRequest,
+                  gapClaimIds: [...block.missingDocumentRequest.gapClaimIds],
+                  supportingClaimIds: [...block.missingDocumentRequest.supportingClaimIds],
+                  refs: block.missingDocumentRequest.refs.map((ref) => ({ ...ref })),
+                },
+              }
+            : {}),
+        })),
       });
     }
     this.scenarios.clear();
@@ -2058,6 +2092,14 @@ export class WriterAgentLedger {
       asOf: this.context.asOf,
     });
     if (!compiled.ok) {
+      const hint =
+        compiled.diagnosticReason === "writer_unsupported_conclusion"
+          ? "Remove unsupported legal/compliance conclusions, adequacy verdicts, or claims that a missing record proves an activity never occurred; state only what the record shows, what is missing, or who decides."
+          : compiled.diagnosticReason === "editorial_plan_request_ungrounded"
+            ? "Ensure each missingDocumentRequests entry cites verified MISSING_EVIDENCE, PARTIALLY_ANSWERED, LIMITATION, or UNCERTAINTY gapClaimIds plus page-backed FACT supportingClaimIds, and requests only documents supported by that gap."
+            : compiled.diagnosticReason === "writer_uncertainty_hidden"
+              ? "Visibly surface every UNCERTAINTY (.U), CONFLICT (.K), PARTIALLY_ANSWERED LIMITATION (.L), and MISSING_EVIDENCE/CONFLICTING ANSWER claim in sections[].uncertainty."
+              : undefined;
       return {
         ok: false,
         finished: false,
@@ -2066,6 +2108,7 @@ export class WriterAgentLedger {
         message: compiled.message,
         ...(compiled.diagnosticField ? { field: compiled.diagnosticField } : {}),
         ...(compiled.component ? { component: compiled.component } : {}),
+        ...(hint ? { hint } : {}),
       };
     }
     this.commitCompiledEditorialPlan(plan, compiled);
@@ -2728,18 +2771,53 @@ export class WriterAgentLedger {
 
   private surfacedClaimIds(): Set<string> {
     const surfaced = new Set<string>();
+    const partiallyAnsweredQuestions = new Set<string>(
+      [...this.claims.values()]
+        .filter((c) => c.kind === "ANSWER" && c.answerStatus === "PARTIALLY_ANSWERED" && c.planQuestionId !== null)
+        .map((c) => c.planQuestionId as string),
+    );
+    const partialLimitations = [...this.claims.values()].filter(
+      (c) => c.kind === "LIMITATION" && c.planQuestionId !== null && partiallyAnsweredQuestions.has(c.planQuestionId),
+    );
     const scanBlocks = (blocks: readonly ReportBlock[]) => {
       for (const block of blocks) {
         for (const ref of block.claimRefs) {
           const claim = this.claims.get(ref);
           if (!claim) continue;
+          const isPartiallyAnsweredLimitation =
+            claim.kind === "LIMITATION" && claim.planQuestionId !== null && partiallyAnsweredQuestions.has(claim.planQuestionId);
           if (block.type === "UNCERTAINTY") {
-            surfaced.add(ref);
+            if (!isPartiallyAnsweredLimitation || visiblyPresentsUncertainty(block.text, claim)) {
+              surfaced.add(ref);
+            }
           } else if (
             (block.type === "DOCUMENTED" || block.type === "INTERPRETATION") &&
             (claim.kind === "CONFLICT" || visiblyPresentsUncertainty(block.text, claim))
           ) {
             surfaced.add(ref);
+          }
+        }
+        if (block.type === "UNCERTAINTY") {
+          const citedPartialUQuestions = new Set<string>(
+            block.claimRefs
+              .map((r) => this.claims.get(r))
+              .filter(
+                (c): c is StudyClaim =>
+                  c?.kind === "UNCERTAINTY" && c.planQuestionId !== null && partiallyAnsweredQuestions.has(c.planQuestionId),
+              )
+              .map((c) => c.planQuestionId as string),
+          );
+          for (const lim of partialLimitations) {
+            if (surfaced.has(lim.id)) continue;
+            if (visiblyCoversLimitation(block.text, lim)) {
+              surfaced.add(lim.id);
+            } else if (
+              lim.planQuestionId &&
+              citedPartialUQuestions.has(lim.planQuestionId) &&
+              hasClaimTokenOverlap(block.text, lim)
+            ) {
+              surfaced.add(lim.id);
+            }
           }
         }
       }

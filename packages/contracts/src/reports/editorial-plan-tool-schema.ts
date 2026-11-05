@@ -56,6 +56,16 @@ const uncertaintyUnitSchema = {
   oneOf: [authoredUncertaintySchema, compiledUncertaintySchema],
 };
 
+const missingDocumentRequestSchema = object(
+  {
+    gapClaimIds: claimIdsSchema("Verified MISSING_EVIDENCE, PARTIALLY_ANSWERED, LIMITATION, or UNCERTAINTY claim ids establishing the gap."),
+    supportingClaimIds: claimIdsSchema("Page-backed source FACT claim ids establishing what the document states."),
+    text: str("Actionable missing-document request question in approximately 7th-grade English.", WRITER_LIMITS.blockText),
+    blockedAnalysis: str("Analysis or determination blocked by the missing record (required for PRO).", 600),
+  },
+  ["gapClaimIds", "supportingClaimIds", "text"],
+);
+
 const summaryPlanSchema = object(
   {
     documentedClaimIds: claimIdsSchema("Study claim ids compiled into the summary DOCUMENTED block."),
@@ -82,6 +92,11 @@ const sectionPlanSchema = object(
     documentedClaimIds: claimIdsSchema("Optional DOCUMENTED claim ids for this section."),
     interpretation: interpretationUnitSchema,
     uncertainty: uncertaintyUnitSchema,
+    missingDocumentRequests: {
+      type: "array",
+      maxItems: 8,
+      items: missingDocumentRequestSchema,
+    },
   },
   ["id", "heading", "priority"],
 );

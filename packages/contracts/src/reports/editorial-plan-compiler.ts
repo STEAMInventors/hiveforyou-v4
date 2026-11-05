@@ -3,7 +3,11 @@ import {
   buildHistoricalTemporalMap,
   type CanonicalFindingResolution,
 } from "../analysis/canonical-finding-resolver";
-import { questionsWithAtomicFacts, type StudyClaim } from "../analysis/study-verification";
+import {
+  type EvidenceRef,
+  questionsWithAtomicFacts,
+  type StudyClaim,
+} from "../analysis/study-verification";
 import { diagnosticFieldFromMessage } from "../errors/failure-diagnostic";
 import {
   A2UI_COMPONENTS,
@@ -21,6 +25,7 @@ import {
   type EditorialAuthoredUncertaintyUnit,
   type EditorialCompiledUncertaintyUnit,
   type EditorialComponentPlan,
+  type EditorialMissingDocumentRequestUnit,
   type EditorialPlan,
   type EditorialSectionPlan,
   type EditorialUncertaintyUnit,
@@ -37,12 +42,16 @@ import {
   BINDING_TOKEN,
   DOCUMENTED_KINDS,
   INTERPRETATION_KINDS,
+  type MissingDocumentRequestMetadata,
+  type ReportAudience,
   type ReportBlock,
   type ReportSection,
   SECTION_ID_PATTERN as WRITER_SECTION_ID_PATTERN,
   UNCERTAINTY_KINDS,
   validateReportBlock,
   validateWriterReport,
+  visiblyCoversLimitation,
+  visiblyPresentsUncertainty,
   WRITER_LIMITS,
   WRITER_REPORT_SCHEMA,
   type WriterReport,
@@ -82,6 +91,7 @@ export type EditorialPlanCompileSuccess = {
   readonly ok: true;
   readonly presentationPlan: WriterPresentationPlan;
   readonly writerReport: WriterReport;
+  readonly missingDocumentRequests: readonly MissingDocumentRequestMetadata[];
   readonly editorialPlanJsonBytes: number;
   readonly compiledWriterReportJsonBytes: number;
 };
@@ -314,6 +324,11 @@ function compileUncertaintyBlock(
   claims: ReadonlyMap<string, StudyClaim>,
   temporalContext: WriterTemporalValidationContext,
 ): ReportBlock {
+  const partiallyAnsweredQuestions = new Set<string>(
+    [...claims.values()]
+      .filter((c) => c.kind === "ANSWER" && c.answerStatus === "PARTIALLY_ANSWERED" && c.planQuestionId !== null)
+      .map((c) => c.planQuestionId as string),
+  );
   if ("mode" in unit && unit.mode === "compiled") {
     const compiled = unit as EditorialCompiledUncertaintyUnit;
     assertKnownClaims(compiled.claimIds, claims, `${path}.claimIds`);
@@ -332,12 +347,391 @@ function compileUncertaintyBlock(
   if (authored.text.trim() === "" || authored.text.length > WRITER_LIMITS.blockText) {
     reject("editorial_plan_shape", `${path}.text must be non-empty text up to ${WRITER_LIMITS.blockText} characters.`, `${path}.text`);
   }
+  const originalRefs = new Set(authored.claimRefs);
+  const claimRefs = [...authored.claimRefs];
+  const touchedPartialQuestions = new Set<string>();
+  for (const ref of claimRefs) {
+    const claim = claims.get(ref);
+    if (claim?.planQuestionId && partiallyAnsweredQuestions.has(claim.planQuestionId)) {
+      touchedPartialQuestions.add(claim.planQuestionId);
+    }
+  }
+  for (const c of claims.values()) {
+    if (c.kind === "LIMITATION" && c.planQuestionId && touchedPartialQuestions.has(c.planQuestionId) && !claimRefs.includes(c.id)) {
+      claimRefs.push(c.id);
+    }
+  }
+  let text = ensureSentencePunctuation(authored.text.trim());
+  for (const ref of claimRefs) {
+    const claim = claims.get(ref);
+    if (
+      claim &&
+      claim.kind === "LIMITATION" &&
+      claim.planQuestionId &&
+      partiallyAnsweredQuestions.has(claim.planQuestionId) &&
+      (!originalRefs.has(claim.id) ? !visiblyCoversLimitation(text, claim) : !visiblyPresentsUncertainty(text, claim))
+    ) {
+      const limSentence = ensureSentencePunctuation(claim.text);
+      if (limSentence) text = `${text} ${limSentence}`;
+    }
+  }
   return validateReportBlock(
-    { type: "UNCERTAINTY", text: authored.text.trim(), claimRefs: [...authored.claimRefs] },
+    { type: "UNCERTAINTY", text, claimRefs },
     path,
     claims,
     temporalContext,
   ).block;
+}
+
+const MISSING_RECORD_TARGETS: readonly { readonly key: string; readonly re: RegExp }[] = [
+  {
+    key: "progress_reports",
+    re: /\b(?:progress\s+reports?|quarterly\s+(?:progress\s+)?(?:reports?|probes?)|oral[- ]reading[- ]fluency\s+probes?|fluency\s+probes?|progress\s+monitoring|progress\s+data|interim\s+probes?)\b/i,
+  },
+  {
+    key: "evaluation_report",
+    re: /\b(?:academic\s+evaluation|psychoeducational\s+evaluation|evaluation\s+report|comprehension\s+(?:score|assessment|evaluation))\b/i,
+  },
+  {
+    key: "successor_iep",
+    re: /\b(?:successor\s+iep|subsequent\s+iep|newer\s+(?:iep|plan)|replacement\s+(?:iep|plan)|updated\s+iep)\b/i,
+  },
+  {
+    key: "service_logs",
+    re: /\b(?:service\s+logs?|delivery\s+logs?|attendance\s+logs?|session\s+logs?|therapy\s+logs?)\b/i,
+  },
+];
+
+const NON_DOCUMENT_ARTIFACT_RE =
+  /\b(?: Prior\s+Written\s+Notice|PWN\b|Functional\s+Behavioral\s+Assessment|FBA\b|Behavior\s+Intervention\s+Plan|BIP\b|medical\s+diagnosis|hospital\s+records?|tax\s+returns?|bank\s+statements?|deed|mortgage|disciplinary\s+records?|suspension\s+notice|report\s+cards?|classroom\s+work\s+samples?|standardized\s+state\s+test)\b/i;
+
+const MISSING_GAP_CUE_RE =
+  /\b(?:missing|absent|not\s+(?:included|attached|separately\s+attached|provided|available|reported|collected|in\s+the\s+record|in\s+this\s+(?:single-document\s+)?corpus|in\s+the\s+case\s+records|present)|no\s+(?:\w+\s+){0,5}(?:probe|probes|report|reports|record|records|score|scores|data|evaluation|iep|log|logs)|only\s+one\s+(?:progress|evaluation|measurement)|unassessed|cannot\s+be\s+(?:assessed|determined))\b/i;
+
+const REQUEST_STOPWORDS = new Set([
+  "have",
+  "does",
+  "do",
+  "you",
+  "the",
+  "can",
+  "could",
+  "would",
+  "will",
+  "please",
+  "share",
+  "upload",
+  "provide",
+  "attach",
+  "send",
+  "bring",
+  "from",
+  "with",
+  "that",
+  "this",
+  "these",
+  "those",
+  "what",
+  "when",
+  "where",
+  "which",
+  "whether",
+  "after",
+  "before",
+  "during",
+  "since",
+  "until",
+  "into",
+  "over",
+  "under",
+  "about",
+  "their",
+  "there",
+  "were",
+  "been",
+  "being",
+  "also",
+  "more",
+  "most",
+  "some",
+  "such",
+  "than",
+  "then",
+  "them",
+  "they",
+  "your",
+  "for",
+  "and",
+  "are",
+  "was",
+  "not",
+  "any",
+  "all",
+  "copy",
+  "copies",
+  "available",
+  "missing",
+  "needed",
+  "confirm",
+  "verify",
+  "determine",
+  "evaluate",
+  "assess",
+  "blocks",
+  "blocked",
+  "analysis",
+]);
+
+function significantWords(value: string): Set<string> {
+  const words = new Set<string>();
+  for (const raw of value.toLowerCase().match(/[a-z]{4,}/g) ?? []) {
+    const stem = raw.replace(/(?:ing|ed|es|s)$/, "");
+    if (!REQUEST_STOPWORDS.has(raw) && !REQUEST_STOPWORDS.has(stem) && stem.length >= 3) {
+      words.add(stem);
+    }
+  }
+  return words;
+}
+
+function detectTargetKeys(value: string): string[] {
+  const matched: string[] = [];
+  for (const target of MISSING_RECORD_TARGETS) {
+    if (target.re.test(value)) matched.push(target.key);
+  }
+  return matched;
+}
+
+/**
+ * Derives a deterministic canonical missing-document request ID (`mdr:<question_scope>:<target_key>`)
+ * from the verified Study gap identity and the missing-record target. Independent of audience,
+ * wording, section ordering, or model-generated identifiers.
+ */
+export function deriveMissingDocumentRequestId(
+  gapClaims: readonly StudyClaim[],
+  supportingClaims: readonly StudyClaim[],
+  requestText: string,
+): { readonly requestId: string; readonly targetKey: string } {
+  const questionIds = new Set<string>();
+  for (const claim of gapClaims) {
+    if (claim.planQuestionId) questionIds.add(claim.planQuestionId.toLowerCase());
+    for (const qId of claim.questionIds ?? []) questionIds.add(qId.toLowerCase());
+  }
+  if (questionIds.size === 0) {
+    for (const claim of supportingClaims) {
+      if (claim.planQuestionId) questionIds.add(claim.planQuestionId.toLowerCase());
+      for (const qId of claim.questionIds ?? []) questionIds.add(qId.toLowerCase());
+    }
+  }
+  const sortedQuestions = [...questionIds].sort();
+  const questionScope = sortedQuestions.length > 0 ? sortedQuestions.join("-") : "study";
+
+  const gapAndSupportingCorpus = [
+    ...gapClaims.map((c) => c.text),
+    ...supportingClaims.map((c) => c.text),
+    ...supportingClaims.flatMap((c) => c.quotes),
+  ].join(" ");
+  const supportedTargets = new Set(detectTargetKeys(gapAndSupportingCorpus));
+  const requestedTargets = detectTargetKeys(requestText).filter((key) => supportedTargets.has(key));
+  const targetKey =
+    requestedTargets[0] ??
+    [...supportedTargets][0] ??
+    [...gapClaims.map((c) => c.id.toLowerCase().replace(/[^a-z0-9]/g, ""))].sort().join("-");
+
+  return {
+    requestId: `mdr:${questionScope}:${targetKey}`,
+    targetKey,
+  };
+}
+
+function collectSupportingRefs(supportingClaims: readonly StudyClaim[]): EvidenceRef[] {
+  const seen = new Set<string>();
+  const refs: EvidenceRef[] = [];
+  for (const claim of supportingClaims) {
+    for (const ref of claim.refs) {
+      const key = `${ref.sourceDocumentId.toLowerCase()}:${ref.pageNumber}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        refs.push({ sourceDocumentId: ref.sourceDocumentId, pageNumber: ref.pageNumber });
+      }
+    }
+  }
+  return refs;
+}
+
+function compileMissingDocumentRequestBlock(
+  unit: EditorialMissingDocumentRequestUnit,
+  audience: ReportAudience,
+  path: string,
+  claims: ReadonlyMap<string, StudyClaim>,
+  temporalContext: WriterTemporalValidationContext,
+): ReportBlock {
+  if (!unit || typeof unit !== "object" || Array.isArray(unit)) {
+    reject("editorial_plan_shape", `${path} must be an object.`, path);
+  }
+  if (!Array.isArray(unit.gapClaimIds) || unit.gapClaimIds.length === 0 || unit.gapClaimIds.length > WRITER_LIMITS.claimRefsPerBlock) {
+    reject(
+      "editorial_plan_shape",
+      `${path}.gapClaimIds must be a non-empty list of verified gap claim IDs.`,
+      `${path}.gapClaimIds`,
+    );
+  }
+  if (
+    !Array.isArray(unit.supportingClaimIds) ||
+    unit.supportingClaimIds.length === 0 ||
+    unit.supportingClaimIds.length > WRITER_LIMITS.claimRefsPerBlock
+  ) {
+    reject(
+      "editorial_plan_shape",
+      `${path}.supportingClaimIds must be a non-empty list of page-backed source fact claim IDs.`,
+      `${path}.supportingClaimIds`,
+    );
+  }
+  assertKnownClaims(unit.gapClaimIds, claims, `${path}.gapClaimIds`);
+  assertKnownClaims(unit.supportingClaimIds, claims, `${path}.supportingClaimIds`);
+
+  const gapClaims = unit.gapClaimIds.map((id, index) => {
+    const claim = claims.get(id)!;
+    const isAllowedGapKind =
+      claim.kind === "UNCERTAINTY" ||
+      claim.kind === "LIMITATION" ||
+      (claim.kind === "ANSWER" && (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "PARTIALLY_ANSWERED"));
+    if (!isAllowedGapKind) {
+      reject(
+        "editorial_plan_claim_kind",
+        `${path}.gapClaimIds[${index}] cites ${id} (${claim.kind}${claim.answerStatus ? `:${claim.answerStatus}` : ""}), which is not a verified MISSING_EVIDENCE, PARTIALLY_ANSWERED, LIMITATION, or UNCERTAINTY gap claim.`,
+        `${path}.gapClaimIds[${index}]`,
+      );
+    }
+    return claim;
+  });
+
+  const combinedGapText = gapClaims.map((c) => c.text).join(" ");
+  if (!MISSING_GAP_CUE_RE.test(combinedGapText)) {
+    reject(
+      "editorial_plan_request_ungrounded",
+      `${path}.gapClaimIds does not establish a missing-record or missing-evidence gap.`,
+      `${path}.gapClaimIds`,
+    );
+  }
+
+  const supportingClaims = unit.supportingClaimIds.map((id, index) => {
+    const claim = claims.get(id)!;
+    if (claim.kind !== "FACT") {
+      reject(
+        "editorial_plan_claim_kind",
+        `${path}.supportingClaimIds[${index}] cites ${id} (${claim.kind}); supportingClaimIds must cite source FACT claims (DF… or P#.F#).`,
+        `${path}.supportingClaimIds[${index}]`,
+      );
+    }
+    if (claim.refs.length === 0) {
+      reject(
+        "editorial_plan_request_ungrounded",
+        `${path}.supportingClaimIds[${index}] (${id}) has no source page reference.`,
+        `${path}.supportingClaimIds[${index}]`,
+      );
+    }
+    return claim;
+  });
+
+  const rawText = typeof unit.text === "string" ? unit.text.trim() : "";
+  if (rawText === "" || rawText.length > WRITER_LIMITS.blockText) {
+    reject(
+      "editorial_plan_shape",
+      `${path}.text must be non-empty text up to ${WRITER_LIMITS.blockText} characters.`,
+      `${path}.text`,
+    );
+  }
+
+  const blockedAnalysis =
+    unit.blockedAnalysis !== undefined && unit.blockedAnalysis !== null ? String(unit.blockedAnalysis).trim() : undefined;
+  if (audience === "PRO" && (!blockedAnalysis || blockedAnalysis.length === 0)) {
+    reject(
+      "editorial_plan_shape",
+      `${path}.blockedAnalysis is required for PRO missing-document requests to state the analysis blocked by the missing record.`,
+      `${path}.blockedAnalysis`,
+    );
+  }
+
+  const evidenceCorpus = [
+    ...gapClaims.map((c) => c.text),
+    ...supportingClaims.map((c) => c.text),
+    ...supportingClaims.flatMap((c) => c.quotes),
+    ...supportingClaims
+      .map((c) => [c.documentFinding?.subject, c.documentFinding?.attribute, c.documentFinding?.valueAsWritten, c.documentFinding?.section].filter(Boolean).join(" ")),
+  ].join(" ");
+
+  if (NON_DOCUMENT_ARTIFACT_RE.test(rawText) && !NON_DOCUMENT_ARTIFACT_RE.test(evidenceCorpus)) {
+    reject(
+      "editorial_plan_request_ungrounded",
+      `${path}.text requests an invented document type not supported by the verified gap or source facts.`,
+      `${path}.text`,
+    );
+  }
+
+  const supportedTargets = new Set(detectTargetKeys(evidenceCorpus));
+  const requestedTargets = detectTargetKeys(rawText);
+  if (requestedTargets.length > 0 && supportedTargets.size > 0 && !requestedTargets.some((t) => supportedTargets.has(t))) {
+    reject(
+      "editorial_plan_request_ungrounded",
+      `${path}.text requests a document target (${requestedTargets.join(", ")}) that is not supported by the cited gap (${[...supportedTargets].join(", ")}).`,
+      `${path}.text`,
+    );
+  }
+
+  const corpusWords = significantWords(evidenceCorpus);
+  const requestWords = significantWords(rawText);
+  let overlapCount = 0;
+  for (const word of requestWords) {
+    if (corpusWords.has(word)) overlapCount += 1;
+  }
+  if (overlapCount === 0) {
+    reject(
+      "editorial_plan_request_ungrounded",
+      `${path}.text is not grounded in the cited gap and supporting source facts.`,
+      `${path}.text`,
+    );
+  }
+
+  const claimRefs = [...new Set([...unit.gapClaimIds, ...unit.supportingClaimIds])];
+  const { requestId, targetKey } = deriveMissingDocumentRequestId(gapClaims, supportingClaims, `${rawText} ${blockedAnalysis ?? ""}`);
+  const refs = collectSupportingRefs(supportingClaims);
+
+  let compiledText = rawText;
+  if (audience === "CUSTOMER") {
+    if (!compiledText.endsWith("?")) {
+      compiledText = `${compiledText.replace(/[.!]+$/, "")}?`;
+    }
+  } else if (blockedAnalysis) {
+    const normalizedText = compiledText.toLowerCase();
+    const normalizedBlocked = blockedAnalysis.toLowerCase();
+    if (!normalizedText.includes(normalizedBlocked)) {
+      const baseText = /[.!?]$/.test(compiledText) ? compiledText : `${compiledText}?`;
+      const blockedSentence = ensureSentencePunctuation(
+        /^blocked\s+analysis\s*:/i.test(blockedAnalysis) ? blockedAnalysis : `Blocked analysis: ${blockedAnalysis}`,
+      );
+      compiledText = `${baseText} ${blockedSentence}`;
+    }
+  }
+
+  const validated = validateReportBlock(
+    {
+      type: "QUESTION",
+      text: compiledText,
+      claimRefs,
+      missingDocumentRequest: {
+        requestId,
+        targetKey,
+        gapClaimIds: [...unit.gapClaimIds],
+        supportingClaimIds: [...unit.supportingClaimIds],
+        refs,
+        ...(blockedAnalysis ? { blockedAnalysis } : {}),
+      },
+    },
+    path,
+    claims,
+    temporalContext,
+  );
+  return validated.block;
 }
 
 function compileDocumentedBlock(
@@ -407,19 +801,40 @@ function compileViewProps(
     case "RecordTable": {
       if (layout.kind !== "RecordTable") reject("editorial_plan_shape", "RecordTable layout mismatch.", `${compPath}.layout`);
       const rows = layout.rows.map((row, rowIndex) => {
-        if (row.cellClaimIds.length !== layout.columns.length) {
+        const rowPath = `${compPath}.layout.rows[${rowIndex}]`;
+        if (Array.isArray(row.cells) && Array.isArray(row.claimRefs)) {
+          if (row.cells.length !== layout.columns.length) {
+            reject(
+              "editorial_plan_shape",
+              `RecordTable row ${rowIndex} must provide one cell string per column.`,
+              rowPath,
+            );
+          }
+          assertKnownClaims(row.claimRefs, claims, `${rowPath}.claimRefs`);
+          assertDocumentedKinds(row.claimRefs, claims, `${rowPath}.claimRefs`);
+          return { cells: [...row.cells], claimRefs: [...row.claimRefs] };
+        }
+        const cellClaimIds = row.cellClaimIds;
+        if (!cellClaimIds) {
+          reject(
+            "editorial_plan_shape",
+            `RecordTable row ${rowIndex} must provide cellClaimIds or model-authored cells with claimRefs.`,
+            rowPath,
+          );
+        }
+        if (cellClaimIds.length !== layout.columns.length) {
           reject(
             "editorial_plan_shape",
             `RecordTable row ${rowIndex} must provide one cellClaimIds entry per column.`,
-            `${compPath}.layout.rows[${rowIndex}]`,
+            rowPath,
           );
         }
-        const cells = row.cellClaimIds.map((cellClaimIds, cellIndex) => {
-          assertKnownClaims(cellClaimIds, claims, `RecordTable.rows[${rowIndex}].cells[${cellIndex}]`);
-          assertDocumentedKinds(cellClaimIds, claims, `RecordTable.rows[${rowIndex}].cells[${cellIndex}]`);
-          return formatCellFromClaims(cellClaimIds, claims);
+        const cells = cellClaimIds.map((ids, cellIndex) => {
+          assertKnownClaims(ids, claims, `RecordTable.rows[${rowIndex}].cells[${cellIndex}]`);
+          assertDocumentedKinds(ids, claims, `RecordTable.rows[${rowIndex}].cells[${cellIndex}]`);
+          return formatCellFromClaims(ids, claims);
         });
-        const claimRefs = [...new Set(row.cellClaimIds.flat())];
+        const claimRefs = [...new Set(cellClaimIds.flat())];
         return { cells, claimRefs };
       });
       return { title: layout.title, columns: [...layout.columns], rows };
@@ -427,13 +842,39 @@ function compileViewProps(
     case "Comparison": {
       if (layout.kind !== "Comparison") reject("editorial_plan_shape", "Comparison layout mismatch.", `${compPath}.layout`);
       const items = layout.items.map((item, index) => {
-        assertKnownClaims(item.leftClaimIds, claims, `Comparison.items[${index}].leftClaimIds`);
-        assertKnownClaims(item.rightClaimIds, claims, `Comparison.items[${index}].rightClaimIds`);
-        assertDocumentedKinds(item.leftClaimIds, claims, `Comparison.items[${index}].leftClaimIds`);
-        assertDocumentedKinds(item.rightClaimIds, claims, `Comparison.items[${index}].rightClaimIds`);
-        const left = formatCellFromClaims(item.leftClaimIds, claims);
-        const right = formatCellFromClaims(item.rightClaimIds, claims);
-        const claimRefs = [...new Set([...item.leftClaimIds, ...item.rightClaimIds])];
+        const itemPath = `${compPath}.layout.items[${index}]`;
+        if (item.left !== undefined && item.right !== undefined) {
+          const leftClaimIds = item.leftClaimIds ?? [];
+          const rightClaimIds = item.rightClaimIds ?? [];
+          const claimRefs = [...new Set(item.claimRefs ?? [...leftClaimIds, ...rightClaimIds])];
+          assertKnownClaims(claimRefs, claims, `${itemPath}.claimRefs`);
+          assertDocumentedKinds(claimRefs, claims, `${itemPath}.claimRefs`);
+          if (leftClaimIds.length > 0) {
+            assertKnownClaims(leftClaimIds, claims, `${itemPath}.leftClaimIds`);
+            assertDocumentedKinds(leftClaimIds, claims, `${itemPath}.leftClaimIds`);
+          }
+          if (rightClaimIds.length > 0) {
+            assertKnownClaims(rightClaimIds, claims, `${itemPath}.rightClaimIds`);
+            assertDocumentedKinds(rightClaimIds, claims, `${itemPath}.rightClaimIds`);
+          }
+          return { label: item.label, left: item.left, right: item.right, claimRefs };
+        }
+        const leftClaimIds = item.leftClaimIds;
+        const rightClaimIds = item.rightClaimIds;
+        if (!leftClaimIds || !rightClaimIds) {
+          reject(
+            "editorial_plan_shape",
+            `Comparison item ${index} must provide leftClaimIds and rightClaimIds or model-authored left/right with claimRefs.`,
+            itemPath,
+          );
+        }
+        assertKnownClaims(leftClaimIds, claims, `${itemPath}.leftClaimIds`);
+        assertKnownClaims(rightClaimIds, claims, `${itemPath}.rightClaimIds`);
+        assertDocumentedKinds(leftClaimIds, claims, `${itemPath}.leftClaimIds`);
+        assertDocumentedKinds(rightClaimIds, claims, `${itemPath}.rightClaimIds`);
+        const left = formatCellFromClaims(leftClaimIds, claims);
+        const right = formatCellFromClaims(rightClaimIds, claims);
+        const claimRefs = [...new Set([...leftClaimIds, ...rightClaimIds])];
         return { label: item.label, left, right, claimRefs };
       });
       return {
@@ -446,13 +887,31 @@ function compileViewProps(
     case "Timeline": {
       if (layout.kind !== "Timeline") reject("editorial_plan_shape", "Timeline layout mismatch.", `${compPath}.layout`);
       const events = layout.events.map((event, index) => {
-        assertKnownClaims(event.dateClaimIds, claims, `Timeline.events[${index}].dateClaimIds`);
-        assertKnownClaims(event.textClaimIds, claims, `Timeline.events[${index}].textClaimIds`);
-        assertDocumentedKinds(event.dateClaimIds, claims, `Timeline.events[${index}].dateClaimIds`);
-        assertDocumentedKinds(event.textClaimIds, claims, `Timeline.events[${index}].textClaimIds`);
-        const date = formatCellFromClaims(event.dateClaimIds, claims);
-        const text = formatCellFromClaims(event.textClaimIds, claims);
-        const claimRefs = [...new Set([...event.dateClaimIds, ...event.textClaimIds])];
+        const eventPath = `${compPath}.layout.events[${index}]`;
+        if (event.date !== undefined && event.text !== undefined) {
+          const dateClaimIds = event.dateClaimIds ?? [];
+          const textClaimIds = event.textClaimIds ?? [];
+          const claimRefs = [...new Set(event.claimRefs ?? [...dateClaimIds, ...textClaimIds])];
+          assertKnownClaims(claimRefs, claims, `${eventPath}.claimRefs`);
+          assertDocumentedKinds(claimRefs, claims, `${eventPath}.claimRefs`);
+          return { date: event.date, text: event.text, claimRefs };
+        }
+        const dateClaimIds = event.dateClaimIds;
+        const textClaimIds = event.textClaimIds;
+        if (!dateClaimIds || !textClaimIds) {
+          reject(
+            "editorial_plan_shape",
+            `Timeline event ${index} must provide dateClaimIds and textClaimIds or model-authored date/text with claimRefs.`,
+            eventPath,
+          );
+        }
+        assertKnownClaims(dateClaimIds, claims, `${eventPath}.dateClaimIds`);
+        assertKnownClaims(textClaimIds, claims, `${eventPath}.textClaimIds`);
+        assertDocumentedKinds(dateClaimIds, claims, `${eventPath}.dateClaimIds`);
+        assertDocumentedKinds(textClaimIds, claims, `${eventPath}.textClaimIds`);
+        const date = formatCellFromClaims(dateClaimIds, claims);
+        const text = formatCellFromClaims(textClaimIds, claims);
+        const claimRefs = [...new Set([...dateClaimIds, ...textClaimIds])];
         return { date, text, claimRefs };
       });
       return { title: layout.title, events };
@@ -521,13 +980,17 @@ function sectionClaimUnion(section: EditorialSectionPlan): string[] {
       for (const id of section.uncertainty.claimRefs) ids.add(id);
     }
   }
+  for (const req of section.missingDocumentRequests ?? []) {
+    for (const id of req.gapClaimIds) ids.add(id);
+    for (const id of req.supportingClaimIds) ids.add(id);
+  }
   return [...ids];
 }
 
 /** Editorial content selections that must appear in compiled writer output (not presentation-only metadata). */
 function collectRequiredRenderedClaimSelections(plan: EditorialPlan): Set<string> {
   const selected = new Set<string>();
-  for (const id of plan.summary.documentedClaimIds) selected.add(id);
+  for (const id of plan.summary.documentedClaimIds ?? []) selected.add(id);
   for (const binding of plan.summary.calculationBindings ?? []) selected.add(binding.calcId);
   for (const section of plan.sections) {
     for (const id of section.documentedClaimIds ?? []) selected.add(id);
@@ -539,23 +1002,30 @@ function collectRequiredRenderedClaimSelections(plan: EditorialPlan): Set<string
         for (const id of section.uncertainty.claimRefs) selected.add(id);
       }
     }
+    for (const req of section.missingDocumentRequests ?? []) {
+      for (const id of req.gapClaimIds) selected.add(id);
+      for (const id of req.supportingClaimIds) selected.add(id);
+    }
   }
   for (const component of plan.components) {
     if (component.layout.kind === "RecordTable") {
       for (const row of component.layout.rows) {
-        for (const cell of row.cellClaimIds) for (const id of cell) selected.add(id);
+        for (const cell of row.cellClaimIds ?? []) for (const id of cell) selected.add(id);
+        for (const id of row.claimRefs ?? []) selected.add(id);
       }
     }
     if (component.layout.kind === "Comparison") {
       for (const item of component.layout.items) {
-        for (const id of item.leftClaimIds) selected.add(id);
-        for (const id of item.rightClaimIds) selected.add(id);
+        for (const id of item.leftClaimIds ?? []) selected.add(id);
+        for (const id of item.rightClaimIds ?? []) selected.add(id);
+        for (const id of item.claimRefs ?? []) selected.add(id);
       }
     }
     if (component.layout.kind === "Timeline") {
       for (const event of component.layout.events) {
-        for (const id of event.dateClaimIds) selected.add(id);
-        for (const id of event.textClaimIds) selected.add(id);
+        for (const id of event.dateClaimIds ?? []) selected.add(id);
+        for (const id of event.textClaimIds ?? []) selected.add(id);
+        for (const id of event.claimRefs ?? []) selected.add(id);
       }
     }
     if (component.layout.kind === "Metric") for (const id of component.layout.claimIds) selected.add(id);
@@ -597,7 +1067,10 @@ function collectRenderedClaimRefs(report: WriterReport): Set<string> {
   return rendered;
 }
 
-function buildPresentationPlan(plan: EditorialPlan): WriterPresentationPlan {
+function buildPresentationPlan(
+  plan: EditorialPlan,
+  missingDocumentRequests: readonly MissingDocumentRequestMetadata[],
+): WriterPresentationPlan {
   const sections: WriterPlannedSection[] = plan.sections.map((section) => ({
     id: section.id,
     heading: section.heading,
@@ -621,6 +1094,7 @@ function buildPresentationPlan(plan: EditorialPlan): WriterPresentationPlan {
     priorityFindings: plan.priorityFindings.map((entry) => ({ ...entry })),
     sections,
     components,
+    ...(missingDocumentRequests.length > 0 ? { missingDocumentRequests: [...missingDocumentRequests] } : {}),
   };
 }
 
@@ -650,8 +1124,9 @@ function validateEditorialPlanShape(plan: EditorialPlan, claims: ReadonlyMap<str
     const hasDocumented = (section.documentedClaimIds?.length ?? 0) > 0;
     const hasInterpretation = Boolean(section.interpretation);
     const hasUncertainty = Boolean(section.uncertainty);
-    if (!hasDocumented && !hasInterpretation && !hasUncertainty) {
-      reject("editorial_plan_shape", `${path} must include documented, interpretation, or uncertainty content.`, path);
+    const hasMissingDocRequests = (section.missingDocumentRequests?.length ?? 0) > 0;
+    if (!hasDocumented && !hasInterpretation && !hasUncertainty && !hasMissingDocRequests) {
+      reject("editorial_plan_shape", `${path} must include documented, interpretation, uncertainty, or missingDocumentRequests content.`, path);
     }
   }
   if (plan.components.length === 0 || plan.components.length > WRITER_LIMITS.viewComponents) {
@@ -707,6 +1182,8 @@ export function compileEditorialPlan(plan: EditorialPlan, context: EditorialPlan
     const questionsWithFacts = questionsWithAtomicFacts(context.claims);
 
     const summaryBlock = compileSummaryBlock(plan.summary, claims, temporalContext);
+    const missingDocumentRequests: MissingDocumentRequestMetadata[] = [];
+    const seenRequestIds = new Set<string>();
     const sections: ReportSection[] = plan.sections.map((section, sectionIndex) => {
       const blocks: ReportBlock[] = [];
       if (section.documentedClaimIds && section.documentedClaimIds.length > 0) {
@@ -733,6 +1210,22 @@ export function compileEditorialPlan(plan: EditorialPlan, context: EditorialPlan
         blocks.push(
           compileUncertaintyBlock(section.uncertainty, `sections[${sectionIndex}].uncertainty`, claims, temporalContext),
         );
+      }
+      for (const [reqIndex, reqUnit] of (section.missingDocumentRequests ?? []).entries()) {
+        const reqPath = `sections[${sectionIndex}].missingDocumentRequests[${reqIndex}]`;
+        const reqBlock = compileMissingDocumentRequestBlock(reqUnit, plan.audience, reqPath, claims, temporalContext);
+        if (reqBlock.missingDocumentRequest) {
+          if (seenRequestIds.has(reqBlock.missingDocumentRequest.requestId)) {
+            reject(
+              "editorial_plan_shape",
+              `${reqPath} duplicates missing-document request ${reqBlock.missingDocumentRequest.requestId}.`,
+              reqPath,
+            );
+          }
+          seenRequestIds.add(reqBlock.missingDocumentRequest.requestId);
+          missingDocumentRequests.push(reqBlock.missingDocumentRequest);
+        }
+        blocks.push(reqBlock);
       }
       return { id: section.id, heading: section.heading, blocks };
     });
@@ -814,7 +1307,7 @@ export function compileEditorialPlan(plan: EditorialPlan, context: EditorialPlan
       };
     }
 
-    const presentationPlan = buildPresentationPlan(plan);
+    const presentationPlan = buildPresentationPlan(plan, missingDocumentRequests);
     const ledger = new WriterAgentLedger({
       reportRunId: context.reportRunId,
       audience: plan.audience,
@@ -859,6 +1352,7 @@ export function compileEditorialPlan(plan: EditorialPlan, context: EditorialPlan
       ok: true,
       presentationPlan,
       writerReport: validated.value,
+      missingDocumentRequests,
       editorialPlanJsonBytes,
       compiledWriterReportJsonBytes: Buffer.byteLength(JSON.stringify(validated.value), "utf8"),
     };

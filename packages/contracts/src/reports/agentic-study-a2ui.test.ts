@@ -42,11 +42,18 @@ function writerDraft(audience: "CUSTOMER" | "PRO" = "CUSTOMER") {
     text: "Only one progress measurement was available after the baseline.",
     claimRefs: ["P1.U0"],
   };
-  output.sections[0]!.blocks.push({
-    type: "UNCERTAINTY",
-    text: "The 2024 plan set a goal of 60 words correct per minute; the 2025 plan sets 90.",
-    claimRefs: ["P1.K0"],
-  });
+  output.sections[0]!.blocks.push(
+    {
+      type: "UNCERTAINTY",
+      text: "The 2024 plan set a goal of 60 words correct per minute; the 2025 plan sets 90.",
+      claimRefs: ["P1.K0"],
+    },
+    {
+      type: "UNCERTAINTY",
+      text: "No progress measurement after November 2025 was available.",
+      claimRefs: ["P1.L0"],
+    },
+  );
   output.view.push(
     { component: "Metric", props: { label: "Remaining gap", binding: "{{calc:P1.C1}}", unit: "words per minute" } },
     { component: "EvidencePanel", props: { title: "How we got here", claimIds: ["P1.A0", "P1.D0", "P1.K0", "P1.C1"] } },
@@ -147,11 +154,18 @@ describe("agentic Canonical Study through the Writer and A2UI", () => {
 
     for (const audience of ["CUSTOMER", "PRO"] as const) {
       const draft = writerDraft(audience);
-      draft.sections[0]!.blocks.push({
-        type: "UNCERTAINTY",
-        text: "January 2026 progress data was not collected before the meeting.",
-        claimRefs: ["P4.U0"],
-      });
+      draft.sections[0]!.blocks.push(
+        {
+          type: "UNCERTAINTY",
+          text: "January 2026 progress data was not collected before the meeting, and no post-November 2025 reading measurement is in the case records.",
+          claimRefs: ["P4.U0", "P4.L0"],
+        },
+        {
+          type: "UNCERTAINTY",
+          text: "The records do not state why 120 speech minutes were missed or provide January 2026 fluency data.",
+          claimRefs: ["P6.L0", "P2.F0", "P2.F1", "P6.F0"],
+        },
+      );
       const writerLedger = new WriterAgentLedger({
         reportRunId: MAYA_RUN_ID,
         audience,

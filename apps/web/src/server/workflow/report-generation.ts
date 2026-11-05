@@ -32,6 +32,10 @@ import {
   WriterAgentLedger,
   type WriterPresentationPlan,
   type WriterReport,
+  type WriterSemanticReviewer,
+  buildSemanticReviewRepairMessage,
+  reviewWriterReportSemantics,
+  semanticReviewHasBlockingFindings,
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
@@ -41,6 +45,7 @@ import { loadPromptCatalog, type PromptCatalog, sha256Digest } from "@/server/st
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 
 import type { Dispatch } from "./dispatch";
+import { createWriterSemanticReviewer } from "./writer-semantic-reviewer";
 
 /**
  * Application-orchestrated Writer (D-041, D-045, D-047) with three logical responsibilities:
@@ -73,6 +78,8 @@ function buildTruncationRecoveryMessage(ledger: WriterAgentLedger): string {
 export type ReportGenerationDeps = {
   readonly client: DocumentPageRpcClient;
   readonly planner: PlannerDeps;
+  /** Independent frontier semantic reviewer; defaults to `createWriterSemanticReviewer` when omitted. */
+  readonly semanticReviewer?: WriterSemanticReviewer;
   readonly dispatch?: Dispatch;
   readonly loadCatalog?: () => PromptCatalog;
   readonly now?: () => Date;
@@ -133,6 +140,7 @@ export type WriterAgentInput = {
   /** Epoch ms by which the last turn must have returned; validation and persistence follow. */
   readonly deadline: number;
   readonly clock?: () => number;
+  readonly semanticReviewer: WriterSemanticReviewer;
 };
 
 const MODEL_OUTPUT_MESSAGE = "The report draft didn't pass our checks. You can generate it again.";
@@ -226,6 +234,7 @@ function logWriterRuntimeEvent(
     | "writer.model.completed"
     | "writer.validation.completed"
     | "writer.correction.requested"
+    | "writer.semantic_review.completed"
     | "writer.publication.completed",
   input: {
     readonly correlationId: string;
@@ -244,6 +253,7 @@ function logWriterRuntimeEvent(
     readonly errorCode?: string;
     readonly diagnosticReason?: string;
     readonly diagnosticField?: string;
+    readonly findingCount?: number;
   },
 ): void {
   emitStructuredEvent({
@@ -612,6 +622,7 @@ export async function runWriterAgent(
     totals.sectionsRecorded = ledger.completedSectionCount;
     totals.viewComponentsRecorded = ledger.recordedViewComponentCount;
   };
+  let semanticReviewRepairs = 0;
   const exhausted = (limit: WriterAgentBudgetDimension): never => {
     sync();
     throw new WriterAgentFailure(
@@ -845,6 +856,65 @@ export async function runWriterAgent(
         diagnosticField: firstTurnErrorField,
       });
     }
+
+    if (ledger.finished) {
+      const semanticReview = await reviewWriterReportSemantics(ledger.assemble(), {
+        audience: input.audience,
+        claims: input.claims,
+        externalReviewer: input.semanticReviewer,
+      });
+      if (!semanticReview.ok) {
+        if (semanticReviewHasBlockingFindings(semanticReview.findings)) {
+          if (semanticReviewRepairs >= WRITER_AGENT_BUDGET.maxSemanticReviewRepairs) {
+            sync();
+            throw new WriterAgentFailure(
+              reportError({
+                errorCode: "MODEL_OUTPUT_INVALID",
+                category: "MODEL",
+                retryable: false,
+                safeMessage: MODEL_OUTPUT_MESSAGE,
+                correlationId: input.correlationId,
+                operationId: input.reportRunId,
+                diagnosticReason: "writer_semantic_review_unresolved",
+                diagnosticField: semanticReview.findings[0]?.field,
+              }),
+              totals,
+            );
+          }
+          ledger.reopenForSemanticReview();
+          semanticReviewRepairs += 1;
+          sync();
+          logWriterRuntimeEvent("writer.correction.requested", {
+            correlationId: input.correlationId,
+            reportRunId: input.reportRunId,
+            hiveId: input.hiveId,
+            audience: input.audience,
+            attempt: input.attempt,
+            durationMs: clock() - startedAt,
+            componentCount: ledger.recordedViewComponentCount,
+            sectionCount: ledger.completedSectionCount,
+            scenarioCount: ledger.recordedScenarioCount,
+            rejectedUnits: ledger.rejectedUnits,
+            rounds: totals.rounds,
+            diagnosticReason: "writer_semantic_review",
+            diagnosticField: semanticReview.findings[0]?.field,
+          });
+          messages.push({ role: "user", content: buildSemanticReviewRepairMessage(semanticReview.findings) });
+          continue;
+        }
+      }
+      logWriterRuntimeEvent("writer.semantic_review.completed", {
+        correlationId: input.correlationId,
+        reportRunId: input.reportRunId,
+        hiveId: input.hiveId,
+        audience: input.audience,
+        attempt: input.attempt,
+        durationMs: clock() - startedAt,
+        rejectedUnits: ledger.rejectedUnits,
+        rounds: totals.rounds,
+        findingCount: semanticReview.findings.length,
+      });
+    }
   }
   sync();
   return {
@@ -923,6 +993,18 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
       completedAt: now().toISOString(),
     });
 
+    const writerDeadlineMs = startedAt + WRITER_AGENT_BUDGET.wallClockMs;
+    const semanticReviewer =
+      deps.semanticReviewer ??
+      createWriterSemanticReviewer({
+        planner: deps.planner,
+        correlationId,
+        reportRunId,
+        deadlineMs: writerDeadlineMs,
+        clock,
+        loadCatalog: deps.loadCatalog ?? loadPromptCatalog,
+      });
+
     let agentResult: Awaited<ReturnType<typeof runWriterAgent>>;
     try {
       agentResult = await runWriterAgent({
@@ -940,6 +1022,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
         asOf,
         deadline: startedAt + WRITER_AGENT_BUDGET.wallClockMs,
         clock,
+        semanticReviewer,
       });
     } catch (error) {
       if (error instanceof WriterAgentFailure) {

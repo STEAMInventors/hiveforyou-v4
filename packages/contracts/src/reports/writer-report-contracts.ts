@@ -13,7 +13,11 @@ import {
   formulaLeaves,
   parseFormula,
 } from "../analysis/decimal-formula";
-import { questionsWithAtomicFacts, type StudyClaim } from "../analysis/study-verification";
+import {
+  type EvidenceRef,
+  questionsWithAtomicFacts,
+  type StudyClaim,
+} from "../analysis/study-verification";
 import { diagnosticFieldFromMessage } from "../errors/failure-diagnostic";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 
@@ -41,7 +45,23 @@ export const REPORT_BLOCK_TYPES = [
 ] as const;
 export type ReportBlockType = (typeof REPORT_BLOCK_TYPES)[number];
 
-export type ReportBlock = { type: ReportBlockType; text: string; claimRefs: string[] };
+export const MISSING_DOCUMENT_REQUEST_ID_PATTERN = /^mdr:[a-z0-9][a-z0-9_.:-]{1,95}$/;
+
+export type MissingDocumentRequestMetadata = {
+  readonly requestId: string;
+  readonly targetKey: string;
+  readonly gapClaimIds: string[];
+  readonly supportingClaimIds: string[];
+  readonly refs: EvidenceRef[];
+  readonly blockedAnalysis?: string;
+};
+
+export type ReportBlock = {
+  type: ReportBlockType;
+  text: string;
+  claimRefs: string[];
+  missingDocumentRequest?: MissingDocumentRequestMetadata;
+};
 export type ReportSection = { id: string; heading: string; blocks: ReportBlock[] };
 
 export type ScenarioParameter = {
@@ -340,7 +360,7 @@ function stripTokens(value: string): string {
 }
 
 const UNCERTAINTY_CUE =
-  /\b(uncertain|uncertainty|unverified|unconfirmed|unknown|missing|not\s+reported|not\s+provided|not\s+available|unavailable|not\s+included|did\s+not\s+include|didn't\s+include|did\s+not\s+report|didn't\s+report|no\s+(?:\w+\s+){0,3}(?:score|data|record|report|measurement|log|evidence)|only\s+one|not\s+yet|gap|conflict|conflicting|differ|different|contradict|inconsistent|discrepancy|mismatch|could\s+not|cannot|can't|lacks?|incomplete|limited|limitation|unanswered|unresolved)\b/i;
+  /\b(uncertain|uncertainty|unverified|unconfirmed|unknown|missing|not\s+reported|not\s+provided|not\s+available|unavailable|not\s+included|not\s+separately\s+attached|not\s+attached|not\s+present|not\s+collected|not\s+stated|not\s+established|without\s+establishing|do\s+not\s+state|does\s+not\s+state|did\s+not\s+state|absent|did\s+not\s+include|didn't\s+include|did\s+not\s+report|didn't\s+report|no\s+(?:[\w-]+\s+){0,6}(?:score|scores|data|record|records|report|reports|measurement|measurements|log|logs|evidence|probe|probes|evaluation|iep|plan|result|results)|only\s+one|not\s+yet|gap|conflict|conflicting|differ|different|contradict|inconsistent|discrepancy|mismatch|could\s+not|cannot|can't|lacks?|incomplete|limited|limitation|unanswered|unresolved)\b/i;
 
 const STOPWORDS = new Set([
   "that", "this", "with", "from", "were", "have", "been", "their", "there", "what", "when", "where",
@@ -376,6 +396,23 @@ export function visiblyPresentsUncertainty(value: string, claim: StudyClaim): bo
   const cleaned = stripTokens(value).trim();
   if (!cleaned || !UNCERTAINTY_CUE.test(cleaned)) return false;
   return hasClaimTokenOverlap(cleaned, claim);
+}
+
+/**
+ * Checks whether prose substantially covers a `PARTIALLY_ANSWERED` question's `LIMITATION` claim
+ * (at least 50% of the limitation's content tokens appear in the prose, alongside an uncertainty cue).
+ */
+export function visiblyCoversLimitation(value: string, claim: StudyClaim): boolean {
+  const cleaned = stripTokens(value).trim();
+  if (!cleaned || !UNCERTAINTY_CUE.test(cleaned)) return false;
+  const claimTokens = contentTokens([claim.text, ...claim.quotes].join(" "));
+  if (claimTokens.size === 0) return true;
+  const proseTokens = contentTokens(cleaned);
+  let matched = 0;
+  for (const token of claimTokens) {
+    if (proseTokens.has(token)) matched += 1;
+  }
+  return matched / claimTokens.size >= 0.5;
 }
 
 export function collectVisibleStructuredUncertainties(
@@ -447,10 +484,16 @@ export function collectVisibleStructuredUncertainties(
 }
 
 export function mustSurfaceClaims(claims: readonly StudyClaim[]): StudyClaim[] {
+  const partiallyAnsweredQuestions = new Set<string>(
+    claims
+      .filter((claim) => claim.kind === "ANSWER" && claim.answerStatus === "PARTIALLY_ANSWERED" && claim.planQuestionId !== null)
+      .map((claim) => claim.planQuestionId as string),
+  );
   return claims.filter(
     (claim) =>
       claim.kind === "CONFLICT" ||
       claim.kind === "UNCERTAINTY" ||
+      (claim.kind === "LIMITATION" && claim.planQuestionId !== null && partiallyAnsweredQuestions.has(claim.planQuestionId)) ||
       (claim.kind === "ANSWER" && (claim.answerStatus === "MISSING_EVIDENCE" || claim.answerStatus === "CONFLICTING")),
   );
 }
@@ -552,6 +595,110 @@ export function checkTemporalSafety(
   }
 }
 
+const LEGAL_COMPLIANCE_CONCLUSION_RE =
+  /\b(?:violates?|violated|violation\s+of|in\s+violation\s+of|non-?compliant|non-?compliance|out\s+of\s+compliance|denies?\s+fape|denied\s+fape|denial\s+of\s+fape|breach(?:ed|es)?\s+(?:of\s+)?(?:the\s+)?(?:iep|fape|idea|statutory|legal|contract)|unlawful(?:ly)?|illegal(?:ly)?|legally\s+(?:deficient|invalid|non-?compliant|insufficient)|fails?\s+to\s+comply)\b/i;
+
+const ADEQUACY_VERDICT_RE =
+  /\b(?:(?:progress|growth|gain|fluency|accuracy|instruction|service(?:s|\s+delivery)?|program|plan|iep)\s+(?:is|was|are|were|has\s+been|remains?)\s+(?:not\s+)?(?:adequate|inadequate|sufficient|insufficient|appropriate|inappropriate|satisfactory|unsatisfactory)|(?:did\s+not|failed\s+to)\s+(?:meet|achieve|master|reach)(?:ed)?\s+(?:the\s+|her\s+|his\s+|their\s+)?(?:annual\s+)?(?:reading\s+)?(?:fluency\s+)?(?:goal|target|mastery|criterion|criteria)|(?:annual\s+|reading\s+|fluency\s+)?(?:goal|target)\s+(?:was|is|has\s+been)\s+(?:not\s+met|unmet|failed))\b/i;
+
+const ABSENT_RECORD_NON_OCCURRENCE_RE =
+  /\b(?:(?:because|since|as)\s+[^.?!]{0,120}\b(?:missing|absent|not\s+(?:included|attached|provided|in\s+the\s+record|in\s+this\s+(?:corpus|file|hive))|no\s+(?:progress|quarterly|probe|evaluation|service)\s+(?:reports?|records?|probes?|data|logs?))[^.?!]{0,120}\b(?:never|not|no)\s+(?:occurred|happened|conducted|administered|measured|monitored|delivered|provided|issued|completed|took\s+place)|(?:probes?|progress\s+(?:monitoring|reports?|probes?)|assessments?|evaluations?|services?|instruction|measurements?)\s+(?:were|was)\s+never\s+(?:conducted|administered|measured|monitored|delivered|provided|issued|completed|collected|performed)|(?:the\s+school|the\s+district|teachers?|staff)\s+never\s+(?:conducted|administered|measured|monitored|delivered|provided|issued|collected)\s+(?:any\s+|the\s+|quarterly\s+)?(?:probes?|progress|services?|instruction|evaluations?|assessments?)|proves?\s+that\s+[^.?!]{0,80}\b(?:never|did\s+not|was\s+not|were\s+not)\b)\b/i;
+
+const NEUTRAL_RESERVATION_OR_QUESTION_RE =
+  /\b(?:whether|if\s+the|who\s+decides|decided\s+by|reserved\s+(?:for|to)|is\s+a\s+determination\s+for|cannot\s+(?:determine|confirm|establish|assess|evaluate|verify)|could\s+not\s+(?:determine|confirm|establish|assess|evaluate)|is\s+not\s+(?:established|confirmed|determined|settled)|blocks?\s+(?:evaluating|assessing|determining|verifying|confirming)|needed\s+to\s+(?:evaluate|assess|determine|verify|confirm))\b/i;
+
+const ONGOING_PROGRESS_DESCRIPTIVE_RE = /\b(?:not\s+yet|so\s+far|toward\s+the\s+goal|moving\s+toward)\b/i;
+
+function normalizeForSourceMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s%]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isSentenceGroundedInCitedSources(sentence: string, refs: readonly string[], claims: ReadonlyMap<string, StudyClaim>): boolean {
+  const normSentence = normalizeForSourceMatch(sentence);
+  if (!normSentence) return false;
+  const sources: string[] = [];
+  for (const ref of refs) {
+    const claim = claims.get(ref);
+    if (!claim) continue;
+    sources.push(claim.text, ...claim.quotes);
+    if (claim.documentFinding?.valueAsWritten) {
+      sources.push(claim.documentFinding.valueAsWritten);
+    }
+  }
+  const combinedSource = normalizeForSourceMatch(sources.join(" "));
+  if (!combinedSource) return false;
+  if (combinedSource.includes(normSentence)) return true;
+
+  for (const matchRe of [LEGAL_COMPLIANCE_CONCLUSION_RE, ADEQUACY_VERDICT_RE, ABSENT_RECORD_NON_OCCURRENCE_RE]) {
+    const m = matchRe.exec(sentence);
+    if (m) {
+      const phrase = normalizeForSourceMatch(m[0]);
+      if (phrase && combinedSource.includes(phrase)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Enforces editorial conclusion safety on model-authored prose (V4-004K.5B):
+ * rejects unsupported legal/compliance conclusions, adequacy verdicts, and claims that an absent
+ * document proves an activity never occurred, while preserving legitimate source quotes,
+ * documented professional determinations (`whether ... is decided by ...`), and neutral questions.
+ */
+export function checkUnsupportedConclusions(
+  value: string,
+  refs: readonly string[],
+  claims: ReadonlyMap<string, StudyClaim>,
+  path: string,
+): void {
+  const sentences = value
+    .split(/(?<=[.?!])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  for (const sentence of sentences) {
+    const isNeutralQuestion =
+      sentence.endsWith("?") &&
+      !ABSENT_RECORD_NON_OCCURRENCE_RE.test(sentence) &&
+      !LEGAL_COMPLIANCE_CONCLUSION_RE.test(sentence);
+    if (isNeutralQuestion) continue;
+
+    if (isSentenceGroundedInCitedSources(sentence, refs, claims)) continue;
+
+    if (ABSENT_RECORD_NON_OCCURRENCE_RE.test(sentence)) {
+      reject(
+        "writer_unsupported_conclusion",
+        `${path} claims that a missing or absent record proves an activity never occurred; state only that the record is not in the file and what analysis it blocks.`,
+        path,
+      );
+    }
+
+    if (LEGAL_COMPLIANCE_CONCLUSION_RE.test(sentence) && !NEUTRAL_RESERVATION_OR_QUESTION_RE.test(sentence)) {
+      reject(
+        "writer_unsupported_conclusion",
+        `${path} states an unsupported legal or compliance conclusion not established in the cited source records.`,
+        path,
+      );
+    }
+
+    if (
+      ADEQUACY_VERDICT_RE.test(sentence) &&
+      !NEUTRAL_RESERVATION_OR_QUESTION_RE.test(sentence) &&
+      !ONGOING_PROGRESS_DESCRIPTIVE_RE.test(sentence)
+    ) {
+      reject(
+        "writer_unsupported_conclusion",
+        `${path} states an unsupported adequacy or goal-achievement verdict instead of preserving the reserved determination or source facts.`,
+        path,
+      );
+    }
+  }
+}
+
 export type ValidatedReportBlock = {
   readonly block: ReportBlock;
   readonly cited: string[];
@@ -609,13 +756,80 @@ export function validateReportBlock(
   if (blockType !== "GENERAL_INFORMATION") {
     checkGroundedNumber(blockText, claimRefs, claims, path, temporalContext?.historicalByClaimId);
     checkTemporalSafety(blockText, claimRefs, temporalContext, path);
+    checkUnsupportedConclusions(blockText, claimRefs, claims, path);
+  } else {
+    checkUnsupportedConclusions(blockText, [], claims, path);
   }
+  let missingDocumentRequest: MissingDocumentRequestMetadata | undefined;
+  if (item.missingDocumentRequest !== undefined && item.missingDocumentRequest !== null) {
+    if (blockType !== "QUESTION") {
+      reject("writer_output_shape", `${path}.missingDocumentRequest is only allowed on QUESTION blocks.`, `${path}.missingDocumentRequest`);
+    }
+    const reqObj = record(item.missingDocumentRequest, `${path}.missingDocumentRequest`);
+    const requestId = text(reqObj.requestId, `${path}.missingDocumentRequest.requestId`, 96);
+    if (!MISSING_DOCUMENT_REQUEST_ID_PATTERN.test(requestId)) {
+      reject("writer_output_shape", `${path}.missingDocumentRequest.requestId must match mdr:<key>.`, `${path}.missingDocumentRequest.requestId`);
+    }
+    const targetKey = text(reqObj.targetKey, `${path}.missingDocumentRequest.targetKey`, 64);
+    const gapClaimIds = list(reqObj.gapClaimIds, `${path}.missingDocumentRequest.gapClaimIds`, WRITER_LIMITS.claimRefsPerBlock, 1).map(
+      (ref, i) => {
+        if (typeof ref !== "string" || !claims.has(ref)) {
+          reject("writer_claim_unknown", `${path}.missingDocumentRequest.gapClaimIds[${i}] is not a Study claim.`);
+        }
+        return ref;
+      },
+    );
+    const supportingClaimIds = list(
+      reqObj.supportingClaimIds,
+      `${path}.missingDocumentRequest.supportingClaimIds`,
+      WRITER_LIMITS.claimRefsPerBlock,
+      1,
+    ).map((ref, i) => {
+      if (typeof ref !== "string" || !claims.has(ref)) {
+        reject("writer_claim_unknown", `${path}.missingDocumentRequest.supportingClaimIds[${i}] is not a Study claim.`);
+      }
+      return ref;
+    });
+    const refs = list(reqObj.refs, `${path}.missingDocumentRequest.refs`, 48, 1).map((rawRef, i) => {
+      const rObj = record(rawRef, `${path}.missingDocumentRequest.refs[${i}]`);
+      const sourceDocumentId = text(rObj.sourceDocumentId, `${path}.missingDocumentRequest.refs[${i}].sourceDocumentId`, 64);
+      const pageNumber = rObj.pageNumber;
+      if (typeof pageNumber !== "number" || !Number.isInteger(pageNumber) || pageNumber < 1) {
+        reject("writer_output_shape", `${path}.missingDocumentRequest.refs[${i}].pageNumber must be a positive integer.`);
+      }
+      return { sourceDocumentId, pageNumber };
+    });
+    const blockedAnalysis =
+      reqObj.blockedAnalysis !== undefined && reqObj.blockedAnalysis !== null
+        ? text(reqObj.blockedAnalysis, `${path}.missingDocumentRequest.blockedAnalysis`, 600)
+        : undefined;
+    missingDocumentRequest = {
+      requestId,
+      targetKey,
+      gapClaimIds,
+      supportingClaimIds,
+      refs,
+      ...(blockedAnalysis !== undefined ? { blockedAnalysis } : {}),
+    };
+  }
+  const partiallyAnsweredQuestions = new Set<string>(
+    [...claims.values()]
+      .filter((c) => c.kind === "ANSWER" && c.answerStatus === "PARTIALLY_ANSWERED" && c.planQuestionId !== null)
+      .map((c) => c.planQuestionId as string),
+  );
+  const partialLimitations = [...claims.values()].filter(
+    (c) => c.kind === "LIMITATION" && c.planQuestionId !== null && partiallyAnsweredQuestions.has(c.planQuestionId),
+  );
   for (const ref of claimRefs) {
     cited.push(ref);
     const claim = claims.get(ref);
     if (!claim) continue;
+    const isPartiallyAnsweredLimitation =
+      claim.kind === "LIMITATION" && claim.planQuestionId !== null && partiallyAnsweredQuestions.has(claim.planQuestionId);
     if (blockType === "UNCERTAINTY") {
-      surfaced.push(ref);
+      if (!isPartiallyAnsweredLimitation || visiblyPresentsUncertainty(blockText, claim)) {
+        surfaced.push(ref);
+      }
     } else if (
       (blockType === "DOCUMENTED" || blockType === "INTERPRETATION") &&
       (claim.kind === "CONFLICT" || visiblyPresentsUncertainty(blockText, claim))
@@ -623,7 +837,38 @@ export function validateReportBlock(
       surfaced.push(ref);
     }
   }
-  return { block: { type: blockType, text: blockText, claimRefs }, cited, surfaced, resultTokens };
+  if (blockType === "UNCERTAINTY") {
+    const citedPartialUQuestions = new Set<string>(
+      claimRefs
+        .map((r) => claims.get(r))
+        .filter((c): c is StudyClaim => c?.kind === "UNCERTAINTY" && c.planQuestionId !== null && partiallyAnsweredQuestions.has(c.planQuestionId))
+        .map((c) => c.planQuestionId as string),
+    );
+    for (const lim of partialLimitations) {
+      if (surfaced.includes(lim.id)) continue;
+      if (visiblyCoversLimitation(blockText, lim)) {
+        surfaced.push(lim.id);
+      } else if (
+        lim.planQuestionId &&
+        citedPartialUQuestions.has(lim.planQuestionId) &&
+        !/\b(?:evaluation|report|reports|log|logs|iep|attach|attached)\b/i.test(lim.text) &&
+        hasClaimTokenOverlap(blockText, lim)
+      ) {
+        surfaced.push(lim.id);
+      }
+    }
+  }
+  return {
+    block: {
+      type: blockType,
+      text: blockText,
+      claimRefs,
+      ...(missingDocumentRequest ? { missingDocumentRequest } : {}),
+    },
+    cited,
+    surfaced,
+    resultTokens,
+  };
 }
 
 export type ValidatedScenarioDefinition = {
@@ -796,9 +1041,11 @@ export function validateWriterReport(raw: unknown, context: WriterValidationCont
     const allRefs = [...cited];
     checkGroundedNumber(title, allRefs, claims, "title", historicalByClaimId);
     checkTemporalSafety(title, allRefs, temporalContext, "title");
+    checkUnsupportedConclusions(title, allRefs, claims, "title");
     for (const section of sections) {
       checkGroundedNumber(section.heading, allRefs, claims, `sections.${section.id}.heading`, historicalByClaimId);
       checkTemporalSafety(section.heading, allRefs, temporalContext, `sections.${section.id}.heading`);
+      checkUnsupportedConclusions(section.heading, allRefs, claims, `sections.${section.id}.heading`);
     }
 
     const scenarioIds = new Set<string>();

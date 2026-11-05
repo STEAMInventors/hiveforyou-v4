@@ -343,4 +343,103 @@ describe("WriterAgentLedger editorial plan tools (V4-004K.2)", () => {
     expect(assembled.view).toHaveLength(base.components.length + 1);
     expect(ledger.currentPresentationPlan?.insights?.map((i) => i.id)).toEqual(["INS1", "INS2"]);
   });
+
+  it("recovers via patch_editorial_plan when a missing-document request or unsupported conclusion is rejected, preserving unmentioned sections and request identity (V4-004K.5B)", () => {
+    const { claims, canonicalFindings } = buildVerifiedL001();
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+    const ledger = new WriterAgentLedger({
+      reportRunId: `${REPORT_RUN_ID}-mdr-patch`,
+      audience: "PRO",
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    const base = l001ProEditorialPlan();
+
+    // Turn 1: Submit with an unsupported conclusion in s1.uncertainty AND an invented missingDocumentRequest
+    const badDraft = {
+      ...base,
+      sections: [
+        {
+          ...base.sections[0]!,
+          uncertainty: {
+            text: "Because no quarterly progress reports are in this corpus, oral-reading-fluency probes were never conducted.",
+            claimRefs: ["DF7", "DF8", "DF12", "DF20", "DF21", "P6", "P6.U0", "P6.L0", "P6.D0"],
+          },
+          missingDocumentRequests: [
+            {
+              gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+              supportingClaimIds: ["DF25", "DF32"],
+              text: "Do you have the Functional Behavioral Assessment?",
+              blockedAnalysis: "Needed to review behavior.",
+            },
+          ],
+        },
+      ],
+    };
+
+    const first = exec(ledger, "submit_editorial_plan", badDraft, "call-mdr-1");
+    expect(first.ok).toBe(false);
+    expect(first.compileFailed).toBe(true);
+    expect(first.error).toBe("writer_unsupported_conclusion");
+    expect(first.hint).toContain("never occurred");
+    expect(ledger.finished).toBe(false);
+
+    // Turn 2: Repair s1 uncertainty, still leaving invented FBA request -> returns editorial_plan_request_ungrounded
+    const second = exec(
+      ledger,
+      "patch_editorial_plan",
+      {
+        sections: [
+          {
+            ...base.sections[0]!,
+            missingDocumentRequests: [
+              {
+                gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+                supportingClaimIds: ["DF25", "DF32"],
+                text: "Do you have the Functional Behavioral Assessment?",
+                blockedAnalysis: "Needed to review behavior.",
+              },
+            ],
+          },
+        ],
+      },
+      "call-mdr-2",
+    );
+    expect(second.ok).toBe(false);
+    expect(second.compileFailed).toBe(true);
+    expect(second.error).toBe("editorial_plan_request_ungrounded");
+    expect(second.field).toBe("sections[0].missingDocumentRequests[0].text");
+    expect(ledger.finished).toBe(false);
+
+    // Turn 3: Patch s1 with valid progress-report request -> succeeds and preserves all components & insights
+    const third = exec(
+      ledger,
+      "patch_editorial_plan",
+      {
+        sections: [
+          {
+            ...base.sections[0]!,
+            missingDocumentRequests: [
+              {
+                gapClaimIds: ["P6", "P6.U0", "P6.L0"],
+                supportingClaimIds: ["DF25", "DF32"],
+                text: "Can you share the quarterly oral-reading-fluency progress reports?",
+                blockedAnalysis:
+                  "Quarterly probe results after 2024-11-12 are needed to evaluate progress toward the 75 WCPM and 95% accuracy goal across three consecutive probes.",
+              },
+            ],
+          },
+        ],
+      },
+      "call-mdr-3",
+    );
+    expect(third.ok).toBe(true);
+    expect(ledger.finished).toBe(true);
+    const assembled = ledger.assemble();
+    const qBlock = assembled.sections[0]?.blocks.find((b) => b.type === "QUESTION");
+    expect(qBlock?.missingDocumentRequest?.requestId).toBe("mdr:p6:progress_reports");
+    expect(ledger.currentPresentationPlan?.missingDocumentRequests?.[0]?.requestId).toBe("mdr:p6:progress_reports");
+  });
 });

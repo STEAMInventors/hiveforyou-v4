@@ -20,13 +20,47 @@ export type EditorialPlanPatch = {
   readonly scenarios?: readonly ScenarioDefinition[];
 };
 
+function cloneSectionPlan(section: EditorialSectionPlan): EditorialSectionPlan {
+  return {
+    ...section,
+    ...(section.insightIds ? { insightIds: [...section.insightIds] } : {}),
+    ...(section.documentedClaimIds ? { documentedClaimIds: [...section.documentedClaimIds] } : {}),
+    ...(section.interpretation
+      ? {
+          interpretation: {
+            text: section.interpretation.text,
+            claimRefs: [...section.interpretation.claimRefs],
+          },
+        }
+      : {}),
+    ...(section.uncertainty
+      ? {
+          uncertainty:
+            "mode" in section.uncertainty
+              ? { mode: "compiled", claimIds: [...section.uncertainty.claimIds] }
+              : { text: section.uncertainty.text, claimRefs: [...section.uncertainty.claimRefs] },
+        }
+      : {}),
+    ...(section.missingDocumentRequests
+      ? {
+          missingDocumentRequests: section.missingDocumentRequests.map((req) => ({
+            gapClaimIds: [...req.gapClaimIds],
+            supportingClaimIds: [...req.supportingClaimIds],
+            text: req.text,
+            ...(req.blockedAnalysis !== undefined ? { blockedAnalysis: req.blockedAnalysis } : {}),
+          })),
+        }
+      : {}),
+  };
+}
+
 function mergeSections(
   base: readonly EditorialSectionPlan[],
   patches: readonly EditorialSectionPlan[],
 ): EditorialSectionPlan[] {
-  const byId = new Map(base.map((section) => [section.id, section]));
+  const byId = new Map(base.map((section) => [section.id, cloneSectionPlan(section)]));
   for (const patch of patches) {
-    byId.set(patch.id, patch);
+    byId.set(patch.id, cloneSectionPlan(patch));
   }
   const order = base.map((section) => section.id);
   for (const patch of patches) {
@@ -82,8 +116,8 @@ export function mergeEditorialPlan(base: EditorialPlan, patch: EditorialPlanPatc
         ? { insights: [...base.insights] }
         : {}),
     priorityFindings: patch.priorityFindings ? patch.priorityFindings.map((entry) => ({ ...entry })) : [...base.priorityFindings],
-    summary: patch.summary ?? { ...base.summary, documentedClaimIds: [...base.summary.documentedClaimIds] },
-    sections: patch.sections ? mergeSections(base.sections, patch.sections) : base.sections.map((section) => ({ ...section })),
+    summary: patch.summary ?? { ...base.summary, documentedClaimIds: [...(base.summary.documentedClaimIds ?? [])] },
+    sections: patch.sections ? mergeSections(base.sections, patch.sections) : base.sections.map((section) => cloneSectionPlan(section)),
     components: patch.components ? mergeComponents(base.components, patch.components) : base.components.map((component) => ({ ...component })),
     scenarios:
       patch.scenarios !== undefined

@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { PLANNER_TASK_PROMPT_IDS, type PlannerCompletionTask, type PreparationPlannerTask } from "@hiveforyou/contracts";
+import {
+  PLANNER_TASK_PROMPT_IDS,
+  WRITER_SEMANTIC_REVIEW_PROMPT_ID,
+  type PlannerCompletionTask,
+  type PreparationPlannerTask,
+} from "@hiveforyou/contracts";
 
 /**
  * Loads the versioned preparation prompts from the repository `prompts/` folder (bundled with the
@@ -21,6 +26,7 @@ const PROMPT_FILES: Record<PreparationPlannerTask, string> = {
 const STUDY_TEMPLATE_FILE = "hive-study/HiveForYou-Study-Preview-v1.md";
 const OUTPUT_SCHEMA_FILE = "hive-study/hive.study-investigation-1.schema.json";
 const WRITER_PROMPT_FILE = "hive-writer/HiveForYou-Writer-v1.md";
+const WRITER_SEMANTIC_REVIEW_PROMPT_FILE = "hive-writer/HiveForYou-Writer-Semantic-Review-v1.md";
 const WRITER_SCHEMA_FILE = "hive-writer/hive.writer-report-1.schema.json";
 
 export type PlannerPrompt = {
@@ -38,11 +44,19 @@ export type WriterPrompt = {
   readonly schemaDigest: string;
 };
 
+export type WriterSemanticReviewPrompt = {
+  readonly task: "writer";
+  readonly id: typeof WRITER_SEMANTIC_REVIEW_PROMPT_ID;
+  readonly digest: string;
+  readonly systemPrompt: string;
+};
+
 export type PromptCatalog = {
   readonly planner: Record<PreparationPlannerTask, PlannerPrompt>;
   readonly studyTemplate: { readonly id: string; readonly version: string; readonly digest: string; readonly text: string };
   readonly outputSchema: { readonly digest: string; readonly text: string };
   readonly writer: WriterPrompt;
+  readonly writerSemanticReview: WriterSemanticReviewPrompt;
 };
 
 export function sha256Digest(text: string): string {
@@ -127,6 +141,8 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
   const schema = normalize(readText(OUTPUT_SCHEMA_FILE));
   const writerFile = normalize(readText(WRITER_PROMPT_FILE));
   readPromptId(writerFile, PLANNER_TASK_PROMPT_IDS.writer);
+  const writerSemanticReviewFile = normalize(readText(WRITER_SEMANTIC_REVIEW_PROMPT_FILE));
+  readPromptId(writerSemanticReviewFile, WRITER_SEMANTIC_REVIEW_PROMPT_ID);
   const writerSchema = normalize(readText(WRITER_SCHEMA_FILE));
   return {
     planner,
@@ -136,6 +152,12 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
       digest: sha256Digest(writerFile),
       systemPrompt: extractSection(writerFile, "System"),
       schemaDigest: sha256Digest(writerSchema),
+    },
+    writerSemanticReview: {
+      task: "writer",
+      id: WRITER_SEMANTIC_REVIEW_PROMPT_ID,
+      digest: sha256Digest(writerSemanticReviewFile),
+      systemPrompt: extractSection(writerSemanticReviewFile, "System"),
     },
     studyTemplate: {
       id: STUDY_PREVIEW_PROMPT_ID,

@@ -22,6 +22,10 @@ describe("loadPromptCatalog", () => {
     expect(catalog.studyTemplate.text.split(SOURCE_PAGES_PLACEHOLDER)).toHaveLength(2);
     expect(() => JSON.parse(catalog.outputSchema.text)).not.toThrow();
     expect(catalog.writer.id).toBe("hive-writer/1");
+    expect(catalog.writerSemanticReview.id).toBe("hive.writer-semantic-review/1");
+    expect(catalog.writerSemanticReview.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(catalog.writerSemanticReview.systemPrompt).toContain("hive.writer-semantic-review/1");
+    expect(catalog.writerSemanticReview.systemPrompt).toContain("writer_unsupported_conclusion");
     expect(catalog.writer.systemPrompt).toContain("writer_claim_kind");
     expect(catalog.writer.systemPrompt).toContain("writer_number_ungrounded");
     expect(catalog.writer.systemPrompt).toContain("Keep claim IDs in `claimRefs` / `claimIds`, not prose.");
@@ -74,6 +78,8 @@ describe("loadPromptCatalog", () => {
       "Apply this standard everywhere in the report:** report title, section headings, summaries, narrative blocks, tables (`RecordTable`), comparisons (`Comparison`), timelines (`Timeline`), other A2UI components, questions (`QUESTION` blocks and `QuestionList`), and recommendations/actions (`NEXT_STEP` blocks and `Checklist`).",
     );
     expect(writerPrompt).toContain("never from fixed domain templates");
+    expect(writerPrompt).toContain("missingDocumentRequests");
+    expect(writerPrompt).toContain("writer_unsupported_conclusion");
   });
 });
 
@@ -96,6 +102,7 @@ describe("buildPromptCatalog", () => {
       "hive-study/HiveForYou-Study-Preview-v1.md": ["Prompt id: `hive-study-preview/1`", "## Template", "Body {{SOURCE_PAGES}}"].join(eol),
       "hive-study/hive.study-investigation-1.schema.json": "{}",
       "hive-writer/HiveForYou-Writer-v1.md": planner("hive-writer/1"),
+      "hive-writer/HiveForYou-Writer-Semantic-Review-v1.md": planner("hive.writer-semantic-review/1"),
       "hive-writer/hive.writer-report-1.schema.json": "{}",
     };
   };

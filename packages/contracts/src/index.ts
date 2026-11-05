@@ -24,6 +24,7 @@ export * from "./reports/editorial-plan-contracts";
 export * from "./reports/editorial-plan-compiler";
 export * from "./reports/editorial-plan-merge";
 export * from "./reports/editorial-plan-tool-schema";
+export * from "./reports/semantic-review";
 export * from "./reports/report-contracts";
 export * from "./study-preparation/planner-wire-contracts";
 export * from "./study-preparation/execution-manifest-contracts";

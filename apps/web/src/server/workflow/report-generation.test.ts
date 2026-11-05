@@ -45,7 +45,7 @@ import { emitStructuredEvent } from "@/server/observability/logger";
 import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { UNKNOWN_AUDIENCE } from "@/server/study-preparation/study-preparation.fixtures";
 
-import { buildWriterPayload, processReportRun } from "./report-generation";
+import { buildWriterPayload, processReportRun, type ReportGenerationDeps } from "./report-generation";
 
 vi.mock("@/server/observability/logger", () => ({ emitStructuredEvent: vi.fn() }));
 
@@ -251,6 +251,31 @@ function turnResponse(toolCalls: ToolCall[], overrides: Record<string, unknown> 
   );
 }
 
+function semanticReviewResponse(overrides: Record<string, unknown> = {}) {
+  return new Response(
+    JSON.stringify({
+      contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION,
+      model_alias: "harvester",
+      resolved_model: "synthetic-model",
+      message: {
+        content: JSON.stringify({ schema: "hive.writer-semantic-review/1", findings: [] }),
+        tool_calls: [],
+      },
+      usage: { prompt_tokens: 80, completion_tokens: 20, total_tokens: 100 },
+      latency_ms: 400,
+      finish_reason: "stop",
+      ...overrides,
+    }),
+    { status: 200 },
+  );
+}
+
+const noopSemanticReviewer = vi.fn(async () => []);
+
+function runReport(deps: ReportGenerationDeps, reportRunId: string = REPORT_RUN_ID) {
+  return processReportRun({ semanticReviewer: noopSemanticReviewer, ...deps }, reportRunId);
+}
+
 function planner(turns: ToolCall[][] = mayaWriterEditorialTurns("CUSTOMER"), status = 200) {
   const bodies: StudyAgentTurnRequest[] = [];
   const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
@@ -261,6 +286,9 @@ function planner(turns: ToolCall[][] = mayaWriterEditorialTurns("CUSTOMER"), sta
         JSON.stringify({ contract_version: "planner-error@1", error_code: "MODEL_TIMEOUT", retryable: true }),
         { status },
       );
+    }
+    if (body.tools.length === 0) {
+      return semanticReviewResponse();
     }
     const turnIndex = body.messages.filter((m) => m.role === "assistant").length;
     return turnResponse(turns[turnIndex] ?? []);
@@ -280,7 +308,7 @@ describe("processReportRun", () => {
     const model = planner(mayaWriterEditorialTurns(audience));
 
     await expect(
-      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
     expect(model.bodies).toHaveLength(1);
@@ -343,7 +371,7 @@ describe("processReportRun", () => {
     ];
     const model = planner([turn1!, turn2]);
 
-    await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
+    await expect(runReport({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
     expect(model.bodies).toHaveLength(2);
     expect(db.attemptCount()).toBe(1);
     expect(db.saved()).toMatchObject({
@@ -371,7 +399,7 @@ describe("processReportRun", () => {
     );
     const model = planner(turns);
 
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("FAILED");
+    await expect(runReport({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("FAILED");
     const lastTransition = db.transitions.at(-1)!;
     expect(lastTransition).toMatchObject({
       from: "WRITING",
@@ -551,7 +579,7 @@ describe("processReportRun", () => {
 
     const model = planner([turn1, turn2, turn3]);
     await expect(
-      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
     expect(model.bodies).toHaveLength(3);
     expect(db.saved()).toMatchObject({
@@ -574,7 +602,7 @@ describe("processReportRun", () => {
     const db = fakeDatabase();
     const model = planner(undefined, 504);
 
-    await processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID);
+    await runReport({ client: db.client, planner: model.deps }, REPORT_RUN_ID);
     expect(db.transitions).toEqual([
       expect.objectContaining({ from: "WRITING", to: "FAILED", details: expect.objectContaining({ error_code: "MODEL_TIMEOUT", retryable: true }) }),
     ]);
@@ -583,7 +611,7 @@ describe("processReportRun", () => {
   it("does nothing when another invocation already claimed the run", async () => {
     const db = fakeDatabase("CUSTOMER", { claimed: false });
     const model = planner(mayaWriterAgentTurns("CUSTOMER"));
-    await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("WRITING");
+    await expect(runReport({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("WRITING");
     expect(model.bodies).toHaveLength(0);
   });
 
@@ -593,10 +621,10 @@ describe("processReportRun", () => {
     const customerModel = planner(mayaWriterAgentTurns("CUSTOMER"));
     const proModel = planner(mayaWriterAgentTurns("PRO"));
 
-    await expect(processReportRun({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID)).resolves.toBe(
+    await expect(runReport({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID)).resolves.toBe(
       "SUCCEEDED",
     );
-    await expect(processReportRun({ client: proDb.client, planner: proModel.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
+    await expect(runReport({ client: proDb.client, planner: proModel.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
 
     expect(customerModel.bodies).toHaveLength(1);
     expect(proModel.bodies).toHaveLength(1);
@@ -611,7 +639,7 @@ describe("processReportRun", () => {
     const model = planner(undefined, 504);
 
     // Attempt 1 fails with MODEL_TIMEOUT -> QUEUED + 30s backoff dispatch.
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
+    await expect(runReport({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
     expect(db.attemptCount()).toBe(1);
     expect(db.transitions.at(-1)?.details.failure_diagnostic).toMatchObject({
       component: "planner",
@@ -631,13 +659,13 @@ describe("processReportRun", () => {
 
     // Before next_dispatch_at (10s elapsed < 30s), claim_report_run refuses to claim and no model call runs.
     clock += 10_000;
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
+    await expect(runReport({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
     expect(model.bodies).toHaveLength(1);
     expect(dispatch).toHaveBeenCalledTimes(1);
 
     // At next_dispatch_at (30s elapsed), attempt 2 runs and fails -> QUEUED + 60s backoff dispatch.
     clock += 20_000;
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
+    await expect(runReport({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("QUEUED");
     expect(db.attemptCount()).toBe(2);
     expect(model.bodies).toHaveLength(2);
     expect(dispatch).toHaveBeenCalledTimes(2);
@@ -649,7 +677,7 @@ describe("processReportRun", () => {
 
     // At attempt 3 (after 60s), maxAttempts (3) is reached -> terminal FAILED and no further dispatch.
     clock += 60_000;
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("FAILED");
+    await expect(runReport({ client: db.client, planner: model.deps, dispatch, clock: () => clock }, REPORT_RUN_ID)).resolves.toBe("FAILED");
     expect(db.attemptCount()).toBe(3);
     expect(model.bodies).toHaveLength(3);
     expect(dispatch).toHaveBeenCalledTimes(2);
@@ -675,7 +703,7 @@ describe("processReportRun", () => {
       fetchFn: fetchFn as unknown as typeof fetch,
     };
 
-    await expect(processReportRun({ client: db.client, planner: nonRetryablePlanner, dispatch }, REPORT_RUN_ID)).resolves.toBe("FAILED");
+    await expect(runReport({ client: db.client, planner: nonRetryablePlanner, dispatch }, REPORT_RUN_ID)).resolves.toBe("FAILED");
     expect(dispatch).not.toHaveBeenCalled();
     expect(db.saved()).toBeNull();
   });
@@ -686,11 +714,11 @@ describe("processReportRun", () => {
     const model = planner(mayaWriterAgentTurns("CUSTOMER"));
 
     const [first, second] = await Promise.all([
-      processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID),
-      processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID),
+      runReport({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID),
+      runReport({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID),
     ]);
     expect([first, second]).toContain("SUCCEEDED");
-    await expect(processReportRun({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
+    await expect(runReport({ client: db.client, planner: model.deps, dispatch }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
 
     expect(model.bodies).toHaveLength(1);
     expect(db.savedCount()).toBe(1);
@@ -730,7 +758,7 @@ describe("processReportRun", () => {
 
       const model = planner(mayaWriterEditorialTurns(audience));
       await expect(
-        processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+        runReport({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
       ).resolves.toBe("SUCCEEDED");
 
       expect(model.bodies).toHaveLength(1);
@@ -787,7 +815,7 @@ describe("processReportRun", () => {
       const model = planner([turn1!, turn2]);
 
       await expect(
-        processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+        runReport({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
       ).resolves.toBe("SUCCEEDED");
 
       expect(model.bodies).toHaveLength(2);
@@ -839,10 +867,10 @@ describe("processReportRun", () => {
     const proModel = planner(mayaWriterComposeTurns("PRO"));
 
     await expect(
-      processReportRun({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID),
+      runReport({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
     await expect(
-      processReportRun({ client: proDb.client, planner: proModel.deps }, REPORT_RUN_ID),
+      runReport({ client: proDb.client, planner: proModel.deps }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
     const customerPayload = JSON.parse(customerModel.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
@@ -945,7 +973,7 @@ describe("processReportRun", () => {
     const model = planner(mayaWriterComposeTurns("CUSTOMER"));
 
     await expect(
-      processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID),
+      runReport({ client: db.client, planner: model.deps }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
     const payload = JSON.parse(model.bodies[0]!.messages[0]!.content ?? "{}") as Record<string, unknown>;
@@ -1133,7 +1161,7 @@ describe("processReportRun", () => {
 
     const model = planner([turn1, turn2]);
     await expect(
-      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
     expect(model.bodies).toHaveLength(2);
@@ -1269,10 +1297,10 @@ describe("processReportRun", () => {
     const proModel = planner([proEditorialTurn]);
 
     await expect(
-      processReportRun({ client: customerDb.client, planner: customerModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: customerDb.client, planner: customerModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
     await expect(
-      processReportRun({ client: proDb.client, planner: proModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: proDb.client, planner: proModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
     expect(customerModel.bodies).toHaveLength(1);
@@ -1454,7 +1482,7 @@ describe("processReportRun", () => {
     });
 
     await expect(
-      processReportRun(
+      runReport(
         {
           client: db.client,
           planner: {
@@ -1755,7 +1783,7 @@ describe("processReportRun", () => {
 
     const model = planner([turn1, turn2]);
     await expect(
-      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
     expect(model.bodies).toHaveLength(2);
@@ -1896,6 +1924,7 @@ describe("processReportRun", () => {
       minTurnMs: 20_000,
       turnAbortMarginMs: 5_000,
       maxRounds: 5,
+      maxSemanticReviewRepairs: 2,
       maxToolCalls: 48,
       maxCallsPerTurn: 32,
       maxInputTokens: 200_000,
@@ -1986,10 +2015,10 @@ describe("processReportRun", () => {
     const proModel = planner([[{ id: "toolu_k3_pro", name: "submit_editorial_plan", arguments: JSON.stringify(proPlan) }]]);
 
     await expect(
-      processReportRun({ client: custDb.client, planner: custModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: custDb.client, planner: custModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
     await expect(
-      processReportRun({ client: proDb.client, planner: proModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: proDb.client, planner: proModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
 
     expect(custModel.bodies).toHaveLength(1);
@@ -2013,8 +2042,8 @@ describe("processReportRun", () => {
     expect(proBoundViewBytes).toBe(13968);
     expect(custPromptBytes).toBe(52480);
     expect(proPromptBytes).toBe(52563);
-    expect(custWireBytes).toBe(104553);
-    expect(proWireBytes).toBe(104640);
+    expect(custWireBytes).toBe(108760);
+    expect(proWireBytes).toBe(108847);
 
     // 4. Invalid editorial content (unsupported A2UI component + ungrounded number) triggers focused patch_editorial_plan recovery without partial persistence
     const patchDb = makeL001Db("PRO");
@@ -2041,7 +2070,7 @@ describe("processReportRun", () => {
       ],
     ]);
     await expect(
-      processReportRun({ client: patchDb.client, planner: patchModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: patchDb.client, planner: patchModel.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
     expect(patchModel.bodies).toHaveLength(2);
     const turn2ToolMsg = patchModel.bodies[1]!.messages.at(-1)!;
@@ -2088,7 +2117,7 @@ describe("processReportRun", () => {
       [{ id: "toolu_k3_rev6", name: "submit_editorial_plan", arguments: JSON.stringify(revision6CustomerEditorialPlan()) }],
     ]);
     await expect(
-      processReportRun({ client: rev6Db.client, planner: rev6Model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      runReport({ client: rev6Db.client, planner: rev6Model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
     ).resolves.toBe("SUCCEEDED");
     expect(rev6Model.bodies).toHaveLength(1);
     expect(rev6Db.saved()).toMatchObject({
@@ -2127,7 +2156,7 @@ describe("processReportRun", () => {
       );
     });
     await expect(
-      processReportRun(
+      runReport(
         {
           client: staleOracleDb.client,
           planner: {
