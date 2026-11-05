@@ -44,34 +44,37 @@ SELECT jsonb_build_object(
 ) AS study;
 
 CREATE TEMP TABLE t_run AS
-INSERT INTO hive.processing_runs (
-  hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
-  authorized_source_document_ids, intent_request_ids, source_snapshot,
-  source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
-  coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement,
-  snapshot_frozen_at, stage_attempt, stage_outputs
+WITH ins AS (
+  INSERT INTO hive.processing_runs (
+    hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
+    authorized_source_document_ids, intent_request_ids, source_snapshot,
+    source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
+    coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement,
+    snapshot_frozen_at, stage_attempt, stage_outputs
+  )
+  SELECT
+    'bbbbbbbb-0000-4000-8000-0000000005b1', 'aaaaaaaa-0000-4000-8000-0000000005b1', 'STUDY_PREPARATION',
+    'dddddddd-0000-4000-8000-0000000005b1', 1, 'ACCEPTING_STUDY', 'eeeeeeee-0000-4000-8000-0000000005b1',
+    ARRAY['cccccccc-0000-4000-8000-0000000005b1'::uuid],
+    ARRAY['99999999-0000-4000-8000-0000000005b1'::uuid],
+    jsonb_build_object(
+      'documents', jsonb_build_array(jsonb_build_object(
+        'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000005b1',
+        'fileName', 'synthetic-v5b.pdf',
+        'pageSetDigest', 'sha256:' || repeat('5', 64)
+      )),
+      'excluded', '[]'::jsonb,
+      'coverageComplete', true
+    ),
+    'sha256:' || repeat('1', 64),
+    'sha256:' || repeat('2', 64),
+    'sha256:' || repeat('3', 64),
+    true, true, 'COMPLETE', '[]'::jsonb, 'NOT_REQUIRED',
+    now(), 1, jsonb_build_object('canonicalStudy', s.study)
+  FROM t_study s
+  RETURNING id
 )
-SELECT
-  'bbbbbbbb-0000-4000-8000-0000000005b1', 'aaaaaaaa-0000-4000-8000-0000000005b1', 'STUDY_PREPARATION',
-  'dddddddd-0000-4000-8000-0000000005b1', 1, 'ACCEPTING_STUDY', 'eeeeeeee-0000-4000-8000-0000000005b1',
-  ARRAY['cccccccc-0000-4000-8000-0000000005b1'::uuid],
-  ARRAY['99999999-0000-4000-8000-0000000005b1'::uuid],
-  jsonb_build_object(
-    'documents', jsonb_build_array(jsonb_build_object(
-      'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000005b1',
-      'fileName', 'synthetic-v5b.pdf',
-      'pageSetDigest', 'sha256:' || repeat('5', 64)
-    )),
-    'excluded', '[]'::jsonb,
-    'coverageComplete', true
-  ),
-  'sha256:' || repeat('1', 64),
-  'sha256:' || repeat('2', 64),
-  'sha256:' || repeat('3', 64),
-  true, true, 'COMPLETE', '[]'::jsonb, 'NOT_REQUIRED',
-  now(), 1, jsonb_build_object('canonicalStudy', s.study)
-FROM t_study s
-RETURNING id;
+SELECT id FROM ins;
 
 INSERT INTO hive.canonical_studies (id, hive_id, owner_user_id)
 VALUES ('abababab-0000-4000-8000-0000000005b1', 'bbbbbbbb-0000-4000-8000-0000000005b1',

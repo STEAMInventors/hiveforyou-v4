@@ -19,7 +19,7 @@ INSERT INTO hive.source_documents (
 )
 VALUES (
   'cccccccc-0000-4000-8000-0000000000e1', 'bbbbbbbb-0000-4000-8000-0000000000e1',
-  'aaaaaaaa-0000-4000-8000-0000000000e1', 'synthetic-v5.pdf', 'application/pdf', 2048, repeat('v', 64),
+  'aaaaaaaa-0000-4000-8000-0000000000e1', 'synthetic-v5.pdf', 'application/pdf', 2048, repeat('f', 64),
   'hive-source-documents', 'synthetic/v5.pdf', 'UPLOADED', 'ACTIVE', now() - interval '2 minutes'
 );
 
@@ -45,14 +45,14 @@ WITH raw (n, t) AS (
          ) ORDER BY n) AS pages
     FROM raw
 )
-SELECT page_count, pages, hive.compute_page_set_digest(repeat('v', 64), page_count, pages) AS digest FROM built;
+SELECT page_count, pages, hive.compute_page_set_digest(repeat('f', 64), page_count, pages) AS digest FROM built;
 GRANT SELECT ON t_pages TO service_role, authenticated;
 
 SET LOCAL role service_role;
 SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 SELECT public.put_document_pages(
          'bbbbbbbb-0000-4000-8000-0000000000e1', 'cccccccc-0000-4000-8000-0000000000e1',
-         repeat('v', 64), 'reader-document-read@1:synthetic-v5', p.digest, 'SUCCEEDED',
+         repeat('f', 64), 'reader-document-read@1:synthetic-v5', p.digest, 'SUCCEEDED',
          p.page_count, p.page_count, p.pages)
   FROM t_pages p;
 RESET role;

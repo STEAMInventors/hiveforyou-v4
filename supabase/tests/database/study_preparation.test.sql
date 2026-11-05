@@ -502,7 +502,7 @@ SELECT is(
           || (r -> 'processingRun' ->> 'errorCode') || ':' || (r -> 'processingRun' ->> 'retryable')
      FROM (SELECT public.transition_processing_run(
                     ((SELECT result FROM t_run2) -> 'processingRun' ->> 'id')::uuid,
-                    'QUEUED', 'UNDERSTANDING_REQUEST', '{}'::jsonb) AS r) x),
+                    'QUEUED', 'EXTRACTING', '{}'::jsonb) AS r) x),
   'true:FAILED:SOURCE_CHANGED:true',
   'a source change mid-run fails the run as retryable SOURCE_CHANGED');
 

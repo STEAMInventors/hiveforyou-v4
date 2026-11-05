@@ -16,7 +16,7 @@ INSERT INTO hive.source_documents (
 )
 VALUES (
   'cccccccc-0000-4000-8000-000000000a01', 'bbbbbbbb-0000-4000-8000-000000000a01',
-  'aaaaaaaa-0000-4000-8000-000000000a01', 'synthetic-v5a.pdf', 'application/pdf', 2048, repeat('w', 64),
+  'aaaaaaaa-0000-4000-8000-000000000a01', 'synthetic-v5a.pdf', 'application/pdf', 2048, repeat('a', 64),
   'hive-source-documents', 'synthetic/v5a.pdf', 'UPLOADED', 'ACTIVE', now() - interval '2 minutes'
 );
 
@@ -41,13 +41,14 @@ built AS (
          ) ORDER BY n) AS pages
     FROM raw
 )
-SELECT page_count, pages, hive.compute_page_set_digest(repeat('w', 64), page_count, pages) AS digest FROM built;
+SELECT page_count, pages, hive.compute_page_set_digest(repeat('a', 64), page_count, pages) AS digest FROM built;
+GRANT SELECT ON t_pages TO service_role;
 
 SET LOCAL role service_role;
 SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 SELECT public.put_document_pages(
          'bbbbbbbb-0000-4000-8000-000000000a01', 'cccccccc-0000-4000-8000-000000000a01',
-         repeat('w', 64), 'reader-document-read@1:synthetic-v5a', p.digest, 'SUCCEEDED',
+         repeat('a', 64), 'reader-document-read@1:synthetic-v5a', p.digest, 'SUCCEEDED',
          p.page_count, p.page_count, p.pages)
   FROM t_pages p;
 
@@ -63,44 +64,47 @@ SELECT 'bbbbbbbb-0000-4000-8000-000000000a01', 'aaaaaaaa-0000-4000-8000-00000000
 UPDATE hive.source_documents SET read_status = 'SUCCEEDED' WHERE id = 'cccccccc-0000-4000-8000-000000000a01';
 
 CREATE TEMP TABLE t_run AS
-INSERT INTO hive.processing_runs (
-  hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
-  authorized_source_document_ids, intent_request_ids, source_snapshot,
-  source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
-  coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement,
-  snapshot_frozen_at, stage_attempt, next_dispatch_at
+WITH ins AS (
+  INSERT INTO hive.processing_runs (
+    hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
+    authorized_source_document_ids, intent_request_ids, source_snapshot,
+    source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
+    coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement,
+    snapshot_frozen_at, stage_attempt, next_dispatch_at
+  )
+  SELECT
+    'bbbbbbbb-0000-4000-8000-000000000a01', 'aaaaaaaa-0000-4000-8000-000000000a01', 'STUDY_PREPARATION',
+    'dddddddd-0000-4000-8000-000000000a01', 1, 'EXTRACTING', 'eeeeeeee-0000-4000-8000-000000000a01',
+    ARRAY['cccccccc-0000-4000-8000-000000000a01'::uuid],
+    ARRAY['99999999-0000-4000-8000-000000000a01'::uuid],
+    jsonb_build_object(
+      'documents', jsonb_build_array(jsonb_build_object(
+        'sourceDocumentId', 'cccccccc-0000-4000-8000-000000000a01',
+        'fileName', 'synthetic-v5a.pdf',
+        'mimeType', 'application/pdf',
+        'sha256', repeat('a', 64),
+        'readId', 'dddddddd-0000-4000-8000-000000000a00',
+        'readStatus', 'SUCCEEDED',
+        'readFingerprint', 'reader-document-read@1:synthetic-v5a',
+        'pageSetDigest', p.digest,
+        'totalPhysicalPages', p.page_count,
+        'verifiedPageCount', p.page_count,
+        'missingPageNumbers', '[]'::jsonb,
+        'emptyPageNumbers', '[]'::jsonb,
+        'createdAt', now()
+      )),
+      'excluded', '[]'::jsonb,
+      'coverageComplete', true
+    ),
+    'sha256:' || repeat('1', 64),
+    'sha256:' || repeat('2', 64),
+    'sha256:' || repeat('3', 64),
+    true, true, 'COMPLETE', '[]'::jsonb, 'NOT_REQUIRED',
+    now(), 2, now()
+  FROM t_pages p
+  RETURNING id
 )
-SELECT
-  'bbbbbbbb-0000-4000-8000-000000000a01', 'aaaaaaaa-0000-4000-8000-000000000a01', 'STUDY_PREPARATION',
-  'dddddddd-0000-4000-8000-000000000a01', 1, 'EXTRACTING', 'eeeeeeee-0000-4000-8000-000000000a01',
-  ARRAY['cccccccc-0000-4000-8000-000000000a01'::uuid],
-  ARRAY['99999999-0000-4000-8000-000000000a01'::uuid],
-  jsonb_build_object(
-    'documents', jsonb_build_array(jsonb_build_object(
-      'sourceDocumentId', 'cccccccc-0000-4000-8000-000000000a01',
-      'fileName', 'synthetic-v5a.pdf',
-      'mimeType', 'application/pdf',
-      'sha256', repeat('w', 64),
-      'readId', 'dddddddd-0000-4000-8000-000000000a00',
-      'readStatus', 'SUCCEEDED',
-      'readFingerprint', 'reader-document-read@1:synthetic-v5a',
-      'pageSetDigest', p.digest,
-      'totalPhysicalPages', p.page_count,
-      'verifiedPageCount', p.page_count,
-      'missingPageNumbers', '[]'::jsonb,
-      'emptyPageNumbers', '[]'::jsonb,
-      'createdAt', now()
-    )),
-    'excluded', '[]'::jsonb,
-    'coverageComplete', true
-  ),
-  'sha256:' || repeat('1', 64),
-  'sha256:' || repeat('2', 64),
-  'sha256:' || repeat('3', 64),
-  true, true, 'COMPLETE', '[]'::jsonb, 'NOT_REQUIRED',
-  now(), 2, now()
-FROM t_pages p
-RETURNING id;
+SELECT id FROM ins;
 
 -- Successful EXTRACTING -> EXTRACTING handoff resets stage_attempt to 1.
 SELECT public.transition_processing_run(
