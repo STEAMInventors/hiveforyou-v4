@@ -19,13 +19,11 @@ import type { PlannerPrompt } from "./prompt-catalog";
 /** Above the planner's own 150 s LiteLLM timeout and below the 180 s stage lease. */
 export const PLANNER_HTTP_TIMEOUT_MS = 160_000;
 
-/**
- * Per-task overrides above the planner's 280 s LiteLLM timeout for these tasks. For offline
- * measurement in V5-002..V5-004 only; the production execution path is decided in V5-005b (D-016).
- */
+/** V5 pipeline tasks: 270 s client (30 s margin under the 300 s stage lease and Vercel limit). Planner uses 260 s (D-052). */
 export const PLANNER_TASK_HTTP_TIMEOUT_MS: Partial<Record<PlannerCompletionTask, number>> = {
-  extract: 290_000,
-  canonicalize: 290_000,
+  extract: 270_000,
+  canonicalize: 270_000,
+  write: 270_000,
 };
 
 export type PlannerServiceConfig = {

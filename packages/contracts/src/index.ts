@@ -29,4 +29,17 @@ export * from "./reports/semantic-review";
 export * from "./reports/report-contracts";
 export * from "./study-preparation/planner-wire-contracts";
 export * from "./study-preparation/execution-manifest-contracts";
+export * from "./pipeline/extraction-contracts";
+export * from "./pipeline/canonical-study-contracts";
+export * from "./pipeline/study-view-contracts";
+export * from "./pipeline/write-audience";
+export {
+  checkQuote,
+  type DroppedEvidence,
+  type ExtractionVerificationStats,
+  QUOTE_REJECTION_REASONS,
+  type QuoteRejectionReason,
+  type VerificationPage,
+  verifyExtraction,
+} from "./pipeline/verify-quotes";
 // Reader contracts use node:crypto and are server-only: import from "@hiveforyou/contracts/document-read".

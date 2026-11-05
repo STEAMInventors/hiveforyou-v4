@@ -67,9 +67,9 @@ describe("loadPlannerServiceConfig", () => {
 
 describe("callPlanner", () => {
   it.each([
-    ["extract", 290_000, 12000],
-    ["canonicalize", 290_000, 16000],
-    ["write", config.timeoutMs, 8000],
+    ["extract", 270_000, 12000],
+    ["canonicalize", 270_000, 16000],
+    ["write", 270_000, 8000],
     ["intent", config.timeoutMs, 4000],
     ["domain", config.timeoutMs, 4000],
     ["intelligence", config.timeoutMs, 12000],
@@ -91,7 +91,7 @@ describe("callPlanner", () => {
 
   it("keeps the default HTTP timeout below the stage lease and the long tasks above the planner's 280 s", () => {
     expect(PLANNER_HTTP_TIMEOUT_MS).toBe(160_000);
-    expect(PLANNER_TASK_HTTP_TIMEOUT_MS).toEqual({ extract: 290_000, canonicalize: 290_000 });
+    expect(PLANNER_TASK_HTTP_TIMEOUT_MS).toEqual({ extract: 270_000, canonicalize: 270_000, write: 270_000 });
   });
 
   it("sends the planner contract with the bearer token and correlation headers", async () => {

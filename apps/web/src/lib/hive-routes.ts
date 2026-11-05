@@ -17,3 +17,8 @@ export function hiveStudyPath(hiveId: string): string {
 export function hiveReportsPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/reports`;
 }
+
+/** Opens the original file at a physical page for the owner (D-011). */
+export function sourcePagePath(hiveId: string, sourceDocumentId: string, pageNumber: number): string {
+  return `/api/v1/hives/${encodeURIComponent(hiveId)}/source-documents/${encodeURIComponent(sourceDocumentId)}/pages/${pageNumber}`;
+}

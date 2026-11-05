@@ -3,20 +3,46 @@ import type { BoundRef, BoundValue, NumericStatus } from "@hiveforyou/contracts"
 export const CARD_CLASS = "flex flex-col gap-3 rounded-card border border-line bg-paper px-5 py-5 sm:px-6";
 export const HEADING_CLASS = "m-0 font-brand text-[19px] font-semibold text-ink";
 
-/** Page citations for one item. Every rendered claim, row or value carries its sources. */
-export function SourceChips({ refs }: { refs: readonly BoundRef[] }) {
+/**
+ * Page citations for one item. Every rendered claim, row or value carries its sources. With `pageHref`
+ * each chip is a link that opens the original physical page.
+ */
+export function SourceChips({
+  refs,
+  pageHref,
+}: {
+  refs: readonly BoundRef[];
+  pageHref?: (ref: BoundRef) => string;
+}) {
   if (refs.length === 0) return null;
   return (
     <span className="flex flex-wrap gap-1.5" aria-label="Sources">
-      {refs.map((ref) => (
-        <span
-          key={`${ref.sourceDocumentId}:${ref.pageNumber}`}
-          className="inline-flex max-w-[240px] items-center truncate rounded-full bg-mist px-2 py-0.5 text-[11.5px] text-ink-muted"
-          title={`${ref.fileName}, page ${ref.pageNumber}`}
-        >
-          {ref.fileName} p.{ref.pageNumber}
-        </span>
-      ))}
+      {refs.map((ref) => {
+        const key = `${ref.sourceDocumentId}:${ref.pageNumber}`;
+        const label = `${ref.fileName} p.${ref.pageNumber}`;
+        const title = `${ref.fileName}, page ${ref.pageNumber}`;
+        return pageHref ? (
+          <a
+            key={key}
+            href={pageHref(ref)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex max-w-[240px] items-center truncate rounded-full bg-honey-wash px-2 py-0.5 font-mono text-[11.5px] text-honey-deep hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cell-blue"
+            title={`Open ${title}`}
+            aria-label={`Open ${title}`}
+          >
+            {label}
+          </a>
+        ) : (
+          <span
+            key={key}
+            className="inline-flex max-w-[240px] items-center truncate rounded-full bg-mist px-2 py-0.5 text-[11.5px] text-ink-muted"
+            title={title}
+          >
+            {label}
+          </span>
+        );
+      })}
     </span>
   );
 }

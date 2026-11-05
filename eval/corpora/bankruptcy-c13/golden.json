@@ -1,0 +1,139 @@
+{
+  "anchorDocument": "04_amended_plan.pdf",
+  "spineSource": "ANCHOR_CHAIN",
+  "spine": [
+    {
+      "id": "G1",
+      "label": "Plan payment of $640.00 per month for 60 months under the First Amended Plan",
+      "kind": "commitment",
+      "expectedStatus": "CURRENT",
+      "evidence": [{ "file": "04_amended_plan.pdf", "page": 1, "quoteFragment": "$640.00 per month for 60 months" }]
+    },
+    {
+      "id": "G2",
+      "label": "Original plan payment of $510.00 per month, replaced by the First Amended Plan",
+      "kind": "commitment",
+      "expectedStatus": "SUPERSEDED",
+      "evidence": [
+        { "file": "02_chapter13_plan.pdf", "page": 1, "quoteFragment": "$510.00 per month for 60 months" },
+        { "file": "04_amended_plan.pdf", "page": 1, "quoteFragment": "replaces the plan dated March 2, 2026" }
+      ]
+    },
+    {
+      "id": "G3",
+      "label": "Cure of the Cobalt Ridge mortgage prepetition arrearage of $9,600.00 through the plan",
+      "kind": "obligation",
+      "expectedStatus": "CONFLICTED",
+      "evidence": [
+        { "file": "04_amended_plan.pdf", "page": 1, "quoteFragment": "prepetition arrearage of $9,600.00" },
+        { "file": "02_chapter13_plan.pdf", "page": 1, "quoteFragment": "prepetition arrearage of $9,600.00" }
+      ]
+    },
+    {
+      "id": "G4",
+      "label": "Harborline Auto Finance full claim of $14,850.00 paid as secured at 7.5%",
+      "kind": "obligation",
+      "expectedStatus": "CURRENT",
+      "evidence": [{ "file": "04_amended_plan.pdf", "page": 1, "quoteFragment": "The full claim of $14,850.00 will be paid as a secured claim" }]
+    },
+    {
+      "id": "G5",
+      "label": "County of Westmarch priority tax claim of $2,140.00 paid in full",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "04_amended_plan.pdf", "page": 1, "quoteFragment": "priority claim of $2,140.00 will be paid in full" }]
+    },
+    {
+      "id": "G6",
+      "label": "Debtor's gross monthly wages",
+      "kind": "figure",
+      "expectedStatus": "CONFLICTED",
+      "evidence": [
+        { "file": "01_petition_schedules.pdf", "page": 29, "quoteFragment": "Gross monthly wages, salary and commissions: $4,850.00" },
+        { "file": "05_income_statement.pdf", "page": 1, "quoteFragment": "Average gross monthly wages: $5,325.00" }
+      ]
+    },
+    {
+      "id": "G7",
+      "label": "Estimated dividend of 15% to nonpriority unsecured creditors under the amended plan",
+      "kind": "figure",
+      "expectedStatus": "CURRENT",
+      "evidence": [{ "file": "04_amended_plan.pdf", "page": 1, "quoteFragment": "dividend to nonpriority unsecured creditors is 15%" }]
+    },
+    {
+      "id": "G8",
+      "label": "Confirmation hearing on May 14, 2026 at 9:30 a.m.",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "03_trustee_objection.pdf", "page": 1, "quoteFragment": "May 14, 2026 at 9:30 a.m." }]
+    },
+    {
+      "id": "G9",
+      "label": "Trustee objects to confirmation (disposable income, Harborline treatment, missing tax return)",
+      "kind": "claim",
+      "expectedStatus": "OPEN",
+      "evidence": [{ "file": "03_trustee_objection.pdf", "page": 1, "quoteFragment": "The Chapter 13 Trustee objects to confirmation" }]
+    },
+    {
+      "id": "G10",
+      "label": "Petition filed March 2, 2026",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "01_petition_schedules.pdf", "page": 1, "quoteFragment": "Date petition filed: March 2, 2026" }]
+    },
+    {
+      "id": "G11",
+      "label": "Cobalt Ridge will claim $12,180.00 in arrears and objects to a plan that does not provide for it",
+      "kind": "claim",
+      "expectedStatus": "OPEN",
+      "evidence": [{ "file": "06_creditor_letter.pdf", "page": 1, "quoteFragment": "will file a proof of claim for $12,180.00" }]
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "C1",
+      "description": "Gross monthly wages: Schedule I reports $4,850.00; the employer payment advice summary reports a six-month average of $5,325.00.",
+      "evidence": [
+        { "file": "01_petition_schedules.pdf", "page": 29, "quoteFragment": "Gross monthly wages, salary and commissions: $4,850.00" },
+        { "file": "05_income_statement.pdf", "page": 1, "quoteFragment": "Average gross monthly wages: $5,325.00" }
+      ]
+    },
+    {
+      "id": "C2",
+      "description": "Mortgage prepetition arrearage: the amended plan cures $9,600.00; Cobalt Ridge states $12,180.00 as of March 2, 2026.",
+      "evidence": [
+        { "file": "04_amended_plan.pdf", "page": 1, "quoteFragment": "prepetition arrearage of $9,600.00" },
+        { "file": "06_creditor_letter.pdf", "page": 1, "quoteFragment": "as of March 2, 2026 is $12,180.00" }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "id": "X1",
+      "description": "The Debtor's 2025 federal income tax return (Exhibit C, plan Section 9) is referenced by the plan, the Trustee's objection and the amended plan but is not in the corpus; the Trustee states it was never provided."
+    }
+  ],
+  "negativeControls": [
+    {
+      "id": "N1",
+      "statement": "The current plan payment is $510.00 per month.",
+      "why": "$510.00 is from the plan dated March 2, 2026, which the First Amended Plan (04) replaces in its entirety with $640.00 per month."
+    },
+    {
+      "id": "N2",
+      "statement": "The change in plan payment ($510.00 to $640.00) or unsecured dividend (12% to 15%) is a conflict between documents.",
+      "why": "The amended plan expressly supersedes the original; a superseded value is not a conflict."
+    },
+    {
+      "id": "N3",
+      "statement": "Under the current plan the Harborline Auto Finance claim is limited to the $11,200.00 collateral value.",
+      "why": "That cram-down was in the original plan; the amended plan pays the full $14,850.00 claim as secured."
+    },
+    {
+      "id": "N4",
+      "statement": "The 2025 federal income tax return was provided, or any statement about its contents.",
+      "why": "Exhibit C is referenced but not in the corpus, and the Trustee states it was never provided."
+    }
+  ],
+  "reviewed": false
+}

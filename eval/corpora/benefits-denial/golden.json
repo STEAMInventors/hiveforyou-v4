@@ -1,0 +1,106 @@
+{
+  "anchorDocument": "02_denial_notice.pdf",
+  "spineSource": "ANCHOR",
+  "spine": [
+    {
+      "id": "G1",
+      "label": "Application for in-home care assistance denied (Notice of Action dated July 8, 2026)",
+      "kind": "decision",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "02_denial_notice.pdf", "page": 1, "quoteFragment": "received June 3, 2026 is denied" }]
+    },
+    {
+      "id": "G2",
+      "label": "Countable resources of $8,420.00 exceed the $8,000.00 limit",
+      "kind": "figure",
+      "expectedStatus": "CONFLICTED",
+      "evidence": [{ "file": "02_denial_notice.pdf", "page": 1, "quoteFragment": "Your countable resources are $8,420.00" }]
+    },
+    {
+      "id": "G3",
+      "label": "Functional assessment score of 14, below the required 18",
+      "kind": "claim",
+      "expectedStatus": "UNSUPPORTED",
+      "evidence": [{ "file": "02_denial_notice.pdf", "page": 1, "quoteFragment": "resulted in a score of 14" }]
+    },
+    {
+      "id": "G4",
+      "label": "Fair hearing request must be received by August 7, 2026",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "02_denial_notice.pdf", "page": 1, "quoteFragment": "must be received by August 7, 2026" }]
+    },
+    {
+      "id": "G5",
+      "label": "Fair hearing request received on time (July 30, 2026)",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "06_hearing_acknowledgment.pdf", "page": 1, "quoteFragment": "Your request was received on time" }]
+    },
+    {
+      "id": "G6",
+      "label": "Fair hearing on September 15, 2026 at 10:00 a.m. by telephone",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "06_hearing_acknowledgment.pdf", "page": 1, "quoteFragment": "September 15, 2026 at 10:00 a.m." }]
+    },
+    {
+      "id": "G7",
+      "label": "Monthly income of $2,096.00 is within the $2,901.00 income limit",
+      "kind": "figure",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        { "file": "02_denial_notice.pdf", "page": 1, "quoteFragment": "within the program income limit of $2,901.00" },
+        { "file": "04_financial_statement.pdf", "page": 1, "quoteFragment": "Total monthly income: $2,096.00" }
+      ]
+    },
+    {
+      "id": "G8",
+      "label": "Physician recommends a personal care aide for at least 20 hours per week",
+      "kind": "claim",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "03_medical_summary.pdf", "page": 1, "quoteFragment": "at least 20 hours per week" }]
+    },
+    {
+      "id": "G9",
+      "label": "Prepaid burial contract of $2,270.00 is irrevocable and listed as excluded",
+      "kind": "figure",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [{ "file": "04_financial_statement.pdf", "page": 1, "quoteFragment": "irrevocable: $2,270.00 (excluded)" }]
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "C1",
+      "description": "Countable resources: the denial notice states $8,420.00; the Statement of Income and Resources totals $6,150.00 (the difference equals the $2,270.00 burial contract listed as excluded).",
+      "evidence": [
+        { "file": "02_denial_notice.pdf", "page": 1, "quoteFragment": "Your countable resources are $8,420.00" },
+        { "file": "04_financial_statement.pdf", "page": 1, "quoteFragment": "Total countable resources: $6,150.00" }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "id": "X1",
+      "description": "The in-home functional assessment record (completed June 20, 2026, score 14) that the denial relies on is not in the corpus; nothing shows how the score was reached, and the hearing acknowledgment says it is not enclosed."
+    }
+  ],
+  "negativeControls": [
+    {
+      "id": "N1",
+      "statement": "Income over the program limit is a reason for the denial.",
+      "why": "The denial notice states that monthly income of $2,096.00 is within the $2,901.00 limit and is not a reason for the decision."
+    },
+    {
+      "id": "N2",
+      "statement": "The fair hearing request was late.",
+      "why": "The request was received July 30, 2026, before the August 7, 2026 deadline, and the acknowledgment states it was received on time."
+    },
+    {
+      "id": "N3",
+      "statement": "The functional assessment record shows how the score of 14 was reached, or which areas were scored low.",
+      "why": "No assessment record is in the corpus; the acknowledgment says it is not enclosed."
+    }
+  ],
+  "reviewed": false
+}

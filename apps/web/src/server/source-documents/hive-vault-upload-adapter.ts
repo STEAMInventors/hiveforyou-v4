@@ -841,6 +841,69 @@ export async function listHiveSourceDocumentsWithV3Vault(
   };
 }
 
+/** Signed links to an original file live for one minute; the chip asks again on every click. */
+export const SOURCE_PAGE_LINK_SECONDS = 60;
+
+/**
+ * Short-lived signed URL of an owned, registered source file, opened at a physical page (D-011).
+ * Ownership is checked through the owner's session; the file is signed server-side only.
+ */
+export async function openSourceDocumentPageWithV3Vault(
+  deps: Pick<HiveVaultUploadAdapterDeps, "vault" | "store" | "loadOwnedHive">,
+  input: {
+    readonly ownerUserId: string;
+    readonly hiveId: string;
+    readonly sourceDocumentId: string;
+    readonly pageNumber: string;
+    readonly correlationId: string;
+  },
+): Promise<string> {
+  const hiveId = requireUuid(input.hiveId, input.correlationId, "Invalid Hive identifier.", "invalid_hive_id");
+  const sourceDocumentId = requireUuid(
+    input.sourceDocumentId,
+    input.correlationId,
+    "Invalid document identifier.",
+    "invalid_source_document_id",
+  );
+  const pageNumber = /^[1-9][0-9]{0,4}$/.test(input.pageNumber.trim()) ? Number(input.pageNumber.trim()) : null;
+  if (pageNumber === null) {
+    throw createHiveError({
+      errorCode: "INVALID_REQUEST",
+      category: "VALIDATION",
+      stage: "SHELL",
+      retryable: false,
+      safeMessage: "Invalid page number.",
+      correlationId: input.correlationId,
+      diagnosticReason: "invalid_page_number",
+    });
+  }
+  await deps.loadOwnedHive(input.ownerUserId, hiveId, input.correlationId);
+  const document = await deps.vault.sourceDocuments.getById(sourceDocumentId as SourceDocumentRecord["id"]);
+  if (
+    !document ||
+    document.caseId !== hiveId ||
+    document.ownerUserId !== input.ownerUserId ||
+    document.deletedAt !== null ||
+    document.lifecycleStatus !== "ACTIVE" ||
+    document.uploadStatus !== "UPLOADED"
+  ) {
+    throw createHiveError({
+      errorCode: "NOT_FOUND",
+      category: "SECURITY",
+      stage: "SHELL",
+      retryable: false,
+      safeMessage: "We could not find that document.",
+      correlationId: input.correlationId,
+      diagnosticReason: "not_found",
+    });
+  }
+  const url = await deps.store.createSignedReadUrl(
+    { bucket: document.storageBucket, path: document.storagePath },
+    SOURCE_PAGE_LINK_SECONDS,
+  );
+  return `${url}#page=${pageNumber}`;
+}
+
 export async function getUploadQuotaWithV3Vault(
   deps: Pick<HiveVaultUploadAdapterDeps, "vault" | "getQuota">,
   ownerUserId: string,

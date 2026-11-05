@@ -14,7 +14,7 @@ import {
 } from "@/lib/hive-routes";
 
 const STARTER_SITUATIONS = [
-  "Prepare for an IEP meeting",
+  "Understand what these documents mean for me",
   "Reconcile financial statements",
   "Review an insurance claim",
   "Organize an application package",

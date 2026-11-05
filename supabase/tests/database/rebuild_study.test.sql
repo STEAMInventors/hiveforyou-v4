@@ -93,33 +93,51 @@ SELECT ((SELECT result FROM t_analyze) -> 'processingRun' ->> 'id')::uuid AS id;
 GRANT SELECT ON t_analyze_id TO service_role, authenticated;
 
 SELECT public.claim_processing_run((SELECT id FROM t_analyze_id));
-SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'QUEUED', 'UNDERSTANDING_REQUEST', '{}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
-  '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-analysis/1"}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'IDENTIFYING_DOMAIN', 'DEVELOPING_QUESTIONS',
-  '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},"sampleCoverage":{"sampledPageCount":1}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'DEVELOPING_QUESTIONS', 'BUILDING_PROMPT',
-  '{"stage_outputs":{"intentIntelligence":{"schema":"hive.intent-intelligence/1"},"investigationPlan":{"schema":"hive.investigation-plan/1"}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'BUILDING_PROMPT', 'SAVING', '{}'::jsonb);
-SELECT public.save_study_prompt_preview((SELECT id FROM t_analyze_id), jsonb_build_object(
-  'prompt_id', 'hive-study-preview/1', 'prompt_version', '1',
-  'prompt_template_digest', 'sha256:' || repeat('1', 64),
-  'prompt_text', 'Synthetic rebuild baseline prompt',
-  'prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic rebuild baseline prompt', 'UTF8')), 'hex'),
-  'execution_manifest', jsonb_build_object(
-    'schema', 'hive.study-execution-manifest/1',
-    'bindings', jsonb_build_array(jsonb_build_object('format', 'hive.source-page-index/1'))
-  )));
-SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'SAVING', 'INVESTIGATING',
-  jsonb_build_object('prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic rebuild baseline prompt', 'UTF8')), 'hex')));
-SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'INVESTIGATING', 'VERIFYING_EVIDENCE',
-  '{"stage_outputs":{"studyInvestigation":{"schema":"hive.study-investigation/1","answers":[]}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'VERIFYING_EVIDENCE', 'ACCEPTING_STUDY', '{}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'QUEUED', 'EXTRACTING', '{}'::jsonb);
+SELECT public.put_doc_extraction(
+         'bbbbbbbb-0000-4000-8000-0000000000b1', 'cccccccc-0000-4000-8000-0000000000c1',
+         p.digest, 'hive-extract/1', 'sha256:' || repeat('a', 64), 'harvester',
+         jsonb_build_object('schema', 'hive.doc-extraction/1', 'documentId', 'cccccccc-0000-4000-8000-0000000000c1'),
+         '{}'::jsonb)
+  FROM t_pages p;
+SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'EXTRACTING', 'CANONICALIZING',
+  jsonb_build_object('stage_outputs', jsonb_build_object(
+    'canonicalStudy', jsonb_build_object(
+      'schema', 'hive.canonical-study/1',
+      'documents', jsonb_build_array(jsonb_build_object(
+        'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000c1',
+        'role', 'ANCHOR', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
+      )),
+      'spineSource', 'ANCHOR',
+      'spine', '[]'::jsonb,
+      'outsideSpine', '[]'::jsonb,
+      'conflicts', '[]'::jsonb,
+      'timeline', '[]'::jsonb,
+      'gaps', '[]'::jsonb,
+      'domainLabel', 'unknown'
+    ))));
+SELECT public.transition_processing_run((SELECT id FROM t_analyze_id), 'CANONICALIZING', 'ACCEPTING_STUDY', '{}'::jsonb);
 SELECT public.accept_study_revision((SELECT id FROM t_analyze_id), jsonb_build_object(
-  'investigation', jsonb_build_object('schema', 'hive.study-investigation/1', 'answers', '[]'::jsonb),
-  'verification', jsonb_build_object('schema', 'hive.study-verification/1', 'counts', '{}'::jsonb),
+  'format', 'canonical-study-1',
+  'investigation', jsonb_build_object(
+    'schema', 'hive.canonical-study/1',
+    'documents', jsonb_build_array(jsonb_build_object(
+      'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000c1',
+      'role', 'ANCHOR', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
+    )),
+    'spineSource', 'ANCHOR',
+    'spine', '[]'::jsonb,
+    'outsideSpine', '[]'::jsonb,
+    'conflicts', '[]'::jsonb,
+    'timeline', '[]'::jsonb,
+    'gaps', '[]'::jsonb,
+    'domainLabel', 'unknown'
+  ),
+  'verification', jsonb_build_object('schema', 'hive.study-verification/1', 'counts', jsonb_build_object('documentFindings', 0, 'claims', 0),
+                                     'findings', '[]'::jsonb, 'documentCoverage', '[]'::jsonb),
   'audience_configuration', jsonb_build_object('schema', 'hive.audience-configuration/1'),
   'investigation_digest', 'sha256:' || repeat('6', 64),
+  'prompt_digest', 'sha256:' || repeat('7', 64),
   'model_alias', 'heavy_lifter'));
 
 CREATE TEMP TABLE t_reports AS
@@ -274,38 +292,36 @@ SELECT ((SELECT result FROM t_rebuild) -> 'processingRun' ->> 'id')::uuid AS id;
 GRANT SELECT ON t_rebuild_id TO service_role, authenticated;
 
 SELECT public.claim_processing_run((SELECT id FROM t_rebuild_id));
-SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'QUEUED', 'UNDERSTANDING_REQUEST', '{}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
-  '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-analysis/1"}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'IDENTIFYING_DOMAIN', 'DEVELOPING_QUESTIONS',
-  '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},"sampleCoverage":{"sampledPageCount":1}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'DEVELOPING_QUESTIONS', 'BUILDING_PROMPT',
-  '{"stage_outputs":{"intentIntelligence":{"schema":"hive.intent-intelligence/1"},"investigationPlan":{"schema":"hive.investigation-plan/1"}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'BUILDING_PROMPT', 'SAVING', '{}'::jsonb);
-SELECT public.save_study_prompt_preview((SELECT id FROM t_rebuild_id), jsonb_build_object(
-  'prompt_id', 'hive-study-preview/1', 'prompt_version', '1',
-  'prompt_template_digest', 'sha256:' || repeat('2', 64),
-  'prompt_text', 'Synthetic rebuild prompt',
-  'prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic rebuild prompt', 'UTF8')), 'hex'),
-  'execution_manifest', jsonb_build_object(
-    'schema', 'hive.study-execution-manifest/1',
-    'bindings', jsonb_build_array(jsonb_build_object('format', 'hive.source-page-index/1'))
-  )));
-SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'SAVING', 'INVESTIGATING',
-  jsonb_build_object('prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic rebuild prompt', 'UTF8')), 'hex')));
-SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'INVESTIGATING', 'VERIFYING_EVIDENCE',
-  '{"stage_outputs":{"studyInvestigation":{"schema":"hive.study-investigation/1","answers":[]}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'VERIFYING_EVIDENCE', 'ACCEPTING_STUDY', '{}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'QUEUED', 'EXTRACTING', '{}'::jsonb);
+SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'EXTRACTING', 'CANONICALIZING',
+  jsonb_build_object('stage_outputs', jsonb_build_object(
+    'canonicalStudy', jsonb_build_object(
+      'schema', 'hive.canonical-study/1',
+      'documents', jsonb_build_array(jsonb_build_object(
+        'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000c1',
+        'role', 'ANCHOR', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
+      )),
+      'spineSource', 'ANCHOR',
+      'spine', '[]'::jsonb,
+      'outsideSpine', '[]'::jsonb,
+      'conflicts', '[]'::jsonb,
+      'timeline', '[]'::jsonb,
+      'gaps', '[]'::jsonb,
+      'domainLabel', 'unknown'
+    ))));
+SELECT public.transition_processing_run((SELECT id FROM t_rebuild_id), 'CANONICALIZING', 'ACCEPTING_STUDY', '{}'::jsonb);
 
 SELECT throws_ok(
   $$ SELECT public.accept_study_revision((SELECT id FROM t_rebuild_id), jsonb_build_object(
-       'investigation', jsonb_build_object('schema', 'hive.study-investigation/1', 'answers', '[]'::jsonb),
+       'format', 'canonical-study-1',
+       'investigation', jsonb_build_object('schema', 'hive.canonical-study/1', 'documents', '[]'::jsonb),
        'verification', jsonb_build_object('schema', 'hive.study-verification/1', 'counts', '{}'::jsonb),
        'audience_configuration', jsonb_build_object('schema', 'hive.audience-configuration/1'),
-       'investigation_digest', 'sha256:' || repeat('7', 64))) $$,
+       'investigation_digest', 'sha256:' || repeat('7', 64),
+       'prompt_digest', 'sha256:' || repeat('8', 64))) $$,
   'P0001',
   'study_documents_incomplete',
-  'a rebuild without a document inventory and atomic findings is not accepted');
+  'a rebuild without a document inventory is not accepted');
 
 SELECT is(
   (SELECT s.revision_number::text || ':' || (SELECT count(*) FROM hive.reports p WHERE p.study_revision_id = s.id)::text
@@ -314,24 +330,36 @@ SELECT is(
   'a failed rebuild leaves revision 6 and both reports in place');
 
 SELECT public.accept_study_revision((SELECT id FROM t_rebuild_id), jsonb_build_object(
+  'format', 'canonical-study-1',
   'investigation', jsonb_build_object(
-    'schema', 'hive.study-investigation/1',
-    'answers', '[]'::jsonb,
-    'documents', jsonb_build_array(jsonb_build_object('sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000c1', 'role', 'PRIMARY')),
-    'documentFindings', jsonb_build_array(jsonb_build_object('id', 'DF1', 'statement', 'Synthetic atomic finding.'))
+    'schema', 'hive.canonical-study/1',
+    'documents', jsonb_build_array(jsonb_build_object(
+      'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000c1',
+      'role', 'ANCHOR', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
+    )),
+    'spineSource', 'ANCHOR',
+    'spine', '[]'::jsonb,
+    'outsideSpine', '[]'::jsonb,
+    'conflicts', '[]'::jsonb,
+    'timeline', '[]'::jsonb,
+    'gaps', '[]'::jsonb,
+    'domainLabel', 'rebuilt'
   ),
   'verification', jsonb_build_object(
     'schema', 'hive.study-verification/1',
-    'counts', jsonb_build_object('documentFindings', 1)
+    'counts', jsonb_build_object('documentFindings', 0, 'claims', 0),
+    'findings', '[]'::jsonb,
+    'documentCoverage', '[]'::jsonb
   ),
   'audience_configuration', jsonb_build_object('schema', 'hive.audience-configuration/1'),
   'investigation_digest', 'sha256:' || repeat('7', 64),
+  'prompt_digest', 'sha256:' || repeat('8', 64),
   'model_alias', 'heavy_lifter'));
 
 SELECT is(
   (SELECT s.revision_number::text || ':' || coalesce(s.predecessor_revision_id = (SELECT id FROM t_rev6), false)::text
           || ':' || (SELECT count(*) FROM hive.report_runs r WHERE r.study_revision_id = s.id)::text
-          || ':' || (s.investigation ->> 'documentFindings' IS NOT NULL)::text
+          || ':' || (s.format = 'canonical-study-1')::text
      FROM hive.study_revisions s
     WHERE s.processing_run_id = (SELECT id FROM t_rebuild_id)),
   '7:true:0:true',

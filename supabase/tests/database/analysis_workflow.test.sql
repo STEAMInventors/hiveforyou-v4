@@ -231,7 +231,7 @@ SELECT is(
           || (result -> 'processingRun' ->> 'status') || ':' || (result -> 'processingRun' ->> 'coverageAcknowledgement')
           || ':' || (result -> 'processingRun' ->> 'coverageStatus')
      FROM t_ack),
-  'true:' || (SELECT id::text FROM t_id) || ':UNDERSTANDING_REQUEST:OWNER:MATERIAL_GAPS',
+  'true:' || (SELECT id::text FROM t_id) || ':EXTRACTING:OWNER:MATERIAL_GAPS',
   'acknowledging continues the same run with the gap recorded');
 
 SELECT is(
@@ -282,7 +282,7 @@ SELECT is(
   'a second invocation cannot claim the leased stage');
 
 SELECT is(
-  (public.release_processing_run((SELECT id FROM t_id), 'UNDERSTANDING_REQUEST') ->> 'released')::boolean,
+  (public.release_processing_run((SELECT id FROM t_id), 'EXTRACTING') ->> 'released')::boolean,
   true,
   'the stage is released for a fresh invocation');
 
@@ -303,7 +303,7 @@ SELECT is(
 
 SELECT is(
   (SELECT (r ->> 'retried') || ':' || (r -> 'processingRun' ->> 'stageAttempt')
-     FROM (SELECT public.retry_processing_run_stage((SELECT id FROM t_id), 'UNDERSTANDING_REQUEST',
+     FROM (SELECT public.retry_processing_run_stage((SELECT id FROM t_id), 'EXTRACTING',
              '{"error_code":"MODEL_TIMEOUT"}'::jsonb) AS r) x),
   'true:3',
   'a model timeout schedules the same stage again');
@@ -325,36 +325,30 @@ SELECT is(
   'after the backoff the retry is claimed without counting another attempt');
 
 -- ---------------------------------------------------------------------------
--- Through the stages to an accepted Canonical Study revision
+-- Through the V5 stages to an accepted Canonical Study revision
 -- ---------------------------------------------------------------------------
 SELECT is(
-  (public.transition_processing_run((SELECT id FROM t_id), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
-     '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-analysis/1"}}}'::jsonb)
+  (public.transition_processing_run((SELECT id FROM t_id), 'EXTRACTING', 'CANONICALIZING',
+     jsonb_build_object('stage_outputs', jsonb_build_object(
+       'canonicalStudy', jsonb_build_object(
+         'schema', 'hive.canonical-study/1',
+         'documents', jsonb_build_array(jsonb_build_object(
+           'sourceDocumentId', 'cccccccc-0000-4000-8000-00000000000b',
+           'role', 'ANCHOR', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
+         )),
+         'spineSource', 'ANCHOR',
+         'spine', '[]'::jsonb,
+         'outsideSpine', '[]'::jsonb,
+         'conflicts', '[]'::jsonb,
+         'timeline', '[]'::jsonb,
+         'gaps', '[]'::jsonb,
+         'domainLabel', 'unknown'
+       ))))
      -> 'processingRun' ->> 'stageAttempt'),
   '1',
   'a new stage starts at attempt one');
 
-SELECT public.transition_processing_run((SELECT id FROM t_id), 'IDENTIFYING_DOMAIN', 'DEVELOPING_QUESTIONS',
-  '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},"sampleCoverage":{"sampledPageCount":2}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_id), 'DEVELOPING_QUESTIONS', 'BUILDING_PROMPT',
-  '{"stage_outputs":{"intentIntelligence":{"schema":"hive.intent-intelligence/1"},"investigationPlan":{"schema":"hive.investigation-plan/1"}}}'::jsonb);
-SELECT public.transition_processing_run((SELECT id FROM t_id), 'BUILDING_PROMPT', 'SAVING', '{}'::jsonb);
-SELECT public.save_study_prompt_preview((SELECT id FROM t_id), jsonb_build_object(
-  'prompt_id', 'hive-study-preview/1', 'prompt_version', '1',
-  'prompt_template_digest', 'sha256:' || repeat('1', 64),
-  'prompt_text', 'Synthetic prompt',
-  'prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic prompt', 'UTF8')), 'hex'),
-  'execution_manifest', jsonb_build_object(
-    'schema', 'hive.study-execution-manifest/1',
-    'bindings', jsonb_build_array(jsonb_build_object('format', 'hive.source-page-index/1'))
-  )));
-
-SELECT is(
-  (public.transition_processing_run((SELECT id FROM t_id), 'SAVING', 'INVESTIGATING',
-     jsonb_build_object('prompt_digest', 'sha256:' || encode(sha256(convert_to('Synthetic prompt', 'UTF8')), 'hex')))
-     -> 'processingRun' ->> 'status'),
-  'INVESTIGATING',
-  'the Canonical Study starts from the saved preview');
+SELECT public.transition_processing_run((SELECT id FROM t_id), 'CANONICALIZING', 'ACCEPTING_STUDY', '{}'::jsonb);
 
 SELECT is(
   (SELECT json_array_length(r -> 'pages') || ':' || (r -> 'pages' -> 0 ->> 'sourceDocumentId') || ':' || (r ->> 'snapshotCurrent')
@@ -363,39 +357,47 @@ SELECT is(
   'the Study receives only the frozen, authorized pages');
 
 SELECT throws_ok(
-  $$ SELECT public.transition_processing_run((SELECT id FROM t_id), 'INVESTIGATING', 'VERIFYING_EVIDENCE', '{}'::jsonb) $$,
-  'P0001',
-  'stage_output_missing',
-  'verification cannot start without the study output');
-
-SELECT public.transition_processing_run((SELECT id FROM t_id), 'INVESTIGATING', 'VERIFYING_EVIDENCE',
-  '{"stage_outputs":{"studyInvestigation":{"schema":"hive.study-investigation/1","answers":[]}}}'::jsonb);
-
-SELECT throws_ok(
   $$ SELECT public.accept_study_revision((SELECT id FROM t_id), '{}'::jsonb) $$,
   'P0001',
   'processing_run_transition_invalid',
   'a study revision is accepted only from ACCEPTING_STUDY');
 
-SELECT public.transition_processing_run((SELECT id FROM t_id), 'VERIFYING_EVIDENCE', 'ACCEPTING_STUDY', '{}'::jsonb);
-
 SELECT throws_ok(
   $$ SELECT public.accept_study_revision((SELECT id FROM t_id), jsonb_build_object(
+       'format', 'canonical-study-1',
        'investigation', jsonb_build_object('schema', 'something-else'),
        'verification', jsonb_build_object('schema', 'hive.study-verification/1'),
        'audience_configuration', jsonb_build_object('schema', 'hive.audience-configuration/1'),
-       'investigation_digest', 'sha256:' || repeat('3', 64))) $$,
+       'investigation_digest', 'sha256:' || repeat('3', 64),
+       'prompt_digest', 'sha256:' || repeat('4', 64))) $$,
   '22023',
   'invalid_request',
   'an investigation with the wrong schema is refused');
 
 CREATE TEMP TABLE t_accept AS
 SELECT public.accept_study_revision((SELECT id FROM t_id), jsonb_build_object(
-         'investigation', jsonb_build_object('schema', 'hive.study-investigation/1', 'answers', '[]'::jsonb),
+         'format', 'canonical-study-1',
+         'investigation', jsonb_build_object(
+           'schema', 'hive.canonical-study/1',
+           'documents', jsonb_build_array(jsonb_build_object(
+             'sourceDocumentId', 'cccccccc-0000-4000-8000-00000000000b',
+             'role', 'ANCHOR', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
+           )),
+           'spineSource', 'ANCHOR',
+           'spine', '[]'::jsonb,
+           'outsideSpine', '[]'::jsonb,
+           'conflicts', '[]'::jsonb,
+           'timeline', '[]'::jsonb,
+           'gaps', '[]'::jsonb,
+           'domainLabel', 'unknown'
+         ),
          'verification', jsonb_build_object('schema', 'hive.study-verification/1',
-                                            'counts', jsonb_build_object('verified', 1, 'unverified', 1)),
+                                            'counts', jsonb_build_object('documentFindings', 0, 'claims', 0),
+                                            'findings', '[]'::jsonb,
+                                            'documentCoverage', '[]'::jsonb),
          'audience_configuration', jsonb_build_object('schema', 'hive.audience-configuration/1'),
          'investigation_digest', 'sha256:' || repeat('3', 64),
+         'prompt_digest', 'sha256:' || repeat('4', 64),
          'model_alias', 'heavy_lifter')) AS result;
 GRANT SELECT ON t_accept TO service_role, authenticated;
 
@@ -454,11 +456,10 @@ SELECT is(
   'the Writer reads the accepted revision only');
 
 SELECT is(
-  (SELECT (r -> 'intentDecomposition' ->> 'schema') || ':' || (r -> 'domainProposal' ->> 'schema') || ':'
-          || (r -> 'intentIntelligence' ->> 'schema') || ':' || (r -> 'investigationPlan' ->> 'schema')
+  (SELECT (r -> 'studyRevision' ->> 'format') || ':' || (r -> 'studyRevision' -> 'investigation' ->> 'schema')
      FROM (SELECT public.get_report_generation_inputs((SELECT pro FROM t_reports)) AS r) x),
-  'hive.intent-analysis/1:hive.domain-proposal/1:hive.intent-intelligence/1:hive.investigation-plan/1',
-  'get_report_generation_inputs returns persisted intent decomposition, domain proposal, specialist questions and investigation plan');
+  'canonical-study-1:hive.canonical-study/1',
+  'get_report_generation_inputs returns the V5 canonical study revision for Writer runs');
 
 -- ---------------------------------------------------------------------------
 -- Writer runs retry independently and never touch the accepted Study

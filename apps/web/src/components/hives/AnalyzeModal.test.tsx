@@ -38,6 +38,7 @@ function makeRun(status: ProcessingRunStatus, overrides: Partial<ProcessingRun> 
     snapshotFrozen: true,
     stageAttempt: 1,
     stageMetrics: [],
+    extractedDocumentCount: 0,
     errorCode: null,
     errorMessageSafe: null,
     retryable: null,
@@ -295,6 +296,31 @@ describe("AnalyzeModal", () => {
 describe("study preparation progress helpers", () => {
   it("marks every stage done on success", () => {
     expect(preparationSteps(makeRun("SUCCEEDED")).every((step) => step.state === "done")).toBe(true);
+  });
+
+  it("lists Reading, Extracting (n of m documents), Building study and Accepting for new runs", () => {
+    const docs = [DOC, "44444444-4444-4444-8444-444444444444", "88888888-8888-4888-8888-888888888888"];
+    const active = preparationSteps(
+      makeRun("EXTRACTING", { authorizedSourceDocumentIds: docs, extractedDocumentCount: 1 }),
+    );
+    expect(active.map((step) => [step.label, step.state])).toEqual([
+      ["Reading", "done"],
+      ["Extracting (1 of 3 documents)", "active"],
+      ["Building study", "pending"],
+      ["Accepting", "pending"],
+    ]);
+    const building = preparationSteps(makeRun("CANONICALIZING", { authorizedSourceDocumentIds: docs, extractedDocumentCount: 3 }));
+    expect(building[1]).toMatchObject({ label: "Extracting (3 of 3 documents)", state: "done" });
+    expect(preparationSteps(makeRun("EXTRACTING", { extractedDocumentCount: 0 }))[1]!.label).toBe(
+      "Extracting (0 of 1 document)",
+    );
+  });
+
+  it("keeps the earlier steps for an in-flight legacy run", () => {
+    const labels = preparationSteps(makeRun("INVESTIGATING")).map((step) => step.label);
+    expect(labels[0]).toBe("Reading your documents");
+    expect(labels).not.toContain("Building study");
+    expect(labels.some((label) => label.startsWith("Extracting"))).toBe(false);
   });
 
   it("stops at reading when a run fails before its snapshot is frozen", () => {

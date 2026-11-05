@@ -1,0 +1,182 @@
+{
+  "anchorDocument": "08_initial_iep.pdf",
+  "spineSource": "ANCHOR",
+  "spine": [
+    {
+      "id": "G1",
+      "label": "The IEP is an initial IEP, following an initial evaluation and initial eligibility determination; there is no prior IEP",
+      "kind": "claim",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["drafted"],
+      "evidence": [
+        { "file": "08_initial_iep.pdf", "page": 1, "quoteFragment": "Initial Individualized Education Program (IEP)" },
+        { "file": "08_initial_iep.pdf", "page": 3, "quoteFragment": "This initial IEP addresses Reading Fluency" },
+        { "file": "07_eligibility_determination.pdf", "page": 1, "quoteFragment": "Initial Eligibility Determination" },
+        { "file": "03_parent_evaluation_consent.pdf", "page": 1, "quoteFragment": "consent for an initial special-education evaluation" }
+      ]
+    },
+    {
+      "id": "G2",
+      "label": "IEP dated 2024-11-12, in effect 2024-11-12 through 2025-11-11",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["drafted"],
+      "evidence": [{ "file": "08_initial_iep.pdf", "page": 1, "quoteFragment": "2024-11-12 through 2025-11-11" }]
+    },
+    {
+      "id": "G3",
+      "label": "Eligibility category Specific Learning Disability (SLD) - Reading, determined 2024-11-01",
+      "kind": "decision",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_ELIG_CATEGORY", "generated_metadata:FACT_L001_IEP_CATEGORY"],
+      "evidence": [
+        { "file": "07_eligibility_determination.pdf", "page": 1, "quoteFragment": "Specific Learning Disability (SLD) - Reading" },
+        { "file": "08_initial_iep.pdf", "page": 1, "quoteFragment": "Specific Learning Disability (SLD) - Reading" }
+      ]
+    },
+    {
+      "id": "G4",
+      "label": "Primary educational need is Reading Fluency",
+      "kind": "decision",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_ELIG_PRIMARY_NEED (needle tightened from \"Reading Fluency\")"],
+      "evidence": [
+        { "file": "07_eligibility_determination.pdf", "page": 1, "quoteFragment": "Primary educational need: Reading Fluency" },
+        { "file": "08_initial_iep.pdf", "page": 1, "quoteFragment": "The primary educational need is Reading Fluency" }
+      ]
+    },
+    {
+      "id": "G5",
+      "label": "Oral reading fluency baseline of 42 WCPM (academic evaluation 2024-10-18)",
+      "kind": "figure",
+      "expectedStatus": "SUPPORTED",
+      "origin": [
+        "generated_metadata:FACT_L001_READING_FLUENCY_BASELINE",
+        "generated_metadata:FACT_L001_ELIG_ORF (needle tightened)",
+        "generated_metadata:FACT_L001_IEP_ORF_BASELINE (needle tightened)"
+      ],
+      "evidence": [
+        { "file": "05_academic_evaluation.pdf", "page": 1, "quoteFragment": "42 WCPM" },
+        { "file": "07_eligibility_determination.pdf", "page": 1, "quoteFragment": "oral reading fluency of 42 WCPM" },
+        { "file": "08_initial_iep.pdf", "page": 1, "quoteFragment": "reading fluency baseline of 42 WCPM" }
+      ]
+    },
+    {
+      "id": "G6",
+      "label": "Oral reading accuracy of 86%",
+      "kind": "figure",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_READING_ACCURACY", "generated_metadata:FACT_L001_ELIG_ACCURACY (needle tightened)"],
+      "evidence": [
+        { "file": "05_academic_evaluation.pdf", "page": 1, "quoteFragment": "86%" },
+        { "file": "07_eligibility_determination.pdf", "page": 1, "quoteFragment": "oral reading accuracy of 86%" },
+        { "file": "08_initial_iep.pdf", "page": 1, "quoteFragment": "oral reading accuracy of 86%" }
+      ]
+    },
+    {
+      "id": "G7",
+      "label": "Annual goal: at least 75 WCPM with at least 95% accuracy across three consecutive probes by 2025-11-11",
+      "kind": "commitment",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_IEP_GOAL_TARGET (needle tightened)", "generated_metadata:FACT_L001_IEP_ACCURACY_CRITERION (needle tightened)"],
+      "evidence": [
+        { "file": "08_initial_iep.pdf", "page": 1, "quoteFragment": "Maya will read at least 75 words correct per minute" },
+        { "file": "08_initial_iep.pdf", "page": 1, "quoteFragment": "at least 95% accuracy across three consecutive probes" },
+        { "file": "08_initial_iep.pdf", "page": 2, "quoteFragment": "Target: 75 WCPM" }
+      ]
+    },
+    {
+      "id": "G8",
+      "label": "Specialized reading instruction, 150 minutes weekly in the special education setting, from 2024-11-12",
+      "kind": "commitment",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_IEP_SERVICE_MINUTES"],
+      "evidence": [{ "file": "08_initial_iep.pdf", "page": 2, "quoteFragment": "150 minutes weekly" }]
+    },
+    {
+      "id": "G9",
+      "label": "Accommodation: extended time for classroom reading assessments",
+      "kind": "commitment",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_IEP_ACC_EXTENDED_TIME"],
+      "evidence": [{ "file": "08_initial_iep.pdf", "page": 2, "quoteFragment": "Extended time for classroom reading assessments" }]
+    },
+    {
+      "id": "G10",
+      "label": "Accommodation: directions read aloud when reading ability is not being assessed",
+      "kind": "commitment",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_IEP_ACC_DIRECTIONS"],
+      "evidence": [{ "file": "08_initial_iep.pdf", "page": 2, "quoteFragment": "Directions read aloud when reading ability is not being assessed" }]
+    },
+    {
+      "id": "G11",
+      "label": "Progress measured with oral-reading-fluency probes and reported quarterly",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["drafted"],
+      "evidence": [{ "file": "08_initial_iep.pdf", "page": 2, "quoteFragment": "reported quarterly" }]
+    },
+    {
+      "id": "G12",
+      "label": "No separate speech-language educational need; no speech-language service recommended",
+      "kind": "claim",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_SLP_CONCLUSION", "generated_metadata:FACT_L001_SLP_RECOMMENDATION", "generated_metadata:FACT_L001_ELIG_NO_SLP_NEED"],
+      "evidence": [
+        { "file": "06_speech_language_evaluation.pdf", "page": 1, "quoteFragment": "No separate speech-language educational need is identified from this evaluation" },
+        { "file": "06_speech_language_evaluation.pdf", "page": 1, "quoteFragment": "No speech-language service is recommended" },
+        { "file": "07_eligibility_determination.pdf", "page": 1, "quoteFragment": "No separate speech-language educational need is identified from this evaluation" }
+      ]
+    },
+    {
+      "id": "G13",
+      "label": "No global cognitive limitation is the primary explanation for the reading-fluency concern",
+      "kind": "claim",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_PSYCH_CONCLUSION"],
+      "evidence": [{ "file": "04_psychoeducational_evaluation.pdf", "page": 2, "quoteFragment": "No global cognitive limitation is identified as the primary explanation" }]
+    },
+    {
+      "id": "G14",
+      "label": "Academic evaluation recommends explicit systematic reading instruction, repeated oral reading practice and progress monitoring",
+      "kind": "claim",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_ACADEMIC_RECOMMENDATION"],
+      "evidence": [{ "file": "05_academic_evaluation.pdf", "page": 1, "quoteFragment": "explicit systematic reading instruction" }]
+    },
+    {
+      "id": "G15",
+      "label": "Psychoeducational evaluation recommends completing academic assessment of reading before eligibility",
+      "kind": "claim",
+      "expectedStatus": "SUPPORTED",
+      "origin": ["generated_metadata:FACT_L001_PSYCH_RECOMMENDATION"],
+      "evidence": [{ "file": "04_psychoeducational_evaluation.pdf", "page": 2, "quoteFragment": "Academic assessment of reading achievement and fluency should be completed next" }]
+    }
+  ],
+  "conflicts": [],
+  "gaps": [],
+  "negativeControls": [
+    {
+      "id": "N1",
+      "statement": "A prior IEP exists, or this IEP revises, amends or continues an earlier IEP.",
+      "why": "08 is titled Initial IEP and follows an initial evaluation (03) and an initial eligibility determination (07); no earlier IEP is referenced anywhere in the corpus."
+    },
+    {
+      "id": "N2",
+      "statement": "Speech-language services are provided.",
+      "why": "06 recommends no speech-language service and 07 records no separate speech-language need; the only service in the IEP (08 page 2) is specialized reading instruction."
+    },
+    {
+      "id": "N3",
+      "statement": "The speech-language evaluation's negative finding means there is no reading need or no eligibility.",
+      "why": "06 states the documented reading-fluency concern remains; eligibility rests on the academic and psychoeducational evidence (07)."
+    },
+    {
+      "id": "N4",
+      "statement": "The 42 WCPM baseline and the 75 WCPM target contradict each other.",
+      "why": "42 WCPM is the measured baseline and 75 WCPM is the annual goal target; a baseline and a goal are different quantities, not a conflict."
+    }
+  ],
+  "reviewed": false
+}

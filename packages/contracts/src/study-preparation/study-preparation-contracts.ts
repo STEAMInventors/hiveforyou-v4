@@ -8,7 +8,7 @@ import type {
   InvestigationPlan,
 } from "./planning-output-contracts";
 
-/** Mirrored in supabase/migrations/20261102150000_analysis_workflow.sql. */
+/** Mirrored in supabase/migrations (latest status CHECK: 20261105162000_doc_extractions_and_v5_stages.sql). */
 export const PROCESSING_RUN_STATUSES = [
   "QUEUED",
   "READING_DOCUMENTS",
@@ -21,6 +21,9 @@ export const PROCESSING_RUN_STATUSES = [
   "BUILDING_PROMPT",
   "SAVING",
   "INVESTIGATING",
+  /** V5 pipeline: one document per workflow invocation (`20261105162000`). */
+  "EXTRACTING",
+  "CANONICALIZING",
   "VERIFYING_EVIDENCE",
   "ACCEPTING_STUDY",
   "SUCCEEDED",
@@ -36,16 +39,37 @@ export const MODEL_STAGE_STATUSES = [
   "IDENTIFYING_DOMAIN",
   "DEVELOPING_QUESTIONS",
   "INVESTIGATING",
+  "EXTRACTING",
+  "CANONICALIZING",
 ] as const;
 export type ModelStageStatus = (typeof MODEL_STAGE_STATUSES)[number];
 
-/** Stages shown to the owner. SAVING ends "Constructing", ACCEPTING_STUDY ends "Checking". */
+/** Owner-visible stages for the V5 simplified pipeline (D-052). */
 export const STUDY_PREPARATION_STAGES = [
   {
     key: "READING_DOCUMENTS",
     label: "Reading your documents",
     description: "Reading every page of documents not read yet. Pages already verified are reused.",
   },
+  {
+    key: "EXTRACTING",
+    label: "Extracting",
+    description: "Extracting verified facts from each document, one document at a time.",
+  },
+  {
+    key: "CANONICALIZING",
+    label: "Building study",
+    description: "Building the canonical study from verified extractions.",
+  },
+  {
+    key: "ACCEPTING_STUDY",
+    label: "Accepting",
+    description: "Accepting the study and queueing your reports.",
+  },
+] as const;
+
+/** In-flight agentic runs (V4) still use these statuses until they finish. */
+export const LEGACY_STUDY_PREPARATION_STAGES = [
   {
     key: "UNDERSTANDING_REQUEST",
     label: "Understanding your request",
@@ -77,7 +101,10 @@ export const STUDY_PREPARATION_STAGES = [
     description: "Matching every quote to its page and recomputing every calculation before accepting the study.",
   },
 ] as const;
-export type StudyPreparationStageKey = (typeof STUDY_PREPARATION_STAGES)[number]["key"];
+
+export type StudyPreparationStageKey =
+  | (typeof STUDY_PREPARATION_STAGES)[number]["key"]
+  | (typeof LEGACY_STUDY_PREPARATION_STAGES)[number]["key"];
 
 export const DOCUMENT_EXCLUSION_REASONS = ["NOT_READ", "READ_FAILED", "UNREADABLE", "READ_ACTIVE"] as const;
 export type DocumentExclusionReason = (typeof DOCUMENT_EXCLUSION_REASONS)[number];
@@ -119,7 +146,7 @@ export const STALENESS_REASONS = [
 export type StalenessReasonKind = (typeof STALENESS_REASONS)[number];
 
 export type StageMetric = {
-  stage: ModelStageStatus | "WRITING";
+  stage: ModelStageStatus | "WRITING" | "ACCEPTING_STUDY";
   attempt?: number | null;
   outcome?: "SUCCEEDED" | "FAILED" | null;
   promptId?: string | null;
@@ -193,6 +220,8 @@ export type ProcessingRun = {
   snapshotFrozen: boolean;
   stageAttempt: number;
   stageMetrics: StageMetric[];
+  /** Documents with a cached or fresh doc_extraction for this run's frozen snapshot. */
+  extractedDocumentCount: number;
   errorCode: string | null;
   errorMessageSafe: string | null;
   retryable: boolean | null;
@@ -251,12 +280,15 @@ export type PreviewStaleness = {
 export const REPORT_RUN_STATUSES = ["QUEUED", "WRITING", "VALIDATING", "SAVING", "SUCCEEDED", "FAILED"] as const;
 export type ReportRunStatus = (typeof REPORT_RUN_STATUSES)[number];
 
+export type StudyRevisionFormat = "investigation-1" | "canonical-study-1";
+
 export type StudyRevisionSummary = {
   id: string;
   canonicalStudyId: string;
   revisionNumber: number;
   predecessorRevisionId: string | null;
   processingRunId: string;
+  format?: StudyRevisionFormat;
   coverageComplete: boolean;
   coverageStatus: CoverageStatus;
   coverageGaps: CoverageGap[];
@@ -342,16 +374,32 @@ export function isActiveProcessingRunStatus(value: unknown): boolean {
   return isProcessingRunStatus(value) && !includes(TERMINAL_PROCESSING_RUN_STATUSES, value);
 }
 
+const LEGACY_PIPELINE_STATUSES = new Set<ProcessingRunStatus>([
+  "UNDERSTANDING_REQUEST",
+  "IDENTIFYING_DOMAIN",
+  "DEVELOPING_QUESTIONS",
+  "PLANNING_INVESTIGATION",
+  "BUILDING_PROMPT",
+  "SAVING",
+  "INVESTIGATING",
+  "VERIFYING_EVIDENCE",
+]);
+
+export function isLegacyPipelineStatus(status: ProcessingRunStatus): boolean {
+  return LEGACY_PIPELINE_STATUSES.has(status);
+}
+
 /** Index into STUDY_PREPARATION_STAGES for the run's current status (-1 while queued). */
 export function stageIndexForStatus(status: ProcessingRunStatus): number {
-  const key =
-    status === "SAVING"
-      ? "BUILDING_PROMPT"
-      : status === "ACCEPTING_STUDY"
-        ? "VERIFYING_EVIDENCE"
-        : status === "AWAITING_ACKNOWLEDGEMENT"
-          ? "READING_DOCUMENTS"
-          : status;
+  if (status === "AWAITING_ACKNOWLEDGEMENT") {
+    return STUDY_PREPARATION_STAGES.findIndex((stage) => stage.key === "READING_DOCUMENTS");
+  }
+  if (isLegacyPipelineStatus(status)) {
+    const legacyKey =
+      status === "SAVING" ? "BUILDING_PROMPT" : status === "ACCEPTING_STUDY" ? "VERIFYING_EVIDENCE" : status;
+    return LEGACY_STUDY_PREPARATION_STAGES.findIndex((stage) => stage.key === legacyKey);
+  }
+  const key = status === "ACCEPTING_STUDY" ? "ACCEPTING_STUDY" : status;
   return STUDY_PREPARATION_STAGES.findIndex((stage) => stage.key === key);
 }
 
@@ -494,6 +542,12 @@ export function normalizeProcessingRun(raw: unknown): ProcessingRun | null {
         ? record.stageAttempt
         : 1,
     stageMetrics: record.stageMetrics as StageMetric[],
+    extractedDocumentCount:
+      typeof record.extractedDocumentCount === "number" &&
+      Number.isInteger(record.extractedDocumentCount) &&
+      record.extractedDocumentCount >= 0
+        ? record.extractedDocumentCount
+        : 0,
     errorCode,
     errorMessageSafe,
     retryable: typeof record.retryable === "boolean" ? record.retryable : null,
@@ -581,12 +635,16 @@ export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummar
   if (typeof record.revisionNumber !== "number" || typeof record.createdAt !== "string") return null;
   const sourceCount = nonNegativeInteger(record.sourceCount);
   const documentFindingCount = nonNegativeInteger(record.documentFindingCount);
+  const formatRaw = record.format;
+  const format: StudyRevisionFormat | undefined =
+    formatRaw === "canonical-study-1" || formatRaw === "investigation-1" ? formatRaw : undefined;
   return {
     id: (record.id as string).toLowerCase(),
     canonicalStudyId: (record.canonicalStudyId as string).toLowerCase(),
     revisionNumber: record.revisionNumber,
     predecessorRevisionId: typeof record.predecessorRevisionId === "string" ? record.predecessorRevisionId.toLowerCase() : null,
     processingRunId: (record.processingRunId as string).toLowerCase(),
+    ...(format ? { format } : {}),
     coverageComplete: record.coverageComplete === true,
     coverageStatus: includes(COVERAGE_STATUSES, record.coverageStatus)
       ? record.coverageStatus

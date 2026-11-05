@@ -5,6 +5,9 @@ import {
   type CoverageGapReason,
   isActiveProcessingRunStatus,
   isActiveReportRunStatus,
+  isLegacyPipelineStatus,
+  isProcessingRunStatus,
+  LEGACY_STUDY_PREPARATION_STAGES,
   type ProcessingRun,
   type ReportRun,
   STUDY_PREPARATION_STAGES,
@@ -24,32 +27,86 @@ export function preparationOutcome(run: Pick<ProcessingRun, "status"> | null): P
   return "failed";
 }
 
+export function usesLegacyProgress(run: Pick<ProcessingRun, "status" | "stageMetrics"> | null): boolean {
+  if (!run) return false;
+  if (isLegacyPipelineStatus(run.status)) return true;
+  return run.stageMetrics.some(
+    (metric) => isProcessingRunStatus(metric.stage) && isLegacyPipelineStatus(metric.stage),
+  );
+}
+
+function visibleStages(run: Pick<ProcessingRun, "status" | "stageMetrics"> | null) {
+  if (!usesLegacyProgress(run)) return STUDY_PREPARATION_STAGES;
+  return [STUDY_PREPARATION_STAGES[0]!, ...LEGACY_STUDY_PREPARATION_STAGES];
+}
+
+function stageProgressIndex(status: ProcessingRun["status"], legacy: boolean): number {
+  if (!legacy) return stageIndexForStatus(status);
+  if (status === "READING_DOCUMENTS" || status === "AWAITING_ACKNOWLEDGEMENT") return 0;
+  if (status === "ACCEPTING_STUDY") {
+    return LEGACY_STUDY_PREPARATION_STAGES.findIndex((stage) => stage.key === "VERIFYING_EVIDENCE") + 1;
+  }
+  const legacyIndex = stageIndexForStatus(status);
+  return legacyIndex < 0 ? legacyIndex : legacyIndex + 1;
+}
+
+function activeStageIndex(run: Pick<ProcessingRun, "status" | "stageMetrics">): number {
+  return stageProgressIndex(run.status, usesLegacyProgress(run));
+}
+
 /** The stage a stopped run stopped at, from what it persisted (frozen snapshot, stage metrics). */
-function stoppedStageIndex(run: Pick<ProcessingRun, "snapshotFrozen" | "stageMetrics">): number {
+function stoppedStageIndex(
+  run: Pick<ProcessingRun, "snapshotFrozen" | "stageMetrics">,
+  stages: readonly { key: string }[],
+  legacy: boolean,
+): number {
   let index = run.snapshotFrozen ? 1 : 0;
   for (const metric of run.stageMetrics) {
-    if (metric.stage === "WRITING") continue;
-    const stage = stageIndexForStatus(metric.stage);
+    if (metric.stage === "WRITING" || !isProcessingRunStatus(metric.stage)) continue;
+    const stage = stageProgressIndex(metric.stage, legacy);
     if (stage < 0) continue;
     index = Math.max(index, metric.outcome === "SUCCEEDED" ? stage + 1 : stage);
   }
-  return Math.min(index, STUDY_PREPARATION_STAGES.length - 1);
+  return Math.min(index, stages.length - 1);
 }
 
-/** The visible stages, derived only from the persisted run. */
+/**
+ * "Extracting (n of m documents)". n counts doc_extractions rows bound to this run's frozen snapshot
+ * (cached and freshly extracted alike), not stage metrics.
+ */
+function extractingLabel(
+  run: Pick<ProcessingRun, "extractedDocumentCount" | "authorizedSourceDocumentIds"> | null,
+  state: PreparationStepState,
+): string {
+  const total = run?.authorizedSourceDocumentIds.length ?? 0;
+  if (total === 0) return "Extracting";
+  const extracted = state === "done" ? total : Math.min(total, run?.extractedDocumentCount ?? 0);
+  return `Extracting (${extracted} of ${total} ${total === 1 ? "document" : "documents"})`;
+}
+
+/** The visible stages, derived only from the persisted run. In-flight legacy runs keep their own steps. */
 export function preparationSteps(
-  run: Pick<ProcessingRun, "status" | "stageMetrics" | "snapshotFrozen"> | null,
+  run: Pick<
+    ProcessingRun,
+    "status" | "stageMetrics" | "snapshotFrozen" | "authorizedSourceDocumentIds" | "extractedDocumentCount"
+  > | null,
 ): PreparationStep[] {
+  const stages = visibleStages(run);
   const outcome = preparationOutcome(run);
-  const activeIndex = run ? stageIndexForStatus(run.status) : -1;
-  const stoppedIndex = run && (outcome === "failed" || outcome === "needs_clarification") ? stoppedStageIndex(run) : -1;
-  return STUDY_PREPARATION_STAGES.map((stage, index) => {
+  const activeIndex = run ? activeStageIndex(run) : -1;
+  const legacy = usesLegacyProgress(run);
+  const stoppedIndex =
+    run && (outcome === "failed" || outcome === "needs_clarification") ? stoppedStageIndex(run, stages, legacy) : -1;
+  return stages.map((stage, index) => {
     let state: PreparationStepState = "pending";
     if (outcome === "succeeded") state = "done";
     else if (outcome === "awaiting") state = index === 0 ? "done" : "pending";
     else if (stoppedIndex >= 0) state = index < stoppedIndex ? "done" : index === stoppedIndex ? "stopped" : "pending";
     else if (outcome === "active") state = index < activeIndex ? "done" : index === activeIndex ? "active" : "pending";
-    return { key: stage.key, label: stage.label, description: stage.description, state };
+    let label: string = stage.label;
+    if (!legacy && stage.key === "READING_DOCUMENTS") label = "Reading";
+    if (!legacy && stage.key === "EXTRACTING") label = extractingLabel(run, state);
+    return { key: stage.key, label, description: stage.description, state };
   });
 }
 
@@ -85,8 +142,9 @@ export function preparationCopy(run: ProcessingRun | null): { title: string; sub
       sub: run.errorMessageSafe ?? "The analysis stopped before it finished. You can try again.",
     };
   }
-  const index = stageIndexForStatus(run.status);
-  const stage = index >= 0 ? STUDY_PREPARATION_STAGES[index] : null;
+  const stages = visibleStages(run);
+  const index = activeStageIndex(run);
+  const stage = index >= 0 ? stages[index] : null;
   return {
     title: stage ? `${stage.label}…` : "Getting ready…",
     sub: stage?.description ?? "Your analysis is queued and will start in a moment.",
