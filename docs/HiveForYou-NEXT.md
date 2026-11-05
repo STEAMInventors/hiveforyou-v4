@@ -1,53 +1,24 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-**Date:** 2026-11-05 | **Status:** V4-004M paused at *awaiting founder review* (implemented locally, uncommitted; no migration; no paid model run). V4-004L paused at *awaiting founder review* (implemented locally, uncommitted; no migration; no paid model run). V4-004H paused at *awaiting founder review* (committed as `2cb7113` and `1c0b2d4`; migration `20261104120000` not applied; no paid model run). V4-004G paused at *awaiting founder review* (implemented locally, uncommitted; migration `20261103190000` not applied; no paid model run). V4-004F paused at *awaiting live verification* (implemented locally, uncommitted; no paid model run). V4-004E paused at *awaiting live verification* (implemented locally, uncommitted; migration `20261102180000` not applied; no paid model run). V4-004D paused at *awaiting live verification* (implemented locally; no paid model run). V4-004C paused at *awaiting live verification* (implemented locally; no paid model run). V4-004B paused at *awaiting live verification* (implemented locally; no paid model run). V4-004A paused at *awaiting live verification* (implemented locally; `v4-planner` not rebuilt; no paid model run). V4-004 paused at *awaiting live verification* (implemented locally; migrations `20261102120000`, `20261102150000`, `20261102170000`, `20261102180000`, `20261103190000` not applied; `v4-planner` and Vercel settings not deployed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
+**Date:** 2026-11-05 | **Status:** Active ticket **V5 pipeline simplification** (D-052, D-053; V5-004 next). V4-004M and V4-004L parked as superseded by D-052. V4-004H paused at *awaiting founder review* (committed as `2cb7113` and `1c0b2d4`; migration `20261104120000` not applied; no paid model run). V4-004G paused at *awaiting founder review* (implemented locally, uncommitted; migration `20261103190000` not applied; no paid model run). V4-004F paused at *awaiting live verification* (implemented locally, uncommitted; no paid model run). V4-004E paused at *awaiting live verification* (implemented locally, uncommitted; migration `20261102180000` not applied; no paid model run). V4-004D paused at *awaiting live verification* (implemented locally; no paid model run). V4-004C paused at *awaiting live verification* (implemented locally; no paid model run). V4-004B paused at *awaiting live verification* (implemented locally; no paid model run). V4-004A paused at *awaiting live verification* (implemented locally; `v4-planner` not rebuilt; no paid model run). V4-004 paused at *awaiting live verification* (implemented locally; migrations `20261102120000`, `20261102150000`, `20261102170000`, `20261102180000`, `20261103190000` not applied; `v4-planner` and Vercel settings not deployed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
 
-> **No open engineering ticket.** V4-004M (Study agent execution policy, D-051) and V4-004L (Corpus Reconciliation Gate, D-050) are implemented locally and paused at *awaiting founder review*. V4-004H, V4-004G, V4-004F, V4-004E, V4-004D, V4-004C, V4-004B, V4-004A, V4-004 and V4-003 remain paused, not closed. Founder selects the next active ticket after review.
+> **Active ticket: V5 pipeline simplification** (D-052, D-053). V5-004 is next. V4-004M and V4-004L are parked as superseded by D-052. V4-004H, V4-004G, V4-004F, V4-004E, V4-004D, V4-004C, V4-004B, V4-004A, V4-004 and V4-003 remain paused, not closed.
 
-## Paused ticket — V4-004M Study agent execution policy (awaiting founder review)
+## Active ticket — V5 pipeline simplification
 
-**Objective:** Relax operational Study-agent budgets and guidance so an L001-shaped eight-document / seven-question investigation can finish within infrastructure limits, without weakening exact-quote validation, source authorization, atomic finding grounding, or the Corpus Reconciliation Gate (D-050).
+**Objective:** Replace the agentic Study and Writer with the simplified pipeline in `docs/HiveForYou-PIPELINE-SIMPLIFICATION-PLAN.md` (D-052, D-053). Sequence from plan §6:
 
-**Scope (D-051):**
+| Ticket | Scope | Status |
+|---|---|---|
+| **V5-000** | Decisions D-052/D-053, this plan in `docs/`, planner tasks `extract`, `canonicalize`, `write` | **Done** (planner tasks). D-052, D-053 and the plan are recorded in this documentation change. |
+| **V5-001** | Four synthetic corpora with reviewed golden labels and negative controls; eval harness | **Done** (eval corpora; golden labels awaiting founder review) |
+| **V5-002** | Extract stage and quote verification | **Done** (extract, built and unit-tested) |
+| **V5-003** | Canonicalize stage | **Done** (canonicalize, built and unit-tested) |
+| **V5-004** | Write stage and study view | **Next** |
+| **V5-005** | Additive migration; wire the new stages into the workflow and UI; export UI runs to the eval | Not started |
+| **V5-006** | Surgical removal of the old pipeline by reachability; docs sync | Not started |
 
-1. **Hard ceilings (`packages/contracts/src/analysis/study-agent.ts`, `STUDY_AGENT_BUDGET`):** 275 s wall clock, 145 s max turn, 32 rounds, 320 tool calls, 28 invalid-turn strikes, 32 calls/turn, 900k/64k tokens, USD 12 cost ceiling — each at or below Vercel/lease 300 s, TLS proxy 290 s, planner turn 240 s, and wire max 32 tool calls.
-2. **Scaled allowances (`studyAgentAllowance`):** rounds, tool calls and invalid strikes grow with question count and document count under those ceilings (includes D-050 reconciliation headroom).
-3. **Quote rejections (`study-verification.ts`, `study-agent.ts`):** typographic punctuation folding only; paraphrases, unread pages and unauthorized documents still fail; truncated-read and search-snippet guidance in tool errors.
-4. **Batching and dependency order (`study-prompt-builder.ts` section 8, `study-investigation.ts` START/NUDGE):** per-turn batching at the 32-call cap; unchanged tool set and Writer.
-5. **Verification:** `study-agent-budget.test.ts` (infrastructure ordering, L001 allowance regression, cost ceiling, quote provenance); updated `study-agent*.test.ts` and `study-investigation.test.ts`.
-
-**Implementation status (2026-11-05, local working tree, uncommitted):**
-
-- **Contracts:** `study-agent.ts`, `study-verification.ts`, `study-agent-budget.test.ts`; allowance and budget test updates.
-- **Web:** `study-investigation.ts`, `study-prompt-builder.ts` (section 8 only; `hive-study-preview/1` template digest unchanged).
-- **Verification (2026-11-05):** `npm test` — contracts **348** tests (27 files) and web **373** tests (47 files), all passed; `npm run typecheck` passed; `npm run lint` 0 errors (2 pre-existing warnings); `npm run build` passed; `git diff --check` clean. Quote provenance covered in `study-agent-budget.test.ts` (paraphrase, unread page, unauthorized document).
-- **Approval stops:** deployment, live Analyze or Rebuild, paid model run, commit, push.
-
-**Done when:** founder reviews this local implementation and verification; after a separately approved run, L001 Rebuild either completes a new reconciled revision or fails closed with adequate budget headroom while revision 6 and its reports remain.
-
-**Remaining timing risk:** one `INVESTIGATING` invocation still runs the full tool loop plus verification within the same 300 s lease; heavy verification or slow planner turns on the last seconds can still exhaust wall clock before `finish_study`.
-
-## Paused ticket — V4-004L Corpus Reconciliation Gate (awaiting founder review)
-
-**Objective:** A new Canonical Study cannot finish until every authorized document is classified and given a disposition, and every investigation question states what evidence it needed and whether it was found. The same deterministic rules apply in `StudyAgentLedger` and `verifyStudyInvestigation`, for every new Analyze and Rebuild run. Older accepted revisions, including revision 6 and its reports, are not reinterpreted.
-
-**Scope (D-050):**
-
-1. **Shared rules (`packages/contracts/src/analysis/corpus-reconciliation.ts`):** document classification (`UNDETERMINED` only with `UNCERTAIN`), dispositions (`MATERIAL_FINDINGS_RECORDED`, `NO_MATERIAL_FINDINGS`, `UNRESOLVED`), evidence needs (`FOUND`, `NOT_FOUND`, `UNCERTAIN`, `NOT_REQUIRED`), corpus inventory, and the deterministic unresolved-document coverage note. Open vocabulary; no domain or document taxonomy.
-2. **Ledger (`study-agent.ts`):** existing tools only. `finish_question` requires `evidenceNeeds`; `finish_study` requires `documentReconciliations` for every document in one call and is non-mutating on rejection; `record_document` accepts an evidence-free `UNDETERMINED` record after a read (or for a blank document); allowance scales with document count under the hard ceilings in D-051.
-3. **Verifier (`study-verification.ts`):** integrity of any present reconciliation and evidence needs; completeness, and visible `UNRESOLVED` coverage notes, when `requireCorpusReconciliation` is set. `analysis-workflow.ts` sets it for every new run.
-4. **Prompt and contract:** `hive-study-preview/1` sections 4 and 7, the code-owned section 8 (`study-prompt-builder.ts`), `START_MESSAGE` / `NUDGE_MESSAGE`, tool descriptions, and optional `documents[].reconciliation` / `answers[].evidenceNeeds` in `hive.study-investigation/1`.
-5. **Verification:** all documents accounted for; omitted `SUPPORTING` / `REFERENCE` rejected; missing and unsupported evidence needs; valid `NO_MATERIAL_FINDINGS` / `UNRESOLVED`; forged and cross-document `DF…` ids; blank documents; partial reads; a synthetic L001-shaped eight-document corpus; a non-IEP corpus (lease and invoices); a hand-built output bypassing the ledger; legacy and revision-6-shaped outputs accepted without the flag and rejected with it; an unreconciled in-flight Analyze or Rebuild fails at `VERIFYING_EVIDENCE` without `accept_study_revision` or Writer dispatch.
-
-**Implementation status (2026-11-04, local working tree, uncommitted):**
-
-- **Contracts:** new `corpus-reconciliation.ts` (+ `corpus-reconciliation.test.ts`, `study-agent-reconciliation.test.ts`); `study-agent.ts`, `study-verification.ts`, `execution-manifest-contracts.ts`, `index.ts`; synthetic fixtures in `testing/maya-fixture.ts` now record and reconcile every document.
-- **Web:** `analysis-workflow.ts` (`requireCorpusReconciliation: true`), `study-investigation.ts` (messages, document-scaled allowance), `study-prompt-builder.ts` (section 8). Writer, Oracle and SQL unchanged.
-- **Prompt and schema:** `hive-study-preview/1` template digest `sha256:ece27769…a259d5`; `hive.study-investigation/1` schema digest `sha256:245873ec…6e440` (optional fields only).
-- **Verification (2026-11-04):** `npm test` — contracts 340 tests (26 files) and web 373 tests (47 files), all passed; `npm run typecheck` passed; `npm run lint` 0 errors (2 pre-existing warnings); `npm run build` passed; `git diff --check` clean. No database test applies (no SQL change).
-- **Approval stops:** deployment, live Analyze or Rebuild, paid model run, commit, push.
-
-**Done when:** founder reviews this local implementation and verification; after a separately approved run, a new L001 Rebuild either accounts for all eight documents or fails closed while revision 6 and its reports remain.
+**Founder decision (2026-11-05):** V5-002 to V5-004 are built and unit-tested offline; paid evaluation runs happen through the UI after V5-005, scored with the eval harness via an export script.
 
 ## Paused ticket — V4-004H Explicit Rebuild Study (awaiting founder review)
 
@@ -330,10 +301,60 @@ Renumbered 2026-11-01 when Analyze / Prompt Preview became V4-004 (D-039).
 
 **Completed tickets (closed in Git, not re-opened here):** V4-001 application foundation; V4-002 authentication and owner Hives.
 
-**Parking lot:** Real-world provider data/BAAs; tokenization mechanics; alternative durable executor; professional cross-user permissions; export format/pricing; optional Domain Packs; historical V3/P2.3/P3.1 migrations; V3→V4 data migration; deep semantic domain rules; analytical track V4-A01–V4-A07 (see `HiveForYou-DEVELOPMENT-PLAN.md`).
+**Parking lot:** Real-world provider data/BAAs; tokenization mechanics; alternative durable executor; professional cross-user permissions; export format/pricing; optional Domain Packs; historical V3/P2.3/P3.1 migrations; V3→V4 data migration; deep semantic domain rules; analytical track V4-A01–V4-A07 (see `HiveForYou-DEVELOPMENT-PLAN.md`). V4-004M (Study agent execution policy) and V4-004L (Corpus Reconciliation Gate), superseded by D-052.
+
+
+## Parked as superseded by D-052 (2026-11-05)
+
+V4-004M and V4-004L are not the active ticket. Their local implementations remain; this move is documentation only.
+
+## Parked ticket — V4-004M Study agent execution policy (superseded by D-052)
+
+**Objective:** Relax operational Study-agent budgets and guidance so an L001-shaped eight-document / seven-question investigation can finish within infrastructure limits, without weakening exact-quote validation, source authorization, atomic finding grounding, or the Corpus Reconciliation Gate (D-050).
+
+**Scope (D-051):**
+
+1. **Hard ceilings (`packages/contracts/src/analysis/study-agent.ts`, `STUDY_AGENT_BUDGET`):** 275 s wall clock, 145 s max turn, 32 rounds, 320 tool calls, 28 invalid-turn strikes, 32 calls/turn, 900k/64k tokens, USD 12 cost ceiling — each at or below Vercel/lease 300 s, TLS proxy 290 s, planner turn 240 s, and wire max 32 tool calls.
+2. **Scaled allowances (`studyAgentAllowance`):** rounds, tool calls and invalid strikes grow with question count and document count under those ceilings (includes D-050 reconciliation headroom).
+3. **Quote rejections (`study-verification.ts`, `study-agent.ts`):** typographic punctuation folding only; paraphrases, unread pages and unauthorized documents still fail; truncated-read and search-snippet guidance in tool errors.
+4. **Batching and dependency order (`study-prompt-builder.ts` section 8, `study-investigation.ts` START/NUDGE):** per-turn batching at the 32-call cap; unchanged tool set and Writer.
+5. **Verification:** `study-agent-budget.test.ts` (infrastructure ordering, L001 allowance regression, cost ceiling, quote provenance); updated `study-agent*.test.ts` and `study-investigation.test.ts`.
+
+**Implementation status (2026-11-05, local working tree, uncommitted):**
+
+- **Contracts:** `study-agent.ts`, `study-verification.ts`, `study-agent-budget.test.ts`; allowance and budget test updates.
+- **Web:** `study-investigation.ts`, `study-prompt-builder.ts` (section 8 only; `hive-study-preview/1` template digest unchanged).
+- **Verification (2026-11-05):** `npm test` — contracts **348** tests (27 files) and web **373** tests (47 files), all passed; `npm run typecheck` passed; `npm run lint` 0 errors (2 pre-existing warnings); `npm run build` passed; `git diff --check` clean. Quote provenance covered in `study-agent-budget.test.ts` (paraphrase, unread page, unauthorized document).
+- **Approval stops:** deployment, live Analyze or Rebuild, paid model run, commit, push.
+
+**Done when:** founder reviews this local implementation and verification; after a separately approved run, L001 Rebuild either completes a new reconciled revision or fails closed with adequate budget headroom while revision 6 and its reports remain.
+
+**Remaining timing risk:** one `INVESTIGATING` invocation still runs the full tool loop plus verification within the same 300 s lease; heavy verification or slow planner turns on the last seconds can still exhaust wall clock before `finish_study`.
+
+## Parked ticket — V4-004L Corpus Reconciliation Gate (superseded by D-052)
+
+**Objective:** A new Canonical Study cannot finish until every authorized document is classified and given a disposition, and every investigation question states what evidence it needed and whether it was found. The same deterministic rules apply in `StudyAgentLedger` and `verifyStudyInvestigation`, for every new Analyze and Rebuild run. Older accepted revisions, including revision 6 and its reports, are not reinterpreted.
+
+**Scope (D-050):**
+
+1. **Shared rules (`packages/contracts/src/analysis/corpus-reconciliation.ts`):** document classification (`UNDETERMINED` only with `UNCERTAIN`), dispositions (`MATERIAL_FINDINGS_RECORDED`, `NO_MATERIAL_FINDINGS`, `UNRESOLVED`), evidence needs (`FOUND`, `NOT_FOUND`, `UNCERTAIN`, `NOT_REQUIRED`), corpus inventory, and the deterministic unresolved-document coverage note. Open vocabulary; no domain or document taxonomy.
+2. **Ledger (`study-agent.ts`):** existing tools only. `finish_question` requires `evidenceNeeds`; `finish_study` requires `documentReconciliations` for every document in one call and is non-mutating on rejection; `record_document` accepts an evidence-free `UNDETERMINED` record after a read (or for a blank document); allowance scales with document count under the hard ceilings in D-051.
+3. **Verifier (`study-verification.ts`):** integrity of any present reconciliation and evidence needs; completeness, and visible `UNRESOLVED` coverage notes, when `requireCorpusReconciliation` is set. `analysis-workflow.ts` sets it for every new run.
+4. **Prompt and contract:** `hive-study-preview/1` sections 4 and 7, the code-owned section 8 (`study-prompt-builder.ts`), `START_MESSAGE` / `NUDGE_MESSAGE`, tool descriptions, and optional `documents[].reconciliation` / `answers[].evidenceNeeds` in `hive.study-investigation/1`.
+5. **Verification:** all documents accounted for; omitted `SUPPORTING` / `REFERENCE` rejected; missing and unsupported evidence needs; valid `NO_MATERIAL_FINDINGS` / `UNRESOLVED`; forged and cross-document `DF…` ids; blank documents; partial reads; a synthetic L001-shaped eight-document corpus; a non-IEP corpus (lease and invoices); a hand-built output bypassing the ledger; legacy and revision-6-shaped outputs accepted without the flag and rejected with it; an unreconciled in-flight Analyze or Rebuild fails at `VERIFYING_EVIDENCE` without `accept_study_revision` or Writer dispatch.
+
+**Implementation status (2026-11-04, local working tree, uncommitted):**
+
+- **Contracts:** new `corpus-reconciliation.ts` (+ `corpus-reconciliation.test.ts`, `study-agent-reconciliation.test.ts`); `study-agent.ts`, `study-verification.ts`, `execution-manifest-contracts.ts`, `index.ts`; synthetic fixtures in `testing/maya-fixture.ts` now record and reconcile every document.
+- **Web:** `analysis-workflow.ts` (`requireCorpusReconciliation: true`), `study-investigation.ts` (messages, document-scaled allowance), `study-prompt-builder.ts` (section 8). Writer, Oracle and SQL unchanged.
+- **Prompt and schema:** `hive-study-preview/1` template digest `sha256:ece27769…a259d5`; `hive.study-investigation/1` schema digest `sha256:245873ec…6e440` (optional fields only).
+- **Verification (2026-11-04):** `npm test` — contracts 340 tests (26 files) and web 373 tests (47 files), all passed; `npm run typecheck` passed; `npm run lint` 0 errors (2 pre-existing warnings); `npm run build` passed; `git diff --check` clean. No database test applies (no SQL change).
+- **Approval stops:** deployment, live Analyze or Rebuild, paid model run, commit, push.
+
+**Done when:** founder reviews this local implementation and verification; after a separately approved run, a new L001 Rebuild either accounts for all eight documents or fails closed while revision 6 and its reports remain.
 
 **Rule:** One ticket only. Significant work follows **inspect → plan → approve → implement → verify success/failure → synchronize documents/rules → close**. No commits, pushes, deployments, SQL migrations, destructive data changes, or paid calls without authorization.
 
 ## Analytical Intelligence parking-lot note — 2026-10-31
 
-Product requirements **R65–R84** and features **F-045–F-064** add **proactive analysis discovery and scenario what-if** to the long-term V4 product direction. Decisions **D-028–D-035** record that product direction. This documentation change does **not** authorize code, schema, background jobs, LLM calls, or a new active ticket. Preserve the single active ticket (now **V4-004E**). Proposed future sequence **V4-A01–V4-A07** requires explicit ticket activation after prerequisites are met.
+Product requirements **R65–R84** and features **F-045–F-064** add **proactive analysis discovery and scenario what-if** to the long-term V4 product direction. Decisions **D-028–D-035** record that product direction. This documentation change does **not** authorize code, schema, background jobs, LLM calls, or a new active ticket. Preserve the single active ticket (now **V5 pipeline simplification**). Proposed future sequence **V4-A01–V4-A07** requires explicit ticket activation after prerequisites are met.
