@@ -966,6 +966,11 @@ export class WriterAgentLedger {
     return this.presentationPlan;
   }
 
+  /** True once `submit_editorial_plan` has stored a draft, including after semantic-review reopen. */
+  get hasEditorialPlanDraft(): boolean {
+    return this.editorialPlanDraft !== null;
+  }
+
   /**
    * Reopens an editorial-plan finish so `patch_editorial_plan` can repair semantic review failures.
    * Preserves `editorialPlanDraft` and recorded sections/view state.
@@ -1968,10 +1973,14 @@ export class WriterAgentLedger {
   }
 
   private assertEditorialPathAvailable(): void {
+    // A successful editorial compile records outline, sections, and view slots. That state is the
+    // editorial plan, not the legacy segmented-tool path. Rejecting it made every later
+    // `patch_editorial_plan` / resubmit fail as writer_output_shape on field "plan".
+    if (this.editorialPlanDraft !== null) return;
     if (this.hasSegmentedWriterProgress()) {
       throw new WriterRejection(
         "writer_output_shape",
-        "Cannot mix segmented Writer tools with editorial plan submission.",
+        "Cannot mix segmented Writer tools with editorial plan submission. This report was started with segmented Writer tools. Continue with those tools, or start a new report run for an EditorialPlan.",
         "plan",
       );
     }
@@ -2100,6 +2109,7 @@ export class WriterAgentLedger {
             : compiled.diagnosticReason === "writer_uncertainty_hidden"
               ? "Visibly surface every UNCERTAINTY (.U), CONFLICT (.K), PARTIALLY_ANSWERED LIMITATION (.L), and MISSING_EVIDENCE/CONFLICTING ANSWER claim in sections[].uncertainty."
               : undefined;
+      const repairTarget = compiled.diagnosticField ?? "the rejected unit";
       return {
         ok: false,
         finished: false,
@@ -2109,6 +2119,7 @@ export class WriterAgentLedger {
         ...(compiled.diagnosticField ? { field: compiled.diagnosticField } : {}),
         ...(compiled.component ? { component: compiled.component } : {}),
         ...(hint ? { hint } : {}),
+        nextStep: `Call patch_editorial_plan to repair only ${repairTarget}. Leave every other editorial field unchanged.`,
       };
     }
     this.commitCompiledEditorialPlan(plan, compiled);

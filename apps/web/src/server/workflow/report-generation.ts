@@ -69,6 +69,13 @@ const NUDGE_MESSAGE =
   "No tool was called. Call submit_editorial_plan with your compact EditorialPlan (or patch_editorial_plan to repair rejected editorial units).";
 
 function buildTruncationRecoveryMessage(ledger: WriterAgentLedger): string {
+  if (ledger.hasEditorialPlanDraft) {
+    const preserved =
+      ledger.acceptedSectionIds.length > 0
+        ? ` Sections [${ledger.acceptedSectionIds.join(", ")}] are already accepted and preserved.`
+        : "";
+    return `Your previous tool call exceeded the 8000-token single-turn output limit and was cut off.${preserved} Call patch_editorial_plan with only the editorial fields that still need repair. Do not resend accepted sections.`;
+  }
   if (ledger.completedSectionCount > 0) {
     return `Your previous tool call exceeded the 8000-token single-turn output limit and was cut off. Sections [${ledger.acceptedSectionIds.join(", ")}] are already accepted and preserved. Call apply_writer_correction with ONLY the remaining unrecorded units (such as scenarios and view components) in a compact batch.`;
   }

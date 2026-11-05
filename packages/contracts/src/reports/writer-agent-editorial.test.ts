@@ -169,6 +169,10 @@ describe("WriterAgentLedger editorial plan tools (V4-004K.2)", () => {
     expect(failed.ok).toBe(false);
     expect(failed.compileFailed).toBe(true);
     expect(failed.error).toBe("writer_number_ungrounded");
+    expect(failed.field).toEqual(expect.any(String));
+    expect(failed.nextStep).toBe(
+      `Call patch_editorial_plan to repair only ${String(failed.field)}. Leave every other editorial field unchanged.`,
+    );
     expect(ledger.finished).toBe(false);
 
     const patched = exec(ledger, "patch_editorial_plan", {
@@ -441,5 +445,85 @@ describe("WriterAgentLedger editorial plan tools (V4-004K.2)", () => {
     const qBlock = assembled.sections[0]?.blocks.find((b) => b.type === "QUESTION");
     expect(qBlock?.missingDocumentRequest?.requestId).toBe("mdr:p6:progress_reports");
     expect(ledger.currentPresentationPlan?.missingDocumentRequests?.[0]?.requestId).toBe("mdr:p6:progress_reports");
+  });
+
+  it("patches a finished CUSTOMER editorial plan after semantic reopen instead of rejecting field plan", () => {
+    const { claims, canonicalFindings } = buildVerifiedL001();
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+    const ledger = new WriterAgentLedger({
+      reportRunId: `${REPORT_RUN_ID}-reopen`,
+      audience: "CUSTOMER",
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    const plan = l001CustomerEditorialPlan();
+    const submitted = exec(ledger, "submit_editorial_plan", plan, "call-submit-live");
+    expect(submitted).toMatchObject({ ok: true, finished: true, compileFailed: false });
+    const sectionsRecorded = ledger.completedSectionCount;
+    const viewsRecorded = ledger.recordedViewComponentCount;
+    expect(sectionsRecorded).toBeGreaterThan(0);
+    expect(viewsRecorded).toBeGreaterThan(0);
+    expect(ledger.toolCalls).toBe(1);
+
+    ledger.reopenForSemanticReview();
+    expect(ledger.finished).toBe(false);
+    expect(ledger.hasEditorialPlanDraft).toBe(true);
+    expect(ledger.rejectedUnits).toBe(1);
+    expect(ledger.completedSectionCount).toBe(sectionsRecorded);
+    expect(ledger.recordedViewComponentCount).toBe(viewsRecorded);
+
+    const patchedTitle = "Maya Carter Initial IEP Overview for the meeting";
+    const patched = exec(
+      ledger,
+      "patch_editorial_plan",
+      { title: patchedTitle },
+      "call-patch-after-reopen",
+    );
+    expect(patched).toMatchObject({ ok: true, finished: true, compileFailed: false });
+    expect(patched.error).toBeUndefined();
+    expect(patched.field).toBeUndefined();
+    expect(ledger.assemble().title).toBe(patchedTitle);
+    expect(ledger.completedSectionCount).toBe(sectionsRecorded);
+    expect(ledger.recordedViewComponentCount).toBe(viewsRecorded);
+    expect(ledger.toolCalls).toBe(2);
+    expect(ledger.rejectedUnits).toBe(1);
+
+    const resubmitted = exec(ledger, "submit_editorial_plan", { ...plan, title: plan.title }, "call-resubmit-while-finished");
+    expect(resubmitted).toMatchObject({ ok: false, error: "report_finished" });
+  });
+
+  it("still rejects an EditorialPlan after segmented Writer tools have already recorded a section", () => {
+    const { claims, canonicalFindings } = buildVerifiedL001();
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+    const ledger = new WriterAgentLedger({
+      reportRunId: `${REPORT_RUN_ID}-mix`,
+      audience: "CUSTOMER",
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    const fact = claims.find((claim) => claim.id === "DF1");
+    expect(fact?.kind).toBe("FACT");
+    const recorded = exec(ledger, "record_section", {
+      id: "s1",
+      heading: "Recorded before the editorial plan",
+      blocks: [{ type: "DOCUMENTED", text: fact!.text, claimRefs: ["DF1"] }],
+    });
+    expect(recorded.ok).toBe(true);
+    expect(ledger.hasEditorialPlanDraft).toBe(false);
+
+    const mixed = exec(ledger, "submit_editorial_plan", l001CustomerEditorialPlan(), "call-mix-submit");
+    expect(mixed).toMatchObject({
+      ok: false,
+      compileFailed: false,
+      error: "writer_output_shape",
+      field: "plan",
+    });
+    expect(mixed.message).toContain("Cannot mix segmented Writer tools with editorial plan submission.");
+    expect(ledger.finished).toBe(false);
+    expect(ledger.completedSectionCount).toBe(1);
   });
 });

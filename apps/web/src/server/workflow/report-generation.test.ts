@@ -20,6 +20,7 @@ import {
   l001CustomerEditorialPlan,
   l001InitialIepStudyAgentTurns,
   l001ProEditorialPlan,
+  mayaEditorialPlan,
   MAYA_DOCS,
   MAYA_FILE_NAMES,
   MAYA_INTENT_ID,
@@ -2189,5 +2190,150 @@ describe("processReportRun", () => {
         },
       },
     });
+  });
+
+  it("recovers a CUSTOMER editorial plan with patch_editorial_plan after semantic review instead of exhausting rounds on writer_output_shape field plan", async () => {
+    const db = fakeDatabase("CUSTOMER");
+    const plan = mayaEditorialPlan("CUSTOMER");
+    const patchedTitle = "Maya's reading and services for the meeting";
+    const model = planner([
+      [{ id: "toolu_live_submit", name: "submit_editorial_plan", arguments: JSON.stringify(plan) }],
+      [{ id: "toolu_live_patch", name: "patch_editorial_plan", arguments: JSON.stringify({ title: patchedTitle }) }],
+    ]);
+    let reviews = 0;
+    const semanticReviewer = vi.fn(async () => {
+      reviews += 1;
+      if (reviews === 1) {
+        return [
+          {
+            field: "sections[0].blocks[1]",
+            error: "writer_semantic_unsupported" as const,
+            impact: "HIGH" as const,
+            message: "One assertion is not supported by the cited claims.",
+            hint: "Restate only what the cited claims say.",
+            citedClaimIds: ["P1.A0"],
+          },
+        ];
+      }
+      return [];
+    });
+
+    await expect(
+      runReport(
+        {
+          client: db.client,
+          planner: model.deps,
+          loadCatalog: () => loadPromptCatalog(),
+          semanticReviewer,
+        },
+        REPORT_RUN_ID,
+      ),
+    ).resolves.toBe("SUCCEEDED");
+
+    expect(semanticReviewer).toHaveBeenCalledTimes(2);
+    expect(model.bodies).toHaveLength(2);
+    expect(model.bodies[0]!.tools.map((tool) => tool.function.name)).toEqual([
+      "submit_editorial_plan",
+      "patch_editorial_plan",
+    ]);
+    const repairMessage = model.bodies[1]!.messages.filter((message) => message.role === "user").at(-1);
+    expect(repairMessage?.content).toContain("patch_editorial_plan");
+    expect(repairMessage?.content).toContain("sections[0].blocks[1]");
+    expect(repairMessage?.content).not.toContain("apply_writer_correction");
+    expect(repairMessage?.content).not.toContain("Cannot mix segmented Writer tools");
+    const saved = db.saved()!;
+    expect(saved.writer_output).toMatchObject({
+      audience: "CUSTOMER",
+      title: patchedTitle,
+    });
+    expect((saved.writer_output as { sections: unknown[]; view: unknown[] }).sections).toHaveLength(3);
+    expect((saved.writer_output as { view: unknown[] }).view).toHaveLength(8);
+    expect(db.transitions.at(-1)?.to).toBe("SAVING");
+  });
+
+  it("tells a truncated editorial repair to call patch_editorial_plan", async () => {
+    const db = fakeDatabase("CUSTOMER");
+    const plan = mayaEditorialPlan("CUSTOMER");
+    const patchedTitle = "Maya's reading and services for the meeting";
+    const bodies: StudyAgentTurnRequest[] = [];
+    let callCount = 0;
+    const fetchFn = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as StudyAgentTurnRequest;
+      bodies.push(body);
+      callCount += 1;
+      if (callCount === 2) {
+        return new Response(
+          JSON.stringify({
+            contract_version: "planner-error@1",
+            error_code: "MODEL_OUTPUT_INVALID",
+            category: "model",
+            retryable: false,
+            message_safe: "The planning answer was cut off.",
+            correlation_id: "66666666-6666-4666-8666-666666666666",
+            processing_run_id: REPORT_RUN_ID,
+            task: "writer",
+            component: "planner",
+            operation: "study_agent_turn",
+            diagnostic_reason: "model_output_truncated",
+          }),
+          {
+            status: 422,
+            headers: {
+              "Content-Type": "application/json",
+              "x-planner-error-code": "MODEL_OUTPUT_INVALID",
+              "x-planner-diagnostic-reason": "model_output_truncated",
+              "x-planner-retryable": "false",
+            },
+          },
+        );
+      }
+      if (callCount === 1) {
+        return turnResponse([{ id: "toolu_trunc_submit", name: "submit_editorial_plan", arguments: JSON.stringify(plan) }]);
+      }
+      return turnResponse([
+        { id: "toolu_trunc_patch", name: "patch_editorial_plan", arguments: JSON.stringify({ title: patchedTitle }) },
+      ]);
+    });
+    let reviews = 0;
+    const semanticReviewer = vi.fn(async () => {
+      reviews += 1;
+      if (reviews === 1) {
+        return [
+          {
+            field: "sections[0].blocks[1]",
+            error: "writer_semantic_unsupported" as const,
+            impact: "HIGH" as const,
+            message: "One assertion is not supported by the cited claims.",
+            hint: "Restate only what the cited claims say.",
+            citedClaimIds: ["P1.A0"],
+          },
+        ];
+      }
+      return [];
+    });
+
+    await expect(
+      runReport(
+        {
+          client: db.client,
+          planner: {
+            getConfig: () => ({ baseUrl: "https://reader.example.test/planner", serviceToken: "t", timeoutMs: 1000 }),
+            fetchFn: fetchFn as unknown as typeof fetch,
+          },
+          loadCatalog: () => loadPromptCatalog(),
+          semanticReviewer,
+        },
+        REPORT_RUN_ID,
+      ),
+    ).resolves.toBe("SUCCEEDED");
+
+    const recovery = bodies[2]!.messages.at(-1)!;
+    expect(recovery).toMatchObject({
+      role: "user",
+      content: expect.stringContaining("patch_editorial_plan"),
+    });
+    expect(recovery.role === "user" ? recovery.content : "").toContain("s1");
+    expect(recovery.role === "user" ? recovery.content : "").not.toContain("apply_writer_correction");
+    expect(db.saved()).toMatchObject({ writer_output: { title: patchedTitle, audience: "CUSTOMER" } });
   });
 });
