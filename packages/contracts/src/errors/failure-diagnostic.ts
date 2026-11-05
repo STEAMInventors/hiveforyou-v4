@@ -52,6 +52,138 @@ export function diagnosticFieldFromMessage(message: string): string | undefined 
   return field;
 }
 
+const ALLOWED_EXCEPTION_NAME = /^[A-Z][A-Za-z0-9]{0,63}$/;
+const LONG_QUOTED_RUN = /"[^"]{40,}"|'[^']{40,}'|`[^`]{40,}`/g;
+const ABSOLUTE_PATH =
+  /(?:[A-Za-z]:\\[^\s"'`]+|\/(?:Users|home|var|tmp|opt|private|Volumes|mnt|workspace|project|repo)[^\s"'`]*)/g;
+const STACK_FRAME =
+  /^\s*at (?:async )?(?:(.+?) \((.+):(\d+):\d+\)|(.+?):(\d+):\d+)\s*$/;
+
+const UNEXPECTED_FIELD_PREFIX = "exception@";
+const UNEXPECTED_MESSAGE_MAX = 200;
+const UNEXPECTED_FIELD_MAX = 128;
+const UNEXPECTED_ERROR_DETAIL_MAX = 480;
+
+function safeExceptionName(error: unknown): string {
+  if (error instanceof Error && ALLOWED_EXCEPTION_NAME.test(error.name)) {
+    return error.name;
+  }
+  return "Error";
+}
+
+function sanitizeUnexpectedMessage(message: string): string {
+  let sanitized = message.replace(LONG_QUOTED_RUN, "[…]").replace(ABSOLUTE_PATH, "[path]");
+  sanitized = sanitized.replace(/\s+/g, " ").trim();
+  return sanitized.slice(0, UNEXPECTED_MESSAGE_MAX);
+}
+
+function encodeFieldToken(value: string): string {
+  const encoded = value
+    .replace(/[^A-Za-z0-9_.:/@+-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+  return encoded.length > 0 ? encoded : "unknown";
+}
+
+function relativeStackPath(rawPath: string): string {
+  const normalized = rawPath.replace(/\\/g, "/").split("?")[0]?.split("#")[0] ?? rawPath;
+  const withoutScheme = normalized.replace(/^file:\/+/, "");
+  const segments = withoutScheme.split("/").filter(Boolean);
+  if (segments.length === 0) {
+    return encodeFieldToken(withoutScheme || "unknown");
+  }
+  if (segments.length === 1) {
+    return encodeFieldToken(segments[0] ?? "unknown");
+  }
+  return encodeFieldToken(`${segments[segments.length - 2]}/${segments[segments.length - 1]}`);
+}
+
+function sanitizeStackFunction(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === "<anonymous>") {
+    return "anonymous";
+  }
+  const withoutGenerics = trimmed.replace(/<[^>]+>/g, "");
+  return encodeFieldToken(withoutGenerics.slice(0, 64));
+}
+
+function unexpectedStackFrames(error: Error, limit = 3): string[] {
+  if (typeof error.stack !== "string") {
+    return [];
+  }
+  const frames: string[] = [];
+  for (const line of error.stack.split("\n").slice(1)) {
+    if (frames.length >= limit) {
+      break;
+    }
+    const match = STACK_FRAME.exec(line);
+    if (!match) {
+      continue;
+    }
+    const fn = sanitizeStackFunction(match[1] ?? match[4] ?? "anonymous");
+    const file = relativeStackPath(match[2] ?? match[4] ?? "unknown");
+    const lineNumber = match[3] ?? match[5] ?? "0";
+    frames.push(`${fn}@${file}:${lineNumber}`);
+  }
+  return frames;
+}
+
+function fitUnexpectedDiagnosticField(name: string, message: string, frames: string[]): string | null {
+  const framePart = frames.join("+");
+  const build = (messageToken: string) => {
+    const parts = [UNEXPECTED_FIELD_PREFIX.slice(0, -1), name, messageToken];
+    if (framePart.length > 0) {
+      parts.push(framePart);
+    }
+    return parts.join("@");
+  };
+
+  let messageToken = encodeFieldToken(message);
+  let field = build(messageToken);
+  while (field.length > UNEXPECTED_FIELD_MAX && messageToken.length > 0) {
+    messageToken = messageToken.slice(0, -1);
+    field = build(messageToken);
+  }
+  if (field.length > UNEXPECTED_FIELD_MAX && framePart.length > 0) {
+    field = build("");
+  }
+  if (field.length > UNEXPECTED_FIELD_MAX) {
+    field = field.slice(0, UNEXPECTED_FIELD_MAX);
+  }
+  return FIELD.test(field) ? field : null;
+}
+
+function formatUnexpectedErrorDetail(name: string, message: string, frames: string[]): string {
+  const detailMessage = sanitizeUnexpectedMessage(message);
+  const frameSuffix = frames.length > 0 ? ` | ${frames.join(" | ")}` : "";
+  const detail = `${name}: ${detailMessage}${frameSuffix}`;
+  return detail.length > UNEXPECTED_ERROR_DETAIL_MAX ? detail.slice(0, UNEXPECTED_ERROR_DETAIL_MAX) : detail;
+}
+
+/** Safe summary for `unexpected_exception` (no document text, prompts, tokens or absolute paths). */
+export function buildUnexpectedExceptionDiagnostics(cause: unknown): {
+  diagnosticField: string | null;
+  errorDetail: string;
+} {
+  if (!(cause instanceof Error)) {
+    const name = "Error";
+    const field = fitUnexpectedDiagnosticField(name, "non_error_throwable", []);
+    return {
+      diagnosticField: field,
+      errorDetail: formatUnexpectedErrorDetail(name, "non_error_throwable", []),
+    };
+  }
+
+  const name = safeExceptionName(cause);
+  const message = typeof cause.message === "string" ? cause.message : "";
+  const sanitizedMessage = sanitizeUnexpectedMessage(message);
+  const frames = unexpectedStackFrames(cause);
+  return {
+    diagnosticField: fitUnexpectedDiagnosticField(name, sanitizedMessage, frames),
+    errorDetail: formatUnexpectedErrorDetail(name, message, frames),
+  };
+}
+
 function snake(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
   return SNAKE.test(value) ? value : null;

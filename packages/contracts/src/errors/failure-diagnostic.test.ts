@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildFailureDiagnostic,
+  buildUnexpectedExceptionDiagnostics,
   classifyFailure,
   diagnosticFieldFromMessage,
   normalizeFailureDiagnostic,
@@ -94,6 +95,36 @@ describe("failure diagnostics", () => {
       "answers[0].facts[0].quote",
     );
     expect(diagnosticFieldFromMessage("The output schema is wrong.")).toBeUndefined();
+  });
+
+  it("summarizes unexpected TypeError throws with safe frames", () => {
+    const error = new TypeError("Cannot read properties of undefined (reading 'id')");
+    error.stack = [
+      "TypeError: Cannot read properties of undefined (reading 'id')",
+      "    at processChunk (C:\\\\Users\\\\dev\\\\hiveforyou-v4\\\\apps\\\\web\\\\src\\\\server\\\\workflow\\\\report-generation.ts:42:11)",
+      "    at runGeneration (C:\\\\Users\\\\dev\\\\hiveforyou-v4\\\\apps\\\\web\\\\src\\\\server\\\\workflow\\\\report-generation.ts:510:5)",
+      "    at Object.<anonymous> (node:internal/modules/cjs/loader:999:12)",
+    ].join("\n");
+
+    const summary = buildUnexpectedExceptionDiagnostics(error);
+    expect(summary.errorDetail).toContain("TypeError:");
+    expect(summary.errorDetail).toContain("Cannot read properties of undefined");
+    expect(summary.errorDetail).toContain("processChunk@workflow/report-generation.ts:42");
+    expect(summary.errorDetail).toContain("runGeneration@workflow/report-generation.ts:510");
+    expect(summary.errorDetail).not.toContain("C:\\\\Users");
+    expect(summary.diagnosticField).toMatch(/^exception@TypeError@/);
+    expect(summary.diagnosticField?.length).toBeLessThanOrEqual(128);
+  });
+
+  it("redacts long quoted document text from unexpected exception messages", () => {
+    const documentText = "The student requires extended time on all assessments per the IEP team.";
+    const paddedQuote = `"${documentText} ${"x".repeat(20)}"`;
+    const error = new Error(`Quote verification failed for ${paddedQuote}`);
+
+    const summary = buildUnexpectedExceptionDiagnostics(error);
+    expect(summary.errorDetail).toContain("[…]");
+    expect(summary.errorDetail).not.toContain(documentText);
+    expect(summary.diagnosticField).not.toContain(documentText.replace(/\s+/g, "_"));
   });
 
   it("returns only safe support rows", () => {
