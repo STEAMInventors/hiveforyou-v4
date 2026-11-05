@@ -73,7 +73,8 @@ const sentPayload = (fetchFn: ReturnType<typeof vi.fn>, call: number) =>
 
 describe("buildWritePayload", () => {
   it("sends canonical study and compact fact snippets without source document ids in facts", () => {
-    const payload = buildWritePayload(study, facts, "  A parent ", "  Understand fees ");
+    const payload = buildWritePayload(study, facts, "CUSTOMER", "  A parent ", "  Understand fees ");
+    expect(payload.reportRole).toBe("CUSTOMER");
     expect(payload.audience).toBe("A parent");
     expect(payload.intent).toBe("Understand fees");
     expect(payload.canonicalStudy).toBe(study);
@@ -90,6 +91,7 @@ describe("writeStudyView", () => {
       planner: { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
       canonicalStudy: study,
       facts,
+      reportRole: "CUSTOMER",
       audience: "Parent",
       intent: "Understand the fee",
       correlationId: CORRELATION_ID,
@@ -118,6 +120,7 @@ describe("writeStudyView", () => {
       planner: { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
       canonicalStudy: study,
       facts,
+      reportRole: "CUSTOMER",
       audience: "Parent",
       intent: "Understand the fee",
       correlationId: CORRELATION_ID,
@@ -135,6 +138,7 @@ describe("writeStudyView", () => {
       planner: { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
       canonicalStudy: study,
       facts,
+      reportRole: "CUSTOMER",
       audience: "Parent",
       intent: "Understand the fee",
       correlationId: CORRELATION_ID,
@@ -150,6 +154,7 @@ describe("writeStudyView", () => {
       planner: { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
       canonicalStudy: study,
       facts,
+      reportRole: "CUSTOMER",
       audience: "Parent",
       intent: "Understand the fee",
       correlationId: CORRELATION_ID,

@@ -71,29 +71,25 @@ function stoppedStageIndex(
 }
 
 /**
- * "Extracting (n of m documents)". n counts the documents extracted by this run; documents whose
- * extraction was reused from an earlier run record no metric, so n can trail until the stage is done.
+ * "Extracting (n of m documents)". n counts doc_extractions rows bound to this run's frozen snapshot
+ * (cached and freshly extracted alike), not stage metrics.
  */
 function extractingLabel(
-  run: Pick<ProcessingRun, "stageMetrics" | "authorizedSourceDocumentIds"> | null,
+  run: Pick<ProcessingRun, "extractedDocumentCount" | "authorizedSourceDocumentIds"> | null,
   state: PreparationStepState,
 ): string {
   const total = run?.authorizedSourceDocumentIds.length ?? 0;
   if (total === 0) return "Extracting";
-  const extracted =
-    state === "done"
-      ? total
-      : Math.min(
-          total,
-          (run?.stageMetrics ?? []).filter((metric) => metric.stage === "EXTRACTING" && metric.outcome === "SUCCEEDED")
-            .length,
-        );
+  const extracted = state === "done" ? total : Math.min(total, run?.extractedDocumentCount ?? 0);
   return `Extracting (${extracted} of ${total} ${total === 1 ? "document" : "documents"})`;
 }
 
 /** The visible stages, derived only from the persisted run. In-flight legacy runs keep their own steps. */
 export function preparationSteps(
-  run: Pick<ProcessingRun, "status" | "stageMetrics" | "snapshotFrozen" | "authorizedSourceDocumentIds"> | null,
+  run: Pick<
+    ProcessingRun,
+    "status" | "stageMetrics" | "snapshotFrozen" | "authorizedSourceDocumentIds" | "extractedDocumentCount"
+  > | null,
 ): PreparationStep[] {
   const stages = visibleStages(run);
   const outcome = preparationOutcome(run);

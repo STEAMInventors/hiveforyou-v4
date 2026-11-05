@@ -32,6 +32,7 @@ export * from "./study-preparation/execution-manifest-contracts";
 export * from "./pipeline/extraction-contracts";
 export * from "./pipeline/canonical-study-contracts";
 export * from "./pipeline/study-view-contracts";
+export * from "./pipeline/write-audience";
 export {
   checkQuote,
   type DroppedEvidence,

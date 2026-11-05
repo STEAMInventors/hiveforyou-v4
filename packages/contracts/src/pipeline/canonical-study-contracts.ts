@@ -190,7 +190,7 @@ export function parseCanonicalStudy(raw: unknown): CanonicalStudyParse {
 export type CanonicalStudyDrops = {
   /** Fact id citations removed because the id is not a verified fact of the case. */
   unknownFactIds: number;
-  /** Distinct unknown ids, for diagnosis. */
+  /** Distinct unknown ids, for troubleshooting. */
   unknownFactIdList: string[];
   /** Spine elements set to `UNSUPPORTED` because no supporting or updating fact id remained. */
   spineMarkedUnsupported: number;

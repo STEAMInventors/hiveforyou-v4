@@ -111,6 +111,7 @@ function analysisRun(status: string) {
     snapshotFrozen: frozen,
     stageAttempt: 1,
     stageMetrics: [],
+    extractedDocumentCount: 0,
     errorCode: null,
     errorMessageSafe: null,
     retryable: null,

@@ -44,6 +44,7 @@ function rawRun(overrides: Record<string, unknown> = {}) {
     snapshotFrozen: true,
     stageAttempt: 1,
     stageMetrics: [],
+    extractedDocumentCount: 0,
     errorCode: null,
     errorMessageSafe: null,
     retryable: null,

@@ -129,6 +129,7 @@ const result = await writeStudyView({
   planner,
   canonicalStudy: canonical,
   facts,
+  reportRole: "CUSTOMER",
   audience,
   intent,
   correlationId,

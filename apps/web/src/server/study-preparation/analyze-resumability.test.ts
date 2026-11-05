@@ -142,6 +142,7 @@ function createStatefulStore() {
       snapshotFrozen: run.sourceSnapshotDigest !== null,
       stageAttempt: 1,
       stageMetrics: [],
+      extractedDocumentCount: 0,
       errorCode: run.status === "FAILED" ? "SOURCE_CHANGED" : null,
       errorMessageSafe: run.status === "FAILED" ? "Your documents or request changed while analyzing." : null,
       retryable: run.status === "FAILED" ? true : null,

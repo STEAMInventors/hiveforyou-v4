@@ -6,11 +6,11 @@ SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)
 VALUES
-  ('aaaaaaaa-0000-4000-8000-0000000000v1', 'v5-owner@example.test', 'authenticated', 'authenticated'),
-  ('aaaaaaaa-0000-4000-8000-0000000000v2', 'v5-other@example.test', 'authenticated', 'authenticated');
+  ('aaaaaaaa-0000-4000-8000-0000000000e1', 'v5-owner@example.test', 'authenticated', 'authenticated'),
+  ('aaaaaaaa-0000-4000-8000-0000000000e2', 'v5-other@example.test', 'authenticated', 'authenticated');
 
 INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
-VALUES ('bbbbbbbb-0000-4000-8000-0000000000v1', 'aaaaaaaa-0000-4000-8000-0000000000v1', 'V5 Pipeline Hive',
+VALUES ('bbbbbbbb-0000-4000-8000-0000000000e1', 'aaaaaaaa-0000-4000-8000-0000000000e1', 'V5 Pipeline Hive',
         'bbbbbbbb-0000-4000-8000-0000000000f1');
 
 INSERT INTO hive.source_documents (
@@ -18,15 +18,15 @@ INSERT INTO hive.source_documents (
   storage_bucket, storage_path, upload_status, lifecycle_status, created_at
 )
 VALUES (
-  'cccccccc-0000-4000-8000-0000000000v1', 'bbbbbbbb-0000-4000-8000-0000000000v1',
-  'aaaaaaaa-0000-4000-8000-0000000000v1', 'synthetic-v5.pdf', 'application/pdf', 2048, repeat('v', 64),
+  'cccccccc-0000-4000-8000-0000000000e1', 'bbbbbbbb-0000-4000-8000-0000000000e1',
+  'aaaaaaaa-0000-4000-8000-0000000000e1', 'synthetic-v5.pdf', 'application/pdf', 2048, repeat('v', 64),
   'hive-source-documents', 'synthetic/v5.pdf', 'UPLOADED', 'ACTIVE', now() - interval '2 minutes'
 );
 
 INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, client_request_id)
 VALUES (
-  '99999999-0000-4000-8000-0000000000v1', 'bbbbbbbb-0000-4000-8000-0000000000v1',
-  'aaaaaaaa-0000-4000-8000-0000000000v1',
+  '99999999-0000-4000-8000-0000000000e1', 'bbbbbbbb-0000-4000-8000-0000000000e1',
+  'aaaaaaaa-0000-4000-8000-0000000000e1',
   'Summarize the document.', '99999999-0000-4000-8000-0000000000f1'
 );
 
@@ -51,7 +51,7 @@ GRANT SELECT ON t_pages TO service_role, authenticated;
 SET LOCAL role service_role;
 SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 SELECT public.put_document_pages(
-         'bbbbbbbb-0000-4000-8000-0000000000v1', 'cccccccc-0000-4000-8000-0000000000v1',
+         'bbbbbbbb-0000-4000-8000-0000000000e1', 'cccccccc-0000-4000-8000-0000000000e1',
          repeat('v', 64), 'reader-document-read@1:synthetic-v5', p.digest, 'SUCCEEDED',
          p.page_count, p.page_count, p.pages)
   FROM t_pages p;
@@ -61,18 +61,18 @@ INSERT INTO hive.document_reads (
   hive_id, owner_user_id, source_document_id, request_id, attempt_number, status, correlation_id,
   read_fingerprint, page_set_digest, total_physical_pages, verified_page_count, finished_at
 )
-SELECT 'bbbbbbbb-0000-4000-8000-0000000000v1', 'aaaaaaaa-0000-4000-8000-0000000000v1',
-       'cccccccc-0000-4000-8000-0000000000v1', 'dddddddd-0000-4000-8000-0000000000d0', 1, 'SUCCEEDED',
+SELECT 'bbbbbbbb-0000-4000-8000-0000000000e1', 'aaaaaaaa-0000-4000-8000-0000000000e1',
+       'cccccccc-0000-4000-8000-0000000000e1', 'dddddddd-0000-4000-8000-0000000000d0', 1, 'SUCCEEDED',
        'eeeeeeee-0000-4000-8000-0000000000e0',
        'reader-document-read@1:synthetic-v5', p.digest, p.page_count, p.page_count, now()
   FROM t_pages p;
-UPDATE hive.source_documents SET read_status = 'SUCCEEDED' WHERE id = 'cccccccc-0000-4000-8000-0000000000v1';
+UPDATE hive.source_documents SET read_status = 'SUCCEEDED' WHERE id = 'cccccccc-0000-4000-8000-0000000000e1';
 
 SET LOCAL role authenticated;
-SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000v1","role":"authenticated"}';
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000e1","role":"authenticated"}';
 CREATE TEMP TABLE t_start AS
 SELECT public.start_study_preparation(
-         'bbbbbbbb-0000-4000-8000-0000000000v1',
+         'bbbbbbbb-0000-4000-8000-0000000000e1',
          'dddddddd-0000-4000-8000-0000000000d1',
          'eeeeeeee-0000-4000-8000-0000000000e1') AS result;
 GRANT SELECT ON t_start TO service_role, authenticated;
@@ -144,7 +144,7 @@ SELECT throws_ok(
 CREATE TEMP TABLE t_extraction AS
 SELECT jsonb_build_object(
          'schema', 'hive.doc-extraction/1',
-         'documentId', 'cccccccc-0000-4000-8000-0000000000v1',
+         'documentId', 'cccccccc-0000-4000-8000-0000000000e1',
          'fileName', 'synthetic-v5.pdf',
          'pageRange', null,
          'document', jsonb_build_object(
@@ -164,8 +164,8 @@ GRANT SELECT ON t_extraction TO service_role;
 
 CREATE TEMP TABLE t_put1 AS
 SELECT public.put_doc_extraction(
-         'bbbbbbbb-0000-4000-8000-0000000000v1',
-         'cccccccc-0000-4000-8000-0000000000v1',
+         'bbbbbbbb-0000-4000-8000-0000000000e1',
+         'cccccccc-0000-4000-8000-0000000000e1',
          p.digest,
          'hive-extract/1',
          'sha256:' || repeat('a', 64),
@@ -182,8 +182,8 @@ SELECT is(
 
 CREATE TEMP TABLE t_put2 AS
 SELECT public.put_doc_extraction(
-         'bbbbbbbb-0000-4000-8000-0000000000v1',
-         'cccccccc-0000-4000-8000-0000000000v1',
+         'bbbbbbbb-0000-4000-8000-0000000000e1',
+         'cccccccc-0000-4000-8000-0000000000e1',
          p.digest,
          'hive-extract/1',
          'sha256:' || repeat('a', 64),
@@ -200,14 +200,14 @@ SELECT is(
 
 SELECT is(
   (SELECT count(*)::int FROM hive.doc_extractions
-    WHERE source_document_id = 'cccccccc-0000-4000-8000-0000000000v1'),
+    WHERE source_document_id = 'cccccccc-0000-4000-8000-0000000000e1'),
   1,
   'cache uniqueness keeps one row per document content, prompt and model');
 
 SELECT throws_ok(
   $$ SELECT public.put_doc_extraction(
-       'bbbbbbbb-0000-4000-8000-0000000000v1',
-       'cccccccc-0000-4000-8000-0000000000v1',
+       'bbbbbbbb-0000-4000-8000-0000000000e1',
+       'cccccccc-0000-4000-8000-0000000000e1',
        (SELECT digest FROM t_pages),
        'hive-extract/1',
        'sha256:' || repeat('a', 64),
@@ -228,21 +228,21 @@ SELECT is(
 -- ---------------------------------------------------------------------------
 RESET role;
 SET LOCAL role authenticated;
-SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000v1","role":"authenticated"}';
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000e1","role":"authenticated"}';
 
 SELECT is(
   (SELECT count(*)::int FROM hive.doc_extractions
-    WHERE hive_id = 'bbbbbbbb-0000-4000-8000-0000000000v1'),
+    WHERE hive_id = 'bbbbbbbb-0000-4000-8000-0000000000e1'),
   1,
   'hive owner can select doc_extractions');
 
 RESET role;
 SET LOCAL role authenticated;
-SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000v2","role":"authenticated"}';
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000e2","role":"authenticated"}';
 
 SELECT is(
   (SELECT count(*)::int FROM hive.doc_extractions
-    WHERE hive_id = 'bbbbbbbb-0000-4000-8000-0000000000v1'),
+    WHERE hive_id = 'bbbbbbbb-0000-4000-8000-0000000000e1'),
   0,
   'non-owner cannot see another hive doc_extractions');
 

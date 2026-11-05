@@ -2,6 +2,7 @@ import {
   type CanonicalStudy,
   createHiveError,
   type HiveError,
+  type ReportAudience,
   type StudyView,
   type StudyViewDrops,
   type WriteFactRecord,
@@ -26,6 +27,7 @@ export type WriteCallRecord = {
   readonly latencyMs: number | null;
   readonly roundTripMs: number;
   readonly finishReason: string | null;
+  readonly modelAlias: string | null;
   readonly resolvedModel: string | null;
   readonly errorCode: string | null;
   readonly diagnosticReason: string | null;
@@ -40,6 +42,7 @@ type CallInput = {
 export type WriteStudyInput = CallInput & {
   readonly canonicalStudy: CanonicalStudy;
   readonly facts: readonly WriteFactRecord[];
+  readonly reportRole: ReportAudience;
   readonly audience: string;
   readonly intent: string;
   readonly prompt?: WritePrompt;
@@ -59,6 +62,7 @@ export type WriteStudyResult =
 export function buildWritePayload(
   canonicalStudy: CanonicalStudy,
   facts: readonly WriteFactRecord[],
+  reportRole: ReportAudience,
   audience: string,
   intent: string,
 ) {
@@ -71,6 +75,7 @@ export function buildWritePayload(
       valueAsWritten: fact.valueAsWritten,
       quote: fact.quote,
     })),
+    reportRole,
     audience: audience.trim(),
     intent: intent.trim(),
   };
@@ -124,6 +129,7 @@ async function callWithRetry(
         latencyMs: completion.latencyMs,
         roundTripMs: completion.roundTripMs,
         finishReason: completion.finishReason,
+        modelAlias: completion.modelAlias,
         resolvedModel: completion.resolvedModel,
         errorCode: null,
         diagnosticReason: parsed.ok ? null : parsed.message,
@@ -143,6 +149,7 @@ async function callWithRetry(
         latencyMs: null,
         roundTripMs: Date.now() - started,
         finishReason: null,
+        modelAlias: null,
         resolvedModel: null,
         errorCode: hiveError.errorCode,
         diagnosticReason: reason || null,
@@ -172,7 +179,7 @@ async function callWithRetry(
 /** Runs `hive-write/1` once (retry only on unusable JSON), then `buildStudyView`. */
 export async function writeStudyView(input: WriteStudyInput): Promise<WriteStudyResult> {
   const prompt = input.prompt ?? loadPromptCatalog().write;
-  const payload = buildWritePayload(input.canonicalStudy, input.facts, input.audience, input.intent);
+  const payload = buildWritePayload(input.canonicalStudy, input.facts, input.reportRole, input.audience, input.intent);
   const calls: WriteCallRecord[] = [];
   const outcome = await callWithRetry({ ...input, prompt, payload }, calls);
   if (!outcome.ok) return { ok: false, error: outcome.error, calls };

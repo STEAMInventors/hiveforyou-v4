@@ -17,7 +17,7 @@ import { emitStructuredEvent } from "@/server/observability/logger";
 import { canonicalizeCase } from "@/server/pipeline/canonicalize-runner";
 import { extractDocument, type ExtractCallRecord } from "@/server/pipeline/extract-runner";
 import { sha256Digest } from "@/server/study-preparation/prompt-catalog";
-import { loadPromptCatalog, type PromptCatalog } from "@/server/study-preparation/prompt-catalog";
+import type { PromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 
 import type { AnalysisWorkflowDeps } from "./analysis-workflow";

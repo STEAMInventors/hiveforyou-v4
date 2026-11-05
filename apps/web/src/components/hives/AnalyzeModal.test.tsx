@@ -38,6 +38,7 @@ function makeRun(status: ProcessingRunStatus, overrides: Partial<ProcessingRun> 
     snapshotFrozen: true,
     stageAttempt: 1,
     stageMetrics: [],
+    extractedDocumentCount: 0,
     errorCode: null,
     errorMessageSafe: null,
     retryable: null,
@@ -299,9 +300,8 @@ describe("study preparation progress helpers", () => {
 
   it("lists Reading, Extracting (n of m documents), Building study and Accepting for new runs", () => {
     const docs = [DOC, "44444444-4444-4444-8444-444444444444", "88888888-8888-4888-8888-888888888888"];
-    const extracted = { stage: "EXTRACTING" as const, outcome: "SUCCEEDED" as const };
     const active = preparationSteps(
-      makeRun("EXTRACTING", { authorizedSourceDocumentIds: docs, stageMetrics: [extracted] }),
+      makeRun("EXTRACTING", { authorizedSourceDocumentIds: docs, extractedDocumentCount: 1 }),
     );
     expect(active.map((step) => [step.label, step.state])).toEqual([
       ["Reading", "done"],
@@ -309,9 +309,11 @@ describe("study preparation progress helpers", () => {
       ["Building study", "pending"],
       ["Accepting", "pending"],
     ]);
-    const building = preparationSteps(makeRun("CANONICALIZING", { authorizedSourceDocumentIds: docs, stageMetrics: [extracted] }));
+    const building = preparationSteps(makeRun("CANONICALIZING", { authorizedSourceDocumentIds: docs, extractedDocumentCount: 3 }));
     expect(building[1]).toMatchObject({ label: "Extracting (3 of 3 documents)", state: "done" });
-    expect(preparationSteps(makeRun("EXTRACTING"))[1]!.label).toBe("Extracting (0 of 1 document)");
+    expect(preparationSteps(makeRun("EXTRACTING", { extractedDocumentCount: 0 }))[1]!.label).toBe(
+      "Extracting (0 of 1 document)",
+    );
   });
 
   it("keeps the earlier steps for an in-flight legacy run", () => {

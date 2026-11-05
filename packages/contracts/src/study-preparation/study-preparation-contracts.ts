@@ -220,6 +220,8 @@ export type ProcessingRun = {
   snapshotFrozen: boolean;
   stageAttempt: number;
   stageMetrics: StageMetric[];
+  /** Documents with a cached or fresh doc_extraction for this run's frozen snapshot. */
+  extractedDocumentCount: number;
   errorCode: string | null;
   errorMessageSafe: string | null;
   retryable: boolean | null;
@@ -540,6 +542,12 @@ export function normalizeProcessingRun(raw: unknown): ProcessingRun | null {
         ? record.stageAttempt
         : 1,
     stageMetrics: record.stageMetrics as StageMetric[],
+    extractedDocumentCount:
+      typeof record.extractedDocumentCount === "number" &&
+      Number.isInteger(record.extractedDocumentCount) &&
+      record.extractedDocumentCount >= 0
+        ? record.extractedDocumentCount
+        : 0,
     errorCode,
     errorMessageSafe,
     retryable: typeof record.retryable === "boolean" ? record.retryable : null,

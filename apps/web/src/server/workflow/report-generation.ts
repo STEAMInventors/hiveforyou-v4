@@ -42,6 +42,7 @@ import {
   DOC_EXTRACTION_SCHEMA,
   type DocExtraction,
   type WriteFactRecord,
+  buildWriteAudienceText,
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
@@ -349,12 +350,6 @@ export type StudyViewGenerationInputs = {
   readonly audience: string;
 };
 
-/** Used only when no intent states an audience. */
-const DEFAULT_AUDIENCE_TEXT: Record<ReportAudience, string> = {
-  CUSTOMER: "The person who asked",
-  PRO: "A specialist reviewing the same evidence",
-};
-
 function isCanonicalStudyRevision(payload: Record<string, unknown> | null): boolean {
   return (payload?.studyRevision as { format?: unknown } | undefined)?.format === "canonical-study-1";
 }
@@ -376,12 +371,21 @@ export function studyViewInputsFrom(
     : [];
   const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
   const statedAudiences = [...new Set(intents.map((intent) => text(intent.audience)).filter((value) => value !== ""))];
+  const statedAudience = statedAudiences.join("; ");
+  const audienceConfiguration = payload?.studyRevision as { audienceConfiguration?: { pro?: { primaryRole?: unknown } } } | undefined;
+  const professionalPerspective =
+    audience === "PRO" && typeof audienceConfiguration?.audienceConfiguration?.pro?.primaryRole === "string"
+      ? audienceConfiguration.audienceConfiguration.pro.primaryRole.trim()
+      : "";
   return {
     canonicalStudy: study,
     facts: factRecordsFromExtractions(extractions),
     fileNames: fileNamesOf((payload?.sourceSnapshot ?? null) as SourceSnapshot | null),
     intent: intents.map((intent) => text(intent.intentText)).filter((value) => value !== "").join("\n\n"),
-    audience: statedAudiences.length > 0 ? statedAudiences.join("; ") : DEFAULT_AUDIENCE_TEXT[audience],
+    audience: buildWriteAudienceText(audience, {
+      statedAudience: audience === "CUSTOMER" ? statedAudience : null,
+      professionalPerspective: audience === "PRO" ? professionalPerspective || statedAudience : null,
+    }),
   };
 }
 
@@ -392,6 +396,7 @@ function writeCallsMetric(base: StageMetric, calls: readonly WriteCallRecord[]):
   const completionTokens = sum((call) => call.outputTokens);
   return {
     ...base,
+    modelAliasRequested: [...calls].reverse().find((call) => call.modelAlias)?.modelAlias ?? null,
     resolvedModel: [...calls].reverse().find((call) => call.resolvedModel)?.resolvedModel ?? null,
     promptTokens,
     completionTokens,
@@ -431,6 +436,7 @@ async function processStudyViewReportRun(
       planner: deps.planner,
       canonicalStudy: inputs.canonicalStudy,
       facts: inputs.facts,
+      reportRole: audience,
       audience: inputs.audience,
       intent: inputs.intent,
       correlationId,

@@ -2466,7 +2466,9 @@ describe("processReportRun: revision formats", () => {
       prompt_id: "hive-write/1",
       user_payload: {
         intent: "What do I have to pay?",
-        audience: "A first-time reader",
+        reportRole: "CUSTOMER",
+        audience:
+          "the person this case concerns or their family; plain language; what it means and what to do next; A first-time reader",
         canonicalStudy: v5Study,
         facts: [{ id: V5_FACT, subject: "Fee", attribute: "amount", valueAsWritten: "$10.00", quote: "The fee is $10.00." }],
       },
@@ -2478,6 +2480,7 @@ describe("processReportRun: revision formats", () => {
       stage: "WRITING",
       outcome: "SUCCEEDED",
       promptId: "hive-write/1",
+      modelAliasRequested: "harvester",
       resolvedModel: "model-w",
       promptTokens: 4000,
       completionTokens: 800,
@@ -2530,7 +2533,28 @@ describe("processReportRun: revision formats", () => {
     });
     const model = writePlanner();
     await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
-    expect(model.requests[0]!.body.user_payload.audience).toBe("A specialist reviewing the same evidence");
+    expect(model.requests[0]!.body.user_payload.audience).toBe(
+      "a professional reviewing this case on the person's behalf; precise; lead with conflicts, gaps and unsupported items",
+    );
+  });
+
+  it("sends different hive-write/1 audience inputs for Customer and Pro report runs", async () => {
+    const inputs = v5Inputs();
+    const customerDb = fakeDatabase("CUSTOMER", { inputsOverrides: inputs });
+    const customerModel = writePlanner();
+    await processReportRun({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID);
+
+    const proDb = fakeDatabase("PRO", { inputsOverrides: inputs });
+    const proModel = writePlanner();
+    await processReportRun({ client: proDb.client, planner: proModel.deps }, REPORT_RUN_ID);
+
+    const customerAudience = customerModel.requests[0]!.body.user_payload.audience as string;
+    const proAudience = proModel.requests[0]!.body.user_payload.audience as string;
+    expect(customerModel.requests[0]!.body.user_payload.reportRole).toBe("CUSTOMER");
+    expect(proModel.requests[0]!.body.user_payload.reportRole).toBe("PRO");
+    expect(customerAudience).toContain("plain language");
+    expect(proAudience).toContain("conflicts, gaps and unsupported items");
+    expect(customerAudience).not.toBe(proAudience);
   });
 
   it("still writes an investigation-1 revision with the agentic Writer", async () => {

@@ -4,27 +4,27 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)
-VALUES ('aaaaaaaa-0000-4000-8000-0000000000w1', 'v5a-owner@example.test', 'authenticated', 'authenticated');
+VALUES ('aaaaaaaa-0000-4000-8000-000000000a01', 'v5a-owner@example.test', 'authenticated', 'authenticated');
 
 INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
-VALUES ('bbbbbbbb-0000-4000-8000-0000000000w1', 'aaaaaaaa-0000-4000-8000-0000000000w1', 'V5 Part A Hive',
-        'bbbbbbbb-0000-4000-8000-0000000000f1');
+VALUES ('bbbbbbbb-0000-4000-8000-000000000a01', 'aaaaaaaa-0000-4000-8000-000000000a01', 'V5 Part A Hive',
+        'bbbbbbbb-0000-4000-8000-000000000af1');
 
 INSERT INTO hive.source_documents (
   id, case_id, owner_user_id, original_filename, mime_type, byte_size, sha256,
   storage_bucket, storage_path, upload_status, lifecycle_status, created_at
 )
 VALUES (
-  'cccccccc-0000-4000-8000-0000000000w1', 'bbbbbbbb-0000-4000-8000-0000000000w1',
-  'aaaaaaaa-0000-4000-8000-0000000000w1', 'synthetic-v5a.pdf', 'application/pdf', 2048, repeat('w', 64),
+  'cccccccc-0000-4000-8000-000000000a01', 'bbbbbbbb-0000-4000-8000-000000000a01',
+  'aaaaaaaa-0000-4000-8000-000000000a01', 'synthetic-v5a.pdf', 'application/pdf', 2048, repeat('w', 64),
   'hive-source-documents', 'synthetic/v5a.pdf', 'UPLOADED', 'ACTIVE', now() - interval '2 minutes'
 );
 
 INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, client_request_id)
 VALUES (
-  '99999999-0000-4000-8000-0000000000w1', 'bbbbbbbb-0000-4000-8000-0000000000w1',
-  'aaaaaaaa-0000-4000-8000-0000000000w1',
-  'Summarize the document.', '99999999-0000-4000-8000-0000000000f1'
+  '99999999-0000-4000-8000-000000000a01', 'bbbbbbbb-0000-4000-8000-000000000a01',
+  'aaaaaaaa-0000-4000-8000-000000000a01',
+  'Summarize the document.', '99999999-0000-4000-8000-000000000af1'
 );
 
 CREATE TEMP TABLE t_pages AS
@@ -46,7 +46,7 @@ SELECT page_count, pages, hive.compute_page_set_digest(repeat('w', 64), page_cou
 SET LOCAL role service_role;
 SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 SELECT public.put_document_pages(
-         'bbbbbbbb-0000-4000-8000-0000000000w1', 'cccccccc-0000-4000-8000-0000000000w1',
+         'bbbbbbbb-0000-4000-8000-000000000a01', 'cccccccc-0000-4000-8000-000000000a01',
          repeat('w', 64), 'reader-document-read@1:synthetic-v5a', p.digest, 'SUCCEEDED',
          p.page_count, p.page_count, p.pages)
   FROM t_pages p;
@@ -55,12 +55,12 @@ INSERT INTO hive.document_reads (
   hive_id, owner_user_id, source_document_id, request_id, attempt_number, status, correlation_id,
   read_fingerprint, page_set_digest, total_physical_pages, verified_page_count, finished_at
 )
-SELECT 'bbbbbbbb-0000-4000-8000-0000000000w1', 'aaaaaaaa-0000-4000-8000-0000000000w1',
-       'cccccccc-0000-4000-8000-0000000000w1', 'dddddddd-0000-4000-8000-0000000000w0', 1, 'SUCCEEDED',
-       'eeeeeeee-0000-4000-8000-0000000000w0',
+SELECT 'bbbbbbbb-0000-4000-8000-000000000a01', 'aaaaaaaa-0000-4000-8000-000000000a01',
+       'cccccccc-0000-4000-8000-000000000a01', 'dddddddd-0000-4000-8000-000000000a00', 1, 'SUCCEEDED',
+       'eeeeeeee-0000-4000-8000-000000000a01',
        'reader-document-read@1:synthetic-v5a', p.digest, p.page_count, p.page_count, now()
   FROM t_pages p;
-UPDATE hive.source_documents SET read_status = 'SUCCEEDED' WHERE id = 'cccccccc-0000-4000-8000-0000000000w1';
+UPDATE hive.source_documents SET read_status = 'SUCCEEDED' WHERE id = 'cccccccc-0000-4000-8000-000000000a01';
 
 CREATE TEMP TABLE t_run AS
 INSERT INTO hive.processing_runs (
@@ -71,17 +71,17 @@ INSERT INTO hive.processing_runs (
   snapshot_frozen_at, stage_attempt, next_dispatch_at
 )
 SELECT
-  'bbbbbbbb-0000-4000-8000-0000000000w1', 'aaaaaaaa-0000-4000-8000-0000000000w1', 'STUDY_PREPARATION',
-  'dddddddd-0000-4000-8000-0000000000w1', 1, 'EXTRACTING', 'eeeeeeee-0000-4000-8000-0000000000w1',
-  ARRAY['cccccccc-0000-4000-8000-0000000000w1'::uuid],
-  ARRAY['99999999-0000-4000-8000-0000000000w1'::uuid],
+  'bbbbbbbb-0000-4000-8000-000000000a01', 'aaaaaaaa-0000-4000-8000-000000000a01', 'STUDY_PREPARATION',
+  'dddddddd-0000-4000-8000-000000000a01', 1, 'EXTRACTING', 'eeeeeeee-0000-4000-8000-000000000a01',
+  ARRAY['cccccccc-0000-4000-8000-000000000a01'::uuid],
+  ARRAY['99999999-0000-4000-8000-000000000a01'::uuid],
   jsonb_build_object(
     'documents', jsonb_build_array(jsonb_build_object(
-      'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000w1',
+      'sourceDocumentId', 'cccccccc-0000-4000-8000-000000000a01',
       'fileName', 'synthetic-v5a.pdf',
       'mimeType', 'application/pdf',
       'sha256', repeat('w', 64),
-      'readId', 'dddddddd-0000-4000-8000-0000000000w0',
+      'readId', 'dddddddd-0000-4000-8000-000000000a00',
       'readStatus', 'SUCCEEDED',
       'readFingerprint', 'reader-document-read@1:synthetic-v5a',
       'pageSetDigest', p.digest,
@@ -116,25 +116,26 @@ SELECT is(
   1,
   'successful EXTRACTING handoff resets stage_attempt to 1');
 
--- accept_study_revision stores canonical-study-1 without a study prompt preview.
-UPDATE hive.processing_runs
-   SET status = 'ACCEPTING_STUDY',
-       stage_outputs = jsonb_build_object(
-         'canonicalStudy', jsonb_build_object(
-           'schema', 'hive.canonical-study/1',
-           'documents', jsonb_build_array(jsonb_build_object(
-             'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000w1',
-             'role', 'REFERENCE', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
-           )),
-           'spineSource', null,
-           'spine', '[]'::jsonb,
-           'outsideSpine', '[]'::jsonb,
-           'conflicts', '[]'::jsonb,
-           'timeline', '[]'::jsonb,
-           'gaps', '[]'::jsonb,
-           'domainLabel', 'unknown'
-         ))
- WHERE id = (SELECT id FROM t_run);
+-- V5 path: EXTRACTING -> CANONICALIZING -> ACCEPTING_STUDY before accept_study_revision.
+SELECT public.transition_processing_run(
+  (SELECT id FROM t_run), 'EXTRACTING', 'CANONICALIZING',
+  jsonb_build_object('stage_outputs', jsonb_build_object(
+    'canonicalStudy', jsonb_build_object(
+      'schema', 'hive.canonical-study/1',
+      'documents', jsonb_build_array(jsonb_build_object(
+        'sourceDocumentId', 'cccccccc-0000-4000-8000-000000000a01',
+        'role', 'REFERENCE', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
+      )),
+      'spineSource', null,
+      'spine', '[]'::jsonb,
+      'outsideSpine', '[]'::jsonb,
+      'conflicts', '[]'::jsonb,
+      'timeline', '[]'::jsonb,
+      'gaps', '[]'::jsonb,
+      'domainLabel', 'unknown'
+    ))));
+
+SELECT public.transition_processing_run((SELECT id FROM t_run), 'CANONICALIZING', 'ACCEPTING_STUDY', '{}'::jsonb);
 
 SELECT is(
   (public.accept_study_revision((SELECT id FROM t_run), jsonb_build_object(
@@ -142,7 +143,7 @@ SELECT is(
      'investigation', jsonb_build_object(
        'schema', 'hive.canonical-study/1',
        'documents', jsonb_build_array(jsonb_build_object(
-         'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000w1',
+         'sourceDocumentId', 'cccccccc-0000-4000-8000-000000000a01',
          'role', 'REFERENCE', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
        )),
        'spineSource', null,
