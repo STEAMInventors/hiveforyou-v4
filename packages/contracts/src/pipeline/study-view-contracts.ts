@@ -83,6 +83,15 @@ export type StudyView = {
   readonly blocks: readonly StudyViewBlock[];
 };
 
+/**
+ * Citation index stored next to a persisted study view: the page and quote of every fact the view
+ * cites (sentences and block values) and the file name of every document it mentions.
+ */
+export type StudyViewSources = {
+  readonly documents: Readonly<Record<string, { readonly fileName: string }>>;
+  readonly facts: Readonly<Record<string, StudyViewSourceRef>>;
+};
+
 export type WriteOutput = {
   readonly sections: readonly WriteSection[];
   readonly blocks: readonly StudyViewBlockName[];
@@ -358,4 +367,73 @@ export function buildStudyView(
       unknownFactIdsStripped,
     },
   };
+}
+
+/** Builds the citation index for a built view. Only facts the view actually cites are included. */
+export function buildStudyViewSources(
+  view: StudyView,
+  facts: readonly WriteFactRecord[],
+  fileNames: ReadonlyMap<string, string>,
+): StudyViewSources {
+  const factMap = new Map(facts.map((fact) => [fact.id, fact]));
+  const cited: Record<string, StudyViewSourceRef> = {};
+  const documentIds = new Set<string>();
+  const cite = (factId: string) => {
+    const fact = factMap.get(factId);
+    if (!fact || cited[factId]) return;
+    cited[factId] = { sourceDocumentId: fact.sourceDocumentId, pageNumber: fact.pageNumber, quote: fact.quote };
+    documentIds.add(fact.sourceDocumentId);
+  };
+  for (const section of view.sections) {
+    for (const paragraph of section.paragraphs) {
+      for (const sentence of paragraph.sentences) sentence.factIds.forEach(cite);
+    }
+  }
+  for (const block of view.blocks) {
+    for (const row of block.rows) {
+      row.values.forEach((value) => cite(value.factId));
+      if (block.name === "documents") documentIds.add(row.id);
+    }
+  }
+  const documents: Record<string, { fileName: string }> = {};
+  for (const id of documentIds) {
+    documents[id] = { fileName: fileNames.get(id.toLowerCase()) ?? fileNames.get(id) ?? "Document" };
+  }
+  return { documents, facts: cited };
+}
+
+export function isStudyView(value: unknown): value is StudyView {
+  return (
+    isRecord(value) &&
+    value.schema === STUDY_VIEW_SCHEMA &&
+    Array.isArray(value.sections) &&
+    Array.isArray(value.blocks)
+  );
+}
+
+/** Lenient read of a stored citation index; malformed entries are skipped, never invented. */
+export function normalizeStudyViewSources(raw: unknown): StudyViewSources {
+  const documents: Record<string, { fileName: string }> = {};
+  const facts: Record<string, StudyViewSourceRef> = {};
+  if (!isRecord(raw)) return { documents, facts };
+  if (isRecord(raw.documents)) {
+    for (const [id, entry] of Object.entries(raw.documents)) {
+      if (isRecord(entry) && typeof entry.fileName === "string") documents[id] = { fileName: entry.fileName };
+    }
+  }
+  if (isRecord(raw.facts)) {
+    for (const [id, entry] of Object.entries(raw.facts)) {
+      if (
+        isRecord(entry) &&
+        typeof entry.sourceDocumentId === "string" &&
+        typeof entry.pageNumber === "number" &&
+        Number.isInteger(entry.pageNumber) &&
+        entry.pageNumber > 0 &&
+        typeof entry.quote === "string"
+      ) {
+        facts[id] = { sourceDocumentId: entry.sourceDocumentId, pageNumber: entry.pageNumber, quote: entry.quote };
+      }
+    }
+  }
+  return { documents, facts };
 }

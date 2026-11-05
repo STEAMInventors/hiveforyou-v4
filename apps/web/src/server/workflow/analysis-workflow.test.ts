@@ -1,6 +1,8 @@
 import {
   buildDeterministicInvestigationPlan,
   normalizeFailureDiagnostic,
+  CANONICAL_STUDY_SCHEMA,
+  type PipelinePlannerTask,
   PLANNER_CONTRACT_VERSION,
   type PlannerTask,
   SOURCE_PAGES_PLACEHOLDER,
@@ -8,6 +10,7 @@ import {
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   type StudyAgentTurnRequest,
   studyAgentAllowance,
+  validateDocExtraction,
   validateDomainProposal,
   validateIntentAnalysis,
   validateIntentIntelligence,
@@ -80,6 +83,8 @@ function fakeDatabase(
     readsFoundGaps?: boolean;
     leased?: boolean;
     preparationMode?: "ANALYZE" | "REBUILD";
+    /** Verified extractions already cached for this snapshot's page sets. */
+    docExtractions?: { sourceDocumentId: string; extraction?: unknown }[];
   } = {},
 ) {
   const runId = options.runId ?? RUN_ID;
@@ -94,7 +99,7 @@ function fakeDatabase(
   const retries: { status: string; details: Record<string, unknown> }[] = [];
   let saved: Record<string, unknown> | null = null;
   let accepted: Record<string, unknown> | null = null;
-  const docExtractions: { sourceDocumentId: string }[] = [];
+  const docExtractions: { sourceDocumentId: string; extraction?: unknown }[] = [...(options.docExtractions ?? [])];
   const preparationMode = options.preparationMode ?? "ANALYZE";
   const run = () =>
     runJson(status, { id: runId, stageAttempt, stageMetrics: [...stageMetrics], snapshotFrozen: true, preparationMode });
@@ -181,11 +186,11 @@ function fakeDatabase(
           error: null,
         };
       case "get_doc_extractions_for_run":
-        return { data: { extractions: docExtractions.map((row) => ({ sourceDocumentId: row.sourceDocumentId })) }, error: null };
+        return { data: { extractions: docExtractions.map((row) => ({ ...row })) }, error: null };
       case "put_doc_extraction": {
         const id = String(args.p_source_document_id ?? "").toLowerCase();
         if (id && !docExtractions.some((row) => row.sourceDocumentId.toLowerCase() === id)) {
-          docExtractions.push({ sourceDocumentId: id });
+          docExtractions.push({ sourceDocumentId: id, extraction: args.p_extraction });
         }
         return { data: { saved: true }, error: null };
       }
@@ -228,6 +233,8 @@ function fakeDatabase(
     accepted: () => accepted,
     status: () => status,
     stageOutputs,
+    stageMetrics,
+    docExtractions,
   };
 }
 
@@ -273,9 +280,9 @@ function agentTurn(toolCalls: ScriptedTurn, overrides: Record<string, unknown> =
  */
 function fakePlanner(
   overrides: Partial<Record<PlannerTask, (call: number, body: AgentBody | PlannerBody) => Response | null>> = {},
-  outputs: Partial<Record<Exclude<PlannerTask, "study">, unknown>> & { study?: ScriptedTurn[] } = {},
+  outputs: Partial<Record<Exclude<PlannerTask, "study"> | PipelinePlannerTask, unknown>> & { study?: ScriptedTurn[] } = {},
 ) {
-  const all: Partial<Record<PlannerTask, unknown>> = {
+  const all: Partial<Record<PlannerTask | PipelinePlannerTask, unknown>> = {
     intent: intentOutput(),
     domain: domainOutput(),
     intelligence: intelligenceOutput(),
@@ -552,6 +559,162 @@ describe("processAnalysisRun: reading documents", () => {
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("AWAITING_ACKNOWLEDGEMENT");
     expect(planner.calls).toEqual([]);
     expect(h.dispatched).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// V5 pipeline (D-052): EXTRACTING one document per invocation → CANONICALIZING → ACCEPTING_STUDY.
+// ---------------------------------------------------------------------------
+const V5_PAGES = {
+  [`${DOC_1}:1`]: "Quote A: the total price is $1,200.00 for the year.",
+  [`${DOC_2}:1`]: "Quote B: the total price is $1,200.00 for the year.",
+};
+
+const EXTRACT_ANSWER = {
+  schema: "hive.doc-extraction/1",
+  facts: [
+    {
+      id: "F001",
+      category: "price",
+      subject: "Total price",
+      attribute: "amount",
+      valueAsWritten: "$1,200.00",
+      modality: "stated",
+      evidence: [{ page: 1, quote: "the total price is $1,200.00" }],
+    },
+  ],
+  emptyFields: [],
+  referencedDocuments: [],
+  coverage: { pageCount: 1, pagesRead: [1], truncated: false, lastPageCompleted: 1 },
+};
+
+function cachedExtraction(documentId: string, fileName: string) {
+  const validated = validateDocExtraction(
+    {
+      document: { titleAsPrinted: "Quote", documentType: "quote", issuer: { name: "Supplier" }, summary: "A quote." },
+      facts: [
+        {
+          id: `F-${documentId.slice(0, 8)}-001`,
+          subject: "Total price",
+          attribute: "amount",
+          valueAsWritten: "$1,200.00",
+          modality: "stated",
+          evidence: [{ page: 1, quote: "the total price is $1,200.00" }],
+        },
+      ],
+      emptyFields: [],
+      referencedDocuments: [],
+    },
+    { documentId, fileName, pageRange: null },
+  );
+  if (!validated.ok) throw new Error("fixture");
+  return { sourceDocumentId: documentId, extraction: validated.value };
+}
+
+const CACHED = [cachedExtraction(DOC_1, "Quote A.pdf"), cachedExtraction(DOC_2, "Quote B.pdf")];
+
+const CANONICALIZE_ANSWER = {
+  spineSource: "ANCHOR",
+  documents: [
+    { sourceDocumentId: DOC_1, role: "ANCHOR", typeInPlainWords: "quote" },
+    { sourceDocumentId: DOC_2, role: "SUPPORTING", typeInPlainWords: "quote" },
+  ],
+  spine: [
+    { id: "S9", label: "Total price", kind: "figure", status: "SUPPORTED", supportingFactIds: ["F-33333333-001", "F-44444444-001"] },
+  ],
+  conflicts: [],
+  gaps: [],
+};
+
+const extractMessage = (planner: ReturnType<typeof fakePlanner>, call: number) =>
+  String((planner.bodies[call]!.user_payload as { message?: unknown }).message);
+
+describe("processAnalysisRun: V5 pipeline", () => {
+  it("extracts one document per invocation, hands off after each, then moves to CANONICALIZING", async () => {
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const h = harness(db, planner);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
+    expect(planner.calls).toEqual(["extract"]);
+    expect(extractMessage(planner, 0)).toContain(DOC_1);
+    expect(extractMessage(planner, 0)).not.toContain(DOC_2);
+    expect(db.docExtractions.map((row) => row.sourceDocumentId)).toEqual([DOC_1]);
+    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 0 }]);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
+    expect(planner.calls).toEqual(["extract", "extract"]);
+    expect(extractMessage(planner, 1)).toContain(DOC_2);
+    expect(db.docExtractions.map((row) => row.sourceDocumentId)).toEqual([DOC_1, DOC_2]);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
+    expect(planner.calls).toHaveLength(2);
+    expect(db.transitions.map((t) => [t.from, t.to])).toEqual([
+      ["EXTRACTING", "EXTRACTING"],
+      ["EXTRACTING", "EXTRACTING"],
+      ["EXTRACTING", "CANONICALIZING"],
+    ]);
+    expect(db.stageMetrics.filter((metric) => metric.stage === "EXTRACTING")).toEqual([
+      expect.objectContaining({ outcome: "SUCCEEDED", promptId: "hive-extract/1", promptTokens: 100, completionTokens: 50 }),
+      expect.objectContaining({ outcome: "SUCCEEDED", promptId: "hive-extract/1" }),
+    ]);
+    expect(h.dispatched).toHaveLength(3);
+  });
+
+  it("skips a document whose extraction is already cached and extracts only the other one", async () => {
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, docExtractions: [CACHED[0]!] });
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const h = harness(db, planner);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
+    expect(planner.calls).toEqual(["extract"]);
+    expect(extractMessage(planner, 0)).toContain(DOC_2);
+    expect(extractMessage(planner, 0)).not.toContain(DOC_1);
+    expect(db.docExtractions.map((row) => row.sourceDocumentId)).toEqual([DOC_1, DOC_2]);
+    expect(db.docExtractions[0]).toBe(CACHED[0]);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
+    expect(planner.calls).toEqual(["extract"]);
+  });
+
+  it("CANONICALIZING builds the canonical study from cached extractions and stores it on the run", async () => {
+    const db = fakeDatabase({ status: "CANONICALIZING", docExtractions: [...CACHED] });
+    const planner = fakePlanner({}, { canonicalize: CANONICALIZE_ANSWER });
+    const h = harness(db, planner);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("ACCEPTING_STUDY");
+    expect(planner.calls).toEqual(["canonicalize"]);
+    const transition = db.transitions.at(-1)!;
+    expect([transition.from, transition.to]).toEqual(["CANONICALIZING", "ACCEPTING_STUDY"]);
+    const study = (transition.details.stage_outputs as { canonicalStudy: Record<string, unknown> }).canonicalStudy;
+    expect(study).toMatchObject({
+      schema: CANONICAL_STUDY_SCHEMA,
+      spineSource: "ANCHOR",
+      documents: [
+        expect.objectContaining({ sourceDocumentId: DOC_1, role: "ANCHOR" }),
+        expect.objectContaining({ sourceDocumentId: DOC_2, role: "SUPPORTING" }),
+      ],
+      spine: [expect.objectContaining({ id: "S1", status: "SUPPORTED", supportingFactIds: ["F-33333333-001", "F-44444444-001"] })],
+    });
+    expect(db.stageOutputs.canonicalStudy).toEqual(study);
+    expect(transition.details.stage_metric).toMatchObject({ stage: "CANONICALIZING", outcome: "SUCCEEDED", promptId: "hive-canonicalize/1" });
+    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 0 }]);
+  });
+
+  it("ACCEPTING_STUDY writes a canonical-study-1 revision and queues both Writers", async () => {
+    const db = fakeDatabase({ status: "CANONICALIZING", docExtractions: [...CACHED] });
+    const planner = fakePlanner({}, { canonicalize: CANONICALIZE_ANSWER });
+    const h = harness(db, planner);
+    await processAnalysisRun(h.deps, RUN_ID);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("SUCCEEDED");
+    expect(planner.calls).toEqual(["canonicalize"]);
+    const revision = db.accepted()!;
+    expect(revision.format).toBe("canonical-study-1");
+    expect(revision.investigation).toEqual(db.stageOutputs.canonicalStudy);
+    expect(revision.prompt_digest).toBe(loadPromptCatalog().canonicalize.digest);
+    expect(revision.investigation_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(h.dispatched.filter((item) => item.kind === "report").map((item) => item.id)).toEqual(REPORT_RUN_IDS);
   });
 });
 

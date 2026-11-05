@@ -36,9 +36,16 @@ import {
   buildSemanticReviewRepairMessage,
   reviewWriterReportSemantics,
   semanticReviewHasBlockingFindings,
+  buildStudyViewSources,
+  type CanonicalStudy,
+  CANONICAL_STUDY_SCHEMA,
+  DOC_EXTRACTION_SCHEMA,
+  type DocExtraction,
+  type WriteFactRecord,
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
+import { factRecordsFromExtractions, type WriteCallRecord, writeStudyView } from "@/server/pipeline/write-runner";
 import type { DocumentPageRpcClient } from "@/server/source-documents/document-pages-persistence";
 import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { loadPromptCatalog, type PromptCatalog, sha256Digest } from "@/server/study-preparation/prompt-catalog";
@@ -307,8 +314,7 @@ function reportDiagnostic(error: HiveError, attempt: number, stage = "WRITING") 
   });
 }
 
-async function loadGenerationInputs(client: DocumentPageRpcClient, reportRunId: string): Promise<GenerationInputs> {
-  const payload = await rpc(client, "get_report_generation_inputs", { p_report_run_id: reportRunId });
+function generationInputsFrom(payload: Record<string, unknown> | null): GenerationInputs {
   const reportRun = normalizeReportRun(payload?.reportRun);
   const revision = payload?.studyRevision as Record<string, unknown> | undefined;
   if (!reportRun || !revision || !revision.investigation || !revision.verification || !revision.audienceConfiguration) {
@@ -332,6 +338,235 @@ async function loadGenerationInputs(client: DocumentPageRpcClient, reportRunId: 
 
 function fileNamesOf(snapshot: SourceSnapshot | null): Map<string, string> {
   return new Map((snapshot?.documents ?? []).map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]));
+}
+
+/** Inputs for `hive-write/1` on a `canonical-study-1` revision. */
+export type StudyViewGenerationInputs = {
+  readonly canonicalStudy: CanonicalStudy;
+  readonly facts: WriteFactRecord[];
+  readonly fileNames: Map<string, string>;
+  readonly intent: string;
+  readonly audience: string;
+};
+
+/** Used only when no intent states an audience. */
+const DEFAULT_AUDIENCE_TEXT: Record<ReportAudience, string> = {
+  CUSTOMER: "The person who asked",
+  PRO: "A specialist reviewing the same evidence",
+};
+
+function isCanonicalStudyRevision(payload: Record<string, unknown> | null): boolean {
+  return (payload?.studyRevision as { format?: unknown } | undefined)?.format === "canonical-study-1";
+}
+
+export function studyViewInputsFrom(
+  payload: Record<string, unknown> | null,
+  audience: ReportAudience,
+): StudyViewGenerationInputs {
+  const revision = payload?.studyRevision as Record<string, unknown> | undefined;
+  const study = revision?.investigation as CanonicalStudy | undefined;
+  if (!study || study.schema !== CANONICAL_STUDY_SCHEMA || !Array.isArray(study.documents)) {
+    throw new Error("unexpected_inputs_shape");
+  }
+  const extractions = (Array.isArray(payload?.extractions) ? (payload.extractions as DocExtraction[]) : []).filter(
+    (extraction) => extraction?.schema === DOC_EXTRACTION_SCHEMA && Array.isArray(extraction.facts),
+  );
+  const intents = Array.isArray(payload?.intents)
+    ? (payload.intents as { intentText?: unknown; audience?: unknown }[])
+    : [];
+  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  const statedAudiences = [...new Set(intents.map((intent) => text(intent.audience)).filter((value) => value !== ""))];
+  return {
+    canonicalStudy: study,
+    facts: factRecordsFromExtractions(extractions),
+    fileNames: fileNamesOf((payload?.sourceSnapshot ?? null) as SourceSnapshot | null),
+    intent: intents.map((intent) => text(intent.intentText)).filter((value) => value !== "").join("\n\n"),
+    audience: statedAudiences.length > 0 ? statedAudiences.join("; ") : DEFAULT_AUDIENCE_TEXT[audience],
+  };
+}
+
+function writeCallsMetric(base: StageMetric, calls: readonly WriteCallRecord[]): StageMetric {
+  const sum = (pick: (call: WriteCallRecord) => number | null) => calls.reduce((total, call) => total + (pick(call) ?? 0), 0);
+  const last = calls.at(-1);
+  const promptTokens = sum((call) => call.inputTokens);
+  const completionTokens = sum((call) => call.outputTokens);
+  return {
+    ...base,
+    resolvedModel: [...calls].reverse().find((call) => call.resolvedModel)?.resolvedModel ?? null,
+    promptTokens,
+    completionTokens,
+    totalTokens: promptTokens + completionTokens,
+    latencyMs: sum((call) => call.latencyMs),
+    plannerLatencyMs: sum((call) => call.roundTripMs),
+    finishReason: last?.finishReason ?? null,
+  };
+}
+
+/**
+ * One `hive-write/1` call (retry only on unusable JSON) for a `canonical-study-1` revision, then the
+ * code-built `hive.study-view/1` is saved with its citation index, per-call metrics and drop counts.
+ */
+async function processStudyViewReportRun(
+  deps: ReportGenerationDeps,
+  claimed: ReportRun,
+  payload: Record<string, unknown> | null,
+  startedAt: number,
+): Promise<ReportRunStatus | null> {
+  const now = deps.now ?? (() => new Date());
+  const { correlationId, id: reportRunId, audience } = claimed;
+  let current: ReportRunStatus = "WRITING";
+  let metric: StageMetric | null = null;
+  try {
+    const inputs = studyViewInputsFrom(payload, audience);
+    const catalog = (deps.loadCatalog ?? loadPromptCatalog)();
+    const baseMetric: StageMetric = {
+      stage: "WRITING",
+      attempt: claimed.attemptCount,
+      promptId: catalog.write.id,
+      promptDigest: catalog.write.digest,
+      modelAliasRequested: null,
+      startedAt: now().toISOString(),
+    };
+    const result = await writeStudyView({
+      planner: deps.planner,
+      canonicalStudy: inputs.canonicalStudy,
+      facts: inputs.facts,
+      audience: inputs.audience,
+      intent: inputs.intent,
+      correlationId,
+      runId: reportRunId,
+      prompt: catalog.write,
+    });
+    for (const call of result.calls) {
+      emitStructuredEvent({
+        eventName: "pipeline.model.completed",
+        severity: call.outcome === "ok" ? "INFO" : "WARN",
+        timestamp: new Date().toISOString(),
+        component: "pipeline",
+        operation: "write",
+        stage: "ANALYZE",
+        correlationId,
+        hiveId: claimed.hiveId,
+        processingRunId: reportRunId,
+        attempt: call.attempt,
+        audience,
+        task: "write",
+        status: call.outcome,
+        ...(call.inputTokens != null ? { inputCount: call.inputTokens } : {}),
+        ...(call.outputTokens != null ? { outputCount: call.outputTokens } : {}),
+        ...(call.latencyMs != null ? { durationMs: call.latencyMs } : {}),
+        ...(call.finishReason ? { finishReason: call.finishReason } : {}),
+        ...(call.resolvedModel ? { resolvedModel: call.resolvedModel } : {}),
+        ...(call.diagnosticReason ? { diagnosticReason: call.diagnosticReason } : {}),
+      });
+    }
+    metric = { ...writeCallsMetric(baseMetric, result.calls), completedAt: now().toISOString() };
+    if (!result.ok) {
+      metric = { ...metric, outcome: "FAILED", errorCode: result.error.errorCode, retryable: result.error.retryable };
+      throw reportError({
+        errorCode: result.error.errorCode,
+        category: result.error.category,
+        retryable: result.error.retryable,
+        safeMessage: result.error.errorCode === "MODEL_OUTPUT_INVALID" ? MODEL_OUTPUT_MESSAGE : result.error.safeMessage,
+        correlationId,
+        ...(result.error.diagnosticReason ? { diagnosticReason: result.error.diagnosticReason } : {}),
+      });
+    }
+    metric = { ...metric, outcome: "SUCCEEDED" };
+
+    const validating = await transitionReport(deps.client, reportRunId, "WRITING", "VALIDATING");
+    if (!validating.applied) return validating.reportRun?.status ?? null;
+    current = "VALIDATING";
+    const saving = await transitionReport(deps.client, reportRunId, "VALIDATING", "SAVING", { stage_metric: metric });
+    if (!saving.applied) return saving.reportRun?.status ?? null;
+    current = "SAVING";
+
+    const sources = buildStudyViewSources(result.view, inputs.facts, inputs.fileNames);
+    const lastOk = [...result.calls].reverse().find((call) => call.outcome === "ok");
+    const saved = await rpc(deps.client, "save_report", {
+      p_report_run_id: reportRunId,
+      p_report: {
+        title: (result.view.sections[0]?.heading ?? "Study").slice(0, 160),
+        view: result.view,
+        writer_output: {
+          schema: "hive.write-run/1",
+          audience,
+          promptId: catalog.write.id,
+          promptDigest: catalog.write.digest,
+          calls: result.calls,
+          drops: result.drops,
+          malformed: result.malformed,
+          sources,
+        },
+        scenario_analysis: {},
+        writer_prompt_digest: catalog.write.digest,
+        model_alias: metric.modelAliasRequested ?? null,
+        resolved_model: lastOk?.resolvedModel ?? null,
+      },
+    });
+    const done = normalizeReportRun(saved?.reportRun);
+    const sectionCount = result.view.sections.length;
+    if (done) {
+      log(done, done.status, startedAt, undefined, "WRITING", {
+        inputCount: metric.promptTokens,
+        outputCount: metric.completionTokens,
+        totalCount: metric.totalTokens,
+        componentCount: result.view.blocks.length,
+        sectionCount,
+        rounds: result.calls.length,
+      });
+    }
+    return done?.status ?? "SUCCEEDED";
+  } catch (error) {
+    const hiveError = isHiveError(error)
+      ? error
+      : reportError({
+          errorCode: "INTERNAL_ERROR",
+          category: "INTERNAL",
+          retryable: true,
+          safeMessage: STOPPED_MESSAGE,
+          correlationId,
+          diagnosticReason: "unexpected_exception",
+        });
+    return failReportRun(deps, claimed, current, hiveError, metric, startedAt);
+  }
+}
+
+async function failReportRun(
+  deps: ReportGenerationDeps,
+  claimed: ReportRun,
+  current: ReportRunStatus,
+  hiveError: HiveError,
+  metric: StageMetric | null,
+  startedAt: number,
+): Promise<ReportRunStatus | null> {
+  const reportRunId = claimed.id;
+  try {
+    const diagnostic = reportDiagnostic(hiveError, claimed.attemptCount, metric?.stage ?? "WRITING");
+    const failed = await transitionReport(deps.client, reportRunId, current, "FAILED", {
+      error_code: hiveError.errorCode,
+      error_message_safe: hiveError.safeMessage,
+      retryable: hiveError.retryable,
+      ...(metric && metric.outcome === "FAILED" ? { stage_metric: metric } : {}),
+      ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
+    });
+    if (failed.reportRun) {
+      log(failed.reportRun, failed.reportRun.status, startedAt, hiveError, current, {
+        inputCount: metric?.promptTokens,
+        outputCount: metric?.completionTokens,
+        totalCount: metric?.totalTokens,
+      });
+    }
+    if (failed.applied && failed.retrying && deps.dispatch) {
+      const attempts = failed.reportRun?.attemptCount ?? claimed.attemptCount;
+      const delaySeconds = REPORT_RETRY_BACKOFF_SECONDS * Math.max(1, attempts);
+      await deps.dispatch({ kind: "report", id: reportRunId }, claimed.correlationId, { delaySeconds });
+    }
+    return failed.reportRun?.status ?? null;
+  } catch {
+    // The lease lapses until it expires or another invocation claims the run.
+    return null;
+  }
 }
 
 function buildWriterStudyContext(inputs: Pick<GenerationInputs, "intentDecomposition" | "intentIntelligence" | "investigationPlan">) {
@@ -970,7 +1205,11 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
   });
 
   try {
-    const inputs = await loadGenerationInputs(deps.client, reportRunId);
+    const payload = await rpc(deps.client, "get_report_generation_inputs", { p_report_run_id: reportRunId });
+    if (isCanonicalStudyRevision(payload)) {
+      return await processStudyViewReportRun(deps, claimed, payload, startedAt);
+    }
+    const inputs = generationInputsFrom(payload);
     const audience = claimed.audience;
     const claims = studyClaimCatalog(inputs.verified);
     const asOf = inputs.reportRun.createdAt || claimed.createdAt;
@@ -1127,32 +1366,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
           correlationId,
           diagnosticReason: "unexpected_exception",
         });
-    try {
-      const diagnostic = reportDiagnostic(hiveError, claimed.attemptCount, metric?.stage ?? "WRITING");
-      const failed = await transitionReport(deps.client, reportRunId, current, "FAILED", {
-        error_code: hiveError.errorCode,
-        error_message_safe: hiveError.safeMessage,
-        retryable: hiveError.retryable,
-        ...(metric && metric.outcome === "FAILED" ? { stage_metric: metric } : {}),
-        ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
-      });
-      if (failed.reportRun) {
-        log(failed.reportRun, failed.reportRun.status, startedAt, hiveError, current, {
-          inputCount: metric?.promptTokens,
-          outputCount: metric?.completionTokens,
-          totalCount: metric?.totalTokens,
-        });
-      }
-      if (failed.applied && failed.retrying && deps.dispatch) {
-        const attempts = failed.reportRun?.attemptCount ?? claimed.attemptCount;
-        const delaySeconds = REPORT_RETRY_BACKOFF_SECONDS * Math.max(1, attempts);
-        await deps.dispatch({ kind: "report", id: reportRunId }, correlationId, { delaySeconds });
-      }
-      return failed.reportRun?.status ?? null;
-    } catch {
-      // The lease lapses until it expires or another invocation claims the run.
-      return null;
-    }
+    return failReportRun(deps, claimed, current, hiveError, metric, startedAt);
   }
 }
 

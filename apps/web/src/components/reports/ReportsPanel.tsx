@@ -4,6 +4,7 @@ import {
   type GetHiveReportsResponse,
   type HiveReport,
   isActiveReportRunStatus,
+  isStudyViewReport,
   type ReportAudience,
 } from "@hiveforyou/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +13,7 @@ import { A2uiView } from "@/components/a2ui/A2uiView";
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import { DOCUMENT_READ_POLL_INTERVAL_MS } from "@/components/hives/document-read-progress";
 import { coverageGapText } from "@/components/hives/study-preparation-progress";
+import { StudyView } from "@/components/study/StudyView";
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchHiveReport, fetchHiveReports, generateHiveReport } from "@/lib/reports-client";
 
@@ -171,6 +173,10 @@ export function ReportsPanel({ hiveId, initial }: ReportsPanelProps) {
 
       <p className="-mt-2 mb-0 text-[14px] text-ink-subtle">{AUDIENCES.find((option) => option.key === audience)?.description}</p>
 
+      {state.studyRevision.format !== "canonical-study-1" ? (
+        <StudyView hiveId={hiveId} revisionFormat={state.studyRevision.format} view={null} sources={null} />
+      ) : null}
+
       {runActive ? (
         <p role="status" className="m-0 rounded-control bg-cell-blue-wash px-4 py-3 text-[14px] text-cell-blue-deep" data-testid="report-run-status">
           {run.attemptCount > 0 && run.status === "QUEUED"
@@ -216,7 +222,16 @@ export function ReportsPanel({ hiveId, initial }: ReportsPanelProps) {
               Written {dateFormat.format(new Date(shown.createdAt))} UTC · study revision {shown.revisionNumber}
             </span>
           </header>
-          <A2uiView view={shown.view} />
+          {isStudyViewReport(shown) ? (
+            <StudyView
+              hiveId={hiveId}
+              revisionFormat="canonical-study-1"
+              view={shown.view}
+              sources={shown.studyViewSources}
+            />
+          ) : (
+            <A2uiView view={shown.view} />
+          )}
         </article>
       ) : !runActive ? (
         <p className="m-0 rounded-card border border-dashed border-line px-6 py-8 text-center text-[15px] text-ink-muted">

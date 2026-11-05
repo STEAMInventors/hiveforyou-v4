@@ -27,7 +27,7 @@ export function preparationOutcome(run: Pick<ProcessingRun, "status"> | null): P
   return "failed";
 }
 
-function usesLegacyProgress(run: Pick<ProcessingRun, "status" | "stageMetrics"> | null): boolean {
+export function usesLegacyProgress(run: Pick<ProcessingRun, "status" | "stageMetrics"> | null): boolean {
   if (!run) return false;
   if (isLegacyPipelineStatus(run.status)) return true;
   return run.stageMetrics.some(
@@ -70,9 +70,30 @@ function stoppedStageIndex(
   return Math.min(index, stages.length - 1);
 }
 
-/** The visible stages, derived only from the persisted run. */
+/**
+ * "Extracting (n of m documents)". n counts the documents extracted by this run; documents whose
+ * extraction was reused from an earlier run record no metric, so n can trail until the stage is done.
+ */
+function extractingLabel(
+  run: Pick<ProcessingRun, "stageMetrics" | "authorizedSourceDocumentIds"> | null,
+  state: PreparationStepState,
+): string {
+  const total = run?.authorizedSourceDocumentIds.length ?? 0;
+  if (total === 0) return "Extracting";
+  const extracted =
+    state === "done"
+      ? total
+      : Math.min(
+          total,
+          (run?.stageMetrics ?? []).filter((metric) => metric.stage === "EXTRACTING" && metric.outcome === "SUCCEEDED")
+            .length,
+        );
+  return `Extracting (${extracted} of ${total} ${total === 1 ? "document" : "documents"})`;
+}
+
+/** The visible stages, derived only from the persisted run. In-flight legacy runs keep their own steps. */
 export function preparationSteps(
-  run: Pick<ProcessingRun, "status" | "stageMetrics" | "snapshotFrozen"> | null,
+  run: Pick<ProcessingRun, "status" | "stageMetrics" | "snapshotFrozen" | "authorizedSourceDocumentIds"> | null,
 ): PreparationStep[] {
   const stages = visibleStages(run);
   const outcome = preparationOutcome(run);
@@ -86,7 +107,10 @@ export function preparationSteps(
     else if (outcome === "awaiting") state = index === 0 ? "done" : "pending";
     else if (stoppedIndex >= 0) state = index < stoppedIndex ? "done" : index === stoppedIndex ? "stopped" : "pending";
     else if (outcome === "active") state = index < activeIndex ? "done" : index === activeIndex ? "active" : "pending";
-    return { key: stage.key, label: stage.label, description: stage.description, state };
+    let label: string = stage.label;
+    if (!legacy && stage.key === "READING_DOCUMENTS") label = "Reading";
+    if (!legacy && stage.key === "EXTRACTING") label = extractingLabel(run, state);
+    return { key: stage.key, label, description: stage.description, state };
   });
 }
 

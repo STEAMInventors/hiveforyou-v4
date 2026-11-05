@@ -6,6 +6,12 @@ import {
   type ReportRun,
   type StudyRevisionSummary,
 } from "../study-preparation/study-preparation-contracts";
+import {
+  isStudyView,
+  normalizeStudyViewSources,
+  type StudyView,
+  type StudyViewSources,
+} from "../pipeline/study-view-contracts";
 import { APPLICATION_VIEW_SCHEMA, type ApplicationView } from "./application-view-contracts";
 import { REPORT_AUDIENCES, type ReportAudience, SCENARIO_ANALYSIS_SCHEMA, type ScenarioAnalysis } from "./writer-report-contracts";
 
@@ -20,11 +26,25 @@ export type ReportSummary = {
   createdAt: string;
 };
 
-export type HiveReport = ReportSummary & {
+/** A report on an `investigation-1` revision: A2UI view plus code-computed scenarios. */
+export type ApplicationViewReport = ReportSummary & {
   view: ApplicationView;
   scenarioAnalysis: ScenarioAnalysis;
   modelAlias: string | null;
 };
+
+/** A report on a `canonical-study-1` revision: `hive.study-view/1` plus its citation index. */
+export type StudyViewReport = ReportSummary & {
+  view: StudyView;
+  studyViewSources: StudyViewSources;
+  modelAlias: string | null;
+};
+
+export type HiveReport = ApplicationViewReport | StudyViewReport;
+
+export function isStudyViewReport(report: HiveReport): report is StudyViewReport {
+  return isStudyView(report.view);
+}
 
 export type GetHiveReportsResponse = {
   studyRevision: StudyRevisionSummary | null;
@@ -72,6 +92,10 @@ export function normalizeHiveReport(raw: unknown): HiveReport | null {
   const summary = normalizeReportSummary(raw);
   if (!summary) return null;
   const record = raw as Record<string, unknown>;
+  const modelAlias = typeof record.modelAlias === "string" ? record.modelAlias : null;
+  if (isStudyView(record.view)) {
+    return { ...summary, view: record.view, studyViewSources: normalizeStudyViewSources(record.studyViewSources), modelAlias };
+  }
   const view = record.view as ApplicationView | undefined;
   const scenarioAnalysis = record.scenarioAnalysis as ScenarioAnalysis | undefined;
   if (
@@ -85,12 +109,7 @@ export function normalizeHiveReport(raw: unknown): HiveReport | null {
   ) {
     return null;
   }
-  return {
-    ...summary,
-    view,
-    scenarioAnalysis,
-    modelAlias: typeof record.modelAlias === "string" ? record.modelAlias : null,
-  };
+  return { ...summary, view, scenarioAnalysis, modelAlias };
 }
 
 export function normalizeGetHiveReportsResponse(raw: unknown): GetHiveReportsResponse | null {

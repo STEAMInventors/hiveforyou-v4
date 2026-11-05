@@ -1,10 +1,15 @@
 import {
+  CANONICAL_STUDY_SCHEMA,
+  type CanonicalStudy,
   parseWriterAgentBudgetDiagnosticField,
+  PLANNER_CONTRACT_VERSION,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   STUDY_AGENT_TURN_LIMITS,
+  STUDY_VIEW_SCHEMA,
   StudyAgentLedger,
   type StudyAgentTurnRequest,
   studyClaimCatalog,
+  validateDocExtraction,
   verifyStudyInvestigation,
   WRITER_AGENT_BUDGET,
   WRITER_AGENT_TOOLS,
@@ -2335,5 +2340,220 @@ describe("processReportRun", () => {
     expect(recovery.role === "user" ? recovery.content : "").toContain("s1");
     expect(recovery.role === "user" ? recovery.content : "").not.toContain("apply_writer_correction");
     expect(db.saved()).toMatchObject({ writer_output: { title: patchedTitle, audience: "CUSTOMER" } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// V5 (D-052): `canonical-study-1` revisions are written by hive-write/1 into a hive.study-view/1.
+// ---------------------------------------------------------------------------
+const V5_DOC = "aaaa0001-0000-4000-8000-000000000001";
+const V5_FACT = "F-aaaa0001-001";
+
+const v5Study: CanonicalStudy = {
+  schema: CANONICAL_STUDY_SCHEMA,
+  domainLabel: "Example",
+  spineSource: "ANCHOR",
+  documents: [{ sourceDocumentId: V5_DOC, role: "ANCHOR", typeInPlainWords: "Notice", date: null, version: null, chainPosition: null }],
+  spine: [
+    {
+      id: "S1",
+      label: "Fee",
+      kind: "figure",
+      status: "SUPPORTED",
+      supportingFactIds: [V5_FACT],
+      contradictingFactIds: [],
+      updatingFactIds: [],
+      missing: [],
+    },
+  ],
+  outsideSpine: [],
+  conflicts: [],
+  timeline: [],
+  gaps: [],
+};
+
+function v5Extraction() {
+  const validated = validateDocExtraction(
+    {
+      document: { titleAsPrinted: "Notice", documentType: "notice", issuer: { name: "Office" }, summary: "A notice." },
+      facts: [
+        {
+          id: V5_FACT,
+          subject: "Fee",
+          attribute: "amount",
+          valueAsWritten: "$10.00",
+          modality: "stated",
+          evidence: [{ page: 2, quote: "The fee is $10.00." }],
+        },
+      ],
+      emptyFields: [],
+      referencedDocuments: [],
+    },
+    { documentId: V5_DOC, fileName: "notice.pdf", pageRange: null },
+  );
+  if (!validated.ok) throw new Error("fixture");
+  return validated.value;
+}
+
+function v5Inputs() {
+  return {
+    studyRevision: {
+      id: REVISION_ID,
+      revisionNumber: 2,
+      processingRunId: MAYA_RUN_ID,
+      format: "canonical-study-1",
+      investigation: v5Study,
+      verification: { schema: "hive.study-verification/1", counts: { documentFindings: 0, claims: 0 }, findings: [], documentCoverage: [] },
+      audienceConfiguration: UNKNOWN_AUDIENCE,
+      coverageComplete: true,
+    },
+    intentDecomposition: null,
+    domainProposal: null,
+    intentIntelligence: null,
+    investigationPlan: null,
+    sourceSnapshot: { documents: [{ sourceDocumentId: V5_DOC, fileName: "notice.pdf" }], excluded: [], coverageComplete: true },
+    intents: [{ id: MAYA_INTENT_ID, intentText: "What do I have to pay?", audience: "A first-time reader" }],
+    extractions: [v5Extraction()],
+  };
+}
+
+const WRITE_ANSWER = {
+  sections: [{ heading: "Overview", paragraphs: [{ sentences: [{ text: "The notice states a fee.", factIds: [V5_FACT] }] }] }],
+  blocks: ["documents", "spine_table"],
+};
+
+function writePlanner() {
+  const requests: { url: string; body: { task: string; prompt_id: string; user_payload: Record<string, unknown> } }[] = [];
+  const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+    return new Response(
+      JSON.stringify({
+        contract_version: PLANNER_CONTRACT_VERSION,
+        task: "write",
+        model_alias: "harvester",
+        resolved_model: "model-w",
+        content_json: WRITE_ANSWER,
+        usage: { prompt_tokens: 4000, completion_tokens: 800, total_tokens: 4800 },
+        latency_ms: 12000,
+        finish_reason: "stop",
+      }),
+      { status: 200 },
+    );
+  });
+  return {
+    requests,
+    deps: {
+      getConfig: () => ({ baseUrl: "https://reader.example.test/planner", serviceToken: "t", timeoutMs: 1000 }),
+      fetchFn: fetchFn as unknown as typeof fetch,
+    },
+  };
+}
+
+describe("processReportRun: revision formats", () => {
+  it("writes a canonical-study-1 revision with hive-write/1 and saves a hive.study-view/1 with metrics, drops and sources", async () => {
+    const db = fakeDatabase("CUSTOMER", { inputsOverrides: v5Inputs() });
+    const model = writePlanner();
+    const semanticReviewer = vi.fn(async () => []);
+
+    await expect(
+      processReportRun({ client: db.client, planner: model.deps, semanticReviewer, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+
+    expect(model.requests).toHaveLength(1);
+    expect(model.requests[0]!.url).not.toContain("study-agent-turn");
+    expect(model.requests[0]!.body).toMatchObject({
+      task: "write",
+      prompt_id: "hive-write/1",
+      user_payload: {
+        intent: "What do I have to pay?",
+        audience: "A first-time reader",
+        canonicalStudy: v5Study,
+        facts: [{ id: V5_FACT, subject: "Fee", attribute: "amount", valueAsWritten: "$10.00", quote: "The fee is $10.00." }],
+      },
+    });
+    expect(semanticReviewer).not.toHaveBeenCalled();
+
+    expect(db.transitions.map((t) => t.to)).toEqual(["VALIDATING", "SAVING"]);
+    expect(db.transitions[1]!.details.stage_metric).toMatchObject({
+      stage: "WRITING",
+      outcome: "SUCCEEDED",
+      promptId: "hive-write/1",
+      resolvedModel: "model-w",
+      promptTokens: 4000,
+      completionTokens: 800,
+      latencyMs: 12000,
+      finishReason: "stop",
+    });
+
+    const saved = db.saved()!;
+    expect(saved).toMatchObject({
+      title: "Overview",
+      view: {
+        schema: STUDY_VIEW_SCHEMA,
+        sections: [{ heading: "Overview" }],
+        blocks: [{ name: "documents", rows: [expect.objectContaining({ id: V5_DOC })] }, { name: "spine_table" }],
+      },
+      writer_output: {
+        schema: "hive.write-run/1",
+        audience: "CUSTOMER",
+        promptId: "hive-write/1",
+        calls: [
+          expect.objectContaining({
+            attempt: 1,
+            outcome: "ok",
+            inputTokens: 4000,
+            outputTokens: 800,
+            latencyMs: 12000,
+            finishReason: "stop",
+            resolvedModel: "model-w",
+          }),
+        ],
+        drops: expect.objectContaining({ sentencesDropped: 0, unknownFactIdsStripped: 0 }),
+        sources: {
+          documents: { [V5_DOC]: { fileName: "notice.pdf" } },
+          facts: { [V5_FACT]: { sourceDocumentId: V5_DOC, pageNumber: 2, quote: "The fee is $10.00." } },
+        },
+      },
+      scenario_analysis: {},
+      resolved_model: "model-w",
+    });
+    const spineRow = (saved.view as { blocks: { name: string; rows: { values: unknown[] }[] }[] }).blocks[1]!.rows[0]!;
+    expect(spineRow.values).toEqual([
+      { factId: V5_FACT, valueAsWritten: "$10.00", sourceRef: { sourceDocumentId: V5_DOC, pageNumber: 2, quote: "The fee is $10.00." } },
+    ]);
+  });
+
+  it("falls back to a default audience description per report audience when no intent states one", async () => {
+    const inputs = v5Inputs();
+    const db = fakeDatabase("PRO", {
+      inputsOverrides: { ...inputs, intents: [{ id: MAYA_INTENT_ID, intentText: "What do I have to pay?", audience: null }] },
+    });
+    const model = writePlanner();
+    await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
+    expect(model.requests[0]!.body.user_payload.audience).toBe("A specialist reviewing the same evidence");
+  });
+
+  it("still writes an investigation-1 revision with the agentic Writer", async () => {
+    const db = fakeDatabase("CUSTOMER");
+    const baseRpc = db.client.rpc;
+    db.client.rpc = vi.fn(async (fn: string, args: Record<string, unknown> = {}) => {
+      const res = await baseRpc(fn, args);
+      if (fn === "get_report_generation_inputs" && res.data && "studyRevision" in res.data) {
+        res.data.studyRevision = { ...res.data.studyRevision, format: "investigation-1" };
+      }
+      return res;
+    }) as typeof db.client.rpc;
+    const model = planner(mayaWriterEditorialTurns("CUSTOMER"));
+
+    await expect(
+      runReport({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+    expect(model.bodies).toHaveLength(1);
+    expect(model.bodies[0]!.task).toBe("writer");
+    expect(model.bodies[0]!.prompt_id).toBe("hive-writer/1");
+    expect(db.saved()).toMatchObject({
+      view: { schema: "hive-application-view/1", audience: "CUSTOMER" },
+      writer_output: { schema: "hive.writer-report/1" },
+    });
   });
 });

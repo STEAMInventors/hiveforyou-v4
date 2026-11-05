@@ -14,6 +14,7 @@ import {
   getUploadQuotaWithV3Vault,
   InMemoryClientRequestRegistry,
   listHiveSourceDocumentsWithV3Vault,
+  openSourceDocumentPageWithV3Vault,
   ScanError,
   uploadHiveSourceDocumentWithV3Vault,
   type HashScanner,
@@ -345,6 +346,40 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
     );
     expect(calls[0]).toMatchObject({ p_audience: "The school team" });
     expect(calls[1]).not.toHaveProperty("p_audience");
+  });
+
+  it("opens a source page for the owner as a 60-second signed link to the original file at that page", async () => {
+    const { deps } = createTestHarness();
+    const uploaded = await uploadHiveSourceDocumentWithV3Vault(deps, {
+      ownerUserId: USER_A,
+      hiveId: HIVE_A,
+      clientRequestId: crypto.randomUUID(),
+      fileName: "Notice.pdf",
+      mimeType: "application/pdf",
+      bytes: PDF_BYTES,
+      correlationId: CORR_ID,
+    });
+    const open = (overrides: Partial<Parameters<typeof openSourceDocumentPageWithV3Vault>[1]> = {}) =>
+      openSourceDocumentPageWithV3Vault(deps, {
+        ownerUserId: USER_A,
+        hiveId: HIVE_A,
+        sourceDocumentId: uploaded.sourceDocument.id,
+        pageNumber: "2",
+        correlationId: CORR_ID,
+        ...overrides,
+      });
+
+    await expect(open()).resolves.toBe(
+      `memory://${DEFAULT_HIVE_SOURCE_BUCKET}/${buildSourceObjectPath(USER_A as never, HIVE_A as never, uploaded.sourceDocument.id as never)}?exp=60#page=2`,
+    );
+    await expect(open({ ownerUserId: USER_B })).rejects.toMatchObject({ errorCode: "NOT_FOUND" });
+    await expect(open({ sourceDocumentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" })).rejects.toMatchObject({
+      errorCode: "NOT_FOUND",
+    });
+    for (const pageNumber of ["0", "-1", "1.5", "abc", "123456"]) {
+      await expect(open({ pageNumber })).rejects.toMatchObject({ errorCode: "INVALID_REQUEST" });
+    }
+    await expect(open({ sourceDocumentId: "not-a-uuid" })).rejects.toMatchObject({ errorCode: "INVALID_REQUEST" });
   });
 
   it("migration defines 1:1 Hive-to-Case FK, V3 Vault tables, RLS, and private bucket hive-source-documents", async () => {
