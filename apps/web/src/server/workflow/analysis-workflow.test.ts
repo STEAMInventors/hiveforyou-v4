@@ -7,6 +7,7 @@ import {
   type SourceSnapshot,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   type StudyAgentTurnRequest,
+  studyAgentAllowance,
   validateDomainProposal,
   validateIntentAnalysis,
   validateIntentIntelligence,
@@ -22,6 +23,7 @@ import {
   MAYA_INTENT_ID,
   MAYA_INTENT_TEXT,
   MAYA_PAGES,
+  MAYA_PLAN_QUESTION_IDS,
   MAYA_RUN_ID,
   mayaStudyAgentTurns,
 } from "@hiveforyou/contracts/testing";
@@ -768,10 +770,11 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
       mayaOutputs(),
     );
 
+    const allowance = studyAgentAllowance(MAYA_PLAN_QUESTION_IDS.length, Object.keys(MAYA_DOCS).length);
     const { dispatched } = await drive(db, planner, MAYA_RUN_ID);
 
     expect(db.status()).toBe("FAILED");
-    expect(planner.calls.filter((task) => task === "study")).toHaveLength(13);
+    expect(planner.calls.filter((task) => task === "study")).toHaveLength(allowance.rounds);
     const failed = db.transitions.at(-1)!;
     expect(failed).toMatchObject({
       from: "INVESTIGATING",
@@ -782,7 +785,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
       component: "analysis",
       operation: "investigate",
       diagnosticReason: "study_agent_budget_exhausted",
-      diagnosticField: "budget.rounds:r13/13:tc13:inv0:q0/3",
+      diagnosticField: `budget.rounds:r${allowance.rounds}/${allowance.rounds}:tc${allowance.rounds}:inv0:q0/3`,
     });
     expect(db.stageOutputs.studyInvestigation).toBeUndefined();
     expect(db.accepted()).toBeNull();

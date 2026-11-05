@@ -8,6 +8,7 @@ import {
   PLANNER_MAX_OUTPUT_TOKENS,
   type PlannerCompletion,
   type PlannerCompletionRequest,
+  type PlannerCompletionTask,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   type StudyAgentTurn,
   type StudyAgentTurnRequest,
@@ -17,6 +18,15 @@ import type { PlannerPrompt } from "./prompt-catalog";
 
 /** Above the planner's own 150 s LiteLLM timeout and below the 180 s stage lease. */
 export const PLANNER_HTTP_TIMEOUT_MS = 160_000;
+
+/**
+ * Per-task overrides above the planner's 280 s LiteLLM timeout for these tasks. For offline
+ * measurement in V5-002..V5-004 only; the production execution path is decided in V5-005b (D-016).
+ */
+export const PLANNER_TASK_HTTP_TIMEOUT_MS: Partial<Record<PlannerCompletionTask, number>> = {
+  extract: 290_000,
+  canonicalize: 290_000,
+};
 
 export type PlannerServiceConfig = {
   readonly baseUrl: string;
@@ -275,7 +285,7 @@ export async function callPlanner(
   const raw = await exchange(deps, {
     path: "/v1/plan-completion",
     body,
-    timeoutMs: config.timeoutMs,
+    timeoutMs: PLANNER_TASK_HTTP_TIMEOUT_MS[input.prompt.task] ?? config.timeoutMs,
     correlationId: input.correlationId,
     processingRunId: input.processingRunId,
   });

@@ -110,9 +110,33 @@ describe("study agent tool definitions", () => {
   });
 
   it("scales the allowance with the plan under hard ceilings", () => {
-    expect(studyAgentAllowance(3)).toEqual({ rounds: 12, toolCalls: 68, invalidCalls: 7 });
-    expect(studyAgentAllowance(6)).toEqual({ rounds: 18, toolCalls: 116, invalidCalls: 10 });
-    expect(studyAgentAllowance(40)).toEqual({ rounds: 24, toolCalls: 200, invalidCalls: 12 });
+    expect(studyAgentAllowance(3)).toEqual({ rounds: 14, toolCalls: 70, invalidCalls: 11 });
+    expect(studyAgentAllowance(6)).toEqual({ rounds: 20, toolCalls: 112, invalidCalls: 14 });
+    expect(studyAgentAllowance(40)).toEqual({ rounds: 32, toolCalls: 320, invalidCalls: 28 });
+  });
+
+  it("accepts typographic punctuation in quotes when the stored page uses ASCII quotes", () => {
+    const text = 'Student name: "Maya Carter" on file.';
+    const target = ledger([{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1, text }], ["P1"]);
+    run(target, "read_pages", { documentId: MAYA_DOCS.iep2025, fromPage: 1, toPage: 1 });
+    expect(
+      run(target, "record_evidence", {
+        documentId: MAYA_DOCS.iep2025,
+        pageNumber: 1,
+        quote: "Student name: \u201cMaya Carter\u201d on file.",
+      }),
+    ).toMatchObject({ ok: true, evidenceId: "E1" });
+  });
+
+  it("surfaces truncated read_pages text in quote_not_on_page feedback", () => {
+    const long = "A".repeat(12_000) + " hidden tail words";
+    const target = ledger([{ sourceDocumentId: MAYA_DOCS.iep2025, pageNumber: 1, text: long }], ["P1"]);
+    run(target, "read_pages", { documentId: MAYA_DOCS.iep2025, fromPage: 1, toPage: 1 });
+    expect(run(target, "record_evidence", { documentId: MAYA_DOCS.iep2025, pageNumber: 1, quote: "hidden tail words" })).toMatchObject({
+      ok: false,
+      error: "quote_not_on_page",
+      message: expect.stringContaining("truncated"),
+    });
   });
 
   it("formats and parses safe budget diagnostic fields within failure-diagnostic@1 limits", () => {
@@ -554,9 +578,11 @@ const MAYA_LIN_VARIANT_CORPUS: StudyAgentCorpusPage[] = Object.entries(MAYA_LIN_
 
 describe("V4-004I Gate 2 — Document-Centered Canonical Study (Maya Lin 62→90 WCPM synthetic variant)", () => {
   it("captures all 9 required IEP finding categories with exact same-document provenance and reuses DF findings across P1-P7 without re-recording", () => {
-    const allowance = studyAgentAllowance(MAYA_REVISION_6_PLAN_QUESTION_IDS.length);
-    // Budget unchanged: 7 questions -> 20 rounds, 132 tool calls, 11 invalid calls
-    expect(allowance).toEqual({ rounds: 20, toolCalls: 132, invalidCalls: 11 });
+    const allowance = studyAgentAllowance(
+      MAYA_REVISION_6_PLAN_QUESTION_IDS.length,
+      new Set(MAYA_LIN_VARIANT_CORPUS.map((page) => page.sourceDocumentId.toLowerCase())).size,
+    );
+    expect(allowance).toEqual({ rounds: 25, toolCalls: 151, invalidCalls: 18 });
 
     const target = ledger(MAYA_LIN_VARIANT_CORPUS, MAYA_REVISION_6_PLAN_QUESTION_IDS);
     const turns = mayaLinVariantDocumentCenteredStudyAgentTurns();

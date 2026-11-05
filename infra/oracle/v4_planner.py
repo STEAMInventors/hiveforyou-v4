@@ -5,7 +5,8 @@ Authenticated model relay for Analyze. Two contracts, both forwarded to the priv
 with a fixed model alias and a scoped virtual key that never leaves Oracle:
 
 - `planner-completion@1` (`POST /v1/plan-completion`): one JSON completion per preparation stage
-  (intent, domain, intelligence, plan). Returns the parsed JSON plus usage metadata.
+  (intent, domain, intelligence, plan) or pipeline stage (extract, canonicalize, write). Returns the
+  parsed JSON plus usage metadata.
 - `study-agent-turn@1` (`POST /v1/study-agent-turn`): one native tool-calling turn of the Canonical
   Study investigation (`task: "study"`) or Writer report generation (`task: "writer"`). Forwards the
   conversation and the fixed tool definitions and returns the model's tool calls unexecuted. The
@@ -13,7 +14,8 @@ with a fixed model alias and a scoped virtual key that never leaves Oracle:
 
 - Callers cannot choose the model. Preparation tasks use `TASK_MODEL_ALIASES[task]` when set,
   otherwise `PLANNER_LITELLM_ALIAS` (`sorter`). `study` and `writer` turns use
-  `PLANNER_STUDY_LITELLM_ALIAS` / `PLANNER_WRITER_LITELLM_ALIAS` and fail closed when unset.
+  `PLANNER_STUDY_LITELLM_ALIAS` / `PLANNER_WRITER_LITELLM_ALIAS`; `extract`, `canonicalize` and
+  `write` use `PLANNER_{EXTRACT,CANONICALIZE,WRITE}_LITELLM_ALIAS`. All five fail closed when unset.
 - Bearer `PLANNER_SERVICE_TOKEN` is compared in constant time; an unset token fails closed.
 - Logs carry identifiers, codes, token counts and latency only — never prompts, page text,
   messages, tool arguments, completions or credentials.
@@ -50,6 +52,9 @@ TASK_PROMPT_IDS: dict[str, str] = {
     "plan": "hive-plan/1",
     "study": "hive-study-preview/1",
     "writer": "hive-writer/1",
+    "extract": "hive-extract/1",
+    "canonicalize": "hive-canonicalize/1",
+    "write": "hive-write/1",
 }
 WRITER_SEMANTIC_REVIEW_PROMPT_ID = "hive.writer-semantic-review/1"
 DEFAULT_MODEL_ALIAS = "sorter"
@@ -62,13 +67,20 @@ TASK_MODEL_ALIASES: dict[str, str] = {
 REQUIRED_TASK_ALIAS_ENV: dict[str, str] = {
     "study": "PLANNER_STUDY_LITELLM_ALIAS",
     "writer": "PLANNER_WRITER_LITELLM_ALIAS",
+    "extract": "PLANNER_EXTRACT_LITELLM_ALIAS",
+    "canonicalize": "PLANNER_CANONICALIZE_LITELLM_ALIAS",
+    "write": "PLANNER_WRITE_LITELLM_ALIAS",
 }
 # `study` (D-042) and `writer` (D-045) run through /v1/study-agent-turn.
+# `extract`, `canonicalize` and `write` are tool-free JSON completions on /v1/plan-completion.
 TASK_MAX_OUTPUT_TOKENS: dict[str, int] = {
     "intent": 4000,
     "domain": 4000,
     "intelligence": 12000,
     "plan": 12000,
+    "extract": 12000,
+    "canonicalize": 16000,
+    "write": 8000,
 }
 MAX_OUTPUT_TOKENS = max(TASK_MAX_OUTPUT_TOKENS.values())
 TASK_MAX_REQUEST_BYTES: dict[str, int] = {
@@ -76,6 +88,9 @@ TASK_MAX_REQUEST_BYTES: dict[str, int] = {
     "domain": 256 * 1024,
     "intelligence": 256 * 1024,
     "plan": 256 * 1024,
+    "extract": 1536 * 1024,
+    "canonicalize": 2048 * 1024,
+    "write": 1024 * 1024,
 }
 MAX_REQUEST_BYTES = max(TASK_MAX_REQUEST_BYTES.values())
 TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {
@@ -83,9 +98,18 @@ TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {
     "domain": 64_000,
     "intelligence": 64_000,
     "plan": 64_000,
+    "extract": 64_000,
+    "canonicalize": 64_000,
+    "write": 64_000,
 }
 MAX_SYSTEM_PROMPT_CHARS = max(TASK_MAX_SYSTEM_PROMPT_CHARS.values())
 LITELLM_TIMEOUT_SECONDS = 150.0
+# Per-task override; tasks not listed use LITELLM_TIMEOUT_SECONDS. The web client waits longer (290 s).
+TASK_LITELLM_TIMEOUT_SECONDS: dict[str, float] = {
+    "extract": 280.0,
+    "canonicalize": 280.0,
+    "write": 150.0,
+}
 
 # study-agent-turn@1 ceilings; the web budget stays below them.
 STUDY_AGENT_LEGACY_TOOL_NAMES = frozenset(
@@ -173,7 +197,7 @@ class PlannerCompletionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["planner-completion@1"]
-    task: Literal["intent", "domain", "intelligence", "plan"]
+    task: Literal["intent", "domain", "intelligence", "plan", "extract", "canonicalize", "write"]
     prompt_id: str = Field(min_length=1, max_length=64)
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=MAX_SYSTEM_PROMPT_CHARS)
@@ -608,7 +632,8 @@ async def _complete(request: PlannerCompletionRequest, settings: dict[str, str])
         "max_tokens": request.max_output_tokens,
         "response_format": {"type": "json_object"},
     }
-    data, choice, latency_ms = await _post_litellm(settings, payload, LITELLM_TIMEOUT_SECONDS)
+    timeout = TASK_LITELLM_TIMEOUT_SECONDS.get(request.task, LITELLM_TIMEOUT_SECONDS)
+    data, choice, latency_ms = await _post_litellm(settings, payload, timeout)
     message = choice.get("message")
     usage = _usage(data)
     completion_tokens = usage["completion_tokens"]
@@ -871,6 +896,7 @@ async def plan_completion(request: Request) -> JSONResponse:
             prompt_tokens=usage["prompt_tokens"],
             completion_tokens=usage["completion_tokens"],
             latency_ms=result["latency_ms"],
+            finish_reason=result["finish_reason"],
         )
         return JSONResponse(status_code=200, content=result)
     except PlannerError as error:

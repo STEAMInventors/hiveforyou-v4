@@ -131,7 +131,7 @@ describe("buildStudyPrompt", () => {
     expect(executionManifest.bindings).toEqual([
       expect.objectContaining({ placeholder: SOURCE_PAGES_PLACEHOLDER, format: "hive.source-page-index/1" }),
     ]);
-    expect(executionManifest.limits.maxOutputTokensAdvisory).toBe(48_000);
+    expect(executionManifest.limits.maxOutputTokensAdvisory).toBe(64_000);
   });
 
   it("includes every investigation question with its logic, limits and answer structure", () => {

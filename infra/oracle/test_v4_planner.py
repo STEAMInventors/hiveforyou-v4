@@ -326,6 +326,8 @@ def test_unconfigured_litellm_is_unavailable(client: TestClient, monkeypatch: py
 def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
     monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    for task, alias in PIPELINE_ALIASES.items():
+        monkeypatch.setenv(PIPELINE_ALIAS_ENV[task], alias)
     data = client.get("/health").json()
     assert data["status"] == "ok"
     assert data["model_alias"] == "sorter"
@@ -336,6 +338,7 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
         "plan": "sorter",
         "study": "heavy_lifter",
         "writer": "harvester",
+        **PIPELINE_ALIASES,
     }
     assert data["task_aliases_configured"] is True
     assert data["litellm_configured"] is True
@@ -343,6 +346,165 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
     assert data["contracts"] == ["planner-completion@1", "study-agent-turn@1"]
     assert "study_structured_output" not in data
     assert "sk-scoped-virtual-key" not in json.dumps(data)
+
+
+# ---------------------------------------------------------------------------
+# Tool-free pipeline tasks on planner-completion@1: extract, canonicalize, write.
+# ---------------------------------------------------------------------------
+PIPELINE_PROMPT_IDS = {"extract": "hive-extract/1", "canonicalize": "hive-canonicalize/1", "write": "hive-write/1"}
+PIPELINE_ALIAS_ENV = {
+    "extract": "PLANNER_EXTRACT_LITELLM_ALIAS",
+    "canonicalize": "PLANNER_CANONICALIZE_LITELLM_ALIAS",
+    "write": "PLANNER_WRITE_LITELLM_ALIAS",
+}
+PIPELINE_ALIASES = {"extract": "harvester", "canonicalize": "heavy_lifter", "write": "harvester"}
+PIPELINE_MAX_OUTPUT_TOKENS = {"extract": 12000, "canonicalize": 16000, "write": 8000}
+PIPELINE_MAX_REQUEST_BYTES = {"extract": 1536 * 1024, "canonicalize": 2048 * 1024, "write": 1024 * 1024}
+
+
+@pytest.fixture
+def pipeline_aliases(monkeypatch: pytest.MonkeyPatch) -> None:
+    for task, alias in PIPELINE_ALIASES.items():
+        monkeypatch.setenv(PIPELINE_ALIAS_ENV[task], alias)
+
+
+def pipeline_body(task: str, **overrides: object) -> dict[str, object]:
+    return body(
+        task=task,
+        prompt_id=PIPELINE_PROMPT_IDS[task],
+        system_prompt=f"Return the {task} JSON.",
+        user_payload={"task": task},
+        max_output_tokens=PIPELINE_MAX_OUTPUT_TOKENS[task],
+    ) | overrides
+
+
+@pytest.mark.parametrize("task", list(PIPELINE_PROMPT_IDS))
+def test_pipeline_task_returns_json_with_its_required_alias(client: TestClient, pipeline_aliases: None, task: str) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"schema": "synthetic"}')))
+    near_limit = {"task": task, "blob": "p" * (PIPELINE_MAX_REQUEST_BYTES[task] - 4096)}
+    response = post(client, pipeline_body(task, user_payload=near_limit))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["task"] == task
+    assert data["model_alias"] == PIPELINE_ALIASES[task]
+    assert data["content_json"] == {"schema": "synthetic"}
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == PIPELINE_ALIASES[task]
+    assert sent["max_tokens"] == PIPELINE_MAX_OUTPUT_TOKENS[task]
+    assert sent["response_format"] == {"type": "json_object"}
+    assert "tools" not in sent
+    assert "tool_choice" not in sent
+
+
+@pytest.mark.parametrize(
+    ("task", "wrong_prompt_id"),
+    [("extract", "hive-canonicalize/1"), ("canonicalize", "hive-write/1"), ("write", "hive-writer/1")],
+)
+def test_pipeline_task_rejects_wrong_prompt_id(
+    client: TestClient, pipeline_aliases: None, task: str, wrong_prompt_id: str
+) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, pipeline_body(task, prompt_id=wrong_prompt_id))
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+
+
+@pytest.mark.parametrize("task", list(PIPELINE_PROMPT_IDS))
+def test_pipeline_task_fails_closed_without_its_alias(
+    client: TestClient, pipeline_aliases: None, monkeypatch: pytest.MonkeyPatch, task: str
+) -> None:
+    monkeypatch.delenv(PIPELINE_ALIAS_ENV[task], raising=False)
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, pipeline_body(task))
+    assert response.status_code == 503
+    assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
+    assert response.json()["diagnostic_reason"] == "model_alias_unconfigured"
+    assert response.json()["task"] == task
+    assert seen == []
+    assert client.get("/health").json()["task_aliases_configured"] is False
+
+
+@pytest.mark.parametrize("task", list(PIPELINE_PROMPT_IDS))
+def test_pipeline_task_enforces_its_own_limits(client: TestClient, pipeline_aliases: None, task: str) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    too_many_tokens = post(client, pipeline_body(task, max_output_tokens=PIPELINE_MAX_OUTPUT_TOKENS[task] + 1))
+    assert too_many_tokens.status_code == 400
+    too_large = post(client, pipeline_body(task, user_payload={"blob": "p" * PIPELINE_MAX_REQUEST_BYTES[task]}))
+    assert too_large.status_code == 413
+    assert seen == []
+
+
+def test_completion_caps_mirror_the_wire_contract() -> None:
+    assert v4_planner.TASK_MAX_OUTPUT_TOKENS == {
+        "intent": 4000,
+        "domain": 4000,
+        "intelligence": 12000,
+        "plan": 12000,
+        **PIPELINE_MAX_OUTPUT_TOKENS,
+    }
+
+
+@pytest.mark.parametrize(
+    ("task", "expected_read_timeout"),
+    [("extract", 280.0), ("canonicalize", 280.0), ("write", 150.0), ("intent", 150.0), ("domain", 150.0), ("intelligence", 150.0), ("plan", 150.0)],
+)
+def test_completion_uses_the_per_task_litellm_timeout(
+    client: TestClient, pipeline_aliases: None, task: str, expected_read_timeout: float
+) -> None:
+    timeouts: list[dict[str, float]] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        timeouts.append(request.extensions["timeout"])
+        return httpx.Response(200, json=completion("{}"))
+
+    use_litellm(record)
+    payload = (
+        pipeline_body(task)
+        if task in PIPELINE_PROMPT_IDS
+        else body(task=task, prompt_id=v4_planner.TASK_PROMPT_IDS[task], max_output_tokens=4000)
+    )
+    assert post(client, payload).status_code == 200
+    assert timeouts[0]["read"] == expected_read_timeout
+
+
+@pytest.mark.parametrize("task", list(PIPELINE_PROMPT_IDS))
+def test_pipeline_timeout_maps_to_model_timeout(client: TestClient, pipeline_aliases: None, task: str) -> None:
+    def timeout(_: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow")
+
+    use_litellm(timeout)
+    response = post(client, pipeline_body(task))
+    assert response.status_code == 504
+    assert response.json()["error_code"] == "MODEL_TIMEOUT"
+    assert response.json()["diagnostic_reason"] == "litellm_timeout"
+    assert response.json()["retryable"] is True
+    assert response.json()["task"] == task
+
+
+@pytest.mark.parametrize("task", list(PIPELINE_PROMPT_IDS))
+def test_pipeline_completion_logs_task_tokens_latency_and_finish_reason(
+    client: TestClient, pipeline_aliases: None, caplog: pytest.LogCaptureFixture, task: str
+) -> None:
+    use_litellm(lambda _: httpx.Response(200, json=completion('{"secret": "PAGE TEXT 4242"}')))
+    with caplog.at_level("INFO", logger="hive_planner"):
+        assert post(client, pipeline_body(task)).status_code == 200
+    events = [json.loads(record.getMessage()) for record in caplog.records]
+    succeeded = [event for event in events if event["event"] == "v4_plan_completion_succeeded"]
+    assert len(succeeded) == 1
+    assert succeeded[0]["task"] == task
+    assert succeeded[0]["completion_tokens"] == 80
+    assert isinstance(succeeded[0]["latency_ms"], int)
+    assert succeeded[0]["finish_reason"] == "stop"
+    assert "PAGE TEXT 4242" not in caplog.text
+    assert "Return the" not in caplog.text
+
+
+def test_pipeline_task_maps_truncation_like_other_completions(client: TestClient, pipeline_aliases: None) -> None:
+    use_litellm(lambda _: httpx.Response(200, json=completion('{"observations": [', "length")))
+    response = post(client, pipeline_body("extract"))
+    assert response.status_code == 422
+    assert response.json()["diagnostic_reason"] == "model_output_truncated"
 
 
 def test_plan_completion_no_longer_runs_the_study_or_writer(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

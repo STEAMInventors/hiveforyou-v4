@@ -6,7 +6,13 @@ import {
 } from "@hiveforyou/contracts";
 import { describe, expect, it, vi } from "vitest";
 
-import { callPlanner, callStudyAgentTurn, loadPlannerServiceConfig } from "./planner-client";
+import {
+  callPlanner,
+  callStudyAgentTurn,
+  loadPlannerServiceConfig,
+  PLANNER_HTTP_TIMEOUT_MS,
+  PLANNER_TASK_HTTP_TIMEOUT_MS,
+} from "./planner-client";
 import type { PlannerPrompt } from "./prompt-catalog";
 
 const CORRELATION_ID = "66666666-6666-4666-8666-666666666666";
@@ -60,6 +66,34 @@ describe("loadPlannerServiceConfig", () => {
 });
 
 describe("callPlanner", () => {
+  it.each([
+    ["extract", 290_000, 12000],
+    ["canonicalize", 290_000, 16000],
+    ["write", config.timeoutMs, 8000],
+    ["intent", config.timeoutMs, 4000],
+    ["domain", config.timeoutMs, 4000],
+    ["intelligence", config.timeoutMs, 12000],
+  ] as const)("waits the per-task timeout for %s and sends its output cap", async (task, timeoutMs, maxOutputTokens) => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    const fetchFn = respond(200, { ...ok, task });
+    try {
+      await callPlanner(
+        { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
+        { prompt: { ...prompt, task }, userPayload: { task }, correlationId: CORRELATION_ID, processingRunId: RUN_ID },
+      );
+      expect(timeoutSpy).toHaveBeenCalledWith(timeoutMs);
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+    const [, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({ task, max_output_tokens: maxOutputTokens });
+  });
+
+  it("keeps the default HTTP timeout below the stage lease and the long tasks above the planner's 280 s", () => {
+    expect(PLANNER_HTTP_TIMEOUT_MS).toBe(160_000);
+    expect(PLANNER_TASK_HTTP_TIMEOUT_MS).toEqual({ extract: 290_000, canonicalize: 290_000 });
+  });
+
   it("sends the planner contract with the bearer token and correlation headers", async () => {
     const fetchFn = respond(200, ok);
     const result = await call(fetchFn);

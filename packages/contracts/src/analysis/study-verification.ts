@@ -469,8 +469,16 @@ function rejectReconciliation(problem: CorpusReconciliationProblem | null): void
   if (problem) reject(`study_${problem.code}`, problem.message);
 }
 
+/** Maps typographic punctuation to ASCII so quotes still match after the same normalization on both sides. */
+function foldTypographicPunctuation(text: string): string {
+  return text
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u2033]/g, '"')
+    .replace(/\u00A0/g, " ");
+}
+
 export function normalizeQuoteText(text: string): string {
-  return text.replace(/\r\n?/g, "\n").replace(/\s+/g, " ").trim();
+  return foldTypographicPunctuation(text.replace(/\r\n?/g, "\n").replace(/\s+/g, " ")).trim();
 }
 
 export function pageKey(sourceDocumentId: string, pageNumber: number): string {

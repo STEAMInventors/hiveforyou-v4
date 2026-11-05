@@ -338,9 +338,9 @@ describe("V4-004L corpus reconciliation — ledger (finish_question / finish_stu
 
   it("scales the allowance with the corpus under the same hard ceilings", () => {
     expect(studyAgentAllowance(3, 0)).toEqual(studyAgentAllowance(3));
-    expect(studyAgentAllowance(3, 8)).toEqual({ rounds: 13, toolCalls: 84, invalidCalls: 7 });
-    expect(studyAgentAllowance(6, 8)).toEqual({ rounds: 19, toolCalls: 132, invalidCalls: 10 });
-    expect(studyAgentAllowance(40, 100)).toEqual({ rounds: 24, toolCalls: 200, invalidCalls: 12 });
+    expect(studyAgentAllowance(3, 8)).toEqual({ rounds: 17, toolCalls: 110, invalidCalls: 15 });
+    expect(studyAgentAllowance(6, 8)).toEqual({ rounds: 23, toolCalls: 152, invalidCalls: 18 });
+    expect(studyAgentAllowance(40, 100)).toEqual({ rounds: 32, toolCalls: 320, invalidCalls: 28 });
   });
 });
 

@@ -74,28 +74,33 @@ export const STUDY_AGENT_TOOL_NAMES = [
 ] as const;
 export type StudyAgentToolName = (typeof STUDY_AGENT_TOOL_NAMES)[number];
 
-/** Execution ceilings for one investigation attempt. Allowances below them scale with the plan. */
+/**
+ * Execution ceilings for one investigation attempt. Allowances below them scale with the plan.
+ * Hard limits stay at or below: Vercel / worker lease 300 s, TLS proxy read 290 s, planner turn 240 s,
+ * planner HTTP abort 160 s per turn (`PLANNER_HTTP_TIMEOUT_MS`).
+ */
 export const STUDY_AGENT_BUDGET = {
-  /** Measured from the start of the invocation; leaves time for verification and acceptance. */
-  wallClockMs: 235_000,
-  /** Longest single model turn; below the 290 s proxy read timeout. */
-  maxTurnMs: 150_000,
+  /** Measured from claim time; leaves room for verification within the 300 s invocation lease. */
+  wallClockMs: 275_000,
+  /** Longest single model turn; below the 290 s proxy read timeout and planner `timeout_seconds` max (240). */
+  maxTurnMs: 145_000,
   /** A turn that cannot get this long is not started. */
   minTurnMs: 20_000,
   /** The web call aborts this long after the planner's own model timeout. */
   turnAbortMarginMs: 5_000,
-  maxRounds: 24,
-  maxToolCalls: 200,
-  maxInvalidCalls: 12,
-  maxCallsPerTurn: 24,
-  maxInputTokens: 600_000,
-  maxOutputTokens: 48_000,
+  maxRounds: 32,
+  maxToolCalls: 320,
+  maxInvalidCalls: 28,
+  /** Matches `STUDY_AGENT_MAX_TOOL_CALLS` on `v4-planner` (`study-agent-turn@1`). */
+  maxCallsPerTurn: 32,
+  maxInputTokens: 900_000,
+  maxOutputTokens: 64_000,
   turnOutputTokens: 8_000,
   minTurnOutputTokens: 1_000,
   /** Conservative estimate rates (USD per million tokens) used only to stop the loop. */
   inputUsdPerMillion: 15,
   outputUsdPerMillion: 75,
-  maxEstimatedUsd: 8,
+  maxEstimatedUsd: 12,
   maxRequestBytes: 1_000_000,
 } as const;
 
@@ -211,17 +216,21 @@ export function parseStudyAgentBudgetDiagnosticField(field: string | null | unde
 }
 
 /**
- * Every authorized document is recorded and reconciled (V4-004L), so the allowance grows by one round
- * and two calls per document. The hard ceilings in `STUDY_AGENT_BUDGET` do not move.
+ * Scales with investigation questions and corpus size (V4-004L reconciliation). Hard ceilings stay in
+ * `STUDY_AGENT_BUDGET`.
  */
 export function studyAgentAllowance(questionCount: number, documentCount = 0): StudyAgentAllowance {
   const questions = Math.max(1, questionCount);
   const documents = Math.max(0, Math.trunc(documentCount));
   const reconciliationRound = documents > 0 ? 1 : 0;
+  const documentRounds = documents > 0 ? Math.ceil(documents / 4) : 0;
   return {
-    rounds: Math.min(STUDY_AGENT_BUDGET.maxRounds, 6 + 2 * questions + reconciliationRound),
-    toolCalls: Math.min(STUDY_AGENT_BUDGET.maxToolCalls, 20 + 16 * questions + 2 * documents),
-    invalidCalls: Math.min(STUDY_AGENT_BUDGET.maxInvalidCalls, 4 + questions),
+    rounds: Math.min(STUDY_AGENT_BUDGET.maxRounds, 8 + 2 * questions + reconciliationRound + documentRounds),
+    toolCalls: Math.min(STUDY_AGENT_BUDGET.maxToolCalls, 28 + 14 * questions + 5 * documents),
+    invalidCalls: Math.min(
+      STUDY_AGENT_BUDGET.maxInvalidCalls,
+      8 + questions + (documents > 0 ? Math.ceil(documents / 2) : 0),
+    ),
   };
 }
 
@@ -229,6 +238,11 @@ export function estimateStudyAgentUsd(inputTokens: number, outputTokens: number)
   return (
     (inputTokens * STUDY_AGENT_BUDGET.inputUsdPerMillion + outputTokens * STUDY_AGENT_BUDGET.outputUsdPerMillion) / 1_000_000
   );
+}
+
+/** Upper bound on estimated model spend enforced by the investigation loop (same rates as `estimateStudyAgentUsd`). */
+export function studyAgentMaxEstimatedUsd(): number {
+  return STUDY_AGENT_BUDGET.maxEstimatedUsd;
 }
 
 export const STUDY_AGENT_LIMITS = {
@@ -1090,8 +1104,14 @@ export class StudyAgentLedger {
     if (seen === undefined) refuse("page_not_read", "Read the page with read_pages before quoting it.");
     const quote = text(args, "quote", TEXT.short).trim();
     const normalized = normalizeQuoteText(quote);
-    if (normalized === "" || !normalizeQuoteText(seen).includes(normalized)) {
-      refuse("quote_not_on_page", "The quote is not an exact run of words from the page text you read.");
+    const normalizedSeen = normalizeQuoteText(seen);
+    if (normalized === "" || !normalizedSeen.includes(normalized)) {
+      const fullPage = this.pages.get(key)?.text ?? "";
+      const truncatedRead = fullPage.length > seen.length;
+      const message = truncatedRead
+        ? "The quote is not an exact run of words from the page text read_pages returned (that view was truncated; quote only from the returned text or call read_pages for the rest of the page)."
+        : "The quote is not an exact run of words from the page text you read. Copy a consecutive run from read_pages output, not from search_case snippets.";
+      refuse("quote_not_on_page", message);
     }
     const existing = this.evidence.find(
       (item) => item.sourceDocumentId === id && item.pageNumber === number && item.normalized === normalized,

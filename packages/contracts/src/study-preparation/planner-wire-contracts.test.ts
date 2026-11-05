@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizePlannerCompletion,
   normalizeStudyAgentTurn,
+  PIPELINE_PLANNER_TASKS,
   PLANNER_COMPLETION_TASKS,
   PLANNER_CONTRACT_VERSION,
   PLANNER_MAX_OUTPUT_TOKENS,
@@ -21,12 +22,33 @@ describe("planner tasks", () => {
     expect(STUDY_AGENT_TURN_TASKS).toEqual(["study", "writer"]);
     expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "study", "writer"]);
     expect(PLANNER_TASK_PROMPT_IDS.intelligence).toBe("hive-intent-intelligence/1");
-    expect(PLANNER_COMPLETION_TASKS).toEqual(["intent", "domain", "intelligence"]);
+    expect(PLANNER_COMPLETION_TASKS).toEqual(["intent", "domain", "intelligence", "extract", "canonicalize", "write"]);
     expect(PLANNER_MAX_OUTPUT_TOKENS).toEqual({
       intent: 4000,
       domain: 4000,
       intelligence: 12000,
+      extract: 12000,
+      canonicalize: 16000,
+      write: 8000,
     });
+  });
+
+  it("mirrors the planner's tool-free pipeline tasks, prompt ids and limits", () => {
+    expect(PIPELINE_PLANNER_TASKS).toEqual(["extract", "canonicalize", "write"]);
+    for (const task of PIPELINE_PLANNER_TASKS) expect(PLANNER_COMPLETION_TASKS).toContain(task);
+    expect(PLANNER_TASK_PROMPT_IDS.extract).toBe("hive-extract/1");
+    expect(PLANNER_TASK_PROMPT_IDS.canonicalize).toBe("hive-canonicalize/1");
+    expect(PLANNER_TASK_PROMPT_IDS.write).toBe("hive-write/1");
+    expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.extract).toBe(1536 * 1024);
+    expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.canonicalize).toBe(2048 * 1024);
+    expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.write).toBe(1024 * 1024);
+    expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.intent).toBe(256 * 1024);
+  });
+
+  it("normalizes a pipeline completion for its own task only", () => {
+    const raw = response({ task: "canonicalize", model_alias: "heavy_lifter", content_json: { schema: "x" } });
+    expect(normalizePlannerCompletion(raw, "canonicalize")).toMatchObject({ ok: true, value: { task: "canonicalize" } });
+    expect(normalizePlannerCompletion(raw, "write")).toMatchObject({ ok: false, diagnosticReason: "planner_task_mismatch" });
   });
 
   it("keeps the study and writer off the single-completion transport", () => {
