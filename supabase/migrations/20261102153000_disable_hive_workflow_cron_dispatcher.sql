@@ -9,10 +9,16 @@
 BEGIN;
 
 DO $$
+DECLARE
+  v_job_exists boolean;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'pg_cron')
-     AND EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'hive-dispatch-due-work') THEN
-    PERFORM cron.unschedule('hive-dispatch-due-work');
+  -- Guard rewritten 2026-11-05 for databases without pg_cron; behavior unchanged.
+  IF to_regclass('cron.job') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM cron.job WHERE jobname = ''hive-dispatch-due-work'')'
+      INTO v_job_exists;
+    IF v_job_exists THEN
+      EXECUTE 'SELECT cron.unschedule(''hive-dispatch-due-work'')';
+    END IF;
   END IF;
 END;
 $$;
