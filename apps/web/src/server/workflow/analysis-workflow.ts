@@ -13,6 +13,7 @@ import {
   pageKey,
   type ProcessingRun,
   type ProcessingRunStatus,
+  assessDocumentCenteredStudy,
   resolveAudienceConfiguration,
   type SampleCoverage,
   SOURCE_PAGE_INDEX_FORMAT,
@@ -55,7 +56,9 @@ import { renderSourcePageIndex, runStudyInvestigation, StudyAgentFailure, type S
  * investigation runs one bounded tool-calling loop instead, D-042), persists the validated output
  * and hands the next stage to a fresh invocation. Deterministic steps continue
  * inline. Timeouts and unavailable models retry the same stage (three attempts); invalid output
- * fails the run. Accepting the Study queues both Writer runs, which are dispatched here.
+ * fails the run. Accepting an Analyze Study queues both Writer runs, which are dispatched here.
+ * An explicit Rebuild Study (`preparationMode = REBUILD`) accepts a new revision only and does not
+ * dispatch Writer.
  */
 
 export type AnalysisWorkflowDeps = {
@@ -843,8 +846,25 @@ async function verifyEvidence(context: Context): Promise<StepResult> {
 
 async function acceptStudy(context: Context): Promise<StepResult> {
   const { inputs, verified } = await verifiedStudyFromRun(context);
+  if (inputs.run.preparationMode === "REBUILD") {
+    const assessed = assessDocumentCenteredStudy(verified.investigation);
+    if (!assessed.ok) {
+      throw new StageFailure(
+        analysisError({
+          errorCode: "MODEL_OUTPUT_INVALID",
+          category: "MODEL",
+          retryable: false,
+          safeMessage:
+            "The study did not record a document inventory and atomic document findings, so it was not accepted. Your earlier study is unchanged.",
+          correlationId: context.correlationId,
+          diagnosticReason: assessed.diagnosticReason,
+        }),
+        null,
+      );
+    }
+  }
   const studyMetric = [...inputs.run.stageMetrics].reverse().find((metric) => metric.stage === "INVESTIGATING" && metric.outcome === "SUCCEEDED");
-  const payload = await rpc(context.deps.client, "accept_study_revision", {
+  const revision = {
     p_run_id: context.runId,
     p_revision: {
       investigation: verified.investigation,
@@ -857,18 +877,41 @@ async function acceptStudy(context: Context): Promise<StepResult> {
       model_alias: studyMetric?.modelAliasRequested ?? null,
       resolved_model: studyMetric?.resolvedModel ?? null,
     },
-  });
+  };
+  let payload: Record<string, unknown> | null;
+  try {
+    payload = await rpc(context.deps.client, "accept_study_revision", revision);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("study_documents_incomplete")) {
+      throw new StageFailure(
+        analysisError({
+          errorCode: "MODEL_OUTPUT_INVALID",
+          category: "MODEL",
+          retryable: false,
+          safeMessage:
+            "The study did not record a document inventory and atomic document findings, so it was not accepted. Your earlier study is unchanged.",
+          correlationId: context.correlationId,
+          diagnosticReason: "study_documents_incomplete",
+        }),
+        null,
+      );
+    }
+    throw error;
+  }
   if (payload?.sourceChanged === true) throw new SourceChanged(true);
   const run = normalizeProcessingRun(payload?.processingRun);
   if (run) log(run, run.status, context.startedAt);
-  const reportRuns = Array.isArray(payload?.reportRuns) ? (payload.reportRuns as { id?: unknown; status?: unknown }[]) : [];
-  await Promise.all(
-    reportRuns
-      .filter((reportRun) => typeof reportRun.id === "string" && reportRun.status === "QUEUED")
-      .map((reportRun) =>
-        context.deps.dispatch({ kind: "report", id: reportRun.id as string }, context.correlationId, { delaySeconds: 0 }),
-      ),
-  );
+  if (inputs.run.preparationMode !== "REBUILD") {
+    const reportRuns = Array.isArray(payload?.reportRuns) ? (payload.reportRuns as { id?: unknown; status?: unknown }[]) : [];
+    await Promise.all(
+      reportRuns
+        .filter((reportRun) => typeof reportRun.id === "string" && reportRun.status === "QUEUED")
+        .map((reportRun) =>
+          context.deps.dispatch({ kind: "report", id: reportRun.id as string }, context.correlationId, { delaySeconds: 0 }),
+        ),
+    );
+  }
   return { next: "stop", status: run?.status ?? "SUCCEEDED" };
 }
 

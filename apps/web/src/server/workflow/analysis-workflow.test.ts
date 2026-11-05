@@ -77,6 +77,7 @@ function fakeDatabase(
     /** Reading finished with material gaps never acknowledged in this Hive. */
     readsFoundGaps?: boolean;
     leased?: boolean;
+    preparationMode?: "ANALYZE" | "REBUILD";
   } = {},
 ) {
   const runId = options.runId ?? RUN_ID;
@@ -91,7 +92,9 @@ function fakeDatabase(
   const retries: { status: string; details: Record<string, unknown> }[] = [];
   let saved: Record<string, unknown> | null = null;
   let accepted: Record<string, unknown> | null = null;
-  const run = () => runJson(status, { id: runId, stageAttempt, stageMetrics: [...stageMetrics], snapshotFrozen: true });
+  const preparationMode = options.preparationMode ?? "ANALYZE";
+  const run = () =>
+    runJson(status, { id: runId, stageAttempt, stageMetrics: [...stageMetrics], snapshotFrozen: true, preparationMode });
 
   const rpc = vi.fn(async (fn: string, args: Record<string, unknown> = {}) => {
     switch (fn) {
@@ -196,7 +199,7 @@ function fakeDatabase(
           data: {
             created: true,
             processingRun: run(),
-            reportRuns: REPORT_RUN_IDS.map((id) => ({ id, status: "QUEUED" })),
+            reportRuns: preparationMode === "REBUILD" ? [] : REPORT_RUN_IDS.map((id) => ({ id, status: "QUEUED" })),
           },
           error: null,
         };
@@ -717,6 +720,20 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     );
   });
 
+  it("refuses a rebuild that has no document inventory and does not dispatch Writer", async () => {
+    const db = mayaDatabase({ preparationMode: "REBUILD" });
+    const planner = fakePlanner({}, mayaOutputs());
+    const { dispatched } = await drive(db, planner, MAYA_RUN_ID);
+    expect(db.status()).toBe("FAILED");
+    expect(db.accepted()).toBeNull();
+    expect(dispatched.filter((item) => item.kind === "report")).toEqual([]);
+    const failed = db.transitions.at(-1)!;
+    expect(failed).toMatchObject({ from: "ACCEPTING_STUDY", to: "FAILED", details: { retryable: false } });
+    expect(normalizeFailureDiagnostic(failed.details.failure_diagnostic)).toMatchObject({
+      diagnosticReason: "study_documents_missing",
+    });
+  });
+
   it("fails without a revision or Writer when the investigation exhausts its budget, never as missing evidence", async () => {
     const db = mayaDatabase();
     const stall: ScriptedTurn = [{ id: "x", name: "search_case", arguments: '{"query":"goal"}' }];
@@ -920,7 +937,9 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     expect(db.status()).toBe("SUCCEEDED");
   });
 
-  it("executes the document-centered L001 Maya Carter golden (08_initial_iep.pdf) end-to-end through processAnalysisRun, persists documents/documentFindings/documentCoverage on the accepted revision, and queues both Writer runs (V4-004I Gate 3)", async () => {
+  it.each(["ANALYZE", "REBUILD"] as const)(
+    "accepts the document-centered study for %s and queues Writer only for Analyze",
+    async (preparationMode) => {
     const l001Snapshot = sourceSnapshot({
       documents: [
         snapshotDocument(L001_INITIAL_IEP_DOC_ID, L001_INITIAL_IEP_FILE_NAMES[L001_INITIAL_IEP_DOC_ID]!, {
@@ -1026,6 +1045,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
       intents: [{ id: MAYA_INTENT_ID, intentText: MAYA_INTENT_TEXT, audience: null }],
       snapshot: l001Snapshot,
       pages: L001_INITIAL_IEP_PAGES,
+      preparationMode,
     });
     const planner = fakePlanner({}, l001Outputs);
 
@@ -1080,9 +1100,12 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     ]);
 
     expect(dispatched.filter((item) => item.kind === "report")).toEqual(
-      REPORT_RUN_IDS.map((id) => ({ kind: "report", id, delaySeconds: 0 })),
+      preparationMode === "REBUILD" ? [] : REPORT_RUN_IDS.map((id) => ({ kind: "report", id, delaySeconds: 0 })),
     );
-  });
+    expect((investigation.documentFindings ?? []).length).toBeGreaterThan(0);
+    expect((investigation.documents ?? []).length).toBeGreaterThan(0);
+  },
+  );
 });
 
 // ---------------------------------------------------------------------------

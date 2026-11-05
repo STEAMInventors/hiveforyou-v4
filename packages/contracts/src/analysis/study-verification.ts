@@ -1400,3 +1400,78 @@ export function studyClaimCatalog(study: VerifiedStudy): StudyClaim[] {
 
   return [...dfClaims, ...questionClaims];
 }
+
+export type DocumentCenteredAssessment =
+  | { ok: true; sourceCount: number; documentFindingCount: number }
+  | { ok: false; diagnosticReason: "study_documents_missing" | "study_findings_missing" | "study_finding_unusable" };
+
+/**
+ * A new document-centered Study revision needs a real inventory and at least one atomic `DF…`
+ * finding grounded in that document's evidence. The count is whatever the case contains.
+ * Reading every authorized page is not evidence that extraction is complete, so this check
+ * never inspects page-read coverage.
+ */
+export function assessDocumentCenteredStudy(investigation: unknown): DocumentCenteredAssessment {
+  if (!investigation || typeof investigation !== "object" || Array.isArray(investigation)) {
+    return { ok: false, diagnosticReason: "study_documents_missing" };
+  }
+  const root = investigation as Record<string, unknown>;
+  const documents = root.documents;
+  if (!Array.isArray(documents) || documents.length === 0) {
+    return { ok: false, diagnosticReason: "study_documents_missing" };
+  }
+  const documentIds = new Set<string>();
+  for (const item of documents) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return { ok: false, diagnosticReason: "study_documents_missing" };
+    }
+    const document = item as Record<string, unknown>;
+    const sourceDocumentId = typeof document.sourceDocumentId === "string" ? document.sourceDocumentId.toLowerCase() : "";
+    const role = document.role;
+    const described =
+      (typeof document.documentType === "string" && document.documentType.trim().length > 0) ||
+      (typeof document.roleReasoning === "string" && document.roleReasoning.trim().length > 0);
+    if (!UUID.test(sourceDocumentId) || typeof role !== "string" || !(STUDY_DOCUMENT_ROLES as readonly string[]).includes(role) || !described) {
+      return { ok: false, diagnosticReason: "study_documents_missing" };
+    }
+    if (documentIds.has(sourceDocumentId)) return { ok: false, diagnosticReason: "study_documents_missing" };
+    documentIds.add(sourceDocumentId);
+  }
+  const findings = root.documentFindings;
+  if (!Array.isArray(findings) || findings.length === 0) {
+    return { ok: false, diagnosticReason: "study_findings_missing" };
+  }
+  const findingIds = new Set<string>();
+  for (const item of findings) {
+    if (!usableAtomicFinding(item, documentIds, findingIds)) {
+      return { ok: false, diagnosticReason: "study_finding_unusable" };
+    }
+  }
+  return { ok: true, sourceCount: documents.length, documentFindingCount: findings.length };
+}
+
+function usableAtomicFinding(item: unknown, documentIds: ReadonlySet<string>, findingIds: Set<string>): boolean {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+  const finding = item as Record<string, unknown>;
+  const id = typeof finding.id === "string" ? finding.id : "";
+  const sourceDocumentId = typeof finding.sourceDocumentId === "string" ? finding.sourceDocumentId.toLowerCase() : "";
+  if (!DOCUMENT_FINDING_ID_RE.test(id) || findingIds.has(id) || !documentIds.has(sourceDocumentId)) return false;
+  findingIds.add(id);
+  if (!(STUDY_FINDING_MODALITIES as readonly string[]).includes(finding.modality as string)) return false;
+  for (const key of ["category", "subject", "attribute", "valueAsWritten", "statement"] as const) {
+    if (typeof finding[key] !== "string" || finding[key].trim().length === 0) return false;
+  }
+  if (!Array.isArray(finding.evidence) || finding.evidence.length === 0) return false;
+  return finding.evidence.every((evidence) => {
+    if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return false;
+    const quote = evidence as Record<string, unknown>;
+    const evidenceDocumentId = typeof quote.sourceDocumentId === "string" ? quote.sourceDocumentId.toLowerCase() : "";
+    return (
+      evidenceDocumentId === sourceDocumentId &&
+      Number.isInteger(quote.pageNumber) &&
+      (quote.pageNumber as number) >= 1 &&
+      typeof quote.quote === "string" &&
+      quote.quote.trim().length > 0
+    );
+  });
+}

@@ -1,13 +1,62 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CORRELATION_ID, HIVE_ID, REQUEST_ID, RUN_ID, runJson } from "./study-preparation.fixtures";
-import { acknowledgeStudyCoverage, startStudyPreparation } from "./study-preparation";
+import { acknowledgeStudyCoverage, rebuildStudy, startStudyPreparation } from "./study-preparation";
 
 const DIGEST = `sha256:${"e".repeat(64)}`;
 
 function client(result: { data?: unknown; error?: { message: string } | null }) {
   return { rpc: vi.fn(async () => ({ data: result.data ?? null, error: result.error ?? null })) };
 }
+
+describe("rebuildStudy", () => {
+  it("queues a new study run and never returns Writer work to dispatch", async () => {
+    const db = client({
+      data: {
+        processingRun: runJson("QUEUED", { preparationMode: "REBUILD" }),
+        created: true,
+        reusedStudy: false,
+        reportsReady: false,
+        queuedReportRunIds: ["cccccccc-0000-4000-8000-000000000009"],
+        reportRuns: [],
+      },
+    });
+    const started = await rebuildStudy(db, {
+      hiveId: HIVE_ID,
+      rawBody: { clientRequestId: REQUEST_ID },
+      correlationId: CORRELATION_ID,
+    });
+    expect(db.rpc).toHaveBeenCalledWith("rebuild_study", {
+      p_hive_id: HIVE_ID,
+      p_request_id: REQUEST_ID,
+      p_correlation_id: CORRELATION_ID,
+      p_coverage_acknowledgement_digest: null,
+    });
+    expect(started.process).toBe(true);
+    expect(started.response.reusedStudy).toBe(false);
+    expect(started.response.reportsReady).toBe(false);
+    expect(started.response.reportRuns).toEqual([]);
+  });
+
+  it("does not process a replayed rebuild", async () => {
+    const db = client({
+      data: { processingRun: runJson("INVESTIGATING", { preparationMode: "REBUILD" }), created: false },
+    });
+    const started = await rebuildStudy(db, {
+      hiveId: HIVE_ID,
+      rawBody: { clientRequestId: REQUEST_ID },
+      correlationId: CORRELATION_ID,
+    });
+    expect(started.process).toBe(false);
+  });
+
+  it("maps owner and document failures", async () => {
+    const db = client({ error: { message: "documents_not_read" } });
+    await expect(
+      rebuildStudy(db, { hiveId: HIVE_ID, rawBody: { clientRequestId: REQUEST_ID }, correlationId: CORRELATION_ID }),
+    ).rejects.toMatchObject({ errorCode: "COVERAGE_INCOMPLETE", diagnosticReason: "documents_not_read" });
+  });
+});
 
 describe("startStudyPreparation", () => {
   it("passes an acknowledgement of known gaps and processes a run that starts by reading documents", async () => {

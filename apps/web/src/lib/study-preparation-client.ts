@@ -51,6 +51,23 @@ export async function startStudyPreparation(
   return normalized;
 }
 
+export async function rebuildStudy(
+  hiveId: string,
+  payload: StartStudyPreparationRequest,
+): Promise<StartStudyPreparationResponse> {
+  const correlationId = crypto.randomUUID();
+  const response = await fetch(`${studyPreparationPath(hiveId)}/rebuild`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", [CORRELATION_HEADER_NAME]: correlationId },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  const message = "Could not rebuild the study. Try again.";
+  const normalized = normalizeStartStudyPreparationResponse(await parseApiJson<unknown>(response, correlationId, message));
+  if (!normalized) throw unexpected(correlationId, message);
+  return normalized;
+}
+
 export async function acknowledgeStudyCoverage(
   hiveId: string,
   payload: AcknowledgeStudyCoverageRequest,

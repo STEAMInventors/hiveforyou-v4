@@ -3,6 +3,8 @@
 import {
   analyzeAvailability,
   type AnalyzeAvailability,
+  rebuildAvailability,
+  type RebuildAvailability,
   documentsToRead,
   type GetStudyPreparationResponse,
   isActiveProcessingRunStatus,
@@ -12,7 +14,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { HiveClientError } from "@/lib/hives-client";
-import { acknowledgeStudyCoverage, fetchStudyPreparation, startStudyPreparation } from "@/lib/study-preparation-client";
+import { acknowledgeStudyCoverage, fetchStudyPreparation, rebuildStudy, startStudyPreparation } from "@/lib/study-preparation-client";
 
 import { DOCUMENT_READ_POLL_INTERVAL_MS, pollStateFromFailures } from "./document-read-progress";
 
@@ -79,6 +81,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const [startError, setStartError] = useState<AnalyzeStartError | null>(null);
   const [pollFailures, setPollFailures] = useState(0);
   const [authExpired, setAuthExpired] = useState(false);
+  const [action, setAction] = useState<"analyze" | "rebuild">("analyze");
 
   const runRef = useRef<ProcessingRun | null>(null);
   const stateRef = useRef<GetStudyPreparationResponse | null>(null);
@@ -88,6 +91,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const settledSeqRef = useRef(0);
   const failuresRef = useRef(0);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const actionRef = useRef<"analyze" | "rebuild">("analyze");
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -164,14 +168,16 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const start = useCallback(
     async (consent?: { coverageAcknowledgementDigest: string }) => {
       if (startingRef.current) return;
+      const action = actionRef.current;
       startingRef.current = true;
       setStarting(true);
       setStartError(null);
       try {
-        const result = await startStudyPreparation(hiveId, {
+        const payload = {
           clientRequestId: crypto.randomUUID(),
           ...(consent ? { coverageAcknowledgementDigest: consent.coverageAcknowledgementDigest } : {}),
-        });
+        };
+        const result = action === "rebuild" ? await rebuildStudy(hiveId, payload) : await startStudyPreparation(hiveId, payload);
         runRef.current = result.processingRun;
         const nextReportRuns = result.reportRuns ?? [];
         setState((current) => {
@@ -193,7 +199,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
             (["CUSTOMER", "PRO"] as const).every((audience) =>
               nextReportRuns.some((run) => run.audience === audience && run.status === "SUCCEEDED" && run.reportId !== null),
             ));
-        if (bothReportsSucceeded) {
+        if (action === "analyze" && bothReportsSucceeded) {
           setModalMode(null);
           onReportsReadyRef.current?.();
           void refresh();
@@ -206,7 +212,10 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
         setStartError(
           error instanceof HiveClientError
             ? { message: error.message, correlationId: error.correlationId || null }
-            : { message: "Could not start the analysis. Try again.", correlationId: null },
+            : {
+                message: action === "rebuild" ? "Could not rebuild the study. Try again." : "Could not start the analysis. Try again.",
+                correlationId: null,
+              },
         );
       } finally {
         startingRef.current = false;
@@ -219,6 +228,9 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const availability: AnalyzeAvailability | null = state
     ? analyzeAvailability(state.eligibility, state.processingRun)
     : null;
+  const rebuildReady: RebuildAvailability | null = state
+    ? rebuildAvailability(state.eligibility, state.processingRun, state.studyRevision)
+    : null;
 
   /**
    * Analyze click: starts directly unless material gaps already known now were never acknowledged
@@ -226,6 +238,8 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
    * run (AWAITING_ACKNOWLEDGEMENT) for `acknowledge`.
    */
   const analyze = useCallback(() => {
+    actionRef.current = "analyze";
+    setAction("analyze");
     if (!availability?.canAnalyze) {
       if (availability?.reason === "AWAITING_ACKNOWLEDGEMENT") {
         setStartError(null);
@@ -240,6 +254,24 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
     }
     void start();
   }, [availability, start]);
+
+  const rebuild = useCallback(() => {
+    if (!rebuildReady?.canRebuild) {
+      if (rebuildReady?.reason === "AWAITING_ACKNOWLEDGEMENT") {
+        setStartError(null);
+        setModalMode("progress");
+      }
+      return;
+    }
+    actionRef.current = "rebuild";
+    setAction("rebuild");
+    if (rebuildReady.requiresCoverageAcknowledgement) {
+      setStartError(null);
+      setModalMode("confirm");
+      return;
+    }
+    void start();
+  }, [rebuildReady, start]);
 
   const confirmCoverage = useCallback(() => {
     if (state) void start({ coverageAcknowledgementDigest: state.eligibility.coverageDigest });
@@ -294,6 +326,8 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
     reportRuns: state?.reportRuns ?? [],
     toRead: state ? documentsToRead(state.eligibility) : [],
     availability,
+    rebuildAvailability: rebuildReady,
+    action,
     active: isActive(state?.processingRun),
     awaiting: isAwaiting(state?.processingRun),
     modalMode,
@@ -302,9 +336,15 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
     pollState: pollStateFromFailures(pollFailures, authExpired),
     returnFocusRef,
     analyze,
+    rebuild,
     confirmCoverage,
     acknowledge,
-    retry: analyze,
+    retry: () => {
+      const next = runRef.current?.preparationMode === "REBUILD" ? "rebuild" : "analyze";
+      actionRef.current = next;
+      setAction(next);
+      void start();
+    },
     refresh,
     openModal,
     closeModal,

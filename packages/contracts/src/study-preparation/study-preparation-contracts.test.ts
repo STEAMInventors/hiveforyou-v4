@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzeAvailability,
+  rebuildAvailability,
   type CoverageGap,
   documentsToRead,
   knownGapsToAcknowledge,
@@ -389,6 +390,38 @@ describe("analyzeAvailability (B5)", () => {
     });
     expect(analyzeAvailability(eligibility({ documents: [] }), null)).toMatchObject({ reason: "NO_DOCUMENTS" });
     expect(analyzeAvailability(eligibility(), { status: "FAILED" })).toMatchObject({ canAnalyze: true });
+  });
+});
+
+describe("rebuildAvailability", () => {
+  const revision = { id: RUN_ID };
+
+  it("is available only after an accepted study when every document is already read", () => {
+    expect(rebuildAvailability(eligibility(), { status: "FAILED" }, revision)).toEqual({
+      canRebuild: true,
+      requiresCoverageAcknowledgement: false,
+    });
+    expect(rebuildAvailability(eligibility(), null, null)).toMatchObject({ reason: "NO_ACCEPTED_STUDY" });
+    expect(
+      rebuildAvailability(
+        eligibility({
+          documents: [],
+          excluded: [{ sourceDocumentId: DOC_ID, fileName: "lease.pdf", reason: "NOT_READ" }],
+        }),
+        null,
+        revision,
+      ),
+    ).toMatchObject({ reason: "DOCUMENTS_NOT_READ" });
+    expect(rebuildAvailability(eligibility(), { status: "INVESTIGATING" }, revision)).toMatchObject({
+      reason: "PREPARATION_ACTIVE",
+    });
+  });
+
+  it("keeps Analyze reuse available for the same read documents", () => {
+    expect(analyzeAvailability(eligibility(), { status: "SUCCEEDED" })).toEqual({
+      canAnalyze: true,
+      requiresCoverageAcknowledgement: false,
+    });
   });
 });
 

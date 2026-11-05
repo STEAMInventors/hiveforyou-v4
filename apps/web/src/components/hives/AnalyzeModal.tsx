@@ -8,6 +8,7 @@ import {
   type ProcessingRun,
   type ReportRun,
   type StudyPreparationEligibility,
+  type StudyRevisionSummary,
 } from "@hiveforyou/contracts";
 import Link from "next/link";
 import { useEffect, useId, useRef } from "react";
@@ -15,7 +16,7 @@ import { useEffect, useId, useRef } from "react";
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import { handleModalTabKeyDown, safeReturnFocus } from "@/lib/a11y/modal-focus";
 import { usePrefersReducedMotion } from "@/lib/a11y/reduced-motion";
-import { hiveReportsPath } from "@/lib/hive-routes";
+import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
 
 import type { ReadPollState } from "./document-read-progress";
 import { HoneycombActivity, type LivingHiveMode } from "./HoneycombActivity";
@@ -32,7 +33,9 @@ import type { AnalyzeModalMode, AnalyzeStartError } from "./useStudyPreparation"
 type AnalyzeModalProps = {
   hiveId: string;
   mode: AnalyzeModalMode | null;
+  action: "analyze" | "rebuild";
   run: ProcessingRun | null;
+  studyRevision: StudyRevisionSummary | null;
   reportRuns: readonly ReportRun[];
   eligibility: StudyPreparationEligibility | null;
   pollState: ReadPollState;
@@ -93,7 +96,9 @@ export function AnalyzeModal(props: AnalyzeModalProps) {
 function AnalyzeDialog({
   hiveId,
   mode,
+  action,
   run,
+  studyRevision,
   reportRuns,
   eligibility,
   pollState,
@@ -126,16 +131,26 @@ function AnalyzeDialog({
           ? runGaps
           : [];
   const copy = confirming
-    ? {
-        title: "Some content is missing",
-        sub:
-          toRead.length > 0
-            ? "The analysis will use only what was read. Documents not read yet are read first; if more is missing then, you'll review it before the analysis continues."
-            : "The analysis will use only what was read. Review what's missing before you continue.",
-      }
+    ? action === "rebuild"
+      ? {
+          title: "Some content is missing",
+          sub: "Rebuild uses only the pages already saved. Review what's missing before you continue. Reports are not regenerated.",
+        }
+      : {
+          title: "Some content is missing",
+          sub:
+            toRead.length > 0
+              ? "The analysis will use only what was read. Documents not read yet are read first; if more is missing then, you'll review it before the analysis continues."
+              : "The analysis will use only what was read. Review what's missing before you continue.",
+        }
     : preparationCopy(run);
   const steps = preparationSteps(confirming ? null : run);
-  const reports = !confirming && outcome === "succeeded" ? reportRows(reportRuns) : [];
+  const rebuilding = run?.preparationMode === "REBUILD" || (confirming && action === "rebuild");
+  const acceptedRebuild =
+    !confirming && outcome === "succeeded" && run?.preparationMode === "REBUILD" && studyRevision?.processingRunId === run.id
+      ? studyRevision
+      : null;
+  const reports = !confirming && outcome === "succeeded" && !rebuilding ? reportRows(reportRuns) : [];
   const anyReportReady = reports.some((row) => row.state === "ready");
   const livingMode: LivingHiveMode =
     outcome === "succeeded"
@@ -248,6 +263,14 @@ function AnalyzeDialog({
             </ol>
           )}
 
+          {acceptedRebuild ? (
+            <div className="flex flex-col gap-1.5 rounded-[12px] bg-mist px-4 py-3.5" role="status" data-testid="rebuild-study-result">
+              <span className="text-[14.5px] font-semibold text-ink">Revision {acceptedRebuild.revisionNumber}</span>
+              <span className="text-[14.5px] leading-[1.55] text-ink-muted">
+                {acceptedRebuild.sourceCount ?? 0} sources · {acceptedRebuild.documentFindingCount ?? 0} atomic document findings.
+              </span>
+            </div>
+          ) : null}
           {reports.length > 0 ? (
             <ul aria-label="Your reports" className="m-0 flex list-none flex-col overflow-hidden rounded-[14px] border border-line p-0" data-testid="analyze-reports">
               {reports.map((row) => (
@@ -301,7 +324,7 @@ function AnalyzeDialog({
                   Cancel
                 </button>
                 <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={starting} onClick={onConfirm}>
-                  {starting ? "Starting…" : "Analyze what was read"}
+                  {starting ? "Starting…" : action === "rebuild" ? "Rebuild what was read" : "Analyze what was read"}
                 </button>
               </>
             ) : awaiting ? (
@@ -337,6 +360,15 @@ function AnalyzeDialog({
                 >
                   Close
                 </button>
+                {acceptedRebuild ? (
+                  <Link
+                    href={hiveStudyPath(hiveId)}
+                    className={PRIMARY_BUTTON_CLASS}
+                    data-testid="rebuild-open-study"
+                  >
+                    Open study revision {acceptedRebuild.revisionNumber}
+                  </Link>
+                ) : null}
                 {anyReportReady ? (
                   <Link href={hiveReportsPath(hiveId)} className={PRIMARY_BUTTON_CLASS} data-testid="analyze-open-reports">
                     Open reports

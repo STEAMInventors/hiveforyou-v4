@@ -201,6 +201,12 @@ export type ProcessingRun = {
   startedAt: string | null;
   updatedAt: string;
   finishedAt: string | null;
+  /**
+   * ANALYZE may reuse a compatible accepted Study and queue Writer.
+   * REBUILD always starts a new Study investigation and does not queue Writer.
+   * Runs saved before this field existed are Analyze runs.
+   */
+  preparationMode: "ANALYZE" | "REBUILD";
 };
 
 export type SampleCoverage = {
@@ -256,6 +262,10 @@ export type StudyRevisionSummary = {
   coverageGaps: CoverageGap[];
   coverageAcknowledgement: CoverageAcknowledgement;
   createdAt: string;
+  /** Recorded documents on this revision, when the summary includes them. */
+  sourceCount?: number;
+  /** Atomic `DF…` document findings, when the summary includes them. */
+  documentFindingCount?: number;
 };
 
 /** One Writer run for one audience over one accepted revision (D-041). */
@@ -492,6 +502,7 @@ export function normalizeProcessingRun(raw: unknown): ProcessingRun | null {
     startedAt,
     updatedAt: record.updatedAt,
     finishedAt,
+    preparationMode: record.preparationMode === "REBUILD" ? "REBUILD" : "ANALYZE",
   };
 }
 
@@ -568,6 +579,8 @@ export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummar
   const ids = [record.id, record.canonicalStudyId, record.processingRunId];
   if (ids.some((id) => typeof id !== "string" || !isValidUuid(id.toLowerCase()))) return null;
   if (typeof record.revisionNumber !== "number" || typeof record.createdAt !== "string") return null;
+  const sourceCount = nonNegativeInteger(record.sourceCount);
+  const documentFindingCount = nonNegativeInteger(record.documentFindingCount);
   return {
     id: (record.id as string).toLowerCase(),
     canonicalStudyId: (record.canonicalStudyId as string).toLowerCase(),
@@ -585,7 +598,13 @@ export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummar
       ? record.coverageAcknowledgement
       : "NOT_REQUIRED",
     createdAt: record.createdAt,
+    ...(sourceCount !== undefined ? { sourceCount } : {}),
+    ...(documentFindingCount !== undefined ? { documentFindingCount } : {}),
   };
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
 export function normalizeReportRun(raw: unknown): ReportRun | null {
@@ -666,9 +685,9 @@ export type AnalyzeAvailability =
   | { canAnalyze: false; reason: "NO_DOCUMENTS" | "PREPARATION_ACTIVE" | "AWAITING_ACKNOWLEDGEMENT" };
 
 /**
- * Analyze is the single entry point: it reads whatever is not yet read, so it only needs one
+ * Analyze reads whatever is not yet read and reuses a compatible accepted Study. It only needs one
  * uploaded document and no active run. Starting is not consent to gaps: only known material gaps
- * the owner has not acknowledged before need an acknowledgement here.
+ * the owner has not acknowledged before need an acknowledgement here. Rebuild Study is separate.
  */
 export function analyzeAvailability(
   eligibility: StudyPreparationEligibility,
@@ -684,6 +703,34 @@ export function analyzeAvailability(
     return { canAnalyze: false, reason: "NO_DOCUMENTS" };
   }
   return { canAnalyze: true, requiresCoverageAcknowledgement: knownGapsToAcknowledge(eligibility).length > 0 };
+}
+
+export type RebuildAvailability =
+  | { canRebuild: true; requiresCoverageAcknowledgement: boolean }
+  | {
+      canRebuild: false;
+      reason: "NO_ACCEPTED_STUDY" | "NO_DOCUMENTS" | "DOCUMENTS_NOT_READ" | "PREPARATION_ACTIVE" | "AWAITING_ACKNOWLEDGEMENT";
+    };
+
+/**
+ * Rebuild Study is explicit. It needs an accepted Study, documents already read, and no active
+ * analysis. It does not read files again and does not treat page coverage as consent.
+ */
+export function rebuildAvailability(
+  eligibility: StudyPreparationEligibility,
+  run: Pick<ProcessingRun, "status"> | null,
+  studyRevision: { id: string } | null,
+): RebuildAvailability {
+  if (!studyRevision) return { canRebuild: false, reason: "NO_ACCEPTED_STUDY" };
+  if (run?.status === "AWAITING_ACKNOWLEDGEMENT") return { canRebuild: false, reason: "AWAITING_ACKNOWLEDGEMENT" };
+  if (run && isActiveProcessingRunStatus(run.status)) return { canRebuild: false, reason: "PREPARATION_ACTIVE" };
+  if (eligibility.documents.length === 0 && eligibility.excluded.length === 0) {
+    return { canRebuild: false, reason: "NO_DOCUMENTS" };
+  }
+  if (eligibility.documents.length === 0 || eligibility.activeReadCount > 0 || documentsToRead(eligibility).length > 0) {
+    return { canRebuild: false, reason: "DOCUMENTS_NOT_READ" };
+  }
+  return { canRebuild: true, requiresCoverageAcknowledgement: knownGapsToAcknowledge(eligibility).length > 0 };
 }
 
 const TO_READ_REASONS: readonly DocumentExclusionReason[] = ["NOT_READ", "READ_FAILED", "READ_ACTIVE"];

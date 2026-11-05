@@ -18,7 +18,7 @@ import {
   mayaStudyOutput,
 } from "../testing/maya-fixture";
 import { StudyAgentLedger } from "./study-agent";
-import { firstUngroundedFindingNumber, parseFindingDateTokenToIso, studyClaimCatalog, verifyStudyInvestigation } from "./study-verification";
+import { assessDocumentCenteredStudy, firstUngroundedFindingNumber, parseFindingDateTokenToIso, studyClaimCatalog, verifyStudyInvestigation } from "./study-verification";
 
 type Output = ReturnType<typeof mayaStudyOutput>;
 
@@ -343,5 +343,89 @@ describe("studyClaimCatalog", () => {
         quotes: ["Date: 12 November 2024"],
       }),
     ).toBe("11");
+  });
+});
+
+describe("assessDocumentCenteredStudy", () => {
+  const sourceId = "33333333-3333-4333-8333-333333333333";
+  const otherId = "44444444-4444-4444-8444-444444444444";
+
+  function finding(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "DF1",
+      sourceDocumentId: sourceId,
+      category: "balance",
+      subject: "account",
+      attribute: "amount due",
+      valueAsWritten: "12",
+      statement: "The amount due is 12.",
+      modality: "STATED",
+      evidence: [{ sourceDocumentId: sourceId, pageNumber: 1, quote: "Amount due 12" }],
+      ...overrides,
+    };
+  }
+
+  function inventory(overrides: Record<string, unknown> = {}) {
+    return {
+      documents: [
+        {
+          sourceDocumentId: sourceId,
+          role: "PRIMARY",
+          documentType: "notice",
+          roleReasoning: "It states the amount due.",
+          pagesRead: [1, 2, 3],
+        },
+      ],
+      documentFindings: [finding()],
+      ...overrides,
+    };
+  }
+
+  it("accepts one source and one atomic finding without a fixed count or category list", () => {
+    expect(assessDocumentCenteredStudy(inventory())).toEqual({ ok: true, sourceCount: 1, documentFindingCount: 1 });
+    const openCategory = inventory({
+      documents: [
+        { sourceDocumentId: sourceId, role: "SUPPORTING", documentType: "letter", roleReasoning: "It names the sender." },
+        { sourceDocumentId: otherId, role: "REFERENCE", documentType: "schedule", roleReasoning: "It lists dates." },
+      ],
+      documentFindings: [
+        finding({ category: "sprocket" }),
+        finding({
+          id: "DF2",
+          sourceDocumentId: otherId,
+          category: "calendar",
+          statement: "The date is 4 March.",
+          evidence: [{ sourceDocumentId: otherId, pageNumber: 2, quote: "4 March" }],
+        }),
+      ],
+    });
+    expect(assessDocumentCenteredStudy(openCategory)).toEqual({ ok: true, sourceCount: 2, documentFindingCount: 2 });
+    expect(assessDocumentCenteredStudy(inventory())).not.toHaveProperty("extractionCompletenessStatus");
+  });
+
+  it("rejects a missing inventory, missing findings, and a finding that is not atomic evidence", () => {
+    expect(assessDocumentCenteredStudy({ documentFindings: [finding()] })).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_documents_missing",
+    });
+    expect(assessDocumentCenteredStudy(inventory({ documentFindings: [] }))).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_findings_missing",
+    });
+    expect(assessDocumentCenteredStudy(inventory({ documentFindings: [finding({ evidence: [] })] }))).toMatchObject({
+      ok: false,
+      diagnosticReason: "study_finding_unusable",
+    });
+    expect(
+      assessDocumentCenteredStudy(
+        inventory({
+          documentFindings: [
+            finding({
+              evidence: [{ sourceDocumentId: otherId, pageNumber: 1, quote: "Amount due 12" }],
+            }),
+          ],
+        }),
+      ),
+    ).toMatchObject({ ok: false, diagnosticReason: "study_finding_unusable" });
   });
 });

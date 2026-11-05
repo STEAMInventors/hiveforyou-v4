@@ -1,17 +1,18 @@
 "use client";
 
 import { type SourceDocument, type UploadQuota } from "@hiveforyou/contracts";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
-import { hiveReportsPath } from "@/lib/hive-routes";
+import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchSourceDocuments, fetchUploadQuota } from "@/lib/source-documents-client";
 
 import { AnalyzeModal } from "./AnalyzeModal";
 import { readStatusPresentation } from "./document-read-progress";
-import { analyzeHint } from "./study-preparation-progress";
+import { analyzeHint, rebuildHint } from "./study-preparation-progress";
 import { AddFilesButton, SelectedFileList } from "./SourceFilePicker";
 import {
   MAX_FILES_PER_BATCH,
@@ -146,6 +147,13 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null, 
   }, [analysisStatus, refresh]);
   const toRead = analysis.toRead.length;
   const analyzeDisabled = !analysis.availability?.canAnalyze || analysis.starting || busy;
+  const acceptedRebuild =
+    analysis.run?.preparationMode === "REBUILD" &&
+    analysis.run.status === "SUCCEEDED" &&
+    analysis.state?.studyRevision?.processingRunId === analysis.run.id
+      ? analysis.state.studyRevision
+      : null;
+  const showRebuild = analysis.state?.studyRevision != null && !analysis.active;
 
   const addFiles = async (picked: File[]) => {
     const selected = toSelectedSourceFiles(picked).slice(0, MAX_FILES_PER_BATCH);
@@ -216,6 +224,21 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null, 
                 {analysis.starting ? "Starting…" : "Analyze"}
               </button>
             )}
+            {showRebuild ? (
+              <button
+                type="button"
+                className={SECONDARY_BUTTON_CLASS}
+                disabled={!analysis.rebuildAvailability?.canRebuild || analysis.starting || busy}
+                aria-describedby="documents-rebuild-hint"
+                data-testid="rebuild-study-button"
+                onClick={(event) => {
+                  analysis.returnFocusRef.current = event.currentTarget;
+                  analysis.rebuild();
+                }}
+              >
+                Rebuild Study
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -230,7 +253,25 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null, 
               {analyzeHint(analysis.availability)}
             </span>
           ) : null}
+          {showRebuild && analysis.rebuildAvailability ? (
+            <span id="documents-rebuild-hint" className="block">
+              {rebuildHint(analysis.rebuildAvailability)}
+            </span>
+          ) : null}
         </p>
+      ) : null}
+
+      {acceptedRebuild ? (
+        <div role="status" data-testid="rebuild-study-status" className="rounded-card border border-line bg-paper px-4 py-3 text-sm text-ink">
+          <p className="m-0 font-medium">Study revision {acceptedRebuild.revisionNumber} accepted.</p>
+          <p className="m-0 mt-1 text-ink-muted">
+            {acceptedRebuild.sourceCount ?? 0} sources · {acceptedRebuild.documentFindingCount ?? 0} atomic document findings.
+            Reading every saved page does not mean every fact was extracted.
+          </p>
+          <Link href={hiveStudyPath(hiveId)} className="mt-2 inline-flex font-medium text-cell-blue-deep" data-testid="rebuild-study-link">
+            Open study revision {acceptedRebuild.revisionNumber}
+          </Link>
+        </div>
       ) : null}
 
       {analysis.startError && !analysis.modalMode ? (
@@ -310,7 +351,9 @@ export function DocumentsPanel({ hiveId, initialDocuments, initialError = null, 
       <AnalyzeModal
         hiveId={hiveId}
         mode={analysis.modalMode}
+        action={analysis.action}
         run={analysis.run}
+        studyRevision={analysis.state?.studyRevision ?? null}
         reportRuns={analysis.reportRuns}
         eligibility={analysis.state?.eligibility ?? null}
         pollState={analysis.pollState}

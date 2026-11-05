@@ -25,6 +25,7 @@ function makeRun(status: ProcessingRunStatus, overrides: Partial<ProcessingRun> 
     requestId: "55555555-5555-4555-8555-555555555555",
     attemptNumber: 1,
     status,
+    preparationMode: "ANALYZE",
     authorizedSourceDocumentIds: [DOC],
     intentRequestIds: ["77777777-7777-4777-8777-777777777777"],
     coverageComplete: true,
@@ -118,7 +119,9 @@ function renderModal(props: Partial<ComponentProps<typeof AnalyzeModal>> = {}) {
     <AnalyzeModal
       hiveId={HIVE_ID}
       mode="progress"
+      action="analyze"
       run={null}
+      studyRevision={null}
       reportRuns={[]}
       eligibility={eligibility}
       pollState="ok"

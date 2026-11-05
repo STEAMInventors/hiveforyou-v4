@@ -29,6 +29,7 @@
 | F-017 | Reports | Generate Professional-format report: richer evidence/trace | Owner self-service first; pro account sharing is separately approved |
 | F-018 | Reports | Saved run history and independent Generate actions | Each click generates new run; prior accepted report survives any later failure |
 | F-019 | Study | Accept new documents and incrementally revise same Study | Preserve chronology, conflicts, previous revisions and reports |
+| F-025 | Documents | Owner **Rebuild Study** (D-049): a new accepted revision from pages and intent already saved | Analyze still reuses a compatible revision and can write missing reports. Rebuild does not upload, re-read, or regenerate reports. Same request replays; a second rebuild while one is active does not start another. Acceptance needs a document inventory and atomic findings. Prior revisions and reports remain, with a link to the new revision and its source and finding counts |
 | F-020 | Account | Privacy, deletion status and account removal | Retained 30-day recovery decision; no implementation until policy and data lifecycle approved |
 | F-021 | Cross-cutting | Distinguish candidate, verified, interpretation, unknown and not reviewed | Displayed states never mislead about completeness or external truth |
 | F-022 | Cross-cutting | Professional-caliber accessibility/responsive experience | Keyboard/focus/reader labels, contrast, charts with accessible alternatives |

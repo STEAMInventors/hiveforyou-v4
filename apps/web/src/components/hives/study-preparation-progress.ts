@@ -1,5 +1,6 @@
 import {
   type AnalyzeAvailability,
+  type RebuildAvailability,
   type CoverageGap,
   type CoverageGapReason,
   isActiveProcessingRunStatus,
@@ -61,6 +62,12 @@ export function preparationCopy(run: ProcessingRun | null): { title: string; sub
     return {
       title: "Some content couldn't be read",
       sub: "Review what's missing. If you continue, the analysis uses only what was read and your reports say what's missing.",
+    };
+  }
+  if (outcome === "succeeded" && run.preparationMode === "REBUILD") {
+    return {
+      title: "Study revision accepted",
+      sub: "A new Canonical Study revision was accepted from the pages already saved. Earlier revisions and their reports are unchanged. Reports were not regenerated. Reading every page does not mean every fact was extracted.",
     };
   }
   if (outcome === "succeeded") {
@@ -126,6 +133,26 @@ export function coverageGapText(gap: Pick<CoverageGap, "reason" | "pageNumbers">
     return gap.pageNumbers.length > 0 ? `${base}: ${gap.pageNumbers.join(", ")}.` : `${base}.`;
   }
   return base;
+}
+
+export function rebuildHint(availability: RebuildAvailability): string {
+  if (availability.canRebuild) {
+    return availability.requiresCoverageAcknowledgement
+      ? "Rebuild uses the pages already saved. Some content is missing; you'll review it first. Reports are not regenerated."
+      : "Rebuild creates a new study revision from the pages already saved. Earlier revisions and reports stay. Reports are not regenerated.";
+  }
+  switch (availability.reason) {
+    case "DOCUMENTS_NOT_READ":
+      return "Read every added document with Analyze before rebuilding the study.";
+    case "PREPARATION_ACTIVE":
+      return "A study is already running.";
+    case "AWAITING_ACKNOWLEDGEMENT":
+      return "Finish the review that's waiting before rebuilding.";
+    case "NO_ACCEPTED_STUDY":
+      return "Analyze first. Rebuild starts a new revision after a study has been accepted.";
+    case "NO_DOCUMENTS":
+      return "Add a document before rebuilding.";
+  }
 }
 
 export function analyzeHint(availability: AnalyzeAvailability): string {

@@ -20,6 +20,7 @@ import { DocumentsPanel } from "./DocumentsPanel";
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 const STUDY_URL = `/api/v1/hives/${HIVE_ID}/study-preparation`;
+const REBUILD_URL = `${STUDY_URL}/rebuild`;
 const ACKNOWLEDGE_URL = `${STUDY_URL}/acknowledge`;
 const DOCUMENTS_URL = `/api/v1/hives/${HIVE_ID}/source-documents`;
 const RUN_ID = "88888888-8888-4888-8888-888888888888";
@@ -66,6 +67,11 @@ type FakeServer = {
   documents: SourceDocument[];
   analysisRunStatus: string | null;
   analysisPosts: Record<string, unknown>[];
+  rebuildPosts: Record<string, unknown>[];
+  preparationMode: "ANALYZE" | "REBUILD";
+  revisionNumber: number;
+  sourceCount: number;
+  documentFindingCount: number;
   acknowledgePosts: Record<string, unknown>[];
   readDocuments: number;
   unreadDocuments: number;
@@ -86,6 +92,7 @@ function analysisRun(status: string) {
     requestId: "99999999-9999-4999-8999-999999999999",
     attemptNumber: 1,
     status,
+    preparationMode: server.preparationMode,
     authorizedSourceDocumentIds: [docId(0)],
     intentRequestIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
     coverageComplete: server.runGaps.length === 0,
@@ -164,7 +171,9 @@ function studyPreparationBody() {
       ? {
           id: REVISION_ID,
           canonicalStudyId: "ffffffff-0000-4000-8000-000000000001",
-          revisionNumber: 1,
+          revisionNumber: server.revisionNumber,
+          sourceCount: server.sourceCount,
+          documentFindingCount: server.documentFindingCount,
           predecessorRevisionId: null,
           processingRunId: RUN_ID,
           coverageComplete: true,
@@ -205,6 +214,11 @@ describe("DocumentsPanel — Analyze", () => {
       documents: [makeDocument(0, "SUCCEEDED")],
       analysisRunStatus: null,
       analysisPosts: [],
+      rebuildPosts: [],
+      preparationMode: "ANALYZE",
+      revisionNumber: 1,
+      sourceCount: 0,
+      documentFindingCount: 0,
       acknowledgePosts: [],
       readDocuments: 1,
       unreadDocuments: 0,
@@ -216,6 +230,25 @@ describe("DocumentsPanel — Analyze", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
+        if (url === REBUILD_URL && init?.method === "POST") {
+          server.rebuildPosts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+          server.preparationMode = "REBUILD";
+          server.analysisRunStatus = "SUCCEEDED";
+          server.revisionNumber = 7;
+          server.sourceCount = 3;
+          server.documentFindingCount = 5;
+          return json(
+            {
+              processingRun: analysisRun("SUCCEEDED"),
+              created: true,
+              reusedStudy: false,
+              reportsReady: false,
+              studyRevision: studyPreparationBody().studyRevision,
+              reportRuns: [],
+            },
+            200,
+          );
+        }
         if (url === STUDY_URL && init?.method === "POST") {
           server.analysisPosts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
           if (server.analysisRunStatus === "SUCCEEDED" && server.reportStatuses) {
@@ -430,5 +463,39 @@ describe("DocumentsPanel — Analyze", () => {
     await within(await screen.findByTestId("analyze-modal")).findByRole("heading", { name: "Getting ready…" });
 
     expect(server.analysisPosts).toHaveLength(1);
+  });
+
+  it("rebuilds from the pages already read and links the new revision without starting Analyze", async () => {
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" };
+    renderPanel();
+    const button = await screen.findByTestId("rebuild-study-button");
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    expect(server.rebuildPosts).toHaveLength(1);
+    expect(server.analysisPosts).toHaveLength(0);
+    const status = await screen.findByTestId("rebuild-study-status");
+    expect(status.textContent).toContain("Study revision 7 accepted.");
+    expect(status.textContent).toContain("3 sources");
+    expect(status.textContent).toContain("5 atomic document findings");
+    expect(status.textContent).toContain("does not mean every fact was extracted");
+    expect(screen.getByTestId("rebuild-study-link").getAttribute("href")).toBe(`/hives/${HIVE_ID}/study`);
+  });
+
+  it("does not offer rebuild until a study exists and the documents are already read", async () => {
+    renderPanel();
+    await screen.findByText(READY_HINT);
+    expect(screen.queryByTestId("rebuild-study-button")).toBeNull();
+    cleanup();
+
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" };
+    server.unreadDocuments = 1;
+    server.documents = [makeDocument(0, "SUCCEEDED"), makeDocument(1, "PENDING")];
+    renderPanel();
+    const button = await screen.findByTestId("rebuild-study-button");
+    expect((button as HTMLButtonElement).disabled).toBe(true);
   });
 });
