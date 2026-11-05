@@ -526,4 +526,93 @@ describe("WriterAgentLedger editorial plan tools (V4-004K.2)", () => {
     expect(ledger.finished).toBe(false);
     expect(ledger.completedSectionCount).toBe(1);
   });
+
+  it("returns structured patch_editorial_plan rejection when uncertainty.claimRefs is omitted after sections[2].uncertainty.claimRefs[0] failure (V4-005 live)", () => {
+    const { claims, canonicalFindings } = buildVerifiedL001();
+    const fileNames = new Map(Object.entries(L001_INITIAL_IEP_FILE_NAMES));
+    const ledger = new WriterAgentLedger({
+      reportRunId: `${REPORT_RUN_ID}-v4-005-uncertainty`,
+      audience: "CUSTOMER",
+      claims,
+      fileNames,
+      canonicalFindings,
+      asOf: "2026-11-04",
+    });
+    const base = l001CustomerEditorialPlan();
+    const plan = {
+      ...base,
+      sections: [
+        ...base.sections,
+        {
+          id: "s2",
+          heading: "Speech services snapshot",
+          priority: "MEDIUM" as const,
+          documentedClaimIds: ["DF32"],
+        },
+        {
+          id: "s3",
+          heading: "What is missing",
+          priority: "HIGH" as const,
+          uncertainty: {
+            text: "The evaluation did not include a reading comprehension score.",
+            claimRefs: ["P99"],
+          },
+        },
+      ],
+    };
+    const failed = exec(ledger, "submit_editorial_plan", plan, "call-v4-005-submit");
+    expect(failed).toMatchObject({
+      ok: false,
+      compileFailed: true,
+      error: "editorial_plan_claim_unknown",
+      field: "sections[2].uncertainty.claimRefs[0]",
+    });
+    expect(ledger.finished).toBe(false);
+
+    const malformedPatch = exec(
+      ledger,
+      "patch_editorial_plan",
+      {
+        sections: [
+          {
+            id: "s3",
+            heading: "What is missing",
+            priority: "HIGH",
+            uncertainty: {
+              text: "The evaluation did not include a reading comprehension score.",
+            },
+          },
+        ],
+      },
+      "call-v4-005-patch-missing-refs",
+    );
+    expect(malformedPatch).toMatchObject({
+      ok: false,
+      compileFailed: true,
+      error: "writer_claim_missing",
+      field: "sections[2].uncertainty",
+    });
+    expect(ledger.finished).toBe(false);
+
+    const repaired = exec(
+      ledger,
+      "patch_editorial_plan",
+      {
+        sections: [
+          {
+            id: "s3",
+            heading: "What is missing",
+            priority: "HIGH",
+            uncertainty: {
+              text: "The evaluation did not include a reading comprehension score, and only one evaluation document was in the Hive.",
+              claimRefs: ["P6", "P6.U0", "P6.L0"],
+            },
+          },
+        ],
+      },
+      "call-v4-005-patch-repair",
+    );
+    expect(repaired).toMatchObject({ ok: true, finished: true, compileFailed: false });
+    expect(ledger.assemble().sections.some((section) => section.id === "s3")).toBe(true);
+  });
 });

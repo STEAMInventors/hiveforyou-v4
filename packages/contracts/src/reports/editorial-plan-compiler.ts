@@ -124,6 +124,9 @@ function buildTemporalContext(
 }
 
 function assertKnownClaims(ids: readonly string[], claims: ReadonlyMap<string, StudyClaim>, path: string): void {
+  if (!Array.isArray(ids)) {
+    reject("editorial_plan_shape", `${path} must be a list of Study claim ids.`, path);
+  }
   ids.forEach((id, index) => {
     if (!claims.has(id)) {
       reject("editorial_plan_claim_unknown", `${path}[${index}] (${id}) is not a Study claim.`, `${path}[${index}]`);
@@ -331,7 +334,7 @@ function compileUncertaintyBlock(
   );
   if ("mode" in unit && unit.mode === "compiled") {
     const compiled = unit as EditorialCompiledUncertaintyUnit;
-    assertKnownClaims(compiled.claimIds, claims, `${path}.claimIds`);
+    assertKnownClaims(compiled.claimIds ?? [], claims, `${path}.claimIds`);
     assertUncertaintyKinds(compiled.claimIds, claims, `${path}.claimIds`);
     const text = joinDocumentedPhrases(compiled.claimIds, claims);
     return validateReportBlock(
@@ -974,10 +977,11 @@ function sectionClaimUnion(section: EditorialSectionPlan): string[] {
   for (const id of section.documentedClaimIds ?? []) ids.add(id);
   if (section.interpretation) for (const id of section.interpretation.claimRefs) ids.add(id);
   if (section.uncertainty) {
-    if ("mode" in section.uncertainty) {
-      for (const id of section.uncertainty.claimIds) ids.add(id);
+    if ("mode" in section.uncertainty && section.uncertainty.mode === "compiled") {
+      for (const id of section.uncertainty.claimIds ?? []) ids.add(id);
     } else {
-      for (const id of section.uncertainty.claimRefs) ids.add(id);
+      const claimRefs = (section.uncertainty as EditorialAuthoredUncertaintyUnit).claimRefs;
+      for (const id of claimRefs ?? []) ids.add(id);
     }
   }
   for (const req of section.missingDocumentRequests ?? []) {
@@ -996,10 +1000,11 @@ function collectRequiredRenderedClaimSelections(plan: EditorialPlan): Set<string
     for (const id of section.documentedClaimIds ?? []) selected.add(id);
     if (section.interpretation) for (const id of section.interpretation.claimRefs) selected.add(id);
     if (section.uncertainty) {
-      if ("mode" in section.uncertainty) {
-        for (const id of section.uncertainty.claimIds) selected.add(id);
+      if ("mode" in section.uncertainty && section.uncertainty.mode === "compiled") {
+        for (const id of section.uncertainty.claimIds ?? []) selected.add(id);
       } else {
-        for (const id of section.uncertainty.claimRefs) selected.add(id);
+        const claimRefs = (section.uncertainty as EditorialAuthoredUncertaintyUnit).claimRefs;
+        for (const id of claimRefs ?? []) selected.add(id);
       }
     }
     for (const req of section.missingDocumentRequests ?? []) {

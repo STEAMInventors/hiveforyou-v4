@@ -1,8 +1,11 @@
 import type {
+  EditorialAuthoredUncertaintyUnit,
+  EditorialCompiledUncertaintyUnit,
   EditorialComponentPlan,
   EditorialPlan,
   EditorialSectionPlan,
   EditorialSummaryPlan,
+  EditorialUncertaintyUnit,
 } from "./editorial-plan-contracts";
 import type { WriterEditorialInsight, WriterPriorityFinding, WriterSummaryDetailLevel } from "./writer-agent";
 import type { ScenarioDefinition } from "./writer-report-contracts";
@@ -20,6 +23,15 @@ export type EditorialPlanPatch = {
   readonly scenarios?: readonly ScenarioDefinition[];
 };
 
+function cloneUncertaintyUnit(unit: EditorialUncertaintyUnit): EditorialUncertaintyUnit {
+  if ("mode" in unit && unit.mode === "compiled") {
+    const compiled = unit as EditorialCompiledUncertaintyUnit;
+    return { mode: "compiled", claimIds: [...(compiled.claimIds ?? [])] };
+  }
+  const authored = unit as EditorialAuthoredUncertaintyUnit;
+  return { text: authored.text, claimRefs: [...(authored.claimRefs ?? [])] };
+}
+
 function cloneSectionPlan(section: EditorialSectionPlan): EditorialSectionPlan {
   return {
     ...section,
@@ -29,18 +41,11 @@ function cloneSectionPlan(section: EditorialSectionPlan): EditorialSectionPlan {
       ? {
           interpretation: {
             text: section.interpretation.text,
-            claimRefs: [...section.interpretation.claimRefs],
+            claimRefs: [...(section.interpretation.claimRefs ?? [])],
           },
         }
       : {}),
-    ...(section.uncertainty
-      ? {
-          uncertainty:
-            "mode" in section.uncertainty
-              ? { mode: "compiled", claimIds: [...section.uncertainty.claimIds] }
-              : { text: section.uncertainty.text, claimRefs: [...section.uncertainty.claimRefs] },
-        }
-      : {}),
+    ...(section.uncertainty ? { uncertainty: cloneUncertaintyUnit(section.uncertainty) } : {}),
     ...(section.missingDocumentRequests
       ? {
           missingDocumentRequests: section.missingDocumentRequests.map((req) => ({
