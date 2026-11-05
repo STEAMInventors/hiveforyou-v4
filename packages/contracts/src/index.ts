@@ -15,6 +15,7 @@ export * from "./study-preparation/investigation-plan-deterministic";
 export * from "./study-preparation/audience-contracts";
 export * from "./analysis/decimal-formula";
 export * from "./analysis/study-verification";
+export * from "./analysis/corpus-reconciliation";
 export * from "./analysis/canonical-finding-resolver";
 export * from "./analysis/study-agent";
 export * from "./reports/writer-report-contracts";

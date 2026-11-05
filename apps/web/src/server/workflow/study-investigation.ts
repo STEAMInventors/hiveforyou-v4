@@ -26,9 +26,9 @@ import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation
  */
 
 const START_MESSAGE =
-  "Investigate the authorized case corpus using the tools, following the strict dependency order in the instructions above — never predict E... or DF... identifiers before a tool result returns them: (1) call read_pages first (and search_case when needed) to read all authorized non-empty pages of PRIMARY documents; (2) after read_pages returns page text, batch record_evidence using exact page quotes and wait for confirmed E... ids; (3) using only confirmed returned E... ids, call record_document and batch record_document_finding to record reusable atomic DF... findings once per document without predicting DF... ids; (4) using only confirmed returned DF... ids, record relationships, calculations (record_calculation), contradictions (flag_conflict), assessments (record_assessment), and open professional determinations (record_professional_determination) without duplicate record_fact calls; (5) close every investigation question briefly with finish_question citing confirmed DF... findingIds while preserving uncertainties and limitations, then call finish_study without claiming that full page coverage proves complete semantic extraction.";
+  "Investigate the authorized case corpus using the tools, following the strict dependency order in the instructions above — never predict E... or DF... identifiers before a tool result returns them: (1) call read_pages first (and search_case when needed) to read all authorized non-empty pages of PRIMARY documents; (2) after read_pages returns page text, batch record_evidence using exact page quotes and wait for confirmed E... ids; (3) using only confirmed returned E... ids, call record_document for every authorized document (PRIMARY, SUPPORTING, REFERENCE or UNCERTAIN; documentType UNDETERMINED with role UNCERTAIN when the type cannot be established) and batch record_document_finding to record reusable atomic DF... findings once per document without predicting DF... ids; (4) using only confirmed returned DF... ids, record relationships, calculations (record_calculation), contradictions (flag_conflict), assessments (record_assessment), and open professional determinations (record_professional_determination) without duplicate record_fact calls; (5) close every investigation question briefly with finish_question citing confirmed DF... findingIds, listing its evidenceNeeds (FOUND, NOT_FOUND, UNCERTAIN or NOT_REQUIRED) and preserving uncertainties and limitations, then call finish_study once with one documentReconciliations entry per document, without claiming that full page coverage proves complete semantic extraction.";
 const NUDGE_MESSAGE =
-  "No tool was called. Continue with the tools in dependency order: read all non-empty pages of PRIMARY documents with read_pages first, record exact quotes with record_evidence, use confirmed returned E... ids for record_document and record_document_finding, then close every question briefly with finish_question citing confirmed DF... findingIds without duplicate record_fact calls and call finish_study.";
+  "No tool was called. Continue with the tools in dependency order: read all non-empty pages of PRIMARY documents with read_pages first, record exact quotes with record_evidence, use confirmed returned E... ids for record_document (every authorized document) and record_document_finding, then close every question briefly with finish_question citing confirmed DF... findingIds and evidenceNeeds without duplicate record_fact calls, and call finish_study with one documentReconciliations entry per document.";
 const BUDGET_MESSAGE = "The analysis could not finish investigating your documents within its limits. You can try again.";
 
 export type StudyAgentTotals = {
@@ -77,7 +77,10 @@ export async function runStudyInvestigation(
   const clock = input.clock ?? Date.now;
   const startedAt = clock();
   const ledger = new StudyAgentLedger({ processingRunId: input.runId, planQuestionIds: input.questionIds, pages: input.pages });
-  const allowance = studyAgentAllowance(input.questionIds.length);
+  const allowance = studyAgentAllowance(
+    input.questionIds.length,
+    new Set(input.pages.map((page) => page.sourceDocumentId.toLowerCase())).size,
+  );
   const messages: StudyAgentMessage[] = [{ role: "user", content: START_MESSAGE }];
   const totals: StudyAgentTotals = {
     rounds: 0,

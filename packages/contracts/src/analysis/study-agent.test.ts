@@ -84,6 +84,22 @@ function preparedLedger(questions: readonly string[] = MAYA_PLAN_QUESTION_IDS) {
   return target;
 }
 
+/** Records every Maya document as UNDETERMINED and returns matching UNRESOLVED dispositions for finish_study. */
+function closeCorpusAsUnresolved(target: StudyAgentLedger) {
+  const reason = "Not examined in this narrow ledger test.";
+  for (const documentId of Object.values(MAYA_DOCS)) {
+    run(target, "record_document", { documentId, role: "UNCERTAIN", roleReasoning: reason, documentType: "UNDETERMINED" });
+  }
+  return Object.values(MAYA_DOCS).map((documentId) => ({ documentId, disposition: "UNRESOLVED", findingIds: [], reason }));
+}
+
+/** The smallest evidence-need list consistent with an answer status in the prepared ledger. */
+function defaultEvidenceNeeds(status: string) {
+  return status === "MISSING_EVIDENCE"
+    ? [{ need: "Reading comprehension score", status: "NOT_FOUND", explanation: "No examined page reports one." }]
+    : [{ need: "Reading fluency measurement", status: "FOUND", evidenceIds: ["E1"] }];
+}
+
 describe("study agent tool definitions", () => {
   it("defines the thirteen fixed tools with closed argument objects", () => {
     expect(STUDY_AGENT_TOOLS.map((tool) => tool.function.name)).toEqual([...STUDY_AGENT_TOOL_NAMES]);
@@ -167,7 +183,12 @@ describe("StudyAgentLedger over the case-wide corpus", () => {
         p3!,
       ],
     };
-    expect(target.assemble()).toEqual(expected);
+    const { documents: recordedDocuments, documentFindings, ...assembled } = target.assemble();
+    expect({ ...assembled, answers: assembled.answers.map(({ evidenceNeeds: _needs, ...answer }) => answer) }).toEqual(expected);
+    expect(recordedDocuments!.map((doc) => doc.sourceDocumentId).sort()).toEqual(Object.values(MAYA_DOCS).sort());
+    expect(recordedDocuments!.every((doc) => doc.reconciliation !== undefined)).toBe(true);
+    expect(documentFindings!.map((finding) => finding.id)).toEqual(["DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "DF7"]);
+    expect(assembled.answers.every((answer) => (answer.evidenceNeeds?.length ?? 0) > 0)).toBe(true);
 
     const verified = verify(target);
     expect(verified.ok).toBe(true);
@@ -380,6 +401,7 @@ describe("StudyAgentLedger over the case-wide corpus", () => {
         evidenceIds: [],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: defaultEvidenceNeeds(status),
         ...overrides,
       });
     expect(finish("P1", "ANSWERED", { evidenceIds: ["E1"] })).toMatchObject({ error: "status_inconsistent" });
@@ -406,7 +428,12 @@ describe("StudyAgentLedger over the case-wide corpus", () => {
     run(target, "record_fact", { questionId: "P4", statement: "Current 74.", evidenceIds: ["E2"] });
     expect(finish("P4", "PARTIALLY_ANSWERED", { limitations: ["Only one measurement."] })).toMatchObject({ ok: true });
 
-    expect(run(target, "finish_study", { coverageNotes: [] })).toMatchObject({ ok: true, finished: true });
+    const documentReconciliations = closeCorpusAsUnresolved(target);
+    expect(run(target, "finish_study", { coverageNotes: [], documentReconciliations })).toMatchObject({
+      ok: true,
+      finished: true,
+      unresolvedDocuments: 8,
+    });
     expect(target.assemble().answers.map((answer) => answer.status)).toEqual([
       "MISSING_EVIDENCE",
       "ANSWERED",
@@ -447,16 +474,17 @@ describe("StudyAgentLedger over the case-wide corpus", () => {
     ]);
   });
 
-  it("completes six plan questions (P1-P6) in 5 batched turns with shared evidence, question dependencies, and verified Study assembly", () => {
+  it("completes six plan questions (P1-P6) in 6 batched turns with shared evidence, question dependencies, and verified Study assembly", () => {
     const target = ledger(CORPUS, MAYA_SIX_PLAN_QUESTION_IDS);
     const turns = mayaSixQuestionStudyAgentTurns();
-    expect(turns).toHaveLength(5);
+    expect(turns).toHaveLength(6);
+    expect(turns.length).toBeLessThanOrEqual(studyAgentAllowance(6, Object.keys(MAYA_DOCS).length).rounds);
 
     // Before execution: 0 completed questions
     expect(target.completedQuestionCount).toBe(0);
 
-    // Execute turns 1-4 (locate/read -> record_evidence -> record_fact/calculation/conflict -> record_assessment/determination)
-    for (const turn of turns.slice(0, 4)) {
+    // Execute turns 1-5 (read -> evidence -> facts/calculations/conflicts -> documents/findings -> assessments/determinations)
+    for (const turn of turns.slice(0, 5)) {
       const results = turn.map((item) => target.execute(item));
       expect(results.every((r) => r.ok)).toBe(true);
     }
@@ -493,8 +521,8 @@ describe("StudyAgentLedger over the case-wide corpus", () => {
       error: "questions_unfinished",
     });
 
-    // Execute turn 5: close all 6 questions in dependency order and finish_study in the same turn
-    const turn5Results = turns[4]!.map((item) => target.execute(item));
+    // Execute turn 6: close all 6 questions in dependency order and finish_study in the same turn
+    const turn5Results = turns[5]!.map((item) => target.execute(item));
     expect(turn5Results.every((r) => r.ok)).toBe(true);
     expect(target.completedQuestionCount).toBe(6);
     expect(target.finished).toBe(true);
@@ -592,6 +620,7 @@ describe("V4-004I Gate 2 — Document-Centered Canonical Study (Maya Lin 62→90
       pagesRead: [1, 2, 3],
       pagesCited: [1, 2, 3],
       findingCount: 31,
+      reconciliationDisposition: "MATERIAL_FINDINGS_RECORDED",
     });
 
     const iepFindings = verified.value.investigation.documentFindings!.filter(
@@ -947,7 +976,10 @@ describe("V4-004I Gate 2 — Document-Centered Canonical Study (Maya Lin 62→90
   });
 
   it("enforces negative guardrails: bad quotes, cross-document evidence, unsupported numbers, bad finding references, incomplete primary page reads, and misleading coverage claims", () => {
-    const target = ledger(MAYA_LIN_VARIANT_CORPUS, ["P1"]);
+    const target = ledger(
+      [...MAYA_LIN_VARIANT_CORPUS, { sourceDocumentId: MAYA_DOCS.meetingNotice, pageNumber: 2, text: "Attendance sheet for the meeting." }],
+      ["P1"],
+    );
 
     // Read only page 1 and 2 of maya_lin_variant_initial_iep.pdf (leaving page 3 unread) and page 1 of progressNov
     run(target, "read_pages", { documentId: MAYA_LIN_VARIANT_IEP_DOC_ID, fromPage: 1, toPage: 2 });
@@ -1127,27 +1159,59 @@ describe("V4-004I Gate 2 — Document-Centered Canonical Study (Maya Lin 62→90
         findingIds: ["DF1"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [{ need: "Goal 1 reading fluency baseline", status: "FOUND", findingIds: ["DF1"] }],
       }),
     ).toMatchObject({ ok: true });
+
+    // Every authorized document must be recorded and reconciled before the study can finish
+    const honestNote = "All 3 pages of maya_lin_variant_initial_iep.pdf were read; other documents were read selectively.";
+    expect(run(target, "finish_study", { coverageNotes: [honestNote] })).toMatchObject({ ok: false, error: "documents_unrecorded" });
+    expect(
+      run(target, "record_document", {
+        documentId: MAYA_DOCS.progressNov,
+        role: "SUPPORTING",
+        roleReasoning: "Later progress measurement for Goal 1.",
+        documentType: "Progress report",
+        evidenceIds: ["E3"],
+      }),
+    ).toMatchObject({ ok: true });
+    const unexamined = [MAYA_DOCS.serviceLog, MAYA_DOCS.evaluation, MAYA_DOCS.meetingNotice];
+    for (const documentId of unexamined) {
+      run(target, "read_pages", { documentId, fromPage: 1, toPage: 1 });
+      run(target, "record_document", {
+        documentId,
+        role: "UNCERTAIN",
+        roleReasoning: "Read but not classified in this narrow test.",
+        documentType: "UNDETERMINED",
+      });
+    }
+    const documentReconciliations = [
+      { documentId: MAYA_LIN_VARIANT_IEP_DOC_ID, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF1"] },
+      { documentId: MAYA_DOCS.progressNov, disposition: "NO_MATERIAL_FINDINGS", reason: "Not material to the baseline question." },
+      ...unexamined.map((documentId) => ({ documentId, disposition: "UNRESOLVED", reason: "Type could not be established." })),
+    ];
 
     // 8. Misleading coverage note in finish_study (claiming complete semantic extraction is guaranteed or all pages of every document were read when other docs are unread) -> coverage_claim_misleading
     expect(
       run(target, "finish_study", {
         coverageNotes: ["Complete semantic extraction is guaranteed because all pages were read."],
+        documentReconciliations,
       }),
     ).toMatchObject({ ok: false, error: "coverage_claim_misleading" });
     expect(
       run(target, "finish_study", {
         coverageNotes: ["Every page of every document in the case was read."],
+        documentReconciliations,
       }),
     ).toMatchObject({ ok: false, error: "coverage_claim_misleading" });
 
-    // Honest coverage note succeeds
-    expect(
-      run(target, "finish_study", {
-        coverageNotes: ["All 3 pages of maya_lin_variant_initial_iep.pdf were read; other documents were read selectively."],
-      }),
-    ).toMatchObject({ ok: true, finished: true });
+    // Honest coverage note succeeds; unresolved documents stay visible as coverage notes
+    expect(run(target, "finish_study", { coverageNotes: [honestNote], documentReconciliations })).toMatchObject({
+      ok: true,
+      finished: true,
+      unresolvedDocuments: 3,
+    });
+    expect(target.assemble().coverageNotes.filter((note) => note.startsWith("Unresolved document "))).toHaveLength(3);
   });
 });
 
@@ -1678,6 +1742,7 @@ describe("V4-004I Gate 2 — Independent L001 Original-Document Golden (08_initi
       pagesRead: [1, 2, 3],
       pagesCited: [1, 2, 3],
       findingCount: 37,
+      reconciliationDisposition: "MATERIAL_FINDINGS_RECORDED",
     });
 
     // If page 3 of L001 08_initial_iep.pdf is not read, PRIMARY document registration and FULL_DOCUMENT_READ fail closed
@@ -1954,9 +2019,17 @@ describe("V4-004I Gate 2 — Independent L001 Original-Document Golden (08_initi
         findingIds: ["DF1", "DF2"],
         uncertainties: [""],
         limitations: ["   "],
+        evidenceNeeds: [{ need: "Goal mastery criterion", status: "FOUND", findingIds: ["DF1"], evidenceIds: [], explanation: "" }],
       }),
     ).toMatchObject({ ok: true });
-    expect(run(target, "finish_study", { coverageNotes: [""] })).toMatchObject({ ok: true, finished: true });
+    expect(
+      run(target, "finish_study", {
+        coverageNotes: [""],
+        documentReconciliations: [
+          { documentId: L001_INITIAL_IEP_DOC_ID, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF1", "DF2"], reason: "" },
+        ],
+      }),
+    ).toMatchObject({ ok: true, finished: true });
 
     const assembled = target.assemble();
     expect(assembled.documents![0]).toMatchObject({
@@ -1975,10 +2048,19 @@ describe("V4-004I Gate 2 — Independent L001 Original-Document Golden (08_initi
       section: null,
       attributedTo: null,
     });
+    expect(assembled.documents![0]!.reconciliation).toEqual({
+      disposition: "MATERIAL_FINDINGS_RECORDED",
+      findingIds: ["DF1", "DF2"],
+      reason: null,
+    });
+    expect(assembled.answers[0]!.evidenceNeeds).toEqual([
+      { need: "Goal mastery criterion", status: "FOUND", findingIds: ["DF1"], evidence: [], explanation: null },
+    ]);
     const verified = verifyStudyInvestigation(assembled, {
       processingRunId: MAYA_RUN_ID,
       planQuestionIds: ["P1"],
       pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+      requireCorpusReconciliation: true,
     });
     expect(verified.ok).toBe(true);
   });

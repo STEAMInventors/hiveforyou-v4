@@ -12,10 +12,23 @@ import {
   STUDY_FINDING_MODALITIES,
   type StudyFindingModality,
   STUDY_INVESTIGATION_SCHEMA,
+  type StudyDocumentDisposition,
   type StudyDocumentFinding,
   type StudyDocumentRecord,
+  type StudyEvidenceNeed,
   type StudyInvestigationOutput,
 } from "../study-preparation/execution-manifest-contracts";
+import {
+  CORPUS_RECONCILIATION_LIMITS,
+  type CorpusReconciliationProblem,
+  corpusInventoryProblem,
+  documentClassificationProblem,
+  documentDispositionProblem,
+  evidenceNeedsProblem,
+  hasUnresolvedDocumentNote,
+  isDocumentDisposition,
+  isEvidenceNeedStatus,
+} from "./corpus-reconciliation";
 import {
   type Decimal,
   decimalFromPlain,
@@ -104,6 +117,8 @@ export type VerifiedDocumentCoverage = {
   pagesRead: number[];
   pagesCited: number[];
   findingCount: number;
+  /** Present when the document carries a reconciliation (V4-004L). */
+  reconciliationDisposition?: StudyDocumentDisposition;
 };
 
 export type StudyVerification = {
@@ -133,6 +148,11 @@ export type StudyVerificationContext = {
   readonly planQuestionIds: readonly string[];
   /** Authorized page text keyed `${sourceDocumentId}:${pageNumber}` (lowercase uuid). */
   readonly pages: ReadonlyMap<string, string>;
+  /**
+   * New Analyze and Rebuild runs (V4-004L): every authorized document recorded and reconciled and every
+   * answer carrying evidence needs, exactly as `finish_study` requires. Off only for outputs that predate it.
+   */
+  readonly requireCorpusReconciliation?: boolean;
 };
 
 const MAX_TEXT = { answer: 4000, statement: 1200, short: 600, label: 200 };
@@ -445,6 +465,10 @@ function reject(diagnosticReason: string, message: string): never {
   throw new StudyRejection(diagnosticReason, message, diagnosticFieldFromMessage(message));
 }
 
+function rejectReconciliation(problem: CorpusReconciliationProblem | null): void {
+  if (problem) reject(`study_${problem.code}`, problem.message);
+}
+
 export function normalizeQuoteText(text: string): string {
   return text.replace(/\r\n?/g, "\n").replace(/\s+/g, " ").trim();
 }
@@ -664,6 +688,7 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
     const docPagesMap = authorizedDocumentPages(context);
     const seenDocIds = new Set<string>();
     const documentsByDocId = new Map<string, StudyDocumentRecord>();
+    const rawReconciliations = new Map<string, { path: string; value: unknown }>();
 
     const documents: StudyDocumentRecord[] | undefined =
       root.documents === undefined
@@ -715,9 +740,10 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
             }
             const pagesRead = pageListField(item.pagesRead, `${path}.pagesRead`, sourceDocumentId, context);
             const pagesCited = pageListField(item.pagesCited, `${path}.pagesCited`, sourceDocumentId, context);
-            const docEvidence = list(item.evidence, `${path}.evidence`, 1).map((ev, i) =>
+            const docEvidence = list(item.evidence, `${path}.evidence`).map((ev, i) =>
               cite(ev, `${path}.evidence[${i}]`),
             );
+            if (item.reconciliation !== undefined) rawReconciliations.set(sourceDocumentId, { path, value: item.reconciliation });
             const pagesReadSet = new Set(pagesRead);
             for (let i = 0; i < docEvidence.length; i += 1) {
               const ev = docEvidence[i]!;
@@ -747,6 +773,21 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
                 "study_primary_document_unread_pages",
                 `${path} marks ${sourceDocumentId} as PRIMARY without reading all authorized non-empty pages.`,
               );
+            }
+            if (context.requireCorpusReconciliation === true) {
+              rejectReconciliation(
+                documentClassificationProblem({
+                  sourceDocumentId,
+                  role,
+                  documentType,
+                  roleReasoning,
+                  evidenceCount: docEvidence.length,
+                  nonEmptyPageCount: authPages.nonEmpty.length,
+                  nonEmptyPagesRead: authPages.nonEmpty.filter((page) => pagesReadSet.has(page)).length,
+                }),
+              );
+            } else if (docEvidence.length === 0) {
+              reject("study_output_shape", `${path}.evidence must be a list with at least 1 item(s).`);
             }
             const docRecord: StudyDocumentRecord = {
               sourceDocumentId,
@@ -899,6 +940,33 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
       }
     }
 
+    for (const [sourceDocumentId, raw] of rawReconciliations) {
+      const doc = documentsByDocId.get(sourceDocumentId)!;
+      const path = `${raw.path}.reconciliation`;
+      const item = record(raw.value, path);
+      if (Object.keys(item).some((key) => !["disposition", "findingIds", "reason"].includes(key))) {
+        reject("study_output_shape", `${path} has unexpected fields.`);
+      }
+      if (!isDocumentDisposition(item.disposition)) reject("study_output_shape", `${path}.disposition is not allowed.`);
+      const findingIds = findingIdListField(item.findingIds, `${path}.findingIds`, seenFindingIds);
+      const reason = optionalTextField(item.reason, `${path}.reason`, CORPUS_RECONCILIATION_LIMITS.reasonChars) ?? null;
+      const authPages = docPagesMap.get(sourceDocumentId)!;
+      const pagesRead = new Set(doc.pagesRead);
+      rejectReconciliation(
+        documentDispositionProblem({
+          sourceDocumentId,
+          documentType: doc.documentType,
+          evidenceCount: doc.evidence.length,
+          disposition: item.disposition,
+          findings: findingIds.map((id) => ({ id, sourceDocumentId: findingsById.get(id)!.sourceDocumentId })),
+          reason,
+          documentFindingCount: findingCountByDoc.get(sourceDocumentId) ?? 0,
+          nonEmptyPagesRead: authPages.nonEmpty.filter((page) => pagesRead.has(page)).length,
+        }),
+      );
+      doc.reconciliation = { disposition: item.disposition, findingIds, reason };
+    }
+
     const answers = list(root.answers, "answers", 1).map((value, index) => {
       const path = `answers[${index}]`;
       const answer = record(value, path);
@@ -1029,6 +1097,42 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
       const limitations = textList(answer.limitations, `${path}.limitations`);
       limitations.forEach((_, i) => claimIds.push(`${id}.L${i}`));
 
+      const evidenceNeeds: StudyEvidenceNeed[] | undefined =
+        answer.evidenceNeeds === undefined
+          ? undefined
+          : list(answer.evidenceNeeds, `${path}.evidenceNeeds`).map((value, nIndex) => {
+              const nPath = `${path}.evidenceNeeds[${nIndex}]`;
+              const item = record(value, nPath);
+              if (Object.keys(item).some((key) => !["need", "status", "findingIds", "evidence", "explanation"].includes(key))) {
+                reject("study_output_shape", `${nPath} has unexpected fields.`);
+              }
+              if (!isEvidenceNeedStatus(item.status)) reject("study_output_shape", `${nPath}.status is not allowed.`);
+              return {
+                need: text(item.need, `${nPath}.need`, CORPUS_RECONCILIATION_LIMITS.needChars),
+                status: item.status,
+                findingIds: findingIdListField(item.findingIds, `${nPath}.findingIds`, seenFindingIds),
+                evidence: list(item.evidence, `${nPath}.evidence`).map((ev, i) => cite(ev, `${nPath}.evidence[${i}]`)),
+                explanation:
+                  optionalTextField(item.explanation, `${nPath}.explanation`, CORPUS_RECONCILIATION_LIMITS.explanationChars) ?? null,
+              };
+            });
+      if (evidenceNeeds !== undefined || context.requireCorpusReconciliation === true) {
+        rejectReconciliation(
+          evidenceNeedsProblem({
+            planQuestionId: id,
+            answerStatus: answer.status as StudyInvestigationOutput["answers"][number]["status"],
+            uncertaintyCount: uncertainties.length,
+            limitationCount: limitations.length,
+            needs: (evidenceNeeds ?? []).map((need) => ({
+              need: need.need,
+              status: need.status,
+              referenceCount: need.findingIds.length + need.evidence.length,
+              explanation: need.explanation,
+            })),
+          }),
+        );
+      }
+
       return {
         planQuestionId: id,
         status: answer.status as StudyInvestigationOutput["answers"][number]["status"],
@@ -1042,11 +1146,22 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
         evidence: answerEvidence,
         conflicts,
         limitations,
+        ...(evidenceNeeds !== undefined ? { evidenceNeeds } : {}),
       };
     });
 
     const missing = context.planQuestionIds.filter((id) => !seen.has(id));
     if (missing.length > 0) reject("study_question_missing", `No answer for ${missing.join(", ")}.`);
+
+    if (context.requireCorpusReconciliation === true) {
+      rejectReconciliation(
+        corpusInventoryProblem({
+          authorizedDocumentIds: [...docPagesMap.keys()],
+          recordedDocumentIds: new Set(documentsByDocId.keys()),
+          reconciledDocumentIds: new Set(rawReconciliations.keys()),
+        }),
+      );
+    }
 
     const instructionsIgnored = list(root.instructionsIgnored, "instructionsIgnored").map((value, index) => {
       const path = `instructionsIgnored[${index}]`;
@@ -1065,6 +1180,14 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
     });
 
     const coverageNotes = textList(root.coverageNotes, "coverageNotes");
+    for (const doc of documentsByDocId.values()) {
+      if (doc.reconciliation?.disposition === "UNRESOLVED" && !hasUnresolvedDocumentNote(coverageNotes, doc.sourceDocumentId)) {
+        reject(
+          "study_unresolved_document_hidden",
+          `coverageNotes must keep UNRESOLVED document ${doc.sourceDocumentId} visible as a limitation.`,
+        );
+      }
+    }
     const documentCoverage: VerifiedDocumentCoverage[] | undefined = documents
       ? documents.map((doc) => {
           const authPages = docPagesMap.get(doc.sourceDocumentId)!;
@@ -1080,6 +1203,7 @@ export function verifyStudyInvestigation(raw: unknown, context: StudyVerificatio
             pagesRead: [...doc.pagesRead],
             pagesCited: [...doc.pagesCited],
             findingCount: findingCountByDoc.get(doc.sourceDocumentId) ?? 0,
+            ...(doc.reconciliation ? { reconciliationDisposition: doc.reconciliation.disposition } : {}),
           };
         })
       : undefined;

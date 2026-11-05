@@ -94,18 +94,21 @@ describe("runStudyInvestigation", () => {
     const { study, totals } = await run(p);
     expect(study.answers.map((answer) => answer.planQuestionId)).toEqual(["P1", "P2", "P3"]);
     expect(totals).toMatchObject({
-      rounds: 4,
-      roundsAllowed: 12,
-      toolCalls: 30,
+      rounds: 5,
+      roundsAllowed: 13,
+      toolCalls: 51,
       invalidCalls: 0,
       questionsCompleted: 3,
       questionsTotal: 3,
-      promptTokens: 4000,
-      completionTokens: 800,
+      promptTokens: 5000,
+      completionTokens: 1000,
       modelAlias: "heavy_lifter",
     });
     expect(p.bodies[0]!.tools).toHaveLength(13);
     expect(p.bodies[0]!.messages).toEqual([{ role: "user", content: expect.stringContaining("finish_study") }]);
+    expect(p.bodies[0]!.messages[0]?.content).toContain("documentReconciliations");
+    expect(p.bodies[0]!.messages[0]?.content).toContain("evidenceNeeds");
+    expect(study.documents).toHaveLength(8);
     expect(p.bodies[1]!.messages[1]).toMatchObject({ role: "assistant", content: null });
     expect((p.bodies[1]!.messages[1] as { tool_calls: unknown[] }).tool_calls[0]).toEqual({
       id: "toolu_maya_1",
@@ -115,14 +118,14 @@ describe("runStudyInvestigation", () => {
     expect(p.bodies[1]!.messages[2]).toMatchObject({ role: "tool", tool_call_id: "toolu_maya_1" });
   });
 
-  it("completes 6 plan questions (P1-P6) in 5 batched turns well within the 18-round budget", async () => {
+  it("completes 6 plan questions (P1-P6) in 6 batched turns well within the 19-round budget", async () => {
     const turns = mayaSixQuestionStudyAgentTurns();
     const p = planner((turn) => new Response(JSON.stringify(turnBody(turns[turn] ?? [])), { status: 200 }));
     const { study, totals } = await run(p, { questionIds: MAYA_SIX_PLAN_QUESTION_IDS });
     expect(study.answers.map((answer) => answer.planQuestionId)).toEqual([...MAYA_SIX_PLAN_QUESTION_IDS]);
     expect(totals).toMatchObject({
-      rounds: 5,
-      roundsAllowed: 18,
+      rounds: 6,
+      roundsAllowed: 19,
       invalidCalls: 0,
       questionsCompleted: 6,
       questionsTotal: 6,
@@ -143,7 +146,7 @@ describe("runStudyInvestigation", () => {
 
     expect(totals).toMatchObject({
       rounds: 6,
-      roundsAllowed: 18,
+      roundsAllowed: 19,
       invalidCalls: 0,
       questionsCompleted: 6,
       questionsTotal: 6,
@@ -266,10 +269,10 @@ describe("runStudyInvestigation", () => {
       expect(parsedReplies.find((r) => r.error === "unknown_finding")?.message).toContain("use only confirmed DF... ids");
       expect(parsedReplies.find((r) => r.error === "finding_number_ungrounded")?.message).toContain("45");
 
-      // Verify the Study recovered and completed within the 18-round budget with all 13 rejections recorded
+      // Verify the Study recovered and completed within the 19-round budget with all 13 rejections recorded
       expect(totals).toMatchObject({
         rounds: 7,
-        roundsAllowed: 18,
+        roundsAllowed: 19,
         invalidCalls: 13,
         invalidBudgetUsed: 1,
         rejectionCounts: {
@@ -311,6 +314,7 @@ describe("runStudyInvestigation", () => {
         processingRunId: MAYA_RUN_ID,
         planQuestionIds: [...L001_INITIAL_IEP_PLAN_QUESTION_IDS],
         pages: new Map(Object.entries(L001_INITIAL_IEP_PAGES)),
+        requireCorpusReconciliation: true,
       });
       expect(verified.ok).toBe(true);
     } finally {
@@ -357,9 +361,9 @@ describe("runStudyInvestigation", () => {
       return { sourceDocumentId: sourceDocumentId!, pageNumber: Number(page), text };
     });
     const failed = await failure(run(p, { questionIds: L001_INITIAL_IEP_PLAN_QUESTION_IDS, pages: l001Pages }));
-    // 6 questions -> allowance.invalidCalls = 10 turns, stopping at r10/18 with 20 total calls and 20 invalid calls
+    // 6 questions -> allowance.invalidCalls = 10 turns, stopping at r10/19 with 20 total calls and 20 invalid calls
     expect(p.bodies).toHaveLength(10);
-    expect(failed.hiveError.diagnosticField).toBe("budget.invalid_calls:r10/18:tc20:inv20:q0/6");
+    expect(failed.hiveError.diagnosticField).toBe("budget.invalid_calls:r10/19:tc20:inv20:q0/6");
     expect(failed.totals.rejectionSummary).toBe("unknown_evidence:10,unknown_finding:10");
   });
 
@@ -375,13 +379,13 @@ describe("runStudyInvestigation", () => {
       errorCode: "MODEL_OUTPUT_INVALID",
       retryable: false,
       diagnosticReason: "study_agent_budget_exhausted",
-      diagnosticField: "budget.wall_clock:r3/12:tc26:inv0:q0/3",
+      diagnosticField: "budget.wall_clock:r3/13:tc32:inv0:q0/3",
     });
     expect(parseStudyAgentBudgetDiagnosticField(failed.hiveError.diagnosticField)).toEqual({
       dimension: "wall_clock",
       roundsUsed: 3,
-      roundsAllowed: 12,
-      toolCalls: 26,
+      roundsAllowed: 13,
+      toolCalls: 32,
       invalidCalls: 0,
       questionsCompleted: 0,
       questionsTotal: 3,
@@ -396,20 +400,20 @@ describe("runStudyInvestigation", () => {
       return scripted(turn);
     });
     const failed = await failure(run(p, { deadline: 235_000, clock: () => now }));
-    expect(failed.hiveError.diagnosticField).toBe("budget.wall_clock:r2/12:tc6:inv0:q0/3");
-    expect(failed.totals).toMatchObject({ rounds: 2, toolCalls: 6 });
+    expect(failed.hiveError.diagnosticField).toBe("budget.wall_clock:r2/13:tc9:inv0:q0/3");
+    expect(failed.totals).toMatchObject({ rounds: 2, toolCalls: 9 });
   });
 
   it("stops at the round allowance for the plan size and reports safe progress counters", async () => {
     const p = planner((turn) => new Response(JSON.stringify(turnBody([{ id: `s${turn}`, name: "search_case", arguments: '{"query":"goal"}' }])), { status: 200 }));
     const failed = await failure(run(p, { questionIds: MAYA_SIX_PLAN_QUESTION_IDS }));
-    expect(p.bodies).toHaveLength(18);
-    expect(failed.hiveError.diagnosticField).toBe("budget.rounds:r18/18:tc18:inv0:q0/6");
+    expect(p.bodies).toHaveLength(19);
+    expect(failed.hiveError.diagnosticField).toBe("budget.rounds:r19/19:tc19:inv0:q0/6");
     expect(parseStudyAgentBudgetDiagnosticField(failed.hiveError.diagnosticField)).toEqual({
       dimension: "rounds",
-      roundsUsed: 18,
-      roundsAllowed: 18,
-      toolCalls: 18,
+      roundsUsed: 19,
+      roundsAllowed: 19,
+      toolCalls: 19,
       invalidCalls: 0,
       questionsCompleted: 0,
       questionsTotal: 6,
@@ -421,7 +425,7 @@ describe("runStudyInvestigation", () => {
     const failed = await failure(run(p));
     expect(p.bodies).toHaveLength(7);
     expect(p.bodies[1]!.messages.at(-1)).toMatchObject({ role: "user", content: expect.stringContaining("No tool was called") });
-    expect(failed.hiveError.diagnosticField).toBe("budget.invalid_calls:r7/12:tc0:inv7:q0/3");
+    expect(failed.hiveError.diagnosticField).toBe("budget.invalid_calls:r7/13:tc0:inv7:q0/3");
   });
 
   it("declines calls beyond the per-turn cap while still answering every call id", async () => {
@@ -442,7 +446,7 @@ describe("runStudyInvestigation", () => {
     const huge = planner(scripted);
     const bigPrompt = "x".repeat(STUDY_AGENT_BUDGET.maxRequestBytes);
     expect((await failure(run(huge, { prompt: { id: "p", digest: "d", systemPrompt: bigPrompt } }))).hiveError.diagnosticField).toBe(
-      "budget.request_bytes:r0/12:tc0:inv0:q0/3",
+      "budget.request_bytes:r0/13:tc0:inv0:q0/3",
     );
     expect(huge.bodies).toHaveLength(0);
 
@@ -451,7 +455,7 @@ describe("runStudyInvestigation", () => {
         status: 200,
       }),
     );
-    expect((await failure(run(tokens))).hiveError.diagnosticField).toBe("budget.input_tokens:r1/12:tc6:inv0:q0/3");
+    expect((await failure(run(tokens))).hiveError.diagnosticField).toBe("budget.input_tokens:r1/13:tc9:inv0:q0/3");
     expect(tokens.bodies).toHaveLength(1);
 
     const output = planner((turn) =>
@@ -459,14 +463,14 @@ describe("runStudyInvestigation", () => {
         status: 200,
       }),
     );
-    expect((await failure(run(output))).hiveError.diagnosticField).toBe("budget.output_tokens:r1/12:tc6:inv0:q0/3");
+    expect((await failure(run(output))).hiveError.diagnosticField).toBe("budget.output_tokens:r1/13:tc9:inv0:q0/3");
 
     const cost = planner((turn) =>
       new Response(JSON.stringify(turnBody(mayaStudyAgentTurns()[turn] ?? [], { usage: { prompt_tokens: 400_000, completion_tokens: 30_000 } })), {
         status: 200,
       }),
     );
-    expect((await failure(run(cost))).hiveError.diagnosticField).toBe("budget.estimated_cost:r1/12:tc6:inv0:q0/3");
+    expect((await failure(run(cost))).hiveError.diagnosticField).toBe("budget.estimated_cost:r1/13:tc9:inv0:q0/3");
   });
 
   it("passes transient planner failures through for the stage retry", async () => {
@@ -477,7 +481,7 @@ describe("runStudyInvestigation", () => {
     );
     const failed = await failure(run(p));
     expect(failed.hiveError).toMatchObject({ errorCode: "MODEL_TIMEOUT", retryable: true });
-    expect(failed.totals).toMatchObject({ rounds: 1, toolCalls: 6 });
+    expect(failed.totals).toMatchObject({ rounds: 1, toolCalls: 9 });
   });
 });
 

@@ -10,10 +10,25 @@ import {
   STUDY_FINDING_MODALITIES,
   type StudyFindingModality,
   STUDY_INVESTIGATION_SCHEMA,
+  STUDY_DOCUMENT_DISPOSITIONS,
+  type StudyDocumentDisposition,
+  STUDY_EVIDENCE_NEED_STATUSES,
+  type StudyEvidenceNeedStatus,
   type StudyDocumentFinding,
   type StudyDocumentRecord,
   type StudyInvestigationOutput,
 } from "../study-preparation/execution-manifest-contracts";
+import {
+  CORPUS_RECONCILIATION_CODES,
+  CORPUS_RECONCILIATION_LIMITS,
+  type CorpusReconciliationProblem,
+  corpusInventoryProblem,
+  documentClassificationProblem,
+  documentDispositionProblem,
+  evidenceNeedsProblem,
+  UNDETERMINED_DOCUMENT_TYPE,
+  unresolvedDocumentNote,
+} from "./corpus-reconciliation";
 import {
   type Decimal,
   evaluateFormula,
@@ -128,6 +143,7 @@ export const STUDY_AGENT_REJECTION_CODES = [
   "tool_call_conflict",
   "too_many_calls",
   "no_tool_call",
+  ...CORPUS_RECONCILIATION_CODES,
 ] as const;
 export type StudyAgentRejectionCode = (typeof STUDY_AGENT_REJECTION_CODES)[number];
 
@@ -194,11 +210,17 @@ export function parseStudyAgentBudgetDiagnosticField(field: string | null | unde
   };
 }
 
-export function studyAgentAllowance(questionCount: number): StudyAgentAllowance {
+/**
+ * Every authorized document is recorded and reconciled (V4-004L), so the allowance grows by one round
+ * and two calls per document. The hard ceilings in `STUDY_AGENT_BUDGET` do not move.
+ */
+export function studyAgentAllowance(questionCount: number, documentCount = 0): StudyAgentAllowance {
   const questions = Math.max(1, questionCount);
+  const documents = Math.max(0, Math.trunc(documentCount));
+  const reconciliationRound = documents > 0 ? 1 : 0;
   return {
-    rounds: Math.min(STUDY_AGENT_BUDGET.maxRounds, 6 + 2 * questions),
-    toolCalls: Math.min(STUDY_AGENT_BUDGET.maxToolCalls, 20 + 16 * questions),
+    rounds: Math.min(STUDY_AGENT_BUDGET.maxRounds, 6 + 2 * questions + reconciliationRound),
+    toolCalls: Math.min(STUDY_AGENT_BUDGET.maxToolCalls, 20 + 16 * questions + 2 * documents),
     invalidCalls: Math.min(STUDY_AGENT_BUDGET.maxInvalidCalls, 4 + questions),
   };
 }
@@ -286,13 +308,13 @@ export const STUDY_AGENT_TOOLS: readonly StudyAgentToolDefinition[] = [
     function: {
       name: "record_document",
       description:
-        "Records a document's relevance role (PRIMARY, SUPPORTING, REFERENCE, or UNCERTAIN), independent temporalStatus (CURRENT, HISTORICAL, UPCOMING, or UNSPECIFIED), documentType, and read coverage, backed by evidence from that document. PRIMARY documents require reading all authorized non-empty pages.",
+        "Records a document's relevance role (PRIMARY, SUPPORTING, REFERENCE, or UNCERTAIN), independent temporalStatus (CURRENT, HISTORICAL, UPCOMING, or UNSPECIFIED), documentType, and read coverage, backed by evidence from that document. Every authorized document must be recorded before finish_study, including SUPPORTING, REFERENCE and UNCERTAIN ones. PRIMARY documents require reading all authorized non-empty pages. If the type cannot be established from the pages, use documentType UNDETERMINED with role UNCERTAIN (evidence optional after reading a page; a blank document needs no read) and later reconcile it as UNRESOLVED. Never infer metadata from a file name.",
       parameters: object(
         {
           documentId,
           role: { type: "string", enum: [...STUDY_DOCUMENT_ROLES] },
           roleReasoning: str("Why this document has this relevance role for the case.", 600),
-          documentType: str("Plain-words document type (e.g. Individualized Education Program).", 200),
+          documentType: str(`Plain-words document type as shown by its pages, or ${UNDETERMINED_DOCUMENT_TYPE}.`, 200),
           temporalStatus: { type: "string", enum: [...STUDY_DOCUMENT_TEMPORAL_STATUSES] },
           declaredReadCoverage: { type: "string", enum: [...STUDY_DOCUMENT_READ_COVERAGES] },
           titleAsPrinted: { type: ["string", "null"], maxLength: 200 },
@@ -306,7 +328,7 @@ export const STUDY_AGENT_TOOLS: readonly StudyAgentToolDefinition[] = [
             },
             ["startDate", "endDate", "asWritten"],
           ),
-          evidenceIds: ids("Evidence ids from this document supporting its identity and role, at least one."),
+          evidenceIds: ids(`Evidence ids from this document supporting its identity and role; at least one unless documentType is ${UNDETERMINED_DOCUMENT_TYPE}.`),
         },
         ["documentId", "role", "roleReasoning", "documentType", "evidenceIds"],
       ),
@@ -321,9 +343,9 @@ export const STUDY_AGENT_TOOLS: readonly StudyAgentToolDefinition[] = [
       parameters: object(
         {
           documentId,
-          category: str("Open-vocabulary category (e.g. student_profile, eligibility, annual_goal, service, accommodation, progress_monitoring, iep_team).", 200),
+          category: str("Open-vocabulary category chosen from the document itself (e.g. party, obligation, measurement, schedule, payment).", 200),
           subject: str("Who or what the finding is about, as named in the document.", 200),
-          attribute: str("Specific property or field (e.g. date_of_birth, grade, baseline, target, accuracy, mastery_criterion, frequency, minutes, location, start_date).", 200),
+          attribute: str("Specific property or field (e.g. name, date, amount, frequency, target, location, start_date).", 200),
           valueAsWritten: str("Exact value or text as written in the document quote.", 600),
           statement: str("Concise statement of this atomic finding.", 1200),
           modality: { type: "string", enum: [...STUDY_FINDING_MODALITIES] },
@@ -454,7 +476,7 @@ export const STUDY_AGENT_TOOLS: readonly StudyAgentToolDefinition[] = [
     function: {
       name: "finish_question",
       description:
-        "Closes one investigation question exactly once by referencing reusable DF... findingIds (or question-scoped facts/calculations). Keep answer brief and direct without repeating raw fact lists.",
+        "Closes one investigation question exactly once by referencing reusable DF... findingIds (or question-scoped facts/calculations). Keep answer brief and direct without repeating raw fact lists. evidenceNeeds lists the specific evidence this question needs, in your own words, each FOUND (cite recorded DF... or E... ids), NOT_FOUND (not found in the authorized pages examined, which never proves it does not exist elsewhere; add a limitation), UNCERTAIN (add an uncertainty or limitation) or NOT_REQUIRED, with an explanation for anything not FOUND. Do not invent missing evidence.",
       parameters: object(
         {
           questionId,
@@ -464,8 +486,24 @@ export const STUDY_AGENT_TOOLS: readonly StudyAgentToolDefinition[] = [
           evidenceIds: ids("Evidence ids that support the answer."),
           uncertainties: texts("What remains unknown, conflicting or weakly supported."),
           limitations: texts("What the documents do not cover for this question."),
+          evidenceNeeds: {
+            type: "array",
+            description: `1 to ${CORPUS_RECONCILIATION_LIMITS.evidenceNeeds} specific evidence needs for this question.`,
+            minItems: 1,
+            maxItems: CORPUS_RECONCILIATION_LIMITS.evidenceNeeds,
+            items: object(
+              {
+                need: str("The specific evidence needed, in plain words.", CORPUS_RECONCILIATION_LIMITS.needChars),
+                status: { type: "string", enum: [...STUDY_EVIDENCE_NEED_STATUSES] },
+                findingIds: ids("DF... ids that satisfy a FOUND need."),
+                evidenceIds: ids("E... ids that satisfy a FOUND need."),
+                explanation: { type: ["string", "null"], maxLength: CORPUS_RECONCILIATION_LIMITS.explanationChars },
+              },
+              ["need", "status"],
+            ),
+          },
         },
-        ["questionId", "status", "answer", "uncertainties", "limitations"],
+        ["questionId", "status", "answer", "uncertainties", "limitations", "evidenceNeeds"],
       ),
     },
   },
@@ -473,8 +511,28 @@ export const STUDY_AGENT_TOOLS: readonly StudyAgentToolDefinition[] = [
     type: "function",
     function: {
       name: "finish_study",
-      description: "Ends the investigation after every PRIMARY document is reviewed and every question is finished.",
-      parameters: object({ coverageNotes: texts("Notes about coverage or a different domain than proposed.") }, ["coverageNotes"]),
+      description:
+        "Ends the investigation after every question is finished, every PRIMARY document is fully read, and every authorized document is recorded with record_document. documentReconciliations gives each authorized document exactly one disposition: MATERIAL_FINDINGS_RECORDED (cite DF... ids from that same document), NO_MATERIAL_FINDINGS (after reading it, with a reason; only when it has no DF... findings) or UNRESOLVED (with a reason; kept visible as a limitation). Batch all documents in this one call.",
+      parameters: object(
+        {
+          coverageNotes: texts("Notes about coverage or a different domain than proposed."),
+          documentReconciliations: {
+            type: "array",
+            description: "One entry per authorized document.",
+            maxItems: CORPUS_RECONCILIATION_LIMITS.reconciliations,
+            items: object(
+              {
+                documentId,
+                disposition: { type: "string", enum: [...STUDY_DOCUMENT_DISPOSITIONS] },
+                findingIds: ids("DF... ids from this same document."),
+                reason: { type: ["string", "null"], maxLength: CORPUS_RECONCILIATION_LIMITS.reasonChars },
+              },
+              ["documentId", "disposition"],
+            ),
+          },
+        },
+        ["coverageNotes", "documentReconciliations"],
+      ),
     },
   },
 ];
@@ -559,6 +617,13 @@ type Determination = {
   decidedBy: string;
 };
 type Conflict = { id: string; questionId: string; evidenceIds: string[]; findingIds?: string[]; description: string };
+type EvidenceNeed = {
+  need: string;
+  status: StudyEvidenceNeedStatus;
+  findingIds: string[];
+  evidenceIds: string[];
+  explanation: string | null;
+};
 type Finished = {
   status: InvestigationAnswerStatus;
   answer: string;
@@ -566,7 +631,9 @@ type Finished = {
   evidenceIds: string[];
   uncertainties: string[];
   limitations: string[];
+  evidenceNeeds: EvidenceNeed[];
 };
+type Reconciliation = { disposition: StudyDocumentDisposition; findingIds: string[]; reason: string | null };
 
 class ToolRejection extends Error {
   constructor(readonly code: string, message: string) {
@@ -576,6 +643,10 @@ class ToolRejection extends Error {
 
 function refuse(code: string, message: string): never {
   throw new ToolRejection(code, message);
+}
+
+function reconciliationRefusal(problem: CorpusReconciliationProblem | null): void {
+  if (problem) refuse(problem.code, problem.message);
 }
 
 type Args = Record<string, unknown>;
@@ -688,6 +759,7 @@ export class StudyAgentLedger {
   private readonly conflicts: Conflict[] = [];
   private readonly ignored: { sourceDocumentId: string; pageNumber: number; description: string }[] = [];
   private readonly finishedQuestions = new Map<string, Finished>();
+  private readonly reconciliations = new Map<string, Reconciliation>();
   private coverageNotes: string[] | null = null;
   private searches = 0;
   private toolCallCount = 0;
@@ -1035,6 +1107,12 @@ export class StudyAgentLedger {
     return [...readPages].sort((a, b) => a - b);
   }
 
+  private nonEmptyPagesRead(documentId: string): number {
+    const read = this.fullyReadPagesByDoc.get(documentId);
+    if (!read) return 0;
+    return this.authorizedPagesByDoc.get(documentId)!.nonEmpty.filter((page) => read.has(page)).length;
+  }
+
   private pagesCitedForDocument(documentId: string): number[] {
     const citedPages = new Set<number>();
     for (const item of this.evidence) {
@@ -1110,7 +1188,7 @@ export class StudyAgentLedger {
         };
       }
     }
-    const evidenceIds = this.evidenceIds(args, "evidenceIds", 1);
+    const evidenceIds = this.evidenceIds(args, "evidenceIds");
     for (const evId of evidenceIds) {
       const ev = this.evidence.find((item) => item.id === evId)!;
       if (ev.sourceDocumentId !== sourceDocumentId) {
@@ -1120,6 +1198,17 @@ export class StudyAgentLedger {
         );
       }
     }
+    reconciliationRefusal(
+      documentClassificationProblem({
+        sourceDocumentId,
+        role,
+        documentType,
+        roleReasoning,
+        evidenceCount: evidenceIds.length,
+        nonEmptyPageCount: authPages.nonEmpty.length,
+        nonEmptyPagesRead: this.nonEmptyPagesRead(sourceDocumentId),
+      }),
+    );
     this.recordedDocuments.set(sourceDocumentId, {
       sourceDocumentId,
       role,
@@ -1406,7 +1495,7 @@ export class StudyAgentLedger {
   }
 
   private finishQuestion(args: Args): Record<string, unknown> {
-    only(args, ["questionId", "status", "answer", "findingIds", "evidenceIds", "uncertainties", "limitations"]);
+    only(args, ["questionId", "status", "answer", "findingIds", "evidenceIds", "uncertainties", "limitations", "evidenceNeeds"]);
     const questionId = this.openQuestion(args);
     const status = oneOf(args, "status", INVESTIGATION_ANSWER_STATUSES);
     const answer = text(args, "answer", TEXT.answer);
@@ -1444,6 +1533,21 @@ export class StudyAgentLedger {
         }
         break;
     }
+    const evidenceNeeds = this.parseEvidenceNeeds(args);
+    reconciliationRefusal(
+      evidenceNeedsProblem({
+        planQuestionId: questionId,
+        answerStatus: status,
+        uncertaintyCount: uncertainties.length,
+        limitationCount: limitations.length,
+        needs: evidenceNeeds.map((need) => ({
+          need: need.need,
+          status: need.status,
+          referenceCount: need.findingIds.length + need.evidenceIds.length,
+          explanation: need.explanation,
+        })),
+      }),
+    );
     this.finishedQuestions.set(questionId, {
       status,
       answer,
@@ -1451,13 +1555,78 @@ export class StudyAgentLedger {
       evidenceIds,
       uncertainties,
       limitations,
+      evidenceNeeds,
     });
     return { questionId, status, remainingQuestions: this.unfinishedQuestions() };
   }
 
+  private parseEvidenceNeeds(args: Args): EvidenceNeed[] {
+    const raw = args.evidenceNeeds;
+    if (raw === undefined || raw === null) return [];
+    if (!Array.isArray(raw) || raw.length > CORPUS_RECONCILIATION_LIMITS.evidenceNeeds) {
+      refuse("invalid_arguments", `evidenceNeeds must list 1 to ${CORPUS_RECONCILIATION_LIMITS.evidenceNeeds} needs.`);
+    }
+    return raw.map((item, index) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) refuse("invalid_arguments", `evidenceNeeds[${index}] must be an object.`);
+      const entry = item as Args;
+      only(entry, ["need", "status", "findingIds", "evidenceIds", "explanation"]);
+      return {
+        need: text(entry, "need", CORPUS_RECONCILIATION_LIMITS.needChars),
+        status: oneOf(entry, "status", STUDY_EVIDENCE_NEED_STATUSES),
+        findingIds: this.findingIds(entry, "findingIds"),
+        evidenceIds: this.evidenceIds(entry, "evidenceIds"),
+        explanation: optionalText(entry, "explanation", CORPUS_RECONCILIATION_LIMITS.explanationChars) ?? null,
+      };
+    });
+  }
+
+  private parseReconciliations(args: Args): Map<string, Reconciliation> {
+    const raw = args.documentReconciliations;
+    const out = new Map<string, Reconciliation>();
+    if (raw === undefined || raw === null) return out;
+    if (!Array.isArray(raw) || raw.length > CORPUS_RECONCILIATION_LIMITS.reconciliations) {
+      refuse("invalid_arguments", `documentReconciliations must list at most ${CORPUS_RECONCILIATION_LIMITS.reconciliations} documents.`);
+    }
+    raw.forEach((item, index) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        refuse("invalid_arguments", `documentReconciliations[${index}] must be an object.`);
+      }
+      const entry = item as Args;
+      only(entry, ["documentId", "disposition", "findingIds", "reason"]);
+      const documentId = this.document(entry);
+      if (out.has(documentId)) {
+        refuse("document_reconciliation_invalid", `documentReconciliations[${index}] reconciles ${documentId} a second time.`);
+      }
+      const recorded = this.recordedDocuments.get(documentId);
+      if (!recorded) refuse("documents_unrecorded", `Record ${documentId} with record_document before reconciling it.`);
+      const reconciliation: Reconciliation = {
+        disposition: oneOf(entry, "disposition", STUDY_DOCUMENT_DISPOSITIONS),
+        findingIds: this.findingIds(entry, "findingIds"),
+        reason: optionalText(entry, "reason", CORPUS_RECONCILIATION_LIMITS.reasonChars) ?? null,
+      };
+      reconciliationRefusal(
+        documentDispositionProblem({
+          sourceDocumentId: documentId,
+          documentType: recorded.documentType,
+          evidenceCount: recorded.evidenceIds.length,
+          disposition: reconciliation.disposition,
+          findings: reconciliation.findingIds.map((id) => ({
+            id,
+            sourceDocumentId: this.documentFindings.find((finding) => finding.id === id)!.sourceDocumentId,
+          })),
+          reason: reconciliation.reason,
+          documentFindingCount: this.documentFindings.filter((finding) => finding.sourceDocumentId === documentId).length,
+          nonEmptyPagesRead: this.nonEmptyPagesRead(documentId),
+        }),
+      );
+      out.set(documentId, reconciliation);
+    });
+    return out;
+  }
+
   private finishStudy(args: Args): Record<string, unknown> {
-    only(args, ["coverageNotes"]);
-    const coverageNotes = optionalTextList(args, "coverageNotes");
+    only(args, ["coverageNotes", "documentReconciliations"]);
+    const modelCoverageNotes = optionalTextList(args, "coverageNotes");
     const unfinished = this.unfinishedQuestions();
     if (unfinished.length > 0) refuse("questions_unfinished", `Finish ${unfinished.join(", ")} first.`);
     let hasPartiallyReadOrUnreadDoc = false;
@@ -1493,14 +1662,37 @@ export class StudyAgentLedger {
         }
       }
     }
+    reconciliationRefusal(
+      corpusInventoryProblem({
+        authorizedDocumentIds: this.documentOrder,
+        recordedDocumentIds: new Set(this.recordedDocuments.keys()),
+      }),
+    );
+    const reconciliations = this.parseReconciliations(args);
+    reconciliationRefusal(
+      corpusInventoryProblem({
+        authorizedDocumentIds: this.documentOrder,
+        recordedDocumentIds: new Set(this.recordedDocuments.keys()),
+        reconciledDocumentIds: new Set(reconciliations.keys()),
+      }),
+    );
+    const coverageNotes = [
+      ...modelCoverageNotes,
+      ...this.documentOrder
+        .filter((docId) => reconciliations.get(docId)!.disposition === "UNRESOLVED")
+        .map((docId) =>
+          unresolvedDocumentNote(docId, this.recordedDocuments.get(docId)!.documentType, reconciliations.get(docId)!.reason ?? ""),
+        ),
+    ];
     if (hasMisleadingCoverageNote(coverageNotes, hasPartiallyReadOrUnreadDoc)) {
       refuse(
         "coverage_claim_misleading",
         "coverageNotes makes a misleading read-coverage or extraction-completeness claim.",
       );
     }
+    for (const [docId, reconciliation] of reconciliations) this.reconciliations.set(docId, reconciliation);
     this.coverageNotes = coverageNotes;
-    return { finished: true };
+    return { finished: true, unresolvedDocuments: coverageNotes.length - modelCoverageNotes.length };
   }
 
   /** Deterministic assembly of the exact `hive.study-investigation/1` shape. Only after `finish_study`. */
@@ -1518,6 +1710,7 @@ export class StudyAgentLedger {
             .filter((docId) => this.recordedDocuments.has(docId))
             .map((docId) => {
               const doc = this.recordedDocuments.get(docId)!;
+              const reconciliation = this.reconciliations.get(docId);
               return {
                 sourceDocumentId: doc.sourceDocumentId,
                 role: doc.role,
@@ -1532,6 +1725,15 @@ export class StudyAgentLedger {
                 pagesRead: this.pagesReadForDocument(docId),
                 pagesCited: this.pagesCitedForDocument(docId),
                 evidence: expand(doc.evidenceIds),
+                ...(reconciliation
+                  ? {
+                      reconciliation: {
+                        disposition: reconciliation.disposition,
+                        findingIds: [...reconciliation.findingIds],
+                        reason: reconciliation.reason,
+                      },
+                    }
+                  : {}),
               };
             })
         : undefined;
@@ -1617,6 +1819,13 @@ export class StudyAgentLedger {
               ...(item.findingIds !== undefined ? { findingIds: [...item.findingIds] } : {}),
             })),
           limitations: finished.limitations,
+          evidenceNeeds: finished.evidenceNeeds.map((need) => ({
+            need: need.need,
+            status: need.status,
+            findingIds: [...need.findingIds],
+            evidence: expand(need.evidenceIds),
+            explanation: need.explanation,
+          })),
         };
       }),
       coverageNotes: this.coverageNotes,

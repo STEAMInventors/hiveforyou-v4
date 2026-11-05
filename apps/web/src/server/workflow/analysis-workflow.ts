@@ -726,6 +726,7 @@ function verifyStudy(context: Context, raw: unknown, manifest: ExecutionManifest
     processingRunId: context.runId,
     planQuestionIds: manifest.requiredInputs.investigationPlan.questionIds,
     pages: pages.pages,
+    requireCorpusReconciliation: true,
   });
 }
 

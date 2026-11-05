@@ -675,8 +675,8 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     const { dispatched, modelCallsPerInvocation } = await drive(db, planner, MAYA_RUN_ID);
 
     expect(db.status()).toBe("SUCCEEDED");
-    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "study", "study", "study", "study"]);
-    expect(modelCallsPerInvocation).toEqual([4]);
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence", "study", "study", "study", "study", "study"]);
+    expect(modelCallsPerInvocation).toEqual([5]);
     expect(loadFrozen.mock.calls.length).toBe(frozenReadsBeforeStudy);
     expect(db.transitions.map((t) => t.to).slice(-3)).toEqual(["INVESTIGATING", "VERIFYING_EVIDENCE", "ACCEPTING_STUDY"]);
 
@@ -698,8 +698,8 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
       stage: "INVESTIGATING",
       outcome: "SUCCEEDED",
       modelAliasRequested: "heavy_lifter",
-      promptTokens: 4000,
-      completionTokens: 800,
+      promptTokens: 5000,
+      completionTokens: 1000,
       promptDigest: saved.prompt_digest,
     });
 
@@ -714,25 +714,51 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     expect(investigation.answers[0]!.calculations.map((calculation) => calculation.result)).toEqual(["12", "16"]);
     expect(investigation.answers[0]!.conflicts[0]!.evidence.map((item) => item.sourceDocumentId)).toEqual([MAYA_DOCS.iep2024, MAYA_DOCS.iep2025]);
     expect(revision.verification).toMatchObject({ counts: { verifiedCalculations: 3 } });
+    const coverage = (revision.verification as { documentCoverage: { reconciliationDisposition?: string }[] }).documentCoverage;
+    expect(coverage).toHaveLength(MAYA_DOC_IDS.length);
+    expect(coverage.every((item) => item.reconciliationDisposition !== undefined)).toBe(true);
 
     expect(dispatched.filter((item) => item.kind === "report")).toEqual(
       REPORT_RUN_IDS.map((id) => ({ kind: "report", id, delaySeconds: 0 })),
     );
   });
 
-  it("refuses a rebuild that has no document inventory and does not dispatch Writer", async () => {
-    const db = mayaDatabase({ preparationMode: "REBUILD" });
-    const planner = fakePlanner({}, mayaOutputs());
-    const { dispatched } = await drive(db, planner, MAYA_RUN_ID);
-    expect(db.status()).toBe("FAILED");
-    expect(db.accepted()).toBeNull();
-    expect(dispatched.filter((item) => item.kind === "report")).toEqual([]);
-    const failed = db.transitions.at(-1)!;
-    expect(failed).toMatchObject({ from: "ACCEPTING_STUDY", to: "FAILED", details: { retryable: false } });
-    expect(normalizeFailureDiagnostic(failed.details.failure_diagnostic)).toMatchObject({
-      diagnosticReason: "study_documents_missing",
-    });
-  });
+  it.each([
+    ["ANALYZE", "a document disposition", "study_documents_unreconciled"],
+    ["REBUILD", "a document disposition", "study_documents_unreconciled"],
+    ["REBUILD", "every evidence need", "study_evidence_needs_missing"],
+  ] as const)(
+    "fails a %s Study persisted without %s before acceptance, keeping the accepted revision and dispatching no Writer",
+    async (preparationMode, _missing, diagnosticReason) => {
+      const db = mayaDatabase({ preparationMode });
+      const original = db.client.rpc.getMockImplementation()!;
+      db.client.rpc.mockImplementation(async (fn: string, args?: Record<string, unknown>) => {
+        if (fn === "transition_processing_run" && args?.p_to_status === "VERIFYING_EVIDENCE") {
+          const outputs = (args.p_details as { stage_outputs: { studyInvestigation: unknown } }).stage_outputs;
+          const persisted = structuredClone(outputs.studyInvestigation) as {
+            documents: { reconciliation?: unknown }[];
+            answers: { evidenceNeeds?: unknown }[];
+          };
+          if (diagnosticReason === "study_documents_unreconciled") delete persisted.documents[0]!.reconciliation;
+          else for (const answer of persisted.answers) delete answer.evidenceNeeds;
+          outputs.studyInvestigation = persisted;
+        }
+        return original(fn, args);
+      });
+      const planner = fakePlanner({}, mayaOutputs());
+
+      const { dispatched } = await drive(db, planner, MAYA_RUN_ID);
+
+      expect(db.status()).toBe("FAILED");
+      expect(db.accepted()).toBeNull();
+      expect(db.transitions.some((t) => t.to === "ACCEPTING_STUDY")).toBe(false);
+      expect(db.client.rpc.mock.calls.some(([fn]) => fn === "accept_study_revision")).toBe(false);
+      expect(dispatched.filter((item) => item.kind === "report")).toEqual([]);
+      const failed = db.transitions.at(-1)!;
+      expect(failed).toMatchObject({ from: "VERIFYING_EVIDENCE", to: "FAILED", details: { error_code: "MODEL_OUTPUT_INVALID" } });
+      expect(normalizeFailureDiagnostic(failed.details.failure_diagnostic)).toMatchObject({ diagnosticReason });
+    },
+  );
 
   it("fails without a revision or Writer when the investigation exhausts its budget, never as missing evidence", async () => {
     const db = mayaDatabase();
@@ -745,7 +771,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     const { dispatched } = await drive(db, planner, MAYA_RUN_ID);
 
     expect(db.status()).toBe("FAILED");
-    expect(planner.calls.filter((task) => task === "study")).toHaveLength(12);
+    expect(planner.calls.filter((task) => task === "study")).toHaveLength(13);
     const failed = db.transitions.at(-1)!;
     expect(failed).toMatchObject({
       from: "INVESTIGATING",
@@ -756,7 +782,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
       component: "analysis",
       operation: "investigate",
       diagnosticReason: "study_agent_budget_exhausted",
-      diagnosticField: "budget.rounds:r12/12:tc12:inv0:q0/3",
+      diagnosticField: "budget.rounds:r13/13:tc13:inv0:q0/3",
     });
     expect(db.stageOutputs.studyInvestigation).toBeUndefined();
     expect(db.accepted()).toBeNull();
@@ -806,7 +832,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
 
     await drive(db, planner, MAYA_RUN_ID);
 
-    expect(planner.calls.filter((task) => task === "study")).toHaveLength(4);
+    expect(planner.calls.filter((task) => task === "study")).toHaveLength(5);
     expect(db.transitions.at(-1)).toMatchObject({ from: "INVESTIGATING", to: "FAILED", details: { error_code: "SOURCE_CHANGED" } });
     expect(db.stageOutputs.studyInvestigation).toBeUndefined();
     expect(db.accepted()).toBeNull();
@@ -873,7 +899,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
 
     await drive(db, planner, MAYA_RUN_ID);
 
-    expect(planner.calls.filter((task) => task === "study")).toHaveLength(5);
+    expect(planner.calls.filter((task) => task === "study")).toHaveLength(6);
     expect(db.retries).toHaveLength(1);
     expect(db.retries[0]?.details).toMatchObject({ error_code: "MODEL_UNAVAILABLE" });
     expect(db.status()).toBe("SUCCEEDED");
@@ -885,7 +911,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     const rejected: ScriptedTurn = [
       { id: "bad_quote", name: "record_evidence", arguments: JSON.stringify({ documentId: MAYA_DOCS.iep2025, pageNumber: 1, quote: "Baseline: 61 words correct per minute." }) },
       { id: "wrong_page", name: "record_evidence", arguments: JSON.stringify({ documentId: MAYA_DOCS.iep2025, pageNumber: 2, quote: "Baseline: 62 words correct per minute." }) },
-      { id: "unread", name: "record_evidence", arguments: JSON.stringify({ documentId: MAYA_DOCS.teacherNotes, pageNumber: 1, quote: "Teacher notes." }) },
+      { id: "unauthorized_page", name: "read_pages", arguments: JSON.stringify({ documentId: MAYA_DOCS.teacherNotes, fromPage: 2, toPage: 2 }) },
       { id: "foreign", name: "read_pages", arguments: JSON.stringify({ documentId: DOC_1, fromPage: 1, toPage: 1 }) },
       { id: "unknown", name: "delete_case", arguments: JSON.stringify({ note: injected }) },
       { id: "malformed", name: "search_case", arguments: "{not json" },
@@ -901,7 +927,7 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
     expect(replies.map((reply) => (JSON.parse(reply.content) as { error: string }).error)).toEqual([
       "quote_not_on_page",
       "quote_not_on_page",
-      "page_not_read",
+      "page_not_authorized",
       "page_not_authorized",
       "unknown_tool",
       "invalid_arguments",
@@ -927,13 +953,13 @@ describe("processAnalysisRun: Canonical Study (synthetic Maya records)", () => {
 
     await drive(db, planner, MAYA_RUN_ID);
 
-    expect(planner.calls).toEqual(["intent", "domain", "intelligence", ...Array<PlannerTask>(7).fill("study")]);
+    expect(planner.calls).toEqual(["intent", "domain", "intelligence", ...Array<PlannerTask>(8).fill("study")]);
     expect(db.retries).toHaveLength(1);
     expect(db.retries[0]).toMatchObject({
       status: "INVESTIGATING",
       details: { error_code: "MODEL_TIMEOUT", stage_metric: { stage: "INVESTIGATING", outcome: "FAILED", attempt: 1 } },
     });
-    expect(planner.agentBodies.map((body) => body.messages.length)).toEqual([1, 8, 17, 1, 8, 17, 30]);
+    expect(planner.agentBodies.map((body) => body.messages.length)).toEqual([1, 11, 23, 1, 11, 23, 36, 52]);
     expect(db.status()).toBe("SUCCEEDED");
   });
 

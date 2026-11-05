@@ -118,6 +118,12 @@ describe("buildStudyPrompt", () => {
     expect(promptText).toContain("`ANSWERED` and `PARTIALLY_ANSWERED` can be closed directly with confirmed `DF…` `findingIds` without duplicate `record_fact` calls");
     expect(promptText).toContain("without duplicating `DF…` findings as `record_fact` calls");
     expect(promptText).toContain("Full page read coverage never proves complete semantic extraction.");
+    expect(promptText).toContain("call `record_document` for every authorized document");
+    expect(promptText).toContain("**Evidence needs:**");
+    expect(promptText).toContain("never proof that it does not exist");
+    expect(promptText).toContain("**Document inventory and reconciliation:**");
+    expect(promptText).toContain("`documentType` `UNDETERMINED` with role `UNCERTAIN`");
+    expect(promptText).toContain("one `documentReconciliations` entry for every authorized document in that single call");
   });
 
   it("binds the page index format and the agent output budget in the manifest", () => {

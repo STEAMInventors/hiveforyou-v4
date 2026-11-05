@@ -109,7 +109,34 @@ export const STUDY_FINDING_MODALITIES = [
 ] as const;
 export type StudyFindingModality = (typeof STUDY_FINDING_MODALITIES)[number];
 
+/** Per-document reconciliation outcome (V4-004L). `UNRESOLVED` is a visible limitation, never complete extraction. */
+export const STUDY_DOCUMENT_DISPOSITIONS = [
+  "MATERIAL_FINDINGS_RECORDED",
+  "NO_MATERIAL_FINDINGS",
+  "UNRESOLVED",
+] as const;
+export type StudyDocumentDisposition = (typeof STUDY_DOCUMENT_DISPOSITIONS)[number];
+
+/** Per-question evidence need outcome (V4-004L). `NOT_FOUND` means not found in the authorized pages examined. */
+export const STUDY_EVIDENCE_NEED_STATUSES = ["FOUND", "NOT_FOUND", "UNCERTAIN", "NOT_REQUIRED"] as const;
+export type StudyEvidenceNeedStatus = (typeof STUDY_EVIDENCE_NEED_STATUSES)[number];
+
 export type InvestigationEvidence = { sourceDocumentId: string; pageNumber: number; quote: string };
+
+export type StudyDocumentReconciliation = {
+  disposition: StudyDocumentDisposition;
+  /** `DF…` findings from this same document. */
+  findingIds: string[];
+  reason: string | null;
+};
+
+export type StudyEvidenceNeed = {
+  need: string;
+  status: StudyEvidenceNeedStatus;
+  findingIds: string[];
+  evidence: InvestigationEvidence[];
+  explanation: string | null;
+};
 
 export type StudyDocumentRecord = {
   sourceDocumentId: string;
@@ -130,7 +157,10 @@ export type StudyDocumentRecord = {
   pagesRead: number[];
   /** Physical page numbers of this document cited in verified evidence. */
   pagesCited: number[];
+  /** Empty only for an `UNDETERMINED` document (V4-004L). */
   evidence: InvestigationEvidence[];
+  /** Additive (V4-004L); absent on earlier accepted Study revisions. */
+  reconciliation?: StudyDocumentReconciliation;
 };
 
 export type StudyDocumentFinding = {
@@ -205,6 +235,8 @@ export type StudyInvestigationOutput = {
       findingIds?: string[];
     }[];
     limitations: string[];
+    /** Additive (V4-004L); absent on earlier accepted Study revisions. */
+    evidenceNeeds?: StudyEvidenceNeed[];
   }[];
   coverageNotes: string[];
   instructionsIgnored: { sourceDocumentId: string; pageNumber: number; description: string }[];

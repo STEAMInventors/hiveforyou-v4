@@ -162,10 +162,90 @@ export function mayaStudyOutput() {
 
 type ScriptedCall = { id: string; name: string; arguments: string };
 
+type MayaDocumentScript = {
+  documentId: string;
+  role: "PRIMARY" | "SUPPORTING" | "REFERENCE" | "UNCERTAIN";
+  documentType: string;
+  roleReasoning: string;
+  temporalStatus: "CURRENT" | "HISTORICAL" | "UPCOMING" | "UNSPECIFIED";
+  evidenceIds: string[];
+};
+
+/** `record_document` arguments for the eight-document Maya corpus (E1–E11 as recorded by both Maya scripts). */
+function mayaDocumentRecords(): MayaDocumentScript[] {
+  return [
+    {
+      documentId: MAYA_DOCS.iep2025,
+      role: "PRIMARY",
+      documentType: "Individualized Education Program",
+      roleReasoning: "Current plan that sets the reading baseline and goal the questions measure progress against.",
+      temporalStatus: "CURRENT",
+      evidenceIds: ["E1", "E3"],
+    },
+    {
+      documentId: MAYA_DOCS.iep2024,
+      role: "SUPPORTING",
+      documentType: "Individualized Education Program",
+      roleReasoning: "Earlier plan whose reading goal differs from the current plan.",
+      temporalStatus: "HISTORICAL",
+      evidenceIds: ["E8"],
+    },
+    {
+      documentId: MAYA_DOCS.progressNov,
+      role: "SUPPORTING",
+      documentType: "Progress report",
+      roleReasoning: "Latest reading fluency measurement against Goal 1.",
+      temporalStatus: "CURRENT",
+      evidenceIds: ["E4"],
+    },
+    {
+      documentId: MAYA_DOCS.serviceLog,
+      role: "SUPPORTING",
+      documentType: "Service delivery log",
+      roleReasoning: "Delivered and required speech therapy minutes.",
+      temporalStatus: "CURRENT",
+      evidenceIds: ["E5", "E6"],
+    },
+    {
+      documentId: MAYA_DOCS.evaluation,
+      role: "SUPPORTING",
+      documentType: "Psychoeducational evaluation",
+      roleReasoning: "Shows whether a reading comprehension score was reported.",
+      temporalStatus: "CURRENT",
+      evidenceIds: ["E7"],
+    },
+    {
+      documentId: MAYA_DOCS.progressJan,
+      role: "SUPPORTING",
+      documentType: "Progress report",
+      roleReasoning: "Later progress report for Goal 1.",
+      temporalStatus: "CURRENT",
+      evidenceIds: ["E9"],
+    },
+    {
+      documentId: MAYA_DOCS.meetingNotice,
+      role: "REFERENCE",
+      documentType: "Meeting notice",
+      roleReasoning: "Schedules the upcoming annual review meeting.",
+      temporalStatus: "UPCOMING",
+      evidenceIds: ["E10"],
+    },
+    {
+      documentId: MAYA_DOCS.teacherNotes,
+      role: "REFERENCE",
+      documentType: "Teacher notes",
+      roleReasoning: "Describes classroom reading support.",
+      temporalStatus: "CURRENT",
+      evidenceIds: ["E11"],
+    },
+  ];
+}
+
 /**
  * A scripted Canonical Study investigation over the case-wide Maya corpus (D-042): one model turn
- * per inner list. Evidence ids E1–E8, fact ids F1–F6 and calculation ids C1–C3 follow from the order.
- * P1 draws on three documents and flags the differing 2024 and 2025 reading targets as a conflict.
+ * per inner list. Evidence ids E1–E11, fact ids F1–F6, calculation ids C1–C3 and document findings
+ * DF1–DF7 follow from the order. P1 draws on three documents and flags the differing 2024 and 2025
+ * reading targets as a conflict. Every document is recorded and reconciled (V4-004L).
  */
 export function mayaStudyAgentTurns(): ScriptedCall[][] {
   let n = 0;
@@ -186,6 +266,9 @@ export function mayaStudyAgentTurns(): ScriptedCall[][] {
       read(MAYA_DOCS.progressNov, 1),
       read(MAYA_DOCS.serviceLog, 1),
       read(MAYA_DOCS.evaluation, 1),
+      read(MAYA_DOCS.progressJan, 1),
+      read(MAYA_DOCS.meetingNotice, 1),
+      read(MAYA_DOCS.teacherNotes, 1),
     ],
     [
       cite(MAYA_DOCS.iep2025, 1, "Baseline: 62 words correct per minute."),
@@ -196,6 +279,9 @@ export function mayaStudyAgentTurns(): ScriptedCall[][] {
       cite(MAYA_DOCS.serviceLog, 1, "Minutes required by IEP: 480 minutes."),
       cite(MAYA_DOCS.evaluation, 1, "The evaluator did not report a reading comprehension score."),
       cite(MAYA_DOCS.iep2024, 1, "Goal 1: Maya will read 60 words correct per minute."),
+      cite(MAYA_DOCS.progressJan, 1, "Goal 1 data not yet collected."),
+      cite(MAYA_DOCS.meetingNotice, 1, "The annual review meeting is scheduled for March 3, 2026."),
+      cite(MAYA_DOCS.teacherNotes, 1, "Maya participates in small-group reading four days a week."),
     ],
     [
       fact("P1", "The baseline was 62 words correct per minute.", ["E1"]),
@@ -246,6 +332,10 @@ export function mayaStudyAgentTurns(): ScriptedCall[][] {
       fact("P3", "The evaluation did not report a comprehension score.", ["E7"]),
     ],
     [
+      ...mayaDocumentRecords().map((document) => call("record_document", document)),
+      ...mayaCoreDocumentFindings().map((args) => call("record_document_finding", args)),
+    ],
+    [
       call("finish_question", {
         questionId: "P1",
         status: "PARTIALLY_ANSWERED",
@@ -253,6 +343,15 @@ export function mayaStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E1", "E4"],
         uncertainties: ["Only one progress measurement after the baseline was available."],
         limitations: ["No progress measurement after November 2025 was available."],
+        evidenceNeeds: [
+          { need: "Reading fluency baseline and annual goal", status: "FOUND", findingIds: ["DF1", "DF2"] },
+          { need: "Latest reading fluency measurement", status: "FOUND", findingIds: ["DF4"] },
+          {
+            need: "Reading fluency measurement after November 2025",
+            status: "NOT_FOUND",
+            explanation: "No later measurement appears in the authorized pages examined.",
+          },
+        ],
       }),
       call("finish_question", {
         questionId: "P2",
@@ -261,6 +360,7 @@ export function mayaStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E5", "E6"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [{ need: "Delivered and required speech therapy minutes", status: "FOUND", findingIds: ["DF5", "DF6"] }],
       }),
       call("finish_question", {
         questionId: "P3",
@@ -269,22 +369,84 @@ export function mayaStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E7"],
         uncertainties: [],
         limitations: ["Comprehension cannot be assessed from these records."],
+        evidenceNeeds: [
+          {
+            need: "Reading comprehension score",
+            status: "NOT_FOUND",
+            explanation: "The evaluation states that no comprehension score was reported; none appears in the pages examined.",
+          },
+        ],
       }),
-      call("finish_study", { coverageNotes: [] }),
+      call("finish_study", {
+        coverageNotes: [],
+        documentReconciliations: [
+          ...mayaCoreReconciliations(),
+          {
+            documentId: MAYA_DOCS.progressJan,
+            disposition: "NO_MATERIAL_FINDINGS",
+            reason: "Reports only that Goal 1 data was not yet collected; no measurement bears on these questions.",
+          },
+          {
+            documentId: MAYA_DOCS.meetingNotice,
+            disposition: "NO_MATERIAL_FINDINGS",
+            reason: "Schedules the annual review; it bears on none of these three questions.",
+          },
+          {
+            documentId: MAYA_DOCS.teacherNotes,
+            disposition: "NO_MATERIAL_FINDINGS",
+            reason: "Describes classroom reading support, which none of these three questions asks about.",
+          },
+        ],
+      }),
     ],
   ];
 }
 
+/** Document findings DF1–DF7 shared by both Maya scripts (E1–E8). */
+function mayaCoreDocumentFindings(): Record<string, unknown>[] {
+  const finding = (documentId: string, category: string, subject: string, attribute: string, valueAsWritten: string, statement: string, evidenceIds: string[], modality = "STATED") => ({
+    documentId,
+    category,
+    subject,
+    attribute,
+    valueAsWritten,
+    statement,
+    modality,
+    evidenceIds,
+  });
+  return [
+    finding(MAYA_DOCS.iep2025, "annual_goal", "Goal 1", "baseline", "62 words correct per minute", "The Goal 1 baseline is 62 words correct per minute.", ["E1"], "MEASURED"),
+    finding(MAYA_DOCS.iep2025, "annual_goal", "Goal 1", "target", "90 words correct per minute by March 2026", "Maya will read 90 words correct per minute by March 2026.", ["E2"], "PLANNED"),
+    finding(MAYA_DOCS.iep2024, "annual_goal", "Goal 1", "target", "60 words correct per minute", "The earlier plan set Goal 1 at 60 words correct per minute.", ["E8"], "HISTORICAL"),
+    finding(MAYA_DOCS.progressNov, "progress", "Goal 1", "reading_fluency", "74 words correct per minute", "Goal 1 reading fluency was 74 words correct per minute.", ["E4"], "MEASURED"),
+    finding(MAYA_DOCS.serviceLog, "service_delivery", "Speech therapy", "delivered_minutes", "360 minutes", "Speech therapy minutes delivered September to November 2025: 360 minutes.", ["E5"], "MEASURED"),
+    finding(MAYA_DOCS.serviceLog, "service_delivery", "Speech therapy", "required_minutes", "480 minutes", "Minutes required by IEP: 480 minutes.", ["E6"]),
+    finding(MAYA_DOCS.evaluation, "evaluation", "Reading comprehension", "score", "did not report a reading comprehension score", "The evaluator did not report a reading comprehension score.", ["E7"], "EMPTY_FIELD"),
+  ];
+}
+
+function mayaCoreReconciliations(): Record<string, unknown>[] {
+  return [
+    { documentId: MAYA_DOCS.iep2025, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF1", "DF2"] },
+    { documentId: MAYA_DOCS.iep2024, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF3"] },
+    { documentId: MAYA_DOCS.progressNov, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF4"] },
+    { documentId: MAYA_DOCS.serviceLog, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF5", "DF6"] },
+    { documentId: MAYA_DOCS.evaluation, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF7"] },
+  ];
+}
+
 /**
- * Six-question batched Maya investigation (`P1`–`P6`, allowance = 18 rounds) demonstrating the D-044
+ * Six-question batched Maya investigation (`P1`–`P6`, allowance = 19 rounds) demonstrating the D-044
  * case-wide phase execution pattern:
  * - Turn 1: locate and read relevant pages across all 6 questions in one turn.
  * - Turn 2: batch verified evidence recording (`E1`–`E11`) across the read pages.
  * - Turn 3: batch source-backed facts (`F1`–`F11`, reusing `E1`/`E2`/`E4`/`E5`/`E6` across questions),
  *   calculations (`C1`–`C3`) and conflicts (`K1`).
- * - Turn 4: batch assessments (`A1`, `A2`) and professional determinations (`D1`, `D2`) using only
+ * - Turn 4: record all eight documents and document findings `DF1`–`DF10` (V4-004L).
+ * - Turn 5: batch assessments (`A1`, `A2`) and professional determinations (`D1`, `D2`) using only
  *   same-question `F…` ids (`P4` and `P6` depend on `P1`/`P2`/`P3` and use their own `F6`–`F11`).
- * - Turn 5: close all 6 questions (`P1`–`P6`, respecting `dependsOn`) and call `finish_study`.
+ * - Turn 6: close all 6 questions (`P1`–`P6`, respecting `dependsOn`) with evidence needs and call
+ *   `finish_study` with one disposition per document.
  */
 export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
   let n = 0;
@@ -366,6 +528,40 @@ export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
       fact("P6", "Neither a reading comprehension score nor January 2026 fluency data is in the record.", ["E7", "E9"]),
     ],
     [
+      ...mayaDocumentRecords().map((document) => call("record_document", document)),
+      ...mayaCoreDocumentFindings().map((args) => call("record_document_finding", args)),
+      call("record_document_finding", {
+        documentId: MAYA_DOCS.progressJan,
+        category: "progress",
+        subject: "Goal 1",
+        attribute: "reading_fluency",
+        valueAsWritten: "data not yet collected",
+        statement: "Goal 1 data not yet collected.",
+        modality: "EMPTY_FIELD",
+        evidenceIds: ["E9"],
+      }), // DF8
+      call("record_document_finding", {
+        documentId: MAYA_DOCS.meetingNotice,
+        category: "schedule",
+        subject: "Annual review meeting",
+        attribute: "scheduled_date",
+        valueAsWritten: "March 3, 2026",
+        statement: "The annual review meeting is scheduled for March 3, 2026.",
+        modality: "PLANNED",
+        evidenceIds: ["E10"],
+      }), // DF9
+      call("record_document_finding", {
+        documentId: MAYA_DOCS.teacherNotes,
+        category: "classroom_support",
+        subject: "Small-group reading",
+        attribute: "frequency",
+        valueAsWritten: "four days a week",
+        statement: "Maya participates in small-group reading four days a week.",
+        modality: "REPORTED",
+        evidenceIds: ["E11"],
+      }), // DF10
+    ],
+    [
       call("record_assessment", {
         questionId: "P1",
         judgment: "Maya is improving but has not yet reached the goal.",
@@ -409,6 +605,14 @@ export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E1", "E4"],
         uncertainties: ["Only one progress measurement after the baseline was available."],
         limitations: ["No progress measurement after November 2025 was available."],
+        evidenceNeeds: [
+          { need: "Reading fluency baseline, goal and latest measurement", status: "FOUND", findingIds: ["DF1", "DF2", "DF4"] },
+          {
+            need: "Reading fluency measurement after November 2025",
+            status: "NOT_FOUND",
+            explanation: "The January 2026 report says the data was not yet collected; no later value appears in the pages examined.",
+          },
+        ],
       }),
       call("finish_question", {
         questionId: "P2",
@@ -417,6 +621,7 @@ export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E5", "E6"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [{ need: "Delivered and required speech therapy minutes", status: "FOUND", findingIds: ["DF5", "DF6"] }],
       }),
       call("finish_question", {
         questionId: "P3",
@@ -425,6 +630,13 @@ export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E7"],
         uncertainties: [],
         limitations: ["Comprehension cannot be assessed from these records."],
+        evidenceNeeds: [
+          {
+            need: "Reading comprehension score",
+            status: "NOT_FOUND",
+            explanation: "The evaluation states that no comprehension score was reported; none appears in the pages examined.",
+          },
+        ],
       }),
       call("finish_question", {
         questionId: "P4",
@@ -433,6 +645,15 @@ export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E1", "E4", "E9"],
         uncertainties: ["January 2026 progress data was not collected."],
         limitations: ["No post-November 2025 reading measurement is in the case records."],
+        evidenceNeeds: [
+          { need: "Fluency trajectory from baseline to the latest measurement", status: "FOUND", findingIds: ["DF1", "DF4"] },
+          {
+            need: "January 2026 fluency measurement",
+            status: "UNCERTAIN",
+            findingIds: ["DF8"],
+            explanation: "The January 2026 report exists but records that the data was not yet collected.",
+          },
+        ],
       }),
       call("finish_question", {
         questionId: "P5",
@@ -441,6 +662,10 @@ export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E10", "E11"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [
+          { need: "Classroom reading support", status: "FOUND", findingIds: ["DF10"] },
+          { need: "Annual review meeting date", status: "FOUND", findingIds: ["DF9"] },
+        ],
       }),
       call("finish_question", {
         questionId: "P6",
@@ -449,8 +674,24 @@ export function mayaSixQuestionStudyAgentTurns(): ScriptedCall[][] {
         evidenceIds: ["E5", "E6", "E7", "E9", "E10"],
         uncertainties: [],
         limitations: ["The records do not state why 120 speech minutes were missed or provide January 2026 fluency data."],
+        evidenceNeeds: [
+          { need: "Speech minutes delivered against required minutes", status: "FOUND", findingIds: ["DF5", "DF6"] },
+          {
+            need: "Reason the speech minutes were not delivered",
+            status: "NOT_FOUND",
+            explanation: "No page examined explains the shortfall.",
+          },
+        ],
       }),
-      call("finish_study", { coverageNotes: [] }),
+      call("finish_study", {
+        coverageNotes: [],
+        documentReconciliations: [
+          ...mayaCoreReconciliations(),
+          { documentId: MAYA_DOCS.progressJan, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF8"] },
+          { documentId: MAYA_DOCS.meetingNotice, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF9"] },
+          { documentId: MAYA_DOCS.teacherNotes, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF10"] },
+        ],
+      }),
     ],
   ];
 }
@@ -1659,6 +1900,15 @@ export function mayaLinVariantDocumentCenteredStudyAgentTurns(): ScriptedCall[][
         findingIds: ["DF8", "DF13", "DF14", "DF15", "DF16", "DF17", "DF18", "DF32"],
         uncertainties: ["Only one interim fluency probe after baseline is in the record."],
         limitations: ["No post-November 2025 fluency probe is present."],
+        evidenceNeeds: [
+          { need: "Goal 1 baseline, target and goal period", status: "FOUND", findingIds: ["DF14", "DF15", "DF18"] },
+          { need: "Interim fluency probe", status: "FOUND", findingIds: ["DF32"] },
+          {
+            need: "Fluency probe after November 2025",
+            status: "NOT_FOUND",
+            explanation: "No later probe appears in the authorized pages examined.",
+          },
+        ],
       }),
       call("finish_question", {
         questionId: "P2",
@@ -1667,6 +1917,7 @@ export function mayaLinVariantDocumentCenteredStudyAgentTurns(): ScriptedCall[][
         findingIds: ["DF13", "DF14", "DF15", "DF16", "DF17", "DF18"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [{ need: "Goal 1 baseline, target and mastery criteria", status: "FOUND", findingIds: ["DF14", "DF15", "DF16", "DF17"] }],
       }),
       call("finish_question", {
         questionId: "P3",
@@ -1675,6 +1926,10 @@ export function mayaLinVariantDocumentCenteredStudyAgentTurns(): ScriptedCall[][
         findingIds: ["DF19", "DF20", "DF21", "DF22", "DF33"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [
+          { need: "Required speech-language therapy minutes", status: "FOUND", findingIds: ["DF20"] },
+          { need: "Delivered speech-language therapy minutes", status: "FOUND", findingIds: ["DF33"] },
+        ],
       }),
       call("finish_question", {
         questionId: "P4",
@@ -1683,6 +1938,15 @@ export function mayaLinVariantDocumentCenteredStudyAgentTurns(): ScriptedCall[][
         findingIds: ["DF11", "DF12", "DF14", "DF15", "DF20", "DF32", "DF33", "DF34"],
         uncertainties: [],
         limitations: ["Reading comprehension score is absent from the evaluation."],
+        evidenceNeeds: [
+          { need: "Fluency and service delivery progress", status: "FOUND", findingIds: ["DF14", "DF32", "DF20", "DF33"] },
+          {
+            need: "Reading comprehension score",
+            status: "NOT_FOUND",
+            findingIds: ["DF34"],
+            explanation: "The evaluation records that no comprehension score was reported.",
+          },
+        ],
       }),
       call("finish_question", {
         questionId: "P5",
@@ -1691,6 +1955,10 @@ export function mayaLinVariantDocumentCenteredStudyAgentTurns(): ScriptedCall[][
         findingIds: ["DF23", "DF24", "DF25", "DF26"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [
+          { need: "Accommodations", status: "FOUND", findingIds: ["DF23", "DF24"] },
+          { need: "Progress monitoring method and reporting frequency", status: "FOUND", findingIds: ["DF25", "DF26"] },
+        ],
       }),
       call("finish_question", {
         questionId: "P6",
@@ -1699,6 +1967,14 @@ export function mayaLinVariantDocumentCenteredStudyAgentTurns(): ScriptedCall[][
         findingIds: ["DF34", "DF35"],
         uncertainties: ["No reading comprehension baseline or probe is in the record."],
         limitations: ["Reading comprehension progress cannot be determined from the uploaded records."],
+        evidenceNeeds: [
+          {
+            need: "Reading comprehension baseline or probe",
+            status: "NOT_FOUND",
+            explanation: "Not found in the authorized pages examined; the evaluation reports no comprehension score.",
+          },
+          { need: "Annual review meeting date", status: "FOUND", findingIds: ["DF35"] },
+        ],
       }),
       call("finish_question", {
         questionId: "P7",
@@ -1707,9 +1983,24 @@ export function mayaLinVariantDocumentCenteredStudyAgentTurns(): ScriptedCall[][
         findingIds: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "DF7", "DF8", "DF9", "DF10", "DF14", "DF27", "DF28", "DF29", "DF30", "DF31"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [
+          { need: "Student profile and eligibility", status: "FOUND", findingIds: ["DF1", "DF2", "DF3", "DF9", "DF10"] },
+          { need: "IEP team participation", status: "FOUND", findingIds: ["DF27", "DF28", "DF29", "DF30", "DF31"] },
+        ],
       }),
       call("finish_study", {
         coverageNotes: ["All 3 pages of maya_lin_variant_initial_iep.pdf and all supporting single-page records were read."],
+        documentReconciliations: [
+          {
+            documentId: MAYA_LIN_VARIANT_IEP_DOC_ID,
+            disposition: "MATERIAL_FINDINGS_RECORDED",
+            findingIds: ["DF1", "DF8", "DF13", "DF14", "DF15", "DF20", "DF23", "DF25", "DF27"],
+          },
+          { documentId: MAYA_DOCS.progressNov, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF32"] },
+          { documentId: MAYA_DOCS.serviceLog, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF33"] },
+          { documentId: MAYA_DOCS.evaluation, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF34"] },
+          { documentId: MAYA_DOCS.meetingNotice, disposition: "MATERIAL_FINDINGS_RECORDED", findingIds: ["DF35"] },
+        ],
       }),
     ],
   ];
@@ -2044,6 +2335,10 @@ export function l001InitialIepStudyAgentTurns(): ScriptedCall[][] {
         findingIds: ["DF1", "DF2", "DF3", "DF4", "DF5", "DF6", "DF7", "DF8", "DF9", "DF10", "DF11", "DF37"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [
+          { need: "Student profile and IEP dates", status: "FOUND", findingIds: ["DF1", "DF2", "DF3", "DF7", "DF8"] },
+          { need: "Eligibility category, need and determination date", status: "FOUND", findingIds: ["DF9", "DF10", "DF11"] },
+        ],
       }),
       call("finish_question", {
         questionId: "P2",
@@ -2053,6 +2348,10 @@ export function l001InitialIepStudyAgentTurns(): ScriptedCall[][] {
         findingIds: ["DF10", "DF12", "DF13", "DF14", "DF15", "DF16", "DF17", "DF18", "DF19", "DF20", "DF21", "DF22", "DF23", "DF24", "DF25", "DF37"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [
+          { need: "Reading fluency and accuracy baseline", status: "FOUND", findingIds: ["DF13", "DF14", "DF19"] },
+          { need: "Annual goal target, accuracy and mastery criteria", status: "FOUND", findingIds: ["DF20", "DF21", "DF22", "DF24"] },
+        ],
       }),
       call("finish_question", {
         questionId: "P3",
@@ -2062,6 +2361,10 @@ export function l001InitialIepStudyAgentTurns(): ScriptedCall[][] {
         findingIds: ["DF16", "DF17", "DF26", "DF27", "DF28", "DF29", "DF30", "DF31"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [
+          { need: "Special education services", status: "FOUND", findingIds: ["DF26", "DF27", "DF28", "DF29"] },
+          { need: "Accommodations", status: "FOUND", findingIds: ["DF30", "DF31"] },
+        ],
       }),
       call("finish_question", {
         questionId: "P4",
@@ -2071,6 +2374,7 @@ export function l001InitialIepStudyAgentTurns(): ScriptedCall[][] {
         findingIds: ["DF17", "DF19", "DF20", "DF21", "DF22", "DF25", "DF32"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [{ need: "Progress measurement method and reporting schedule", status: "FOUND", findingIds: ["DF25", "DF32"] }],
       }),
       call("finish_question", {
         questionId: "P5",
@@ -2080,6 +2384,7 @@ export function l001InitialIepStudyAgentTurns(): ScriptedCall[][] {
         findingIds: ["DF1", "DF7", "DF8", "DF33", "DF34", "DF35", "DF36"],
         uncertainties: [],
         limitations: [],
+        evidenceNeeds: [{ need: "IEP team roles and participation date", status: "FOUND", findingIds: ["DF33", "DF34", "DF35", "DF36"] }],
       }),
       call("finish_question", {
         questionId: "P6",
@@ -2093,9 +2398,25 @@ export function l001InitialIepStudyAgentTurns(): ScriptedCall[][] {
         limitations: [
           "The 2024-10-18 academic evaluation referenced in Section 3 and quarterly progress reports referenced in Section 8 are not separately attached in this single-document test.",
         ],
+        evidenceNeeds: [
+          { need: "Baseline and annual goal criteria", status: "FOUND", findingIds: ["DF13", "DF14", "DF19", "DF20", "DF21", "DF22", "DF24"] },
+          {
+            need: "Quarterly progress probe results after 2024-11-12",
+            status: "NOT_FOUND",
+            explanation:
+              "Not found in the authorized pages examined; the IEP refers to quarterly reports, which may exist outside this corpus.",
+          },
+        ],
       }),
       call("finish_study", {
         coverageNotes: ["All 3 pages of L001 08_initial_iep.pdf were read."],
+        documentReconciliations: [
+          {
+            documentId: L001_INITIAL_IEP_DOC_ID,
+            disposition: "MATERIAL_FINDINGS_RECORDED",
+            findingIds: ["DF1", "DF9", "DF13", "DF17", "DF20", "DF26", "DF30", "DF32", "DF33", "DF37"],
+          },
+        ],
       }),
     ],
   ];

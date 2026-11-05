@@ -1,10 +1,32 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-**Date:** 2026-11-04 | **Status:** V4-004H active (implemented locally, uncommitted; migration `20261104120000` not applied; no paid model run). V4-004G paused at *awaiting founder review* (implemented locally, uncommitted; migration `20261103190000` not applied; no paid model run). V4-004F paused at *awaiting live verification* (implemented locally, uncommitted; no paid model run). V4-004E paused at *awaiting live verification* (implemented locally, uncommitted; migration `20261102180000` not applied; no paid model run). V4-004D paused at *awaiting live verification* (implemented locally; no paid model run). V4-004C paused at *awaiting live verification* (implemented locally; no paid model run). V4-004B paused at *awaiting live verification* (implemented locally; no paid model run). V4-004A paused at *awaiting live verification* (implemented locally; `v4-planner` not rebuilt; no paid model run). V4-004 paused at *awaiting live verification* (implemented locally; migrations `20261102120000`, `20261102150000`, `20261102170000`, `20261102180000`, `20261103190000` not applied; `v4-planner` and Vercel settings not deployed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
+**Date:** 2026-11-04 | **Status:** V4-004L active (implemented locally, uncommitted; no migration; no paid model run). V4-004H paused at *awaiting founder review* (committed as `2cb7113` and `1c0b2d4`; migration `20261104120000` not applied; no paid model run). V4-004G paused at *awaiting founder review* (implemented locally, uncommitted; migration `20261103190000` not applied; no paid model run). V4-004F paused at *awaiting live verification* (implemented locally, uncommitted; no paid model run). V4-004E paused at *awaiting live verification* (implemented locally, uncommitted; migration `20261102180000` not applied; no paid model run). V4-004D paused at *awaiting live verification* (implemented locally; no paid model run). V4-004C paused at *awaiting live verification* (implemented locally; no paid model run). V4-004B paused at *awaiting live verification* (implemented locally; no paid model run). V4-004A paused at *awaiting live verification* (implemented locally; `v4-planner` not rebuilt; no paid model run). V4-004 paused at *awaiting live verification* (implemented locally; migrations `20261102120000`, `20261102150000`, `20261102170000`, `20261102180000`, `20261103190000` not applied; `v4-planner` and Vercel settings not deployed). V4-003 paused at *awaiting live verification* (local implementation complete; migrations not applied). | **Repository:** `hiveforyou-v4`
 
-> **Exactly one active engineering ticket: V4-004H — Explicit Rebuild Study (D-049).** Founder-authorized 2026-11-04 for local implementation only. V4-004G, V4-004F, V4-004E, V4-004D, V4-004C, V4-004B, V4-004A, V4-004 and V4-003 are paused, not closed.
+> **Exactly one active engineering ticket: V4-004L — Corpus Reconciliation Gate (D-050).** Founder-approved 2026-11-04 for local implementation only. V4-004H, V4-004G, V4-004F, V4-004E, V4-004D, V4-004C, V4-004B, V4-004A, V4-004 and V4-003 are paused, not closed. (Ticket ids V4-004J and V4-004K were already used in Git history for Writer work, so this ticket is V4-004L.)
 
-## Active ticket — V4-004H Explicit Rebuild Study
+## Active ticket — V4-004L Corpus Reconciliation Gate
+
+**Objective:** A new Canonical Study cannot finish until every authorized document is classified and given a disposition, and every investigation question states what evidence it needed and whether it was found. The same deterministic rules apply in `StudyAgentLedger` and `verifyStudyInvestigation`, for every new Analyze and Rebuild run. Older accepted revisions, including revision 6 and its reports, are not reinterpreted.
+
+**Scope (D-050):**
+
+1. **Shared rules (`packages/contracts/src/analysis/corpus-reconciliation.ts`):** document classification (`UNDETERMINED` only with `UNCERTAIN`), dispositions (`MATERIAL_FINDINGS_RECORDED`, `NO_MATERIAL_FINDINGS`, `UNRESOLVED`), evidence needs (`FOUND`, `NOT_FOUND`, `UNCERTAIN`, `NOT_REQUIRED`), corpus inventory, and the deterministic unresolved-document coverage note. Open vocabulary; no domain or document taxonomy.
+2. **Ledger (`study-agent.ts`):** existing tools only. `finish_question` requires `evidenceNeeds`; `finish_study` requires `documentReconciliations` for every document in one call and is non-mutating on rejection; `record_document` accepts an evidence-free `UNDETERMINED` record after a read (or for a blank document); allowance scales with document count under the unchanged ceilings.
+3. **Verifier (`study-verification.ts`):** integrity of any present reconciliation and evidence needs; completeness, and visible `UNRESOLVED` coverage notes, when `requireCorpusReconciliation` is set. `analysis-workflow.ts` sets it for every new run.
+4. **Prompt and contract:** `hive-study-preview/1` sections 4 and 7, the code-owned section 8 (`study-prompt-builder.ts`), `START_MESSAGE` / `NUDGE_MESSAGE`, tool descriptions, and optional `documents[].reconciliation` / `answers[].evidenceNeeds` in `hive.study-investigation/1`.
+5. **Verification:** all documents accounted for; omitted `SUPPORTING` / `REFERENCE` rejected; missing and unsupported evidence needs; valid `NO_MATERIAL_FINDINGS` / `UNRESOLVED`; forged and cross-document `DF…` ids; blank documents; partial reads; a synthetic L001-shaped eight-document corpus; a non-IEP corpus (lease and invoices); a hand-built output bypassing the ledger; legacy and revision-6-shaped outputs accepted without the flag and rejected with it; an unreconciled in-flight Analyze or Rebuild fails at `VERIFYING_EVIDENCE` without `accept_study_revision` or Writer dispatch.
+
+**Implementation status (2026-11-04, local working tree, uncommitted):**
+
+- **Contracts:** new `corpus-reconciliation.ts` (+ `corpus-reconciliation.test.ts`, `study-agent-reconciliation.test.ts`); `study-agent.ts`, `study-verification.ts`, `execution-manifest-contracts.ts`, `index.ts`; synthetic fixtures in `testing/maya-fixture.ts` now record and reconcile every document.
+- **Web:** `analysis-workflow.ts` (`requireCorpusReconciliation: true`), `study-investigation.ts` (messages, document-scaled allowance), `study-prompt-builder.ts` (section 8). Writer, Oracle and SQL unchanged.
+- **Prompt and schema:** `hive-study-preview/1` template digest `sha256:ece27769…a259d5`; `hive.study-investigation/1` schema digest `sha256:245873ec…6e440` (optional fields only).
+- **Verification (2026-11-04):** `npm test` — contracts 340 tests (26 files) and web 373 tests (47 files), all passed; `npm run typecheck` passed; `npm run lint` 0 errors (2 pre-existing warnings); `npm run build` passed; `git diff --check` clean. No database test applies (no SQL change).
+- **Approval stops:** deployment, live Analyze or Rebuild, paid model run, commit, push.
+
+**Done when:** founder reviews this local implementation and verification; after a separately approved run, a new L001 Rebuild either accounts for all eight documents or fails closed while revision 6 and its reports remain.
+
+## Paused ticket — V4-004H Explicit Rebuild Study (awaiting founder review)
 
 **Objective:** From the existing Documents UI, let the Hive owner create a new accepted Canonical Study revision with the current document-centered Study agent, using the pages and intent already saved. Analyze keeps its reuse behavior. Rebuild does not upload, re-read unchanged files, or regenerate Customer and Pro reports.
 
@@ -15,7 +37,7 @@
 3. **Documents UI (`DocumentsPanel.tsx`, `useStudyPreparation.ts`, `POST .../study-preparation/rebuild`):** secondary **Rebuild Study** when an accepted Study exists and nothing is running. Disabled until documents are read. Confirmation when material gaps need the same coverage digest as Analyze. Success shows the new revision number, source count, atomic finding count, and a link to the Study. Analyze still reuses a compatible accepted revision and can navigate to reports.
 4. **Verification:** contract assessment and availability tests, Analyze reuse vs explicit rebuild, unchanged page reuse, owner and signed-out authorization, duplicate and concurrent requests, failed acceptance preserving the prior revision, workflow refusal when the inventory is missing, and pgTAP `supabase/tests/database/rebuild_study.test.sql`.
 
-**Implementation status (2026-11-04, local working tree, uncommitted):**
+**Implementation status (2026-11-04, committed as `2cb7113` and `1c0b2d4`; not deployed):**
 
 - **Migration:** `supabase/migrations/20261104120000_rebuild_study.sql` (not applied) + `supabase/tests/database/rebuild_study.test.sql`.
 - **Contracts:** `assessDocumentCenteredStudy` and `rebuildAvailability`.
