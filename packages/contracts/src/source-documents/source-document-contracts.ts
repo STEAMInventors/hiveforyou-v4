@@ -1,8 +1,8 @@
 import { isValidUuid } from "../hives/hive-contracts";
 
-/** Mirrored in supabase/migrations/20261030150000_create_source_documents.sql and v1-source-documents. */
+/** Mirrored in supabase/migrations (upload quota RPC) and v1-source-documents. */
 export const MAX_SOURCE_DOCUMENT_BYTES = 26_214_400;
-export const FREE_UPLOADS_PER_UTC_MONTH = 10;
+export const FREE_UPLOADS_PER_UTC_MONTH = 2000;
 export const INTENT_TEXT_MAX_LENGTH = 2000;
 export const INTENT_AUDIENCE_MAX_LENGTH = 200;
 export const SOURCE_FILE_NAME_MAX_LENGTH = 255;
