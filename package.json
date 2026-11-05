@@ -13,7 +13,8 @@
     "test": "npm run test -w @hiveforyou/contracts && npm run test -w @hiveforyou/web",
     "eval": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/eval.ts",
     "extract": "vite-node --config apps/web/vitest.config.ts scripts/run-extract.ts --",
-    "canonicalize": "vite-node --config apps/web/vitest.config.ts scripts/run-canonicalize.ts --"
+    "canonicalize": "vite-node --config apps/web/vitest.config.ts scripts/run-canonicalize.ts --",
+    "write": "vite-node --config apps/web/vitest.config.ts scripts/run-write.ts --"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

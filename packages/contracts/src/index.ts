@@ -31,6 +31,7 @@ export * from "./study-preparation/planner-wire-contracts";
 export * from "./study-preparation/execution-manifest-contracts";
 export * from "./pipeline/extraction-contracts";
 export * from "./pipeline/canonical-study-contracts";
+export * from "./pipeline/study-view-contracts";
 export {
   checkQuote,
   type DroppedEvidence,

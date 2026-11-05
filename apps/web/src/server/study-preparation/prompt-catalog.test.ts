@@ -92,6 +92,16 @@ describe("loadPromptCatalog", () => {
     expect(canonicalize.systemPrompt).toContain("no document plays the anchor role");
     expect(canonicalize.systemPrompt).toContain('"schema": "hive.canonical-study/1"');
   });
+
+  it("loads hive-write/1 as the System and Output sections", () => {
+    const { write } = loadPromptCatalog();
+    expect(write).toMatchObject({ task: "write", id: "hive-write/1" });
+    expect(write.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(write.systemPrompt).toContain("Narrative only.");
+    expect(write.systemPrompt).toContain("Every sentence cites at least one fact id");
+    expect(write.systemPrompt).toContain("spine_table");
+    expect(write.systemPrompt).not.toMatch(/^## |^---$/m);
+  });
 });
 
 describe("buildPromptCatalog", () => {
@@ -117,6 +127,7 @@ describe("buildPromptCatalog", () => {
       "hive-writer/hive.writer-report-1.schema.json": "{}",
       "hive-extract/HiveForYou-Extract-v1.md": [planner("hive-extract/1"), "## User (template)", "Document id: `{{documentId}}`"].join(eol),
       "hive-canonicalize/HiveForYou-Canonicalize-v1.md": [planner("hive-canonicalize/1"), "## Output", "Return JSON."].join(eol),
+      "hive-write/HiveForYou-Write-v1.md": [planner("hive-write/1"), "## Output", "Return write JSON."].join(eol),
     };
   };
 

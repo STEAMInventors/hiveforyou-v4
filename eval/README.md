@@ -75,9 +75,21 @@ Written by `npm run canonicalize -- <corpus-id> <run-folder> [--brief]` (`script
 
 `canonicalize-stats.json` also records the payload size, per planner call the input and output tokens, latency, finish reason and resolved model, and in `totals` the summed input and output tokens and the distinct resolved models. It does not estimate cost.
 
-### `write.md`
+### `view.json`, `view.html` and `write-stats.json`
 
-The written output in Markdown. Citations are bracketed fact ids such as `[F-3f2a9c1e-001]` or `[F-3f2a9c1e-001, F-7b01d2aa-004]`. Headings and table rules are ignored; every other sentence without a citation is counted as uncited. Citations to ids that are not in `extract/` are listed.
+Written by `npm run write -- <corpus-id> <run-folder> "<audience>" "<intent>"` (`scripts/run-write.ts`), which reads `canonical.json` and `extract/*.json`, runs `hive-write/1` (`prompts/hive-write/HiveForYou-Write-v1.md`) through the planner `write` task in one call, and then runs the scorer on the same folder. It needs `PLANNER_BASE_URL` and `PLANNER_SERVICE_TOKEN`.
+
+`view.json` is one `hive.study-view/1` object after code checks (`buildStudyView` in `packages/contracts/src/pipeline/study-view-contracts.ts`): narrative `sections` with per-sentence `factIds`, plus deterministic `blocks` (documents, spine table, conflicts, timeline, gaps, outside spine) built from the canonical study. Sentences with empty `factIds` or whose ids are all unknown are removed; unknown block names from the model are ignored.
+
+```json
+{
+  "schema": "hive.study-view/1",
+  "sections": [{ "heading": "Overview", "paragraphs": [{ "sentences": [{ "text": "...", "factIds": ["F-3f2a9c1e-001"] }] }] }],
+  "blocks": [{ "name": "spine_table", "rows": [{ "id": "S1", "label": "...", "values": [{ "factId": "F-3f2a9c1e-001", "valueAsWritten": "$8,420.00", "sourceRef": { "sourceDocumentId": "...", "pageNumber": 1, "quote": "..." } }] }] }]
+}
+```
+
+The write scorer counts **uncited** narrative sentences: `factIds` empty or every id unknown against kept extract facts. `view.html` is a plain static page for manual review. `write-stats.json` records drops, malformed items, and per planner call the input and output tokens, latency, finish reason and resolved model.
 
 ## Golden labels (`golden.json`)
 

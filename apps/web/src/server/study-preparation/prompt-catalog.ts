@@ -30,6 +30,7 @@ const WRITER_SEMANTIC_REVIEW_PROMPT_FILE = "hive-writer/HiveForYou-Writer-Semant
 const WRITER_SCHEMA_FILE = "hive-writer/hive.writer-report-1.schema.json";
 const EXTRACT_PROMPT_FILE = "hive-extract/HiveForYou-Extract-v1.md";
 const CANONICALIZE_PROMPT_FILE = "hive-canonicalize/HiveForYou-Canonicalize-v1.md";
+const WRITE_PROMPT_FILE = "hive-write/HiveForYou-Write-v1.md";
 
 export type PlannerPrompt = {
   readonly task: PlannerCompletionTask;
@@ -59,10 +60,14 @@ export type ExtractPrompt = PlannerPrompt & { readonly task: "extract"; readonly
 /** `hive-canonicalize/1`: System and Output sections joined as the system prompt; the case goes in the user payload. */
 export type CanonicalizePrompt = PlannerPrompt & { readonly task: "canonicalize" };
 
+/** `hive-write/1`: System and Output sections joined as the system prompt; the case goes in the user payload. */
+export type WritePrompt = PlannerPrompt & { readonly task: "write" };
+
 export type PromptCatalog = {
   readonly planner: Record<PreparationPlannerTask, PlannerPrompt>;
   readonly extract: ExtractPrompt;
   readonly canonicalize: CanonicalizePrompt;
+  readonly write: WritePrompt;
   readonly studyTemplate: { readonly id: string; readonly version: string; readonly digest: string; readonly text: string };
   readonly outputSchema: { readonly digest: string; readonly text: string };
   readonly writer: WriterPrompt;
@@ -158,6 +163,8 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
   readPromptId(extractFile, PLANNER_TASK_PROMPT_IDS.extract);
   const canonicalizeFile = normalize(readText(CANONICALIZE_PROMPT_FILE));
   readPromptId(canonicalizeFile, PLANNER_TASK_PROMPT_IDS.canonicalize);
+  const writeFile = normalize(readText(WRITE_PROMPT_FILE));
+  readPromptId(writeFile, PLANNER_TASK_PROMPT_IDS.write);
   return {
     planner,
     extract: {
@@ -172,6 +179,12 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
       id: PLANNER_TASK_PROMPT_IDS.canonicalize,
       digest: sha256Digest(canonicalizeFile),
       systemPrompt: `${extractSection(canonicalizeFile, "System")}\n\n${extractSection(canonicalizeFile, "Output", true)}`,
+    },
+    write: {
+      task: "write",
+      id: PLANNER_TASK_PROMPT_IDS.write,
+      digest: sha256Digest(writeFile),
+      systemPrompt: `${extractSection(writeFile, "System")}\n\n${extractSection(writeFile, "Output", true)}`,
     },
     writer: {
       task: "writer",

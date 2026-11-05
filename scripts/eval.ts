@@ -290,41 +290,54 @@ function scoreConflicts(golden: Golden, spine: Spine, facts: Map<string, UsableF
   return { found, total: conflicts.length, conflicts, predictedConflicts: resolved.length, unmatched, unresolvedFactIds };
 }
 
-const CITATION = /\[\s*([A-Za-z][\w.:-]*\d[\w.:-]*(?:\s*[,;]\s*[A-Za-z][\w.:-]*\d[\w.:-]*)*)\s*\](?!\()/g;
-const HAS_CITATION = new RegExp(CITATION.source);
-const LEADING_CITATIONS = /^(?:\[[^\]]*\]\s*)+/;
+const VIEW_FILE = "view.json";
+const VIEW_SCHEMA = "hive.study-view/1";
 
-function sentencesOf(markdown: string): string[] {
-  const sentences: string[] = [];
-  let inFence = false;
-  for (const raw of markdown.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (line.startsWith("```")) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence || line === "" || line.startsWith("#") || /^[-*_|:\s]+$/.test(line)) continue;
-    const text = line.replace(/^(?:[-*+]|\d+[.)])\s+/, "").replace(/^>\s*/, "");
-    for (const part of text.split(/(?<=[.!?])\s+/)) {
-      const leading = part.match(LEADING_CITATIONS)?.[0];
-      if (leading && sentences.length > 0) sentences[sentences.length - 1] += ` ${leading.trim()}`;
-      const rest = leading ? part.slice(leading.length).trim() : part.trim();
-      if (/[A-Za-z0-9]/.test(rest.replace(CITATION, ""))) sentences.push(rest);
-    }
-  }
-  return sentences;
+type ViewSentence = { text?: string; factIds?: string[] };
+type ViewFile = {
+  schema?: unknown;
+  sections?: { paragraphs?: { sentences?: ViewSentence[] }[] }[];
+};
+
+function parseView(text: string): ViewFile {
+  const value = JSON.parse(text) as ViewFile;
+  if (value === null || typeof value !== "object") throw new Error(`${VIEW_FILE} must be an object`);
+  if (value.schema !== VIEW_SCHEMA) throw new Error(`${VIEW_FILE}: schema must be ${VIEW_SCHEMA}`);
+  return value;
 }
 
-function scoreWrite(markdown: string, knownFactIds: Set<string> | null) {
-  const sentences = sentencesOf(markdown);
-  const uncited = sentences.filter((s) => !HAS_CITATION.test(s));
+function sentencesOfView(view: ViewFile): { text: string; factIds: string[] }[] {
+  const out: { text: string; factIds: string[] }[] = [];
+  for (const section of view.sections ?? []) {
+    for (const paragraph of section.paragraphs ?? []) {
+      for (const sentence of paragraph.sentences ?? []) {
+        const text = typeof sentence.text === "string" ? sentence.text.trim() : "";
+        if (!text) continue;
+        const factIds = Array.isArray(sentence.factIds)
+          ? sentence.factIds.filter((id): id is string => typeof id === "string" && id.trim() !== "")
+          : [];
+        out.push({ text, factIds });
+      }
+    }
+  }
+  return out;
+}
+
+function scoreWrite(view: ViewFile, knownFactIds: Set<string> | null) {
+  const sentences = sentencesOfView(view);
+  const uncited = sentences.filter(
+    (s) => s.factIds.length === 0 || (knownFactIds !== null && s.factIds.every((id) => !knownFactIds.has(id))),
+  );
   const cited = new Set<string>();
-  for (const s of sentences) for (const m of s.matchAll(CITATION)) for (const id of m[1]!.split(/[,;]/)) cited.add(id.trim());
+  for (const s of sentences) for (const id of s.factIds) cited.add(id);
   return {
     sentences: sentences.length,
     uncitedSentences: uncited.length,
     uncitedRate: rate(uncited.length, sentences.length),
-    uncited: uncited.map((s) => (s.length > 200 ? `${s.slice(0, 197)}...` : s)),
+    uncited: uncited.map((s) => {
+      const line = s.text;
+      return line.length > 200 ? `${line.slice(0, 197)}...` : line;
+    }),
     unknownCitationIds: knownFactIds === null ? null : [...cited].filter((id) => !knownFactIds.has(id)),
   };
 }
@@ -339,7 +352,7 @@ if (!existsSync(runDir) || !statSync(runDir).isDirectory()) fail(`Run folder not
 const golden = readStage<Golden>(join(corpusDir, "golden.json"), (t) => JSON.parse(t) as Golden);
 const extract = readExtract(runDir);
 const canonical = readStage(join(runDir, CANONICAL_FILE), parseCanonical);
-const write = readStage(join(runDir, "write.md"), (t) => t);
+const write = readStage(join(runDir, VIEW_FILE), parseView);
 
 const extractValue = extract.status === "ok" ? extract.value : null;
 const spineValue = canonical.status === "ok" ? toSpine(canonical.value, extractValue) : null;
@@ -402,7 +415,7 @@ const summary = {
       golden: goldenValue!.negativeControls ?? [],
       predictedStatements: spineValue!.elements.map((e) => ({ id: e.id, label: e.label ?? null, status: e.status ?? null })),
     },
-  write: needs(["write.md", write]) ?? { status: "ok", ...scoreWrite(writeValue!, allFactIds) },
+  write: needs([VIEW_FILE, write]) ?? { status: "ok", ...scoreWrite(writeValue!, allFactIds) },
 };
 
 const yesNo = (v: boolean) => (v ? "yes" : "no");
