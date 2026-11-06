@@ -2526,6 +2526,102 @@ describe("processReportRun: revision formats", () => {
     ]);
   });
 
+  it("sends the canonical study and only the facts that study cites", async () => {
+    const citedOnConflict = "F-aaaa0001-002";
+    const uncited = "F-aaaa0001-003";
+    const extraction = v5Extraction();
+    const inputs = v5Inputs();
+    const citedFact = {
+      ...extraction.facts[0]!,
+      id: citedOnConflict,
+      attribute: "other",
+      valueAsWritten: "$12.00",
+      evidence: [{ page: 3, quote: "Other fee $12.00." }],
+    };
+    const unusedFact = {
+      ...extraction.facts[0]!,
+      id: uncited,
+      attribute: "note",
+      valueAsWritten: "unused",
+      evidence: [{ page: 4, quote: "Not cited by the study." }],
+    };
+    const study: CanonicalStudy = {
+      ...v5Study,
+      conflicts: [{ id: "C1", statement: "Two fees", factIds: [V5_FACT, citedOnConflict] }],
+    };
+    const db = fakeDatabase("CUSTOMER", {
+      inputsOverrides: {
+        ...inputs,
+        studyRevision: { ...inputs.studyRevision, investigation: study },
+        extractions: [{ ...extraction, facts: [...extraction.facts, citedFact, unusedFact] }],
+      },
+    });
+    const model = writePlanner();
+    await expect(
+      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+    ).resolves.toBe("SUCCEEDED");
+    const payload = model.requests[0]!.body.user_payload;
+    expect(payload.canonicalStudy).toEqual(study);
+    expect((payload.facts as { id: string }[]).map((fact) => fact.id)).toEqual([V5_FACT, citedOnConflict]);
+  });
+
+  it("records a retryable MODEL_TIMEOUT when the write cannot finish 30s before the function limit", async () => {
+    const db = fakeDatabase("CUSTOMER", { inputsOverrides: v5Inputs() });
+    const fetchFn = vi.fn();
+    await expect(
+      processReportRun(
+        {
+          client: db.client,
+          planner: {
+            getConfig: () => ({ baseUrl: "https://reader.example.test/planner", serviceToken: "t", timeoutMs: 1000 }),
+            fetchFn: fetchFn as unknown as typeof fetch,
+          },
+          invocationStartedAt: Date.now() - 300_000,
+          loadCatalog: () => loadPromptCatalog(),
+        },
+        REPORT_RUN_ID,
+      ),
+    ).resolves.toBe("QUEUED");
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(db.transitions.at(-1)).toMatchObject({
+      from: "WRITING",
+      to: "FAILED",
+      details: expect.objectContaining({
+        error_code: "MODEL_TIMEOUT",
+        retryable: true,
+        stage_metric: expect.objectContaining({
+          stage: "WRITING",
+          outcome: "FAILED",
+          errorCode: "MODEL_TIMEOUT",
+          retryable: true,
+        }),
+      }),
+    });
+  });
+
+  it("aborts the write HTTP call at least 30s before the 300s route limit", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    const db = fakeDatabase("CUSTOMER", { inputsOverrides: v5Inputs() });
+    const model = writePlanner();
+    try {
+      await processReportRun(
+        {
+          client: db.client,
+          planner: model.deps,
+          invocationStartedAt: Date.now(),
+          loadCatalog: () => loadPromptCatalog(),
+        },
+        REPORT_RUN_ID,
+      );
+      const budgets = timeoutSpy.mock.calls.map((call) => Number(call[0]));
+      expect(budgets.length).toBeGreaterThan(0);
+      expect(Math.max(...budgets)).toBeLessThanOrEqual(270_000);
+      expect(Math.max(...budgets)).toBeGreaterThan(200_000);
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+
   it("falls back to a default audience description per report audience when no intent states one", async () => {
     const inputs = v5Inputs();
     const db = fakeDatabase("PRO", {

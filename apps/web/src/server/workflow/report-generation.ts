@@ -74,6 +74,21 @@ import { createWriterSemanticReviewer } from "./writer-semantic-reviewer";
 
 export const REPORT_RETRY_BACKOFF_SECONDS = 30;
 
+/**
+ * Every route that runs `processReportRun` / `processReportRunSafely` (including work started with
+ * `after()`) sets `export const maxDuration` to this many seconds:
+ * `POST /api/v1/hives/[hiveId]/reports`, `POST /api/v1/hives/[hiveId]/study-preparation`, and
+ * `POST /api/internal/workflow`. `after()` shares that budget from the start of the invocation.
+ */
+export const REPORT_ROUTE_MAX_DURATION_SECONDS = 300;
+
+/** The write HTTP call aborts this long before `maxDuration`, leaving time to store a FAILED metric. */
+export const WRITE_CLIENT_TIMEOUT_MARGIN_MS = 30_000;
+
+export function writeClientDeadlineMs(invocationStartedAt: number): number {
+  return invocationStartedAt + REPORT_ROUTE_MAX_DURATION_SECONDS * 1000 - WRITE_CLIENT_TIMEOUT_MARGIN_MS;
+}
+
 const NUDGE_MESSAGE =
   "No tool was called. Call submit_editorial_plan with your compact EditorialPlan (or patch_editorial_plan to repair rejected editorial units).";
 
@@ -100,6 +115,8 @@ export type ReportGenerationDeps = {
   readonly loadCatalog?: () => PromptCatalog;
   readonly now?: () => Date;
   readonly clock?: () => number;
+  /** `Date.now()` when the route invocation started, so the write call ends 30s before `maxDuration`. */
+  readonly invocationStartedAt?: number;
 };
 
 export type GenerationInputs = {
@@ -380,6 +397,31 @@ export type StudyViewGenerationInputs = {
   readonly audience: string;
 };
 
+/** Fact ids the canonical study actually cites (spine, outside spine, conflicts, timeline). */
+export function citedFactIds(study: CanonicalStudy): ReadonlySet<string> {
+  const ids = new Set<string>();
+  const add = (values: readonly string[] | undefined) => {
+    for (const id of values ?? []) {
+      if (id !== "") ids.add(id);
+    }
+  };
+  for (const element of study.spine ?? []) {
+    add(element.supportingFactIds);
+    add(element.contradictingFactIds);
+    add(element.updatingFactIds);
+  }
+  for (const item of study.outsideSpine ?? []) add(item.factIds);
+  for (const conflict of study.conflicts ?? []) add(conflict.factIds);
+  for (const entry of study.timeline ?? []) add(entry.factIds);
+  return ids;
+}
+
+/** Write sees the canonical study and only the extracted facts that study cites. */
+export function factsCitedByStudy(study: CanonicalStudy, facts: readonly WriteFactRecord[]): WriteFactRecord[] {
+  const cited = citedFactIds(study);
+  return facts.filter((fact) => cited.has(fact.id));
+}
+
 function isCanonicalStudyRevision(payload: Record<string, unknown> | null): boolean {
   return (payload?.studyRevision as { format?: unknown } | undefined)?.format === "canonical-study-1";
 }
@@ -409,7 +451,7 @@ export function studyViewInputsFrom(
       : "";
   return {
     canonicalStudy: study,
-    facts: factRecordsFromExtractions(extractions),
+    facts: factsCitedByStudy(study, factRecordsFromExtractions(extractions)),
     fileNames: fileNamesOf((payload?.sourceSnapshot ?? null) as SourceSnapshot | null),
     intent: intents.map((intent) => text(intent.intentText)).filter((value) => value !== "").join("\n\n"),
     audience: buildWriteAudienceText(audience, {
@@ -472,6 +514,7 @@ async function processStudyViewReportRun(
       correlationId,
       runId: reportRunId,
       prompt: catalog.write,
+      deadlineMs: writeClientDeadlineMs(deps.invocationStartedAt ?? startedAt),
     });
     for (const call of result.calls) {
       emitStructuredEvent({

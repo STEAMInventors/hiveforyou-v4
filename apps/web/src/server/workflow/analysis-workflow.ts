@@ -79,6 +79,8 @@ export type AnalysisWorkflowDeps = {
   readonly dispatch: Dispatch;
   readonly loadCatalog?: () => PromptCatalog;
   readonly now?: () => Date;
+  /** `Date.now()` when the route invocation started. Report writes abort 30s before `maxDuration`. */
+  readonly invocationStartedAt?: number;
 };
 
 type StageOutputs = {

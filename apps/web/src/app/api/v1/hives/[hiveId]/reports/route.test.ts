@@ -40,11 +40,15 @@ function request(method: "GET" | "POST", body?: unknown) {
 
 describe("/api/v1/hives/[hiveId]/reports", () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
+  const userRpc = vi.fn(async () => ({ data: { dispatch: [] }, error: null }));
 
   beforeEach(() => {
     vi.clearAllMocks();
     logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    auth.requireApiSupabaseClient.mockResolvedValue({ kind: "user" });
+    userRpc.mockResolvedValue({ data: { dispatch: [] }, error: null });
+    auth.requireApiSupabaseClient.mockResolvedValue({ kind: "user", rpc: userRpc });
+    worker.createWorkerDeps.mockReset();
+    worker.createWorkerDeps.mockReturnValue({ kind: "worker-deps" });
     worker.requireWorkerDispatch.mockImplementation(() => undefined);
   });
 
@@ -72,7 +76,22 @@ describe("/api/v1/hives/[hiveId]/reports", () => {
     reports.getHiveReports.mockResolvedValue({ studyRevision: null, reportRuns: [], latest: [], history: [] });
     const res = await GET(request("GET"), params);
     expect(res.status).toBe(200);
-    expect(reports.getHiveReports).toHaveBeenCalledWith({ kind: "user" }, { hiveId: HIVE_ID, correlationId: CORRELATION_ID });
+    expect(reports.getHiveReports).toHaveBeenCalledWith(
+      { kind: "user", rpc: userRpc },
+      { hiveId: HIVE_ID, correlationId: CORRELATION_ID },
+    );
+  });
+
+  it("GET re-dispatches an expired run before returning reports", async () => {
+    const dispatch = vi.fn(async () => true);
+    worker.createWorkerDeps.mockReturnValue({ dispatch });
+    userRpc.mockResolvedValue({ data: { dispatch: [{ kind: "report", id: REPORT_RUN_ID }] }, error: null });
+    reports.getHiveReports.mockResolvedValue({ studyRevision: null, reportRuns: [], latest: [], history: [] });
+    const res = await GET(request("GET"), params);
+    expect(res.status).toBe(200);
+    expect(userRpc).toHaveBeenCalledWith("recover_expired_workflow_leases", { p_hive_id: HIVE_ID });
+    expect(dispatch).toHaveBeenCalledWith({ kind: "report", id: REPORT_RUN_ID }, CORRELATION_ID);
+    expect(userRpc.mock.invocationCallOrder[0]).toBeLessThan(reports.getHiveReports.mock.invocationCallOrder[0]!);
   });
 
   it("POST queues one Writer run and runs it after the response", async () => {

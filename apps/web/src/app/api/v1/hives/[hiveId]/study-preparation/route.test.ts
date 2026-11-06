@@ -32,7 +32,8 @@ const REQUEST_ID = "550e8400-e29b-41d4-a716-446655440000";
 const RUN_ID = "22222222-2222-4222-8222-222222222222";
 const URL = `http://localhost/api/v1/hives/${HIVE_ID}/study-preparation`;
 const params = { params: Promise.resolve({ hiveId: HIVE_ID }) };
-const userClient = { kind: "user" };
+const userRpc = vi.fn(async () => ({ data: { dispatch: [] }, error: null }));
+const userClient = { kind: "user", rpc: userRpc };
 
 function post(body: unknown): NextRequest {
   return new NextRequest(URL, {
@@ -63,6 +64,7 @@ describe("/api/v1/hives/[hiveId]/study-preparation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    userRpc.mockResolvedValue({ data: { dispatch: [] }, error: null });
     auth.requireApiSupabaseClient.mockResolvedValue(userClient);
     planner.loadPlannerServiceConfig.mockReturnValue({ baseUrl: "https://reader.test/planner", serviceToken: "s", timeoutMs: 1 });
     worker.requireWorkerDispatch.mockImplementation(() => undefined);

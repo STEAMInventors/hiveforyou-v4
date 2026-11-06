@@ -25,7 +25,10 @@ export function requireWorkerDispatch(env: NodeJS.ProcessEnv, correlationId: str
 }
 
 /** Service-role dependencies for one invocation. Configuration is read lazily, when a stage needs it. */
-export function createWorkerDeps(env: NodeJS.ProcessEnv, input: { origin: string; correlationId: string }): AnalysisWorkflowDeps {
+export function createWorkerDeps(
+  env: NodeJS.ProcessEnv,
+  input: { origin: string; correlationId: string; invocationStartedAt?: number },
+): AnalysisWorkflowDeps {
   const deps: AnalysisWorkflowDeps = {
     client: createSupabaseAdminClient(loadSupabaseAdminEnv(env)),
     planner: { getConfig: () => loadPlannerServiceConfig(env, input.correlationId) },
@@ -35,6 +38,7 @@ export function createWorkerDeps(env: NodeJS.ProcessEnv, input: { origin: string
       origin: input.origin,
       fallback: (item): Promise<void> => runWorkItem(deps, item),
     }),
+    ...(input.invocationStartedAt !== undefined ? { invocationStartedAt: input.invocationStartedAt } : {}),
   };
   return deps;
 }

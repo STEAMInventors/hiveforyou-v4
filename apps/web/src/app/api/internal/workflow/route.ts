@@ -10,10 +10,12 @@ import { createWorkerDeps, runWorkItem } from "@/server/workflow/worker";
  * Internal hand-off endpoint for chained workflow invocations. Not for browsers: it requires
  * `Authorization: Bearer <HIVE_INTERNAL_WORKER_TOKEN>` and refuses every request when the token is
  * not configured. Work runs in `after()`; the caller only learns it was accepted.
+ * Report generation in that `after()` has this function's full lifetime. The write client aborts 30s before it.
  */
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest): Promise<Response> {
+  const invocationStartedAt = Date.now();
   const run = withApiRoute("workflow", "dispatchWork", async ({ correlationId, request }) => {
     const token = loadInternalWorkerToken(process.env);
     if (!isAuthorizedWorkerRequest(request.headers.get("authorization"), token)) {
@@ -42,6 +44,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     const deps = createWorkerDeps(process.env, {
       origin: resolveAppOrigin({ requestUrl: request.url }),
       correlationId,
+      invocationStartedAt,
     });
     after(() => runWorkItem(deps, item));
     return jsonWithCorrelation({ accepted: true }, 202, correlationId);

@@ -559,6 +559,10 @@ function createStatefulStore() {
       return { data: { reportRun: reportRunToJson(newRr), created: true }, error: null };
     }
 
+    if (fn === "recover_expired_workflow_leases") {
+      return { data: { dispatch: [] }, error: null };
+    }
+
     if (fn === "get_hive_reports") {
       const currentRev = studyRevisions.at(-1) ?? null;
       const latest = currentRev

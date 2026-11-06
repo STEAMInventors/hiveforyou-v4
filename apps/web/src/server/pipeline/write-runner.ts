@@ -11,7 +11,7 @@ import {
   parseWriteOutput,
 } from "@hiveforyou/contracts";
 
-import { callPlanner, type PlannerDeps } from "@/server/study-preparation/planner-client";
+import { callPlanner, PLANNER_TASK_HTTP_TIMEOUT_MS, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { type WritePrompt, loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 
 /** Planner failures that mean the model answered but the answer was not a usable JSON object. */
@@ -46,6 +46,11 @@ export type WriteStudyInput = CallInput & {
   readonly audience: string;
   readonly intent: string;
   readonly prompt?: WritePrompt;
+  /**
+   * Absolute time by which the write HTTP call must have aborted, at least 30s before the route's
+   * maxDuration, so a timeout can be stored before the platform kills the function.
+   */
+  readonly deadlineMs?: number;
 };
 
 export type WriteStudyResult =
@@ -105,13 +110,59 @@ function asHiveError(error: unknown): HiveError | null {
 const RETRY_NOTE = (reason: string) =>
   `Your previous answer could not be used (${reason}). Return only the JSON object described in the instructions, with no text before or after it.`;
 
+/** Below this, don't start a call that cannot return before the function is killed. */
+const MIN_WRITE_CALL_MS = 1_000;
+const WRITE_HTTP_BUDGET_MS = PLANNER_TASK_HTTP_TIMEOUT_MS.write ?? 270_000;
+
+function timeoutError(correlationId: string, runId: string): HiveError {
+  return createHiveError({
+    errorCode: "MODEL_TIMEOUT",
+    category: "DEPENDENCY",
+    stage: "ANALYZE",
+    retryable: true,
+    safeMessage: "The analysis model took too long to answer. You can try again.",
+    correlationId,
+    operationId: runId,
+    diagnosticReason: "planner_timeout",
+  });
+}
+
+function failedCall(attempt: 1 | 2, errorCode: string, reason: string, roundTripMs: number): WriteCallRecord {
+  return {
+    attempt,
+    outcome: "failed",
+    inputTokens: null,
+    outputTokens: null,
+    latencyMs: null,
+    roundTripMs,
+    finishReason: null,
+    modelAlias: null,
+    resolvedModel: null,
+    errorCode,
+    diagnosticReason: reason,
+  };
+}
+
+/** Time left until `deadlineMs`, capped at the write budget. `"expired"` when a call would not fit. */
+function writeTimeoutMs(deadlineMs: number | undefined): number | "default" | "expired" {
+  if (deadlineMs === undefined) return "default";
+  const remaining = Math.floor(deadlineMs - Date.now());
+  if (remaining < MIN_WRITE_CALL_MS) return "expired";
+  return Math.min(remaining, WRITE_HTTP_BUDGET_MS);
+}
+
 async function callWithRetry(
-  input: CallInput & { prompt: WritePrompt; payload: Record<string, unknown> },
+  input: CallInput & { prompt: WritePrompt; payload: Record<string, unknown>; deadlineMs?: number },
   calls: WriteCallRecord[],
 ): Promise<{ ok: true; value: WriteOutput; malformed: Record<string, number> } | { ok: false; error: HiveError }> {
   let parseError: string | null = null;
   for (const attempt of [1, 2] as const) {
     const started = Date.now();
+    const timeoutMs = writeTimeoutMs(input.deadlineMs);
+    if (timeoutMs === "expired") {
+      calls.push(failedCall(attempt, "MODEL_TIMEOUT", "planner_timeout", Date.now() - started));
+      return { ok: false, error: timeoutError(input.correlationId, input.runId) };
+    }
     const userPayload = parseError === null ? input.payload : { ...input.payload, retryNote: RETRY_NOTE(parseError) };
     try {
       const completion = await callPlanner(input.planner, {
@@ -119,6 +170,7 @@ async function callWithRetry(
         userPayload,
         correlationId: input.correlationId,
         processingRunId: input.runId,
+        ...(timeoutMs === "default" ? {} : { timeoutMs }),
       });
       const parsed = parseWriteOutput(completion.contentJson);
       calls.push({
@@ -181,7 +233,7 @@ export async function writeStudyView(input: WriteStudyInput): Promise<WriteStudy
   const prompt = input.prompt ?? loadPromptCatalog().write;
   const payload = buildWritePayload(input.canonicalStudy, input.facts, input.reportRole, input.audience, input.intent);
   const calls: WriteCallRecord[] = [];
-  const outcome = await callWithRetry({ ...input, prompt, payload }, calls);
+  const outcome = await callWithRetry({ ...input, prompt, payload, deadlineMs: input.deadlineMs }, calls);
   if (!outcome.ok) return { ok: false, error: outcome.error, calls };
   const { view, drops } = buildStudyView(input.canonicalStudy, outcome.value, input.facts, outcome.malformed);
   return { ok: true, view, drops, malformed: outcome.malformed, calls };

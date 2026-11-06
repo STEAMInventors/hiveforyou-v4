@@ -5,9 +5,11 @@ import { jsonWithCorrelation, readJsonBody, withApiRoute } from "@/server/observ
 import { generateHiveReport, getHiveReports } from "@/server/reports/reports";
 import { loadPlannerServiceConfig } from "@/server/study-preparation/planner-client";
 import { requireApiSupabaseClient } from "@/server/supabase/server-client";
+import { recoverExpiredWorkflowLeases } from "@/server/workflow/lease-recovery";
 import { processReportRunSafely } from "@/server/workflow/report-generation";
 import { createWorkerDeps, requireWorkerDispatch } from "@/server/workflow/worker";
 
+/** Includes `after()` report generation. The write client aborts 30s before this. */
 export const maxDuration = 300;
 
 type RouteContext = {
@@ -15,9 +17,21 @@ type RouteContext = {
 };
 
 export async function GET(request: NextRequest, context: RouteContext): Promise<Response> {
-  const run = withApiRoute("reports", "getHiveReports", async ({ correlationId }) => {
+  const invocationStartedAt = Date.now();
+  const run = withApiRoute("reports", "getHiveReports", async ({ correlationId, request }) => {
     const { hiveId } = await context.params;
     const client = await requireApiSupabaseClient(correlationId, "Sign in to see your reports.");
+    await recoverExpiredWorkflowLeases({
+      client,
+      hiveId,
+      correlationId,
+      createDispatch: () =>
+        createWorkerDeps(process.env, {
+          origin: resolveAppOrigin({ requestUrl: request.url }),
+          correlationId,
+          invocationStartedAt,
+        }).dispatch,
+    });
     const body = await getHiveReports(client, { hiveId, correlationId });
     return jsonWithCorrelation(body, 200, correlationId);
   });
@@ -26,6 +40,7 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
 
 /** Generate again: one new Writer run for one audience over the accepted Study revision. */
 export async function POST(request: NextRequest, context: RouteContext): Promise<Response> {
+  const invocationStartedAt = Date.now();
   const run = withApiRoute("reports", "generateHiveReport", async ({ correlationId, request }) => {
     const { hiveId } = await context.params;
     const client = await requireApiSupabaseClient(correlationId, "Sign in to generate a report.");
@@ -38,6 +53,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       const deps = createWorkerDeps(process.env, {
         origin: resolveAppOrigin({ requestUrl: request.url }),
         correlationId,
+        invocationStartedAt,
       });
       after(() => processReportRunSafely(deps, started.response.reportRun.id));
     }

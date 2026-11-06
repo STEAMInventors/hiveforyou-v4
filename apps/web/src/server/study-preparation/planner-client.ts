@@ -267,6 +267,8 @@ export async function callPlanner(
     readonly userPayload: Record<string, unknown>;
     readonly correlationId: string;
     readonly processingRunId: string;
+    /** Overrides the per-task HTTP abort. Write passes the time left before the function deadline. */
+    readonly timeoutMs?: number;
   },
 ): Promise<PlannerCallResult> {
   const config = deps.getConfig();
@@ -283,7 +285,7 @@ export async function callPlanner(
   const raw = await exchange(deps, {
     path: "/v1/plan-completion",
     body,
-    timeoutMs: PLANNER_TASK_HTTP_TIMEOUT_MS[input.prompt.task] ?? config.timeoutMs,
+    timeoutMs: input.timeoutMs ?? PLANNER_TASK_HTTP_TIMEOUT_MS[input.prompt.task] ?? config.timeoutMs,
     correlationId: input.correlationId,
     processingRunId: input.processingRunId,
   });
