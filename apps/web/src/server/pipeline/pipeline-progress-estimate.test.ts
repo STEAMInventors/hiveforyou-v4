@@ -20,7 +20,13 @@ describe("buildProgressEstimate", () => {
     const pages = [{ pageNumber: 1, text: "x".repeat(8000) }];
     const estimate = buildProgressEstimate({
       nowMs,
-      run: { status: "EXTRACTING" },
+      run: {
+        status: "EXTRACTING",
+        stageAttempt: 1,
+        extractedDocumentCount: 0,
+        extractingPageCompleted: null,
+        extractingPageTotal: null,
+      },
       snapshot: {
         documents: [
           {
@@ -58,7 +64,13 @@ describe("buildProgressEstimate", () => {
     expect(
       buildProgressEstimate({
         nowMs,
-        run: { status: "SUCCEEDED" },
+        run: {
+          status: "SUCCEEDED",
+          stageAttempt: 1,
+          extractedDocumentCount: 0,
+          extractingPageCompleted: null,
+          extractingPageTotal: null,
+        },
         snapshot: null,
         extractedDocumentIds: new Set(),
         savedRangeKeysByDocument: new Map(),
@@ -73,7 +85,13 @@ describe("buildProgressEstimate", () => {
   it("uses default throughput when no samples exist", () => {
     const remaining = computeProgressEstimateMs({
       nowMs: Date.now(),
-      run: { status: "CANONICALIZING" },
+      run: {
+        status: "CANONICALIZING",
+        stageAttempt: 1,
+        extractedDocumentCount: 1,
+        extractingPageCompleted: null,
+        extractingPageTotal: null,
+      },
       snapshot: {
         documents: [],
         excluded: [],

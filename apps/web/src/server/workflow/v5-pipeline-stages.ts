@@ -36,6 +36,7 @@ import {
   pagesCoveredBySavedRangeKeys,
   parsePageRangeStorageKey,
 } from "@/server/pipeline/extract-runner";
+import { refreshProcessingRunProgressEstimateInWorker } from "@/server/pipeline/progress-estimate-persistence";
 import { loadPipelineThroughput, recordPipelineModelCall } from "@/server/pipeline/pipeline-throughput";
 import { sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import type { PromptCatalog } from "@/server/study-preparation/prompt-catalog";
@@ -292,6 +293,7 @@ export class ExtractStageFailure extends Error {
 export async function runExtractingWorkerPool(input: {
   deps: AnalysisWorkflowDeps;
   run: ProcessingRun;
+  sourceSnapshot: SourceSnapshot;
   workItems: readonly ExtractWorkItem[];
   catalog: PromptCatalog;
   correlationId: string;
@@ -343,6 +345,12 @@ export async function runExtractingWorkerPool(input: {
             input.correlationId,
           );
         }
+        await refreshProcessingRunProgressEstimateInWorker(input.deps.client, {
+          run: input.run,
+          snapshot: input.sourceSnapshot,
+          correlationId: input.correlationId,
+          clock: input.clock,
+        }).catch(() => null);
         continue;
       }
       if (isRetryableExtractFailure(outcome.error) && attempt < EXTRACTING_ATTEMPT_LIMIT) {
@@ -370,6 +378,12 @@ export async function runExtractingWorkerPool(input: {
             input.correlationId,
           );
         }
+        await refreshProcessingRunProgressEstimateInWorker(input.deps.client, {
+          run: input.run,
+          snapshot: input.sourceSnapshot,
+          correlationId: input.correlationId,
+          clock: input.clock,
+        }).catch(() => null);
         continue;
       }
       failure = new ExtractStageFailure(outcome.error, outcome.metric);

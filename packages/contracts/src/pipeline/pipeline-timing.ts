@@ -31,6 +31,8 @@ export const PLANNER_TIMEOUT_PADDING_MS = 20_000;
 export const EXTRACT_TARGET_RANGE_MS = 120_000;
 export const EXTRACT_OUTPUT_CAP_FRACTION = 0.5;
 export const PROGRESS_ESTIMATE_SPREAD = 0.35;
+/** Client/server: ignore small ETA drift from polls so the countdown does not jump. */
+export const PROGRESS_ESTIMATE_REANCHOR_THRESHOLD_MS = 15_000;
 export const EXTRACTING_CONCURRENCY_FOR_ESTIMATE = 4;
 
 /** V5 pipeline model calls: 270 s client (30 s margin under 300 s lease / Vercel). */
@@ -222,18 +224,49 @@ export type ProgressEstimate = {
 
 export function spreadProgressEstimate(completionAtMs: number, nowMs: number): ProgressEstimate | null {
   if (!Number.isFinite(completionAtMs) || !Number.isFinite(nowMs) || completionAtMs <= nowMs + 500) return null;
-  const lowMs = completionAtMs * (1 - PROGRESS_ESTIMATE_SPREAD);
-  const highMs = completionAtMs * (1 + PROGRESS_ESTIMATE_SPREAD);
+  const remainingMs = Math.max(0, completionAtMs - nowMs);
+  const lowMs = nowMs + remainingMs * (1 - PROGRESS_ESTIMATE_SPREAD);
+  const highMs = nowMs + remainingMs * (1 + PROGRESS_ESTIMATE_SPREAD);
   return {
     estimatedCompletionAt: new Date(completionAtMs).toISOString(),
-    estimatedCompletionLowAt: new Date(Math.max(nowMs, lowMs)).toISOString(),
+    estimatedCompletionLowAt: new Date(lowMs).toISOString(),
     estimatedCompletionHighAt: new Date(highMs).toISOString(),
   };
 }
 
+export function progressEstimateRemainingSpreadMinutes(
+  completionAtMs: number,
+  nowMs: number,
+): { lowMin: number; highMin: number } {
+  const remainingMs = Math.max(0, completionAtMs - nowMs);
+  const lowMs = remainingMs * (1 - PROGRESS_ESTIMATE_SPREAD);
+  const highMs = remainingMs * (1 + PROGRESS_ESTIMATE_SPREAD);
+  const lowMin = Math.max(0, Math.round(lowMs / 60_000));
+  const highMin = Math.max(lowMin, Math.round(highMs / 60_000));
+  return { lowMin, highMin };
+}
+
+export function formatProgressEstimateRangeLabel(completionAtMs: number, nowMs: number): string {
+  const { lowMin, highMin } = progressEstimateRemainingSpreadMinutes(completionAtMs, nowMs);
+  if (highMin <= 0) return "under a minute";
+  if (lowMin <= 0 && highMin === 1) return "under a minute";
+  if (lowMin === highMin) return `estimated ${highMin} min`;
+  const lowDisplay = Math.max(1, lowMin);
+  return `estimated ${lowDisplay}–${highMin} min`;
+}
+
+export function shouldReanchorProgressEstimate(
+  anchoredCompletionAtMs: number | null,
+  nextCompletionAtMs: number,
+): boolean {
+  if (anchoredCompletionAtMs === null || !Number.isFinite(anchoredCompletionAtMs)) return true;
+  if (!Number.isFinite(nextCompletionAtMs)) return false;
+  return Math.abs(nextCompletionAtMs - anchoredCompletionAtMs) > PROGRESS_ESTIMATE_REANCHOR_THRESHOLD_MS;
+}
+
+/** @deprecated Prefer formatProgressEstimateRangeLabel from a single completion timestamp. */
 export function formatEstimateRangeMinutes(lowAtMs: number, highAtMs: number): string {
-  const lowMin = Math.max(1, Math.round((lowAtMs - Date.now()) / 60_000));
-  const highMin = Math.max(lowMin, Math.round((highAtMs - Date.now()) / 60_000));
-  if (lowMin === highMin) return `estimated ${lowMin} min`;
-  return `estimated ${lowMin}–${highMin} min`;
+  const nowMs = Date.now();
+  const midpointMs = (lowAtMs + highAtMs) / 2;
+  return formatProgressEstimateRangeLabel(midpointMs, nowMs);
 }

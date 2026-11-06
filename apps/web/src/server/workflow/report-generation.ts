@@ -49,6 +49,7 @@ import {
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
+import { refreshReportRunProgressEstimateInWorker } from "@/server/pipeline/progress-estimate-persistence";
 import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
 import {
   buildWritePayload,
@@ -647,6 +648,10 @@ async function failReportRun(
       ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
     });
     if (failed.reportRun) {
+      await refreshReportRunProgressEstimateInWorker(deps.client, {
+        reportRun: failed.reportRun,
+        clock: deps.clock,
+      }).catch(() => null);
       log(failed.reportRun, failed.reportRun.status, startedAt, hiveError, current, {
         inputCount: metric?.promptTokens,
         outputCount: metric?.completionTokens,
@@ -1284,6 +1289,11 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
   const claimed = normalizeReportRun(claim?.reportRun);
   if (claim?.claimed !== true || !claimed) return claimed?.status ?? null;
 
+  await refreshReportRunProgressEstimateInWorker(deps.client, {
+    reportRun: claimed,
+    clock: deps.clock,
+  }).catch(() => null);
+
   const clock = deps.clock ?? Date.now;
   const startedAt = clock();
   const now = deps.now ?? (() => new Date());
@@ -1440,7 +1450,13 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
       rejectedUnits: agentResult.totals.rejectedUnits,
       rounds: agentResult.totals.rounds,
     };
-    if (done) log(done, done.status, startedAt, undefined, "WRITING", pubMetrics);
+    if (done) {
+      await refreshReportRunProgressEstimateInWorker(deps.client, {
+        reportRun: done,
+        clock: deps.clock,
+      }).catch(() => null);
+      log(done, done.status, startedAt, undefined, "WRITING", pubMetrics);
+    }
     logWriterRuntimeEvent("writer.publication.completed", {
       correlationId,
       reportRunId,

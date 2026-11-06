@@ -18,6 +18,7 @@ import {
   estimateInputTokensFromUtf8Bytes,
   expectedDurationMs,
   expectedOutputTokens,
+  formatProgressEstimateRangeLabel,
   invocationRemainingMs,
   normalizePipelineThroughput,
   planExtractPageRanges,
@@ -207,15 +208,27 @@ describe("spreadProgressEstimate", () => {
     expect(spreadProgressEstimate(now + 400, now)).toBeNull();
   });
 
-  it("builds low and high bounds at ±35%", () => {
+  it("builds low and high bounds at ±35% of remaining time", () => {
     const now = 1_000_000;
     const completion = now + 600_000;
     const estimate = spreadProgressEstimate(completion, now);
     expect(estimate).not.toBeNull();
     const low = Date.parse(estimate!.estimatedCompletionLowAt);
     const high = Date.parse(estimate!.estimatedCompletionHighAt);
-    expect(low).toBeGreaterThanOrEqual(now);
-    expect(high).toBeGreaterThan(completion);
+    expect(low).toBe(now + 390_000);
+    expect(high).toBe(now + 810_000);
+  });
+
+  it("does not apply spread to absolute epoch milliseconds", () => {
+    const now = 1_762_387_200_000;
+    const completion = now + 600_000;
+    const estimate = spreadProgressEstimate(completion, now);
+    expect(estimate).not.toBeNull();
+    expect(formatProgressEstimateRangeLabel(completion, now)).toBe("estimated 7–14 min");
+    const low = Date.parse(estimate!.estimatedCompletionLowAt);
+    const high = Date.parse(estimate!.estimatedCompletionHighAt);
+    expect(high - now).toBeLessThan(20 * 60_000);
+    expect(String(high)).not.toMatch(/10464674/);
   });
 });
 

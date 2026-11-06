@@ -310,6 +310,13 @@ function createStatefulStore() {
   }
 
   const rpc = vi.fn(async (fn: string, args: Record<string, unknown> = {}) => {
+    if (fn === "get_pipeline_throughput") {
+      return { data: { sampleCount: 0 }, error: null };
+    }
+    if (fn === "backfill_report_run_estimate" || fn === "backfill_processing_run_estimate") {
+      return { data: true, error: null };
+    }
+
     const hiveId = String(args.p_hive_id ?? "").toLowerCase();
     if (hiveId !== HIVE_ID || currentUserId !== OWNER_A) {
       return { data: null, error: { message: "hive_not_found" } };

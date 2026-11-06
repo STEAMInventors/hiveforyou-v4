@@ -20,7 +20,10 @@ import { missingExtractWorkItems } from "@/server/pipeline/extract-runner";
 
 export type ProgressEstimateInput = {
   nowMs: number;
-  run: Pick<ProcessingRun, "status">;
+  run: Pick<
+    ProcessingRun,
+    "status" | "stageAttempt" | "extractedDocumentCount" | "extractingPageCompleted" | "extractingPageTotal"
+  >;
   snapshot: SourceSnapshot | null;
   extractedDocumentIds: ReadonlySet<string>;
   savedRangeKeysByDocument: ReadonlyMap<string, ReadonlySet<string>>;
@@ -116,9 +119,17 @@ export function defaultProgressEstimateThroughputs(): {
 
 const QUICK_FINISH_MS = 3_000;
 
+const EXTRACTING_RUN_FOR_ESTIMATE: ProgressEstimateInput["run"] = {
+  status: "EXTRACTING",
+  stageAttempt: 1,
+  extractedDocumentCount: 0,
+  extractingPageCompleted: null,
+  extractingPageTotal: null,
+};
+
 /** Initial pipeline duration estimate (full extract + canonicalize + write) from a frozen snapshot. */
 export function estimateInitialProcessingRunDurationMs(input: Omit<ProgressEstimateInput, "run">): number {
-  return computeProgressEstimateMs({ ...input, run: { status: "EXTRACTING" } });
+  return computeProgressEstimateMs({ ...input, run: EXTRACTING_RUN_FOR_ESTIMATE });
 }
 
 export function buildRunTimingStageMetric(input: {

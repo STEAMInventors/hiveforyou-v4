@@ -171,6 +171,7 @@ describe("runExtractingWorkerPool", () => {
   }) => ({
     deps: input.deps ?? deps,
     run,
+    sourceSnapshot: { documents: [], excluded: [], coverageComplete: true },
     catalog,
     correlationId: "corr",
     now: () => new Date("2026-11-05T00:00:00.000Z"),

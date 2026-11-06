@@ -55,6 +55,7 @@ import {
   buildRunTimingStageMetric,
   estimateInitialProcessingRunDurationMs,
 } from "@/server/pipeline/pipeline-progress-estimate";
+import { refreshProcessingRunProgressEstimateInWorker } from "@/server/pipeline/progress-estimate-persistence";
 import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
 import {
   buildExtractWorkQueue,
@@ -251,6 +252,19 @@ async function transition(
     awaitingAcknowledgement: payload?.awaitingAcknowledgement === true,
     run: normalizeProcessingRun(payload?.processingRun),
   };
+}
+
+async function refreshRunProgressEstimate(
+  context: Context,
+  run: ProcessingRun,
+  sourceSnapshot: SourceSnapshot,
+): Promise<void> {
+  await refreshProcessingRunProgressEstimateInWorker(context.deps.client, {
+    run,
+    snapshot: sourceSnapshot,
+    correlationId: context.correlationId,
+    clock: context.deps.clock,
+  }).catch(() => null);
 }
 
 async function loadInputs(client: DocumentReadRpcClient, runId: string): Promise<RunInputs> {
@@ -977,6 +991,7 @@ async function extractDocuments(context: Context): Promise<StepResult> {
         p_stage_metric: merged.metric,
       });
     }
+    await refreshRunProgressEstimate(context, inputs.run, inputs.sourceSnapshot);
   }
   const payloadAfterMerge = await rpc(context.deps.client, "get_doc_extractions_for_run", {
     p_processing_run_id: context.runId,
@@ -1001,6 +1016,7 @@ async function extractDocuments(context: Context): Promise<StepResult> {
     poolResult = await runExtractingWorkerPool({
       deps: context.deps,
       run: inputs.run,
+      sourceSnapshot: inputs.sourceSnapshot,
       workItems,
       catalog,
       correlationId: context.correlationId,
@@ -1303,6 +1319,10 @@ async function failRun(context: Context, status: ProcessingRunStatus, run: Proce
     if (retried) {
       const updated = normalizeProcessingRun(payload?.processingRun);
       const delaySeconds = updated ? 20 * Math.max(1, updated.stageAttempt - 1) : 20;
+      if (updated) {
+        const inputs = await loadInputs(client, context.runId).catch(() => null);
+        if (inputs) await refreshRunProgressEstimate(context, updated, inputs.sourceSnapshot);
+      }
       await context.deps.dispatch({ kind: "analysis", id: context.runId }, context.correlationId, { delaySeconds });
       return status;
     }
@@ -1349,9 +1369,13 @@ export async function processAnalysisRun(deps: AnalysisWorkflowDeps, runId: stri
     }
     if (result.next === "continue") {
       run = result.run;
+      const inputs = await loadInputs(deps.client, runId).catch(() => null);
+      if (inputs) await refreshRunProgressEstimate(context, run, inputs.sourceSnapshot);
       continue;
     }
     if (result.next === "handoff") {
+      const inputs = await loadInputs(deps.client, runId).catch(() => null);
+      if (inputs) await refreshRunProgressEstimate(context, run, inputs.sourceSnapshot);
       await rpc(deps.client, "release_processing_run", {
         p_run_id: runId,
         p_status: result.status,

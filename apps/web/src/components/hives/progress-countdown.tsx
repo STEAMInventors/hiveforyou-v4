@@ -1,7 +1,11 @@
 "use client";
 
-import type { ProgressEstimate } from "@hiveforyou/contracts";
-import { useEffect, useState } from "react";
+import {
+  formatProgressEstimateRangeLabel,
+  shouldReanchorProgressEstimate,
+  type ProgressEstimate,
+} from "@hiveforyou/contracts";
+import { useEffect, useRef, useState } from "react";
 
 function formatCountdown(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -9,18 +13,15 @@ function formatCountdown(totalSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function formatRangeLabel(estimate: ProgressEstimate): string {
-  const lowMin = Math.max(1, Math.round((Date.parse(estimate.estimatedCompletionLowAt) - Date.now()) / 60_000));
-  const highMin = Math.max(
-    lowMin,
-    Math.round((Date.parse(estimate.estimatedCompletionHighAt) - Date.now()) / 60_000),
-  );
-  if (lowMin === highMin) return `estimated ${lowMin} min`;
-  return `estimated ${lowMin}–${highMin} min`;
-}
-
 export function ProgressCountdown(props: { estimate: ProgressEstimate | null | undefined }) {
-  const targetMs = props.estimate ? Date.parse(props.estimate.estimatedCompletionAt) : null;
+  const serverTargetMs = props.estimate ? Date.parse(props.estimate.estimatedCompletionAt) : null;
+  const anchoredTargetMsRef = useRef<number | null>(null);
+  if (serverTargetMs === null || !Number.isFinite(serverTargetMs)) {
+    anchoredTargetMsRef.current = null;
+  } else if (shouldReanchorProgressEstimate(anchoredTargetMsRef.current, serverTargetMs)) {
+    anchoredTargetMsRef.current = serverTargetMs;
+  }
+  const targetMs = anchoredTargetMsRef.current;
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function ProgressCountdown(props: { estimate: ProgressEstimate | null | u
     setNowMs(Date.now());
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [targetMs, props.estimate?.estimatedCompletionAt]);
+  }, [targetMs]);
 
   if (!props.estimate || !targetMs) return null;
 
@@ -46,7 +47,9 @@ export function ProgressCountdown(props: { estimate: ProgressEstimate | null | u
       <p className="m-0 font-mono text-[15px] tabular-nums text-ink" aria-live="polite">
         {formatCountdown(remainingSeconds)}
       </p>
-      <p className="m-0 text-[12px] text-ink-muted">{formatRangeLabel(props.estimate)}</p>
+      <p className="m-0 text-[12px] text-ink-muted">
+        {formatProgressEstimateRangeLabel(targetMs, nowMs)}
+      </p>
     </div>
   );
 }

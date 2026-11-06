@@ -393,6 +393,9 @@ describe("getStudyPreparation progress estimate", () => {
         if (fn === "get_pipeline_throughput") {
           return { data: { sampleCount: 0 }, error: null };
         }
+        if (fn === "backfill_processing_run_estimate") {
+          return { data: true, error: null };
+        }
         return { data: null, error: null };
       }),
     });

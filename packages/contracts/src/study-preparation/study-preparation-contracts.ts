@@ -245,6 +245,9 @@ export type ProcessingRun = {
    * Runs saved before this field existed are Analyze runs.
    */
   preparationMode: "ANALYZE" | "REBUILD";
+  /** Persisted absolute ETA anchor (updated by the worker when progress changes). */
+  estimatedCompletionAt?: string | null;
+  estimateFingerprint?: string | null;
   /** Server-computed while the run is active; omitted or null when unknown or already finished. */
   progressEstimate?: ProgressEstimate | null;
 };
@@ -328,6 +331,8 @@ export type ReportRun = {
   reportId: string | null;
   createdAt: string;
   finishedAt: string | null;
+  estimatedCompletionAt?: string | null;
+  estimateFingerprint?: string | null;
   /** Server-computed while the Writer run is active; omitted or null when unknown or finished. */
   progressEstimate?: ProgressEstimate | null;
 };
@@ -582,6 +587,9 @@ export function normalizeProcessingRun(raw: unknown): ProcessingRun | null {
     updatedAt: record.updatedAt,
     finishedAt,
     preparationMode: record.preparationMode === "REBUILD" ? "REBUILD" : "ANALYZE",
+    estimatedCompletionAt:
+      typeof record.estimatedCompletionAt === "string" ? record.estimatedCompletionAt : null,
+    estimateFingerprint: typeof record.estimateFingerprint === "string" ? record.estimateFingerprint : null,
     progressEstimate: normalizeProgressEstimate(record.progressEstimate),
   };
 }
@@ -743,6 +751,9 @@ export function normalizeReportRun(raw: unknown): ReportRun | null {
     reportId: typeof record.reportId === "string" && isValidUuid(record.reportId.toLowerCase()) ? record.reportId.toLowerCase() : null,
     createdAt: record.createdAt,
     finishedAt,
+    estimatedCompletionAt:
+      typeof record.estimatedCompletionAt === "string" ? record.estimatedCompletionAt : null,
+    estimateFingerprint: typeof record.estimateFingerprint === "string" ? record.estimateFingerprint : null,
     progressEstimate: normalizeProgressEstimate(record.progressEstimate),
   };
 }

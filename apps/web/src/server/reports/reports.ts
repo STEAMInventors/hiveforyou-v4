@@ -12,7 +12,7 @@ import {
   validateGenerateHiveReportInput,
 } from "@hiveforyou/contracts";
 
-import { buildReportRunProgressEstimate } from "@/server/pipeline/pipeline-progress-estimate";
+import { materializeReportRunProgressEstimate } from "@/server/pipeline/progress-estimate-persistence";
 import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
 import type { DocumentPageRpcClient } from "@/server/source-documents/document-pages-persistence";
 
@@ -95,21 +95,21 @@ export async function getHiveReports(
   if (!active) return normalized;
   const nowMs = Date.now();
   const writeThroughput = await loadPipelineThroughput(client, "write", nowMs);
-  return {
-    ...normalized,
-    reportRuns: normalized.reportRuns.map((run) =>
+  const reportRuns = await Promise.all(
+    normalized.reportRuns.map(async (run) =>
       isActiveReportRunStatus(run.status)
         ? {
             ...run,
-            progressEstimate: buildReportRunProgressEstimate({
+            progressEstimate: await materializeReportRunProgressEstimate(client, {
+              reportRun: run,
               nowMs,
-              status: run.status,
               writeThroughput,
             }),
           }
         : run,
     ),
-  };
+  );
+  return { ...normalized, reportRuns };
 }
 
 export async function getHiveReport(
