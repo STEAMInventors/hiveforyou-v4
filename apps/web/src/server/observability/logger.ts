@@ -29,6 +29,11 @@ export const ALLOWLISTED_LOG_FIELDS = [
   "rejectionSummary",
   "rounds",
   "errorDetail",
+  "pageRange",
+  "httpStatus",
+  "callStartedAt",
+  "abortedByOurDeadline",
+  "rangeAttempt",
 ] as const;
 
 export type AllowlistedLogField = (typeof ALLOWLISTED_LOG_FIELDS)[number];
@@ -141,6 +146,8 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "planner_unconfigured",
   "planner_unavailable",
   "planner_timeout",
+  "planner_gateway_timeout",
+  "invocation_deadline_abort",
   "planner_auth_failed",
   "planner_invalid_response",
   "planner_invalid_request",
@@ -277,6 +284,7 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "dispatch_failed",
   "worker_unauthorized",
   "reads_pending",
+  "extract_adaptive_concurrency",
 ]);
 
 const ALLOWED_EXCEPTION_TYPES = new Set([

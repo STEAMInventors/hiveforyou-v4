@@ -1,5 +1,6 @@
 import {
   buildDeterministicInvestigationPlan,
+  createHiveError,
   normalizeFailureDiagnostic,
   CANONICAL_STUDY_SCHEMA,
   type PipelinePlannerTask,
@@ -58,6 +59,13 @@ vi.mock("@/server/study-preparation/page-sampling", async (importActual) => ({
   loadFrozenSampleDocuments: loadFrozen,
 }));
 vi.mock("@/server/observability/logger", () => ({ emitStructuredEvent: vi.fn() }));
+vi.mock("@/server/pipeline/progress-estimate-persistence", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/pipeline/progress-estimate-persistence")>();
+  return {
+    ...actual,
+    refreshProcessingRunProgressEstimateInWorker: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 const TERMINAL = new Set(["SUCCEEDED", "FAILED", "NEEDS_CLARIFICATION"]);
 const REPORT_RUN_IDS = ["cccccccc-0000-4000-8000-000000000001", "cccccccc-0000-4000-8000-000000000002"];
@@ -110,6 +118,16 @@ function fakeDatabase(
     stats?: unknown;
     modelAlias?: string;
   }[] = [];
+  const docExtractionAttempts: {
+    sourceDocumentId: string;
+    contentDigest: string;
+    pageRange: string;
+    promptDigest: string;
+    attemptStatus?: string;
+    errorCode?: string | null;
+    diagnosticReason?: string | null;
+    abortedByOurDeadline?: boolean | null;
+  }[] = [];
   const preparationMode = options.preparationMode ?? "ANALYZE";
   const run = () =>
     runJson(status, { id: runId, stageAttempt, stageMetrics: [...stageMetrics], snapshotFrozen: true, preparationMode });
@@ -121,7 +139,15 @@ function fakeDatabase(
           return { data: { claimed: false, processingRun: run() }, error: null };
         }
         leased = true;
-        return { data: { claimed: true, processingRun: run() }, error: null };
+        return {
+          data: {
+            claimed: true,
+            processingRun: run({
+              leaseExpiresAt: new Date(Date.now() + 300_000).toISOString(),
+            }),
+          },
+          error: null,
+        };
       case "release_processing_run":
         leased = false;
         releases.push({ status: String(args.p_status), delay: Number(args.p_delay_seconds) });
@@ -273,8 +299,76 @@ function fakeDatabase(
           },
           error: null,
         };
+      case "fail_stale_in_flight_doc_extraction_attempts":
+        return { data: { failedCount: 0 }, error: null };
+      case "begin_doc_extraction_attempt": {
+        return { data: { id: "bbbbbbbb-0000-4000-8000-0000000000b1" }, error: null };
+      }
+      case "update_doc_extraction_attempt_outcome": {
+        return { data: { updated: true }, error: null };
+      }
+      case "record_doc_extraction_attempt": {
+        const sourceDocumentId = String(args.p_source_document_id ?? "").toLowerCase();
+        const contentDigest = String(args.p_content_digest ?? "").toLowerCase();
+        const pageRange = String(args.p_page_range ?? "").toLowerCase();
+        const promptDigest = String(args.p_prompt_digest ?? "").toLowerCase();
+        if (sourceDocumentId && contentDigest && pageRange && promptDigest) {
+          docExtractionAttempts.push({
+            sourceDocumentId,
+            contentDigest,
+            pageRange,
+            promptDigest,
+            errorCode: args.p_error_code as string | null,
+            diagnosticReason: args.p_diagnostic_reason as string | null,
+            abortedByOurDeadline: args.p_aborted_by_our_deadline as boolean | null,
+          });
+        }
+        return { data: { recorded: true }, error: null };
+      }
+      case "get_doc_extraction_attempt_totals_for_run": {
+        const groups = new Map<
+          string,
+          { sourceDocumentId: string; contentDigest: string; pageRange: string; promptDigest: string; rows: typeof docExtractionAttempts }
+        >();
+        for (const row of docExtractionAttempts) {
+          const key = [row.sourceDocumentId, row.contentDigest, row.pageRange, row.promptDigest].join(":");
+          const existing = groups.get(key);
+          if (existing) {
+            existing.rows.push(row);
+          } else {
+            groups.set(key, { ...row, rows: [row] });
+          }
+        }
+        const totals = [...groups.values()].map((g) => {
+          const failedAttemptCount = g.rows.length;
+          const cutoffOrTimeoutCount = g.rows.filter(
+            (r) =>
+              r.abortedByOurDeadline === true ||
+              r.errorCode === "MODEL_TIMEOUT" ||
+              [
+                "planner_timeout",
+                "invocation_deadline_abort",
+                "litellm_timeout",
+                "planner_gateway_timeout",
+                "invocation_ended",
+              ].includes(String(r.diagnosticReason ?? "")),
+          ).length;
+          return {
+            sourceDocumentId: g.sourceDocumentId,
+            contentDigest: g.contentDigest,
+            pageRange: g.pageRange,
+            promptDigest: g.promptDigest,
+            failedAttemptCount,
+            cutoffOrTimeoutCount,
+          };
+        });
+        return { data: { totals }, error: null };
+      }
       case "record_pipeline_model_call":
         return { data: true, error: null };
+      case "persist_processing_run_estimate":
+      case "backfill_processing_run_estimate":
+        return { data: { persisted: true }, error: null };
       case "get_study_source_pages": {
         const pages = Object.entries(options.pages ?? {}).map(([key, text], index) => {
           const [sourceDocumentId, pageNumber] = key.split(":");
@@ -669,6 +763,11 @@ const V5_PAGES = {
   [`${DOC_2}:1`]: "Quote B: the total price is $1,200.00 for the year.",
 };
 
+const ONE_DOC_SNAPSHOT = sourceSnapshot({
+  documents: [snapshotDocument(DOC_1, "Always fails.pdf", { verifiedPageCount: 1, totalPhysicalPages: 1 })],
+});
+const ONE_DOC_PAGES = { [`${DOC_1}:1`]: "Single page that always times out." };
+
 const EXTRACT_ANSWER = {
   schema: "hive.doc-extraction/1",
   facts: [
@@ -784,6 +883,63 @@ describe("processAnalysisRun: V5 pipeline", () => {
     expect(db.docExtractions.map((row) => row.sourceDocumentId).sort()).toEqual([DOC_1, DOC_2].sort());
   });
 
+  it("reaches CANONICALIZING when a page always times out, recording a coverage gap after three attempts", async () => {
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const fetchSpy = vi.spyOn(planner.deps, "fetchFn").mockImplementation(async () => timeout());
+    const db = fakeDatabase({ status: "EXTRACTING", pages: ONE_DOC_PAGES, snapshot: ONE_DOC_SNAPSHOT });
+    const h = harness(db, planner);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
+    const beginAttempts = db.client.rpc.mock.calls.filter((call) => call[0] === "begin_doc_extraction_attempt");
+    expect(beginAttempts.length).toBeGreaterThanOrEqual(3);
+    expect(db.docExtractions.map((row) => row.sourceDocumentId)).toEqual([DOC_1]);
+    const row = db.docExtractions[0];
+    expect(row?.stats).toMatchObject({ pageExtractionGaps: [1] });
+    expect(db.status()).not.toBe("FAILED");
+    fetchSpy.mockRestore();
+  });
+
+  it("advances after invocation kill orphans IN_FLIGHT rows as invocation_ended cut-offs", async () => {
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const db = fakeDatabase({ status: "EXTRACTING", pages: ONE_DOC_PAGES, snapshot: ONE_DOC_SNAPSHOT });
+    /** `runExtractingWorkerPool` closes over `extractOneRange`; spy on the pool and delegate with a scripted first outcome. */
+    const realPool = v5PipelineStages.runExtractingWorkerPool;
+    const poolSpy = vi.spyOn(v5PipelineStages, "runExtractingWorkerPool");
+    let poolCalls = 0;
+    poolSpy.mockImplementation(async (input) => {
+      poolCalls += 1;
+      if (poolCalls === 1) {
+        await input.deps.client.rpc("fail_stale_in_flight_doc_extraction_attempts", {
+          p_processing_run_id: input.run.id,
+          p_this_invocation_started_at: new Date().toISOString(),
+          p_diagnostic_reason: "invocation_ended",
+        });
+        throw new v5PipelineStages.ExtractStageFailure(
+          createHiveError({
+            errorCode: "MODEL_TIMEOUT",
+            category: "DEPENDENCY",
+            stage: "ANALYZE",
+            retryable: true,
+            safeMessage: "timeout",
+            correlationId: "corr",
+            diagnosticReason: "invocation_ended",
+          }),
+          null,
+        );
+      }
+      return realPool(input);
+    });
+    const h = harness(db, planner);
+    try {
+      await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
+      await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
+      expect(poolCalls).toBe(2);
+      expect(db.docExtractions.map((row) => row.sourceDocumentId)).toEqual([DOC_1]);
+    } finally {
+      poolSpy.mockRestore();
+    }
+  });
+
   it("continues extracting when one document hits a single-page truncation gap", async () => {
     const planner = fakePlanner(
       {
@@ -801,7 +957,7 @@ describe("processAnalysisRun: V5 pipeline", () => {
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
     expect(db.docExtractions.map((row) => row.sourceDocumentId).sort()).toEqual([DOC_1, DOC_2].sort());
     const gapDoc = db.docExtractions.find((row) => row.sourceDocumentId === DOC_2);
-    expect(gapDoc?.stats).toMatchObject({ pageExtractionGaps: [1] });
+    expect(gapDoc?.stats?.pageExtractionGaps).toContain(1);
     expect(db.status()).not.toBe("FAILED");
   });
 

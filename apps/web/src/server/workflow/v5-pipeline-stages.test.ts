@@ -15,7 +15,6 @@ import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 
 import type { AnalysisWorkflowDeps } from "./analysis-workflow";
 import {
-  EXTRACTING_ATTEMPT_LIMIT,
   EXTRACTING_CONCURRENCY,
   buildExtractWorkQueue,
   canStartExtractingDocument,
@@ -91,6 +90,9 @@ describe("range work queue", () => {
             error: null,
           };
         }
+        if (fn === "get_doc_extraction_attempt_totals_for_run") {
+          return { data: { totals: [] }, error: null };
+        }
         throw new Error(fn);
       }),
     };
@@ -101,6 +103,7 @@ describe("range work queue", () => {
       extractedIds: new Set(),
       savedRangeKeysByDocument: saved,
       correlationId: "corr",
+      catalog: loadPromptCatalog(),
       throughput,
     });
     expect(items.length).toBeGreaterThan(1);
@@ -130,6 +133,10 @@ describe("runExtractingWorkerPool", () => {
       rpc: vi.fn(async (fn: string) => {
         if (fn === "record_extracting_document_success") return { data: { saved: true }, error: null };
         if (fn === "get_pipeline_throughput") return { data: { sampleCount: 0 }, error: null };
+        if (fn === "record_doc_extraction_attempt") return { data: { recorded: true }, error: null };
+        if (fn === "fail_stale_in_flight_doc_extraction_attempts") return { data: { failedCount: 0 }, error: null };
+        if (fn === "begin_doc_extraction_attempt") return { data: { id: "aaaaaaaa-0000-4000-8000-000000000099" }, error: null };
+        if (fn === "update_doc_extraction_attempt_outcome") return { data: { updated: true }, error: null };
         throw new Error(`unexpected rpc ${fn}`);
       }),
     },
@@ -159,6 +166,7 @@ describe("runExtractingWorkerPool", () => {
     metric: metricFor(),
     modelAlias: "harvester",
     documentMetric: metricFor(),
+    callsStarted: 1,
   });
 
   const poolInput = (input: {
@@ -223,7 +231,26 @@ describe("runExtractingWorkerPool", () => {
         if (count < 2) {
           return {
             ok: false,
-            calls: [],
+            calls: [
+              {
+                pageRange: null,
+                attempt: 1,
+                rangeAttempt: 1,
+                callStartedAt: "2026-11-05T00:00:00.000Z",
+                outcome: "failed" as const,
+                inputTokens: null,
+                outputTokens: null,
+                latencyMs: null,
+                roundTripMs: 1,
+                finishReason: null,
+                modelAlias: null,
+                resolvedModel: null,
+                errorCode: "MODEL_TIMEOUT",
+                diagnosticReason: "planner_timeout",
+                httpStatus: 504,
+                abortedByOurDeadline: false,
+              },
+            ],
             metric: null,
             error: createHiveError({
               errorCode: "MODEL_TIMEOUT",
@@ -232,7 +259,9 @@ describe("runExtractingWorkerPool", () => {
               retryable: true,
               safeMessage: "timeout",
               correlationId: "corr",
+              diagnosticReason: "planner_timeout",
             }),
+            callsStarted: 1,
           };
         }
       }
@@ -250,7 +279,7 @@ describe("runExtractingWorkerPool", () => {
     expect(extract.mock.calls.filter((call) => call[0]!.workItem.document.sourceDocumentId === DOC_2)).toHaveLength(1);
   });
 
-  it(`records a single-page timeout as a gap instead of failing the pool`, async () => {
+  it("records a single-page timeout as a gap instead of failing the pool", async () => {
     const error = createHiveError({
       errorCode: "MODEL_TIMEOUT",
       category: "DEPENDENCY",
@@ -259,17 +288,40 @@ describe("runExtractingWorkerPool", () => {
       safeMessage: "timeout",
       correlationId: "corr",
     }) as HiveError;
+    const failedCall = {
+      pageRange: "3",
+      attempt: 1 as const,
+      rangeAttempt: 1,
+      callStartedAt: "2026-11-05T00:00:00.000Z",
+      outcome: "failed" as const,
+      inputTokens: null,
+      outputTokens: null,
+      latencyMs: null,
+      roundTripMs: 1,
+      finishReason: null,
+      modelAlias: null,
+      resolvedModel: null,
+      errorCode: "MODEL_TIMEOUT",
+      diagnosticReason: "planner_timeout",
+      httpStatus: 504,
+      abortedByOurDeadline: false,
+    };
     const extract = vi.fn(async (): Promise<ExtractOneRangeResult> => ({
       ok: false,
-      calls: [],
+      calls: [failedCall],
       metric: null,
       error,
+      callsStarted: 1,
     }));
     const gapDeps = {
       client: {
         rpc: vi.fn(async (fn: string) => {
           if (fn === "record_extracting_document_success") return { data: { saved: true }, error: null };
           if (fn === "get_pipeline_throughput") return { data: { sampleCount: 0 }, error: null };
+          if (fn === "record_doc_extraction_attempt") return { data: { recorded: true }, error: null };
+          if (fn === "fail_stale_in_flight_doc_extraction_attempts") return { data: { failedCount: 0 }, error: null };
+          if (fn === "begin_doc_extraction_attempt") return { data: { id: "aaaaaaaa-0000-4000-8000-000000000099" }, error: null };
+          if (fn === "update_doc_extraction_attempt_outcome") return { data: { updated: true }, error: null };
           if (fn === "put_doc_extraction_range") return { data: { saved: true }, error: null };
           if (fn === "get_doc_extraction_ranges_for_run") {
             return {
@@ -302,10 +354,10 @@ describe("runExtractingWorkerPool", () => {
         deps: gapDeps,
       }),
     );
-    expect(extract).toHaveBeenCalledTimes(EXTRACTING_ATTEMPT_LIMIT);
+    expect(extract).toHaveBeenCalledTimes(3);
   });
 
-  it(`fails the pool after ${EXTRACTING_ATTEMPT_LIMIT} retryable failures on a multi-page range`, async () => {
+  it("splits a multi-page range after repeated cut-offs instead of failing the pool", async () => {
     const error = createHiveError({
       errorCode: "MODEL_TIMEOUT",
       category: "DEPENDENCY",
@@ -313,24 +365,63 @@ describe("runExtractingWorkerPool", () => {
       retryable: true,
       safeMessage: "timeout",
       correlationId: "corr",
+      diagnosticReason: "planner_timeout",
     }) as HiveError;
+    const failedCall = {
+      pageRange: "1-4",
+      attempt: 1 as const,
+      rangeAttempt: 1,
+      callStartedAt: "2026-11-05T00:00:00.000Z",
+      outcome: "failed" as const,
+      inputTokens: null,
+      outputTokens: null,
+      latencyMs: null,
+      roundTripMs: 1,
+      finishReason: null,
+      modelAlias: null,
+      resolvedModel: null,
+      errorCode: "MODEL_TIMEOUT",
+      diagnosticReason: "planner_timeout",
+      httpStatus: 504,
+      abortedByOurDeadline: false,
+    };
     const extract = vi.fn(async (): Promise<ExtractOneRangeResult> => ({
       ok: false,
-      calls: [],
+      calls: [failedCall],
       metric: null,
       error,
+      callsStarted: 1,
     }));
-    await expect(
-      runExtractingWorkerPool(
-        poolInput({
-          workItems: [{ document: snapshotDocument(DOC_1, "A.pdf"), pageRange: "1-4" }],
-          clock: () => Date.now(),
-          invocationStartedAt: Date.now(),
-          extract,
+    const splitDeps = {
+      client: {
+        rpc: vi.fn(async (fn: string) => {
+          if (fn === "record_extracting_document_success") return { data: { saved: true }, error: null };
+          if (fn === "get_pipeline_throughput") return { data: { sampleCount: 0 }, error: null };
+          if (fn === "record_doc_extraction_attempt") return { data: { recorded: true }, error: null };
+          if (fn === "fail_stale_in_flight_doc_extraction_attempts") return { data: { failedCount: 0 }, error: null };
+          if (fn === "begin_doc_extraction_attempt") return { data: { id: "aaaaaaaa-0000-4000-8000-000000000099" }, error: null };
+          if (fn === "update_doc_extraction_attempt_outcome") return { data: { updated: true }, error: null };
+          if (fn === "put_doc_extraction_range") return { data: { saved: true }, error: null };
+          if (fn === "get_doc_extraction_ranges_for_run") return { data: { ranges: [] }, error: null };
+          throw new Error(fn);
         }),
-      ),
-    ).rejects.toMatchObject({ error: { errorCode: "MODEL_TIMEOUT" } });
-    expect(extract).toHaveBeenCalledTimes(EXTRACTING_ATTEMPT_LIMIT);
+      },
+      planner: { getConfig: () => ({ baseUrl: "https://x", serviceToken: "t", timeoutMs: 1 }), fetchFn: fetch },
+    } as unknown as AnalysisWorkflowDeps;
+    const document = { ...snapshotDocument(DOC_1, "A.pdf"), verifiedPageCount: 4 };
+    await runExtractingWorkerPool(
+      poolInput({
+        workItems: [{ document, pageRange: "1-4" }],
+        clock: () => Date.now(),
+        invocationStartedAt: Date.now(),
+        extract,
+        deps: splitDeps,
+      }),
+    );
+    expect(extract.mock.calls.map((call) => call[0]!.workItem.pageRange)).toEqual(
+      expect.arrayContaining(["1-4", "1-2", "3-4"]),
+    );
+    expect(extract.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 
   it("defers when the route budget cannot fit another document start", async () => {

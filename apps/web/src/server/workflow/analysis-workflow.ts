@@ -1008,6 +1008,7 @@ async function extractDocuments(context: Context): Promise<StepResult> {
     extractedIds: extracted,
     savedRangeKeysByDocument: savedRangeKeysByDocument(rangesPayload),
     correlationId: context.correlationId,
+    catalog,
   });
   const invocationStartedAt = context.deps.invocationStartedAt ?? context.startedAt;
   const clock = context.deps.clock ?? (() => Date.now());

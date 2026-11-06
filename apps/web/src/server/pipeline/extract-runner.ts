@@ -3,27 +3,43 @@ import {
   createHiveError,
   type DocExtraction,
   documentKeyFor,
+  EXTRACT_SINGLE_PAGE_ATTEMPT_LIMIT,
   type ExtractionVerificationStats,
   type HiveError,
   type PipelineThroughputStats,
   defaultPipelineThroughput,
   planExtractPageRanges,
+  plannerCallDurationMs,
   validateDocExtraction,
   type VerificationPage,
   verifyExtraction,
 } from "@hiveforyou/contracts";
 
-import { callPlanner, type PlannerDeps } from "@/server/study-preparation/planner-client";
+import { emitStructuredEvent } from "@/server/observability/logger";
+import { callPlanner, plannerHttpStatus, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { type ExtractPrompt, loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 
 const TRUNCATION_REASON = "model_output_truncated";
+
+/** Per scheduled page range: monotonic planner HTTP attempt counter (splits share one counter). */
+type RangeAttemptState = { next: number };
+
+function takeRangeAttempt(state: RangeAttemptState): number {
+  const n = state.next;
+  state.next += 1;
+  return n;
+}
 
 /** Planner failures that mean the model answered but the answer was not a usable JSON object. */
 const UNPARSEABLE_REASONS = new Set(["model_output_not_json", "model_output_invalid", "model_content_missing"]);
 
 export type ExtractCallRecord = {
   readonly pageRange: string | null;
+  /** 1 or 2: inner JSON retry round for the same range; see rangeAttempt for global sequence. */
   readonly attempt: 1 | 2;
+  /** Monotonic sequence of planner HTTP attempts for this scheduled range (across inner retries and splits). */
+  readonly rangeAttempt: number;
+  readonly callStartedAt: string;
   readonly outcome: "ok" | "unparseable" | "failed";
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
@@ -35,6 +51,9 @@ export type ExtractCallRecord = {
   readonly resolvedModel: string | null;
   readonly errorCode: string | null;
   readonly diagnosticReason: string | null;
+  readonly httpStatus: number | null;
+  /** True when our client deadline or AbortSignal ended the request; false for planner/network/proxy. */
+  readonly abortedByOurDeadline: boolean;
 };
 
 export type ExtractDocumentStats = ExtractionVerificationStats & {
@@ -51,6 +70,33 @@ export type ExtractDocumentResult =
   | { ok: true; extraction: DocExtraction; stats: ExtractDocumentStats; calls: ExtractCallRecord[] }
   | { ok: false; error: HiveError; calls: ExtractCallRecord[] };
 
+export type ExtractAttemptLifecycle = {
+  /**
+   * Insert IN_FLIGHT before `callPlanner` (service role). Return attempt row id for
+   * {@link ExtractAttemptLifecycle.finalize}, or null when persistence is skipped.
+   */
+  begin?: (input: {
+    pageRange: string | null;
+    attempt: 1 | 2;
+    rangeAttempt: number;
+    callStartedAt: string;
+  }) => Promise<string | null>;
+  /** Mark IN_FLIGHT as SUCCEEDED or FAILED when the HTTP call completes (or is abandoned). */
+  finalize?: (input: {
+    attemptRowId: string | null;
+    pageRange: string | null;
+    attempt: 1 | 2;
+    rangeAttempt: number;
+    callStartedAt: string;
+    outcome: "succeeded" | "failed";
+    durationMs: number;
+    errorCode: string | null;
+    diagnosticReason: string | null;
+    httpStatus: number | null;
+    abortedByOurDeadline: boolean;
+  }) => Promise<void>;
+};
+
 export type ExtractDocumentInput = {
   readonly planner: PlannerDeps;
   readonly document: { readonly id: string; readonly fileName: string };
@@ -60,6 +106,9 @@ export type ExtractDocumentInput = {
   readonly prompt?: ExtractPrompt;
   /** When set, caps each planner call from the remaining invocation budget (never above the extract task limit). */
   readonly resolvePlannerTimeoutMs?: () => number | "expired";
+  /** Uncapped extract task timeout for the range; used to detect invocation-budget aborts. */
+  readonly resolveFullPlannerTimeoutMs?: () => number;
+  readonly extractAttemptLifecycle?: ExtractAttemptLifecycle;
 };
 
 export function pageRanges(
@@ -203,19 +252,6 @@ function asHiveError(error: unknown): HiveError | null {
   return error && typeof error === "object" && "errorCode" in error && "stage" in error ? (error as HiveError) : null;
 }
 
-function timeoutError(correlationId: string, runId: string): HiveError {
-  return createHiveError({
-    errorCode: "MODEL_TIMEOUT",
-    category: "DEPENDENCY",
-    stage: "ANALYZE",
-    retryable: true,
-    safeMessage: "The analysis model took too long to answer. You can try again.",
-    correlationId,
-    operationId: runId,
-    diagnosticReason: "planner_timeout",
-  });
-}
-
 type RangeOutcome =
   | {
       ok: true;
@@ -257,8 +293,8 @@ function mergeRangeOutcomes(
     }
     stats.dropped.push(...part.dropped);
   }
-  const malformed: Record<string, number> = { ...left.malformed };
-  sumCounts(malformed, right.malformed);
+  const malformed: Record<string, number> = { ...(left.malformed ?? {}) };
+  sumCounts(malformed, right.malformed ?? {});
   return {
     ok: true,
     extraction: merged,
@@ -294,9 +330,11 @@ async function extractRangeAdaptive(
   input: ExtractDocumentInput & { prompt: ExtractPrompt },
   range: { pageRange: string | null; pages: VerificationPage[] },
   calls: ExtractCallRecord[],
-  persist?: PersistExtractedRange,
+  persist: PersistExtractedRange | undefined,
+  rangeState: RangeAttemptState,
+  singlePageTimeoutAttempts = 0,
 ): Promise<RangeOutcome> {
-  const outcome = await extractRange(input, range, calls);
+  const outcome = await extractRange(input, range, calls, rangeState);
   if (outcome.ok) {
     const saved = { ...outcome, pageGaps: [] as number[] };
     await persistLeafRange(input, range, saved, persist);
@@ -315,16 +353,34 @@ async function extractRangeAdaptive(
         { pageRange: rangeLabel(leftPages), pages: leftPages },
         calls,
         persist,
+        rangeState,
       );
       const right = await extractRangeAdaptive(
         input,
         { pageRange: rangeLabel(rightPages), pages: rightPages },
         calls,
         persist,
+        rangeState,
       );
       return mergeRangeOutcomes(left, right, pages);
     }
-    return outcome;
+    const nextAttempts = singlePageTimeoutAttempts + 1;
+    if (nextAttempts >= EXTRACT_SINGLE_PAGE_ATTEMPT_LIMIT) {
+      const pageNumber = pages[0]!.pageNumber;
+      const extraction = buildPageExtractionGap(input.document, range, pageNumber);
+      const gapOutcome = {
+        ok: true as const,
+        extraction,
+        factsProposed: 0,
+        malformed: {},
+        stats: emptyVerificationStats(),
+        pageGaps: [pageNumber],
+        modelAlias: null,
+      };
+      await persistLeafRange(input, range, gapOutcome, persist);
+      return gapOutcome;
+    }
+    return extractRangeAdaptive(input, range, calls, persist, rangeState, nextAttempts);
   }
   if (pages.length > 1) {
     const [leftPages, rightPages] = splitPagesInHalf(pages);
@@ -333,12 +389,14 @@ async function extractRangeAdaptive(
       { pageRange: rangeLabel(leftPages), pages: leftPages },
       calls,
       persist,
+      rangeState,
     );
     const right = await extractRangeAdaptive(
       input,
       { pageRange: rangeLabel(rightPages), pages: rightPages },
       calls,
       persist,
+      rangeState,
     );
     return mergeRangeOutcomes(left, right, pages);
   }
@@ -357,10 +415,86 @@ async function extractRangeAdaptive(
   return gapOutcome;
 }
 
+function invocationDeadlineAbort(input: {
+  timeoutMs: number | "expired" | undefined;
+  fullTimeoutMs: number | undefined;
+}): boolean {
+  if (input.timeoutMs === "expired") return true;
+  if (typeof input.timeoutMs !== "number" || typeof input.fullTimeoutMs !== "number") return false;
+  return input.timeoutMs + 1_000 < input.fullTimeoutMs;
+}
+
+async function recordFailedExtractPlannerCall(
+  input: ExtractDocumentInput & { prompt: ExtractPrompt },
+  range: { pageRange: string | null; pages: VerificationPage[] },
+  record: ExtractCallRecord & { outcome: "failed" },
+): Promise<void> {
+  const durationMs = Math.max(0, Math.trunc(record.roundTripMs));
+  emitStructuredEvent({
+    eventName: "pipeline.extract.planner_failed",
+    severity: "ERROR",
+    timestamp: new Date().toISOString(),
+    component: "pipeline",
+    operation: "extract",
+    stage: "ANALYZE",
+    correlationId: input.correlationId,
+    processingRunId: input.runId,
+    sourceDocumentId: input.document.id,
+    pageRange: pageRangeStorageKey(record.pageRange ?? range.pageRange),
+    rangeAttempt: record.rangeAttempt,
+    attempt: record.attempt,
+    callStartedAt: record.callStartedAt,
+    durationMs,
+    httpStatus: record.httpStatus ?? undefined,
+    errorCode: record.errorCode ?? undefined,
+    diagnosticReason: record.diagnosticReason ?? undefined,
+    abortedByOurDeadline: record.abortedByOurDeadline,
+    task: "extract",
+  });
+}
+
+function pushFailedExtractCall(
+  calls: ExtractCallRecord[],
+  input: {
+    pageRange: string | null;
+    attempt: 1 | 2;
+    rangeAttempt: number;
+    callStartedAt: string;
+    started: number;
+    errorCode: string;
+    diagnosticReason: string;
+    httpStatus: number | null;
+    abortedByOurDeadline: boolean;
+  },
+): ExtractCallRecord & { outcome: "failed" } {
+  const roundTripMs = Math.max(0, Date.now() - input.started);
+  const record: ExtractCallRecord & { outcome: "failed" } = {
+    pageRange: input.pageRange,
+    attempt: input.attempt,
+    rangeAttempt: input.rangeAttempt,
+    callStartedAt: input.callStartedAt,
+    outcome: "failed",
+    inputTokens: null,
+    outputTokens: null,
+    latencyMs: null,
+    roundTripMs,
+    finishReason: null,
+    modelAlias: null,
+    resolvedModel: null,
+    errorCode: input.errorCode,
+    diagnosticReason: input.diagnosticReason,
+    httpStatus: input.httpStatus,
+    abortedByOurDeadline: input.abortedByOurDeadline,
+  };
+  calls.push(record);
+  return record;
+}
+
 async function extractRange(
   input: ExtractDocumentInput & { prompt: ExtractPrompt },
   range: { pageRange: string | null; pages: VerificationPage[] },
   calls: ExtractCallRecord[],
+  rangeState: RangeAttemptState,
 ): Promise<RangeOutcome> {
   const message = renderExtractUserMessage(input.prompt.userTemplate, {
     documentId: input.document.id,
@@ -369,27 +503,47 @@ async function extractRange(
     pages: range.pages,
   });
   let parseError: string | null = null;
+  const lifecycle = input.extractAttemptLifecycle;
   for (const attempt of [1, 2] as const) {
     const started = Date.now();
+    const callStartedAt = new Date(started).toISOString();
     const timeoutMs = input.resolvePlannerTimeoutMs?.();
+    const fullTimeoutMs = input.resolveFullPlannerTimeoutMs?.();
+    const abortedByOurDeadline = invocationDeadlineAbort({ timeoutMs, fullTimeoutMs });
     if (timeoutMs === "expired") {
-      calls.push({
+      const rangeAttempt = takeRangeAttempt(rangeState);
+      const failed = pushFailedExtractCall(calls, {
         pageRange: range.pageRange,
         attempt,
-        outcome: "failed",
-        inputTokens: null,
-        outputTokens: null,
-        latencyMs: null,
-        roundTripMs: Date.now() - started,
-        finishReason: null,
-        modelAlias: null,
-        resolvedModel: null,
+        rangeAttempt,
+        callStartedAt,
+        started,
         errorCode: "MODEL_TIMEOUT",
-        diagnosticReason: "planner_timeout",
+        diagnosticReason: "invocation_deadline_abort",
+        httpStatus: null,
+        abortedByOurDeadline: true,
       });
-      return { ok: false, error: timeoutError(input.correlationId, input.runId) };
+      await recordFailedExtractPlannerCall(input, range, failed);
+      return {
+        ok: false,
+        error: createHiveError({
+          errorCode: "MODEL_TIMEOUT",
+          category: "DEPENDENCY",
+          stage: "ANALYZE",
+          retryable: true,
+          safeMessage: "The analysis model took too long to answer. You can try again.",
+          correlationId: input.correlationId,
+          operationId: input.runId,
+          diagnosticReason: "invocation_deadline_abort",
+        }),
+      };
     }
     const userMessage = parseError === null ? message : message + retryNote(parseError);
+    const rangeAttempt = takeRangeAttempt(rangeState);
+    let attemptRowId: string | null = null;
+    if (lifecycle?.begin) {
+      attemptRowId = await lifecycle.begin({ pageRange: range.pageRange, attempt, rangeAttempt, callStartedAt });
+    }
     try {
       const completion = await callPlanner(input.planner, {
         prompt: input.prompt,
@@ -403,9 +557,12 @@ async function extractRange(
         fileName: input.document.fileName,
         pageRange: range.pageRange,
       });
+      const durationMs = plannerCallDurationMs({ roundTripMs: completion.roundTripMs, latencyMs: completion.latencyMs });
       calls.push({
         pageRange: range.pageRange,
         attempt,
+        rangeAttempt,
+        callStartedAt,
         outcome: validated.ok ? "ok" : "unparseable",
         inputTokens: completion.usage.promptTokens,
         outputTokens: completion.usage.completionTokens,
@@ -416,14 +573,31 @@ async function extractRange(
         resolvedModel: completion.resolvedModel,
         errorCode: null,
         diagnosticReason: validated.ok ? null : validated.reason,
+        httpStatus: null,
+        abortedByOurDeadline: false,
       });
+      if (lifecycle?.finalize) {
+        await lifecycle.finalize({
+          attemptRowId,
+          pageRange: range.pageRange,
+          attempt,
+          rangeAttempt,
+          callStartedAt,
+          outcome: validated.ok ? "succeeded" : "failed",
+          durationMs,
+          errorCode: validated.ok ? null : "MODEL_OUTPUT_INVALID",
+          diagnosticReason: validated.ok ? null : (validated.reason ?? null),
+          httpStatus: null,
+          abortedByOurDeadline: false,
+        });
+      }
       if (validated.ok) {
         const verified = verifyExtraction(validated.value, range.pages);
         const saved = {
           ok: true as const,
           extraction: verified.extraction,
           factsProposed: validated.factsProposed,
-          malformed: validated.malformed,
+          malformed: verified.malformed,
           stats: verified.stats,
           pageGaps: [] as number[],
           modelAlias: completion.modelAlias,
@@ -433,22 +607,95 @@ async function extractRange(
       parseError = validated.message;
     } catch (error) {
       const hiveError = asHiveError(error);
-      if (!hiveError) throw error;
+      if (!hiveError) {
+        await lifecycle?.finalize?.({
+          attemptRowId,
+          pageRange: range.pageRange,
+          attempt,
+          rangeAttempt,
+          callStartedAt,
+          outcome: "failed",
+          durationMs: Math.max(0, Date.now() - started),
+          errorCode: "INTERNAL_ERROR",
+          diagnosticReason: "unexpected_exception",
+          httpStatus: null,
+          abortedByOurDeadline: false,
+        }).catch(() => null);
+        throw error;
+      }
       const unparseable = hiveError.errorCode === "MODEL_OUTPUT_INVALID" && UNPARSEABLE_REASONS.has(hiveError.diagnosticReason ?? "");
-      calls.push({
-        pageRange: range.pageRange,
-        attempt,
-        outcome: unparseable ? "unparseable" : "failed",
-        inputTokens: null,
-        outputTokens: null,
-        latencyMs: null,
-        roundTripMs: Date.now() - started,
-        finishReason: null,
-        modelAlias: null,
-        resolvedModel: null,
-        errorCode: hiveError.errorCode,
-        diagnosticReason: hiveError.diagnosticReason ?? null,
-      });
+      const deadlineAbort =
+        hiveError.errorCode === "MODEL_TIMEOUT" &&
+        (abortedByOurDeadline ||
+          invocationDeadlineAbort({
+            timeoutMs: typeof timeoutMs === "number" ? timeoutMs : undefined,
+            fullTimeoutMs,
+          }));
+      const roundTripMs = Math.max(0, Date.now() - started);
+      const durationMs = plannerCallDurationMs({ roundTripMs, latencyMs: null });
+      if (unparseable) {
+        calls.push({
+          pageRange: range.pageRange,
+          attempt,
+          rangeAttempt,
+          callStartedAt,
+          outcome: "unparseable",
+          inputTokens: null,
+          outputTokens: null,
+          latencyMs: null,
+          roundTripMs,
+          finishReason: null,
+          modelAlias: null,
+          resolvedModel: null,
+          errorCode: hiveError.errorCode,
+          diagnosticReason: hiveError.diagnosticReason ?? null,
+          httpStatus: plannerHttpStatus(hiveError),
+          abortedByOurDeadline: false,
+        });
+        await lifecycle?.finalize?.({
+          attemptRowId,
+          pageRange: range.pageRange,
+          attempt,
+          rangeAttempt,
+          callStartedAt,
+          outcome: "failed",
+          durationMs,
+          errorCode: hiveError.errorCode,
+          diagnosticReason: hiveError.diagnosticReason ?? null,
+          httpStatus: plannerHttpStatus(hiveError),
+          abortedByOurDeadline: false,
+        }).catch(() => null);
+      } else {
+        const failed = pushFailedExtractCall(calls, {
+          pageRange: range.pageRange,
+          attempt,
+          rangeAttempt,
+          callStartedAt,
+          started,
+          errorCode: hiveError.errorCode,
+          diagnosticReason: deadlineAbort
+            ? "invocation_deadline_abort"
+            : (hiveError.diagnosticReason ?? "planner_unavailable"),
+          httpStatus: plannerHttpStatus(hiveError),
+          abortedByOurDeadline: deadlineAbort,
+        });
+        await recordFailedExtractPlannerCall(input, range, failed);
+        await lifecycle?.finalize?.({
+          attemptRowId,
+          pageRange: range.pageRange,
+          attempt,
+          rangeAttempt,
+          callStartedAt,
+          outcome: "failed",
+          durationMs,
+          errorCode: hiveError.errorCode,
+          diagnosticReason: deadlineAbort
+            ? "invocation_deadline_abort"
+            : (hiveError.diagnosticReason ?? "planner_unavailable"),
+          httpStatus: plannerHttpStatus(hiveError),
+          abortedByOurDeadline: deadlineAbort,
+        }).catch(() => null);
+      }
       if (!unparseable) return { ok: false, error: hiveError };
       parseError = hiveError.diagnosticReason!;
     }
@@ -468,8 +715,9 @@ async function extractRange(
   };
 }
 
-function sumCounts<K extends string>(into: Partial<Record<K, number>>, from: Partial<Record<K, number>>): void {
-  for (const [key, count] of Object.entries(from) as [K, number][]) into[key] = (into[key] ?? 0) + count;
+function sumCounts<K extends string>(into: Partial<Record<K, number>>, from: Partial<Record<K, number>> | null | undefined): void {
+  const safe = from ?? {};
+  for (const [key, count] of Object.entries(safe) as [K, number][]) into[key] = (into[key] ?? 0) + count;
 }
 
 /** Prefixes person refs with the range (`p21-40:P1`) so refs from different ranges never collide before `assignFactIds`. */
@@ -553,7 +801,7 @@ async function extractAllRanges(input: ExtractDocumentInput): Promise<ExtractDoc
     pageExtractionGaps: [],
   };
   for (const range of pageRanges(input.pages, throughput)) {
-    const outcome = await extractRangeAdaptive({ ...input, prompt }, range, calls);
+    const outcome = await extractRangeAdaptive({ ...input, prompt }, range, calls, undefined, { next: 1 });
     if (!outcome.ok) return { ok: false, error: outcome.error, calls };
     parts.push(outcome.extraction);
     stats.pageExtractionGaps.push(...outcome.pageGaps);
@@ -620,7 +868,7 @@ export async function extractScheduledRange(
     ranges: [],
     pageExtractionGaps: [],
   };
-  const outcome = await extractRangeAdaptive({ ...input, prompt }, input.range, calls, input.persist);
+  const outcome = await extractRangeAdaptive({ ...input, prompt }, input.range, calls, input.persist, { next: 1 });
   if (!outcome.ok) return { ok: false, error: outcome.error, calls };
   stats.pageExtractionGaps.push(...outcome.pageGaps);
   const s = outcome.stats;

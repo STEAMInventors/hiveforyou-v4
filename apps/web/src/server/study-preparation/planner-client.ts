@@ -50,9 +50,24 @@ const NON_RETRYABLE_MODEL_OUTPUT_REASONS = new Set([
 ]);
 
 function plannerError(
-  input: Omit<HiveError, "stage" | "category"> & { category?: HiveError["category"] },
+  input: Omit<HiveError, "stage" | "category"> & { category?: HiveError["category"]; httpStatus?: number | null },
 ): HiveError {
-  return createHiveError({ category: "DEPENDENCY", stage: "ANALYZE", ...input });
+  const { httpStatus, ...rest } = input;
+  const error = createHiveError({ category: "DEPENDENCY", stage: "ANALYZE", ...rest });
+  if (typeof httpStatus === "number" && Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599) {
+    Object.defineProperty(error, "httpStatus", {
+      value: httpStatus,
+      enumerable: false,
+      configurable: true,
+    });
+  }
+  return error;
+}
+
+export function plannerHttpStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const status = (error as { httpStatus?: unknown }).httpStatus;
+  return typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599 ? status : null;
 }
 
 function validBaseUrl(raw: string): string | null {
@@ -136,7 +151,7 @@ function mapPlannerHttpError(
   const operationId = envelope?.processingRunId ?? processingRunId;
   const upstream = envelope?.diagnosticReason ?? null;
   const withRun = (error: Omit<HiveError, "stage" | "category"> & { category?: HiveError["category"] }) =>
-    plannerError({ ...error, operationId });
+    plannerError({ ...error, operationId, httpStatus: status });
 
   if (status === 401 || code === "AUTH_FAILED") {
     return withRun({
@@ -145,6 +160,15 @@ function mapPlannerHttpError(
       safeMessage: "The analysis service rejected our credentials. Contact support with your reference.",
       correlationId,
       diagnosticReason: upstream ?? "planner_auth_failed",
+    });
+  }
+  if (status === 524) {
+    return withRun({
+      errorCode: "MODEL_TIMEOUT",
+      retryable: true,
+      safeMessage: "The analysis model took too long to answer. You can try again.",
+      correlationId,
+      diagnosticReason: upstream ?? "planner_gateway_timeout",
     });
   }
   if (status === 504 || code === "MODEL_TIMEOUT") {
@@ -228,6 +252,7 @@ async function exchange(deps: PlannerDeps, input: Exchange): Promise<unknown> {
       correlationId: input.correlationId,
       operationId: input.processingRunId,
       diagnosticReason: timedOut ? "planner_timeout" : "planner_network_error",
+      httpStatus: timedOut ? 504 : null,
       cause: error,
     });
   }

@@ -250,6 +250,8 @@ export type ProcessingRun = {
   estimateFingerprint?: string | null;
   /** Server-computed while the run is active; omitted or null when unknown or already finished. */
   progressEstimate?: ProgressEstimate | null;
+  /** Present when the worker holds a stage lease (`claim_processing_run`). */
+  leaseExpiresAt?: string | null;
 };
 
 export type SampleCoverage = {
@@ -591,6 +593,8 @@ export function normalizeProcessingRun(raw: unknown): ProcessingRun | null {
       typeof record.estimatedCompletionAt === "string" ? record.estimatedCompletionAt : null,
     estimateFingerprint: typeof record.estimateFingerprint === "string" ? record.estimateFingerprint : null,
     progressEstimate: normalizeProgressEstimate(record.progressEstimate),
+    leaseExpiresAt:
+      typeof record.leaseExpiresAt === "string" || record.leaseExpiresAt === null ? record.leaseExpiresAt : undefined,
   };
 }
 

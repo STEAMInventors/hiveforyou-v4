@@ -180,6 +180,9 @@ describe("validateAcknowledgeStudyCoverageInput", () => {
 describe("normalizeProcessingRun", () => {
   it("normalizes a persisted run", () => {
     expect(normalizeProcessingRun(rawRun())?.status).toBe("IDENTIFYING_DOMAIN");
+    expect(
+      normalizeProcessingRun(rawRun({ leaseExpiresAt: "2026-11-06T12:00:00.000Z" }))?.leaseExpiresAt,
+    ).toBe("2026-11-06T12:00:00.000Z");
   });
 
   it("normalizes a run that is still reading documents (no coverage yet)", () => {

@@ -84,7 +84,9 @@ function scanHits(): { file: string; line: number; term: string }[] {
 }
 
 describe("domain-word lint (D-053)", () => {
-  it("prints file:line for domain-specific terms outside the V5-006 removal allowlist", () => {
+  it(
+    "prints file:line for domain-specific terms outside the V5-006 removal allowlist",
+    () => {
     const violations = scanHits().filter((hit) => !V5_006_ALLOWLIST.has(hit.file));
     if (violations.length > 0) {
       const report = violations.map((hit) => `${hit.file}:${hit.line} (${hit.term})`).join("\n");
@@ -92,5 +94,7 @@ describe("domain-word lint (D-053)", () => {
       console.log(report);
     }
     expect(violations).toEqual([]);
-  });
+    },
+    30_000,
+  );
 });

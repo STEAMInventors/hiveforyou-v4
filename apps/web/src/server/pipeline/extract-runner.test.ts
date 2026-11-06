@@ -5,6 +5,8 @@ import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 
 import { extractDocument, renderExtractUserMessage } from "./extract-runner";
 
+vi.mock("@/server/observability/logger", () => ({ emitStructuredEvent: vi.fn() }));
+
 const DOC = { id: "abcdef12-3456-4789-8abc-def012345678", fileName: "01_plan.pdf" };
 const CORRELATION_ID = "66666666-6666-4666-8666-666666666666";
 const RUN_ID = "22222222-2222-4222-8222-222222222222";
@@ -103,7 +105,14 @@ describe("extractDocument", () => {
     expect(result.extraction.documentId).toBe(DOC.id);
     expect(result.stats).toMatchObject({ factsProposed: 3, factsIn: 3, factsKept: 2, byReason: { quote_not_found: 1 } });
     expect(result.calls).toEqual([
-      expect.objectContaining({ attempt: 1, outcome: "ok", outputTokens: 300, latencyMs: 1500, finishReason: "stop" }),
+      expect.objectContaining({
+        attempt: 1,
+        rangeAttempt: 1,
+        outcome: "ok",
+        outputTokens: 300,
+        latencyMs: 1500,
+        finishReason: "stop",
+      }),
     ]);
   });
 
@@ -133,12 +142,20 @@ describe("extractDocument", () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
-  it("does not retry a timeout", async () => {
-    const fetchFn = vi.fn().mockResolvedValueOnce(failure(504, "MODEL_TIMEOUT", "litellm_timeout"));
+  it("records a gap after repeated single-page timeouts instead of failing the document", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(failure(504, "MODEL_TIMEOUT", "litellm_timeout"));
     const result = await run(fetchFn, 1);
-    expect(result.ok).toBe(false);
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-    expect(result.calls[0]).toMatchObject({ outcome: "failed" });
+    expect(result.ok).toBe(true);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(result.stats.pageExtractionGaps).toEqual([1]);
+    expect(result.calls.at(-1)).toMatchObject({
+      outcome: "failed",
+      errorCode: "MODEL_TIMEOUT",
+      httpStatus: 504,
+      diagnosticReason: "planner_timeout",
+      rangeAttempt: 3,
+      abortedByOurDeadline: false,
+    });
   });
 
   it("splits a timed-out multi-page range in half until both halves succeed", async () => {
