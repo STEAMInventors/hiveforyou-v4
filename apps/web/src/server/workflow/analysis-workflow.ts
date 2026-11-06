@@ -53,19 +53,22 @@ import type { Dispatch } from "./dispatch";
 import { renderSourcePageIndex, runStudyInvestigation, StudyAgentFailure, type StudyAgentTotals } from "./study-investigation";
 import {
   buildV5AcceptRevision,
-  extractOneDocument,
+  ExtractStageFailure,
   extractedDocumentIds,
+  documentsNeedingExtraction,
   isV5CanonicalStudy,
   loadVerifiedExtractions,
-  nextDocumentNeedingExtraction,
   runCanonicalizeForRun,
+  runExtractingWorkerPool,
+  tryAdvanceExtractingToCanonicalizing,
 } from "./v5-pipeline-stages";
 
 /**
  * The Analyze workflow (D-041): one durable run from reading documents to an accepted Canonical
  * Study. Each invocation claims the run's current stage, runs at most one model call (the Study
- * investigation runs one bounded tool-calling loop instead, D-042), persists the validated output
- * and hands the next stage to a fresh invocation. Deterministic steps continue
+ * investigation runs one bounded tool-calling loop instead, D-042). EXTRACTING runs up to four
+ * parallel extract calls per invocation (D-052). Other stages persist one validated output and hand
+ * the next stage to a fresh invocation. Deterministic steps continue
  * inline. Timeouts and unavailable models retry the same stage (three attempts); invalid output
  * fails the run. Accepting an Analyze Study queues both Writer runs, which are dispatched here.
  * An explicit Rebuild Study (`preparationMode = REBUILD`) accepts a new revision only and does not
@@ -79,6 +82,7 @@ export type AnalysisWorkflowDeps = {
   readonly dispatch: Dispatch;
   readonly loadCatalog?: () => PromptCatalog;
   readonly now?: () => Date;
+  readonly clock?: () => number;
   /** `Date.now()` when the route invocation started. Report writes abort 30s before `maxDuration`. */
   readonly invocationStartedAt?: number;
 };
@@ -889,6 +893,31 @@ async function verifyEvidence(context: Context): Promise<StepResult> {
   return { next: "continue", run };
 }
 
+async function finishExtractingStage(context: Context, run: ProcessingRun): Promise<StepResult> {
+  const advanced = await tryAdvanceExtractingToCanonicalizing(context.deps.client, context.runId);
+  const nextRun = advanced.run ?? run;
+  if (advanced.applied && nextRun) {
+    log(nextRun, "CANONICALIZING", context.startedAt);
+    context.stageAttempt = nextRun.stageAttempt;
+    context.status = "CANONICALIZING";
+  } else if (nextRun?.status === "CANONICALIZING") {
+    context.stageAttempt = nextRun.stageAttempt;
+    context.status = "CANONICALIZING";
+  } else if (!advanced.applied) {
+    throw new StageFailure(
+      analysisError({
+        errorCode: "INTERNAL_ERROR",
+        retryable: true,
+        safeMessage: STOPPED_MESSAGE,
+        correlationId: context.correlationId,
+        diagnosticReason: "extracting_incomplete",
+      }),
+      null,
+    );
+  }
+  return { next: "handoff", status: "CANONICALIZING", delaySeconds: 0 };
+}
+
 async function extractDocuments(context: Context): Promise<StepResult> {
   const inputs = await loadInputs(context.deps.client, context.runId);
   if (inputs.intents.length === 0) {
@@ -907,25 +936,34 @@ async function extractDocuments(context: Context): Promise<StepResult> {
   const catalog = context.catalog();
   const payload = await rpc(context.deps.client, "get_doc_extractions_for_run", { p_processing_run_id: context.runId });
   const extracted = extractedDocumentIds(payload);
-  const document = nextDocumentNeedingExtraction(inputs.sourceSnapshot, extracted);
-  if (!document) {
-    await advance(context, "EXTRACTING", "CANONICALIZING");
-    return { next: "handoff", status: "CANONICALIZING", delaySeconds: 0 };
+  const pending = documentsNeedingExtraction(inputs.sourceSnapshot, extracted);
+  if (pending.length === 0) {
+    return finishExtractingStage(context, inputs.run);
   }
-  const outcome = await extractOneDocument({
-    deps: context.deps,
-    run: inputs.run,
-    document,
-    catalog,
-    correlationId: context.correlationId,
-    stageAttempt: context.stageAttempt,
-    now: context.now,
-  });
-  if (!outcome.ok) {
-    throw new StageFailure(outcome.error, outcome.metric);
+  const invocationStartedAt = context.deps.invocationStartedAt ?? context.startedAt;
+  const clock = context.deps.clock ?? (() => Date.now());
+  let poolResult: { deferred: boolean };
+  try {
+    poolResult = await runExtractingWorkerPool({
+      deps: context.deps,
+      run: inputs.run,
+      documents: pending,
+      catalog,
+      correlationId: context.correlationId,
+      now: context.now,
+      clock,
+      invocationStartedAt,
+    });
+  } catch (error) {
+    if (error instanceof ExtractStageFailure) {
+      throw new StageFailure(error.error, error.metric);
+    }
+    throw error;
   }
-  await advance(context, "EXTRACTING", "EXTRACTING", { stage_metric: outcome.metric });
-  return { next: "handoff", status: "EXTRACTING", delaySeconds: 0 };
+  if (poolResult.deferred) {
+    return { next: "handoff", status: "EXTRACTING", delaySeconds: 0 };
+  }
+  return finishExtractingStage(context, inputs.run);
 }
 
 async function canonicalizeStudy(context: Context): Promise<StepResult> {

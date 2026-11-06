@@ -54,6 +54,8 @@ export type ExtractDocumentInput = {
   readonly correlationId: string;
   readonly runId: string;
   readonly prompt?: ExtractPrompt;
+  /** When set, caps each planner call from the remaining invocation budget (never above the extract task limit). */
+  readonly resolvePlannerTimeoutMs?: () => number | "expired";
 };
 
 function pageRanges(pages: readonly VerificationPage[]): { pageRange: string | null; pages: VerificationPage[] }[] {
@@ -93,6 +95,19 @@ function asHiveError(error: unknown): HiveError | null {
   return error && typeof error === "object" && "errorCode" in error && "stage" in error ? (error as HiveError) : null;
 }
 
+function timeoutError(correlationId: string, runId: string): HiveError {
+  return createHiveError({
+    errorCode: "MODEL_TIMEOUT",
+    category: "DEPENDENCY",
+    stage: "ANALYZE",
+    retryable: true,
+    safeMessage: "The analysis model took too long to answer. You can try again.",
+    correlationId,
+    operationId: runId,
+    diagnosticReason: "planner_timeout",
+  });
+}
+
 type RangeOutcome =
   | { ok: true; extraction: DocExtraction; factsProposed: number; malformed: Record<string, number>; stats: ExtractionVerificationStats }
   | { ok: false; error: HiveError };
@@ -111,6 +126,24 @@ async function extractRange(
   let parseError: string | null = null;
   for (const attempt of [1, 2] as const) {
     const started = Date.now();
+    const timeoutMs = input.resolvePlannerTimeoutMs?.();
+    if (timeoutMs === "expired") {
+      calls.push({
+        pageRange: range.pageRange,
+        attempt,
+        outcome: "failed",
+        inputTokens: null,
+        outputTokens: null,
+        latencyMs: null,
+        roundTripMs: Date.now() - started,
+        finishReason: null,
+        modelAlias: null,
+        resolvedModel: null,
+        errorCode: "MODEL_TIMEOUT",
+        diagnosticReason: "planner_timeout",
+      });
+      return { ok: false, error: timeoutError(input.correlationId, input.runId) };
+    }
     const userMessage = parseError === null ? message : message + retryNote(parseError);
     try {
       const completion = await callPlanner(input.planner, {
@@ -118,6 +151,7 @@ async function extractRange(
         userPayload: { message: userMessage },
         correlationId: input.correlationId,
         processingRunId: input.runId,
+        ...(typeof timeoutMs === "number" ? { timeoutMs } : {}),
       });
       const validated = validateDocExtraction(completion.contentJson, {
         documentId: input.document.id,

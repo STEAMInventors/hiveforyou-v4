@@ -4,6 +4,7 @@ import {
   createHiveError,
   type DocExtraction,
   type HiveError,
+  normalizeProcessingRun,
   type ProcessingRun,
   type SnapshotDocument,
   type SourceSnapshot,
@@ -20,10 +21,56 @@ import { sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import type { PromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 
+import {
+  REPORT_ROUTE_MAX_DURATION_SECONDS,
+  WRITE_CLIENT_TIMEOUT_MARGIN_MS,
+} from "./report-generation";
+
 import type { AnalysisWorkflowDeps } from "./analysis-workflow";
 
 /** V5 pipeline model calls: 270 s client (30 s margin under 300 s lease / Vercel). */
 export const V5_CLIENT_TASK_TIMEOUT_MS = 270_000;
+
+const MIN_EXTRACT_CALL_MS = 1_000;
+
+/** Wall-clock end of the hosting function's `maxDuration` window for this invocation. */
+export function analysisRouteDeadlineMs(invocationStartedAt: number): number {
+  return invocationStartedAt + REPORT_ROUTE_MAX_DURATION_SECONDS * 1000;
+}
+
+export function invocationRemainingMs(clock: () => number, invocationStartedAt: number): number {
+  return Math.max(0, analysisRouteDeadlineMs(invocationStartedAt) - clock());
+}
+
+/** HTTP abort for one extract call: remaining invocation time minus margin, capped at the task budget. */
+export function extractPlannerTimeoutMs(
+  clock: () => number,
+  invocationStartedAt: number,
+): number | "expired" {
+  const remaining = invocationRemainingMs(clock, invocationStartedAt);
+  const budget = Math.min(Math.max(0, remaining - WRITE_CLIENT_TIMEOUT_MARGIN_MS), V5_CLIENT_TASK_TIMEOUT_MS);
+  if (budget < MIN_EXTRACT_CALL_MS) return "expired";
+  return budget;
+}
+
+/** Whether a worker may start another document in this invocation. */
+export function canStartExtractingDocument(clock: () => number, invocationStartedAt: number): boolean {
+  const remaining = invocationRemainingMs(clock, invocationStartedAt);
+  const budget = extractPlannerTimeoutMs(clock, invocationStartedAt);
+  if (budget === "expired") return false;
+  return remaining >= budget + WRITE_CLIENT_TIMEOUT_MARGIN_MS;
+}
+
+/** Max concurrent `hive-extract/1` calls while a run is in EXTRACTING (bounded fan-out). */
+export const EXTRACTING_CONCURRENCY = 4;
+
+const EXTRACT_RETRYABLE_ERRORS = new Set(["MODEL_TIMEOUT", "MODEL_UNAVAILABLE"]);
+export const EXTRACTING_ATTEMPT_LIMIT = 3;
+
+export function isRetryableExtractFailure(error: HiveError): boolean {
+  if (error.errorCode === "MODEL_OUTPUT_INVALID") return false;
+  return error.retryable && EXTRACT_RETRYABLE_ERRORS.has(error.errorCode);
+}
 
 type RpcClient = AnalysisWorkflowDeps["client"];
 
@@ -75,6 +122,116 @@ export function nextDocumentNeedingExtraction(
     if (!extractedIds.has(document.sourceDocumentId.toLowerCase())) return document;
   }
   return null;
+}
+
+export function documentsNeedingExtraction(
+  snapshot: SourceSnapshot,
+  extractedIds: ReadonlySet<string>,
+): SnapshotDocument[] {
+  return snapshot.documents.filter((document) => !extractedIds.has(document.sourceDocumentId.toLowerCase()));
+}
+
+async function recordExtractingDocumentSuccess(
+  client: RpcClient,
+  runId: string,
+  metric: StageMetric,
+  correlationId: string,
+) {
+  const payload = await rpc(client, "record_extracting_document_success", {
+    p_run_id: runId,
+    p_stage_metric: metric,
+  });
+  if (payload?.saved !== true) {
+    throw createHiveError({
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "ANALYZE",
+      retryable: true,
+      safeMessage: "Analysis stopped before it finished. You can try again.",
+      correlationId,
+      diagnosticReason: "extracting_metric_save_failed",
+    });
+  }
+}
+
+export async function tryAdvanceExtractingToCanonicalizing(
+  client: RpcClient,
+  runId: string,
+): Promise<{ applied: boolean; run: ProcessingRun | null }> {
+  const payload = await rpc(client, "try_advance_extracting_to_canonicalizing", { p_run_id: runId });
+  return {
+    applied: payload?.applied === true,
+    run: normalizeProcessingRun(payload?.processingRun),
+  };
+}
+
+export class ExtractStageFailure extends Error {
+  constructor(
+    readonly error: HiveError,
+    readonly metric: StageMetric | null,
+  ) {
+    super(error.errorCode);
+  }
+}
+
+/**
+ * Bounded worker pool: up to {@link EXTRACTING_CONCURRENCY} documents at once; each finished slot
+ * takes the next document still missing a snapshot-bound extraction row.
+ */
+export async function runExtractingWorkerPool(input: {
+  deps: AnalysisWorkflowDeps;
+  run: ProcessingRun;
+  documents: readonly SnapshotDocument[];
+  catalog: PromptCatalog;
+  correlationId: string;
+  now: () => Date;
+  clock: () => number;
+  invocationStartedAt: number;
+  extract?: typeof extractOneDocument;
+  canStart?: (clock: () => number, invocationStartedAt: number) => boolean;
+}): Promise<{ deferred: boolean }> {
+  const extract = input.extract ?? extractOneDocument;
+  const mayStart = input.canStart ?? canStartExtractingDocument;
+  const queue = [...input.documents];
+  const attempts = new Map<string, number>();
+  let failure: ExtractStageFailure | null = null;
+
+  async function worker(): Promise<void> {
+    while (!failure) {
+      if (!mayStart(input.clock, input.invocationStartedAt)) return;
+      const document = queue.shift();
+      if (!document) return;
+      const docKey = document.sourceDocumentId.toLowerCase();
+      const attempt = (attempts.get(docKey) ?? 0) + 1;
+      attempts.set(docKey, attempt);
+      const outcome = await extract({
+        deps: input.deps,
+        run: input.run,
+        document,
+        catalog: input.catalog,
+        correlationId: input.correlationId,
+        stageAttempt: attempt,
+        now: input.now,
+        clock: input.clock,
+        invocationStartedAt: input.invocationStartedAt,
+      });
+      if (outcome.ok) {
+        await recordExtractingDocumentSuccess(input.deps.client, input.run.id, outcome.metric, input.correlationId);
+        continue;
+      }
+      if (isRetryableExtractFailure(outcome.error) && attempt < EXTRACTING_ATTEMPT_LIMIT) {
+        queue.push(document);
+        continue;
+      }
+      failure = new ExtractStageFailure(outcome.error, outcome.metric);
+      return;
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(EXTRACTING_CONCURRENCY, queue.length) }, () => worker());
+  await Promise.all(workers);
+  if (failure) throw failure;
+  return { deferred: queue.length > 0 };
 }
 
 function logPipelineCall(input: {
@@ -180,8 +337,12 @@ export async function extractOneDocument(input: {
   correlationId: string;
   stageAttempt: number;
   now: () => Date;
+  clock?: () => number;
+  invocationStartedAt?: number;
 }): Promise<ExtractOneDocumentResult> {
   const { deps, run, document, catalog, correlationId, stageAttempt, now } = input;
+  const clock = input.clock ?? deps.clock ?? (() => Date.now());
+  const invocationStartedAt = input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now();
   const prompt = catalog.extract;
   const startedAt = now().toISOString();
   let pages: { pageNumber: number; text: string }[];
@@ -211,6 +372,7 @@ export async function extractOneDocument(input: {
     correlationId,
     runId: run.id,
     prompt,
+    resolvePlannerTimeoutMs: () => extractPlannerTimeoutMs(clock, invocationStartedAt),
   });
   for (const call of result.calls) {
     logPipelineCall({

@@ -50,6 +50,7 @@ import {
 
 import { type AnalysisWorkflowDeps, processAnalysisRun } from "./analysis-workflow";
 import type { WorkItem } from "./dispatch";
+import * as v5PipelineStages from "./v5-pipeline-stages";
 
 const loadFrozen = vi.hoisted(() => vi.fn());
 vi.mock("@/server/study-preparation/page-sampling", async (importActual) => ({
@@ -194,6 +195,28 @@ function fakeDatabase(
         }
         return { data: { saved: true }, error: null };
       }
+      case "record_extracting_document_success": {
+        const metric = args.p_stage_metric as Record<string, unknown> | undefined;
+        if (status !== "EXTRACTING" || !metric) {
+          return { data: { saved: false, processingRun: run() }, error: null };
+        }
+        stageMetrics.push(metric);
+        stageAttempt = 1;
+        return { data: { saved: true, processingRun: run() }, error: null };
+      }
+      case "try_advance_extracting_to_canonicalizing": {
+        const snapshotDocs = snapshot.documents;
+        const extractedCount = snapshotDocs.filter((document) =>
+          docExtractions.some((row) => row.sourceDocumentId.toLowerCase() === document.sourceDocumentId.toLowerCase()),
+        ).length;
+        if (status !== "EXTRACTING" || extractedCount < snapshotDocs.length) {
+          return { data: { applied: false, processingRun: run() }, error: null };
+        }
+        transitions.push({ from: "EXTRACTING", to: "CANONICALIZING", details: {} });
+        status = "CANONICALIZING";
+        stageAttempt = 1;
+        return { data: { applied: true, processingRun: run() }, error: null };
+      }
       case "get_study_source_pages": {
         const pages = Object.entries(options.pages ?? {}).map(([key, text], index) => {
           const [sourceDocumentId, pageNumber] = key.split(":");
@@ -326,7 +349,11 @@ function stageOutputsSeed(db: ReturnType<typeof fakeDatabase>) {
   Object.assign(db.stageOutputs, { intentDecomposition: intentOutput() });
 }
 
-function harness(db: ReturnType<typeof fakeDatabase>, planner: ReturnType<typeof fakePlanner>) {
+function harness(
+  db: ReturnType<typeof fakeDatabase>,
+  planner: ReturnType<typeof fakePlanner>,
+  options: { clock?: () => number; invocationStartedAt?: number } = {},
+) {
   const dispatched: DispatchedWork[] = [];
   const deps: AnalysisWorkflowDeps = {
     client: db.client,
@@ -336,6 +363,8 @@ function harness(db: ReturnType<typeof fakeDatabase>, planner: ReturnType<typeof
       return true;
     }),
     loadCatalog: () => loadPromptCatalog(),
+    ...(options.clock ? { clock: options.clock } : {}),
+    ...(options.invocationStartedAt !== undefined ? { invocationStartedAt: options.invocationStartedAt } : {}),
   };
   return { deps, dispatched };
 }
@@ -563,7 +592,7 @@ describe("processAnalysisRun: reading documents", () => {
 });
 
 // ---------------------------------------------------------------------------
-// V5 pipeline (D-052): EXTRACTING one document per invocation → CANONICALIZING → ACCEPTING_STUDY.
+// V5 pipeline (D-052): EXTRACTING (bounded parallel) → CANONICALIZING → ACCEPTING_STUDY.
 // ---------------------------------------------------------------------------
 const V5_PAGES = {
   [`${DOC_1}:1`]: "Quote A: the total price is $1,200.00 for the year.",
@@ -630,51 +659,144 @@ const extractMessage = (planner: ReturnType<typeof fakePlanner>, call: number) =
   String((planner.bodies[call]!.user_payload as { message?: unknown }).message);
 
 describe("processAnalysisRun: V5 pipeline", () => {
-  it("extracts one document per invocation, hands off after each, then moves to CANONICALIZING", async () => {
+  it("extracts all snapshot documents in parallel, then advances to CANONICALIZING once", async () => {
     const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
     const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
     const h = harness(db, planner);
 
-    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
-    expect(planner.calls).toEqual(["extract"]);
-    expect(extractMessage(planner, 0)).toContain(DOC_1);
-    expect(extractMessage(planner, 0)).not.toContain(DOC_2);
-    expect(db.docExtractions.map((row) => row.sourceDocumentId)).toEqual([DOC_1]);
-    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 0 }]);
-
-    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
-    expect(planner.calls).toEqual(["extract", "extract"]);
-    expect(extractMessage(planner, 1)).toContain(DOC_2);
-    expect(db.docExtractions.map((row) => row.sourceDocumentId)).toEqual([DOC_1, DOC_2]);
-
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
-    expect(planner.calls).toHaveLength(2);
-    expect(db.transitions.map((t) => [t.from, t.to])).toEqual([
-      ["EXTRACTING", "EXTRACTING"],
-      ["EXTRACTING", "EXTRACTING"],
-      ["EXTRACTING", "CANONICALIZING"],
-    ]);
-    expect(db.stageMetrics.filter((metric) => metric.stage === "EXTRACTING")).toEqual([
-      expect.objectContaining({ outcome: "SUCCEEDED", promptId: "hive-extract/1", promptTokens: 100, completionTokens: 50 }),
-      expect.objectContaining({ outcome: "SUCCEEDED", promptId: "hive-extract/1" }),
-    ]);
-    expect(h.dispatched).toHaveLength(3);
+    expect(planner.calls).toEqual(["extract", "extract"]);
+    expect(db.docExtractions.map((row) => row.sourceDocumentId).sort()).toEqual([DOC_1, DOC_2].sort());
+    expect(db.transitions.filter((t) => t.from === "EXTRACTING" && t.to === "CANONICALIZING")).toHaveLength(1);
+    expect(db.stageMetrics.filter((metric) => metric.stage === "EXTRACTING")).toHaveLength(2);
+    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 0 }]);
   });
 
-  it("skips a document whose extraction is already cached and extracts only the other one", async () => {
+  it("advances immediately with no model calls when every document is already cached", async () => {
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, docExtractions: [...CACHED] });
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const h = harness(db, planner);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
+    expect(planner.calls).toEqual([]);
+    expect(db.transitions.filter((t) => t.from === "EXTRACTING" && t.to === "CANONICALIZING")).toHaveLength(1);
+  });
+
+  it("skips cached documents immediately and extracts only the remaining ones", async () => {
     const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, docExtractions: [CACHED[0]!] });
     const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
     const h = harness(db, planner);
 
-    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
     expect(planner.calls).toEqual(["extract"]);
     expect(extractMessage(planner, 0)).toContain(DOC_2);
     expect(extractMessage(planner, 0)).not.toContain(DOC_1);
     expect(db.docExtractions.map((row) => row.sourceDocumentId)).toEqual([DOC_1, DOC_2]);
     expect(db.docExtractions[0]).toBe(CACHED[0]);
+  });
+
+  it("retries a failing document without blocking parallel extractions", async () => {
+    const planner = fakePlanner(
+      {
+        extract: (call, body) => {
+          const message = String((body as PlannerBody).user_payload.message ?? "");
+          if (message.includes(DOC_1) && call <= 1) return timeout();
+          return null;
+        },
+      },
+      { extract: EXTRACT_ANSWER },
+    );
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
+    const h = harness(db, planner);
 
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
-    expect(planner.calls).toEqual(["extract"]);
+    expect(planner.calls.filter((task) => task === "extract").length).toBeGreaterThanOrEqual(3);
+    expect(db.docExtractions.map((row) => row.sourceDocumentId).sort()).toEqual([DOC_1, DOC_2].sort());
+  });
+
+  it("hands off EXTRACTING when the pool defers for a fresh invocation", async () => {
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const pool = vi.spyOn(v5PipelineStages, "runExtractingWorkerPool").mockResolvedValue({ deferred: true });
+    const h = harness(db, planner);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
+    expect(planner.calls).toEqual([]);
+    expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 0 }]);
+    pool.mockRestore();
+  });
+
+  it("spans two invocations for a large document set and advances to CANONICALIZING once", async () => {
+    const DOC_3 = "55555555-5555-4555-8555-555555555555";
+    const DOC_4 = "66666666-6666-4666-8666-666666666666";
+    const DOC_5 = "77777777-7777-4777-8777-777777777777";
+    const DOC_6 = "88888888-8888-4888-8888-888888888888";
+    const sixDocSnapshot = sourceSnapshot({
+      documents: [
+        snapshotDocument(DOC_1, "Quote A.pdf"),
+        snapshotDocument(DOC_2, "Quote B.pdf"),
+        snapshotDocument(DOC_3, "Quote C.pdf"),
+        snapshotDocument(DOC_4, "Quote D.pdf"),
+        snapshotDocument(DOC_5, "Quote E.pdf"),
+        snapshotDocument(DOC_6, "Quote F.pdf"),
+      ],
+    });
+    const pages = {
+      ...V5_PAGES,
+      [`${DOC_3}:1`]: "Quote C page",
+      [`${DOC_4}:1`]: "Quote D page",
+      [`${DOC_5}:1`]: "Quote E page",
+      [`${DOC_6}:1`]: "Quote F page",
+    };
+    const now = 0;
+    const clock = () => now;
+    const realPool = v5PipelineStages.runExtractingWorkerPool;
+    const pool = vi.spyOn(v5PipelineStages, "runExtractingWorkerPool");
+    pool.mockImplementationOnce(async (input) => {
+      await realPool({ ...input, documents: input.documents.slice(0, 2) });
+      return { deferred: true };
+    });
+
+    const db = fakeDatabase({ status: "EXTRACTING", pages, snapshot: sixDocSnapshot });
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+
+    try {
+      await expect(processAnalysisRun(harness(db, planner, { clock, invocationStartedAt: 0 }).deps, RUN_ID)).resolves.toBe(
+        "EXTRACTING",
+      );
+      await expect(
+        processAnalysisRun(harness(db, planner, { clock, invocationStartedAt: now }).deps, RUN_ID),
+      ).resolves.toBe("CANONICALIZING");
+      expect(db.transitions.filter((t) => t.from === "EXTRACTING" && t.to === "CANONICALIZING")).toHaveLength(1);
+      expect(db.docExtractions).toHaveLength(6);
+    } finally {
+      pool.mockRestore();
+    }
+  });
+
+  it("advances to CANONICALIZING exactly once when many documents finish together", async () => {
+    const DOC_3 = "55555555-5555-4555-8555-555555555555";
+    const DOC_4 = "66666666-6666-4666-8666-666666666666";
+    const fourDocSnapshot = sourceSnapshot({
+      documents: [
+        snapshotDocument(DOC_1, "Quote A.pdf"),
+        snapshotDocument(DOC_2, "Quote B.pdf"),
+        snapshotDocument(DOC_3, "Quote C.pdf"),
+        snapshotDocument(DOC_4, "Quote D.pdf"),
+      ],
+    });
+    const pages = {
+      ...V5_PAGES,
+      [`${DOC_3}:1`]: "Quote C page",
+      [`${DOC_4}:1`]: "Quote D page",
+    };
+    const db = fakeDatabase({ status: "EXTRACTING", pages, snapshot: fourDocSnapshot });
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const h = harness(db, planner);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
+    expect(planner.calls.filter((task) => task === "extract")).toHaveLength(4);
+    expect(db.transitions.filter((t) => t.from === "EXTRACTING" && t.to === "CANONICALIZING")).toHaveLength(1);
   });
 
   it("CANONICALIZING builds the canonical study from cached extractions and stores it on the run", async () => {
