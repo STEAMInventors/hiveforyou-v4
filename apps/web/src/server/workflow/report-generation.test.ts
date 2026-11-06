@@ -2514,7 +2514,14 @@ describe("processReportRun: revision formats", () => {
       view: {
         schema: STUDY_VIEW_SCHEMA,
         sections: [{ heading: "Overview" }],
-        blocks: [{ name: "documents", rows: [expect.objectContaining({ id: V5_DOC })] }, { name: "spine_table" }],
+        blocks: [
+          { name: "documents", rows: [expect.objectContaining({ id: V5_DOC })] },
+          { name: "spine_table" },
+          { name: "conflicts" },
+          { name: "timeline" },
+          { name: "gaps" },
+          { name: "outside_spine" },
+        ],
       },
       writer_output: {
         schema: "hive.write-run/1",
@@ -2542,8 +2549,62 @@ describe("processReportRun: revision formats", () => {
     });
     const spineRow = (saved.view as { blocks: { name: string; rows: { values: unknown[] }[] }[] }).blocks[1]!.rows[0]!;
     expect(spineRow.values).toEqual([
-      { factId: V5_FACT, valueAsWritten: "$10.00", sourceRef: { sourceDocumentId: V5_DOC, pageNumber: 2, quote: "The fee is $10.00." } },
+      {
+        factId: V5_FACT,
+        valueAsWritten: "$10.00",
+        relation: "supporting",
+        sourceRef: { sourceDocumentId: V5_DOC, pageNumber: 2, quote: "The fee is $10.00." },
+      },
     ]);
+    expect(saved.view).toMatchObject({ intent: "What do I have to pay?" });
+  });
+
+  it("puts intent on the study view and attaches gap references from verified extractions", async () => {
+    const studyWithGap: CanonicalStudy = {
+      ...v5Study,
+      gaps: [{ id: "X1", statement: "The prior year income filing is not among the documents.", relatedSpineIds: [] }],
+    };
+    const extractionWithRef = validateDocExtraction(
+      {
+        document: { titleAsPrinted: "Notice", documentType: "notice", issuer: { name: "Office" }, summary: "A notice." },
+        facts: [
+          {
+            id: V5_FACT,
+            subject: "Fee",
+            attribute: "amount",
+            valueAsWritten: "$10.00",
+            modality: "stated",
+            evidence: [{ page: 2, quote: "The fee is $10.00." }],
+          },
+        ],
+        emptyFields: [],
+        referencedDocuments: [{ description: "prior year income filing", page: 2, quote: "See prior filing." }],
+      },
+      { documentId: V5_DOC, fileName: "notice.pdf", pageRange: null },
+    );
+    if (!extractionWithRef.ok) throw new Error("fixture");
+    const inputs = { ...v5Inputs(), studyRevision: { ...v5Inputs().studyRevision, investigation: studyWithGap }, extractions: [extractionWithRef.value] };
+    const db = fakeDatabase("CUSTOMER", { nowMs: () => 1_000, inputsOverrides: inputs });
+    const model = writePlanner();
+    const status = await processReportRun(
+      {
+        client: db.client,
+        planner: model.deps,
+        semanticReviewer: vi.fn(async () => []),
+        clock: () => 1_000,
+        invocationStartedAt: 0,
+        loadCatalog: () => loadPromptCatalog(),
+      },
+      REPORT_RUN_ID,
+    );
+    expect(status).toBe("SUCCEEDED");
+    const saved = db.saved()!;
+    expect(saved.view).toMatchObject({ intent: "What do I have to pay?" });
+    const gapRows = (saved.view as { blocks: { name: string; rows: { referencedBy?: unknown[] }[] }[] }).blocks.find((b) => b.name === "gaps")!.rows;
+    expect(gapRows[0]).toMatchObject({
+      id: "X1",
+      referencedBy: [{ sourceDocumentId: V5_DOC, pageNumber: 2, quote: "See prior filing." }],
+    });
   });
 
   it("sends the canonical study and only the facts that study cites", async () => {

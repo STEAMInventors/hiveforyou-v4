@@ -4,7 +4,7 @@
  * `buildStudyView` never throws on content.
  */
 
-import type { CanonicalStudy } from "./canonical-study-contracts";
+import type { CanonicalStudy, SpineSource } from "./canonical-study-contracts";
 
 export const STUDY_VIEW_SCHEMA = "hive.study-view/1";
 export const WRITE_PROMPT_ID = "hive-write/1";
@@ -39,10 +39,14 @@ export type StudyViewSourceRef = {
   readonly quote: string;
 };
 
+/** How a spine value relates to its element; absent on other blocks and on views saved before it existed. */
+export type StudyViewValueRelation = "supporting" | "contradicting" | "updating";
+
 export type StudyViewValue = {
   readonly factId: string;
   readonly valueAsWritten: string;
   readonly sourceRef: StudyViewSourceRef;
+  readonly relation?: StudyViewValueRelation;
 };
 
 export type StudyViewRow = {
@@ -59,6 +63,8 @@ export type StudyViewRow = {
   readonly chainPosition?: number | null;
   readonly relatedSpineIds?: readonly string[];
   readonly missing?: readonly string[];
+  /** Gaps only: pages of supplied documents that refer to the missing document. */
+  readonly referencedBy?: readonly StudyViewSourceRef[];
   readonly values: readonly StudyViewValue[];
 };
 
@@ -81,6 +87,23 @@ export type StudyView = {
   readonly schema: typeof STUDY_VIEW_SCHEMA;
   readonly sections: readonly StudyViewSection[];
   readonly blocks: readonly StudyViewBlock[];
+  /** The owner's intent the view was written for, when the builder was given it. */
+  readonly intent?: string;
+  readonly spineSource?: SpineSource | null;
+};
+
+/** A document one supplied document refers to (from verified extractions). */
+export type StudyViewReferencedDocument = {
+  readonly sourceDocumentId: string;
+  readonly description: string;
+  readonly page: number;
+  readonly quote: string;
+};
+
+/** Optional inputs beyond the canonical study; views built without them simply lack those fields. */
+export type StudyViewContext = {
+  readonly intent?: string;
+  readonly referencedDocuments?: readonly StudyViewReferencedDocument[];
 };
 
 /**
@@ -188,9 +211,13 @@ export function parseWriteOutput(raw: unknown): WriteOutputParse {
   return { ok: true, value: { sections, blocks }, malformed: tally.counts };
 }
 
-function valuesForFactIds(factIds: readonly string[], facts: ReadonlyMap<string, WriteFactRecord>): StudyViewValue[] {
+function valuesForFactIds(
+  factIds: readonly string[],
+  facts: ReadonlyMap<string, WriteFactRecord>,
+  relation?: StudyViewValueRelation,
+  seen: Set<string> = new Set<string>(),
+): StudyViewValue[] {
   const out: StudyViewValue[] = [];
-  const seen = new Set<string>();
   for (const factId of factIds) {
     if (seen.has(factId)) continue;
     seen.add(factId);
@@ -200,9 +227,33 @@ function valuesForFactIds(factIds: readonly string[], facts: ReadonlyMap<string,
       factId: fact.id,
       valueAsWritten: fact.valueAsWritten,
       sourceRef: { sourceDocumentId: fact.sourceDocumentId, pageNumber: fact.pageNumber, quote: fact.quote },
+      ...(relation ? { relation } : {}),
     });
   }
   return out;
+}
+
+const matchTokens = (text: string): Set<string> =>
+  new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((token) => token.length >= 3 || /\d/.test(token)));
+
+/** Share of a referenced document's description words that a gap statement must contain to match it. */
+const REFERENCE_MATCH_SHARE = 0.6;
+
+/**
+ * The referenced-document entries a gap statement names: at least two shared words and at least
+ * {@link REFERENCE_MATCH_SHARE} of the description's words. Pure text overlap, no vocabulary.
+ */
+export function matchReferencedDocuments(
+  statement: string,
+  referencedDocuments: readonly StudyViewReferencedDocument[],
+): StudyViewReferencedDocument[] {
+  const gapTokens = matchTokens(statement);
+  return referencedDocuments.filter((reference) => {
+    const tokens = [...matchTokens(reference.description)];
+    if (tokens.length === 0) return false;
+    const shared = tokens.filter((token) => gapTokens.has(token)).length;
+    return shared >= 2 && shared / tokens.length >= REFERENCE_MATCH_SHARE;
+  });
 }
 
 function dedupeRows(rows: StudyViewRow[]): StudyViewRow[] {
@@ -233,14 +284,18 @@ function buildDocumentsBlock(study: CanonicalStudy): StudyViewRow[] {
 function buildSpineBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>): StudyViewRow[] {
   return dedupeRows(
     study.spine.map((element) => {
-      const factIds = [...element.supportingFactIds, ...element.contradictingFactIds, ...element.updatingFactIds];
+      const seen = new Set<string>();
       return {
         id: element.id,
         label: element.label,
         kind: element.kind || null,
         status: element.status,
         missing: element.missing,
-        values: valuesForFactIds(factIds, facts),
+        values: [
+          ...valuesForFactIds(element.supportingFactIds, facts, "supporting", seen),
+          ...valuesForFactIds(element.contradictingFactIds, facts, "contradicting", seen),
+          ...valuesForFactIds(element.updatingFactIds, facts, "updating", seen),
+        ],
       };
     }),
   );
@@ -266,14 +321,24 @@ function buildTimelineBlock(study: CanonicalStudy, facts: ReadonlyMap<string, Wr
   }));
 }
 
-function buildGapsBlock(study: CanonicalStudy): StudyViewRow[] {
+function buildGapsBlock(study: CanonicalStudy, referencedDocuments: readonly StudyViewReferencedDocument[]): StudyViewRow[] {
   return dedupeRows(
-    study.gaps.map((gap) => ({
-      id: gap.id,
-      statement: gap.statement,
-      relatedSpineIds: gap.relatedSpineIds,
-      values: [],
-    })),
+    study.gaps.map((gap) => {
+      const seen = new Set<string>();
+      const referencedBy = matchReferencedDocuments(gap.statement, referencedDocuments).flatMap((reference) => {
+        const key = `${reference.sourceDocumentId}:${reference.page}`;
+        if (seen.has(key) || reference.page < 1) return [];
+        seen.add(key);
+        return [{ sourceDocumentId: reference.sourceDocumentId, pageNumber: reference.page, quote: reference.quote }];
+      });
+      return {
+        id: gap.id,
+        statement: gap.statement,
+        relatedSpineIds: gap.relatedSpineIds,
+        ...(referencedBy.length > 0 ? { referencedBy } : {}),
+        values: [],
+      };
+    }),
   );
 }
 
@@ -289,13 +354,13 @@ function buildOutsideSpineBlock(study: CanonicalStudy, facts: ReadonlyMap<string
 
 const BLOCK_BUILDERS: Record<
   StudyViewBlockName,
-  (study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>) => StudyViewRow[]
+  (study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext) => StudyViewRow[]
 > = {
   documents: (study) => buildDocumentsBlock(study),
   spine_table: buildSpineBlock,
   conflicts: buildConflictsBlock,
   timeline: buildTimelineBlock,
-  gaps: (study) => buildGapsBlock(study),
+  gaps: (study, _facts, context) => buildGapsBlock(study, context.referencedDocuments ?? []),
   outside_spine: buildOutsideSpineBlock,
 };
 
@@ -330,37 +395,41 @@ function filterSections(
   return { sections: out, sentencesDropped, unknownFactIdsStripped };
 }
 
-function resolveBlockOrder(requested: readonly StudyViewBlockName[]): {
-  order: StudyViewBlockName[];
-  unknownBlockNamesIgnored: number;
-} {
-  if (requested.length === 0) {
-    return { order: [...DEFAULT_STUDY_VIEW_BLOCK_ORDER], unknownBlockNamesIgnored: 0 };
-  }
-  return { order: [...requested], unknownBlockNamesIgnored: 0 };
+/** The model's block order first, then every block it left out: the view always carries the whole study. */
+function resolveBlockOrder(requested: readonly StudyViewBlockName[]): StudyViewBlockName[] {
+  const requestedSet = new Set(requested);
+  return [...requested, ...DEFAULT_STUDY_VIEW_BLOCK_ORDER.filter((name) => !requestedSet.has(name))];
 }
 
 /**
  * Merges verified canonical study data with the write model's narrative. Drops uncited sentences,
- * builds block tables from canonical ids, and ignores unknown block names from the parse step.
+ * builds every block from canonical ids, and ignores unknown block names from the parse step.
  */
 export function buildStudyView(
   canonicalStudy: CanonicalStudy,
   writeOutput: WriteOutput,
   facts: readonly WriteFactRecord[],
   parseMalformed: Record<string, number> = {},
+  context: StudyViewContext = {},
 ): { view: StudyView; drops: StudyViewDrops } {
   const factMap = new Map(facts.map((fact) => [fact.id, fact]));
   const knownFactIds = new Set(factMap.keys());
   const { sections, sentencesDropped, unknownFactIdsStripped } = filterSections(writeOutput.sections, knownFactIds);
-  const { order, unknownBlockNamesIgnored: ignoredFromEmpty } = resolveBlockOrder(writeOutput.blocks);
-  const unknownBlockNamesIgnored = (parseMalformed.block_name_unknown ?? 0) + ignoredFromEmpty;
+  const order = resolveBlockOrder(writeOutput.blocks);
+  const unknownBlockNamesIgnored = parseMalformed.block_name_unknown ?? 0;
   const blocks: StudyViewBlock[] = order.map((name) => ({
     name,
-    rows: BLOCK_BUILDERS[name](canonicalStudy, factMap),
+    rows: BLOCK_BUILDERS[name](canonicalStudy, factMap, context),
   }));
+  const intent = context.intent?.trim() ?? "";
   return {
-    view: { schema: STUDY_VIEW_SCHEMA, sections, blocks },
+    view: {
+      schema: STUDY_VIEW_SCHEMA,
+      sections,
+      blocks,
+      ...(intent !== "" ? { intent } : {}),
+      spineSource: canonicalStudy.spineSource,
+    },
     drops: {
       sentencesDropped,
       unknownBlockNamesIgnored,
@@ -392,6 +461,7 @@ export function buildStudyViewSources(
   for (const block of view.blocks) {
     for (const row of block.rows) {
       row.values.forEach((value) => cite(value.factId));
+      row.referencedBy?.forEach((ref) => documentIds.add(ref.sourceDocumentId));
       if (block.name === "documents") documentIds.add(row.id);
     }
   }

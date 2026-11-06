@@ -42,6 +42,8 @@ import {
   CANONICAL_STUDY_SCHEMA,
   DOC_EXTRACTION_SCHEMA,
   type DocExtraction,
+  type StudyViewReferencedDocument,
+  type StudyViewContext,
   type WriteFactRecord,
   buildWriteAudienceText,
   estimateInputTokensFromUtf8Bytes,
@@ -398,6 +400,21 @@ function fileNamesOf(snapshot: SourceSnapshot | null): Map<string, string> {
   return new Map((snapshot?.documents ?? []).map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]));
 }
 
+function referencedDocumentsFromExtractions(extractions: readonly DocExtraction[]): StudyViewReferencedDocument[] {
+  const out: StudyViewReferencedDocument[] = [];
+  for (const extraction of extractions) {
+    const sourceDocumentId = extraction.documentId;
+    for (const ref of extraction.referencedDocuments) {
+      if (!Number.isInteger(ref.page) || ref.page < 1) continue;
+      const description = typeof ref.description === "string" ? ref.description.trim() : "";
+      if (description === "") continue;
+      const quote = typeof ref.quote === "string" ? ref.quote : "";
+      out.push({ sourceDocumentId, description, page: ref.page, quote });
+    }
+  }
+  return out;
+}
+
 /** Inputs for `hive-write/1` on a `canonical-study-1` revision. */
 export type StudyViewGenerationInputs = {
   readonly canonicalStudy: CanonicalStudy;
@@ -405,6 +422,7 @@ export type StudyViewGenerationInputs = {
   readonly fileNames: Map<string, string>;
   readonly intent: string;
   readonly audience: string;
+  readonly referencedDocuments: StudyViewReferencedDocument[];
 };
 
 /** Fact ids the canonical study actually cites (spine, outside spine, conflicts, timeline). */
@@ -468,6 +486,7 @@ export function studyViewInputsFrom(
       statedAudience: audience === "CUSTOMER" ? statedAudience : null,
       professionalPerspective: audience === "PRO" ? professionalPerspective || statedAudience : null,
     }),
+    referencedDocuments: referencedDocumentsFromExtractions(extractions),
   };
 }
 
@@ -528,6 +547,8 @@ async function processStudyViewReportRun(
       estimateInputTokensFromUtf8Bytes(Buffer.byteLength(JSON.stringify(writePayload), "utf8")),
       writeThroughput.outputInputRatio,
     );
+    const studyViewContext: StudyViewContext =
+      inputs.referencedDocuments.length > 0 ? { referencedDocuments: inputs.referencedDocuments } : {};
     const result = await writeStudyView({
       planner: deps.planner,
       canonicalStudy: inputs.canonicalStudy,
@@ -535,6 +556,7 @@ async function processStudyViewReportRun(
       reportRole: audience,
       audience: inputs.audience,
       intent: inputs.intent,
+      studyViewContext,
       correlationId,
       runId: reportRunId,
       prompt: catalog.write,

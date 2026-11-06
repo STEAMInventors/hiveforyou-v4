@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CANONICAL_STUDY_SCHEMA, type CanonicalStudy } from "./canonical-study-contracts";
-import { buildStudyView, parseWriteOutput, STUDY_VIEW_SCHEMA } from "./study-view-contracts";
+import { buildStudyView, matchReferencedDocuments, parseWriteOutput, STUDY_VIEW_SCHEMA } from "./study-view-contracts";
 
 const FACTS = [
   {
@@ -103,6 +103,45 @@ describe("buildStudyView", () => {
     ]);
   });
 
+  it("keeps the model's block order and appends every block it left out", () => {
+    const { view } = buildStudyView(study, { sections: [], blocks: ["gaps", "documents"] }, FACTS);
+    expect(view.blocks.map((b) => b.name)).toEqual([
+      "gaps",
+      "documents",
+      "spine_table",
+      "conflicts",
+      "timeline",
+      "outside_spine",
+    ]);
+    expect(view.spineSource).toBe("ANCHOR");
+    expect(view.intent).toBeUndefined();
+  });
+
+  it("records the intent when given and how each spine value relates to its element", () => {
+    const { view } = buildStudyView(study, { sections: [], blocks: [] }, FACTS, {}, { intent: "  What is owed?  " });
+    expect(view.intent).toBe("What is owed?");
+    const spine = view.blocks.find((b) => b.name === "spine_table")!;
+    expect(spine.rows[0]!.values.map((v) => v.relation)).toEqual(["supporting", "contradicting"]);
+  });
+
+  it("links a gap to the supplied pages that refer to the missing document", () => {
+    const { view } = buildStudyView(
+      { ...study, gaps: [{ id: "X1", statement: "The 2025 annual ledger (Exhibit C) is referred to but not supplied.", relatedSpineIds: [] }] },
+      { sections: [], blocks: [] },
+      FACTS,
+      {},
+      {
+        referencedDocuments: [
+          { sourceDocumentId: "doc-a", description: "2025 annual ledger (Exhibit C)", page: 3, quote: "Exhibit C" },
+          { sourceDocumentId: "doc-a", description: "Annual ledger, 2025", page: 3, quote: "the ledger" },
+          { sourceDocumentId: "doc-b", description: "Signed lease", page: 1, quote: "the lease" },
+        ],
+      },
+    );
+    const gap = view.blocks.find((b) => b.name === "gaps")!.rows[0]!;
+    expect(gap.referencedBy).toEqual([{ sourceDocumentId: "doc-a", pageNumber: 3, quote: "Exhibit C" }]);
+  });
+
   it("builds block rows from canonical ids with valueAsWritten and source refs", () => {
     const { view } = buildStudyView(
       study,
@@ -120,6 +159,12 @@ describe("buildStudyView", () => {
     });
     const documents = view.blocks.find((b) => b.name === "documents")!;
     expect(documents.rows.map((r) => r.id)).toEqual(["doc-a"]);
+  });
+
+  it("matches a referenced document only on shared words, never on one common word", () => {
+    const refs = [{ sourceDocumentId: "d", description: "Inspection checklist", page: 1, quote: "q" }];
+    expect(matchReferencedDocuments("The move-in inspection checklist was not supplied.", refs)).toHaveLength(1);
+    expect(matchReferencedDocuments("No inspection was recorded.", refs)).toHaveLength(0);
   });
 
   it("never throws on malformed write content", () => {

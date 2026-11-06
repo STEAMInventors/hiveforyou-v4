@@ -114,6 +114,7 @@ describe("writeStudyView", () => {
     expect(sentPayload(fetchFn, 0)).toMatchObject({ task: "write", prompt_id: "hive-write/1" });
     if (!result.ok) throw new Error("expected ok");
     expect(result.view.sections[0]!.heading).toBe("Overview");
+    expect(result.view.intent).toBe("Understand the fee");
     expect(result.calls).toEqual([
       expect.objectContaining({
         attempt: 1,

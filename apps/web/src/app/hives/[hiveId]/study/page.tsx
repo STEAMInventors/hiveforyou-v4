@@ -49,6 +49,10 @@ function latestStudyView(reports: GetHiveReportsResponse | null): StudyViewRepor
   return views.find((report) => report.audience === "CUSTOMER") ?? views[0] ?? null;
 }
 
+function documentPageCounts(state: GetStudyPreparationResponse): Record<string, number> {
+  return Object.fromEntries(state.eligibility.documents.map((document) => [document.sourceDocumentId, document.totalPhysicalPages]));
+}
+
 const STATUS_CLASS = "flex flex-col gap-2 rounded-card border border-line bg-paper px-8 py-10";
 
 export default async function StudyPage({ params }: StudyPageProps) {
@@ -88,6 +92,9 @@ export default async function StudyPage({ params }: StudyPageProps) {
             revisionFormat={revision.format}
             view={studyView?.view ?? null}
             sources={studyView?.studyViewSources ?? null}
+            revisionNumber={revision.revisionNumber}
+            coverageGaps={revision.coverageGaps}
+            documentPages={documentPageCounts(load.state)}
           />
         </div>
       ) : revision ? (

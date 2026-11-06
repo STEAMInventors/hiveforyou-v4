@@ -1,7 +1,7 @@
 import type { BoundRef, BoundValue, NumericStatus } from "@hiveforyou/contracts";
 
-export const CARD_CLASS = "flex flex-col gap-3 rounded-card border border-line bg-paper px-5 py-5 sm:px-6";
-export const HEADING_CLASS = "m-0 font-brand text-[19px] font-semibold text-ink";
+export const CARD_CLASS = "flex flex-col gap-3 rounded-card border border-line bg-paper p-5 sm:p-7";
+export const HEADING_CLASS = "m-0 font-brand text-section font-semibold text-ink";
 
 /**
  * Page citations for one item. Every rendered claim, row or value carries its sources. With `pageHref`
@@ -27,7 +27,7 @@ export function SourceChips({
             href={pageHref(ref)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex max-w-[240px] items-center truncate rounded-full bg-honey-wash px-2 py-0.5 font-mono text-[11.5px] text-honey-deep hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cell-blue"
+            className="inline-flex max-w-[240px] items-center truncate rounded-chip border border-honey-chip-border bg-honey-wash px-[7px] py-[2px] font-mono text-[12px] text-honey-deep hover:bg-honey-chip-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-cell-blue"
             title={`Open ${title}`}
             aria-label={`Open ${title}`}
           >
@@ -36,7 +36,7 @@ export function SourceChips({
         ) : (
           <span
             key={key}
-            className="inline-flex max-w-[240px] items-center truncate rounded-full bg-mist px-2 py-0.5 text-[11.5px] text-ink-muted"
+            className="inline-flex max-w-[240px] items-center truncate rounded-chip bg-mist px-[7px] py-[2px] font-mono text-[12px] text-ink-muted"
             title={title}
           >
             {label}
@@ -60,7 +60,7 @@ const STATUS_BADGE: Record<ValueStatus, { label: string; className: string }> = 
 export function StatusBadge({ status, usesAssumptions = false }: { status: ValueStatus; usesAssumptions?: boolean }) {
   const badge = STATUS_BADGE[status];
   return (
-    <span className={`inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium ${badge.className}`}>
+    <span className={`inline-flex shrink-0 items-center rounded-pill px-2.5 py-[3px] text-caption font-semibold ${badge.className}`}>
       {badge.label}
       {usesAssumptions ? " · uses assumptions" : ""}
     </span>

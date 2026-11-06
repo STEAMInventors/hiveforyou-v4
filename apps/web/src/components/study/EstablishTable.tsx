@@ -1,0 +1,69 @@
+"use client";
+
+import type { StudyViewRow } from "@hiveforyou/contracts";
+
+import { AsWrittenValue, ChangedValue, distinctValues } from "./ChangedValue";
+import { spineRowState } from "./StateBar";
+import { StatusBadge } from "./StatusBadge";
+
+function AsWritten({ row }: { row: StudyViewRow }) {
+  const before = row.values.filter((value) => value.relation === "supporting");
+  const after = row.values.filter((value) => value.relation === "updating");
+  if (row.status === "SUPERSEDED" && before.length > 0 && after.length > 0) {
+    return <ChangedValue before={before} after={after} />;
+  }
+  const values = distinctValues(row.values);
+  if (values.length === 0) return <span className="text-small text-quiet">No value in the documents</span>;
+  return (
+    <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+      {values.map((value) => (
+        <li key={value.text}>
+          <AsWrittenValue value={value} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function EstablishTable({ rows, compact }: { rows: readonly StudyViewRow[]; compact: boolean }) {
+  const cell = `border-b border-line px-3 align-top first:pl-0 last:pr-0 ${compact ? "py-2.5" : "py-4"}`;
+  const head = "border-b border-line px-3 pb-2 text-left text-caption font-semibold text-quiet first:pl-0 last:pr-0";
+  return (
+    <div className="overflow-x-auto" role="region" aria-label="What the documents establish" tabIndex={0}>
+      <table className="w-full min-w-[560px] border-collapse text-body" data-testid="establish-table">
+        <thead>
+          <tr>
+            <th scope="col" className={`${head} w-[120px]`}>
+              State
+            </th>
+            <th scope="col" className={head}>
+              What the documents say
+            </th>
+            <th scope="col" className={head}>
+              As written
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const state = spineRowState(row);
+            return (
+              <tr key={row.id} data-row-id={row.id}>
+                <td className={cell}>{state ? <StatusBadge state={state} /> : null}</td>
+                <th scope="row" className={`${cell} text-left font-normal text-ink`}>
+                  {row.label}
+                  {row.missing && row.missing.length > 0 ? (
+                    <span className="mt-1 block text-small text-coral-deep">Missing: {row.missing.join("; ")}</span>
+                  ) : null}
+                </th>
+                <td className={cell}>
+                  <AsWritten row={row} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}

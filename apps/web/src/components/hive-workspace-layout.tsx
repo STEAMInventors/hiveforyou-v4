@@ -40,7 +40,7 @@ export function HiveWorkspaceLayout({
   }, [hiveId, hiveName, setWorkspace]);
 
   return (
-    <div className="flex flex-1 flex-col bg-paper">
+    <div className={`flex flex-1 flex-col ${activeTab === "documents" ? "bg-paper" : "bg-mist"}`}>
       <div className="sticky top-16 z-30 border-b border-line bg-paper px-[clamp(16px,3vw,32px)]">
         {!headerDisplaysBreadcrumb ? (
           <nav

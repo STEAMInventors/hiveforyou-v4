@@ -5,6 +5,7 @@ import {
   MIN_PLANNER_CALL_MS,
   type ReportAudience,
   type StudyView,
+  type StudyViewContext,
   type StudyViewDrops,
   type WriteFactRecord,
   type WriteOutput,
@@ -47,6 +48,8 @@ export type WriteStudyInput = CallInput & {
   readonly reportRole: ReportAudience;
   readonly audience: string;
   readonly intent: string;
+  /** Optional view context (intent on the view, referenced documents for gap grouping). */
+  readonly studyViewContext?: StudyViewContext;
   readonly prompt?: WritePrompt;
   /**
    * Absolute time by which the write HTTP call must have aborted, at least 30s before the route's
@@ -274,6 +277,10 @@ export async function writeStudyView(input: WriteStudyInput): Promise<WriteStudy
     calls,
   );
   if (!outcome.ok) return { ok: false, error: outcome.error, calls };
-  const { view, drops } = buildStudyView(input.canonicalStudy, outcome.value, input.facts, outcome.malformed);
+  const context: StudyViewContext = {
+    ...(input.studyViewContext ?? {}),
+    ...(input.intent.trim() !== "" ? { intent: input.intent.trim() } : {}),
+  };
+  const { view, drops } = buildStudyView(input.canonicalStudy, outcome.value, input.facts, outcome.malformed, context);
   return { ok: true, view, drops, malformed: outcome.malformed, calls };
 }

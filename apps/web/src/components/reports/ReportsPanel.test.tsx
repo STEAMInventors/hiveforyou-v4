@@ -28,6 +28,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { A2uiView } from "@/components/a2ui/A2uiView";
+import { bankruptcyC13Fixture } from "@/components/study/fixtures/bankruptcy-c13";
 
 import { ReportsPanel } from "./ReportsPanel";
 
@@ -160,7 +161,9 @@ describe("ReportsPanel", () => {
 
   it("keeps a failed Pro Writer separate and regenerates only that report", async () => {
     render(<ReportsPanel hiveId={HIVE_ID} initial={state()} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Pro" }));
+    fireEvent.click(screen.getByRole("link", { name: "Pro" }));
+    expect(window.location.search).toBe("?audience=pro");
+    expect(screen.getByRole("link", { name: "Pro" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByTestId("report-run-status").textContent).toContain("Your study is safe");
     expect(screen.queryByTestId("report-view")).toBeNull();
 
@@ -171,6 +174,36 @@ describe("ReportsPanel", () => {
     const post = vi.mocked(fetch).mock.calls.find(([, init]) => init?.method === "POST")!;
     expect(JSON.parse(String(post[1]!.body))).toMatchObject({ studyRevisionId: REVISION_ID, audience: "PRO" });
     await screen.findByText("Writing this report from your study…");
+  });
+
+  it("renders a study-view report in the branded layout with the audience switch and Generate again in its header", () => {
+    const fixture = bankruptcyC13Fixture("PRO");
+    const pro: HiveReport = {
+      id: "eeeeeeee-0000-4000-8000-000000000002",
+      reportRunId: "cccccccc-0000-4000-8000-000000000002",
+      studyRevisionId: REVISION_ID,
+      revisionNumber: 1,
+      audience: "PRO",
+      title: fixture.title,
+      createdAt: fixture.writtenAt,
+      view: fixture.view,
+      studyViewSources: fixture.sources,
+      modelAlias: null,
+    };
+    render(
+      <ReportsPanel
+        hiveId={HIVE_ID}
+        initialAudience="PRO"
+        documentPages={fixture.documentPages}
+        initial={state({ reportRuns: [reportRun("PRO", "SUCCEEDED", { reportId: pro.id })], latest: [pro], history: [pro] })}
+      />,
+    );
+    const header = screen.getByTestId("report-header");
+    expect(within(header).getByRole("link", { name: "Pro" }).getAttribute("aria-current")).toBe("page");
+    expect(within(header).getByTestId("generate-again")).toBeTruthy();
+    expect(header.textContent).toContain("Pro report · From study revision 1");
+    expect(screen.getAllByTestId("comparison-card")).toHaveLength(2);
+    expect(screen.queryByTestId("see-details")).toBeNull();
   });
 });
 
