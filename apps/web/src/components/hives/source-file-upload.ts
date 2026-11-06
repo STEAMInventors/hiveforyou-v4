@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  FREE_UPLOADS_PER_UTC_MONTH,
-  validateSourceFileCandidate,
-  type SourceDocument,
-} from "@hiveforyou/contracts";
+import { validateSourceFileCandidate, type SourceDocument } from "@hiveforyou/contracts";
 
 import { HiveClientError } from "@/lib/hives-client";
 import { uploadSourceDocument } from "@/lib/source-documents-client";
@@ -27,7 +23,8 @@ export type SelectedSourceFile = {
   correlationId?: string | null;
 };
 
-export const MAX_FILES_PER_BATCH = FREE_UPLOADS_PER_UTC_MONTH;
+/** Per pick/drop on the client; independent of the monthly upload quota (D-012). */
+export const MAX_FILES_PER_BATCH = 25;
 
 const REJECTION_MESSAGES: Record<string, string> = {
   TYPE_MISMATCH: "This file isn't really a PDF, PNG, JPG or DOCX.",

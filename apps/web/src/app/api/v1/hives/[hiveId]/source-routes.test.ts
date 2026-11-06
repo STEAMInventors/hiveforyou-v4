@@ -211,7 +211,7 @@ describe("V4-003 source routes", () => {
 
   describe("GET /api/v1/upload-quota", () => {
     it("returns the owner's quota", async () => {
-      const quota = { limit: 10, used: 1, remaining: 9, periodStart: "a", periodEnd: "b" };
+      const quota = { limit: 2000, used: 1, remaining: 1999, periodStart: "a", periodEnd: "b" };
       adapter.getUploadQuotaWithV3Vault.mockResolvedValue({ quota });
       const res = await getQuota(new NextRequest("http://localhost/api/v1/upload-quota"));
 

@@ -14,7 +14,7 @@
 | F-002 | Auth | Sign up, sign in, sign out, callback/session recovery | PKCE callback where confirmation applies; no leakage of other users' Hives |
 | F-003 | My Hives / Landing | Show owned Hives; create from one shared composer with **written intent** and **≥1 supported document**; Hive name is provisional, taken from the intent (D-037) | Provisional name ≤100 chars, intent 1–2000 chars, D-026/D-037; idempotent client requests; route after at least one registered upload in create flow |
 | F-004 | My Hives | Archive / delete Hive with explicit confirmation | Pre/post Study deletion safeguards and recoverable failures; do not silently hard-delete evidence |
-| F-005 | Documents | Upload PDF/PNG/JPEG/DOCX, register with private source metadata (D-027 prepare/register + hash scan) | Free 10 successful registered uploads per UTC month; server validates type/size/malware; bad file clearly fails |
+| F-005 | Documents | Upload PDF/PNG/JPEG/DOCX, register with private source metadata (D-027 prepare/register + hash scan) | Free 2000 successful registered uploads per UTC month (D-012, development); server validates type/size/malware; bad file clearly fails |
 | F-006 | Documents | See ordered document list and registration/read states | Registration/uploading/failed/rejected shown honestly; **read_status beyond PENDING shown only from verified Read Documents attempts (D-038)** |
 | F-007 | Documents | Open exact original document and page | **Deferred past current V4-003 slice.** Accessible viewer; physically numbered pages; source authorization checked on each request |
 | F-008 | Documents | Inspect document detail, provenance/read coverage | Date, hash/metadata and any source limitations; no raw secrets in UI/logs |

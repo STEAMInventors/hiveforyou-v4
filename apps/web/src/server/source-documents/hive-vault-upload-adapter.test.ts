@@ -6,7 +6,7 @@ import { InMemoryEvidenceObjectStore } from "@hives/persistence/storage/memory";
 import { InMemoryVaultRepositories } from "@hives/persistence/vault/memory";
 import { buildSourceObjectPath } from "@hives/persistence/vault/path";
 import { structuredPdf, pngBytes } from "@hives/security";
-import { createHiveError, type Hive } from "@hiveforyou/contracts";
+import { createHiveError, FREE_UPLOADS_PER_UTC_MONTH, type Hive } from "@hiveforyou/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -155,7 +155,7 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
 
     const quota = await getUploadQuotaWithV3Vault(deps, USER_A, CORR_ID);
     expect(quota.quota.used).toBe(2);
-    expect(quota.quota.remaining).toBe(8);
+    expect(quota.quota.remaining).toBe(FREE_UPLOADS_PER_UTC_MONTH - 2);
   });
 
   it("isolates owners: another user cannot list or upload to someone else's Hive", async () => {
@@ -229,30 +229,34 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
     expect(downHarness.store.putCreateOnlyCalls).toBe(0);
   });
 
-  it("enforces the Free quota of 10 registered uploads per UTC month", async () => {
+  it("enforces the Free quota when the monthly allowance is exhausted", async () => {
     const { deps } = createTestHarness();
-    for (let i = 0; i < 10; i += 1) {
-      const res = await uploadHiveSourceDocumentWithV3Vault(deps, {
-        ownerUserId: USER_A,
-        hiveId: HIVE_A,
-        clientRequestId: crypto.randomUUID(),
-        fileName: `doc-${i}.pdf`,
-        bytes: PDF_BYTES,
-        correlationId: CORR_ID,
-      });
-      expect(res.sourceDocument.status).toBe("REGISTERED");
-    }
+    const periodStart = new Date(Date.UTC(2026, 10, 1)).toISOString();
+    const periodEnd = new Date(Date.UTC(2026, 11, 1)).toISOString();
+    deps.getQuota = async () => ({
+      limit: FREE_UPLOADS_PER_UTC_MONTH,
+      used: FREE_UPLOADS_PER_UTC_MONTH,
+      remaining: 0,
+      periodStart,
+      periodEnd,
+    });
 
     await expect(
       uploadHiveSourceDocumentWithV3Vault(deps, {
         ownerUserId: USER_A,
         hiveId: HIVE_A,
         clientRequestId: crypto.randomUUID(),
-        fileName: "doc-11.pdf",
+        fileName: "over-quota.pdf",
         bytes: PDF_BYTES,
         correlationId: CORR_ID,
       }),
     ).rejects.toMatchObject({ errorCode: "QUOTA_EXCEEDED" });
+  });
+
+  it("reports the configured monthly upload limit from computeVaultUploadQuota", async () => {
+    const { deps } = createTestHarness();
+    const quota = await getUploadQuotaWithV3Vault(deps, USER_A, CORR_ID);
+    expect(quota.quota.limit).toBe(FREE_UPLOADS_PER_UTC_MONTH);
   });
 
   it("validates and records intent requests idempotently", async () => {

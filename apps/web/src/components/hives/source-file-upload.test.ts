@@ -11,6 +11,7 @@ vi.mock("@/lib/source-documents-client", () => client);
 
 import {
   hasUploadableFiles,
+  MAX_FILES_PER_BATCH,
   toSelectedSourceFiles,
   uploadSelectedSourceFiles,
   type SelectedSourceFile,
@@ -57,6 +58,10 @@ async function run(files: SelectedSourceFile[]) {
 describe("source file upload batch", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  it("caps each client batch independently of the monthly upload quota", () => {
+    expect(MAX_FILES_PER_BATCH).toBe(25);
   });
 
   it("blocks submission when any selected file is invalid", () => {

@@ -1,5 +1,6 @@
 import {
   buildFailureDiagnostic,
+  buildUnexpectedExceptionDiagnostics,
   classifyFailure,
   createHiveError,
   type DomainProposal,
@@ -184,6 +185,30 @@ function analysisError(
   return createHiveError({ category: "INTERNAL", stage: "ANALYZE", ...input });
 }
 
+function unexpectedAnalysisFailure(correlationId: string, cause: unknown): HiveError {
+  const { diagnosticField } = buildUnexpectedExceptionDiagnostics(cause);
+  return analysisError({
+    errorCode: "INTERNAL_ERROR",
+    retryable: true,
+    safeMessage: STOPPED_MESSAGE,
+    correlationId,
+    diagnosticReason: "unexpected_exception",
+    ...(diagnosticField ? { diagnosticField } : {}),
+    cause,
+  });
+}
+
+function unexpectedExceptionObservability(error?: {
+  diagnosticReason?: string;
+  diagnosticField?: string;
+  cause?: unknown;
+}) {
+  if (!error || error.diagnosticReason !== "unexpected_exception") {
+    return null;
+  }
+  return buildUnexpectedExceptionDiagnostics(error.cause ?? error);
+}
+
 async function rpc(client: DocumentReadRpcClient, fn: string, args: Record<string, unknown>) {
   const { data, error } = await client.rpc(fn, args);
   if (error) throw new Error(error.message ?? `${fn} failed`);
@@ -271,6 +296,7 @@ function log(
   failureStage?: string,
 ) {
   const reason = error?.diagnosticReason ?? (error ? "unexpected_exception" : undefined);
+  const unexpected = unexpectedExceptionObservability(error);
   const classified =
     error && reason ? classifyFailure({ stage: failureStage ?? "INVESTIGATING", diagnosticReason: reason }) : null;
   emitStructuredEvent({
@@ -292,7 +318,12 @@ function log(
           errorCode: error.errorCode,
           retryable: error.retryable,
           diagnosticReason: reason,
-          ...(typeof error.diagnosticField === "string" ? { diagnosticField: error.diagnosticField } : {}),
+          ...(typeof error.diagnosticField === "string"
+            ? { diagnosticField: error.diagnosticField }
+            : unexpected?.diagnosticField
+              ? { diagnosticField: unexpected.diagnosticField }
+              : {}),
+          ...(unexpected?.errorDetail ? { errorDetail: unexpected.errorDetail } : {}),
         }
       : {}),
   });
@@ -1112,24 +1143,16 @@ async function failRun(context: Context, status: ProcessingRunStatus, run: Proce
     error instanceof StageFailure
       ? error
       : new StageFailure(
-          isHiveError(error)
-            ? error
-            : analysisError({
-                errorCode: "INTERNAL_ERROR",
-                retryable: true,
-                safeMessage: STOPPED_MESSAGE,
-                correlationId: context.correlationId,
-                diagnosticReason: "unexpected_exception",
-                cause: error,
-              }),
+          isHiveError(error) ? error : unexpectedAnalysisFailure(context.correlationId, error),
           null,
         );
   const failureStage = failure.metric?.stage ?? status;
+  const unexpected = unexpectedExceptionObservability(failure.hiveError);
   const diagnostic = persistedDiagnostic({
     stage: failureStage,
     errorCode: failure.hiveError.errorCode,
     diagnosticReason: failure.hiveError.diagnosticReason ?? "unexpected_exception",
-    diagnosticField: failure.hiveError.diagnosticField,
+    diagnosticField: failure.hiveError.diagnosticField ?? unexpected?.diagnosticField ?? null,
     retryable: failure.hiveError.retryable,
     attempt: failure.metric?.attempt ?? run.stageAttempt,
   });

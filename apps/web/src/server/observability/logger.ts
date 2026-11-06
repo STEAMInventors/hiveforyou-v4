@@ -28,6 +28,7 @@ export const ALLOWLISTED_LOG_FIELDS = [
   "rejectedUnits",
   "rejectionSummary",
   "rounds",
+  "errorDetail",
 ] as const;
 
 export type AllowlistedLogField = (typeof ALLOWLISTED_LOG_FIELDS)[number];
@@ -334,6 +335,12 @@ export function buildStructuredLogRecord(
     }
     if (key === "rejectionSummary" && typeof raw === "string") {
       if (/^[a-z][a-z0-9_]{0,63}:[0-9]{1,4}(?:,[a-z][a-z0-9_]{0,63}:[0-9]{1,4})*$/.test(raw) && raw.length <= 200) {
+        output[key] = raw;
+      }
+      continue;
+    }
+    if (key === "errorDetail" && typeof raw === "string") {
+      if (raw.length > 0 && raw.length <= 480 && !SENSITIVE_KEY_PATTERN.test(raw)) {
         output[key] = raw;
       }
       continue;

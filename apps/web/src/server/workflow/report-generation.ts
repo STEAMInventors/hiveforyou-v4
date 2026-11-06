@@ -1,5 +1,6 @@
 import {
   buildFailureDiagnostic,
+  buildUnexpectedExceptionDiagnostics,
   buildWriterCanonicalFindingsProjection,
   type CanonicalFindingResolution,
   classifyFailure,
@@ -185,9 +186,31 @@ function reportError(
   input: Pick<HiveError, "errorCode" | "retryable" | "safeMessage" | "correlationId" | "diagnosticReason" | "diagnosticField"> & {
     category?: HiveError["category"];
     operationId?: string;
+    cause?: unknown;
   },
 ): HiveError {
   return createHiveError({ category: "MODEL", stage: "ANALYZE", ...input });
+}
+
+function unexpectedReportFailure(correlationId: string, cause: unknown): HiveError {
+  const { diagnosticField } = buildUnexpectedExceptionDiagnostics(cause);
+  return reportError({
+    errorCode: "INTERNAL_ERROR",
+    category: "INTERNAL",
+    retryable: true,
+    safeMessage: STOPPED_MESSAGE,
+    correlationId,
+    diagnosticReason: "unexpected_exception",
+    ...(diagnosticField ? { diagnosticField } : {}),
+    cause,
+  });
+}
+
+function unexpectedExceptionObservability(error: HiveError | undefined) {
+  if (!error || error.diagnosticReason !== "unexpected_exception") {
+    return null;
+  }
+  return buildUnexpectedExceptionDiagnostics(error.cause ?? error);
 }
 
 function log(
@@ -208,6 +231,7 @@ function log(
   },
 ): void {
   const reason = error?.diagnosticReason ?? (error ? "unexpected_exception" : undefined);
+  const unexpected = unexpectedExceptionObservability(error);
   const classified = error && reason ? classifyFailure({ stage: failureStage, diagnosticReason: reason, task: "writer" }) : null;
   emitStructuredEvent({
     eventName: `report.${status.toLowerCase()}`,
@@ -237,7 +261,12 @@ function log(
           errorCode: error.errorCode,
           retryable: error.retryable,
           diagnosticReason: reason,
-          ...(typeof error.diagnosticField === "string" ? { diagnosticField: error.diagnosticField } : {}),
+          ...(typeof error.diagnosticField === "string"
+            ? { diagnosticField: error.diagnosticField }
+            : unexpected?.diagnosticField
+              ? { diagnosticField: unexpected.diagnosticField }
+              : {}),
+          ...(unexpected?.errorDetail ? { errorDetail: unexpected.errorDetail } : {}),
         }
       : {}),
   });
@@ -303,13 +332,14 @@ function logWriterRuntimeEvent(
 
 function reportDiagnostic(error: HiveError, attempt: number, stage = "WRITING") {
   const reason = error.diagnosticReason ?? "unexpected_exception";
+  const unexpected = unexpectedExceptionObservability(error);
   const classified = classifyFailure({ stage, diagnosticReason: reason, task: "writer" });
   return buildFailureDiagnostic({
     ...classified,
     stage,
     errorCode: error.errorCode,
     diagnosticReason: reason,
-    diagnosticField: error.diagnosticField ?? null,
+    diagnosticField: error.diagnosticField ?? unexpected?.diagnosticField ?? null,
     retryable: error.retryable,
     attempt,
   });
@@ -524,16 +554,7 @@ async function processStudyViewReportRun(
     }
     return done?.status ?? "SUCCEEDED";
   } catch (error) {
-    const hiveError = isHiveError(error)
-      ? error
-      : reportError({
-          errorCode: "INTERNAL_ERROR",
-          category: "INTERNAL",
-          retryable: true,
-          safeMessage: STOPPED_MESSAGE,
-          correlationId,
-          diagnosticReason: "unexpected_exception",
-        });
+    const hiveError = isHiveError(error) ? error : unexpectedReportFailure(correlationId, error);
     return failReportRun(deps, claimed, current, hiveError, metric, startedAt);
   }
 }
@@ -1362,16 +1383,7 @@ export async function processReportRun(deps: ReportGenerationDeps, reportRunId: 
     });
     return done?.status ?? "SUCCEEDED";
   } catch (error) {
-    const hiveError = isHiveError(error)
-      ? error
-      : reportError({
-          errorCode: "INTERNAL_ERROR",
-          category: "INTERNAL",
-          retryable: true,
-          safeMessage: STOPPED_MESSAGE,
-          correlationId,
-          diagnosticReason: "unexpected_exception",
-        });
+    const hiveError = isHiveError(error) ? error : unexpectedReportFailure(correlationId, error);
     return failReportRun(deps, claimed, current, hiveError, metric, startedAt);
   }
 }
