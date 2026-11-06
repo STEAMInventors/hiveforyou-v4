@@ -2,16 +2,18 @@ import {
   type CanonicalStudy,
   createHiveError,
   type HiveError,
+  MIN_PLANNER_CALL_MS,
   type ReportAudience,
   type StudyView,
   type StudyViewDrops,
   type WriteFactRecord,
   type WriteOutput,
+  V5_CLIENT_TASK_TIMEOUT_MS,
   buildStudyView,
   parseWriteOutput,
 } from "@hiveforyou/contracts";
 
-import { callPlanner, PLANNER_TASK_HTTP_TIMEOUT_MS, type PlannerDeps } from "@/server/study-preparation/planner-client";
+import { callPlanner, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { type WritePrompt, loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 
 /** Planner failures that mean the model answered but the answer was not a usable JSON object. */
@@ -51,6 +53,8 @@ export type WriteStudyInput = CallInput & {
    * maxDuration, so a timeout can be stored before the platform kills the function.
    */
   readonly deadlineMs?: number;
+  readonly resolvePlannerTimeoutMs?: () => number | "expired";
+  readonly clock?: () => number;
 };
 
 export type WriteStudyResult =
@@ -110,10 +114,6 @@ function asHiveError(error: unknown): HiveError | null {
 const RETRY_NOTE = (reason: string) =>
   `Your previous answer could not be used (${reason}). Return only the JSON object described in the instructions, with no text before or after it.`;
 
-/** Below this, don't start a call that cannot return before the function is killed. */
-const MIN_WRITE_CALL_MS = 1_000;
-const WRITE_HTTP_BUDGET_MS = PLANNER_TASK_HTTP_TIMEOUT_MS.write ?? 270_000;
-
 function timeoutError(correlationId: string, runId: string): HiveError {
   return createHiveError({
     errorCode: "MODEL_TIMEOUT",
@@ -143,24 +143,53 @@ function failedCall(attempt: 1 | 2, errorCode: string, reason: string, roundTrip
   };
 }
 
-/** Time left until `deadlineMs`, capped at the write budget. `"expired"` when a call would not fit. */
-function writeTimeoutMs(deadlineMs: number | undefined): number | "default" | "expired" {
-  if (deadlineMs === undefined) return "default";
-  const remaining = Math.floor(deadlineMs - Date.now());
-  if (remaining < MIN_WRITE_CALL_MS) return "expired";
-  return Math.min(remaining, WRITE_HTTP_BUDGET_MS);
+function plannerCallTimeoutMs(input: {
+  readonly resolvePlannerTimeoutMs?: () => number | "expired";
+  readonly deadlineMs?: number;
+  readonly clock?: () => number;
+}): number | "default" | "expired" {
+  const now = (input.clock ?? Date.now)();
+  const safeNow = Number.isFinite(now) ? now : Date.now();
+  let budgetMs: number | "default" = "default";
+  if (input.resolvePlannerTimeoutMs) {
+    const computed = input.resolvePlannerTimeoutMs();
+    if (computed === "expired") return "expired";
+    if (typeof computed !== "number" || !Number.isFinite(computed) || computed < MIN_PLANNER_CALL_MS) {
+      return "expired";
+    }
+    budgetMs = computed;
+  }
+  if (input.deadlineMs !== undefined) {
+    if (!Number.isFinite(input.deadlineMs)) return "expired";
+    const remaining = Math.floor(input.deadlineMs - safeNow);
+    if (!Number.isFinite(remaining) || remaining < MIN_PLANNER_CALL_MS) return "expired";
+    budgetMs =
+      budgetMs === "default"
+        ? Math.min(remaining, V5_CLIENT_TASK_TIMEOUT_MS)
+        : Math.min(budgetMs, remaining);
+  }
+  if (budgetMs === "default") return "default";
+  if (!Number.isFinite(budgetMs) || budgetMs < MIN_PLANNER_CALL_MS) return "expired";
+  return budgetMs;
 }
 
 async function callWithRetry(
-  input: CallInput & { prompt: WritePrompt; payload: Record<string, unknown>; deadlineMs?: number },
+  input: CallInput & {
+    prompt: WritePrompt;
+    payload: Record<string, unknown>;
+    deadlineMs?: number;
+    resolvePlannerTimeoutMs?: () => number | "expired";
+    clock?: () => number;
+  },
   calls: WriteCallRecord[],
 ): Promise<{ ok: true; value: WriteOutput; malformed: Record<string, number> } | { ok: false; error: HiveError }> {
+  const clock = input.clock ?? Date.now;
   let parseError: string | null = null;
   for (const attempt of [1, 2] as const) {
-    const started = Date.now();
-    const timeoutMs = writeTimeoutMs(input.deadlineMs);
+    const started = clock();
+    const timeoutMs = plannerCallTimeoutMs(input);
     if (timeoutMs === "expired") {
-      calls.push(failedCall(attempt, "MODEL_TIMEOUT", "planner_timeout", Date.now() - started));
+      calls.push(failedCall(attempt, "MODEL_TIMEOUT", "planner_timeout", Math.max(0, clock() - started)));
       return { ok: false, error: timeoutError(input.correlationId, input.runId) };
     }
     const userPayload = parseError === null ? input.payload : { ...input.payload, retryNote: RETRY_NOTE(parseError) };
@@ -233,7 +262,17 @@ export async function writeStudyView(input: WriteStudyInput): Promise<WriteStudy
   const prompt = input.prompt ?? loadPromptCatalog().write;
   const payload = buildWritePayload(input.canonicalStudy, input.facts, input.reportRole, input.audience, input.intent);
   const calls: WriteCallRecord[] = [];
-  const outcome = await callWithRetry({ ...input, prompt, payload, deadlineMs: input.deadlineMs }, calls);
+  const outcome = await callWithRetry(
+    {
+      ...input,
+      prompt,
+      payload,
+      deadlineMs: input.deadlineMs,
+      resolvePlannerTimeoutMs: input.resolvePlannerTimeoutMs,
+      clock: input.clock,
+    },
+    calls,
+  );
   if (!outcome.ok) return { ok: false, error: outcome.error, calls };
   const { view, drops } = buildStudyView(input.canonicalStudy, outcome.value, input.facts, outcome.malformed);
   return { ok: true, view, drops, malformed: outcome.malformed, calls };

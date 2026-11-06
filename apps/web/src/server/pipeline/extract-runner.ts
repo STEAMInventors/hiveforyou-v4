@@ -5,6 +5,9 @@ import {
   documentKeyFor,
   type ExtractionVerificationStats,
   type HiveError,
+  type PipelineThroughputStats,
+  defaultPipelineThroughput,
+  planExtractPageRanges,
   validateDocExtraction,
   type VerificationPage,
   verifyExtraction,
@@ -12,13 +15,6 @@ import {
 
 import { callPlanner, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { type ExtractPrompt, loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
-
-/** Pages per `hive-extract/1` call; keeps one answer inside the extract output cap and the planner timeout. */
-export const EXTRACT_PAGES_PER_CALL = 20;
-/** Smaller ranges for long documents where dense pages often exceed the output cap. */
-export const EXTRACT_PAGES_PER_CALL_DENSE = 10;
-/** Documents with more than this many pages start with {@link EXTRACT_PAGES_PER_CALL_DENSE}-page ranges. */
-export const DENSE_DOCUMENT_MIN_PAGES = 21;
 
 const TRUNCATION_REASON = "model_output_truncated";
 
@@ -66,20 +62,14 @@ export type ExtractDocumentInput = {
   readonly resolvePlannerTimeoutMs?: () => number | "expired";
 };
 
-export function pagesPerExtractChunk(totalPages: number): number {
-  return totalPages >= DENSE_DOCUMENT_MIN_PAGES ? EXTRACT_PAGES_PER_CALL_DENSE : EXTRACT_PAGES_PER_CALL;
-}
-
-export function pageRanges(pages: readonly VerificationPage[]): { pageRange: string | null; pages: VerificationPage[] }[] {
-  const sorted = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
-  const chunk = pagesPerExtractChunk(sorted.length);
-  if (sorted.length <= chunk) return [{ pageRange: null, pages: sorted }];
-  const ranges: { pageRange: string; pages: VerificationPage[] }[] = [];
-  for (let start = 0; start < sorted.length; start += chunk) {
-    const slice = sorted.slice(start, start + chunk);
-    ranges.push({ pageRange: `${slice[0]!.pageNumber}-${slice[slice.length - 1]!.pageNumber}`, pages: slice });
-  }
-  return ranges;
+export function pageRanges(
+  pages: readonly VerificationPage[],
+  stats: PipelineThroughputStats = defaultPipelineThroughput("extract"),
+): { pageRange: string | null; pages: VerificationPage[] }[] {
+  return planExtractPageRanges(
+    pages.map((page) => ({ pageNumber: page.pageNumber, text: page.text })),
+    stats,
+  );
 }
 
 function splitPagesInHalf(pages: VerificationPage[]): [VerificationPage[], VerificationPage[]] {
@@ -123,19 +113,20 @@ export function pagesCoveredBySavedRangeKeys(savedRangeKeys: ReadonlySet<string>
 export function missingExtractWorkItems(
   pages: readonly VerificationPage[],
   savedRangeKeys: ReadonlySet<string>,
+  stats: PipelineThroughputStats = defaultPipelineThroughput("extract"),
 ): { pageRange: string | null; pages: VerificationPage[] }[] {
   const sorted = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
   if (sorted.length === 0) return [];
   const covered = pagesCoveredBySavedRangeKeys(savedRangeKeys, sorted.length);
   const uncovered = sorted.filter((page) => !covered.has(page.pageNumber));
   if (uncovered.length === 0) return [];
-  const chunk = pagesPerExtractChunk(sorted.length);
-  const items: { pageRange: string | null; pages: VerificationPage[] }[] = [];
-  for (let start = 0; start < uncovered.length; start += chunk) {
-    const slice = uncovered.slice(start, start + chunk);
-    items.push({ pageRange: rangeLabel(slice), pages: slice });
-  }
-  return items;
+  return planExtractPageRanges(
+    uncovered.map((page) => ({ pageNumber: page.pageNumber, text: page.text })),
+    stats,
+  ).map((item) => ({
+    ...item,
+    pageRange: item.pageRange ?? rangeLabel(item.pages),
+  }));
 }
 
 function emptyVerificationStats(): ExtractionVerificationStats {
@@ -152,15 +143,15 @@ function emptyVerificationStats(): ExtractionVerificationStats {
   };
 }
 
-function gapExtraction(
-  input: ExtractDocumentInput & { prompt: ExtractPrompt },
+export function buildPageExtractionGap(
+  document: { readonly id: string; readonly fileName: string },
   range: { pageRange: string | null; pages: VerificationPage[] },
   pageNumber: number,
 ): DocExtraction {
   return {
     schema: "hive.doc-extraction/1",
-    documentId: input.document.id,
-    fileName: input.document.fileName,
+    documentId: document.id,
+    fileName: document.fileName,
     pageRange: range.pageRange,
     document: {
       titleAsPrinted: "",
@@ -313,8 +304,28 @@ async function extractRangeAdaptive(
   }
   const truncated =
     outcome.error.errorCode === "MODEL_OUTPUT_INVALID" && outcome.error.diagnosticReason === TRUNCATION_REASON;
-  if (!truncated) return outcome;
+  const timedOut = outcome.error.errorCode === "MODEL_TIMEOUT";
+  if (!truncated && !timedOut) return outcome;
   const { pages } = range;
+  if (timedOut) {
+    if (pages.length > 1) {
+      const [leftPages, rightPages] = splitPagesInHalf(pages);
+      const left = await extractRangeAdaptive(
+        input,
+        { pageRange: rangeLabel(leftPages), pages: leftPages },
+        calls,
+        persist,
+      );
+      const right = await extractRangeAdaptive(
+        input,
+        { pageRange: rangeLabel(rightPages), pages: rightPages },
+        calls,
+        persist,
+      );
+      return mergeRangeOutcomes(left, right, pages);
+    }
+    return outcome;
+  }
   if (pages.length > 1) {
     const [leftPages, rightPages] = splitPagesInHalf(pages);
     const left = await extractRangeAdaptive(
@@ -332,7 +343,7 @@ async function extractRangeAdaptive(
     return mergeRangeOutcomes(left, right, pages);
   }
   const pageNumber = pages[0]!.pageNumber;
-  const extraction = gapExtraction(input, range, pageNumber);
+  const extraction = buildPageExtractionGap(input.document, range, pageNumber);
   const gapOutcome = {
     ok: true as const,
     extraction,
@@ -515,14 +526,15 @@ export function mergeRanges(ranges: DocExtraction[], pageCount: number): DocExtr
 }
 
 /**
- * Runs `hive-extract/1` over one document: planner calls per page range (20 pages, or 10 when the
- * document has more than 20 pages), with recursive halving when the model hits the output cap.
+ * Runs `hive-extract/1` over one document using size-driven page ranges and recursive halving when
+ * the model hits the output cap or times out on a multi-page range.
  * A single page that still truncates is recorded as a page extraction gap; the document still saves.
  * An unusable answer is retried once with the reason appended; a second failure fails the document.
  */
 async function extractAllRanges(input: ExtractDocumentInput): Promise<ExtractDocumentResult> {
   const prompt = input.prompt ?? loadPromptCatalog().extract;
   const documentKey = documentKeyFor(input.document.id);
+  const throughput = defaultPipelineThroughput("extract");
   const calls: ExtractCallRecord[] = [];
   const parts: DocExtraction[] = [];
   const stats: ExtractDocumentStats = {
@@ -540,7 +552,7 @@ async function extractAllRanges(input: ExtractDocumentInput): Promise<ExtractDoc
     ranges: [],
     pageExtractionGaps: [],
   };
-  for (const range of pageRanges(input.pages)) {
+  for (const range of pageRanges(input.pages, throughput)) {
     const outcome = await extractRangeAdaptive({ ...input, prompt }, range, calls);
     if (!outcome.ok) return { ok: false, error: outcome.error, calls };
     parts.push(outcome.extraction);

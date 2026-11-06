@@ -1,72 +1,102 @@
 import {
   type CanonicalStudy,
   CANONICAL_STUDY_SCHEMA,
+  computePlannerCallTimeoutMs,
+  canStartPlannerCall,
   createHiveError,
   type DocExtraction,
+  estimateInputTokensFromPageText,
+  estimateInputTokensFromUtf8Bytes,
+  expectedOutputTokens,
   type HiveError,
+  invocationRemainingMs,
+  MIN_PLANNER_CALL_MS,
   normalizeProcessingRun,
+  type PipelineThroughputStats,
   type ProcessingRun,
   type SnapshotDocument,
   type SourceSnapshot,
   type StageMetric,
   type StoredIntent,
   STUDY_VERIFICATION_SCHEMA,
+  V5_CLIENT_TASK_TIMEOUT_MS,
   resolveAudienceConfiguration,
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
-import { canonicalizeCase } from "@/server/pipeline/canonicalize-runner";
+import { buildCanonicalizePayload, canonicalizeCase } from "@/server/pipeline/canonicalize-runner";
 import {
   type ExtractCallRecord,
   type ExtractDocumentStats,
+  buildPageExtractionGap,
   extractScheduledRange,
   mergeSavedRangeExtractions,
   missingExtractWorkItems,
   pageRangeStorageKey,
   pagesCoveredBySavedRangeKeys,
+  parsePageRangeStorageKey,
 } from "@/server/pipeline/extract-runner";
+import { loadPipelineThroughput, recordPipelineModelCall } from "@/server/pipeline/pipeline-throughput";
 import { sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import type { PromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 
 import {
   REPORT_ROUTE_MAX_DURATION_SECONDS,
-  WRITE_CLIENT_TIMEOUT_MARGIN_MS,
 } from "./report-generation";
 
 import type { AnalysisWorkflowDeps } from "./analysis-workflow";
 
-/** V5 pipeline model calls: 270 s client (30 s margin under 300 s lease / Vercel). */
-export const V5_CLIENT_TASK_TIMEOUT_MS = 270_000;
-
-const MIN_EXTRACT_CALL_MS = 1_000;
+export { V5_CLIENT_TASK_TIMEOUT_MS };
 
 /** Wall-clock end of the hosting function's `maxDuration` window for this invocation. */
 export function analysisRouteDeadlineMs(invocationStartedAt: number): number {
   return invocationStartedAt + REPORT_ROUTE_MAX_DURATION_SECONDS * 1000;
 }
 
-export function invocationRemainingMs(clock: () => number, invocationStartedAt: number): number {
-  return Math.max(0, analysisRouteDeadlineMs(invocationStartedAt) - clock());
-}
-
-/** HTTP abort for one extract call: remaining invocation time minus margin, capped at the task budget. */
 export function extractPlannerTimeoutMs(
   clock: () => number,
   invocationStartedAt: number,
+  expectedOutputTokens: number,
+  throughput?: Partial<PipelineThroughputStats> | null,
 ): number | "expired" {
-  const remaining = invocationRemainingMs(clock, invocationStartedAt);
-  const budget = Math.min(Math.max(0, remaining - WRITE_CLIENT_TIMEOUT_MARGIN_MS), V5_CLIENT_TASK_TIMEOUT_MS);
-  if (budget < MIN_EXTRACT_CALL_MS) return "expired";
-  return budget;
+  const outputTokensPerSecond =
+    typeof throughput?.outputTokensPerSecond === "number" &&
+    Number.isFinite(throughput.outputTokensPerSecond) &&
+    throughput.outputTokensPerSecond > 0
+      ? throughput.outputTokensPerSecond
+      : 100;
+  return computePlannerCallTimeoutMs({
+    expectedOutputTokens,
+    outputTokensPerSecond,
+    taskMaxMs: V5_CLIENT_TASK_TIMEOUT_MS,
+    remainingInvocationMs: invocationRemainingMs(clock(), invocationStartedAt),
+  });
 }
 
 /** Whether a worker may start another extract call in this invocation. */
 export function canStartExtractingDocument(clock: () => number, invocationStartedAt: number): boolean {
-  const remaining = invocationRemainingMs(clock, invocationStartedAt);
-  const budget = extractPlannerTimeoutMs(clock, invocationStartedAt);
-  if (budget === "expired") return false;
-  return remaining >= budget + WRITE_CLIENT_TIMEOUT_MARGIN_MS;
+  const remaining = invocationRemainingMs(clock(), invocationStartedAt);
+  return canStartPlannerCall({
+    remainingInvocationMs: remaining,
+    callTimeoutMs: MIN_PLANNER_CALL_MS,
+  });
+}
+
+function pageCountForWorkItem(pageRange: string | null, verifiedPageCount: number): number {
+  if (pageRange === null) return verifiedPageCount;
+  return parsePageRangeStorageKey(pageRangeStorageKey(pageRange), verifiedPageCount).length;
+}
+
+function expectedExtractOutputTokens(
+  pages: readonly { pageNumber: number; text: string }[],
+  throughput: PipelineThroughputStats,
+): number {
+  const inputTokens = pages.reduce(
+    (total, page) => total + estimateInputTokensFromPageText(page.text, throughput.inputTokensPerPage),
+    0,
+  );
+  return expectedOutputTokens(inputTokens, throughput.outputInputRatio);
 }
 
 /** Max concurrent `hive-extract/1` calls while a run is in EXTRACTING (bounded fan-out). */
@@ -168,21 +198,32 @@ export function savedRangeKeysByDocument(rangesPayload: unknown): Map<string, Se
   return byDocument;
 }
 
-export function buildExtractWorkQueue(input: {
+export async function buildExtractWorkQueue(input: {
+  client: RpcClient;
+  runId: string;
   snapshot: SourceSnapshot;
   extractedIds: ReadonlySet<string>;
   savedRangeKeysByDocument: ReadonlyMap<string, ReadonlySet<string>>;
-}): ExtractWorkItem[] {
+  correlationId: string;
+  throughput?: PipelineThroughputStats;
+}): Promise<ExtractWorkItem[]> {
+  const throughput = input.throughput ?? (await loadPipelineThroughput(input.client, "extract"));
   const queue: ExtractWorkItem[] = [];
   for (const document of documentsNeedingExtraction(input.snapshot, input.extractedIds)) {
     const docKey = document.sourceDocumentId.toLowerCase();
     const saved = input.savedRangeKeysByDocument.get(docKey) ?? new Set<string>();
-    const pageNumbers = Array.from(
-      { length: document.verifiedPageCount },
-      (_, index) => index + 1,
-    );
-    const pages = pageNumbers.map((pageNumber) => ({ pageNumber, text: "" }));
-    for (const item of missingExtractWorkItems(pages, saved)) {
+    let loadedPages: { pageNumber: number; text: string }[];
+    try {
+      loadedPages = await loadDocumentPages(input.client, input.runId, document, input.correlationId);
+    } catch {
+      loadedPages = [];
+    }
+    const textByPage = new Map(loadedPages.map((page) => [page.pageNumber, page.text]));
+    const pages = Array.from({ length: document.verifiedPageCount }, (_, index) => {
+      const pageNumber = index + 1;
+      return { pageNumber, text: textByPage.get(pageNumber) ?? "" };
+    });
+    for (const item of missingExtractWorkItems(pages, saved, throughput)) {
       queue.push({ document, pageRange: item.pageRange });
     }
   }
@@ -259,12 +300,15 @@ export async function runExtractingWorkerPool(input: {
   invocationStartedAt: number;
   extract?: typeof extractOneRange;
   canStart?: (clock: () => number, invocationStartedAt: number) => boolean;
+  throughput?: PipelineThroughputStats;
 }): Promise<{ deferred: boolean }> {
   const extract = input.extract ?? extractOneRange;
   const mayStart = input.canStart ?? canStartExtractingDocument;
+  const throughput = input.throughput ?? (await loadPipelineThroughput(input.deps.client, "extract"));
   const queue = [...input.workItems];
   const attempts = new Map<string, number>();
   let failure: ExtractStageFailure | null = null;
+  let activeWorkers = 0;
 
   async function worker(): Promise<void> {
     while (!failure) {
@@ -274,6 +318,8 @@ export async function runExtractingWorkerPool(input: {
       const attemptKey = `${item.document.sourceDocumentId.toLowerCase()}:${pageRangeStorageKey(item.pageRange)}`;
       const attempt = (attempts.get(attemptKey) ?? 0) + 1;
       attempts.set(attemptKey, attempt);
+      activeWorkers += 1;
+      const concurrencyAtStart = activeWorkers;
       const outcome = await extract({
         deps: input.deps,
         run: input.run,
@@ -284,7 +330,10 @@ export async function runExtractingWorkerPool(input: {
         now: input.now,
         clock: input.clock,
         invocationStartedAt: input.invocationStartedAt,
+        throughput,
+        concurrencyAtStart,
       });
+      activeWorkers -= 1;
       if (outcome.ok) {
         if (outcome.documentMetric) {
           await recordExtractingDocumentSuccess(
@@ -300,6 +349,29 @@ export async function runExtractingWorkerPool(input: {
         queue.push(item);
         continue;
       }
+      const singlePage =
+        pageCountForWorkItem(item.pageRange, item.document.verifiedPageCount) === 1 &&
+        outcome.error.errorCode === "MODEL_TIMEOUT";
+      if (singlePage) {
+        const gapOutcome = await extractOneRangeGap({
+          deps: input.deps,
+          run: input.run,
+          workItem: item,
+          catalog: input.catalog,
+          correlationId: input.correlationId,
+          stageAttempt: attempt,
+          now: input.now,
+        });
+        if (gapOutcome.ok && gapOutcome.documentMetric) {
+          await recordExtractingDocumentSuccess(
+            input.deps.client,
+            input.run.id,
+            gapOutcome.documentMetric,
+            input.correlationId,
+          );
+        }
+        continue;
+      }
       failure = new ExtractStageFailure(outcome.error, outcome.metric);
       return;
     }
@@ -311,7 +383,8 @@ export async function runExtractingWorkerPool(input: {
   return { deferred: queue.length > 0 };
 }
 
-function logPipelineCall(input: {
+async function logPipelineCall(input: {
+  client: RpcClient;
   task: "extract" | "canonicalize" | "write";
   correlationId: string;
   hiveId: string;
@@ -323,6 +396,9 @@ function logPipelineCall(input: {
   finishReason: string | null;
   outcome: string;
   resolvedModel: string | null;
+  concurrencyAtStart?: number;
+  pageRange?: string | null;
+  pageCount?: number | null;
 }) {
   emitStructuredEvent({
     eventName: "pipeline.model.completed",
@@ -343,6 +419,28 @@ function logPipelineCall(input: {
     ...(input.sourceDocumentId ? { sourceDocumentId: input.sourceDocumentId } : {}),
     ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
   });
+  if (
+    input.outcome === "ok" &&
+    input.inputTokens !== null &&
+    input.outputTokens !== null &&
+    input.latencyMs !== null &&
+    input.concurrencyAtStart !== undefined
+  ) {
+    try {
+      await recordPipelineModelCall(input.client, {
+        runId: input.processingRunId,
+        task: input.task,
+        inputTokens: input.inputTokens,
+        outputTokens: input.outputTokens,
+        latencyMs: input.latencyMs,
+        concurrencyAtStart: input.concurrencyAtStart,
+        pageRange: input.pageRange ?? null,
+        pageCount: input.pageCount ?? null,
+      });
+    } catch {
+      // Throughput samples are best-effort; a failed insert must not stop extraction.
+    }
+  }
 }
 
 function aggregateExtractMetric(
@@ -570,6 +668,85 @@ export async function loadSavedDocExtractionRanges(
     );
 }
 
+async function extractOneRangeGap(input: {
+  deps: AnalysisWorkflowDeps;
+  run: ProcessingRun;
+  workItem: ExtractWorkItem;
+  catalog: PromptCatalog;
+  correlationId: string;
+  stageAttempt: number;
+  now: () => Date;
+}): Promise<ExtractOneRangeResult> {
+  const { deps, run, workItem, catalog, correlationId, stageAttempt, now } = input;
+  const document = workItem.document;
+  const pageNumber =
+    workItem.pageRange === null
+      ? 1
+      : Number.parseInt(workItem.pageRange, 10) ||
+        parsePageRangeStorageKey(pageRangeStorageKey(workItem.pageRange), document.verifiedPageCount)[0] ||
+        1;
+  const rangePages = [{ pageNumber, text: "" }];
+  const extraction = buildPageExtractionGap(
+    { id: document.sourceDocumentId, fileName: document.fileName },
+    { pageRange: workItem.pageRange, pages: rangePages },
+    pageNumber,
+  );
+  const saveError = await persistExtractedRange({
+    deps,
+    run,
+    document,
+    catalog,
+    pageRange: workItem.pageRange,
+    extraction,
+    stats: {
+      factsProposed: 0,
+      malformed: {},
+      factsIn: 0,
+      factsKept: 0,
+      evidenceIn: 0,
+      evidenceDropped: 0,
+      byReason: {},
+      emptyFields: { in: 0, kept: 0 },
+      referencedDocuments: { in: 0, kept: 0 },
+      documentEvidence: { in: 0, kept: 0 },
+      dropped: [],
+      ranges: [],
+      pageExtractionGaps: [pageNumber],
+    },
+    modelAlias: "harvester",
+    correlationId,
+  });
+  if (saveError) {
+    return { ok: false, error: saveError, calls: [], metric: null };
+  }
+  const prompt = catalog.extract;
+  const startedAt = now().toISOString();
+  const metric = aggregateExtractMetric(stageAttempt, prompt, [], "harvester", startedAt, now().toISOString());
+  const savedRanges = (await loadSavedDocExtractionRanges(deps.client, run.id)).filter(
+    (row) => row.sourceDocumentId === document.sourceDocumentId.toLowerCase(),
+  );
+  try {
+    const merged = await tryMergeDocumentExtraction({
+      deps,
+      run,
+      document,
+      catalog,
+      correlationId,
+      stageAttempt,
+      now,
+      savedRanges,
+      calls: [],
+      modelAlias: "harvester",
+    });
+    return { ok: true, metric, modelAlias: "harvester", documentMetric: merged.metric };
+  } catch (error) {
+    if (error && typeof error === "object" && "errorCode" in error) {
+      return { ok: false, error: error as HiveError, calls: [], metric };
+    }
+    throw error;
+  }
+}
+
 export async function extractOneRange(input: {
   deps: AnalysisWorkflowDeps;
   run: ProcessingRun;
@@ -580,11 +757,14 @@ export async function extractOneRange(input: {
   now: () => Date;
   clock?: () => number;
   invocationStartedAt?: number;
+  throughput?: PipelineThroughputStats;
+  concurrencyAtStart?: number;
 }): Promise<ExtractOneRangeResult> {
   const { deps, run, workItem, catalog, correlationId, stageAttempt, now } = input;
   const document = workItem.document;
   const clock = input.clock ?? deps.clock ?? (() => Date.now());
   const invocationStartedAt = input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now();
+  const throughput = input.throughput ?? (await loadPipelineThroughput(deps.client, "extract"));
   const prompt = catalog.extract;
   const startedAt = now().toISOString();
   let pages: { pageNumber: number; text: string }[];
@@ -615,6 +795,7 @@ export async function extractOneRange(input: {
     const end = match[2] ? Number(match[2]) : start;
     return page.pageNumber >= start && page.pageNumber <= end;
   });
+  const expectedOutput = expectedExtractOutputTokens(rangePages, throughput);
   let modelAlias = "harvester";
   const result = await extractScheduledRange({
     planner: deps.planner,
@@ -624,7 +805,8 @@ export async function extractOneRange(input: {
     runId: run.id,
     prompt,
     range: { pageRange: workItem.pageRange, pages: rangePages },
-    resolvePlannerTimeoutMs: () => extractPlannerTimeoutMs(clock, invocationStartedAt),
+    resolvePlannerTimeoutMs: () =>
+      extractPlannerTimeoutMs(clock, invocationStartedAt, expectedOutput, throughput),
     persist: async ({ pageRange, extraction, stats, pageGaps, modelAlias: callModel }) => {
       if (callModel) modelAlias = callModel;
       const saveError = await persistExtractedRange({
@@ -643,7 +825,8 @@ export async function extractOneRange(input: {
   });
   for (const call of result.calls) {
     if (call.modelAlias) modelAlias = call.modelAlias;
-    logPipelineCall({
+    await logPipelineCall({
+      client: deps.client,
       task: "extract",
       correlationId,
       hiveId: run.hiveId,
@@ -655,6 +838,9 @@ export async function extractOneRange(input: {
       finishReason: call.finishReason,
       outcome: call.outcome,
       resolvedModel: call.resolvedModel,
+      concurrencyAtStart: input.concurrencyAtStart,
+      pageRange: workItem.pageRange,
+      pageCount: rangePages.length,
     });
   }
   if (!result.ok) {
@@ -751,22 +937,35 @@ export async function runCanonicalizeForRun(input: {
   correlationId: string;
   stageAttempt: number;
   now: () => Date;
+  clock?: () => number;
+  invocationStartedAt?: number;
   /** Rebuild Study: skip re-extract; re-run canonicalize only from cached extractions (cheap path). */
   rebuildMode?: boolean;
 }): Promise<CanonicalizeRunResult> {
   void input.rebuildMode;
   const { deps, run, extractions, catalog, correlationId, stageAttempt, now } = input;
+  const clock = input.clock ?? deps.clock ?? (() => Date.now());
+  const invocationStartedAt = input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now();
   const prompt = catalog.canonicalize;
   const startedAt = now().toISOString();
+  const throughput = await loadPipelineThroughput(deps.client, "canonicalize");
+  const payload = buildCanonicalizePayload(extractions, null);
+  const expectedOutput = expectedOutputTokens(
+    estimateInputTokensFromUtf8Bytes(Buffer.byteLength(JSON.stringify(payload), "utf8")),
+    throughput.outputInputRatio,
+  );
   const result = await canonicalizeCase({
     planner: deps.planner,
     extractions,
     correlationId,
     runId: run.id,
     prompt,
+    resolvePlannerTimeoutMs: () =>
+      extractPlannerTimeoutMs(clock, invocationStartedAt, expectedOutput, throughput),
   });
   for (const call of result.calls) {
-    logPipelineCall({
+    await logPipelineCall({
+      client: deps.client,
       task: "canonicalize",
       correlationId,
       hiveId: run.hiveId,
@@ -777,6 +976,7 @@ export async function runCanonicalizeForRun(input: {
       finishReason: call.finishReason,
       outcome: call.outcome,
       resolvedModel: call.resolvedModel,
+      concurrencyAtStart: 1,
     });
   }
   if (!result.ok) {
@@ -809,6 +1009,7 @@ export function buildV5AcceptRevision(input: {
   intents: readonly StoredIntent[];
   canonicalMetric: StageMetric | undefined;
   catalog: PromptCatalog;
+  runTimingMetric?: StageMetric | null;
 }) {
   const investigationDigest = sha256Digest(canonicalJson(input.study));
   const canonicalMetric = input.canonicalMetric;
@@ -826,6 +1027,7 @@ export function buildV5AcceptRevision(input: {
     prompt_digest: input.catalog.canonicalize.digest,
     model_alias: canonicalMetric?.modelAliasRequested ?? null,
     resolved_model: canonicalMetric?.resolvedModel ?? null,
+    ...(input.runTimingMetric ? { stage_metric: input.runTimingMetric } : {}),
   };
 }
 

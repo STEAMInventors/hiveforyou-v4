@@ -45,6 +45,7 @@ type CallInput = {
   readonly planner: PlannerDeps;
   readonly correlationId: string;
   readonly runId: string;
+  readonly resolvePlannerTimeoutMs?: () => number | "expired";
 };
 
 export type CanonicalizeInput = CallInput & {
@@ -52,6 +53,7 @@ export type CanonicalizeInput = CallInput & {
   readonly extractions: readonly DocExtraction[];
   readonly domainBrief?: string | null;
   readonly prompt?: CanonicalizePrompt;
+  readonly resolvePlannerTimeoutMs?: () => number | "expired";
 };
 
 export type CanonicalizeResult =
@@ -137,11 +139,28 @@ async function callWithRetry<T>(
     const started = Date.now();
     const userPayload = parseError === null ? input.payload : { ...input.payload, retryNote: RETRY_NOTE(parseError) };
     try {
+      const timeoutMs = input.resolvePlannerTimeoutMs?.();
+      if (timeoutMs === "expired") {
+        return {
+          ok: false,
+          error: createHiveError({
+            errorCode: "MODEL_TIMEOUT",
+            category: "DEPENDENCY",
+            stage: "ANALYZE",
+            retryable: true,
+            safeMessage: "The analysis model took too long to answer. You can try again.",
+            correlationId: input.correlationId,
+            operationId: input.runId,
+            diagnosticReason: "planner_timeout",
+          }),
+        };
+      }
       const completion = await callPlanner(input.planner, {
         prompt: input.prompt,
         userPayload,
         correlationId: input.correlationId,
         processingRunId: input.runId,
+        ...(typeof timeoutMs === "number" ? { timeoutMs } : {}),
       });
       const parsed = parse(completion.contentJson);
       calls.push({
@@ -205,7 +224,13 @@ export async function canonicalizeCase(input: CanonicalizeInput): Promise<Canoni
   const calls: CanonicalizeCallRecord[] = [];
   let malformed: Record<string, number> = {};
   const outcome = await callWithRetry(
-    { ...input, prompt, purpose: "canonicalize", payload },
+    {
+      ...input,
+      prompt,
+      purpose: "canonicalize",
+      payload,
+      resolvePlannerTimeoutMs: input.resolvePlannerTimeoutMs,
+    },
     (content) => {
       const parsed = parseCanonicalStudy(content);
       if (!parsed.ok) return parsed;

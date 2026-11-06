@@ -1,5 +1,6 @@
 import { isValidUuid } from "../hives/hive-contracts";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
+import type { ProgressEstimate } from "../pipeline/pipeline-timing";
 import type { ExecutionManifest } from "./execution-manifest-contracts";
 import type {
   DomainProposal,
@@ -54,7 +55,7 @@ export const STUDY_PREPARATION_STAGES = [
   {
     key: "EXTRACTING",
     label: "Extracting",
-    description: "Extracting verified facts from each document, one document at a time.",
+    description: "Extracting several documents at once, using verified facts from each page.",
   },
   {
     key: "CANONICALIZING",
@@ -162,9 +163,13 @@ export type StageMetric = {
   finishReason?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
+  estimatedDurationMs?: number | null;
+  actualDurationMs?: number | null;
   errorCode?: string | null;
   retryable?: boolean | null;
 };
+
+export type { ProgressEstimate };
 
 export type SnapshotDocument = {
   sourceDocumentId: string;
@@ -240,6 +245,8 @@ export type ProcessingRun = {
    * Runs saved before this field existed are Analyze runs.
    */
   preparationMode: "ANALYZE" | "REBUILD";
+  /** Server-computed while the run is active; omitted or null when unknown or already finished. */
+  progressEstimate?: ProgressEstimate | null;
 };
 
 export type SampleCoverage = {
@@ -321,6 +328,8 @@ export type ReportRun = {
   reportId: string | null;
   createdAt: string;
   finishedAt: string | null;
+  /** Server-computed while the Writer run is active; omitted or null when unknown or finished. */
+  progressEstimate?: ProgressEstimate | null;
 };
 
 export type GetStudyPreparationResponse = {
@@ -573,6 +582,24 @@ export function normalizeProcessingRun(raw: unknown): ProcessingRun | null {
     updatedAt: record.updatedAt,
     finishedAt,
     preparationMode: record.preparationMode === "REBUILD" ? "REBUILD" : "ANALYZE",
+    progressEstimate: normalizeProgressEstimate(record.progressEstimate),
+  };
+}
+
+function normalizeProgressEstimate(raw: unknown): ProgressEstimate | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  if (
+    typeof record.estimatedCompletionAt !== "string" ||
+    typeof record.estimatedCompletionLowAt !== "string" ||
+    typeof record.estimatedCompletionHighAt !== "string"
+  ) {
+    return null;
+  }
+  return {
+    estimatedCompletionAt: record.estimatedCompletionAt,
+    estimatedCompletionLowAt: record.estimatedCompletionLowAt,
+    estimatedCompletionHighAt: record.estimatedCompletionHighAt,
   };
 }
 
@@ -716,6 +743,7 @@ export function normalizeReportRun(raw: unknown): ReportRun | null {
     reportId: typeof record.reportId === "string" && isValidUuid(record.reportId.toLowerCase()) ? record.reportId.toLowerCase() : null,
     createdAt: record.createdAt,
     finishedAt,
+    progressEstimate: normalizeProgressEstimate(record.progressEstimate),
   };
 }
 

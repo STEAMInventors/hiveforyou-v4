@@ -44,16 +44,25 @@ import {
   type DocExtraction,
   type WriteFactRecord,
   buildWriteAudienceText,
+  estimateInputTokensFromUtf8Bytes,
+  expectedOutputTokens,
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
-import { factRecordsFromExtractions, type WriteCallRecord, writeStudyView } from "@/server/pipeline/write-runner";
+import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
+import {
+  buildWritePayload,
+  factRecordsFromExtractions,
+  type WriteCallRecord,
+  writeStudyView,
+} from "@/server/pipeline/write-runner";
 import type { DocumentPageRpcClient } from "@/server/source-documents/document-pages-persistence";
 import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { loadPromptCatalog, type PromptCatalog, sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 
 import type { Dispatch } from "./dispatch";
+import { extractPlannerTimeoutMs } from "./v5-pipeline-stages";
 import { createWriterSemanticReviewer } from "./writer-semantic-reviewer";
 
 /**
@@ -504,6 +513,20 @@ async function processStudyViewReportRun(
       modelAliasRequested: null,
       startedAt: now().toISOString(),
     };
+    const clock = deps.clock ?? (() => Date.now());
+    const invocationStartedAt = deps.invocationStartedAt ?? startedAt;
+    const writeThroughput = await loadPipelineThroughput(deps.client, "write", clock());
+    const writePayload = buildWritePayload(
+      inputs.canonicalStudy,
+      inputs.facts,
+      audience,
+      inputs.audience,
+      inputs.intent,
+    );
+    const expectedWriteOutput = expectedOutputTokens(
+      estimateInputTokensFromUtf8Bytes(Buffer.byteLength(JSON.stringify(writePayload), "utf8")),
+      writeThroughput.outputInputRatio,
+    );
     const result = await writeStudyView({
       planner: deps.planner,
       canonicalStudy: inputs.canonicalStudy,
@@ -514,7 +537,10 @@ async function processStudyViewReportRun(
       correlationId,
       runId: reportRunId,
       prompt: catalog.write,
-      deadlineMs: writeClientDeadlineMs(deps.invocationStartedAt ?? startedAt),
+      clock,
+      deadlineMs: writeClientDeadlineMs(invocationStartedAt),
+      resolvePlannerTimeoutMs: () =>
+        extractPlannerTimeoutMs(clock, invocationStartedAt, expectedWriteOutput, writeThroughput),
     });
     for (const call of result.calls) {
       emitStructuredEvent({

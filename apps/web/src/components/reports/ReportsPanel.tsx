@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { A2uiView } from "@/components/a2ui/A2uiView";
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import { DOCUMENT_READ_POLL_INTERVAL_MS } from "@/components/hives/document-read-progress";
+import { ProgressCountdown } from "@/components/hives/progress-countdown";
 import { coverageGapText } from "@/components/hives/study-preparation-progress";
 import { StudyView } from "@/components/study/StudyView";
 import { HiveClientError } from "@/lib/hives-client";
@@ -178,11 +179,18 @@ export function ReportsPanel({ hiveId, initial }: ReportsPanelProps) {
       ) : null}
 
       {runActive ? (
-        <p role="status" className="m-0 rounded-control bg-cell-blue-wash px-4 py-3 text-[14px] text-cell-blue-deep" data-testid="report-run-status">
-          {run.attemptCount > 0 && run.status === "QUEUED"
-            ? `Writing this report again (attempt ${run.attemptCount + 1} of ${run.maxAttempts}).`
-            : "Writing this report from your study…"}
-        </p>
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-control bg-cell-blue-wash px-4 py-3 text-[14px] text-cell-blue-deep"
+          data-testid="report-run-status"
+        >
+          <p className="m-0">
+            {run.attemptCount > 0 && run.status === "QUEUED"
+              ? `Writing this report again (attempt ${run.attemptCount + 1} of ${run.maxAttempts}).`
+              : "Writing this report from your study…"}
+          </p>
+          <ProgressCountdown estimate={run.progressEstimate} />
+        </div>
       ) : null}
       {runFailed ? (
         <div role="alert" className="flex flex-col gap-1 rounded-control bg-coral-wash px-4 py-3 text-[14px] text-coral-deep" data-testid="report-run-status">

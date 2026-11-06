@@ -1,4 +1,17 @@
-import { CANONICAL_STUDY_SCHEMA, PLANNER_CONTRACT_VERSION, type CanonicalStudy } from "@hiveforyou/contracts";
+import {
+  CANONICAL_STUDY_SCHEMA,
+  MIN_PLANNER_CALL_MS,
+  PLANNER_CONTRACT_VERSION,
+  PLANNER_TIMEOUT_MULTIPLIER,
+  PLANNER_TIMEOUT_PADDING_MS,
+  type CanonicalStudy,
+  defaultPipelineThroughput,
+  estimateInputTokensFromUtf8Bytes,
+  expectedDurationMs,
+  expectedOutputTokens,
+  invocationRemainingMs,
+} from "@hiveforyou/contracts";
+import { extractPlannerTimeoutMs } from "@/server/workflow/v5-pipeline-stages";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildWritePayload, writeStudyView } from "./write-runner";
@@ -130,6 +143,60 @@ describe("writeStudyView", () => {
     expect(sentPayload(fetchFn, 0).user_payload.retryNote).toBeUndefined();
     expect(sentPayload(fetchFn, 1).user_payload.retryNote).toContain("could not be used");
     expect(result.ok && result.calls.map((c) => c.outcome)).toEqual(["unparseable", "ok"]);
+  });
+
+  it("starts a report-style write when deadline and computed timeout allow it", async () => {
+    const invocationStartedAt = 0;
+    const clock = () => 1_000;
+    const fetchFn = vi.fn().mockResolvedValueOnce(success(writeAnswer));
+    const writePayload = buildWritePayload(study, facts, "CUSTOMER", "Parent", "Understand the fee");
+    const writeThroughput = defaultPipelineThroughput("write");
+    const expectedWriteOutput = expectedOutputTokens(
+      estimateInputTokensFromUtf8Bytes(Buffer.byteLength(JSON.stringify(writePayload), "utf8")),
+      writeThroughput.outputInputRatio,
+    );
+    const expectedTimeMs = expectedDurationMs(expectedWriteOutput, writeThroughput.outputTokensPerSecond);
+    const rawFormulaMs = Math.ceil(expectedTimeMs * PLANNER_TIMEOUT_MULTIPLIER + PLANNER_TIMEOUT_PADDING_MS);
+    const remainingMs = invocationRemainingMs(clock(), invocationStartedAt);
+    const computedTimeoutMs = extractPlannerTimeoutMs(clock, invocationStartedAt, expectedWriteOutput, writeThroughput);
+
+    expect(rawFormulaMs).toBeLessThan(MIN_PLANNER_CALL_MS);
+    expect(remainingMs).toBe(299_000);
+    expect(computedTimeoutMs).toBe(MIN_PLANNER_CALL_MS);
+
+    const result = await writeStudyView({
+      planner: { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
+      canonicalStudy: study,
+      facts,
+      reportRole: "CUSTOMER",
+      audience: "Parent",
+      intent: "Understand the fee",
+      correlationId: CORRELATION_ID,
+      runId: RUN_ID,
+      clock,
+      deadlineMs: invocationStartedAt + 270_000,
+      resolvePlannerTimeoutMs: () => extractPlannerTimeoutMs(clock, invocationStartedAt, expectedWriteOutput, writeThroughput),
+    });
+    expect(result.ok).toBe(true);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not start a write call when resolvePlannerTimeoutMs is expired", async () => {
+    const fetchFn = vi.fn();
+    const result = await writeStudyView({
+      planner: { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
+      canonicalStudy: study,
+      facts,
+      reportRole: "CUSTOMER",
+      audience: "Parent",
+      intent: "Understand the fee",
+      correlationId: CORRELATION_ID,
+      runId: RUN_ID,
+      clock: () => 1_000,
+      resolvePlannerTimeoutMs: () => "expired",
+    });
+    expect(result).toMatchObject({ ok: false, error: { errorCode: "MODEL_TIMEOUT" } });
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it("does not retry on timeout", async () => {

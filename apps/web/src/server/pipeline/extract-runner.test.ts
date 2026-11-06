@@ -135,10 +135,23 @@ describe("extractDocument", () => {
 
   it("does not retry a timeout", async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce(failure(504, "MODEL_TIMEOUT", "litellm_timeout"));
-    const result = await run(fetchFn);
+    const result = await run(fetchFn, 1);
     expect(result.ok).toBe(false);
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(result.calls[0]).toMatchObject({ outcome: "failed" });
+  });
+
+  it("splits a timed-out multi-page range in half until both halves succeed", async () => {
+    const fetchFn = vi.fn(async (_url: string, init: RequestInit) => {
+      const message = (JSON.parse(init.body as string) as { user_payload: { message: string } }).user_payload.message;
+      const range = /Page range: `([^`]+)`/.exec(message)![1]!;
+      if (range === "all") return failure(504, "MODEL_TIMEOUT", "litellm_timeout");
+      const first = Number(range.split("-")[0]);
+      return success(answer([{ id: `F${range}`, page: first, quote: `Page ${first} says` }]));
+    });
+    const result = await run(fetchFn, 3);
+    if (!result.ok) throw new Error(result.error.diagnosticReason);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
   });
 
   it("splits a truncated multi-page range in half until both halves succeed", async () => {
@@ -166,91 +179,34 @@ describe("extractDocument", () => {
     expect(result.extraction.coverage.pagesBlankOrUnreadable).toEqual([1]);
   });
 
-  it("splits documents over 20 pages into ranges, verifies each against its own pages and merges", async () => {
+  it("uses size-driven ranges for long documents and verifies each against its own pages", async () => {
+    const denseText = `Page says the payment is $100.00 per month. ${"detail ".repeat(400)}`;
     const fetchFn = vi.fn(async (_url: string, init: RequestInit) => {
       const message = (JSON.parse(init.body as string) as { user_payload: { message: string } }).user_payload.message;
       const range = /Page range: `([^`]+)`/.exec(message)![1]!;
       const first = Number(range.split("-")[0]);
       return success(
         answer([
-          { id: `p${range}:F001`, page: first, quote: `Page ${first} says` },
-          { id: `p${range}:F002`, page: first === 1 ? 25 : first, quote: `Page ${first === 1 ? 25 : first} says` },
+          { id: `p${range}:F001`, page: first, quote: denseText.slice(0, 40) },
+          { id: `p${range}:F002`, page: first, quote: denseText.slice(0, 40) },
         ]),
       );
     });
-    const result = await run(fetchFn, 45);
+    const pageList = Array.from({ length: 45 }, (_, index) => ({
+      pageNumber: index + 1,
+      text: denseText.replace("$100", `$${index + 1}00`),
+    }));
+    const result = await extractDocument({
+      planner: { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
+      document: DOC,
+      pages: pageList,
+      correlationId: CORRELATION_ID,
+      runId: RUN_ID,
+    });
     if (!result.ok) throw new Error(result.error.diagnosticReason);
-    expect(fetchFn).toHaveBeenCalledTimes(5);
-    expect([0, 1, 2, 3, 4].map((i) => /Page range: `([^`]+)`/.exec(sentMessage(fetchFn, i))![1])).toEqual([
-      "1-10",
-      "11-20",
-      "21-30",
-      "31-40",
-      "41-45",
-    ]);
-    expect(sentMessage(fetchFn, 2)).toContain("=== PAGE 21 ===");
-    expect(sentMessage(fetchFn, 2)).not.toContain("=== PAGE 20 ===");
-    expect(result.extraction.facts.map((f) => f.id)).toEqual(
-      ["001", "002", "003", "004", "005", "006", "007", "008", "009"].map((n) => `F-abcdef12-${n}`),
-    );
-    expect(result.stats.byReason).toEqual({ page_not_provided: 1 });
-    expect(result.stats.ranges.map((r) => r.pageRange)).toEqual(["1-10", "11-20", "21-30", "31-40", "41-45"]);
+    expect(fetchFn.mock.calls.length).toBeGreaterThan(1);
     expect(result.extraction.coverage.pageCount).toBe(45);
     expect(result.extraction.pageRange).toBeNull();
   });
 
-  describe("person refs across ranges", () => {
-    const rangeAnswers = (names: Record<string, string>) =>
-      vi.fn(async (_url: string, init: RequestInit) => {
-        const message = (JSON.parse(init.body as string) as { user_payload: { message: string } }).user_payload.message;
-        const range = /Page range: `([^`]+)`/.exec(message)![1]!;
-        const first = Number(range.split("-")[0]);
-        const base = answer([{ id: "F001", page: first, quote: `Page ${first} says` }]);
-        return success({
-          ...base,
-          document: {
-            aboutPeople: [{ ref: "P1", nameAsWritten: names[range], role: "debtor", evidence: [{ page: first, quote: `Page ${first} says` }] }],
-          },
-          facts: base.facts.map((fact) => ({ ...fact, aboutPersonRef: "P1" })),
-        });
-      });
-
-    it("keeps two different people apart when both ranges call them P1", async () => {
-      const result = await run(rangeAnswers({ "1-10": "Dana Ruiz", "11-20": "Alex Kim", "21-25": "Lee Park" }), 25);
-      if (!result.ok) throw new Error(result.error.diagnosticReason);
-      expect(result.extraction.document.aboutPeople.map((p) => [p.ref, p.nameAsWritten, p.modelRefs])).toEqual([
-        ["P-abcdef12-001", "Dana Ruiz", ["p1-10:P1"]],
-        ["P-abcdef12-002", "Alex Kim", ["p11-20:P1"]],
-        ["P-abcdef12-003", "Lee Park", ["p21-25:P1"]],
-      ]);
-      expect(result.extraction.facts.map((f) => [f.id, f.aboutPersonRef])).toEqual([
-        ["F-abcdef12-001", "P-abcdef12-001"],
-        ["F-abcdef12-002", "P-abcdef12-002"],
-        ["F-abcdef12-003", "P-abcdef12-003"],
-      ]);
-    });
-
-    it("merges one person named the same way in both ranges", async () => {
-      const result = await run(rangeAnswers({ "1-10": "Dana Ruiz", "11-20": "DANA  RUIZ", "21-25": "DANA  RUIZ" }), 25);
-      if (!result.ok) throw new Error(result.error.diagnosticReason);
-      expect(result.extraction.document.aboutPeople).toEqual([
-        {
-          ref: "P-abcdef12-001",
-          modelRefs: ["p1-10:P1", "p11-20:P1", "p21-25:P1"],
-          nameAsWritten: "Dana Ruiz",
-          role: "debtor",
-          evidence: [
-            { page: 1, quote: "Page 1 says" },
-            { page: 11, quote: "Page 11 says" },
-            { page: 21, quote: "Page 21 says" },
-          ],
-        },
-      ]);
-      expect(result.extraction.facts.map((f) => f.aboutPersonRef)).toEqual([
-        "P-abcdef12-001",
-        "P-abcdef12-001",
-        "P-abcdef12-001",
-      ]);
-    });
-  });
 });

@@ -149,6 +149,16 @@ function fakeDatabase(
           data: { claimed: true, reportRun: reportRunJson(status, audience, { attemptCount, maxAttempts }) },
           error: null,
         };
+      case "get_pipeline_throughput":
+        return {
+          data: {
+            sampleCount: 0,
+            outputTokensPerSecond: args.p_task === "canonicalize" ? 70 : args.p_task === "write" ? 100 : 110,
+            outputInputRatio: 1,
+            inputTokensPerPage: args.p_task === "extract" ? 400 : null,
+          },
+          error: null,
+        };
       case "get_report_generation_inputs":
         return {
           data: {
@@ -2451,13 +2461,23 @@ function writePlanner() {
 
 describe("processReportRun: revision formats", () => {
   it("writes a canonical-study-1 revision with hive-write/1 and saves a hive.study-view/1 with metrics, drops and sources", async () => {
-    const db = fakeDatabase("CUSTOMER", { inputsOverrides: v5Inputs() });
+    const db = fakeDatabase("CUSTOMER", { nowMs: () => 1_000, inputsOverrides: v5Inputs() });
     const model = writePlanner();
     const semanticReviewer = vi.fn(async () => []);
 
-    await expect(
-      processReportRun({ client: db.client, planner: model.deps, semanticReviewer, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
-    ).resolves.toBe("SUCCEEDED");
+    const status = await processReportRun(
+      {
+        client: db.client,
+        planner: model.deps,
+        semanticReviewer,
+        clock: () => 1_000,
+        invocationStartedAt: 0,
+        loadCatalog: () => loadPromptCatalog(),
+      },
+      REPORT_RUN_ID,
+    );
+    expect(status, JSON.stringify(db.transitions, null, 2)).toBe("SUCCEEDED");
+    expect(model.requests).toHaveLength(1);
 
     expect(model.requests).toHaveLength(1);
     expect(model.requests[0]!.url).not.toContain("study-agent-turn");
@@ -2550,6 +2570,7 @@ describe("processReportRun: revision formats", () => {
       conflicts: [{ id: "C1", statement: "Two fees", factIds: [V5_FACT, citedOnConflict] }],
     };
     const db = fakeDatabase("CUSTOMER", {
+      nowMs: () => 1_000,
       inputsOverrides: {
         ...inputs,
         studyRevision: { ...inputs.studyRevision, investigation: study },
@@ -2558,7 +2579,16 @@ describe("processReportRun: revision formats", () => {
     });
     const model = writePlanner();
     await expect(
-      processReportRun({ client: db.client, planner: model.deps, loadCatalog: () => loadPromptCatalog() }, REPORT_RUN_ID),
+      processReportRun(
+        {
+          client: db.client,
+          planner: model.deps,
+          clock: () => 1_000,
+          invocationStartedAt: 0,
+          loadCatalog: () => loadPromptCatalog(),
+        },
+        REPORT_RUN_ID,
+      ),
     ).resolves.toBe("SUCCEEDED");
     const payload = model.requests[0]!.body.user_payload;
     expect(payload.canonicalStudy).toEqual(study);
@@ -2566,7 +2596,7 @@ describe("processReportRun: revision formats", () => {
   });
 
   it("records a retryable MODEL_TIMEOUT when the write cannot finish 30s before the function limit", async () => {
-    const db = fakeDatabase("CUSTOMER", { inputsOverrides: v5Inputs() });
+    const db = fakeDatabase("CUSTOMER", { nowMs: () => 300_000, inputsOverrides: v5Inputs() });
     const fetchFn = vi.fn();
     await expect(
       processReportRun(
@@ -2576,7 +2606,8 @@ describe("processReportRun: revision formats", () => {
             getConfig: () => ({ baseUrl: "https://reader.example.test/planner", serviceToken: "t", timeoutMs: 1000 }),
             fetchFn: fetchFn as unknown as typeof fetch,
           },
-          invocationStartedAt: Date.now() - 300_000,
+          clock: () => 300_000,
+          invocationStartedAt: 0,
           loadCatalog: () => loadPromptCatalog(),
         },
         REPORT_RUN_ID,
@@ -2601,14 +2632,20 @@ describe("processReportRun: revision formats", () => {
 
   it("aborts the write HTTP call at least 30s before the 300s route limit", async () => {
     const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
-    const db = fakeDatabase("CUSTOMER", { inputsOverrides: v5Inputs() });
+    const longText = "The notice states a fee of $10.00. ".repeat(1_500);
+    const largeInputs = {
+      ...v5Inputs(),
+      intents: [{ id: MAYA_INTENT_ID, intentText: longText, audience: "A first-time reader" }],
+    };
+    const db = fakeDatabase("CUSTOMER", { nowMs: () => 1_000, inputsOverrides: largeInputs });
     const model = writePlanner();
     try {
       await processReportRun(
         {
           client: db.client,
           planner: model.deps,
-          invocationStartedAt: Date.now(),
+          clock: () => 1_000,
+          invocationStartedAt: 0,
           loadCatalog: () => loadPromptCatalog(),
         },
         REPORT_RUN_ID,
@@ -2625,10 +2662,16 @@ describe("processReportRun: revision formats", () => {
   it("falls back to a default audience description per report audience when no intent states one", async () => {
     const inputs = v5Inputs();
     const db = fakeDatabase("PRO", {
+      nowMs: () => 1_000,
       inputsOverrides: { ...inputs, intents: [{ id: MAYA_INTENT_ID, intentText: "What do I have to pay?", audience: null }] },
     });
     const model = writePlanner();
-    await expect(processReportRun({ client: db.client, planner: model.deps }, REPORT_RUN_ID)).resolves.toBe("SUCCEEDED");
+    await expect(
+      processReportRun(
+        { client: db.client, planner: model.deps, clock: () => 1_000, invocationStartedAt: 0 },
+        REPORT_RUN_ID,
+      ),
+    ).resolves.toBe("SUCCEEDED");
     expect(model.requests[0]!.body.user_payload.audience).toBe(
       "a professional reviewing this case on the person's behalf; precise; lead with conflicts, gaps and unsupported items",
     );
@@ -2636,13 +2679,19 @@ describe("processReportRun: revision formats", () => {
 
   it("sends different hive-write/1 audience inputs for Customer and Pro report runs", async () => {
     const inputs = v5Inputs();
-    const customerDb = fakeDatabase("CUSTOMER", { inputsOverrides: inputs });
+    const customerDb = fakeDatabase("CUSTOMER", { nowMs: () => 1_000, inputsOverrides: inputs });
     const customerModel = writePlanner();
-    await processReportRun({ client: customerDb.client, planner: customerModel.deps }, REPORT_RUN_ID);
+    await processReportRun(
+      { client: customerDb.client, planner: customerModel.deps, clock: () => 1_000, invocationStartedAt: 0 },
+      REPORT_RUN_ID,
+    );
 
-    const proDb = fakeDatabase("PRO", { inputsOverrides: inputs });
+    const proDb = fakeDatabase("PRO", { nowMs: () => 1_000, inputsOverrides: inputs });
     const proModel = writePlanner();
-    await processReportRun({ client: proDb.client, planner: proModel.deps }, REPORT_RUN_ID);
+    await processReportRun(
+      { client: proDb.client, planner: proModel.deps, clock: () => 1_000, invocationStartedAt: 0 },
+      REPORT_RUN_ID,
+    );
 
     const customerAudience = customerModel.requests[0]!.body.user_payload.audience as string;
     const proAudience = proModel.requests[0]!.body.user_payload.audience as string;

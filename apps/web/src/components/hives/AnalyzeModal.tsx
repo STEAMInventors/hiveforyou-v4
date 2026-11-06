@@ -20,6 +20,7 @@ import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
 
 import type { ReadPollState } from "./document-read-progress";
 import { HoneycombActivity, type LivingHiveMode } from "./HoneycombActivity";
+import { ProgressCountdown } from "./progress-countdown";
 import {
   coverageGapText,
   preparationCopy,
@@ -212,6 +213,7 @@ function AnalyzeDialog({
               {copy.title}
             </h2>
             <p className="m-0 text-base leading-[1.55] text-ink-muted">{copy.sub}</p>
+            {active ? <ProgressCountdown estimate={run?.progressEstimate} /> : null}
           </div>
 
           <p className="sr-only" aria-live="polite" aria-atomic="true" data-testid="analyze-live">

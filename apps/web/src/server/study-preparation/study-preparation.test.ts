@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { CORRELATION_ID, HIVE_ID, REQUEST_ID, RUN_ID, runJson } from "./study-preparation.fixtures";
-import { acknowledgeStudyCoverage, rebuildStudy, startStudyPreparation } from "./study-preparation";
+import {
+  CORRELATION_ID,
+  DOC_1,
+  HIVE_ID,
+  REQUEST_ID,
+  RUN_ID,
+  runJson,
+  snapshotDocument,
+  sourceSnapshot,
+} from "./study-preparation.fixtures";
+import { acknowledgeStudyCoverage, getStudyPreparation, rebuildStudy, startStudyPreparation } from "./study-preparation";
 
 const DIGEST = `sha256:${"e".repeat(64)}`;
 
@@ -331,3 +340,96 @@ describe("acknowledgeStudyCoverage", () => {
     expect(error).toMatchObject({ errorCode, diagnosticReason: message });
   });
 });
+
+describe("getStudyPreparation progress estimate", () => {
+  it("builds the estimate from real document_pages text sizes and saved range keys for the run's snapshot", async () => {
+    const doc = snapshotDocument(DOC_1, "Dense.pdf", { totalPhysicalPages: 8, verifiedPageCount: 8 });
+    const denseText = "x".repeat(20_000);
+    const makeDb = (
+      pageText: string,
+      savedRanges: { sourceDocumentId: string; pageRange: string; contentDigest?: string }[],
+    ) => ({
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_study_preparation") {
+          return {
+            data: {
+              processingRun: runJson("EXTRACTING", { extractedDocumentCount: 0 }),
+              preview: null,
+              previewSummary: null,
+              staleness: null,
+              studyRevision: null,
+              reportRuns: [],
+              documentReads: [],
+              eligibility: {
+                ...sourceSnapshot({ documents: [doc] }),
+                activeReadCount: 0,
+                coverageDigest: DIGEST,
+                gaps: [],
+              },
+            },
+            error: null,
+          };
+        }
+        if (fn === "get_study_source_pages") {
+          return {
+            data: {
+              snapshotCurrent: true,
+              pages: Array.from({ length: 8 }, (_, index) => ({
+                sourceDocumentId: DOC_1,
+                pageNumber: index + 1,
+                pageText,
+                pageSetDigest: doc.pageSetDigest,
+              })),
+            },
+            error: null,
+          };
+        }
+        if (fn === "get_doc_extraction_ranges_for_run") {
+          return { data: { ranges: savedRanges }, error: null };
+        }
+        if (fn === "get_doc_extractions_for_run") {
+          return { data: { extractions: [] }, error: null };
+        }
+        if (fn === "get_pipeline_throughput") {
+          return { data: { sampleCount: 0 }, error: null };
+        }
+        return { data: null, error: null };
+      }),
+    });
+
+    const fixedNow = 1_000_000;
+    const withShortPages = await getStudyPreparation(makeDb("brief", []), {
+      hiveId: HIVE_ID,
+      correlationId: CORRELATION_ID,
+      includePreview: false,
+      clock: () => fixedNow,
+    });
+    const withoutSavedRanges = await getStudyPreparation(makeDb(denseText, []), {
+      hiveId: HIVE_ID,
+      correlationId: CORRELATION_ID,
+      includePreview: false,
+      clock: () => fixedNow,
+    });
+    const withPartialSavedRanges = await getStudyPreparation(
+      makeDb(denseText, [
+        { sourceDocumentId: DOC_1, pageRange: "1", contentDigest: doc.pageSetDigest },
+        { sourceDocumentId: DOC_1, pageRange: "2", contentDigest: doc.pageSetDigest },
+        { sourceDocumentId: DOC_1, pageRange: "3", contentDigest: doc.pageSetDigest },
+        { sourceDocumentId: DOC_1, pageRange: "4", contentDigest: doc.pageSetDigest },
+      ]),
+      {
+        hiveId: HIVE_ID,
+        correlationId: CORRELATION_ID,
+        includePreview: false,
+        clock: () => fixedNow,
+      },
+    );
+
+    const shortCompletionMs = Date.parse(withShortPages.processingRun!.progressEstimate!.estimatedCompletionAt);
+    const fullCompletionMs = Date.parse(withoutSavedRanges.processingRun!.progressEstimate!.estimatedCompletionAt);
+    const partialCompletionMs = Date.parse(withPartialSavedRanges.processingRun!.progressEstimate!.estimatedCompletionAt);
+    expect(fullCompletionMs).toBeGreaterThan(shortCompletionMs);
+    expect(fullCompletionMs).toBeGreaterThan(partialCompletionMs);
+  });
+});
+

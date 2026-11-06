@@ -52,6 +52,11 @@ import { buildStudyPrompt, canonicalJson } from "@/server/study-preparation/stud
 import type { Dispatch } from "./dispatch";
 import { renderSourcePageIndex, runStudyInvestigation, StudyAgentFailure, type StudyAgentTotals } from "./study-investigation";
 import {
+  buildRunTimingStageMetric,
+  estimateInitialProcessingRunDurationMs,
+} from "@/server/pipeline/pipeline-progress-estimate";
+import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
+import {
   buildExtractWorkQueue,
   buildV5AcceptRevision,
   documentPagesFullyExtracted,
@@ -981,10 +986,13 @@ async function extractDocuments(context: Context): Promise<StepResult> {
   if (pending.length === 0) {
     return finishExtractingStage(context, inputs.run);
   }
-  const workItems = buildExtractWorkQueue({
+  const workItems = await buildExtractWorkQueue({
+    client: context.deps.client,
+    runId: context.runId,
     snapshot: inputs.sourceSnapshot,
     extractedIds: extracted,
     savedRangeKeysByDocument: savedRangeKeysByDocument(rangesPayload),
+    correlationId: context.correlationId,
   });
   const invocationStartedAt = context.deps.invocationStartedAt ?? context.startedAt;
   const clock = context.deps.clock ?? (() => Date.now());
@@ -1052,7 +1060,46 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
 async function acceptV5Study(context: Context, inputs: RunInputs, study: CanonicalStudy): Promise<StepResult> {
   const catalog = context.catalog();
   const canonicalMetric = [...inputs.run.stageMetrics].reverse().find((metric) => metric.stage === "CANONICALIZING" && metric.outcome === "SUCCEEDED");
-  const revision = buildV5AcceptRevision({ study, intents: inputs.intents, canonicalMetric, catalog });
+  const completedAt = (context.now?.() ?? new Date()).toISOString();
+  const startedAt = inputs.run.startedAt ?? inputs.run.createdAt;
+  const [extractThroughput, canonicalizeThroughput, writeThroughput] = await Promise.all([
+    loadPipelineThroughput(context.deps.client, "extract"),
+    loadPipelineThroughput(context.deps.client, "canonicalize"),
+    loadPipelineThroughput(context.deps.client, "write"),
+  ]);
+  const pagesByDocument = new Map(
+    inputs.sourceSnapshot.documents.map((document) => [
+      document.sourceDocumentId.toLowerCase(),
+      Array.from({ length: document.verifiedPageCount }, (_, index) => ({
+        pageNumber: index + 1,
+        text: "",
+      })),
+    ]),
+  );
+  const estimatedDurationMs = estimateInitialProcessingRunDurationMs({
+    nowMs: Date.now(),
+    snapshot: inputs.sourceSnapshot,
+    extractedDocumentIds: new Set(),
+    savedRangeKeysByDocument: new Map(),
+    pagesByDocument,
+    extractThroughput,
+    canonicalizeThroughput,
+    writeThroughput,
+    reportRuns: [],
+  });
+  const runTimingMetric = buildRunTimingStageMetric({
+    estimatedDurationMs,
+    actualDurationMs: Math.max(0, Date.now() - Date.parse(startedAt)),
+    startedAt,
+    completedAt,
+  });
+  const revision = buildV5AcceptRevision({
+    study,
+    intents: inputs.intents,
+    canonicalMetric,
+    catalog,
+    runTimingMetric,
+  });
   let payload: Record<string, unknown> | null;
   try {
     payload = await rpc(context.deps.client, "accept_study_revision", { p_run_id: context.runId, p_revision: revision });

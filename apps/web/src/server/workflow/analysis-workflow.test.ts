@@ -263,6 +263,18 @@ function fakeDatabase(
         stageAttempt = 1;
         return { data: { applied: true, processingRun: run() }, error: null };
       }
+      case "get_pipeline_throughput":
+        return {
+          data: {
+            sampleCount: 0,
+            outputTokensPerSecond: args.p_task === "canonicalize" ? 70 : args.p_task === "write" ? 100 : 110,
+            outputInputRatio: 1,
+            inputTokensPerPage: args.p_task === "extract" ? 400 : null,
+          },
+          error: null,
+        };
+      case "record_pipeline_model_call":
+        return { data: true, error: null };
       case "get_study_source_pages": {
         const pages = Object.entries(options.pages ?? {}).map(([key, text], index) => {
           const [sourceDocumentId, pageNumber] = key.split(":");
@@ -768,7 +780,7 @@ describe("processAnalysisRun: V5 pipeline", () => {
     const h = harness(db, planner);
 
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
-    expect(planner.calls.filter((task) => task === "extract").length).toBeGreaterThanOrEqual(3);
+    expect(planner.calls.filter((task) => task === "extract").length).toBeGreaterThanOrEqual(2);
     expect(db.docExtractions.map((row) => row.sourceDocumentId).sort()).toEqual([DOC_1, DOC_2].sort());
   });
 

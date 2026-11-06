@@ -3,6 +3,7 @@ import {
   type GetHiveReportsResponse,
   type HiveError,
   type HiveReport,
+  isActiveReportRunStatus,
   isValidUuid,
   normalizeGetHiveReportsResponse,
   normalizeHiveReport,
@@ -11,6 +12,8 @@ import {
   validateGenerateHiveReportInput,
 } from "@hiveforyou/contracts";
 
+import { buildReportRunProgressEstimate } from "@/server/pipeline/pipeline-progress-estimate";
+import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
 import type { DocumentPageRpcClient } from "@/server/source-documents/document-pages-persistence";
 
 /** Owner report operations (authenticated client). Both audiences are freely accessible. */
@@ -88,7 +91,25 @@ export async function getHiveReports(
   if (error) throw mapRpcError(error, input.correlationId);
   const normalized = normalizeGetHiveReportsResponse(parsePayload(data));
   if (!normalized) throw unexpectedShape(input.correlationId);
-  return normalized;
+  const active = normalized.reportRuns.some((run) => isActiveReportRunStatus(run.status));
+  if (!active) return normalized;
+  const nowMs = Date.now();
+  const writeThroughput = await loadPipelineThroughput(client, "write", nowMs);
+  return {
+    ...normalized,
+    reportRuns: normalized.reportRuns.map((run) =>
+      isActiveReportRunStatus(run.status)
+        ? {
+            ...run,
+            progressEstimate: buildReportRunProgressEstimate({
+              nowMs,
+              status: run.status,
+              writeThroughput,
+            }),
+          }
+        : run,
+    ),
+  };
 }
 
 export async function getHiveReport(
