@@ -244,9 +244,27 @@ SELECT public.put_doc_extraction(
 RESET role;
 
 -- ---------------------------------------------------------------------------
--- Owner can read facts and referenced documents
+-- Invoker helpers: authenticated must EXECUTE every function invoked along
+-- public.get_study_tab_view (otherwise superuser-only pgTAP passes while production fails for the owner).
 -- ---------------------------------------------------------------------------
-SET LOCAL role authenticated;
+SELECT ok(
+  has_function_privilege('authenticated', 'public.get_study_tab_view(uuid)', 'EXECUTE'),
+  'authenticated may EXECUTE public.get_study_tab_view'
+);
+SELECT ok(
+  has_function_privilege('authenticated', 'hive.build_study_tab_view(uuid, uuid)', 'EXECUTE'),
+  'authenticated may EXECUTE hive.build_study_tab_view'
+);
+SELECT ok(
+  has_function_privilege('authenticated', 'hive.canonical_study_cited_fact_ids(jsonb)', 'EXECUTE'),
+  'authenticated may EXECUTE hive.canonical_study_cited_fact_ids'
+);
+
+-- ---------------------------------------------------------------------------
+-- Owner can read facts and referenced documents (as authenticated, not bootstrap superuser)
+-- ---------------------------------------------------------------------------
+RESET role;
+SET LOCAL ROLE authenticated;
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000c1","role":"authenticated"}';
 
 SELECT is(
@@ -275,7 +293,7 @@ SELECT is(
 -- Other user and anon
 -- ---------------------------------------------------------------------------
 RESET role;
-SET LOCAL role authenticated;
+SET LOCAL ROLE authenticated;
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000c2","role":"authenticated"}';
 
 SELECT throws_ok(
