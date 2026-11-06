@@ -76,6 +76,8 @@ type AddFilesButtonProps = {
   label?: string;
   showLabel?: boolean;
   describedBy?: string;
+  /** Replaces the labelled button's styling. */
+  className?: string;
 };
 
 export function AddFilesButton({
@@ -84,6 +86,7 @@ export function AddFilesButton({
   label = "Add documents",
   showLabel = false,
   describedBy,
+  className,
 }: AddFilesButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -110,7 +113,9 @@ export function AddFilesButton({
         aria-label={showLabel ? undefined : label}
         aria-describedby={describedBy}
         className={
-          showLabel
+          showLabel && className
+            ? className
+            : showLabel
             ? "inline-flex h-10 cursor-pointer items-center gap-2 rounded-button border border-line bg-paper px-4 text-[14px] font-medium text-ink transition-colors hover:bg-mist disabled:cursor-not-allowed disabled:opacity-45"
             : "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-button border-0 bg-transparent text-ink-subtle transition-colors hover:bg-mist hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
         }

@@ -93,21 +93,21 @@ export function HiveCardMenu({
           <Link
             href={hiveDocumentsPath(hiveId)}
             role="menuitem"
-            className="flex w-full px-3.5 py-2.5 text-left text-[14px] font-medium text-ink no-underline hover:bg-mist"
+            className="flex min-h-11 w-full items-center px-3.5 text-left text-[15px] font-medium text-ink no-underline hover:bg-mist"
             onClick={() => setOpen(false)}
           >
-            Open Hive
+            Open hive
           </Link>
           <button
             type="button"
             role="menuitem"
-            className="flex w-full px-3.5 py-2.5 text-left text-[14px] font-semibold text-coral-deep hover:bg-coral-wash"
+            className="flex min-h-11 w-full items-center px-3.5 text-left text-[15px] font-semibold text-coral-deep hover:bg-coral-wash"
             onClick={() => {
               setOpen(false);
               onDeleteHive();
             }}
           >
-            Delete Hive
+            Delete hive
           </button>
         </div>
       ) : null}

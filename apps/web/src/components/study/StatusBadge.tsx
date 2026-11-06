@@ -41,13 +41,16 @@ export function stateClass(state: DisplayState): string {
   return STATE_CLASS[state];
 }
 
-export function StatusBadge({ state }: { state: DisplayState }) {
+const BADGE_CLASS = "inline-flex shrink-0 items-center whitespace-nowrap rounded-pill px-2.5 py-[3px] text-caption font-semibold";
+
+/** `neutral` is for work in progress, which has no brand state. */
+export function StatusBadge({ state, label }: { state: DisplayState | "neutral"; label?: string }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-pill px-2.5 py-[3px] text-caption font-semibold ${STATE_CLASS[state]}`}
+      className={`${BADGE_CLASS} ${state === "neutral" ? "border border-line bg-mist text-graphite" : STATE_CLASS[state]}`}
       data-state={state}
     >
-      {STATE_LABEL[state]}
+      {label ?? (state === "neutral" ? "" : STATE_LABEL[state])}
     </span>
   );
 }

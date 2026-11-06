@@ -181,3 +181,9 @@ const INPUT: FixtureInput = {
 export function bankruptcyC13Fixture(audience: ReportAudience): ReportFixture {
   return buildFixture(INPUT, audience);
 }
+
+/** The same accepted study with no write output: no narrative sections, default block order. */
+export function bankruptcyC13StudyOnlyFixture(): ReportFixture {
+  const none = { sections: [], blocks: [] };
+  return buildFixture({ ...INPUT, writes: { CUSTOMER: none, PRO: none } }, "CUSTOMER");
+}

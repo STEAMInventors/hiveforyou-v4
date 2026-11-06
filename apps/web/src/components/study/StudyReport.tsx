@@ -24,7 +24,7 @@ import { ReadProblemNotice, readProblemsFromCoverage } from "./ReadProblemNotice
 import { ReportFooter } from "./ReportFooter";
 import { type ChipRef, shortDocumentLabels, SourceChips } from "./SourceChip";
 import { countStates, spineRowState, StateBar } from "./StateBar";
-import type { DisplayState } from "./StatusBadge";
+import { STUDY_SECTION_IDS, studyStateTargets } from "./study-summary";
 import { formatDocumentDate, rowChips, selectUpcoming, Timeline } from "./Timeline";
 
 export type StudyReportHeader =
@@ -49,16 +49,11 @@ type StudyReportProps = {
   controls?: ReactNode;
   /** Run progress or errors, shown inside the header card. */
   status?: ReactNode;
+  /** Off when the page header already shows this study's state bar. */
+  showStateBar?: boolean;
 };
 
-const SECTION_IDS = {
-  glance: "at-a-glance",
-  disagree: "where-documents-disagree",
-  establish: "what-documents-establish",
-  missing: "what-is-missing",
-  timeline: "timeline",
-  documents: "documents",
-} as const;
+const SECTION_IDS = STUDY_SECTION_IDS;
 
 const DETAIL_SECTION_IDS: ReadonlySet<string> = new Set([SECTION_IDS.establish, SECTION_IDS.timeline, SECTION_IDS.documents]);
 
@@ -99,7 +94,7 @@ function usePrefersReducedMotion(): boolean {
  * One layout for both reports and the study view. Every count, label and calculation is made here
  * from the canonical study; the write output contributes only the narrative sections.
  */
-export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], documentPages, controls, status }: StudyReportProps) {
+export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], documentPages, controls, status, showStateBar = true }: StudyReportProps) {
   const customer = header.kind === "report" && header.audience === "CUSTOMER";
   const isReport = header.kind === "report";
   const [detailsOpen, setDetailsOpen] = useState(!customer);
@@ -186,12 +181,7 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
       </span>
     ) : null;
 
-  const stateTargets: Record<DisplayState, string> = {
-    needs: model.conflicts.length > 0 ? SECTION_IDS.disagree : SECTION_IDS.establish,
-    changed: SECTION_IDS.establish,
-    missing: SECTION_IDS.missing,
-    checked: SECTION_IDS.establish,
-  };
+  const stateTargets = studyStateTargets(view);
 
   const glanceRows: { label: string; content: ReactNode }[] = [];
   if (isReport && model.upcoming) {
@@ -309,7 +299,9 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
                 <span className="font-quote italic">{view.intent}</span>
               </p>
             ) : null}
-            <StateBar counts={model.counts} targets={stateTargets} onNavigate={navigate} />
+            {showStateBar ? (
+              <StateBar counts={model.counts} targets={stateTargets} onNavigate={navigate} />
+            ) : null}
             {status}
           </header>
 
@@ -410,7 +402,7 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
         </div>
 
         {toc.length > 1 ? (
-          <aside className="flex-[1_1_240px] md:sticky md:top-[136px]" aria-label="On this page">
+          <aside className="flex-[1_1_240px] md:sticky md:top-[88px]" aria-label="On this page">
             <nav className={`${CARD} gap-3`}>
               <h2 className="m-0 text-caption font-semibold text-quiet">On this page</h2>
               <ul className="m-0 flex list-none flex-col gap-0.5 p-0">

@@ -1,7 +1,10 @@
+"use client";
+
 import type { CoverageGap, StudyRevisionFormat, StudyView as StudyViewData, StudyViewSources } from "@hiveforyou/contracts";
 import Link from "next/link";
 
-import { hiveDocumentsPath } from "@/lib/hive-routes";
+import { QUIET_LINK_CLASS } from "@/components/button-classes";
+import { hiveDocumentsPath, hiveReportsPath } from "@/lib/hive-routes";
 
 import { StudyReport } from "./StudyReport";
 
@@ -32,12 +35,8 @@ export function StudyView({ hiveId, revisionFormat, view, sources, revisionNumbe
           Rebuild it to see it in the new study view. Rebuild uses the pages already read; earlier revisions and their
           reports stay.
         </p>
-        <Link
-          href={hiveDocumentsPath(hiveId)}
-          className="inline-flex min-h-11 items-center font-medium text-cell-blue-deep"
-          data-testid="study-legacy-rebuild"
-        >
-          Rebuild Study from Documents
+        <Link href={hiveDocumentsPath(hiveId)} className={QUIET_LINK_CLASS} data-testid="study-legacy-rebuild">
+          Rebuild the study from Documents
         </Link>
       </section>
     );
@@ -45,10 +44,14 @@ export function StudyView({ hiveId, revisionFormat, view, sources, revisionNumbe
   if (!view) {
     return (
       <section role="status" className={NOTICE_CLASS} data-testid="study-view-pending">
-        <h2 className={NOTICE_HEADING}>Your study view isn&apos;t written yet</h2>
+        <h2 className={NOTICE_HEADING}>Your study is accepted, but its page isn&apos;t ready yet</h2>
         <p className="m-0 max-w-prose text-body text-graphite">
-          It appears here once a report has been written from this study. You can generate one from the Reports tab.
+          The study page is laid out when a report is written from this revision. Write one from Reports and it appears
+          here too.
         </p>
+        <Link href={hiveReportsPath(hiveId)} className={QUIET_LINK_CLASS}>
+          Go to Reports
+        </Link>
       </section>
     );
   }
@@ -60,6 +63,7 @@ export function StudyView({ hiveId, revisionFormat, view, sources, revisionNumbe
       header={{ kind: "study", revisionNumber: revisionNumber ?? null }}
       coverageGaps={coverageGaps}
       documentPages={documentPages}
+      showStateBar={false}
     />
   );
 }

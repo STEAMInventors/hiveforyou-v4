@@ -133,6 +133,44 @@
     }
   }
 
+  /* Ask field: the four-colour ring shows on hover and focus only, never at rest. */
+  .hive-ask {
+    position: relative;
+    border-radius: 12px;
+  }
+
+  .hive-ask::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 14px;
+    padding: 2px;
+    background: conic-gradient(from 200deg, #3b7cf6, #ef5143, #f6b826, #2fa35a, #3b7cf6);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+
+  .hive-ask:hover::before,
+  .hive-ask:focus-within::before {
+    opacity: 1;
+  }
+
+  .hive-ask input:focus-visible {
+    outline: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hive-ask::before {
+      transition: none;
+    }
+  }
+
   /* Read Documents counter: lifts in the arriving cell's colour when a document finishes. */
   .hfy-lh-count {
     display: inline-block;

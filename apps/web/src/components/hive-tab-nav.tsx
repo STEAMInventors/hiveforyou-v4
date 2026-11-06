@@ -1,47 +1,47 @@
 import Link from "next/link";
 
+import { hiveDocumentsPath, hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
+
+export type HiveTab = "documents" | "study" | "reports";
+
 type HiveTabNavProps = {
   hiveId: string;
-  active: "documents" | "study" | "reports";
-  documentCount?: number;
+  active: HiveTab;
 };
 
 const tabs = [
-  { key: "documents" as const, label: "Documents", href: (id: string) => `/hives/${id}/documents` },
-  { key: "study" as const, label: "Study", href: (id: string) => `/hives/${id}/study` },
-  { key: "reports" as const, label: "Reports", href: (id: string) => `/hives/${id}/reports` },
+  { key: "documents" as const, label: "Documents", href: hiveDocumentsPath },
+  { key: "study" as const, label: "Study", href: hiveStudyPath },
+  { key: "reports" as const, label: "Reports", href: hiveReportsPath },
 ];
 
-export function HiveTabNav({ hiveId, active, documentCount }: HiveTabNavProps) {
+const TAB_CLASS =
+  "relative inline-flex min-h-11 items-center whitespace-nowrap rounded-t-control px-3 text-body font-medium no-underline transition-colors";
+
+/** The 3px active bar sits on the 1px rule below the tabs; nothing here scrolls or clips. */
+export function HiveTabNav({ hiveId, active }: HiveTabNavProps) {
   return (
-    <nav
-      aria-label="Hive workspace"
-      className="flex gap-1 overflow-x-auto"
-    >
-      {tabs.map((tab) => {
-        const isActive = active === tab.key;
-        const count =
-          tab.key === "documents" && typeof documentCount === "number" && documentCount > 0
-            ? String(documentCount)
-            : null;
-        return (
-          <Link
-            key={tab.key}
-            href={tab.href(hiveId)}
-            aria-current={isActive ? "page" : undefined}
-            className={
-              isActive
-                ? "-mb-px inline-flex h-11 items-center gap-2 whitespace-nowrap border-b-2 border-cell-blue px-3.5 text-[15px] font-medium text-ink no-underline"
-                : "-mb-px inline-flex h-11 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 text-[15px] font-medium text-ink-muted no-underline transition-colors hover:text-ink"
-            }
-          >
-            <span>{tab.label}</span>
-            {count ? (
-              <span className="text-[12px] font-normal text-ink-subtle">{count}</span>
-            ) : null}
-          </Link>
-        );
-      })}
+    <nav aria-label="Hive sections" className="border-b border-line" data-testid="hive-tabs">
+      <ul className="m-0 -ml-3 flex list-none flex-wrap gap-x-1 p-0">
+        {tabs.map((tab) => {
+          const isActive = active === tab.key;
+          return (
+            <li key={tab.key} className="flex">
+              <Link
+                href={tab.href(hiveId)}
+                aria-current={isActive ? "page" : undefined}
+                className={`${TAB_CLASS} ${
+                  isActive
+                    ? "text-ink after:absolute after:inset-x-3 after:-bottom-px after:h-[3px] after:rounded-t-[2px] after:bg-cell-blue"
+                    : "text-graphite hover:text-ink"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </nav>
   );
 }

@@ -4,11 +4,12 @@ import type { Hive } from "@hiveforyou/contracts";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { HiveBrandMark } from "@/components/HiveWordmark";
 import {
   PRIMARY_BUTTON_CLASS,
   SECONDARY_BUTTON_CLASS,
 } from "@/components/button-classes";
+import { HiveMark } from "@/components/study/HiveMark";
+import type { HiveSummary } from "@/server/hives/hive-summary";
 import { loadGuestDraft } from "@/lib/guest-draft";
 import { HiveClientError, deleteHive, fetchMyHives } from "@/lib/hives-client";
 import { MY_HIVES_PATH, hiveDocumentsPath } from "@/lib/hive-routes";
@@ -28,12 +29,14 @@ type MyHivesPanelProps = {
   initialHives: Hive[];
   initialError?: ListError | null;
   openCreateOnLoad?: boolean;
+  summaries?: Readonly<Record<string, HiveSummary>>;
 };
 
 export function MyHivesPanel({
   initialHives,
   initialError = null,
   openCreateOnLoad = false,
+  summaries,
 }: MyHivesPanelProps) {
   const router = useRouter();
   const [hives, setHives] = useState<Hive[]>(initialHives);
@@ -115,21 +118,22 @@ export function MyHivesPanel({
     }
   }, []);
 
+  const empty = !listError && hives.length === 0;
+
   return (
-    <div className="mx-auto flex w-full max-w-workspace flex-col gap-7 px-[clamp(16px,3vw,32px)] pb-16 pt-10">
+    <div className="mx-auto flex w-full max-w-hive flex-col gap-6 px-6 pb-16 pt-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="m-0 font-brand text-[30px] font-semibold text-ink">
-            My Hives
+          <h1 className="m-0 font-brand text-title font-semibold text-ink">
+            My hives
           </h1>
-          <p className="mb-0 mt-1.5 text-[15px] leading-[1.5] text-ink-muted">
-            Each Hive holds one situation: its documents, what Hive understands, the
-            work and the result.
+          <p className="m-0 mt-1.5 max-w-prose text-body text-graphite">
+            Each hive holds one situation: its documents, what they show, and the reports written from them.
           </p>
         </div>
         <button
           type="button"
-          className={PRIMARY_BUTTON_CLASS}
+          className={empty ? SECONDARY_BUTTON_CLASS : PRIMARY_BUTTON_CLASS}
           onClick={() => openModal()}
           disabled={createFlow.submitBusy}
         >
@@ -146,24 +150,24 @@ export function MyHivesPanel({
             <path d="M5 12h14" />
             <path d="M12 5v14" />
           </svg>
-          New Hive
+          New hive
         </button>
       </div>
 
       {listError ? (
         <div
           role="alert"
-          className="rounded-card border border-line bg-paper p-8 text-center"
+          className="flex flex-col items-start gap-2 rounded-card border border-line bg-paper p-7"
         >
-          <p className="m-0 text-sm text-ink">{listError.message}</p>
+          <p className="m-0 text-body text-ink">{listError.message}</p>
           {listError.correlationId ? (
-            <p className="mb-0 mt-2 font-mono text-xs text-ink-subtle">
+            <p className="m-0 font-mono text-[12px] text-quiet">
               Support reference: {listError.correlationId}
             </p>
           ) : null}
           <button
             type="button"
-            className={`${SECONDARY_BUTTON_CLASS} mt-4`}
+            className={`${SECONDARY_BUTTON_CLASS} mt-2`}
             disabled={refreshing}
             onClick={() => void handleRefresh()}
           >
@@ -172,18 +176,17 @@ export function MyHivesPanel({
         </div>
       ) : null}
 
-      {!listError && hives.length === 0 ? (
+      {empty ? (
         <section
           aria-labelledby="empty-hives-title"
-          className="flex flex-col items-center gap-4 rounded-card border border-dashed border-line-strong bg-paper px-[clamp(20px,4vw,32px)] py-16 text-center"
+          className="flex flex-col items-center gap-4 rounded-card border-2 border-dashed border-line bg-paper px-6 py-14 text-center"
         >
-          <HiveBrandMark variant="standalone" />
-          <h2 id="empty-hives-title" className="m-0 font-brand text-[21px] font-medium text-ink">
-            No Hives yet
+          <HiveMark className="h-10 w-10" />
+          <h2 id="empty-hives-title" className="m-0 font-brand text-section font-semibold text-ink">
+            No hives yet
           </h2>
-          <p className="mx-auto m-0 max-w-[420px] text-[15px] leading-[1.55] text-ink-muted">
-            Start with what you&apos;re trying to get done and at least one document
-            you have.
+          <p className="m-0 max-w-[420px] text-body text-graphite">
+            Say what you&apos;re trying to get done and upload whatever you have to start your hive.
           </p>
           <button
             type="button"
@@ -191,7 +194,7 @@ export function MyHivesPanel({
             onClick={() => openModal()}
             disabled={createFlow.submitBusy}
           >
-            Start your first Hive
+            Start your first hive
           </button>
         </section>
       ) : null}
@@ -199,6 +202,7 @@ export function MyHivesPanel({
       {hives.length > 0 ? (
         <HiveCardGrid
           hives={hives}
+          summaries={summaries}
           onRequestDelete={setHivePendingDelete}
           onRetryDeletion={handleRetryDeletion}
         />

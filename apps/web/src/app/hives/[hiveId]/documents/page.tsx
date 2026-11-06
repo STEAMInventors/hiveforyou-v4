@@ -1,6 +1,7 @@
 import { DocumentsPanel } from "@/components/hives/DocumentsPanel";
 import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
-import { SourceChip } from "@/components/source-chip";
+import { studyDocumentMeta } from "@/components/study/study-summary";
+import { type HiveOverview, loadHiveOverview } from "@/server/hives/hive-summary";
 import { createLiveHiveVaultUploadAdapterDeps } from "@/server/source-documents/hive-vault-upload-adapter";
 import { listHiveSourceDocumentsWithV3Vault } from "@/server/source-documents/hive-vault-upload-adapter";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
@@ -18,6 +19,7 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
     ReturnType<typeof listHiveSourceDocumentsWithV3Vault>
   >["sourceDocuments"] = [];
   let initialError: { message: string; correlationId: string | null } | null = null;
+  let overview: HiveOverview | null = null;
 
   const auth = await requireAuthenticatedUser();
   if (auth.ok) {
@@ -36,6 +38,7 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
         correlationId: null,
       };
     }
+    overview = await loadHiveOverview(auth.client, { hiveId: hive.id, correlationId }).catch(() => null);
   }
 
   return (
@@ -44,13 +47,14 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
       hiveName={hive.name}
       hiveDescription={hive.description ?? ""}
       activeTab="documents"
+      summary={overview?.summary ?? null}
     >
       <DocumentsPanel
         hiveId={hive.id}
         initialDocuments={initialDocuments}
         initialError={initialError}
+        documentMeta={overview?.studyView ? studyDocumentMeta(overview.studyView.view) : undefined}
       />
-      <SourceChip />
     </HiveWorkspaceLayout>
   );
 }

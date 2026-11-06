@@ -2,9 +2,10 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { bankruptcyC13Fixture } from "./fixtures/bankruptcy-c13";
+import { bankruptcyC13Fixture, bankruptcyC13StudyOnlyFixture } from "./fixtures/bankruptcy-c13";
 import { noAnchorHouseholdFixture } from "./fixtures/no-anchor-household";
-import { StudyReport } from "./StudyReport";
+import { studyDocumentMeta, studyStateCounts } from "./study-summary";
+import { StudyReport, titleFromIntent } from "./StudyReport";
 import { StudyView } from "./StudyView";
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
@@ -188,5 +189,52 @@ describe("StudyView", () => {
   it("says the view is not written yet when a canonical revision has no study view", () => {
     render(<StudyView hiveId={HIVE_ID} revisionFormat="canonical-study-1" view={null} sources={null} />);
     expect(screen.getByTestId("study-view-pending")).toBeTruthy();
+  });
+
+  it("renders a revision that has no write output from the canonical study alone", () => {
+    const fixture = bankruptcyC13StudyOnlyFixture();
+    expect(fixture.view.sections).toHaveLength(0);
+    render(
+      <StudyView
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={3}
+        coverageGaps={fixture.coverageGaps}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    expect(screen.getByTestId("study-view").getAttribute("data-audience")).toBe("STUDY");
+    expect(within(screen.getByTestId("report-header")).getByRole("heading", { level: 2 }).textContent).toBe(
+      titleFromIntent(fixture.view.intent),
+    );
+    expect(screen.queryAllByTestId("study-view-section")).toHaveLength(0);
+    expect(screen.getByTestId("establish-table")).toBeTruthy();
+    expect(screen.getAllByTestId("comparison-card")).toHaveLength(2);
+    expect(document.getElementById("what-is-missing")).not.toBeNull();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByTestId("state-bar")).toBeNull();
+  });
+});
+
+describe("study summary", () => {
+  it("gives the page header the same counts the report's state bar shows", () => {
+    const fixture = bankruptcyC13Fixture("PRO");
+    expect(studyStateCounts(fixture.view, fixture.coverageGaps)).toEqual({ needs: 4, changed: 6, missing: 2, checked: 3 });
+    expect(studyStateCounts(bankruptcyC13StudyOnlyFixture().view, fixture.coverageGaps)).toEqual({
+      needs: 4,
+      changed: 6,
+      missing: 2,
+      checked: 3,
+    });
+  });
+
+  it("labels documents the way the report does", () => {
+    const fixture = bankruptcyC13Fixture("PRO");
+    const meta = studyDocumentMeta(fixture.view);
+    const documents = fixture.view.blocks.find((block) => block.name === "documents")!.rows;
+    expect(Object.keys(meta)).toHaveLength(documents.length);
+    for (const row of documents) expect(meta[row.id.toLowerCase()]?.label).toBeTruthy();
   });
 });

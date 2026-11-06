@@ -75,6 +75,7 @@ const config: Config = {
         hero: "880px",
         landing: "1180px",
         workspace: "1240px",
+        hive: "1120px",
         prose: "68ch",
       },
     },
