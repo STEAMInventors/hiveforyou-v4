@@ -100,6 +100,7 @@ jobs:
             supabase/tests/database/v5_workflow_part_a.test.sql
             supabase/tests/database/v5_report_study_view.test.sql
             supabase/tests/database/rebuild_study.test.sql
+            supabase/tests/database/hive_deletion_v5.test.sql
           )
           for f in "${TEST_FILES[@]}"; do
             if [ ! -f "$f" ]; then
