@@ -16,7 +16,15 @@ import {
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { canonicalizeCase } from "@/server/pipeline/canonicalize-runner";
-import { extractDocument, type ExtractCallRecord } from "@/server/pipeline/extract-runner";
+import {
+  type ExtractCallRecord,
+  type ExtractDocumentStats,
+  extractScheduledRange,
+  mergeSavedRangeExtractions,
+  missingExtractWorkItems,
+  pageRangeStorageKey,
+  pagesCoveredBySavedRangeKeys,
+} from "@/server/pipeline/extract-runner";
 import { sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import type { PromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
@@ -53,7 +61,7 @@ export function extractPlannerTimeoutMs(
   return budget;
 }
 
-/** Whether a worker may start another document in this invocation. */
+/** Whether a worker may start another extract call in this invocation. */
 export function canStartExtractingDocument(clock: () => number, invocationStartedAt: number): boolean {
   const remaining = invocationRemainingMs(clock, invocationStartedAt);
   const budget = extractPlannerTimeoutMs(clock, invocationStartedAt);
@@ -131,6 +139,68 @@ export function documentsNeedingExtraction(
   return snapshot.documents.filter((document) => !extractedIds.has(document.sourceDocumentId.toLowerCase()));
 }
 
+export type ExtractWorkItem = {
+  document: SnapshotDocument;
+  pageRange: string | null;
+};
+
+export type SavedDocExtractionRange = {
+  sourceDocumentId: string;
+  pageRange: string;
+  extraction: DocExtraction;
+  stats: ExtractDocumentStats;
+  modelAlias: string;
+};
+
+export function savedRangeKeysByDocument(rangesPayload: unknown): Map<string, Set<string>> {
+  const rows = Array.isArray((rangesPayload as { ranges?: unknown })?.ranges)
+    ? ((rangesPayload as { ranges: Record<string, unknown>[] }).ranges ?? [])
+    : [];
+  const byDocument = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const id = typeof row.sourceDocumentId === "string" ? row.sourceDocumentId.toLowerCase() : "";
+    const pageRange = typeof row.pageRange === "string" ? row.pageRange.toLowerCase() : "";
+    if (!id || !pageRange) continue;
+    const keys = byDocument.get(id) ?? new Set<string>();
+    keys.add(pageRange);
+    byDocument.set(id, keys);
+  }
+  return byDocument;
+}
+
+export function buildExtractWorkQueue(input: {
+  snapshot: SourceSnapshot;
+  extractedIds: ReadonlySet<string>;
+  savedRangeKeysByDocument: ReadonlyMap<string, ReadonlySet<string>>;
+}): ExtractWorkItem[] {
+  const queue: ExtractWorkItem[] = [];
+  for (const document of documentsNeedingExtraction(input.snapshot, input.extractedIds)) {
+    const docKey = document.sourceDocumentId.toLowerCase();
+    const saved = input.savedRangeKeysByDocument.get(docKey) ?? new Set<string>();
+    const pageNumbers = Array.from(
+      { length: document.verifiedPageCount },
+      (_, index) => index + 1,
+    );
+    const pages = pageNumbers.map((pageNumber) => ({ pageNumber, text: "" }));
+    for (const item of missingExtractWorkItems(pages, saved)) {
+      queue.push({ document, pageRange: item.pageRange });
+    }
+  }
+  return queue;
+}
+
+export function documentPagesFullyExtracted(
+  verifiedPageCount: number,
+  savedRangeKeys: ReadonlySet<string>,
+): boolean {
+  if (verifiedPageCount <= 0) return savedRangeKeys.size > 0;
+  const covered = pagesCoveredBySavedRangeKeys(savedRangeKeys, verifiedPageCount);
+  for (let page = 1; page <= verifiedPageCount; page += 1) {
+    if (!covered.has(page)) return false;
+  }
+  return true;
+}
+
 async function recordExtractingDocumentSuccess(
   client: RpcClient,
   runId: string,
@@ -175,39 +245,39 @@ export class ExtractStageFailure extends Error {
 }
 
 /**
- * Bounded worker pool: up to {@link EXTRACTING_CONCURRENCY} documents at once; each finished slot
- * takes the next document still missing a snapshot-bound extraction row.
+ * Bounded worker pool: up to {@link EXTRACTING_CONCURRENCY} page-range jobs at once; each finished
+ * slot takes the next missing (document, range) pair and persists range rows immediately.
  */
 export async function runExtractingWorkerPool(input: {
   deps: AnalysisWorkflowDeps;
   run: ProcessingRun;
-  documents: readonly SnapshotDocument[];
+  workItems: readonly ExtractWorkItem[];
   catalog: PromptCatalog;
   correlationId: string;
   now: () => Date;
   clock: () => number;
   invocationStartedAt: number;
-  extract?: typeof extractOneDocument;
+  extract?: typeof extractOneRange;
   canStart?: (clock: () => number, invocationStartedAt: number) => boolean;
 }): Promise<{ deferred: boolean }> {
-  const extract = input.extract ?? extractOneDocument;
+  const extract = input.extract ?? extractOneRange;
   const mayStart = input.canStart ?? canStartExtractingDocument;
-  const queue = [...input.documents];
+  const queue = [...input.workItems];
   const attempts = new Map<string, number>();
   let failure: ExtractStageFailure | null = null;
 
   async function worker(): Promise<void> {
     while (!failure) {
       if (!mayStart(input.clock, input.invocationStartedAt)) return;
-      const document = queue.shift();
-      if (!document) return;
-      const docKey = document.sourceDocumentId.toLowerCase();
-      const attempt = (attempts.get(docKey) ?? 0) + 1;
-      attempts.set(docKey, attempt);
+      const item = queue.shift();
+      if (!item) return;
+      const attemptKey = `${item.document.sourceDocumentId.toLowerCase()}:${pageRangeStorageKey(item.pageRange)}`;
+      const attempt = (attempts.get(attemptKey) ?? 0) + 1;
+      attempts.set(attemptKey, attempt);
       const outcome = await extract({
         deps: input.deps,
         run: input.run,
-        document,
+        workItem: item,
         catalog: input.catalog,
         correlationId: input.correlationId,
         stageAttempt: attempt,
@@ -216,11 +286,18 @@ export async function runExtractingWorkerPool(input: {
         invocationStartedAt: input.invocationStartedAt,
       });
       if (outcome.ok) {
-        await recordExtractingDocumentSuccess(input.deps.client, input.run.id, outcome.metric, input.correlationId);
+        if (outcome.documentMetric) {
+          await recordExtractingDocumentSuccess(
+            input.deps.client,
+            input.run.id,
+            outcome.documentMetric,
+            input.correlationId,
+          );
+        }
         continue;
       }
       if (isRetryableExtractFailure(outcome.error) && attempt < EXTRACTING_ATTEMPT_LIMIT) {
-        queue.push(document);
+        queue.push(item);
         continue;
       }
       failure = new ExtractStageFailure(outcome.error, outcome.metric);
@@ -329,7 +406,91 @@ export type ExtractOneDocumentResult =
   | { ok: true; metric: StageMetric; modelAlias: string }
   | { ok: false; error: HiveError; metric: StageMetric | null; calls: ExtractCallRecord[] };
 
-export async function extractOneDocument(input: {
+export type ExtractOneRangeResult =
+  | { ok: true; metric: StageMetric; modelAlias: string; documentMetric: StageMetric | null }
+  | { ok: false; error: HiveError; metric: StageMetric | null; calls: ExtractCallRecord[] };
+
+function rangeStatsPayload(stats: ExtractDocumentStats): ExtractDocumentStats {
+  return stats;
+}
+
+async function persistExtractedRange(input: {
+  deps: AnalysisWorkflowDeps;
+  run: ProcessingRun;
+  document: SnapshotDocument;
+  catalog: PromptCatalog;
+  pageRange: string | null;
+  extraction: DocExtraction;
+  stats: ExtractDocumentStats;
+  modelAlias: string;
+  correlationId: string;
+}): Promise<HiveError | null> {
+  const prompt = input.catalog.extract;
+  const put = await rpc(input.deps.client, "put_doc_extraction_range", {
+    p_hive_id: input.run.hiveId,
+    p_source_document_id: input.document.sourceDocumentId,
+    p_content_digest: input.document.pageSetDigest,
+    p_page_range: pageRangeStorageKey(input.pageRange),
+    p_prompt_id: prompt.id,
+    p_prompt_digest: prompt.digest,
+    p_model_alias: input.modelAlias,
+    p_extraction: input.extraction,
+    p_stats: rangeStatsPayload(input.stats),
+  });
+  if (!put) {
+    return createHiveError({
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "ANALYZE",
+      retryable: true,
+      safeMessage: "Analysis stopped before it finished. You can try again.",
+      correlationId: input.correlationId,
+      diagnosticReason: "doc_extraction_range_save_failed",
+    });
+  }
+  return null;
+}
+
+function aggregateDocumentStats(ranges: readonly ExtractDocumentStats[]): ExtractDocumentStats {
+  const stats: ExtractDocumentStats = {
+    factsProposed: 0,
+    malformed: {},
+    factsIn: 0,
+    factsKept: 0,
+    evidenceIn: 0,
+    evidenceDropped: 0,
+    byReason: {},
+    emptyFields: { in: 0, kept: 0 },
+    referencedDocuments: { in: 0, kept: 0 },
+    documentEvidence: { in: 0, kept: 0 },
+    dropped: [],
+    ranges: [],
+    pageExtractionGaps: [],
+  };
+  for (const part of ranges) {
+    stats.factsProposed += part.factsProposed;
+    for (const [key, count] of Object.entries(part.malformed)) {
+      stats.malformed[key] = (stats.malformed[key] ?? 0) + count;
+    }
+    stats.factsIn += part.factsIn;
+    stats.factsKept += part.factsKept;
+    stats.evidenceIn += part.evidenceIn;
+    stats.evidenceDropped += part.evidenceDropped;
+    for (const [key, count] of Object.entries(part.byReason) as [keyof typeof stats.byReason, number][]) {
+      stats.byReason[key] = (stats.byReason[key] ?? 0) + count;
+    }
+    for (const key of ["emptyFields", "referencedDocuments", "documentEvidence"] as const) {
+      stats[key].in += part[key].in;
+      stats[key].kept += part[key].kept;
+    }
+    stats.dropped.push(...part.dropped);
+    stats.ranges.push(...part.ranges);
+    stats.pageExtractionGaps.push(...part.pageExtractionGaps);
+  }
+  return stats;
+}
+
+export async function tryMergeDocumentExtraction(input: {
   deps: AnalysisWorkflowDeps;
   run: ProcessingRun;
   document: SnapshotDocument;
@@ -337,10 +498,91 @@ export async function extractOneDocument(input: {
   correlationId: string;
   stageAttempt: number;
   now: () => Date;
+  savedRanges: readonly SavedDocExtractionRange[];
+  calls: ExtractCallRecord[];
+  modelAlias: string;
+}): Promise<{ merged: boolean; metric: StageMetric | null }> {
+  const savedKeys = new Set(input.savedRanges.map((row) => row.pageRange.toLowerCase()));
+  if (!documentPagesFullyExtracted(input.document.verifiedPageCount, savedKeys)) {
+    return { merged: false, metric: null };
+  }
+  const prompt = input.catalog.extract;
+  const mergedExtraction = mergeSavedRangeExtractions(
+    input.document.sourceDocumentId,
+    input.savedRanges.map((row) => ({ pageRange: row.pageRange, extraction: row.extraction })),
+    input.document.verifiedPageCount,
+  );
+  const mergedStats = aggregateDocumentStats(input.savedRanges.map((row) => row.stats));
+  const put = await rpc(input.deps.client, "put_doc_extraction", {
+    p_hive_id: input.run.hiveId,
+    p_source_document_id: input.document.sourceDocumentId,
+    p_content_digest: input.document.pageSetDigest,
+    p_prompt_id: prompt.id,
+    p_prompt_digest: prompt.digest,
+    p_model_alias: input.modelAlias,
+    p_extraction: mergedExtraction,
+    p_stats: mergedStats,
+  });
+  if (!put) {
+    throw createHiveError({
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "ANALYZE",
+      retryable: true,
+      safeMessage: "Analysis stopped before it finished. You can try again.",
+      correlationId: input.correlationId,
+      diagnosticReason: "doc_extraction_save_failed",
+    });
+  }
+  const startedAt = input.now().toISOString();
+  return {
+    merged: true,
+    metric: aggregateExtractMetric(
+      input.stageAttempt,
+      prompt,
+      input.calls,
+      input.modelAlias,
+      startedAt,
+      input.now().toISOString(),
+    ),
+  };
+}
+
+export async function loadSavedDocExtractionRanges(
+  client: RpcClient,
+  runId: string,
+): Promise<SavedDocExtractionRange[]> {
+  const payload = await rpc(client, "get_doc_extraction_ranges_for_run", { p_processing_run_id: runId });
+  const rows = Array.isArray(payload?.ranges) ? (payload.ranges as Record<string, unknown>[]) : [];
+  return rows
+    .map((row) => ({
+      sourceDocumentId: String(row.sourceDocumentId ?? "").toLowerCase(),
+      pageRange: String(row.pageRange ?? "").toLowerCase(),
+      extraction: row.extraction as DocExtraction,
+      stats: (row.stats ?? {}) as ExtractDocumentStats,
+      modelAlias: typeof row.modelAlias === "string" && row.modelAlias.length > 0 ? row.modelAlias : "harvester",
+    }))
+    .filter(
+      (row): row is SavedDocExtractionRange =>
+        !!row.sourceDocumentId &&
+        !!row.pageRange &&
+        row.extraction?.schema === "hive.doc-extraction/1",
+    );
+}
+
+export async function extractOneRange(input: {
+  deps: AnalysisWorkflowDeps;
+  run: ProcessingRun;
+  workItem: ExtractWorkItem;
+  catalog: PromptCatalog;
+  correlationId: string;
+  stageAttempt: number;
+  now: () => Date;
   clock?: () => number;
   invocationStartedAt?: number;
-}): Promise<ExtractOneDocumentResult> {
-  const { deps, run, document, catalog, correlationId, stageAttempt, now } = input;
+}): Promise<ExtractOneRangeResult> {
+  const { deps, run, workItem, catalog, correlationId, stageAttempt, now } = input;
+  const document = workItem.document;
   const clock = input.clock ?? deps.clock ?? (() => Date.now());
   const invocationStartedAt = input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now();
   const prompt = catalog.extract;
@@ -365,16 +607,42 @@ export async function extractOneDocument(input: {
       }),
     };
   }
-  const result = await extractDocument({
+  const rangePages = pages.filter((page) => {
+    if (workItem.pageRange === null) return true;
+    const match = /^(\d+)(?:-(\d+))?$/.exec(workItem.pageRange);
+    if (!match) return false;
+    const start = Number(match[1]);
+    const end = match[2] ? Number(match[2]) : start;
+    return page.pageNumber >= start && page.pageNumber <= end;
+  });
+  let modelAlias = "harvester";
+  const result = await extractScheduledRange({
     planner: deps.planner,
     document: { id: document.sourceDocumentId, fileName: document.fileName },
-    pages,
+    pages: rangePages,
     correlationId,
     runId: run.id,
     prompt,
+    range: { pageRange: workItem.pageRange, pages: rangePages },
     resolvePlannerTimeoutMs: () => extractPlannerTimeoutMs(clock, invocationStartedAt),
+    persist: async ({ pageRange, extraction, stats, pageGaps, modelAlias: callModel }) => {
+      if (callModel) modelAlias = callModel;
+      const saveError = await persistExtractedRange({
+        deps,
+        run,
+        document,
+        catalog,
+        pageRange,
+        extraction,
+        stats: { ...stats, ranges: [], pageExtractionGaps: pageGaps },
+        modelAlias: callModel ?? modelAlias,
+        correlationId,
+      });
+      if (saveError) throw saveError;
+    },
   });
   for (const call of result.calls) {
+    if (call.modelAlias) modelAlias = call.modelAlias;
     logPipelineCall({
       task: "extract",
       correlationId,
@@ -392,33 +660,6 @@ export async function extractOneDocument(input: {
   if (!result.ok) {
     return { ok: false, error: result.error, calls: result.calls, metric: null };
   }
-  const modelAlias = result.calls.find((call) => call.modelAlias)?.modelAlias ?? "harvester";
-  const put = await rpc(deps.client, "put_doc_extraction", {
-    p_hive_id: run.hiveId,
-    p_source_document_id: document.sourceDocumentId,
-    p_content_digest: document.pageSetDigest,
-    p_prompt_id: prompt.id,
-    p_prompt_digest: prompt.digest,
-    p_model_alias: modelAlias,
-    p_extraction: result.extraction,
-    p_stats: result.stats,
-  });
-  if (!put) {
-    return {
-      ok: false,
-      calls: result.calls,
-      metric: null,
-      error: createHiveError({
-        errorCode: "PERSISTENCE_FAILED",
-        category: "PERSISTENCE",
-        stage: "ANALYZE",
-        retryable: true,
-        safeMessage: "Analysis stopped before it finished. You can try again.",
-        correlationId,
-        diagnosticReason: "doc_extraction_save_failed",
-      }),
-    };
-  }
   const metric = aggregateExtractMetric(
     stageAttempt,
     prompt,
@@ -427,7 +668,67 @@ export async function extractOneDocument(input: {
     startedAt,
     now().toISOString(),
   );
-  return { ok: true, metric, modelAlias };
+  const savedRanges = (await loadSavedDocExtractionRanges(deps.client, run.id)).filter(
+    (row) => row.sourceDocumentId === document.sourceDocumentId.toLowerCase(),
+  );
+  let documentMetric: StageMetric | null = null;
+  try {
+    const merged = await tryMergeDocumentExtraction({
+      deps,
+      run,
+      document,
+      catalog,
+      correlationId,
+      stageAttempt,
+      now,
+      savedRanges,
+      calls: result.calls,
+      modelAlias,
+    });
+    documentMetric = merged.metric;
+  } catch (error) {
+    if (error && typeof error === "object" && "errorCode" in error) {
+      return { ok: false, error: error as HiveError, calls: result.calls, metric };
+    }
+    throw error;
+  }
+  return { ok: true, metric, modelAlias, documentMetric };
+}
+
+/** @deprecated Tests and legacy callers; production uses {@link extractOneRange}. */
+export async function extractOneDocument(input: {
+  deps: AnalysisWorkflowDeps;
+  run: ProcessingRun;
+  document: SnapshotDocument;
+  catalog: PromptCatalog;
+  correlationId: string;
+  stageAttempt: number;
+  now: () => Date;
+  clock?: () => number;
+  invocationStartedAt?: number;
+}): Promise<ExtractOneDocumentResult> {
+  const outcome = await extractOneRange({
+    ...input,
+    workItem: { document: input.document, pageRange: null },
+  });
+  if (!outcome.ok) return outcome;
+  if (!outcome.documentMetric) {
+    return {
+      ok: false,
+      calls: [],
+      metric: outcome.metric,
+      error: createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "VALIDATION",
+        stage: "ANALYZE",
+        retryable: true,
+        safeMessage: "Analysis stopped before it finished. You can try again.",
+        correlationId: input.correlationId,
+        diagnosticReason: "doc_extraction_incomplete",
+      }),
+    };
+  }
+  return { ok: true, metric: outcome.documentMetric, modelAlias: outcome.modelAlias };
 }
 
 export async function loadVerifiedExtractions(client: RpcClient, runId: string): Promise<DocExtraction[]> {

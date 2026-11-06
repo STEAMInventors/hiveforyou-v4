@@ -143,6 +143,8 @@ function createStatefulStore() {
       stageAttempt: 1,
       stageMetrics: [],
       extractedDocumentCount: 0,
+      extractingPageCompleted: null,
+      extractingPageTotal: null,
       errorCode: run.status === "FAILED" ? "SOURCE_CHANGED" : null,
       errorMessageSafe: run.status === "FAILED" ? "Your documents or request changed while analyzing." : null,
       retryable: run.status === "FAILED" ? true : null,

@@ -67,7 +67,7 @@ describe("loadPlannerServiceConfig", () => {
 
 describe("callPlanner", () => {
   it.each([
-    ["extract", 270_000, 12000],
+    ["extract", 270_000, 16000],
     ["canonicalize", 270_000, 16000],
     ["write", 270_000, 8000],
     ["intent", config.timeoutMs, 4000],

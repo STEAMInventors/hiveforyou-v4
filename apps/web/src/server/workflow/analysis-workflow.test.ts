@@ -100,7 +100,16 @@ function fakeDatabase(
   const retries: { status: string; details: Record<string, unknown> }[] = [];
   let saved: Record<string, unknown> | null = null;
   let accepted: Record<string, unknown> | null = null;
-  const docExtractions: { sourceDocumentId: string; extraction?: unknown }[] = [...(options.docExtractions ?? [])];
+  const docExtractions: { sourceDocumentId: string; extraction?: unknown; stats?: unknown }[] = [
+    ...(options.docExtractions ?? []),
+  ];
+  const docExtractionRanges: {
+    sourceDocumentId: string;
+    pageRange: string;
+    extraction?: unknown;
+    stats?: unknown;
+    modelAlias?: string;
+  }[] = [];
   const preparationMode = options.preparationMode ?? "ANALYZE";
   const run = () =>
     runJson(status, { id: runId, stageAttempt, stageMetrics: [...stageMetrics], snapshotFrozen: true, preparationMode });
@@ -188,6 +197,39 @@ function fakeDatabase(
         };
       case "get_doc_extractions_for_run":
         return { data: { extractions: docExtractions.map((row) => ({ ...row })) }, error: null };
+      case "get_doc_extraction_ranges_for_run":
+        return {
+          data: {
+            ranges: docExtractionRanges.map((row) => ({
+              sourceDocumentId: row.sourceDocumentId,
+              pageRange: row.pageRange,
+              extraction: row.extraction,
+              stats: row.stats ?? {},
+              modelAlias: row.modelAlias ?? "harvester",
+            })),
+          },
+          error: null,
+        };
+      case "put_doc_extraction_range": {
+        const id = String(args.p_source_document_id ?? "").toLowerCase();
+        const pageRange = String(args.p_page_range ?? "").toLowerCase();
+        if (
+          id &&
+          pageRange &&
+          !docExtractionRanges.some(
+            (row) => row.sourceDocumentId.toLowerCase() === id && row.pageRange.toLowerCase() === pageRange,
+          )
+        ) {
+          docExtractionRanges.push({
+            sourceDocumentId: id,
+            pageRange,
+            extraction: args.p_extraction,
+            stats: args.p_stats,
+            modelAlias: String(args.p_model_alias ?? "harvester"),
+          });
+        }
+        return { data: { inserted: true, replayed: false }, error: null };
+      }
       case "put_doc_extraction": {
         const id = String(args.p_source_document_id ?? "").toLowerCase();
         if (id && !docExtractions.some((row) => row.sourceDocumentId.toLowerCase() === id)) {
@@ -197,7 +239,7 @@ function fakeDatabase(
             stats: args.p_stats,
           });
         }
-        return { data: { saved: true }, error: null };
+        return { data: { inserted: true, replayed: false }, error: null };
       }
       case "record_extracting_document_success": {
         const metric = args.p_stage_metric as Record<string, unknown> | undefined;
@@ -790,7 +832,7 @@ describe("processAnalysisRun: V5 pipeline", () => {
     const realPool = v5PipelineStages.runExtractingWorkerPool;
     const pool = vi.spyOn(v5PipelineStages, "runExtractingWorkerPool");
     pool.mockImplementationOnce(async (input) => {
-      await realPool({ ...input, documents: input.documents.slice(0, 2) });
+      await realPool({ ...input, workItems: input.workItems.slice(0, 2) });
       return { deferred: true };
     });
 

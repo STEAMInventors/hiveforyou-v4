@@ -223,6 +223,9 @@ export type ProcessingRun = {
   stageMetrics: StageMetric[];
   /** Documents with a cached or fresh doc_extraction for this run's frozen snapshot. */
   extractedDocumentCount: number;
+  /** While EXTRACTING: pages saved for the first document still missing a merged extraction. */
+  extractingPageCompleted: number | null;
+  extractingPageTotal: number | null;
   errorCode: string | null;
   errorMessageSafe: string | null;
   retryable: boolean | null;
@@ -549,6 +552,18 @@ export function normalizeProcessingRun(raw: unknown): ProcessingRun | null {
       record.extractedDocumentCount >= 0
         ? record.extractedDocumentCount
         : 0,
+    extractingPageCompleted:
+      typeof record.extractingPageCompleted === "number" &&
+      Number.isInteger(record.extractingPageCompleted) &&
+      record.extractingPageCompleted >= 0
+        ? record.extractingPageCompleted
+        : null,
+    extractingPageTotal:
+      typeof record.extractingPageTotal === "number" &&
+      Number.isInteger(record.extractingPageTotal) &&
+      record.extractingPageTotal >= 0
+        ? record.extractingPageTotal
+        : null,
     errorCode,
     errorMessageSafe,
     retryable: typeof record.retryable === "boolean" ? record.retryable : null,

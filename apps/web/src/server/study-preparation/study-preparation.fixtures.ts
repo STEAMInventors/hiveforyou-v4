@@ -266,6 +266,8 @@ export function runJson(status: string, overrides: Record<string, unknown> = {})
     coverageAcknowledged: false,
     stageMetrics: [],
     extractedDocumentCount: 0,
+    extractingPageCompleted: null,
+    extractingPageTotal: null,
     errorCode: null,
     errorMessageSafe: null,
     retryable: null,

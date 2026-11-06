@@ -87,10 +87,55 @@ function splitPagesInHalf(pages: VerificationPage[]): [VerificationPage[], Verif
   return [pages.slice(0, mid), pages.slice(mid)];
 }
 
-function rangeLabel(pages: VerificationPage[]): string | null {
+export function rangeLabel(pages: VerificationPage[]): string | null {
   if (pages.length === 0) return null;
   if (pages.length === 1) return String(pages[0]!.pageNumber);
   return `${pages[0]!.pageNumber}-${pages[pages.length - 1]!.pageNumber}`;
+}
+
+/** Database cache key for a page range (`all` when the model sees every page in one call). */
+export function pageRangeStorageKey(pageRange: string | null): string {
+  return pageRange ?? "all";
+}
+
+export function parsePageRangeStorageKey(pageRange: string, totalPages: number): number[] {
+  if (pageRange === "all") {
+    return totalPages > 0 ? Array.from({ length: totalPages }, (_, index) => index + 1) : [];
+  }
+  if (/^\d+$/.test(pageRange)) return [Number(pageRange)];
+  const match = /^(\d+)-(\d+)$/.exec(pageRange);
+  if (!match) return [];
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start > end) return [];
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+export function pagesCoveredBySavedRangeKeys(savedRangeKeys: ReadonlySet<string>, totalPages: number): Set<number> {
+  const covered = new Set<number>();
+  for (const key of savedRangeKeys) {
+    for (const page of parsePageRangeStorageKey(key, totalPages)) covered.add(page);
+  }
+  return covered;
+}
+
+/** Next planner work items: uncovered pages chunked like the initial full-document pass. */
+export function missingExtractWorkItems(
+  pages: readonly VerificationPage[],
+  savedRangeKeys: ReadonlySet<string>,
+): { pageRange: string | null; pages: VerificationPage[] }[] {
+  const sorted = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
+  if (sorted.length === 0) return [];
+  const covered = pagesCoveredBySavedRangeKeys(savedRangeKeys, sorted.length);
+  const uncovered = sorted.filter((page) => !covered.has(page.pageNumber));
+  if (uncovered.length === 0) return [];
+  const chunk = pagesPerExtractChunk(sorted.length);
+  const items: { pageRange: string | null; pages: VerificationPage[] }[] = [];
+  for (let start = 0; start < uncovered.length; start += chunk) {
+    const slice = uncovered.slice(start, start + chunk);
+    items.push({ pageRange: rangeLabel(slice), pages: slice });
+  }
+  return items;
 }
 
 function emptyVerificationStats(): ExtractionVerificationStats {
@@ -188,8 +233,17 @@ type RangeOutcome =
       malformed: Record<string, number>;
       stats: ExtractionVerificationStats;
       pageGaps: number[];
+      modelAlias: string | null;
     }
   | { ok: false; error: HiveError };
+
+export type PersistExtractedRange = (input: {
+  pageRange: string | null;
+  extraction: DocExtraction;
+  stats: Pick<ExtractDocumentStats, "factsProposed" | "malformed"> & ExtractionVerificationStats;
+  pageGaps: number[];
+  modelAlias: string | null;
+}) => Promise<void>;
 
 function mergeRangeOutcomes(
   left: RangeOutcome,
@@ -221,17 +275,41 @@ function mergeRangeOutcomes(
     malformed,
     stats,
     pageGaps: [...left.pageGaps, ...right.pageGaps],
+    modelAlias: right.modelAlias ?? left.modelAlias,
   };
+}
+
+async function persistLeafRange(
+  input: ExtractDocumentInput & { prompt: ExtractPrompt },
+  range: { pageRange: string | null; pages: VerificationPage[] },
+  outcome: Extract<RangeOutcome, { ok: true }>,
+  persist: PersistExtractedRange | undefined,
+): Promise<void> {
+  if (!persist) return;
+  await persist({
+    pageRange: range.pageRange,
+    extraction: outcome.extraction,
+    stats: {
+      factsProposed: outcome.factsProposed,
+      malformed: outcome.malformed,
+      ...outcome.stats,
+    },
+    pageGaps: outcome.pageGaps,
+    modelAlias: outcome.modelAlias,
+  });
 }
 
 async function extractRangeAdaptive(
   input: ExtractDocumentInput & { prompt: ExtractPrompt },
   range: { pageRange: string | null; pages: VerificationPage[] },
   calls: ExtractCallRecord[],
+  persist?: PersistExtractedRange,
 ): Promise<RangeOutcome> {
   const outcome = await extractRange(input, range, calls);
   if (outcome.ok) {
-    return { ...outcome, pageGaps: [] };
+    const saved = { ...outcome, pageGaps: [] as number[] };
+    await persistLeafRange(input, range, saved, persist);
+    return saved;
   }
   const truncated =
     outcome.error.errorCode === "MODEL_OUTPUT_INVALID" && outcome.error.diagnosticReason === TRUNCATION_REASON;
@@ -243,24 +321,29 @@ async function extractRangeAdaptive(
       input,
       { pageRange: rangeLabel(leftPages), pages: leftPages },
       calls,
+      persist,
     );
     const right = await extractRangeAdaptive(
       input,
       { pageRange: rangeLabel(rightPages), pages: rightPages },
       calls,
+      persist,
     );
     return mergeRangeOutcomes(left, right, pages);
   }
   const pageNumber = pages[0]!.pageNumber;
   const extraction = gapExtraction(input, range, pageNumber);
-  return {
-    ok: true,
+  const gapOutcome = {
+    ok: true as const,
     extraction,
     factsProposed: 0,
     malformed: {},
     stats: emptyVerificationStats(),
     pageGaps: [pageNumber],
+    modelAlias: null,
   };
+  await persistLeafRange(input, range, gapOutcome, persist);
+  return gapOutcome;
 }
 
 async function extractRange(
@@ -325,14 +408,16 @@ async function extractRange(
       });
       if (validated.ok) {
         const verified = verifyExtraction(validated.value, range.pages);
-        return {
-          ok: true,
+        const saved = {
+          ok: true as const,
           extraction: verified.extraction,
           factsProposed: validated.factsProposed,
           malformed: validated.malformed,
           stats: verified.stats,
-          pageGaps: [],
+          pageGaps: [] as number[],
+          modelAlias: completion.modelAlias,
         };
+        return saved;
       }
       parseError = validated.message;
     } catch (error) {
@@ -387,7 +472,7 @@ function scopePersonRefs(part: DocExtraction): DocExtraction {
   };
 }
 
-function mergeRanges(ranges: DocExtraction[], pageCount: number): DocExtraction {
+export function mergeRanges(ranges: DocExtraction[], pageCount: number): DocExtraction {
   const [first, ...rest] = ranges as [DocExtraction, ...DocExtraction[]];
   if (rest.length === 0) return { ...first, coverage: { ...first.coverage, pageCount } };
   const parts = ranges.map(scopePersonRefs);
@@ -435,7 +520,7 @@ function mergeRanges(ranges: DocExtraction[], pageCount: number): DocExtraction 
  * A single page that still truncates is recorded as a page extraction gap; the document still saves.
  * An unusable answer is retried once with the reason appended; a second failure fails the document.
  */
-export async function extractDocument(input: ExtractDocumentInput): Promise<ExtractDocumentResult> {
+async function extractAllRanges(input: ExtractDocumentInput): Promise<ExtractDocumentResult> {
   const prompt = input.prompt ?? loadPromptCatalog().extract;
   const documentKey = documentKeyFor(input.document.id);
   const calls: ExtractCallRecord[] = [];
@@ -497,4 +582,73 @@ export async function extractDocument(input: ExtractDocumentInput): Promise<Extr
   }
   const merged = mergeRanges(parts, input.pages.length);
   return { ok: true, extraction: assignFactIds(merged, documentKey), stats, calls };
+}
+
+/** Runs adaptive extract for one scheduled page slice (persists each leaf range when `persist` is set). */
+export async function extractScheduledRange(
+  input: ExtractDocumentInput & {
+    range: { pageRange: string | null; pages: VerificationPage[] };
+    persist?: PersistExtractedRange;
+  },
+): Promise<ExtractDocumentResult> {
+  const prompt = input.prompt ?? loadPromptCatalog().extract;
+  const calls: ExtractCallRecord[] = [];
+  const stats: ExtractDocumentStats = {
+    factsProposed: 0,
+    malformed: {},
+    factsIn: 0,
+    factsKept: 0,
+    evidenceIn: 0,
+    evidenceDropped: 0,
+    byReason: {},
+    emptyFields: { in: 0, kept: 0 },
+    referencedDocuments: { in: 0, kept: 0 },
+    documentEvidence: { in: 0, kept: 0 },
+    dropped: [],
+    ranges: [],
+    pageExtractionGaps: [],
+  };
+  const outcome = await extractRangeAdaptive({ ...input, prompt }, input.range, calls, input.persist);
+  if (!outcome.ok) return { ok: false, error: outcome.error, calls };
+  stats.pageExtractionGaps.push(...outcome.pageGaps);
+  const s = outcome.stats;
+  stats.factsProposed += outcome.factsProposed;
+  sumCounts(stats.malformed, outcome.malformed);
+  stats.factsIn += s.factsIn;
+  stats.factsKept += s.factsKept;
+  stats.evidenceIn += s.evidenceIn;
+  stats.evidenceDropped += s.evidenceDropped;
+  sumCounts(stats.byReason, s.byReason);
+  for (const key of ["emptyFields", "referencedDocuments", "documentEvidence"] as const) {
+    stats[key].in += s[key].in;
+    stats[key].kept += s[key].kept;
+  }
+  stats.dropped.push(...s.dropped);
+  stats.ranges.push({
+    pageRange: input.range.pageRange,
+    truncated: outcome.extraction.coverage.truncated,
+    lastPageCompleted: outcome.extraction.coverage.lastPageCompleted,
+  });
+  return { ok: true, extraction: outcome.extraction, stats, calls };
+}
+
+export function mergeSavedRangeExtractions(
+  documentId: string,
+  ranges: readonly { pageRange: string; extraction: DocExtraction }[],
+  totalPages: number,
+): DocExtraction {
+  const sorted = [...ranges].sort((left, right) => {
+    const leftStart = parsePageRangeStorageKey(left.pageRange, totalPages)[0] ?? 0;
+    const rightStart = parsePageRangeStorageKey(right.pageRange, totalPages)[0] ?? 0;
+    return leftStart - rightStart;
+  });
+  const merged = mergeRanges(
+    sorted.map((row) => row.extraction),
+    totalPages,
+  );
+  return assignFactIds(merged, documentKeyFor(documentId));
+}
+
+export async function extractDocument(input: ExtractDocumentInput): Promise<ExtractDocumentResult> {
+  return extractAllRanges(input);
 }

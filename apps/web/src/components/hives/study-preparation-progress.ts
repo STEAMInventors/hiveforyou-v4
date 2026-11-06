@@ -75,20 +75,42 @@ function stoppedStageIndex(
  * (cached and freshly extracted alike), not stage metrics.
  */
 function extractingLabel(
-  run: Pick<ProcessingRun, "extractedDocumentCount" | "authorizedSourceDocumentIds"> | null,
+  run: Pick<
+    ProcessingRun,
+    "extractedDocumentCount" | "authorizedSourceDocumentIds" | "extractingPageCompleted" | "extractingPageTotal"
+  > | null,
   state: PreparationStepState,
 ): string {
   const total = run?.authorizedSourceDocumentIds.length ?? 0;
   if (total === 0) return "Extracting";
   const extracted = Math.min(total, run?.extractedDocumentCount ?? 0);
-  return `Extracting (${extracted} of ${total} ${total === 1 ? "document" : "documents"})`;
+  const docPart = `${extracted} of ${total} ${total === 1 ? "document" : "documents"}`;
+  const pageTotal = run?.extractingPageTotal ?? null;
+  const pageDone = run?.extractingPageCompleted ?? null;
+  if (
+    state === "active" &&
+    extracted < total &&
+    pageTotal !== null &&
+    pageDone !== null &&
+    pageTotal > 0 &&
+    pageDone < pageTotal
+  ) {
+    return `Extracting (${docPart}; page ${pageDone} of ${pageTotal})`;
+  }
+  return `Extracting (${docPart})`;
 }
 
 /** The visible stages, derived only from the persisted run. In-flight legacy runs keep their own steps. */
 export function preparationSteps(
   run: Pick<
     ProcessingRun,
-    "status" | "stageMetrics" | "snapshotFrozen" | "authorizedSourceDocumentIds" | "extractedDocumentCount"
+    | "status"
+    | "stageMetrics"
+    | "snapshotFrozen"
+    | "authorizedSourceDocumentIds"
+    | "extractedDocumentCount"
+    | "extractingPageCompleted"
+    | "extractingPageTotal"
   > | null,
 ): PreparationStep[] {
   const stages = visibleStages(run);

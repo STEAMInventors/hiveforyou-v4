@@ -52,14 +52,19 @@ import { buildStudyPrompt, canonicalJson } from "@/server/study-preparation/stud
 import type { Dispatch } from "./dispatch";
 import { renderSourcePageIndex, runStudyInvestigation, StudyAgentFailure, type StudyAgentTotals } from "./study-investigation";
 import {
+  buildExtractWorkQueue,
   buildV5AcceptRevision,
+  documentPagesFullyExtracted,
   ExtractStageFailure,
   extractedDocumentIds,
   documentsNeedingExtraction,
   isV5CanonicalStudy,
+  loadSavedDocExtractionRanges,
   loadVerifiedExtractions,
   runCanonicalizeForRun,
   runExtractingWorkerPool,
+  savedRangeKeysByDocument,
+  tryMergeDocumentExtraction,
   tryAdvanceExtractingToCanonicalizing,
 } from "./v5-pipeline-stages";
 
@@ -935,11 +940,52 @@ async function extractDocuments(context: Context): Promise<StepResult> {
   }
   const catalog = context.catalog();
   const payload = await rpc(context.deps.client, "get_doc_extractions_for_run", { p_processing_run_id: context.runId });
-  const extracted = extractedDocumentIds(payload);
-  const pending = documentsNeedingExtraction(inputs.sourceSnapshot, extracted);
+  let extracted = extractedDocumentIds(payload);
+  let pending = documentsNeedingExtraction(inputs.sourceSnapshot, extracted);
   if (pending.length === 0) {
     return finishExtractingStage(context, inputs.run);
   }
+  const rangesPayload = await rpc(context.deps.client, "get_doc_extraction_ranges_for_run", {
+    p_processing_run_id: context.runId,
+  });
+  const savedRanges = await loadSavedDocExtractionRanges(context.deps.client, context.runId);
+  for (const document of pending) {
+    const docKey = document.sourceDocumentId.toLowerCase();
+    const docRanges = savedRanges.filter((row) => row.sourceDocumentId === docKey);
+    const savedKeys = new Set(docRanges.map((row) => row.pageRange));
+    if (!documentPagesFullyExtracted(document.verifiedPageCount, savedKeys)) continue;
+    const merged = await tryMergeDocumentExtraction({
+      deps: context.deps,
+      run: inputs.run,
+      document,
+      catalog,
+      correlationId: context.correlationId,
+      stageAttempt: context.stageAttempt,
+      now: context.now,
+      savedRanges: docRanges,
+      calls: [],
+      modelAlias: docRanges[0]?.modelAlias ?? "harvester",
+    });
+    if (merged.metric) {
+      await rpc(context.deps.client, "record_extracting_document_success", {
+        p_run_id: context.runId,
+        p_stage_metric: merged.metric,
+      });
+    }
+  }
+  const payloadAfterMerge = await rpc(context.deps.client, "get_doc_extractions_for_run", {
+    p_processing_run_id: context.runId,
+  });
+  extracted = extractedDocumentIds(payloadAfterMerge);
+  pending = documentsNeedingExtraction(inputs.sourceSnapshot, extracted);
+  if (pending.length === 0) {
+    return finishExtractingStage(context, inputs.run);
+  }
+  const workItems = buildExtractWorkQueue({
+    snapshot: inputs.sourceSnapshot,
+    extractedIds: extracted,
+    savedRangeKeysByDocument: savedRangeKeysByDocument(rangesPayload),
+  });
   const invocationStartedAt = context.deps.invocationStartedAt ?? context.startedAt;
   const clock = context.deps.clock ?? (() => Date.now());
   let poolResult: { deferred: boolean };
@@ -947,7 +993,7 @@ async function extractDocuments(context: Context): Promise<StepResult> {
     poolResult = await runExtractingWorkerPool({
       deps: context.deps,
       run: inputs.run,
-      documents: pending,
+      workItems,
       catalog,
       correlationId: context.correlationId,
       now: context.now,

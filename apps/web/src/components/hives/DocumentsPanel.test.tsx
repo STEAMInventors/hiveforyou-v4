@@ -112,6 +112,8 @@ function analysisRun(status: string) {
     stageAttempt: 1,
     stageMetrics: [],
     extractedDocumentCount: 0,
+    extractingPageCompleted: null,
+    extractingPageTotal: null,
     errorCode: null,
     errorMessageSafe: null,
     retryable: null,
