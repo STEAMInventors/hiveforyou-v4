@@ -29,6 +29,7 @@ export * from "./reports/semantic-review";
 export * from "./reports/report-contracts";
 export * from "./study-preparation/planner-wire-contracts";
 export * from "./study-preparation/execution-manifest-contracts";
+export * from "./study-preparation/study-tab-view-contracts";
 export * from "./pipeline/extraction-contracts";
 export * from "./pipeline/extraction-coverage-gaps";
 export * from "./pipeline/pipeline-timing";

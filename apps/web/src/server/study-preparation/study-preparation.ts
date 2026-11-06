@@ -318,3 +318,20 @@ export async function getStudyPreparation(
   }
   return normalized;
 }
+
+/** Study tab payload: canonical study + facts (+ narrative from saved report when present). Tries INVOKER then DEFINER if the first RPC is missing. */
+export async function getStudyTabView(
+  userClient: StudyPreparationRpcClient,
+  input: { readonly hiveId: string; readonly correlationId: string },
+): Promise<unknown> {
+  const hiveId = requireHiveId(input.hiveId, input.correlationId);
+  const primary = await userClient.rpc("get_study_tab_view", { p_hive_id: hiveId });
+  if (!primary.error) return primary.data;
+  const msg = rpcMessage(primary.error);
+  const missingRpc =
+    msg.includes("get_study_tab_view") || msg.includes("could not find") || msg.includes("does not exist") || msg.includes("undefined function");
+  if (!missingRpc) throw mapOwnerRpcError(primary.error, input.correlationId);
+  const fallback = await userClient.rpc("get_study_tab_view_definer", { p_hive_id: hiveId });
+  if (fallback.error) throw mapOwnerRpcError(fallback.error, input.correlationId);
+  return fallback.data;
+}

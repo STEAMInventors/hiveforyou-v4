@@ -34,6 +34,8 @@ export type StudyReportHeader =
       readonly fallbackTitle: string;
       readonly revisionNumber: number;
       readonly writtenAt: string;
+      /** Hive's current accepted revision; when equal to `revisionNumber`, in-card StateBar is hidden. */
+      readonly currentRevisionNumber?: number | null;
     }
   | { readonly kind: "study"; readonly revisionNumber: number | null };
 
@@ -167,12 +169,17 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
     titleFromIntent(view.intent) ?? (header.kind === "report" ? header.fallbackTitle : "What the documents show");
   const meta =
     header.kind === "report" ? (
-      <span className="inline-flex flex-wrap items-center gap-2">
-        <HiveMark />
-        <span>
-          {header.audience === "CUSTOMER" ? "Customer" : "Pro"} report · From study revision {header.revisionNumber} · Written{" "}
-          <span className="font-brand">{writtenFormat.format(new Date(header.writtenAt))}</span>
+      <span className="inline-flex flex-col gap-1">
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <HiveMark />
+          <span>
+            {header.audience === "CUSTOMER" ? "Customer" : "Pro"} report · From study revision {header.revisionNumber} · Written{" "}
+            <span className="font-brand">{writtenFormat.format(new Date(header.writtenAt))}</span>
+          </span>
         </span>
+        {header.currentRevisionNumber != null && header.revisionNumber !== header.currentRevisionNumber ? (
+          <span className="text-caption text-quiet">As of revision {header.revisionNumber}</span>
+        ) : null}
       </span>
     ) : header.revisionNumber !== null ? (
       <span className="inline-flex flex-wrap items-center gap-2">
@@ -299,7 +306,7 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
                 <span className="font-quote italic">{view.intent}</span>
               </p>
             ) : null}
-            {showStateBar ? (
+            {showStateBar && !(header.kind === "report" && header.currentRevisionNumber === header.revisionNumber) ? (
               <StateBar counts={model.counts} targets={stateTargets} onNavigate={navigate} />
             ) : null}
             {status}

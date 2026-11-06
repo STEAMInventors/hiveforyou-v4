@@ -224,6 +224,7 @@ export function ReportsPanel({ hiveId, initial, initialAudience = "CUSTOMER", do
               fallbackTitle: shown.title,
               revisionNumber: shown.revisionNumber,
               writtenAt: shown.createdAt,
+              currentRevisionNumber: state.studyRevision.revisionNumber,
             }}
             coverageGaps={state.studyRevision.coverageGaps}
             documentPages={documentPages}

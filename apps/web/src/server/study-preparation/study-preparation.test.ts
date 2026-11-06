@@ -10,7 +10,7 @@ import {
   snapshotDocument,
   sourceSnapshot,
 } from "./study-preparation.fixtures";
-import { acknowledgeStudyCoverage, getStudyPreparation, rebuildStudy, startStudyPreparation } from "./study-preparation";
+import { acknowledgeStudyCoverage, getStudyPreparation, getStudyTabView, rebuildStudy, startStudyPreparation } from "./study-preparation";
 
 const DIGEST = `sha256:${"e".repeat(64)}`;
 
@@ -433,6 +433,28 @@ describe("getStudyPreparation progress estimate", () => {
     const partialCompletionMs = Date.parse(withPartialSavedRanges.processingRun!.progressEstimate!.estimatedCompletionAt);
     expect(fullCompletionMs).toBeGreaterThan(shortCompletionMs);
     expect(fullCompletionMs).toBeGreaterThan(partialCompletionMs);
+  });
+});
+
+describe("getStudyTabView", () => {
+  it("calls get_study_tab_view and returns data on success", async () => {
+    const payload = { revision: null, canonicalStudy: null, facts: [], referencedDocuments: [] };
+    const db = { rpc: vi.fn(async (fn: string) => (fn === "get_study_tab_view" ? { data: payload, error: null } : { data: null, error: null })) };
+    await expect(getStudyTabView(db, { hiveId: HIVE_ID, correlationId: CORRELATION_ID })).resolves.toEqual(payload);
+    expect(db.rpc).toHaveBeenCalledWith("get_study_tab_view", { p_hive_id: HIVE_ID });
+  });
+
+  it("falls back to get_study_tab_view_definer when the invoker RPC is missing", async () => {
+    const payload = { revision: null };
+    const db = {
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_study_tab_view") return { data: null, error: { message: "function get_study_tab_view() does not exist" } };
+        if (fn === "get_study_tab_view_definer") return { data: payload, error: null };
+        return { data: null, error: null };
+      }),
+    };
+    await expect(getStudyTabView(db, { hiveId: HIVE_ID, correlationId: CORRELATION_ID })).resolves.toEqual(payload);
+    expect(db.rpc).toHaveBeenCalledWith("get_study_tab_view_definer", { p_hive_id: HIVE_ID });
   });
 });
 

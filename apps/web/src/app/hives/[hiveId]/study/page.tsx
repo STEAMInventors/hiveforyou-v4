@@ -40,7 +40,7 @@ export default async function StudyPage({ params }: StudyPageProps) {
   const legacyRun = !!run && usesLegacyProgress(run);
   const revision = state?.studyRevision ?? null;
   const legacyPreview = state?.preview && (!run || legacyRun) ? state.preview : null;
-  const studyView = load.ok ? load.overview.studyView : null;
+  const built = load.ok ? load.overview.studyTab : null;
 
   return (
     <HiveWorkspaceLayout
@@ -67,8 +67,8 @@ export default async function StudyPage({ params }: StudyPageProps) {
           <StudyView
             hiveId={hive.id}
             revisionFormat={revision.format}
-            view={studyView?.view ?? null}
-            sources={studyView?.studyViewSources ?? null}
+            view={built?.view ?? null}
+            sources={built?.sources ?? null}
             revisionNumber={revision.revisionNumber}
             coverageGaps={revision.coverageGaps}
             documentPages={state ? documentPageCounts(state) : undefined}

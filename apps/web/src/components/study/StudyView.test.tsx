@@ -48,6 +48,51 @@ describe("StudyReport", () => {
     expect(screen.getAllByTestId("source-chip").every((chip) => /^.+ · p\.\d+$/.test(chip.textContent ?? ""))).toBe(true);
   });
 
+  it("hides the in-card state bar when the report revision matches the current revision", () => {
+    const fixture = bankruptcyC13Fixture("CUSTOMER");
+    render(
+      <StudyReport
+        hiveId={fixture.hiveId}
+        view={fixture.view}
+        sources={fixture.sources}
+        header={{
+          kind: "report",
+          audience: "CUSTOMER",
+          fallbackTitle: fixture.title,
+          revisionNumber: 3,
+          writtenAt: fixture.writtenAt,
+          currentRevisionNumber: 3,
+        }}
+        coverageGaps={fixture.coverageGaps}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    expect(screen.queryByTestId("state-bar")).toBeNull();
+  });
+
+  it("shows “As of revision” when the displayed report is older than the current revision", () => {
+    const fixture = bankruptcyC13Fixture("CUSTOMER");
+    render(
+      <StudyReport
+        hiveId={fixture.hiveId}
+        view={fixture.view}
+        sources={fixture.sources}
+        header={{
+          kind: "report",
+          audience: "CUSTOMER",
+          fallbackTitle: fixture.title,
+          revisionNumber: 2,
+          writtenAt: fixture.writtenAt,
+          currentRevisionNumber: 3,
+        }}
+        coverageGaps={fixture.coverageGaps}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    expect(screen.getByText(/As of revision 2/)).toBeTruthy();
+    expect(screen.getByTestId("state-bar")).toBeTruthy();
+  });
+
   it("builds At a glance from code: the upcoming hearing, the first disagreement and the open items", () => {
     renderReport("PRO");
     const glance = document.getElementById("at-a-glance")!;
@@ -186,9 +231,9 @@ describe("StudyView", () => {
     expect(screen.getByTestId("study-legacy-notice")).toBeTruthy();
   });
 
-  it("says the view is not written yet when a canonical revision has no study view", () => {
+  it("shows an error notice when the study view could not be built", () => {
     render(<StudyView hiveId={HIVE_ID} revisionFormat="canonical-study-1" view={null} sources={null} />);
-    expect(screen.getByTestId("study-view-pending")).toBeTruthy();
+    expect(screen.getByTestId("study-view-unavailable")).toBeTruthy();
   });
 
   it("renders a revision that has no write output from the canonical study alone", () => {

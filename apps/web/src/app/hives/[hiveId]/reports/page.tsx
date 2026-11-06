@@ -3,10 +3,8 @@ import type { GetHiveReportsResponse, ReportAudience } from "@hiveforyou/contrac
 import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
 import { ReportsPanel } from "@/components/reports/ReportsPanel";
 import { requestCorrelationId } from "@/server/auth/action-support";
-import { documentPageCounts, type HiveSummary, summarizeHive } from "@/server/hives/hive-summary";
+import { documentPageCounts, loadHiveOverview, type HiveSummary } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
-import { getHiveReports } from "@/server/reports/reports";
-import { getStudyPreparation } from "@/server/study-preparation/study-preparation";
 import { createServerSupabaseClient } from "@/server/supabase/server-client";
 
 type ReportsPageProps = {
@@ -26,13 +24,16 @@ function audienceFromParam(value: string | string[] | undefined): ReportAudience
 async function loadReports(hiveId: string, correlationId: string): Promise<ReportsLoad> {
   try {
     const client = await createServerSupabaseClient();
-    const state = await getHiveReports(client, { hiveId, correlationId });
-    const preparation = await getStudyPreparation(client, { hiveId, correlationId, includePreview: false }).catch(() => null);
+    const overview = await loadHiveOverview(client, { hiveId, correlationId, includePreview: false });
+    const state = overview.reports;
+    if (!state) {
+      return { ok: false, message: "We couldn't load this hive's reports." };
+    }
     return {
       ok: true,
       state,
-      documentPages: preparation ? documentPageCounts(preparation) : {},
-      summary: preparation ? summarizeHive(preparation, state) : null,
+      documentPages: documentPageCounts(overview.preparation),
+      summary: overview.summary,
     };
   } catch (error) {
     const safeMessage = (error as { safeMessage?: unknown } | null)?.safeMessage;

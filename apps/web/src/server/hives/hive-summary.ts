@@ -1,8 +1,11 @@
 import {
+  buildStudyTabViewFromRpc,
   type GetHiveReportsResponse,
   type GetStudyPreparationResponse,
   isStudyViewReport,
+  type StudyView,
   type StudyViewReport,
+  type StudyViewSources,
 } from "@hiveforyou/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -10,7 +13,7 @@ import type { StateCounts } from "@/components/study/StateBar";
 import type { DisplayState } from "@/components/study/StatusBadge";
 import { studyStateCounts, studyStateTargets } from "@/components/study/study-summary";
 import { getHiveReports } from "@/server/reports/reports";
-import { getStudyPreparation } from "@/server/study-preparation/study-preparation";
+import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation/study-preparation";
 
 /** What the Hive page header and the My hives card show about a Hive. */
 export type HiveSummary = {
@@ -28,6 +31,8 @@ export type HiveOverview = {
   preparation: GetStudyPreparationResponse;
   reports: GetHiveReportsResponse | null;
   studyView: StudyViewReport | null;
+  /** Built from `get_study_tab_view` for the Study tab (canonical + facts; narrative when a report exists). */
+  studyTab: { view: StudyView; sources: StudyViewSources } | null;
   summary: HiveSummary;
 };
 
@@ -43,17 +48,22 @@ export function documentPageCounts(preparation: GetStudyPreparationResponse): Re
   );
 }
 
-export function summarizeHive(preparation: GetStudyPreparationResponse, reports: GetHiveReportsResponse | null): HiveSummary {
+export function summarizeHive(
+  preparation: GetStudyPreparationResponse,
+  reports: GetHiveReportsResponse | null,
+  studyTab: HiveOverview["studyTab"],
+): HiveSummary {
   const revision = preparation.studyRevision;
   const studyView = revision ? latestStudyView(reports) : null;
+  const countsView = studyTab?.view ?? studyView?.view ?? null;
   return {
     documentCount: preparation.eligibility.documents.length + preparation.eligibility.excluded.length,
     study: revision
       ? {
           revisionNumber: revision.revisionNumber,
           acceptedAt: revision.createdAt,
-          counts: studyView ? studyStateCounts(studyView.view, revision.coverageGaps) : null,
-          targets: studyView ? studyStateTargets(studyView.view) : null,
+          counts: countsView ? studyStateCounts(countsView, revision.coverageGaps) : null,
+          targets: countsView ? studyStateTargets(countsView) : null,
         }
       : null,
   };
@@ -68,9 +78,30 @@ export async function loadHiveOverview(
     correlationId: input.correlationId,
     includePreview: input.includePreview ?? false,
   });
-  const reports =
-    preparation.studyRevision?.format === "canonical-study-1"
-      ? await getHiveReports(client, { hiveId: input.hiveId, correlationId: input.correlationId })
-      : null;
-  return { preparation, reports, studyView: latestStudyView(reports), summary: summarizeHive(preparation, reports) };
+  const reports = preparation.studyRevision
+    ? await getHiveReports(client, { hiveId: input.hiveId, correlationId: input.correlationId })
+    : null;
+  const studyView = latestStudyView(reports);
+
+  let studyTab: HiveOverview["studyTab"] = null;
+  if (preparation.studyRevision?.format === "canonical-study-1") {
+    try {
+      const raw = await getStudyTabView(client, { hiveId: input.hiveId, correlationId: input.correlationId });
+      const fileNames = new Map(
+        preparation.eligibility.documents.map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]),
+      );
+      const built = buildStudyTabViewFromRpc(raw, fileNames);
+      if (built.ok) studyTab = { view: built.view, sources: built.sources };
+    } catch {
+      studyTab = null;
+    }
+  }
+
+  return {
+    preparation,
+    reports,
+    studyView,
+    studyTab,
+    summary: summarizeHive(preparation, reports, studyTab),
+  };
 }

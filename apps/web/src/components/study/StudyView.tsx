@@ -4,7 +4,7 @@ import type { CoverageGap, StudyRevisionFormat, StudyView as StudyViewData, Stud
 import Link from "next/link";
 
 import { QUIET_LINK_CLASS } from "@/components/button-classes";
-import { hiveDocumentsPath, hiveReportsPath } from "@/lib/hive-routes";
+import { hiveDocumentsPath } from "@/lib/hive-routes";
 
 import { StudyReport } from "./StudyReport";
 
@@ -43,14 +43,14 @@ export function StudyView({ hiveId, revisionFormat, view, sources, revisionNumbe
   }
   if (!view) {
     return (
-      <section role="status" className={NOTICE_CLASS} data-testid="study-view-pending">
-        <h2 className={NOTICE_HEADING}>Your study is accepted, but its page isn&apos;t ready yet</h2>
+      <section role="alert" className={NOTICE_CLASS} data-testid="study-view-unavailable">
+        <h2 className={NOTICE_HEADING}>Study layout isn&apos;t available</h2>
         <p className="m-0 max-w-prose text-body text-graphite">
-          The study page is laid out when a report is written from this revision. Write one from Reports and it appears
-          here too.
+          We couldn&apos;t build this page from your accepted study. Try again from Documents, or contact support if it keeps
+          happening.
         </p>
-        <Link href={hiveReportsPath(hiveId)} className={QUIET_LINK_CLASS}>
-          Go to Reports
+        <Link href={hiveDocumentsPath(hiveId)} className={QUIET_LINK_CLASS} data-testid="study-view-retry-documents">
+          Rebuild the study from Documents
         </Link>
       </section>
     );
