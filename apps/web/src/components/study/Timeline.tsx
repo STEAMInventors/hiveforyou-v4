@@ -41,6 +41,7 @@ export function rowChips(row: StudyViewRow) {
     sourceDocumentId: value.sourceRef.sourceDocumentId,
     pageNumber: value.sourceRef.pageNumber,
     quote: value.sourceRef.quote,
+    factIds: [value.factId],
   }));
 }
 

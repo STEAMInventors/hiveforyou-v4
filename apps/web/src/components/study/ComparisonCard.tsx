@@ -3,7 +3,7 @@
 import type { StudyViewRow } from "@hiveforyou/contracts";
 
 import { type DistinctValue, distinctValues } from "./ChangedValue";
-import { type ChipRef, SourceChips, useDocumentLabel } from "./SourceChip";
+import { type ChipRef, dedupeChipRefs, SourceChips, useDocumentLabel } from "./SourceChip";
 import { HiveMark } from "./HiveMark";
 import { StatusBadge } from "./StatusBadge";
 import { formatDocumentDate } from "./Timeline";
@@ -72,11 +72,17 @@ export function conflictSides(row: StudyViewRow): ComparisonSide[] {
   return order.map((sourceDocumentId) => {
     const values = byDocument.get(sourceDocumentId)!;
     const distinct = distinctValues(values);
+    const refsWithFacts = values.map((value) => ({
+      sourceDocumentId: value.sourceRef.sourceDocumentId,
+      pageNumber: value.sourceRef.pageNumber,
+      quote: value.sourceRef.quote,
+      factIds: [value.factId],
+    }));
     return {
       sourceDocumentId,
       values: distinct,
       quotes: [...new Set(values.map((value) => value.sourceRef.quote.trim()).filter((quote) => quote !== ""))],
-      refs: distinct.flatMap((value) => value.refs),
+      refs: dedupeChipRefs(refsWithFacts),
     };
   });
 }

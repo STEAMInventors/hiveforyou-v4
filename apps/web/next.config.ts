@@ -15,9 +15,18 @@ const nextConfig: NextConfig = {
   eslint: {
     dirs: ["src"],
   },
-  webpack(config) {
+  webpack(config, { isServer }) {
+    // Serve pdf.js worker from our own build output (no unpkg/jsdelivr at runtime).
+    if (!isServer) {
+      config.module.rules.unshift({
+        test: /[\\/]node_modules[\\/]pdfjs-dist[\\/]build[\\/]pdf\.worker\.min\.mjs$/,
+        type: "asset/resource",
+        generator: { filename: "static/worker/[hash][ext]" },
+      });
+    }
     config.resolve.alias = {
       ...config.resolve.alias,
+      ...(!isServer ? { canvas: false } : {}),
       "server-only": path.join(currentDir, "src/lib/server/server-only.ts"),
     };
     config.resolve.extensionAlias = {

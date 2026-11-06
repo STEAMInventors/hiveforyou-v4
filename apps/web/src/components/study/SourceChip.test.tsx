@@ -1,11 +1,87 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { type ReactNode, useEffect } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EvidenceViewerProvider } from "./EvidenceViewer";
 import { dedupeChipRefs, shortDocumentLabels, shortTypeLabel, SourceChips } from "./SourceChip";
 
 afterEach(cleanup);
+
+vi.mock("react-pdf", () => ({
+  pdfjs: { GlobalWorkerOptions: { workerSrc: "" }, version: "5.0.0" },
+  Document: ({ children, onLoadSuccess }: { children?: ReactNode; onLoadSuccess?: (d: { numPages: number }) => void }) => {
+    queueMicrotask(() => onLoadSuccess?.({ numPages: 5 }));
+    return <div data-testid="pdf-doc">{children}</div>;
+  },
+  Page: ({
+    pageNumber = 1,
+    onRenderSuccess,
+  }: {
+    pageNumber?: number;
+    onRenderSuccess?: () => void;
+  }) => {
+    useEffect(() => {
+      queueMicrotask(() => onRenderSuccess?.());
+    }, [onRenderSuccess, pageNumber]);
+    return (
+      <div className="react-pdf__Page">
+        <div className="react-pdf__Page__textContent">
+          {pageNumber !== 2 ? (
+            <span>The fee is $10.00 for service.</span>
+          ) : (
+            <>
+              <span>Speech-Language Therapy</span>
+              <span>60 min/week</span>
+              <span>Therapy room</span>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  },
+}));
+
+const HIVE = "11111111-1111-4111-8111-111111111111";
+const DOC = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+function mockFetchSequence(steps: Array<Response | (() => Response)>) {
+  let i = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      const step = steps[i];
+      if (i < steps.length) {
+        i += 1;
+        return typeof step === "function" ? step() : step;
+      }
+      /* react-pdf may fetch the signed PDF URL after our API calls; a resolved empty body avoids hanging. */
+      return new Response(new Uint8Array([]), { status: 200, headers: { "Content-Type": "application/pdf" } });
+    }),
+  );
+}
+
+beforeEach(() => {
+  vi.unstubAllGlobals();
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+    cb(0);
+    return 0;
+  });
+  if (typeof Element !== "undefined") {
+    Element.prototype.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        top: 0,
+        width: 200,
+        height: 16,
+        right: 200,
+        bottom: 16,
+        x: 0,
+        y: 0,
+        toJSON: () => "",
+      }) as DOMRect;
+  }
+});
 
 describe("shortTypeLabel", () => {
   it.each([
@@ -54,58 +130,125 @@ describe("shortDocumentLabels", () => {
 });
 
 describe("dedupeChipRefs", () => {
-  it("keeps one chip per document and page, merging distinct quotes, and drops invalid pages", () => {
+  it("keeps one chip per document and page, merging distinct quotes and fact ids, and drops invalid pages", () => {
     expect(
       dedupeChipRefs([
-        { sourceDocumentId: "a", pageNumber: 2, quote: "first" },
+        { sourceDocumentId: "a", pageNumber: 2, quote: "first", factIds: ["F1"] },
         { sourceDocumentId: "b", pageNumber: 2 },
-        { sourceDocumentId: "a", pageNumber: 2, quote: "second" },
+        { sourceDocumentId: "a", pageNumber: 2, quote: "second", factIds: ["F2"] },
         { sourceDocumentId: "a", pageNumber: 2, quote: "first" },
         { sourceDocumentId: "a", pageNumber: 0 },
       ]),
     ).toEqual([
-      { sourceDocumentId: "a", pageNumber: 2, quote: "first\nsecond" },
+      { sourceDocumentId: "a", pageNumber: 2, quote: "first\nsecond", factIds: ["F1", "F2"] },
       { sourceDocumentId: "b", pageNumber: 2 },
     ]);
   });
 });
 
-describe("SourceChips", () => {
-  it("renders labelled buttons, never file names, and opens the evidence viewer with the file name", () => {
+describe("SourceChips + evidence viewer", () => {
+  it("opens the in-app drawer, requests text before signed URL, Esc returns focus; highlights when quote matches page text", async () => {
+    const signed = "https://storage.example.com/signed";
+    mockFetchSequence([
+      Response.json({
+        pageText: "The fee is $10.00 for service.",
+        mimeType: "application/pdf",
+        pageCount: 3,
+        extractionMethod: "pdf_native",
+        pageNumber: 3,
+      }),
+      Response.json({ signedUrl: signed }),
+    ]);
     render(
-      <EvidenceViewerProvider
-        hiveId="11111111-1111-4111-8111-111111111111"
-        labels={new Map([["doc-a", "Plan · Mar 2026"]])}
-        fileNames={{ "doc-a": { fileName: "02_plan.pdf" } }}
-      >
+      <EvidenceViewerProvider hiveId={HIVE} labels={new Map([[DOC, "Plan · Mar 2026"]])} pageCountFor={() => 3} citationContexts={new Map()}>
         <p>
           A sentence.{" "}
           <SourceChips
             refs={[
-              { sourceDocumentId: "doc-a", pageNumber: 3, quote: "The fee is $10." },
-              { sourceDocumentId: "doc-a", pageNumber: 3, quote: "The fee is $10." },
+              { sourceDocumentId: DOC, pageNumber: 3, quote: "The fee is $10.00 for service." },
             ]}
           />
         </p>
       </EvidenceViewerProvider>,
     );
     const chips = screen.getAllByTestId("source-chip");
-    expect(chips).toHaveLength(1);
     expect(chips[0]!.tagName).toBe("BUTTON");
-    expect(chips[0]!.textContent).toContain("Plan · Mar 2026 · p.3");
-    expect(within(chips[0]!).getByTestId("cell-glyph")).toBeTruthy();
-    expect(chips[0]!.getAttribute("aria-label")).toBe("Open Plan · Mar 2026, page 3");
+    expect(within(chips[0]!).getByTestId("hive-mark")).toBeTruthy();
     expect(screen.queryByText(/02_plan\.pdf/)).toBeNull();
 
     fireEvent.click(chips[0]!);
+
+    await waitFor(() => {
+      expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    const calls = vi.mocked(fetch).mock.calls as [string, RequestInit | undefined][];
+    expect(calls[0]![0]).toContain(`/api/v1/hives/${HIVE}/source-documents/${DOC}/pages/3/text`);
+    expect(calls[1]![0]).toContain(`/api/v1/hives/${HIVE}/source-documents/${DOC}/viewer-open`);
+    expect(calls[1]![1]?.method).toBe("POST");
+    expect(JSON.parse((calls[1]![1]?.body as string) ?? "{}")).toEqual({ pageNumber: 3 });
+
     const viewer = screen.getByTestId("evidence-viewer");
-    expect(within(viewer).getByTestId("evidence-file-name").textContent).toBe("02_plan.pdf");
-    expect(within(viewer).getByText("The fee is $10.")).toBeTruthy();
-    expect(within(viewer).getByRole("link").getAttribute("href")).toBe(
-      "/api/v1/hives/11111111-1111-4111-8111-111111111111/source-documents/doc-a/pages/3",
-    );
+    const original = within(viewer).getByRole("link", { name: /Open the original/i });
+    expect(original.getAttribute("href")).toBe(`/api/v1/hives/${HIVE}/source-documents/${DOC}/pages/3`);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("pdf-doc")).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(screen.getAllByTestId("evidence-highlight-overlay").length).toBeGreaterThan(0);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).toMatch(/Quote highlighted on page 3/);
+    });
+
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTestId("evidence-viewer")).toBeNull();
     expect(document.activeElement).toBe(chips[0]);
+  });
+
+  it("shows unlocated line for PDF when quote does not match persisted text", async () => {
+    mockFetchSequence([
+      Response.json({
+        pageText: "Different text on the page.",
+        mimeType: "application/pdf",
+        pageCount: 1,
+        extractionMethod: "pdf_native",
+        pageNumber: 1,
+      }),
+      Response.json({ signedUrl: "https://x/s" }),
+    ]);
+    render(
+      <EvidenceViewerProvider hiveId={HIVE} labels={new Map([[DOC, "Doc"]])} citationContexts={new Map()}>
+        <SourceChips refs={[{ sourceDocumentId: DOC, pageNumber: 1, quote: "Not on page" }]} />
+      </EvidenceViewerProvider>,
+    );
+    fireEvent.click(screen.getByTestId("source-chip"));
+    await waitFor(() => {
+      expect(screen.getByTestId("evidence-quote-unlocated")).toBeTruthy();
+    });
+  });
+
+  it("table-row quote with | highlights each cell when all cells appear in page text", async () => {
+    mockFetchSequence([
+      Response.json({
+        pageText: "Service        Amount          Location\nSpeech-Language Therapy   60 min/week   Therapy room",
+        mimeType: "application/pdf",
+        pageCount: 2,
+        extractionMethod: "pdf_native",
+        pageNumber: 2,
+      }),
+      Response.json({ signedUrl: "https://x/s" }),
+    ]);
+    render(
+      <EvidenceViewerProvider hiveId={HIVE} labels={new Map([[DOC, "Doc"]])} citationContexts={new Map()}>
+        <SourceChips
+          refs={[{ sourceDocumentId: DOC, pageNumber: 2, quote: "Speech-Language Therapy | 60 min/week | Therapy room" }]}
+        />
+      </EvidenceViewerProvider>,
+    );
+    fireEvent.click(screen.getByTestId("source-chip"));
+    await waitFor(() => {
+      expect(screen.getAllByTestId("evidence-highlight-overlay").length).toBe(3);
+    });
   });
 });

@@ -8,6 +8,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    setupFiles: [path.resolve(__dirname, "vitest.setup.ts")],
   },
   resolve: {
     alias: {
@@ -37,6 +38,10 @@ export default defineConfig({
         "./src/server/source-documents/v3-vault/persistence/env.ts",
       ),
       "server-only": path.resolve(__dirname, "./src/lib/server/server-only.ts"),
+      "pdfjs-dist/build/pdf.worker.min.mjs": path.resolve(
+        __dirname,
+        "./src/test-stubs/pdf-worker-min-mjs.ts",
+      ),
     },
   },
 });

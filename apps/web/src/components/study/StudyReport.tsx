@@ -17,6 +17,7 @@ import { ComparisonCard } from "./ComparisonCard";
 import { HiveMark } from "./HiveMark";
 import { DocumentsTable } from "./DocumentsTable";
 import { EstablishTable } from "./EstablishTable";
+import { buildCitationContextMap } from "./citation-context";
 import { EvidenceViewerProvider } from "./EvidenceViewer";
 import { InferenceLabel } from "./InferenceLabel";
 import { groupMissing, isStructuralNote, MissingList, missingCount } from "./MissingList";
@@ -73,10 +74,11 @@ export function titleFromIntent(intent: string | undefined): string | null {
   return short.charAt(0).toUpperCase() + short.slice(1);
 }
 
-const refChip = (ref: StudyViewSourceRef): ChipRef => ({
+const refChip = (factId: string, ref: StudyViewSourceRef): ChipRef => ({
   sourceDocumentId: ref.sourceDocumentId,
   pageNumber: ref.pageNumber,
   quote: ref.quote,
+  factIds: [factId],
 });
 
 function usePrefersReducedMotion(): boolean {
@@ -122,6 +124,7 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
     const timeline = rows("timeline");
     const conflicts = rows("conflicts");
     const documentDate = new Map(documents.map((row) => [row.id, row.date ?? null]));
+    const citationContexts = buildCitationContextMap(view, sources);
     return {
       documents,
       labels,
@@ -137,8 +140,9 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
       needsRows: spine.filter((row) => spineRowState(row) === "needs"),
       documentDate: (id: string) => documentDate.get(id) ?? null,
       unreadableIds: new Set(readProblems.filter((problem) => problem.wholeDocument).map((problem) => problem.sourceDocumentId)),
+      citationContexts,
     };
-  }, [view, coverageGaps, pageCountFor]);
+  }, [view, sources, coverageGaps, pageCountFor]);
 
   const navigate = useCallback(
     (sectionId: string) => {
@@ -162,7 +166,7 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
   const sentenceChips = (factIds: readonly string[]): ChipRef[] =>
     factIds.flatMap((id) => {
       const ref = sources?.facts[id];
-      return ref ? [refChip(ref)] : [];
+      return ref ? [refChip(id, ref)] : [];
     });
 
   const title =
@@ -291,7 +295,7 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
     ) : null;
 
   return (
-    <EvidenceViewerProvider hiveId={hiveId} labels={model.labels} fileNames={sources?.documents ?? {}}>
+    <EvidenceViewerProvider hiveId={hiveId} labels={model.labels} pageCountFor={pageCountFor} citationContexts={model.citationContexts}>
       <div className="flex flex-wrap items-start gap-6" data-testid="study-view" data-audience={isReport ? header.audience : "STUDY"}>
         <div className={`flex min-w-0 flex-[999_1_640px] flex-col ${pageGap}`}>
           <header className={`${CARD} gap-4`} data-testid="report-header">

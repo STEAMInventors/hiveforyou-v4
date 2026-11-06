@@ -44,7 +44,7 @@ describe("groupMissing", () => {
 describe("MissingList", () => {
   it("shows only non-empty groups, a chip to the referring page, and no generic not-found line", () => {
     render(
-      <EvidenceViewerProvider hiveId="h" labels={new Map([["doc-a", "Lease"]])} fileNames={{}}>
+      <EvidenceViewerProvider hiveId="h" labels={new Map([["doc-a", "Lease"]])} citationContexts={new Map()}>
         <MissingList groups={groupMissing([REFERENCED], [], "ANCHOR")} />
       </EvidenceViewerProvider>,
     );

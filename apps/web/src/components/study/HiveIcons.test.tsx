@@ -12,8 +12,8 @@ const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 
 afterEach(cleanup);
 
-describe("HiveMark and CellGlyph", () => {
-  it("renders one HiveMark on meta, footer, difference footer, and read-problem notice; CellGlyph on every SourceChip", () => {
+describe("HiveMark and source chips", () => {
+  it("renders one HiveMark on meta, footer, difference footer, read-problem notice, and every SourceChip", () => {
     const fixture = bankruptcyC13Fixture("PRO");
     const { container } = render(
       <StudyReport
@@ -25,16 +25,16 @@ describe("HiveMark and CellGlyph", () => {
         documentPages={fixture.documentPages}
       />,
     );
-    expect(container.querySelectorAll('[data-testid="hive-mark"]')).toHaveLength(4);
     const chips = screen.getAllByTestId("source-chip");
     expect(chips.length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('[data-testid="hive-mark"]')).toHaveLength(4 + chips.length);
     for (const chip of chips) {
-      expect(within(chip).getByTestId("cell-glyph")).toBeTruthy();
+      expect(within(chip).getByTestId("hive-mark")).toBeTruthy();
     }
     cleanup();
 
     render(
-      <EvidenceViewerProvider hiveId={HIVE_ID} labels={new Map([["d", "Doc"]])} fileNames={{}}>
+      <EvidenceViewerProvider hiveId={HIVE_ID} labels={new Map([["d", "Doc"]])} citationContexts={new Map()}>
         <ReadProblemNotice
           problems={readProblemsFromCoverage(
             [

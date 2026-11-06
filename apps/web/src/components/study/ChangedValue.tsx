@@ -17,6 +17,7 @@ export function distinctValues(values: readonly StudyViewValue[]): DistinctValue
       sourceDocumentId: value.sourceRef.sourceDocumentId,
       pageNumber: value.sourceRef.pageNumber,
       quote: value.sourceRef.quote,
+      factIds: [value.factId],
     });
     byText.set(key, entry);
   }
