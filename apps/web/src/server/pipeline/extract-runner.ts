@@ -597,7 +597,7 @@ async function extractRange(
           ok: true as const,
           extraction: verified.extraction,
           factsProposed: validated.factsProposed,
-          malformed: verified.malformed,
+          malformed: validated.malformed,
           stats: verified.stats,
           pageGaps: [] as number[],
           modelAlias: completion.modelAlias,

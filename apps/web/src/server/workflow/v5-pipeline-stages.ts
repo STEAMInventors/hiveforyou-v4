@@ -439,13 +439,13 @@ export async function runExtractingWorkerPool(input: {
     input.invocationStartedAt,
     input.run.leaseExpiresAt,
   );
-  await input.deps.client
-    .rpc("fail_stale_in_flight_doc_extraction_attempts", {
+  await Promise.resolve(
+    input.deps.client.rpc("fail_stale_in_flight_doc_extraction_attempts", {
       p_processing_run_id: input.run.id,
       p_this_invocation_started_at: new Date(input.invocationStartedAt).toISOString(),
       p_diagnostic_reason: "invocation_ended",
-    })
-    .catch(() => null);
+    }),
+  ).catch(() => null);
 
   let plannerHttpCallsStarted = 0;
   let plannerCallLedgerRows = 0;
@@ -1143,8 +1143,8 @@ export async function extractOneRange(input: {
       finalize: async (row) => {
         if (!row.attemptRowId) return;
         const durationMs = Math.max(0, Math.trunc(row.durationMs));
-        await deps.client
-          .rpc("update_doc_extraction_attempt_outcome", {
+        await Promise.resolve(
+          deps.client.rpc("update_doc_extraction_attempt_outcome", {
             p_attempt_id: row.attemptRowId,
             p_processing_run_id: run.id,
             p_outcome: row.outcome,
@@ -1153,8 +1153,8 @@ export async function extractOneRange(input: {
             p_http_status: row.httpStatus,
             p_duration_ms: durationMs,
             p_aborted_by_our_deadline: row.abortedByOurDeadline,
-          })
-          .catch(() => null);
+          }),
+        ).catch(() => null);
       },
     },
     persist: async ({ pageRange, extraction, stats, pageGaps, modelAlias: callModel }) => {
