@@ -7,6 +7,9 @@ import { parseWorkItem, type Dispatch, type WorkItem } from "./dispatch";
 /** How long a poll's re-dispatch reservation lasts. A second poll in that window does nothing. */
 export const LEASE_RECOVERY_RESERVATION_MS = 50_000;
 
+/** Grace before a null-lease hand-off is treated as lost. Matches `hive.is_overdue_workflow_handoff`. */
+export const LOST_HANDOFF_GRACE_MS = 45_000;
+
 /**
  * Same ceiling as `claim_processing_run` (`v_attempt > 3`). Report runs use the row's `maxAttempts`
  * (constrained to 3). Recovery counts the attempt; a later claim does not count it again.
@@ -31,6 +34,7 @@ export type ExpiredLeaseRow = {
   maxAttempts: number;
   leaseExpiresAtMs: number | null;
   nextDispatchAtMs: number | null;
+  updatedAtMs?: number | null;
   errorCode?: string | null;
   errorMessageSafe?: string | null;
   retryable?: boolean | null;
@@ -51,6 +55,14 @@ function reserved(row: ExpiredLeaseRow, nowMs: number): boolean {
   return row.nextDispatchAtMs !== null && row.nextDispatchAtMs > nowMs;
 }
 
+function overdueLostHandoff(row: ExpiredLeaseRow, nowMs: number): boolean {
+  if (row.leaseExpiresAtMs !== null) return false;
+  const cutoff = nowMs - LOST_HANDOFF_GRACE_MS;
+  if (row.nextDispatchAtMs !== null) return row.nextDispatchAtMs <= cutoff;
+  const updatedAtMs = row.updatedAtMs ?? nowMs;
+  return updatedAtMs <= cutoff;
+}
+
 function attemptsExhausted(row: ExpiredLeaseRow): boolean {
   if (row.kind === "report") return row.attemptCount >= row.maxAttempts;
   if (row.status === "READING_DOCUMENTS") return false;
@@ -62,15 +74,19 @@ function skip(row: ExpiredLeaseRow): boolean {
 }
 
 /**
- * Expired non-terminal leases: reserve a re-dispatch and count an attempt, or fail the row as
- * retryable when another attempt would be refused. `claim_*` does not count again while that
- * reservation is set. A row reserved until `nowMs` is left alone, so overlapping polls dispatch once.
+ * Expired non-terminal leases and overdue lost hand-offs: reserve a re-dispatch (50s) and return
+ * ids to dispatch. Expired leases count an attempt; lost hand-offs do not. `claim_*` does not
+ * count again while that reservation is set. A row reserved until `nowMs` is left alone, so
+ * overlapping polls dispatch once.
  */
 export function applyExpiredLeaseRecovery(rows: readonly ExpiredLeaseRow[], nowMs: number): LeaseRecoveryPlan {
   const dispatch: WorkItem[] = [];
   const failed: WorkItem[] = [];
   for (const row of rows) {
-    if (skip(row) || !leaseExpired(row, nowMs) || reserved(row, nowMs)) continue;
+    if (skip(row) || reserved(row, nowMs)) continue;
+    const expired = leaseExpired(row, nowMs);
+    const lost = overdueLostHandoff(row, nowMs);
+    if (!expired && !lost) continue;
     if (attemptsExhausted(row)) {
       row.status = "FAILED";
       row.leaseExpiresAtMs = null;
@@ -81,7 +97,12 @@ export function applyExpiredLeaseRecovery(rows: readonly ExpiredLeaseRow[], nowM
       failed.push({ kind: row.kind, id: row.id });
       continue;
     }
-    if (!(row.kind === "analysis" && row.status === "READING_DOCUMENTS")) row.attemptCount += 1;
+    if (
+      expired &&
+      !(row.kind === "analysis" && row.status === "READING_DOCUMENTS")
+    ) {
+      row.attemptCount += 1;
+    }
     row.nextDispatchAtMs = nowMs + LEASE_RECOVERY_RESERVATION_MS;
     dispatch.push({ kind: row.kind, id: row.id });
   }

@@ -74,6 +74,37 @@ describe("applyExpiredLeaseRecovery", () => {
     expect(done.status).toBe("SUCCEEDED");
   });
 
+  it("re-dispatches a lost hand-off without counting an attempt and ignores a second poll", () => {
+    const row = report({
+      kind: "analysis",
+      id: RUN_ID,
+      status: "EXTRACTING",
+      attemptCount: 2,
+      maxAttempts: 3,
+      leaseExpiresAtMs: null,
+      nextDispatchAtMs: NOW - 4 * 60_000,
+      updatedAtMs: NOW - 4 * 60_000,
+    });
+    const plan = applyExpiredLeaseRecovery([row], NOW);
+    expect(plan.dispatch).toEqual([{ kind: "analysis", id: RUN_ID }]);
+    expect(row.attemptCount).toBe(2);
+    expect(row.nextDispatchAtMs).toBe(NOW + LEASE_RECOVERY_RESERVATION_MS);
+    const again = applyExpiredLeaseRecovery([row], NOW + 1_000);
+    expect(again.dispatch).toEqual([]);
+  });
+
+  it("does not treat a recent lost hand-off as overdue before the grace window", () => {
+    const row = report({
+      kind: "analysis",
+      id: RUN_ID,
+      status: "EXTRACTING",
+      attemptCount: 1,
+      leaseExpiresAtMs: null,
+      nextDispatchAtMs: NOW - 30_000,
+    });
+    expect(applyExpiredLeaseRecovery([row], NOW).dispatch).toEqual([]);
+  });
+
   it("fails an exhausted processing run and re-dispatches one that still has an attempt", () => {
     const exhausted = report({
       kind: "analysis",
