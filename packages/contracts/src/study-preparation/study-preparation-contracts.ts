@@ -115,6 +115,7 @@ export const COVERAGE_GAP_REASONS = [
   "PARTIAL_READ",
   "PAGES_NOT_READ",
   "PAGES_WITHOUT_TEXT",
+  "PAGES_NOT_EXTRACTED",
   "NO_TEXT",
 ] as const;
 export type CoverageGapReason = (typeof COVERAGE_GAP_REASONS)[number];

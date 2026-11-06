@@ -358,7 +358,7 @@ PIPELINE_ALIAS_ENV = {
     "write": "PLANNER_WRITE_LITELLM_ALIAS",
 }
 PIPELINE_ALIASES = {"extract": "harvester", "canonicalize": "heavy_lifter", "write": "harvester"}
-PIPELINE_MAX_OUTPUT_TOKENS = {"extract": 12000, "canonicalize": 16000, "write": 8000}
+PIPELINE_MAX_OUTPUT_TOKENS = {"extract": 16000, "canonicalize": 16000, "write": 8000}
 PIPELINE_MAX_REQUEST_BYTES = {"extract": 1536 * 1024, "canonicalize": 2048 * 1024, "write": 1024 * 1024}
 
 

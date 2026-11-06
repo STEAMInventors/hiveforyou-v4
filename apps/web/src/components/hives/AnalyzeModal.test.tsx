@@ -316,6 +316,18 @@ describe("study preparation progress helpers", () => {
     );
   });
 
+  it("counts only saved extractions, not failed documents, when extracting stops", () => {
+    const docs = [DOC, "44444444-4444-4444-8444-444444444444", "88888888-8888-4888-8888-888888888888"];
+    const steps = preparationSteps(
+      makeRun("FAILED", {
+        authorizedSourceDocumentIds: docs,
+        extractedDocumentCount: 2,
+        stageMetrics: [{ stage: "EXTRACTING", attempt: 1, outcome: "FAILED" }],
+      }),
+    );
+    expect(steps[1]).toMatchObject({ label: "Extracting (2 of 3 documents)", state: "stopped" });
+  });
+
   it("keeps the earlier steps for an in-flight legacy run", () => {
     const labels = preparationSteps(makeRun("INVESTIGATING")).map((step) => step.label);
     expect(labels[0]).toBe("Reading your documents");

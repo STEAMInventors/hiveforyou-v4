@@ -80,7 +80,7 @@ function extractingLabel(
 ): string {
   const total = run?.authorizedSourceDocumentIds.length ?? 0;
   if (total === 0) return "Extracting";
-  const extracted = state === "done" ? total : Math.min(total, run?.extractedDocumentCount ?? 0);
+  const extracted = Math.min(total, run?.extractedDocumentCount ?? 0);
   return `Extracting (${extracted} of ${total} ${total === 1 ? "document" : "documents"})`;
 }
 
@@ -181,13 +181,18 @@ const GAP_TEXT: Record<CoverageGapReason, string> = {
   PARTIAL_READ: "Only partly readable.",
   PAGES_NOT_READ: "Some pages weren't read",
   PAGES_WITHOUT_TEXT: "Pages with no text",
+  PAGES_NOT_EXTRACTED: "Page could not be fully extracted",
   NO_TEXT: "No readable text on any page.",
 };
 
 /** Owner-facing description of one coverage gap (never document text). */
 export function coverageGapText(gap: Pick<CoverageGap, "reason" | "pageNumbers">): string {
   const base = GAP_TEXT[gap.reason];
-  if (gap.reason === "PAGES_NOT_READ" || gap.reason === "PAGES_WITHOUT_TEXT") {
+  if (
+    gap.reason === "PAGES_NOT_READ" ||
+    gap.reason === "PAGES_WITHOUT_TEXT" ||
+    gap.reason === "PAGES_NOT_EXTRACTED"
+  ) {
     return gap.pageNumbers.length > 0 ? `${base}: ${gap.pageNumbers.join(", ")}.` : `${base}.`;
   }
   return base;

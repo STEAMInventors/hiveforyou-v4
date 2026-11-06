@@ -13,8 +13,14 @@ import {
 import { callPlanner, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { type ExtractPrompt, loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 
-/** Pages per `hive-extract/1` call; keeps one answer inside the 12000-token cap and the 280 s planner timeout. */
+/** Pages per `hive-extract/1` call; keeps one answer inside the extract output cap and the planner timeout. */
 export const EXTRACT_PAGES_PER_CALL = 20;
+/** Smaller ranges for long documents where dense pages often exceed the output cap. */
+export const EXTRACT_PAGES_PER_CALL_DENSE = 10;
+/** Documents with more than this many pages start with {@link EXTRACT_PAGES_PER_CALL_DENSE}-page ranges. */
+export const DENSE_DOCUMENT_MIN_PAGES = 21;
+
+const TRUNCATION_REASON = "model_output_truncated";
 
 /** Planner failures that mean the model answered but the answer was not a usable JSON object. */
 const UNPARSEABLE_REASONS = new Set(["model_output_not_json", "model_output_invalid", "model_content_missing"]);
@@ -41,6 +47,8 @@ export type ExtractDocumentStats = ExtractionVerificationStats & {
   /** Malformed items dropped before quote verification, by reason. */
   malformed: Record<string, number>;
   ranges: { pageRange: string | null; truncated: boolean; lastPageCompleted: number }[];
+  /** Pages that still hit the output cap after splitting down to a single page. */
+  pageExtractionGaps: number[];
 };
 
 export type ExtractDocumentResult =
@@ -58,15 +66,79 @@ export type ExtractDocumentInput = {
   readonly resolvePlannerTimeoutMs?: () => number | "expired";
 };
 
-function pageRanges(pages: readonly VerificationPage[]): { pageRange: string | null; pages: VerificationPage[] }[] {
+export function pagesPerExtractChunk(totalPages: number): number {
+  return totalPages >= DENSE_DOCUMENT_MIN_PAGES ? EXTRACT_PAGES_PER_CALL_DENSE : EXTRACT_PAGES_PER_CALL;
+}
+
+export function pageRanges(pages: readonly VerificationPage[]): { pageRange: string | null; pages: VerificationPage[] }[] {
   const sorted = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
-  if (sorted.length <= EXTRACT_PAGES_PER_CALL) return [{ pageRange: null, pages: sorted }];
+  const chunk = pagesPerExtractChunk(sorted.length);
+  if (sorted.length <= chunk) return [{ pageRange: null, pages: sorted }];
   const ranges: { pageRange: string; pages: VerificationPage[] }[] = [];
-  for (let start = 0; start < sorted.length; start += EXTRACT_PAGES_PER_CALL) {
-    const slice = sorted.slice(start, start + EXTRACT_PAGES_PER_CALL);
+  for (let start = 0; start < sorted.length; start += chunk) {
+    const slice = sorted.slice(start, start + chunk);
     ranges.push({ pageRange: `${slice[0]!.pageNumber}-${slice[slice.length - 1]!.pageNumber}`, pages: slice });
   }
   return ranges;
+}
+
+function splitPagesInHalf(pages: VerificationPage[]): [VerificationPage[], VerificationPage[]] {
+  const mid = Math.ceil(pages.length / 2);
+  return [pages.slice(0, mid), pages.slice(mid)];
+}
+
+function rangeLabel(pages: VerificationPage[]): string | null {
+  if (pages.length === 0) return null;
+  if (pages.length === 1) return String(pages[0]!.pageNumber);
+  return `${pages[0]!.pageNumber}-${pages[pages.length - 1]!.pageNumber}`;
+}
+
+function emptyVerificationStats(): ExtractionVerificationStats {
+  return {
+    factsIn: 0,
+    factsKept: 0,
+    evidenceIn: 0,
+    evidenceDropped: 0,
+    byReason: {},
+    emptyFields: { in: 0, kept: 0 },
+    referencedDocuments: { in: 0, kept: 0 },
+    documentEvidence: { in: 0, kept: 0 },
+    dropped: [],
+  };
+}
+
+function gapExtraction(
+  input: ExtractDocumentInput & { prompt: ExtractPrompt },
+  range: { pageRange: string | null; pages: VerificationPage[] },
+  pageNumber: number,
+): DocExtraction {
+  return {
+    schema: "hive.doc-extraction/1",
+    documentId: input.document.id,
+    fileName: input.document.fileName,
+    pageRange: range.pageRange,
+    document: {
+      titleAsPrinted: "",
+      documentType: "",
+      domain: { label: "", confidence: null },
+      summary: "",
+      issuer: null,
+      aboutPeople: [],
+      keyDates: [],
+    },
+    facts: [],
+    emptyFields: [],
+    referencedDocuments: [],
+    glossary: [],
+    instructionsIgnored: [],
+    coverage: {
+      pageCount: range.pages.length,
+      pagesRead: [],
+      pagesBlankOrUnreadable: [pageNumber],
+      truncated: true,
+      lastPageCompleted: 0,
+    },
+  };
 }
 
 const PAGE_TEXT_PLACEHOLDER = /\{\{EITHER[^}]*\}\}/;
@@ -109,8 +181,87 @@ function timeoutError(correlationId: string, runId: string): HiveError {
 }
 
 type RangeOutcome =
-  | { ok: true; extraction: DocExtraction; factsProposed: number; malformed: Record<string, number>; stats: ExtractionVerificationStats }
+  | {
+      ok: true;
+      extraction: DocExtraction;
+      factsProposed: number;
+      malformed: Record<string, number>;
+      stats: ExtractionVerificationStats;
+      pageGaps: number[];
+    }
   | { ok: false; error: HiveError };
+
+function mergeRangeOutcomes(
+  left: RangeOutcome,
+  right: RangeOutcome,
+  pages: VerificationPage[],
+): RangeOutcome {
+  if (!left.ok) return left;
+  if (!right.ok) return right;
+  const merged = mergeRanges([left.extraction, right.extraction], pages.length);
+  const stats = emptyVerificationStats();
+  for (const part of [left.stats, right.stats]) {
+    stats.factsIn += part.factsIn;
+    stats.factsKept += part.factsKept;
+    stats.evidenceIn += part.evidenceIn;
+    stats.evidenceDropped += part.evidenceDropped;
+    sumCounts(stats.byReason, part.byReason);
+    for (const key of ["emptyFields", "referencedDocuments", "documentEvidence"] as const) {
+      stats[key].in += part[key].in;
+      stats[key].kept += part[key].kept;
+    }
+    stats.dropped.push(...part.dropped);
+  }
+  const malformed: Record<string, number> = { ...left.malformed };
+  sumCounts(malformed, right.malformed);
+  return {
+    ok: true,
+    extraction: merged,
+    factsProposed: left.factsProposed + right.factsProposed,
+    malformed,
+    stats,
+    pageGaps: [...left.pageGaps, ...right.pageGaps],
+  };
+}
+
+async function extractRangeAdaptive(
+  input: ExtractDocumentInput & { prompt: ExtractPrompt },
+  range: { pageRange: string | null; pages: VerificationPage[] },
+  calls: ExtractCallRecord[],
+): Promise<RangeOutcome> {
+  const outcome = await extractRange(input, range, calls);
+  if (outcome.ok) {
+    return { ...outcome, pageGaps: [] };
+  }
+  const truncated =
+    outcome.error.errorCode === "MODEL_OUTPUT_INVALID" && outcome.error.diagnosticReason === TRUNCATION_REASON;
+  if (!truncated) return outcome;
+  const { pages } = range;
+  if (pages.length > 1) {
+    const [leftPages, rightPages] = splitPagesInHalf(pages);
+    const left = await extractRangeAdaptive(
+      input,
+      { pageRange: rangeLabel(leftPages), pages: leftPages },
+      calls,
+    );
+    const right = await extractRangeAdaptive(
+      input,
+      { pageRange: rangeLabel(rightPages), pages: rightPages },
+      calls,
+    );
+    return mergeRangeOutcomes(left, right, pages);
+  }
+  const pageNumber = pages[0]!.pageNumber;
+  const extraction = gapExtraction(input, range, pageNumber);
+  return {
+    ok: true,
+    extraction,
+    factsProposed: 0,
+    malformed: {},
+    stats: emptyVerificationStats(),
+    pageGaps: [pageNumber],
+  };
+}
 
 async function extractRange(
   input: ExtractDocumentInput & { prompt: ExtractPrompt },
@@ -180,6 +331,7 @@ async function extractRange(
           factsProposed: validated.factsProposed,
           malformed: validated.malformed,
           stats: verified.stats,
+          pageGaps: [],
         };
       }
       parseError = validated.message;
@@ -278,8 +430,9 @@ function mergeRanges(ranges: DocExtraction[], pageCount: number): DocExtraction 
 }
 
 /**
- * Runs `hive-extract/1` over one document: one planner `extract` call per range of up to 20 pages,
- * then lenient validation, quote verification against the pages sent, a merge, and final ids.
+ * Runs `hive-extract/1` over one document: planner calls per page range (20 pages, or 10 when the
+ * document has more than 20 pages), with recursive halving when the model hits the output cap.
+ * A single page that still truncates is recorded as a page extraction gap; the document still saves.
  * An unusable answer is retried once with the reason appended; a second failure fails the document.
  */
 export async function extractDocument(input: ExtractDocumentInput): Promise<ExtractDocumentResult> {
@@ -300,11 +453,13 @@ export async function extractDocument(input: ExtractDocumentInput): Promise<Extr
     documentEvidence: { in: 0, kept: 0 },
     dropped: [],
     ranges: [],
+    pageExtractionGaps: [],
   };
   for (const range of pageRanges(input.pages)) {
-    const outcome = await extractRange({ ...input, prompt }, range, calls);
+    const outcome = await extractRangeAdaptive({ ...input, prompt }, range, calls);
     if (!outcome.ok) return { ok: false, error: outcome.error, calls };
     parts.push(outcome.extraction);
+    stats.pageExtractionGaps.push(...outcome.pageGaps);
     const s = outcome.stats;
     stats.factsProposed += outcome.factsProposed;
     sumCounts(stats.malformed, outcome.malformed);

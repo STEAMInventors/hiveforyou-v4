@@ -46,7 +46,7 @@ export const PLANNER_MAX_OUTPUT_TOKENS: Record<PlannerCompletionTask, number> = 
   intent: 4000,
   domain: 4000,
   intelligence: 12000,
-  extract: 12000,
+  extract: 16000,
   canonicalize: 16000,
   write: 8000,
 };

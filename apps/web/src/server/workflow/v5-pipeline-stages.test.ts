@@ -82,8 +82,9 @@ describe("runExtractingWorkerPool", () => {
     invocationStartedAt: number;
     extract?: typeof import("./v5-pipeline-stages").extractOneDocument;
     canStart?: (clock: () => number, invocationStartedAt: number) => boolean;
+    deps?: AnalysisWorkflowDeps;
   }) => ({
-    deps,
+    deps: input.deps ?? deps,
     run,
     catalog,
     correlationId: "corr",
@@ -216,6 +217,47 @@ describe("runExtractingWorkerPool", () => {
     );
     expect(result.deferred).toBe(true);
     expect(extract).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not record success for documents that never saved an extraction", async () => {
+    const record = vi.fn(async (fn: string) => {
+      if (fn === "record_extracting_document_success") return { data: { saved: true }, error: null };
+      throw new Error(`unexpected rpc ${fn}`);
+    });
+    const countingDeps = {
+      client: { rpc: record },
+    } as unknown as AnalysisWorkflowDeps;
+    const extract = vi.fn(async (input): Promise<ExtractOneDocumentResult> => {
+      if (input.document.sourceDocumentId === DOC_1) {
+        return { ok: true, metric: metricFor(), modelAlias: "harvester" };
+      }
+      return {
+        ok: false,
+        calls: [],
+        metric: null,
+        error: createHiveError({
+          errorCode: "MODEL_OUTPUT_INVALID",
+          category: "MODEL",
+          stage: "EXTRACT",
+          retryable: false,
+          safeMessage: "bad",
+          correlationId: "corr",
+          diagnosticReason: "model_output_truncated",
+        }),
+      };
+    });
+    await expect(
+      runExtractingWorkerPool(
+        poolInput({
+          documents: [snapshotDocument(DOC_1, "A.pdf"), snapshotDocument(DOC_2, "B.pdf")],
+          clock: () => Date.now(),
+          invocationStartedAt: Date.now(),
+          extract,
+          deps: countingDeps,
+        }),
+      ),
+    ).rejects.toMatchObject({ error: { errorCode: "MODEL_OUTPUT_INVALID" } });
+    expect(record).toHaveBeenCalledTimes(1);
   });
 
   it("defers across invocations when each document consumes most of the route budget", async () => {

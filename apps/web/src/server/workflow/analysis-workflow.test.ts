@@ -191,7 +191,11 @@ function fakeDatabase(
       case "put_doc_extraction": {
         const id = String(args.p_source_document_id ?? "").toLowerCase();
         if (id && !docExtractions.some((row) => row.sourceDocumentId.toLowerCase() === id)) {
-          docExtractions.push({ sourceDocumentId: id, extraction: args.p_extraction });
+          docExtractions.push({
+            sourceDocumentId: id,
+            extraction: args.p_extraction,
+            stats: args.p_stats,
+          });
         }
         return { data: { saved: true }, error: null };
       }
@@ -278,6 +282,18 @@ function timeout() {
   return new Response(JSON.stringify({ contract_version: "planner-error@1", error_code: "MODEL_TIMEOUT", retryable: true }), {
     status: 504,
   });
+}
+
+function truncated() {
+  return new Response(
+    JSON.stringify({
+      contract_version: "planner-error@1",
+      error_code: "MODEL_OUTPUT_INVALID",
+      retryable: false,
+      diagnostic_reason: "model_output_truncated",
+    }),
+    { status: 422 },
+  );
 }
 
 type PlannerBody = { task: PlannerTask; prompt_id: string; system_prompt: string; user_payload: Record<string, unknown> };
@@ -712,6 +728,27 @@ describe("processAnalysisRun: V5 pipeline", () => {
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
     expect(planner.calls.filter((task) => task === "extract").length).toBeGreaterThanOrEqual(3);
     expect(db.docExtractions.map((row) => row.sourceDocumentId).sort()).toEqual([DOC_1, DOC_2].sort());
+  });
+
+  it("continues extracting when one document hits a single-page truncation gap", async () => {
+    const planner = fakePlanner(
+      {
+        extract: (_call, body) => {
+          const message = String((body as PlannerBody).user_payload.message ?? "");
+          if (message.includes(DOC_2)) return truncated();
+          return null;
+        },
+      },
+      { extract: EXTRACT_ANSWER },
+    );
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
+    const h = harness(db, planner);
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
+    expect(db.docExtractions.map((row) => row.sourceDocumentId).sort()).toEqual([DOC_1, DOC_2].sort());
+    const gapDoc = db.docExtractions.find((row) => row.sourceDocumentId === DOC_2);
+    expect(gapDoc?.stats).toMatchObject({ pageExtractionGaps: [1] });
+    expect(db.status()).not.toBe("FAILED");
   });
 
   it("hands off EXTRACTING when the pool defers for a fresh invocation", async () => {

@@ -78,7 +78,7 @@ TASK_MAX_OUTPUT_TOKENS: dict[str, int] = {
     "domain": 4000,
     "intelligence": 12000,
     "plan": 12000,
-    "extract": 12000,
+    "extract": 16000,
     "canonicalize": 16000,
     "write": 8000,
 }

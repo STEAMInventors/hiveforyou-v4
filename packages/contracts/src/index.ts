@@ -30,6 +30,7 @@ export * from "./reports/report-contracts";
 export * from "./study-preparation/planner-wire-contracts";
 export * from "./study-preparation/execution-manifest-contracts";
 export * from "./pipeline/extraction-contracts";
+export * from "./pipeline/extraction-coverage-gaps";
 export * from "./pipeline/canonical-study-contracts";
 export * from "./pipeline/study-view-contracts";
 export * from "./pipeline/write-audience";
