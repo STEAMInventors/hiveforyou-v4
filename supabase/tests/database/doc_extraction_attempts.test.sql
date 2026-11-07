@@ -87,6 +87,86 @@ SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 
 SELECT public.claim_processing_run((SELECT id FROM t_run));
 
+SELECT is(
+  (public.transition_processing_run((SELECT id FROM t_run), 'QUEUED', 'READING_DOCUMENTS', '{}'::jsonb)
+     ->> 'applied')::boolean,
+  true,
+  'QUEUED may advance to READING_DOCUMENTS');
+
+SELECT is(
+  (public.transition_processing_run((SELECT id FROM t_run), 'READING_DOCUMENTS', 'EXTRACTING', '{}'::jsonb)
+     ->> 'applied')::boolean,
+  true,
+  'READING_DOCUMENTS may advance to EXTRACTING and freeze source snapshot');
+
+CREATE TEMP TABLE t_begin AS
+SELECT public.begin_doc_extraction_attempt(
+         (SELECT id FROM t_run),
+         'bbbbbbbb-0000-4000-8000-0000000000e1',
+         'cccccccc-0000-4000-8000-0000000000e1',
+         (SELECT digest FROM t_pages),
+         '1',
+         'hive-extract/1',
+         'sha256:' || repeat('a', 64),
+         now()) AS result;
+GRANT SELECT ON t_begin TO service_role;
+
+SELECT ok(
+  ((SELECT result FROM t_begin) ->> 'id') IS NOT NULL,
+  'begin_doc_extraction_attempt returns an attempt id');
+
+SELECT is(
+  (SELECT attempt_status FROM hive.doc_extraction_attempts
+    WHERE id = ((SELECT result FROM t_begin) ->> 'id')::uuid),
+  'IN_FLIGHT',
+  'begin inserts IN_FLIGHT row');
+
+SELECT lives_ok(
+  $$ SELECT public.update_doc_extraction_attempt_outcome(
+       ((SELECT result FROM t_begin) ->> 'id')::uuid,
+       (SELECT id FROM t_run),
+       'succeeded',
+       null,
+       null,
+       200,
+       1200,
+       false) $$,
+  'update_doc_extraction_attempt_outcome succeeds for in-flight attempt');
+
+SELECT is(
+  (SELECT attempt_status FROM hive.doc_extraction_attempts
+    WHERE id = ((SELECT result FROM t_begin) ->> 'id')::uuid),
+  'SUCCEEDED',
+  'outcome update marks attempt SUCCEEDED');
+
+SELECT throws_ok(
+  $$ SELECT public.begin_doc_extraction_attempt(
+       (SELECT id FROM t_run),
+       'bbbbbbbb-0000-0000-0000-000000000099',
+       'cccccccc-0000-4000-8000-0000000000e1',
+       (SELECT digest FROM t_pages),
+       '1',
+       'hive-extract/1',
+       'sha256:' || repeat('a', 64),
+       now()) $$,
+  '42501',
+  'extract_attempt_hive_mismatch',
+  'wrong hive id is refused');
+
+SELECT throws_ok(
+  $$ SELECT public.begin_doc_extraction_attempt(
+       (SELECT id FROM t_run),
+       'bbbbbbbb-0000-4000-8000-0000000000e1',
+       'cccccccc-0000-4000-8000-0000000000e1',
+       'sha256:' || repeat('9', 64),
+       '1',
+       'hive-extract/1',
+       'sha256:' || repeat('a', 64),
+       now()) $$,
+  'P0001',
+  'extract_attempt_content_digest_mismatch',
+  'content digest not in frozen snapshot is refused');
+
 SELECT lives_ok(
   $$ SELECT public.record_doc_extraction_attempt(
        (SELECT id FROM t_run),
