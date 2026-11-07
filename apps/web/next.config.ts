@@ -1,9 +1,16 @@
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.join(currentDir, "../..");
+const require = createRequire(import.meta.url);
+
+/** react-pdf bundles pdfjs-dist; webpack must not resolve a separate hoisted copy. */
+const reactPdfPdfjsDistRoot = path.dirname(
+  require.resolve("pdfjs-dist/package.json", { paths: [require.resolve("react-pdf")] }),
+);
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@hiveforyou/contracts"],
@@ -16,17 +23,9 @@ const nextConfig: NextConfig = {
     dirs: ["src"],
   },
   webpack(config, { isServer }) {
-    // Serve pdf.js worker from our own build output (no unpkg/jsdelivr at runtime).
-    if (!isServer) {
-      config.module.rules.unshift({
-        test: /[\\/]node_modules[\\/]pdfjs-dist[\\/]build[\\/]pdf\.worker\.min\.mjs$/,
-        type: "asset/resource",
-        generator: { filename: "static/worker/[hash][ext]" },
-      });
-    }
     config.resolve.alias = {
       ...config.resolve.alias,
-      ...(!isServer ? { canvas: false } : {}),
+      ...(!isServer ? { canvas: false, "pdfjs-dist": reactPdfPdfjsDistRoot } : {}),
       "server-only": path.join(currentDir, "src/lib/server/server-only.ts"),
     };
     config.resolve.extensionAlias = {

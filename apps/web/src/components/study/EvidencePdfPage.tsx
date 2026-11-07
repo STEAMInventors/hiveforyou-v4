@@ -2,12 +2,22 @@
 
 import { normalizeQuoteText } from "@hiveforyou/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Document, type DocumentProps, Page } from "react-pdf";
+import { Document, type DocumentProps, Page, pdfjs } from "react-pdf";
 
 import { isHttpOrHttpsUrlString, signedUrlShapeForLog } from "@/lib/signed-url-log-shape";
 
 import { findNormalizedQuoteSpans, type NormalizedSpan } from "./evidence-highlight";
-import "./pdfjs-worker-init";
+
+/**
+ * Evidence drawer PDF failures were a pdf.js API vs worker version mismatch (two pdfjs-dist copies),
+ * not MIME routing alone — vault MIME from viewer-open is still required for correct mode selection.
+ */
+if (typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url,
+  ).toString();
+}
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -152,7 +162,7 @@ export function EvidencePdfPage({ fileUrl, pageNumber, quote, pageText, onHighli
       shape.kind === "ok"
         ? `evidencePdf.loadError name=${err.name} host=${shape.host} scheme=${shape.scheme} pathSegments=${shape.pathSegmentCount}`
         : `evidencePdf.loadError name=${err.name} urlShape=invalid`;
-    console.warn(`[evidence-pdf] ${detail} message=${err.message}`);
+    console.error(`[evidence-pdf] ${detail} message=${err.message}`);
   }, [fileUrl]);
 
   return (

@@ -189,11 +189,11 @@ export function EvidenceViewerProvider({
         const kindForLog = viewerMimeCategory(
           typeof body.mimeType === "string" && body.mimeType.trim() !== "" ? body.mimeType.trim() : resolvedMime,
         );
-        if (shape.kind === "ok") {
+        if (shape.kind === "ok" && process.env.NODE_ENV !== "test") {
           console.info(
             `[evidence-viewer] signedUrlReady host=${shape.host} scheme=${shape.scheme} pathSegments=${shape.pathSegmentCount} mimeKind=${kindForLog}`,
           );
-        } else {
+        } else if (shape.kind !== "ok") {
           console.warn("[evidence-viewer] signedUrlReady could not parse URL shape");
         }
         setSignedUrl(body.signedUrl);
