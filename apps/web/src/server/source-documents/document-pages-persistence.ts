@@ -3,10 +3,12 @@ import {
   computePageSetDigest,
   computeSha256Digest,
   DOCUMENT_PAGE_PROVENANCE_VERSION,
+  fileSha256MismatchField,
   isPageExtractionMethod,
-  isValidPageSetDigest,
   MAX_DOCUMENT_PAGE_PROVENANCE_BYTES,
   MAX_DOCUMENT_PAGE_TEXT_BYTES,
+  normalizeContentDigest,
+  normalizeFileSha256,
   type CompletedReadStatus,
   type DocumentPageProvenance,
   type PageExtractionMethod,
@@ -76,7 +78,42 @@ export type ListDocumentPagesOutcome = {
   readonly pages: readonly PersistedDocumentPageRow[];
 };
 
-const SHA256_HEX_RE = /^[0-9a-f]{64}$/i;
+function pageSourceSha256Mismatch(input: {
+  readonly correlationId: string;
+  readonly hiveId: string;
+  readonly sourceDocumentId: string;
+  readonly expected: unknown;
+  readonly actual: unknown;
+  readonly operation: string;
+}): never {
+  const diagnosticField = fileSha256MismatchField(input.expected, input.actual);
+  emitStructuredEvent({
+    eventName: "documentPages.source_sha256_mismatch",
+    severity: "ERROR",
+    timestamp: new Date().toISOString(),
+    component: "sourceDocuments",
+    operation: input.operation,
+    stage: "READ",
+    correlationId: input.correlationId,
+    hiveId: input.hiveId,
+    sourceDocumentId: input.sourceDocumentId,
+    status: "FAILED",
+    errorCode: "INVALID_DOCUMENT",
+    retryable: false,
+    diagnosticReason: "page_source_sha256_mismatch",
+    diagnosticField,
+  });
+  throw createHiveError({
+    errorCode: "INVALID_DOCUMENT",
+    category: "DOCUMENT",
+    stage: "READ",
+    retryable: false,
+    safeMessage: "The document content hash did not match the registered source.",
+    correlationId: input.correlationId,
+    diagnosticReason: "page_source_sha256_mismatch",
+    diagnosticField,
+  });
+}
 
 export function prepareDocumentPagesForInsert(input: {
   readonly registeredSource: {
@@ -115,22 +152,21 @@ export function prepareDocumentPagesForInsert(input: {
     });
   }
 
-  const registeredSha = registeredSource.sha256.trim().toLowerCase();
-  const readSha = readResult.sourceFingerprint.sourceSha256.trim().toLowerCase();
+  const registeredSha = normalizeFileSha256(registeredSource.sha256);
+  const readSha = normalizeFileSha256(readResult.sourceFingerprint.sourceSha256);
   if (
     readResult.sourceFingerprint.sourceHashVerified !== true ||
-    !SHA256_HEX_RE.test(registeredSha) ||
-    !SHA256_HEX_RE.test(readSha) ||
+    !registeredSha ||
+    !readSha ||
     registeredSha !== readSha
   ) {
-    throw createHiveError({
-      errorCode: "INVALID_DOCUMENT",
-      category: "DOCUMENT",
-      stage: "READ",
-      retryable: false,
-      safeMessage: "The document content hash did not match the registered source.",
+    pageSourceSha256Mismatch({
       correlationId,
-      diagnosticReason: "page_source_sha256_mismatch",
+      hiveId: registeredSource.hiveId,
+      sourceDocumentId: registeredSource.sourceDocumentId,
+      expected: registeredSource.sha256,
+      actual: readResult.sourceFingerprint.sourceSha256,
+      operation: "prepareDocumentPages",
     });
   }
 
@@ -260,10 +296,8 @@ export function prepareDocumentPagesForInsert(input: {
     pages: rows,
   });
 
-  if (
-    !isValidPageSetDigest(readResult.sourceFingerprint.pageSetDigest) ||
-    readResult.sourceFingerprint.pageSetDigest.toLowerCase() !== computedSetDigest.toLowerCase()
-  ) {
+  const readerPageSetDigest = normalizeContentDigest(readResult.sourceFingerprint.pageSetDigest);
+  if (!readerPageSetDigest || readerPageSetDigest !== computedSetDigest) {
     throw createHiveError({
       errorCode: "INVALID_DOCUMENT",
       category: "DOCUMENT",
@@ -475,9 +509,9 @@ function samePersistedPages(
   if (
     existing.sourceDocumentId.toLowerCase() !== prepared.sourceDocumentId ||
     existing.hiveId.toLowerCase() !== prepared.hiveId ||
-    existing.sourceSha256.toLowerCase() !== prepared.sourceSha256 ||
+    normalizeFileSha256(existing.sourceSha256) !== normalizeFileSha256(prepared.sourceSha256) ||
     existing.readFingerprint !== prepared.readFingerprint ||
-    existing.pageSetDigest.toLowerCase() !== prepared.pageSetDigest.toLowerCase()
+    normalizeContentDigest(existing.pageSetDigest) !== normalizeContentDigest(prepared.pageSetDigest)
   ) {
     return false;
   }
@@ -490,9 +524,9 @@ function samePersistedPages(
     if (
       stored.page_number !== target.page_number ||
       stored.page_count !== prepared.pageCount ||
-      stored.source_sha256.toLowerCase() !== prepared.sourceSha256 ||
+      normalizeFileSha256(stored.source_sha256) !== normalizeFileSha256(prepared.sourceSha256) ||
       stored.read_fingerprint !== prepared.readFingerprint ||
-      stored.page_text_sha256.toLowerCase() !== target.page_text_sha256.toLowerCase() ||
+      normalizeContentDigest(stored.page_text_sha256) !== normalizeContentDigest(target.page_text_sha256) ||
       stored.page_byte_length !== target.page_byte_length ||
       stored.page_text !== target.page_text ||
       stored.extraction_method !== target.extraction_method
@@ -519,6 +553,18 @@ export async function listDocumentPagesForSource(
   },
 ): Promise<ListDocumentPagesOutcome> {
   const correlationId = input.correlationId;
+  const requestedPageSetDigest = normalizeContentDigest(input.pageSetDigest);
+  if (!requestedPageSetDigest) {
+    throw createHiveError({
+      errorCode: "INVALID_DOCUMENT",
+      category: "DOCUMENT",
+      stage: "READ",
+      retryable: false,
+      safeMessage: "The document page generation digest is invalid.",
+      correlationId,
+      diagnosticReason: "page_set_digest_mismatch",
+    });
+  }
 
   for (let attempt = 1; attempt <= MAX_INLINE_DB_TRANSIENT_ATTEMPTS; attempt += 1) {
     try {
@@ -526,7 +572,7 @@ export async function listDocumentPagesForSource(
         p_hive_id: input.hiveId.trim().toLowerCase(),
         p_source_document_id: input.sourceDocumentId.trim().toLowerCase(),
         p_read_fingerprint: input.readFingerprint.trim(),
-        p_page_set_digest: input.pageSetDigest.trim().toLowerCase(),
+        p_page_set_digest: requestedPageSetDigest,
       })) as Record<string, unknown>;
 
       const sourceDocumentId =
@@ -571,16 +617,30 @@ export async function listDocumentPagesForSource(
         });
       }
 
-      const expectedSha = input.expectedSourceSha256?.trim().toLowerCase();
-      if (expectedSha && sourceSha256.trim().toLowerCase() !== expectedSha) {
+      const storedFileSha = normalizeFileSha256(sourceSha256);
+      const returnedPageSetDigest = normalizeContentDigest(pageSetDigest);
+      if (input.expectedSourceSha256 !== undefined) {
+        const expectedFileSha = normalizeFileSha256(input.expectedSourceSha256);
+        if (!storedFileSha || !expectedFileSha || storedFileSha !== expectedFileSha) {
+          pageSourceSha256Mismatch({
+            correlationId,
+            hiveId: input.hiveId,
+            sourceDocumentId: input.sourceDocumentId,
+            expected: input.expectedSourceSha256,
+            actual: sourceSha256,
+            operation: "listDocumentPages",
+          });
+        }
+      }
+      if (!storedFileSha || !returnedPageSetDigest || returnedPageSetDigest !== requestedPageSetDigest) {
         throw createHiveError({
-          errorCode: "INVALID_DOCUMENT",
-          category: "DOCUMENT",
+          errorCode: "PAGE_READ_FAILED",
+          category: "PERSISTENCE",
           stage: "READ",
           retryable: false,
-          safeMessage: "The document content hash did not match the registered source.",
+          safeMessage: "Persisted document page metadata is inconsistent.",
           correlationId,
-          diagnosticReason: "page_source_sha256_mismatch",
+          diagnosticReason: "persistence_corrupt_jsonb",
         });
       }
 
@@ -607,14 +667,17 @@ export async function listDocumentPagesForSource(
         for (let i = 0; i < pages.length; i += 1) {
           const row = pages[i]!;
           const expectedPageNum = i + 1;
+          const rowFileSha = normalizeFileSha256(row.source_sha256);
+          const storedTextDigest = normalizeContentDigest(row.page_text_sha256);
           if (
             row.page_number !== expectedPageNum ||
             row.page_count !== declaredCount ||
             row.source_document_id.toLowerCase() !== sourceDocumentId.toLowerCase() ||
             row.hive_id.toLowerCase() !== hiveId.toLowerCase() ||
-            row.source_sha256.trim().toLowerCase() !== sourceSha256.trim().toLowerCase() ||
+            !rowFileSha ||
+            rowFileSha !== storedFileSha ||
             typeof row.page_text !== "string" ||
-            !isValidPageSetDigest(row.page_text_sha256)
+            !storedTextDigest
           ) {
             throw createHiveError({
               errorCode: "PAGE_READ_FAILED",
@@ -632,7 +695,7 @@ export async function listDocumentPagesForSource(
           if (
             computedByteLen > MAX_DOCUMENT_PAGE_TEXT_BYTES ||
             row.page_byte_length !== computedByteLen ||
-            row.page_text_sha256.toLowerCase() !== computedDigest.toLowerCase()
+            storedTextDigest !== computedDigest
           ) {
             throw createHiveError({
               errorCode: "PAGE_READ_FAILED",
@@ -651,9 +714,9 @@ export async function listDocumentPagesForSource(
         found: pages.length > 0,
         sourceDocumentId: sourceDocumentId.toLowerCase(),
         hiveId: hiveId.toLowerCase(),
-        sourceSha256: sourceSha256.trim().toLowerCase(),
+        sourceSha256: storedFileSha,
         readFingerprint: readFingerprint.trim(),
-        pageSetDigest: pageSetDigest.trim().toLowerCase(),
+        pageSetDigest: returnedPageSetDigest,
         readStatus,
         totalPhysicalPages: totalPhysicalPages || pages.length,
         pages,

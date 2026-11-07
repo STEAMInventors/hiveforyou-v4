@@ -196,6 +196,44 @@ export type ReaderWireResponseV1 = {
 
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/i;
 const SHA256_DIGEST_RE = /^sha256:[0-9a-f]{64}$/i;
+const SHA256_PREFIX = "sha256:";
+
+/**
+ * File hash (`source_documents.sha256`, `document_pages.source_sha256`): 64 lowercase hex, no prefix.
+ * A single leading `sha256:` is stripped so a content-digest spelling of the same file hash still matches.
+ */
+export function normalizeFileSha256(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  const hex = trimmed.startsWith(SHA256_PREFIX) ? trimmed.slice(SHA256_PREFIX.length) : trimmed;
+  return SHA256_HEX_RE.test(hex) ? hex : null;
+}
+
+/**
+ * Page-set digest, page-text digest, and other content digests: `sha256:` + 64 lowercase hex.
+ * Bare 64-hex input receives the prefix. This is not a file hash.
+ */
+export function normalizeContentDigest(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  const hex = trimmed.startsWith(SHA256_PREFIX) ? trimmed.slice(SHA256_PREFIX.length) : trimmed;
+  return SHA256_HEX_RE.test(hex) ? `${SHA256_PREFIX}${hex}` : null;
+}
+
+/** Safe log/diagnostic shape for a hash comparison. Never includes the hash itself. */
+export function fileSha256MismatchField(expected: unknown, actual: unknown): string {
+  const shape = (value: unknown): { prefix: 0 | 1; length: number } => {
+    if (typeof value !== "string") return { prefix: 0, length: 0 };
+    const trimmed = value.trim();
+    return {
+      prefix: trimmed.toLowerCase().startsWith(SHA256_PREFIX) ? 1 : 0,
+      length: trimmed.length,
+    };
+  };
+  const expectedShape = shape(expected);
+  const actualShape = shape(actual);
+  return `expectedPrefix:${expectedShape.prefix}.expectedLength:${expectedShape.length}.actualPrefix:${actualShape.prefix}.actualLength:${actualShape.length}`;
+}
 
 export function isPageExtractionMethod(value: unknown): value is PageExtractionMethod {
   return (
@@ -258,13 +296,16 @@ export function computePageSetDigest(input: {
     readonly page_text_sha256?: string;
   }>;
 }): string {
-  const source = input.sourceSha256.trim().toLowerCase();
+  const source = normalizeFileSha256(input.sourceSha256) ?? input.sourceSha256.trim().toLowerCase();
   const hashes = [...input.pages]
     .sort(
       (a, b) =>
         (a.pageNumber ?? a.page_number ?? 0) - (b.pageNumber ?? b.page_number ?? 0),
     )
-    .map((page) => (page.textSha256 ?? page.page_text_sha256 ?? "").trim().toLowerCase())
+    .map((page) => {
+      const raw = page.textSha256 ?? page.page_text_sha256 ?? "";
+      return normalizeContentDigest(raw) ?? raw.trim().toLowerCase();
+    })
     .join("\n");
   const material = `${DOCUMENT_PAGE_SET_DIGEST_VERSION}\n${source}\n${input.pageCount}\n${hashes}\n`;
   return computeSha256Digest(material);
@@ -539,13 +580,9 @@ export function normalizeReaderWireResponse(input: {
     };
   }
 
-  const expectedSha = input.expected.sha256.trim().toLowerCase();
-  const wireSha = typeof rawSource.sha256 === "string" ? rawSource.sha256.trim().toLowerCase() : "";
-  if (
-    raw.source_hash_verified !== true ||
-    !SHA256_HEX_RE.test(wireSha) ||
-    wireSha !== expectedSha
-  ) {
+  const expectedSha = normalizeFileSha256(input.expected.sha256);
+  const wireSha = normalizeFileSha256(typeof rawSource.sha256 === "string" ? rawSource.sha256 : "");
+  if (raw.source_hash_verified !== true || !expectedSha || !wireSha || wireSha !== expectedSha) {
     return {
       ok: false,
       message: "The document content hash did not match the registered source.",

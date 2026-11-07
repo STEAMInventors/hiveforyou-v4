@@ -32,6 +32,7 @@ import {
   type VerifiedStudy,
   verifyStudyInvestigation,
 } from "@hiveforyou/contracts";
+import { computeSha256Digest, normalizeContentDigest } from "@hiveforyou/contracts/document-read";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import {
@@ -764,7 +765,18 @@ async function loadSourcePages(context: Context, manifest: ExecutionManifest): P
     const pageNumber = Number(row.pageNumber);
     const text = String(row.pageText ?? "");
     const document = digests.get(id);
-    if (!document || row.pageSetDigest !== document.pageSetDigest || sha256Digest(text) !== row.pageTextSha256) {
+    const pageSetDigest = normalizeContentDigest(row.pageSetDigest);
+    const expectedPageSetDigest = document ? normalizeContentDigest(document.pageSetDigest) : null;
+    const storedPageTextSha256 = normalizeContentDigest(row.pageTextSha256);
+    const computedPageTextSha256 = normalizeContentDigest(computeSha256Digest(text));
+    if (
+      !document ||
+      !pageSetDigest ||
+      !expectedPageSetDigest ||
+      pageSetDigest !== expectedPageSetDigest ||
+      !storedPageTextSha256 ||
+      storedPageTextSha256 !== computedPageTextSha256
+    ) {
       throw manifestMismatch(context);
     }
     pages.set(pageKey(id, pageNumber), text);

@@ -6,7 +6,10 @@ import {
   computeSha256Digest,
   DOCUMENT_PAGE_PROVENANCE_VERSION,
   DOCUMENT_READ_CONTRACT_VERSION,
+  fileSha256MismatchField,
   MAX_DOCUMENT_PAGE_TEXT_BYTES,
+  normalizeContentDigest,
+  normalizeFileSha256,
   normalizeReaderWireResponse,
   READER_WIRE_CONTRACT_VERSION,
   validateReadDocumentInput,
@@ -111,6 +114,37 @@ describe("computeReadFingerprint and computePageSetDigest", () => {
     });
     expect(digestA).toBe(digestB);
     expect(digestA).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(
+      computePageSetDigest({
+        sourceSha256: `sha256:${SOURCE_SHA}`,
+        pageCount: 2,
+        pages: [
+          { pageNumber: 1, textSha256: p1Sha },
+          { pageNumber: 2, textSha256: p2Sha },
+        ],
+      }),
+    ).toBe(digestA);
+  });
+});
+
+describe("hash normalizers", () => {
+  const fileSha = "c8590f8d3ad9085d04e76ebabd9f2f92b884bdf6869b003bb9f953fa3e23b122";
+  const pageSetDigest = "sha256:e3dd8c9afe5c5f3c5683ab60e6f04440b16ce5b6050e5c1aec3daab543162fa0";
+
+  it("keeps a file sha256 as 64 lowercase hex and a page-set digest as sha256: plus 64 hex", () => {
+    expect(normalizeFileSha256(fileSha)).toBe(fileSha);
+    expect(normalizeFileSha256(`sha256:${fileSha.toUpperCase()}`)).toBe(fileSha);
+    expect(normalizeContentDigest(pageSetDigest)).toBe(pageSetDigest);
+    expect(normalizeContentDigest(pageSetDigest.slice("sha256:".length))).toBe(pageSetDigest);
+    expect(normalizeFileSha256(fileSha)).not.toBe(normalizeFileSha256(pageSetDigest));
+    expect(normalizeContentDigest(fileSha)).not.toBe(normalizeContentDigest(pageSetDigest));
+  });
+
+  it("describes a prefixed file hash against an unprefixed one without copying either value", () => {
+    const field = fileSha256MismatchField(`sha256:${fileSha}`, fileSha);
+    expect(field).toBe("expectedPrefix:1.expectedLength:71.actualPrefix:0.actualLength:64");
+    expect(field).not.toContain(fileSha.slice(0, 8));
+    expect(field).not.toContain(pageSetDigest.slice("sha256:".length, "sha256:".length + 8));
   });
 });
 

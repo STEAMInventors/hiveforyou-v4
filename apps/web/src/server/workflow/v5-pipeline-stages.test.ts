@@ -9,6 +9,7 @@ import {
   type StageMetric,
   V5_CLIENT_TASK_TIMEOUT_MS,
 } from "@hiveforyou/contracts";
+import { normalizeFileSha256 } from "@hiveforyou/contracts/document-read";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -43,13 +44,12 @@ import { missingExtractWorkItems, pageRangeStorageKey } from "@/server/pipeline/
 
 const throughput = defaultPipelineThroughput("extract");
 
-function normalizedSourceSha256(document: SnapshotDocument): string {
-  const raw = document.sha256.trim().toLowerCase();
-  return raw.startsWith("sha256:") ? raw : `sha256:${raw}`;
+function storedFileSha256(document: SnapshotDocument): string {
+  return normalizeFileSha256(document.sha256) ?? document.sha256.trim().toLowerCase();
 }
 
 function listDocumentPagesPayload(document: SnapshotDocument, texts: readonly string[]) {
-  const sourceSha256 = normalizedSourceSha256(document);
+  const sourceSha256 = storedFileSha256(document);
   return {
     found: true,
     source_document_id: document.sourceDocumentId,
@@ -526,6 +526,80 @@ describe("loadDocumentPages", () => {
     await expect(
       loadDocumentPages({ client, hiveId: HIVE_ID, runId: RUN_ID, document, correlationId: "corr" }),
     ).rejects.toMatchObject({ diagnosticReason: "extract_pages_missing" });
+  });
+
+  const petitionId = "9bb4d995-9b44-4e5f-95b9-3eb38019f3a2";
+  const petitionFileSha = "c8590f8d3ad9085d04e76ebabd9f2f92b884bdf6869b003bb9f953fa3e23b122";
+  const petitionPageSet = "sha256:e3dd8c9afe5c5f3c5683ab60e6f04440b16ce5b6050e5c1aec3daab543162fa0";
+  const petitionReadFingerprint = "049452f644ffef53b0bd337b039592fc3dc68f00104ee581890f268b49f28004";
+
+  function petitionDocument(sha256: string) {
+    return snapshotDocument(petitionId, "01_petition_schedules.pdf", {
+      sha256,
+      readFingerprint: petitionReadFingerprint,
+      pageSetDigest: petitionPageSet,
+      verifiedPageCount: 35,
+      totalPhysicalPages: 35,
+    });
+  }
+
+  it("loads the petition's 35 pages when the stored file sha256 has no prefix", async () => {
+    const document = petitionDocument(petitionFileSha);
+    const texts = Array.from({ length: 35 }, (_, index) => `Petition page ${index + 1}`);
+    const client = {
+      rpc: vi.fn(async (fn: string, args?: Record<string, unknown>) => {
+        if (fn === "get_study_source_pages") return { data: { snapshotCurrent: true, pages: [] }, error: null };
+        if (fn === "list_document_pages") {
+          expect(args?.p_page_set_digest).toBe(petitionPageSet);
+          expect(args?.p_read_fingerprint).toBe(petitionReadFingerprint);
+          const payload = listDocumentPagesPayload(document, texts);
+          expect(payload.source_sha256).toBe(petitionFileSha);
+          expect(payload.source_sha256.startsWith("sha256:")).toBe(false);
+          return { data: payload, error: null };
+        }
+        throw new Error(fn);
+      }),
+    };
+    const pages = await loadDocumentPages({
+      client,
+      hiveId: HIVE_ID,
+      runId: RUN_ID,
+      document,
+      correlationId: "corr",
+    });
+    expect(pages).toHaveLength(35);
+    expect(pages[34]?.pageNumber).toBe(35);
+
+    const prefixedSnapshot = petitionDocument(`sha256:${petitionFileSha}`);
+    const prefixedPages = await loadDocumentPages({
+      client,
+      hiveId: HIVE_ID,
+      runId: RUN_ID,
+      document: prefixedSnapshot,
+      correlationId: "corr",
+    });
+    expect(prefixedPages).toHaveLength(35);
+  });
+
+  it("still rejects a different file sha256 with the registered-source message", async () => {
+    const stored = petitionDocument(petitionFileSha);
+    const requested = petitionDocument("d".repeat(64));
+    const texts = Array.from({ length: 35 }, (_, index) => `Petition page ${index + 1}`);
+    const client = {
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_study_source_pages") return { data: { snapshotCurrent: true, pages: [] }, error: null };
+        if (fn === "list_document_pages") return { data: listDocumentPagesPayload(stored, texts), error: null };
+        throw new Error(fn);
+      }),
+    };
+    await expect(
+      loadDocumentPages({ client, hiveId: HIVE_ID, runId: RUN_ID, document: requested, correlationId: "corr" }),
+    ).rejects.toMatchObject({
+      errorCode: "INVALID_DOCUMENT",
+      safeMessage: "The document content hash did not match the registered source.",
+      diagnosticReason: "page_source_sha256_mismatch",
+      diagnosticField: "expectedPrefix:0.expectedLength:64.actualPrefix:0.actualLength:64",
+    });
   });
 });
 

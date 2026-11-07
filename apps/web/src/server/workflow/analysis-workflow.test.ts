@@ -16,6 +16,7 @@ import {
   validateIntentAnalysis,
   validateIntentIntelligence,
 } from "@hiveforyou/contracts";
+import { normalizeFileSha256 } from "@hiveforyou/contracts/document-read";
 import {
   L001_INITIAL_IEP_DOC_ID,
   L001_INITIAL_IEP_FILE_NAMES,
@@ -395,8 +396,7 @@ function fakeDatabase(
             error: null,
           };
         }
-        const rawSha = document.sha256.trim().toLowerCase();
-        const sourceSha256 = rawSha.startsWith("sha256:") ? rawSha : `sha256:${rawSha}`;
+        const sourceSha256 = normalizeFileSha256(document.sha256) ?? document.sha256.trim().toLowerCase();
         const pageCount = document.verifiedPageCount;
         const byPage = new Map<number, string>();
         for (const [key, text] of Object.entries(options.pages ?? {})) {

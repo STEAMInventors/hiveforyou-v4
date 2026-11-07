@@ -2,7 +2,9 @@ import { createHiveError, type Hive, type SourceMimeType } from "@hiveforyou/con
 import {
   computeReadFingerprint,
   DEFAULT_READER_MAX_PAGES,
+  fileSha256MismatchField,
   HIVE_SOURCE_DOCUMENTS_BUCKET,
+  normalizeFileSha256,
   normalizeReaderWireResponse,
   READER_HTTP_HEADERS,
   READER_WIRE_CONTRACT_VERSION,
@@ -500,10 +502,41 @@ export async function readDocument(
           diagnosticReason: "page_hive_mismatch",
         });
       }
-      if (
-        registered.sha256.trim().toLowerCase() !== normalizedInput.sha256 ||
-        registered.byteSize !== normalizedInput.byteSize
-      ) {
+      const registeredSha = normalizeFileSha256(registered.sha256);
+      const requestedSha = normalizeFileSha256(normalizedInput.sha256);
+      if (!registeredSha || !requestedSha || registeredSha !== requestedSha) {
+        const diagnosticField = fileSha256MismatchField(normalizedInput.sha256, registered.sha256);
+        emitStructuredEvent({
+          eventName: "readDocument.source_sha256_mismatch",
+          severity: "ERROR",
+          timestamp: new Date().toISOString(),
+          component: "sourceDocuments",
+          operation: "readDocument",
+          stage: "READ",
+          correlationId,
+          hiveId: normalizedInput.hiveId,
+          sourceDocumentId: normalizedInput.sourceDocumentId,
+          ...(normalizedInput.processingRunId
+            ? { processingRunId: normalizedInput.processingRunId }
+            : {}),
+          status: "FAILED",
+          errorCode: "INVALID_DOCUMENT",
+          retryable: false,
+          diagnosticReason: "page_source_sha256_mismatch",
+          diagnosticField,
+        });
+        throw createHiveError({
+          errorCode: "INVALID_DOCUMENT",
+          category: "DOCUMENT",
+          stage: "READ",
+          retryable: false,
+          safeMessage: "The document content hash did not match the registered source.",
+          correlationId,
+          diagnosticReason: "page_source_sha256_mismatch",
+          diagnosticField,
+        });
+      }
+      if (registered.byteSize !== normalizedInput.byteSize) {
         throw createHiveError({
           errorCode: "INVALID_DOCUMENT",
           category: "DOCUMENT",

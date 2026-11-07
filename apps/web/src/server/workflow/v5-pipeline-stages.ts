@@ -28,6 +28,7 @@ import {
   V5_CLIENT_TASK_TIMEOUT_MS,
   resolveAudienceConfiguration,
 } from "@hiveforyou/contracts";
+import { normalizeContentDigest } from "@hiveforyou/contracts/document-read";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { buildCanonicalizePayload, canonicalizeCase } from "@/server/pipeline/canonicalize-runner";
@@ -300,7 +301,7 @@ export async function buildExtractWorkQueue(input: {
       document,
       correlationId: input.correlationId,
     });
-    const contentDigest = document.pageSetDigest.toLowerCase();
+    const contentDigest = normalizeContentDigest(document.pageSetDigest) ?? document.pageSetDigest.toLowerCase();
     for (const item of missingExtractWorkItems(pages, saved, throughput)) {
       const pageRangeKey = pageRangeStorageKey(item.pageRange).toLowerCase();
       const totalsKey = extractAttemptTotalsKey({
@@ -811,14 +812,24 @@ export async function loadDocumentPages(input: {
       diagnosticReason: "source_changed",
     });
   }
-  const rawSha = document.sha256.trim().toLowerCase();
-  const expectedSourceSha256 = rawSha.startsWith("sha256:") ? rawSha : `sha256:${rawSha}`;
+  const pageSetDigest = normalizeContentDigest(document.pageSetDigest);
+  if (!pageSetDigest) {
+    throw createHiveError({
+      errorCode: "INVALID_DOCUMENT",
+      category: "DOCUMENT",
+      stage: "ANALYZE",
+      retryable: false,
+      safeMessage: "The document page generation digest is invalid.",
+      correlationId,
+      diagnosticReason: "page_set_digest_mismatch",
+    });
+  }
   const listed = await listDocumentPagesForSource(client, {
     hiveId,
     sourceDocumentId: document.sourceDocumentId,
     readFingerprint: document.readFingerprint,
-    pageSetDigest: document.pageSetDigest,
-    expectedSourceSha256,
+    pageSetDigest,
+    expectedSourceSha256: document.sha256,
     correlationId,
   });
   if (!listed.found || listed.pages.length === 0) {
@@ -985,7 +996,7 @@ async function persistExtractedRange(input: {
   const put = await rpc(input.deps.client, "put_doc_extraction_range", {
     p_hive_id: input.run.hiveId,
     p_source_document_id: input.document.sourceDocumentId,
-    p_content_digest: input.document.pageSetDigest,
+    p_content_digest: normalizeContentDigest(input.document.pageSetDigest) ?? input.document.pageSetDigest,
     p_page_range: pageRangeStorageKey(input.pageRange),
     p_prompt_id: prompt.id,
     p_prompt_digest: prompt.digest,
@@ -1073,7 +1084,7 @@ export async function tryMergeDocumentExtraction(input: {
   const put = await rpc(input.deps.client, "put_doc_extraction", {
     p_hive_id: input.run.hiveId,
     p_source_document_id: input.document.sourceDocumentId,
-    p_content_digest: input.document.pageSetDigest,
+    p_content_digest: normalizeContentDigest(input.document.pageSetDigest) ?? input.document.pageSetDigest,
     p_prompt_id: prompt.id,
     p_prompt_digest: prompt.digest,
     p_model_alias: input.modelAlias,
@@ -1333,7 +1344,7 @@ export async function extractOneRange(input: {
           p_processing_run_id: run.id,
           p_hive_id: run.hiveId,
           p_source_document_id: document.sourceDocumentId,
-          p_content_digest: document.pageSetDigest,
+          p_content_digest: normalizeContentDigest(document.pageSetDigest) ?? document.pageSetDigest,
           p_page_range: pageRangeStorageKey(pageRange ?? plannerPageRange),
           p_prompt_id: prompt.id,
           p_prompt_digest: prompt.digest,
