@@ -1,12 +1,20 @@
 "use client";
 
-import { normalizeQuoteText } from "@hiveforyou/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, type DocumentProps, Page, pdfjs } from "react-pdf";
 
 import { isHttpOrHttpsUrlString, signedUrlShapeForLog } from "@/lib/signed-url-log-shape";
 
-import { findNormalizedQuoteSpans, type NormalizedSpan } from "./evidence-highlight";
+import {
+  buildPdfTextIndex,
+  findCrossPageQuoteParts,
+  findQuoteMatch,
+  renderHighlightedItemText,
+  spansToItemHighlights,
+  type ItemHighlightRange,
+  type PdfTextItem,
+  type QuoteMatchKind,
+} from "./evidence-highlight";
 
 /**
  * Evidence drawer PDF failures were a pdf.js API vs worker version mismatch (two pdfjs-dist copies),
@@ -22,52 +30,21 @@ if (typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-type SpanPiece = { el: HTMLElement; normStart: number; normEnd: number };
-
-function buildSpanIndex(container: HTMLElement): { normText: string; pieces: SpanPiece[] } {
-  const layer = container.querySelector(".react-pdf__Page__textContent");
-  if (!layer) return { normText: "", pieces: [] };
-  const spans = [...layer.querySelectorAll("span")].filter((n): n is HTMLElement => n instanceof HTMLElement);
-  let normText = "";
-  const pieces: SpanPiece[] = [];
-  for (const el of spans) {
-    const raw = el.textContent ?? "";
-    const piece = normalizeQuoteText(raw);
-    if (piece === "") continue;
-    const sep = normText.length > 0 ? 1 : 0;
-    const start = normText.length + sep;
-    normText = normText + (sep ? " " : "") + piece;
-    pieces.push({ el, normStart: start, normEnd: normText.length });
-  }
-  return { normText, pieces };
-}
-
-function rectsForNormSpans(pieces: readonly SpanPiece[], spans: readonly NormalizedSpan[], scrollRoot: HTMLElement): { left: number; top: number; width: number; height: number }[] {
-  const rootRect = scrollRoot.getBoundingClientRect();
-  const out: { left: number; top: number; width: number; height: number }[] = [];
-  for (const span of spans) {
-    for (const p of pieces) {
-      const o0 = Math.max(span.start, p.normStart);
-      const o1 = Math.min(span.end, p.normEnd);
-      if (o0 >= o1) continue;
-      const r = p.el.getBoundingClientRect();
-      const frac0 = (o0 - p.normStart) / (p.normEnd - p.normStart);
-      const frac1 = (o1 - p.normStart) / (p.normEnd - p.normStart);
-      const left = r.left + frac0 * r.width - rootRect.left + scrollRoot.scrollLeft;
-      const right = r.left + frac1 * r.width - rootRect.left + scrollRoot.scrollLeft;
-      const top = r.top - rootRect.top + scrollRoot.scrollTop;
-      out.push({ left, top, width: Math.max(1, right - left), height: r.height });
-    }
-  }
-  return out;
-}
+export type EvidenceHighlightStatus = {
+  readonly kind: QuoteMatchKind;
+  readonly pageNumber: number;
+  /** When a quote straddles pages, both page numbers that received a highlight. */
+  readonly highlightedPages?: readonly number[];
+};
 
 export type EvidencePdfPageProps = {
   readonly fileUrl: string;
   readonly pageNumber: number;
   readonly quote: string | undefined;
   readonly pageText: string | null;
-  readonly onHighlightStatus: (status: { found: boolean; pageNumber: number }) => void;
+  readonly neighborPageText?: string | null;
+  readonly neighborPageNumber?: number;
+  readonly onHighlightStatus: (status: EvidenceHighlightStatus) => void;
   /** Owner session page route — shown after an in-viewer PDF load failure (not the signed vault URL). */
   readonly originalPageHref?: string;
 };
@@ -76,11 +53,18 @@ function documentFileProp(fileUrl: string): DocumentProps["file"] {
   return isHttpOrHttpsUrlString(fileUrl) ? { url: fileUrl } : fileUrl;
 }
 
+type PageHighlightState = {
+  readonly page: number;
+  readonly byItem: ReadonlyMap<number, readonly ItemHighlightRange[]>;
+};
+
 export function EvidencePdfPage({
   fileUrl,
   pageNumber,
   quote,
   pageText,
+  neighborPageText,
+  neighborPageNumber,
   onHighlightStatus,
   originalPageHref,
 }: EvidencePdfPageProps) {
@@ -88,7 +72,9 @@ export function EvidencePdfPage({
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
   const [pageWidth, setPageWidth] = useState(720);
-  const [rects, setRects] = useState<{ left: number; top: number; width: number; height: number }[]>([]);
+  const [highlights, setHighlights] = useState<readonly PageHighlightState[]>([]);
+  const textItemsRef = useRef<Map<number, readonly PdfTextItem[]>>(new Map());
+  const [textLayerReady, setTextLayerReady] = useState(false);
 
   const file = useMemo(() => documentFileProp(fileUrl), [fileUrl]);
 
@@ -97,7 +83,9 @@ export function EvidencePdfPage({
     boundFileUrlRef.current = fileUrl;
     setPdfLoadError(null);
     setNumPages(null);
-    setRects([]);
+    setHighlights([]);
+    textItemsRef.current = new Map();
+    setTextLayerReady(false);
   }
 
   useEffect(() => {
@@ -112,69 +100,130 @@ export function EvidencePdfPage({
     return () => ro.disconnect();
   }, []);
 
-  const persistedPage = pageText ?? "";
+  const neighborPage =
+    typeof neighborPageNumber === "number" && neighborPageNumber >= 1 ? neighborPageNumber : null;
 
-  /** Quote verification uses persisted reader text (same normalization as verify-quotes). */
-  const quoteVerifiedOnPage = useMemo(() => {
-    if (!quote?.trim()) return null;
-    return findNormalizedQuoteSpans(persistedPage, quote);
-  }, [quote, persistedPage]);
+  const recomputeHighlights = useCallback(() => {
+    const q = quote?.trim() ?? "";
+    if (!q) {
+      setHighlights([]);
+      onHighlightStatus({ kind: "not_found", pageNumber });
+      return;
+    }
 
-  const relayoutHighlights = useCallback(() => {
+    const items = textItemsRef.current.get(pageNumber);
+    if (!items?.length) {
+      setHighlights([]);
+      if (textLayerReady) onHighlightStatus({ kind: "not_found", pageNumber });
+      return;
+    }
+
+    const index = buildPdfTextIndex(items);
+    let match = findQuoteMatch(index.normText, q);
+
+    const pagesToRender: PageHighlightState[] = [];
+    const cross =
+      neighborPage !== null && neighborPageText
+        ? findCrossPageQuoteParts(q, pageText ?? "", neighborPageText, neighborPage)
+        : null;
+
+    if (match.kind === "not_found" && cross && neighborPage !== null) {
+      const neighborNum = neighborPage;
+      const byItem = spansToItemHighlights(index, [cross.currentPageSpan]);
+      pagesToRender.push({ page: pageNumber, byItem });
+      const neighborItems = textItemsRef.current.get(neighborNum);
+      if (neighborItems?.length) {
+        const neighborIndex = buildPdfTextIndex(neighborItems);
+        const neighborByItem = spansToItemHighlights(neighborIndex, [cross.neighborPageSpan]);
+        pagesToRender.push({ page: neighborNum, byItem: neighborByItem });
+      }
+      setHighlights(pagesToRender);
+      onHighlightStatus({
+        kind: "exact",
+        pageNumber,
+        highlightedPages: pagesToRender.map((p) => p.page),
+      });
+      return;
+    }
+
+    if (match.kind === "not_found" && pageText) {
+      match = findQuoteMatch(pageText, q);
+    }
+
+    if (match.kind === "not_found") {
+      setHighlights([]);
+      onHighlightStatus({ kind: "not_found", pageNumber });
+      return;
+    }
+
+    const byItem = spansToItemHighlights(index, match.spans);
+    pagesToRender.push({ page: pageNumber, byItem });
+    setHighlights(pagesToRender);
+    onHighlightStatus({
+      kind: match.kind,
+      pageNumber,
+      highlightedPages: [pageNumber],
+    });
+  }, [quote, pageNumber, pageText, neighborPage, neighborPageText, onHighlightStatus, textLayerReady]);
+
+  const highlightMapsRef = useRef(new Map<number, ReadonlyMap<number, readonly ItemHighlightRange[]>>());
+  highlightMapsRef.current = new Map(highlights.map((entry) => [entry.page, entry.byItem]));
+
+  const highlightGeneration = highlights.reduce(
+    (sum, entry) => sum + entry.byItem.size,
+    highlights.length,
+  );
+
+  const makeCustomTextRenderer = useCallback((targetPage: number) => {
+    return ({ itemIndex, str }: { itemIndex: number; str: string }) =>
+      renderHighlightedItemText(str, highlightMapsRef.current.get(targetPage)?.get(itemIndex));
+  }, []);
+
+  const customTextRendererPrimary = useMemo(
+    () => makeCustomTextRenderer(pageNumber),
+    [makeCustomTextRenderer, pageNumber],
+  );
+
+  const customTextRendererNeighbor = useMemo(() => {
+    if (neighborPage === null) return undefined;
+    return makeCustomTextRenderer(neighborPage);
+  }, [makeCustomTextRenderer, neighborPage]);
+
+  const handleGetTextSuccess = useCallback(
+    (targetPage: number) => (payload: { items: unknown[] }) => {
+      const items: PdfTextItem[] = payload.items
+        .filter((item): item is PdfTextItem => typeof item === "object" && item !== null && "str" in item)
+        .map((item) => ({
+          str: String((item as { str?: string }).str ?? ""),
+          hasEOL: Boolean((item as { hasEOL?: boolean }).hasEOL),
+        }));
+      const prev = textItemsRef.current.get(targetPage);
+      const unchanged =
+        prev &&
+        prev.length === items.length &&
+        prev.every((row, idx) => row.str === items[idx]?.str && row.hasEOL === items[idx]?.hasEOL);
+      if (unchanged) return;
+      textItemsRef.current.set(targetPage, items);
+      if (targetPage === pageNumber) setTextLayerReady(true);
+      recomputeHighlights();
+    },
+    [recomputeHighlights, pageNumber],
+  );
+
+  useEffect(() => {
+    if (!quote?.trim()) recomputeHighlights();
+  }, [quote, recomputeHighlights]);
+
+  useEffect(() => {
+    if (highlights.length === 0) return;
     const root = wrapRef.current;
-    if (!root) {
-      setRects([]);
-      return;
+    if (!root) return;
+    const mark = root.querySelector(".evidence-highlight");
+    if (!mark || !(mark instanceof HTMLElement)) return;
+    if (typeof mark.scrollIntoView === "function") {
+      mark.scrollIntoView({ block: "center", behavior: "smooth" });
     }
-    if (!quote?.trim() || quoteVerifiedOnPage === null || quoteVerifiedOnPage.length === 0) {
-      setRects([]);
-      return;
-    }
-    const { normText, pieces } = buildSpanIndex(root);
-    if (normText === "") {
-      setRects([]);
-      return;
-    }
-    const layerSpans = findNormalizedQuoteSpans(normText, quote);
-    if (!layerSpans || layerSpans.length === 0) {
-      setRects([]);
-      onHighlightStatus({ found: false, pageNumber });
-      return;
-    }
-    const next = rectsForNormSpans(pieces, layerSpans, root);
-    setRects(next);
-    onHighlightStatus({ found: next.length > 0, pageNumber });
-  }, [quote, quoteVerifiedOnPage, pageNumber, onHighlightStatus]);
-
-  useEffect(() => {
-    relayoutHighlights();
-  }, [relayoutHighlights, pageNumber, fileUrl, pageWidth]);
-
-  useEffect(() => {
-    if (!quote?.trim()) {
-      onHighlightStatus({ found: false, pageNumber });
-      return;
-    }
-    if (persistedPage === "") {
-      onHighlightStatus({ found: false, pageNumber });
-      return;
-    }
-    if (quoteVerifiedOnPage === null) {
-      onHighlightStatus({ found: false, pageNumber });
-    }
-  }, [quoteVerifiedOnPage, persistedPage, pageNumber, onHighlightStatus, quote]);
-
-  useEffect(() => {
-    if (rects.length === 0 || !wrapRef.current) return;
-    const el = wrapRef.current;
-    const scroll = el.scrollTo?.bind(el);
-    if (typeof scroll !== "function") return;
-    const first = rects.reduce(
-      (best, r) => (r.top < best.top ? r : best),
-      rects[0]!,
-    );
-    scroll({ top: Math.max(0, first.top - 24), behavior: "smooth" });
-  }, [rects, pageNumber]);
+  }, [highlights, pageNumber]);
 
   const handlePdfLoadSuccess = useCallback((d: { numPages: number }) => {
     setNumPages(d.numPages);
@@ -191,8 +240,15 @@ export function EvidencePdfPage({
   }, [fileUrl]);
 
   const handlePageRenderSuccess = useCallback(() => {
-    requestAnimationFrame(() => relayoutHighlights());
-  }, [relayoutHighlights]);
+    requestAnimationFrame(() => recomputeHighlights());
+  }, [recomputeHighlights]);
+
+  const renderNeighbor =
+    neighborPage !== null &&
+    highlights.some((h) => h.page === neighborPage) &&
+    numPages !== null &&
+    neighborPage >= 1 &&
+    neighborPage <= numPages;
 
   if (pdfLoadError) {
     const originalHref = originalPageHref?.trim() ? originalPageHref : fileUrl;
@@ -219,30 +275,26 @@ export function EvidencePdfPage({
       <Document file={file} onLoadSuccess={handlePdfLoadSuccess} onLoadError={handlePdfLoadError} loading={null}>
         {numPages !== null && pageNumber >= 1 && pageNumber <= numPages ? (
           <Page
-            key={`${pageNumber}`}
+            key={`p-${pageNumber}-h${highlightGeneration}`}
             pageNumber={pageNumber}
             width={pageWidth}
             renderAnnotationLayer={false}
+            customTextRenderer={customTextRendererPrimary}
+            onGetTextSuccess={handleGetTextSuccess(pageNumber) as (p: { items: unknown[] }) => void}
             onRenderSuccess={handlePageRenderSuccess}
           />
         ) : null}
+        {renderNeighbor ? (
+          <Page
+            key={`p-${neighborPage}-h${highlightGeneration}`}
+            pageNumber={neighborPage}
+            width={pageWidth}
+            renderAnnotationLayer={false}
+            customTextRenderer={customTextRendererNeighbor}
+            onGetTextSuccess={handleGetTextSuccess(neighborPage) as (p: { items: unknown[] }) => void}
+          />
+        ) : null}
       </Document>
-      {rects.map((r, i) => (
-        <div
-          key={i}
-          data-testid="evidence-highlight-overlay"
-          className="pointer-events-none absolute rounded-[2px]"
-          style={{
-            left: r.left,
-            top: r.top,
-            width: r.width,
-            height: r.height,
-            backgroundColor: "#FFF6DC",
-            outline: "2px solid #F6B826",
-            outlineOffset: "0px",
-          }}
-        />
-      ))}
     </div>
   );
 }

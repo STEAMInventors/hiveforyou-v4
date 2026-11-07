@@ -8,8 +8,10 @@ import { EvidencePdfPage } from "./EvidencePdfPage";
 const pdfMock = vi.hoisted(() => {
   const documentFileSpy = vi.fn();
   let simulateLoadError = false;
+  const rendererCalls: unknown[] = [];
   return {
     documentFileSpy,
+    rendererCalls,
     getSimulateLoadError: () => simulateLoadError,
     setSimulateLoadError: (value: boolean) => {
       simulateLoadError = value;
@@ -23,8 +25,9 @@ vi.mock("react-pdf", () => ({
     file?: unknown;
     onLoadError?: (e: Error) => void;
     onLoadSuccess?: (d: { numPages: number }) => void;
+    children?: React.ReactNode;
   }) => {
-    const { file, onLoadError, onLoadSuccess } = props;
+    const { file, onLoadError, onLoadSuccess, children } = props;
     pdfMock.documentFileSpy(file);
     useEffect(() => {
       if (pdfMock.getSimulateLoadError()) {
@@ -33,9 +36,29 @@ vi.mock("react-pdf", () => ({
         onLoadSuccess?.({ numPages: 3 });
       }
     }, [file, onLoadError, onLoadSuccess]);
-    return <div data-testid="pdf-doc" />;
+    return <div data-testid="pdf-doc">{children}</div>;
   },
-  Page: () => null,
+  Page: (props: {
+    pageNumber?: number;
+    onRenderSuccess?: () => void;
+    onGetTextSuccess?: (p: { items: { str: string; hasEOL?: boolean }[] }) => void;
+    customTextRenderer?: (args: { itemIndex: number; str: string }) => string;
+  }) => {
+    const { onRenderSuccess, onGetTextSuccess, customTextRenderer } = props;
+    useEffect(() => {
+      onGetTextSuccess?.({
+        items: [{ str: "The fee is " }, { str: "$10.00" }, { str: " for service." }],
+      });
+      onRenderSuccess?.();
+    }, [onRenderSuccess, onGetTextSuccess]);
+    return (
+      <div data-testid="pdf-page">
+        {customTextRenderer
+          ? customTextRenderer({ itemIndex: 1, str: "$10.00" })
+          : null}
+      </div>
+    );
+  },
 }));
 
 afterEach(() => {
@@ -46,8 +69,8 @@ afterEach(() => {
 
 const baseProps = {
   pageNumber: 1,
-  quote: "x" as string | undefined,
-  pageText: "x",
+  quote: "The fee is $10.00 for service." as string | undefined,
+  pageText: "The fee is $10.00 for service.",
   onHighlightStatus: () => undefined,
 };
 
@@ -114,5 +137,26 @@ describe("EvidencePdfPage", () => {
     fireEvent.click(view.getByRole("button", { name: /rerender/i }));
     expect(pdfMock.documentFileSpy.mock.calls.length).toBe(callsAfterError);
     expect(view.queryByTestId("pdf-doc")).toBeNull();
+  });
+
+  it("emits highlight status after the text layer loads", async () => {
+    const statuses: { kind: string }[] = [];
+    render(
+      <EvidencePdfPage
+        fileUrl="https://storage.example.com/x"
+        {...baseProps}
+        onHighlightStatus={(s) => statuses.push(s)}
+      />,
+    );
+    await waitFor(() => {
+      expect(statuses.some((s) => s.kind === "exact")).toBe(true);
+    });
+  });
+
+  it("customTextRenderer wraps matched text in escaped mark tags", async () => {
+    const view = render(<EvidencePdfPage fileUrl="https://storage.example.com/x" {...baseProps} />);
+    await waitFor(() => {
+      expect(view.getByTestId("pdf-page").innerHTML).toContain("evidence-highlight");
+    });
   });
 });

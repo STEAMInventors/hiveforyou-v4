@@ -6,7 +6,7 @@ import { documentPageTextPath, evidenceViewerOpenPath, postViewerOpenInit } from
 import { isHttpOrHttpsUrlString, signedUrlShapeForLog } from "@/lib/signed-url-log-shape";
 
 import { type CitationContext, type SiblingPageTarget } from "./citation-context";
-import type { EvidencePdfPageProps } from "./EvidencePdfPage";
+import type { EvidenceHighlightStatus, EvidencePdfPageProps } from "./EvidencePdfPage";
 import { HiveMark } from "./HiveMark";
 import { loadEvidencePdfPage } from "./load-evidence-pdf-page";
 import { type ChipRef } from "./SourceChip";
@@ -71,7 +71,8 @@ export function EvidenceViewerProvider({
   /** Registered file MIME from vault (viewer-open); overrides DB/page-text when set. */
   const [vaultMime, setVaultMime] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [highlightFound, setHighlightFound] = useState<boolean | null>(null);
+  const [highlightStatus, setHighlightStatus] = useState<EvidenceHighlightStatus | null>(null);
+  const [neighborPageText, setNeighborPageText] = useState<string | null>(null);
   /** Lazy pdf viewer (react-pdf) — loaded only when a PDF chip opens; `import()` keeps it out of the initial Study bundle. */
   const [PdfViewer, setPdfViewer] = useState<ComponentType<EvidencePdfPageProps> | null>(null);
   const [pdfViewerLoadError, setPdfViewerLoadError] = useState(false);
@@ -85,7 +86,8 @@ export function EvidenceViewerProvider({
     setPageMime(null);
     setVaultMime(null);
     setLoadError(null);
-    setHighlightFound(null);
+    setHighlightStatus(null);
+    setNeighborPageText(null);
     setPdfViewer(null);
     setPdfViewerLoadError(false);
     setState({ chip: next, pageNumber: next.pageNumber });
@@ -98,7 +100,8 @@ export function EvidenceViewerProvider({
     setPageMime(null);
     setVaultMime(null);
     setLoadError(null);
-    setHighlightFound(null);
+    setHighlightStatus(null);
+    setNeighborPageText(null);
     setPdfViewer(null);
     setPdfViewerLoadError(false);
     triggerRef.current?.focus();
@@ -155,7 +158,8 @@ export function EvidenceViewerProvider({
       setPageText(null);
       setPageMime(null);
       setVaultMime(null);
-      setHighlightFound(null);
+      setHighlightStatus(null);
+    setNeighborPageText(null);
       try {
         let resolvedMime: string | null = null;
         const textRes = await fetch(documentPageTextPath(hiveId, chip.sourceDocumentId, pageNumber));
@@ -167,6 +171,19 @@ export function EvidenceViewerProvider({
         } else if (!cancelled) {
           setPageText(null);
           setPageMime(null);
+        }
+        if (cancelled) return;
+
+        if (pageNumber < totalPages) {
+          const nextRes = await fetch(documentPageTextPath(hiveId, chip.sourceDocumentId, pageNumber + 1));
+          if (!cancelled && nextRes.ok) {
+            const nextBody = (await nextRes.json()) as { pageText?: string };
+            if (typeof nextBody.pageText === "string") setNeighborPageText(nextBody.pageText);
+          } else if (!cancelled) {
+            setNeighborPageText(null);
+          }
+        } else if (!cancelled) {
+          setNeighborPageText(null);
         }
         if (cancelled) return;
 
@@ -204,20 +221,35 @@ export function EvidenceViewerProvider({
     return () => {
       cancelled = true;
     };
-  }, [chip, hiveId, pageNumber]);
+  }, [chip, hiveId, pageNumber, totalPages]);
+
+  const highlightStatusLine = useMemo(() => {
+    if (!highlightStatus) return null;
+    if (highlightStatus.kind === "not_found") {
+      return "Couldn't find this passage on the page; the quote is shown below.";
+    }
+    if (highlightStatus.kind === "fuzzy") {
+      return "Close match highlighted";
+    }
+    const pages = highlightStatus.highlightedPages ?? [highlightStatus.pageNumber];
+    if (pages.length > 1) {
+      return `Highlighted on pages ${pages.join(" and ")}`;
+    }
+    return `Highlighted on page ${pages[0] ?? pageNumber}`;
+  }, [highlightStatus, pageNumber]);
 
   useEffect(() => {
-    if (highlightFound !== true || !chip) return;
+    if (!highlightStatusLine || !chip) return;
     const live = announceRef.current;
     if (!live) return;
     live.textContent = "";
     requestAnimationFrame(() => {
-      live.textContent = `Quote highlighted on page ${pageNumber}`;
+      live.textContent = highlightStatusLine;
     });
-  }, [highlightFound, pageNumber, chip]);
+  }, [highlightStatusLine, chip]);
 
-  const onHighlightStatus = useCallback(({ found }: { found: boolean; pageNumber: number }) => {
-    setHighlightFound(found);
+  const onHighlightStatus = useCallback((status: EvidenceHighlightStatus) => {
+    setHighlightStatus(status);
   }, []);
 
   const originalPageHref =
@@ -321,12 +353,19 @@ export function EvidenceViewerProvider({
               <div className="flex min-h-0 flex-1 flex-col gap-4 px-5 py-4 sm:px-7">
                 {loadError ? <p className="m-0 text-small text-coral-deep">{loadError}</p> : null}
                 {pdfViewerLoadError ? <p className="m-0 text-small text-coral-deep">Could not load the PDF viewer.</p> : null}
+                {highlightStatusLine && isPdf ? (
+                  <p className="m-0 text-small text-graphite" data-testid="evidence-highlight-status">
+                    {highlightStatusLine}
+                  </p>
+                ) : null}
                 {signedUrl && isPdf && PdfViewer ? (
                   <PdfViewer
                     fileUrl={signedUrl}
                     pageNumber={pageNumber}
                     quote={quoteForHighlight}
                     pageText={pageText}
+                    neighborPageText={neighborPageText}
+                    neighborPageNumber={pageNumber < totalPages ? pageNumber + 1 : undefined}
                     onHighlightStatus={onHighlightStatus}
                     originalPageHref={originalPageHref}
                   />
@@ -344,8 +383,7 @@ export function EvidenceViewerProvider({
                   </blockquote>
                 ) : null}
                 {!signedUrl && !loadError ? <p className="m-0 text-small text-quiet">Loading…</p> : null}
-                {quoteForHighlight.trim() !== "" &&
-                ((isPdf && highlightFound === false) || (!isPdf && isImage && !!signedUrl)) ? (
+                {quoteForHighlight.trim() !== "" && !isPdf && isImage && !!signedUrl ? (
                   <p className="m-0 text-small text-graphite" data-testid="evidence-quote-unlocated">
                     The quote is on this page; its exact position couldn&apos;t be marked.
                   </p>

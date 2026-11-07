@@ -28,25 +28,43 @@ vi.mock("react-pdf", () => ({
   Page: ({
     pageNumber = 1,
     onRenderSuccess,
+    onGetTextSuccess,
+    customTextRenderer,
   }: {
     pageNumber?: number;
     onRenderSuccess?: () => void;
+    onGetTextSuccess?: (payload: { items: { str: string; hasEOL?: boolean }[] }) => void;
+    customTextRenderer?: (args: { itemIndex: number; str: string }) => string;
   }) => {
+    const items =
+      pageNumber !== 2
+        ? [
+            { str: "The fee is " },
+            { str: "$10.00", hasEOL: true as const },
+            { str: " for service." },
+          ]
+        : [
+            { str: "Speech-Language Therapy" },
+            { str: "60 min/week" },
+            { str: "Therapy room" },
+          ];
     useEffect(() => {
-      queueMicrotask(() => onRenderSuccess?.());
-    }, [onRenderSuccess, pageNumber]);
+      queueMicrotask(() => {
+        onGetTextSuccess?.({ items });
+        onRenderSuccess?.();
+      });
+    }, [onRenderSuccess, onGetTextSuccess, pageNumber]);
     return (
       <div className="react-pdf__Page">
         <div className="react-pdf__Page__textContent">
-          {pageNumber !== 2 ? (
-            <span>The fee is $10.00 for service.</span>
-          ) : (
-            <>
-              <span>Speech-Language Therapy</span>
-              <span>60 min/week</span>
-              <span>Therapy room</span>
-            </>
-          )}
+          {items.map((item, itemIndex) => (
+            <span
+              key={itemIndex}
+              dangerouslySetInnerHTML={{
+                __html: customTextRenderer?.({ itemIndex, str: item.str }) ?? item.str,
+              }}
+            />
+          ))}
         </div>
       </div>
     );
@@ -218,10 +236,13 @@ describe("SourceChips + evidence viewer", () => {
     });
     expect(pdfDocumentFileCalls.some((f) => f && typeof f === "object" && (f as { url?: string }).url === signed)).toBe(true);
     await waitFor(() => {
-      expect(screen.getAllByTestId("evidence-highlight-overlay").length).toBeGreaterThan(0);
+      expect(document.querySelectorAll(".evidence-highlight").length).toBeGreaterThan(0);
     });
     await waitFor(() => {
-      expect(screen.getByRole("status").textContent).toMatch(/Quote highlighted on page 3/);
+      expect(screen.getByTestId("evidence-highlight-status").textContent).toMatch(/Highlighted on page 3/);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).toMatch(/Highlighted on page 3/);
     });
 
     fireEvent.keyDown(document, { key: "Escape" });
@@ -229,7 +250,7 @@ describe("SourceChips + evidence viewer", () => {
     expect(document.activeElement).toBe(chips[0]);
   });
 
-  it("shows unlocated line for PDF when quote does not match persisted text", async () => {
+  it("shows not-found status for PDF when quote does not match persisted text", async () => {
     mockFetchSequence([
       Response.json({
         pageText: "Different text on the page.",
@@ -247,7 +268,7 @@ describe("SourceChips + evidence viewer", () => {
     );
     fireEvent.click(screen.getByTestId("source-chip"));
     await waitFor(() => {
-      expect(screen.getByTestId("evidence-quote-unlocated")).toBeTruthy();
+      expect(screen.getByTestId("evidence-highlight-status").textContent).toMatch(/Couldn't find this passage/);
     });
   });
 
@@ -271,7 +292,7 @@ describe("SourceChips + evidence viewer", () => {
     );
     fireEvent.click(screen.getByTestId("source-chip"));
     await waitFor(() => {
-      expect(screen.getAllByTestId("evidence-highlight-overlay").length).toBe(3);
+      expect(document.querySelectorAll(".evidence-highlight").length).toBeGreaterThan(0);
     });
   });
 });

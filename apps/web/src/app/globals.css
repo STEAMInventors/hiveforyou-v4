@@ -198,4 +198,12 @@
       color: var(--lh-pulse, var(--color-cell-blue));
     }
   }
+
+  .react-pdf__Page__textContent .evidence-highlight {
+    border-radius: 2px;
+    background-color: rgba(255, 214, 0, 0.45);
+    background-color: color-mix(in srgb, var(--honey) 45%, transparent);
+    color: transparent;
+    mix-blend-mode: multiply;
+  }
 }
