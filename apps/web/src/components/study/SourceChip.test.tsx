@@ -4,13 +4,24 @@ import { type ReactNode, useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EvidenceViewerProvider } from "./EvidenceViewer";
-import { dedupeChipRefs, shortDocumentLabels, shortTypeLabel, SourceChips } from "./SourceChip";
+import { dedupeChipRefs, shortDocumentLabels, shortTypeChipLabels, shortTypeLabel, SourceChips } from "./SourceChip";
 
 afterEach(cleanup);
 
+export const pdfDocumentFileCalls: unknown[] = [];
+
 vi.mock("react-pdf", () => ({
   pdfjs: { GlobalWorkerOptions: { workerSrc: "" }, version: "5.0.0" },
-  Document: ({ children, onLoadSuccess }: { children?: ReactNode; onLoadSuccess?: (d: { numPages: number }) => void }) => {
+  Document: ({
+    children,
+    file,
+    onLoadSuccess,
+  }: {
+    children?: ReactNode;
+    file?: unknown;
+    onLoadSuccess?: (d: { numPages: number }) => void;
+  }) => {
+    pdfDocumentFileCalls.push(file);
     queueMicrotask(() => onLoadSuccess?.({ numPages: 5 }));
     return <div data-testid="pdf-doc">{children}</div>;
   },
@@ -62,6 +73,7 @@ function mockFetchSequence(steps: Array<Response | (() => Response)>) {
 }
 
 beforeEach(() => {
+  pdfDocumentFileCalls.length = 0;
   vi.unstubAllGlobals();
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
     cb(0);
@@ -104,6 +116,16 @@ describe("shortTypeLabel", () => {
 
   it("never returns more than three words", () => {
     expect(shortTypeLabel("Quarterly utility usage summary report").split(" ")).toHaveLength(3);
+  });
+});
+
+describe("shortTypeChipLabels", () => {
+  it("uses short type only and numbers when two share the same type", () => {
+    const labels = shortTypeChipLabels([
+      { sourceDocumentId: "a", typeInPlainWords: "March 2026 statement", date: null },
+      { sourceDocumentId: "b", typeInPlainWords: "July 2026 statement", date: null },
+    ]);
+    expect([...labels.values()]).toEqual(["Statement · 1", "Statement · 2"]);
   });
 });
 
@@ -157,7 +179,7 @@ describe("SourceChips + evidence viewer", () => {
         extractionMethod: "pdf_native",
         pageNumber: 3,
       }),
-      Response.json({ signedUrl: signed }),
+      Response.json({ signedUrl: signed, mimeType: "application/pdf" }),
     ]);
     render(
       <EvidenceViewerProvider hiveId={HIVE} labels={new Map([[DOC, "Plan · Mar 2026"]])} pageCountFor={() => 3} citationContexts={new Map()}>
@@ -194,6 +216,7 @@ describe("SourceChips + evidence viewer", () => {
     await waitFor(() => {
       expect(screen.getByTestId("pdf-doc")).toBeTruthy();
     });
+    expect(pdfDocumentFileCalls.some((f) => f && typeof f === "object" && (f as { url?: string }).url === signed)).toBe(true);
     await waitFor(() => {
       expect(screen.getAllByTestId("evidence-highlight-overlay").length).toBeGreaterThan(0);
     });
@@ -215,7 +238,7 @@ describe("SourceChips + evidence viewer", () => {
         extractionMethod: "pdf_native",
         pageNumber: 1,
       }),
-      Response.json({ signedUrl: "https://x/s" }),
+      Response.json({ signedUrl: "https://x/s", mimeType: "application/pdf" }),
     ]);
     render(
       <EvidenceViewerProvider hiveId={HIVE} labels={new Map([[DOC, "Doc"]])} citationContexts={new Map()}>
@@ -237,7 +260,7 @@ describe("SourceChips + evidence viewer", () => {
         extractionMethod: "pdf_native",
         pageNumber: 2,
       }),
-      Response.json({ signedUrl: "https://x/s" }),
+      Response.json({ signedUrl: "https://x/s", mimeType: "application/pdf" }),
     ]);
     render(
       <EvidenceViewerProvider hiveId={HIVE} labels={new Map([[DOC, "Doc"]])} citationContexts={new Map()}>

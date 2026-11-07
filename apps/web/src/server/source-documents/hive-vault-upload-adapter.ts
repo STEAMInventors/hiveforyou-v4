@@ -848,6 +848,11 @@ export const SOURCE_PAGE_LINK_SECONDS = 60;
  * Short-lived signed URL of an owned, registered source file, opened at a physical page (D-011).
  * Ownership is checked through the owner's session; the file is signed server-side only.
  */
+export type OpenSourceDocumentPageResult = {
+  readonly signedUrl: string;
+  readonly mimeType: string;
+};
+
 export async function openSourceDocumentPageWithV3Vault(
   deps: Pick<HiveVaultUploadAdapterDeps, "vault" | "store" | "loadOwnedHive">,
   input: {
@@ -857,7 +862,7 @@ export async function openSourceDocumentPageWithV3Vault(
     readonly pageNumber: string;
     readonly correlationId: string;
   },
-): Promise<string> {
+): Promise<OpenSourceDocumentPageResult> {
   const hiveId = requireUuid(input.hiveId, input.correlationId, "Invalid Hive identifier.", "invalid_hive_id");
   const sourceDocumentId = requireUuid(
     input.sourceDocumentId,
@@ -901,7 +906,7 @@ export async function openSourceDocumentPageWithV3Vault(
     { bucket: document.storageBucket, path: document.storagePath },
     SOURCE_PAGE_LINK_SECONDS,
   );
-  return `${url}#page=${pageNumber}`;
+  return { signedUrl: `${url}#page=${pageNumber}`, mimeType: document.mimeType };
 }
 
 export async function getUploadQuotaWithV3Vault(

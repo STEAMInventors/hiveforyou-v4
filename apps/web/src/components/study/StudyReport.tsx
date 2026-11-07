@@ -23,7 +23,7 @@ import { InferenceLabel } from "./InferenceLabel";
 import { groupMissing, isStructuralNote, MissingList, missingCount } from "./MissingList";
 import { ReadProblemNotice, readProblemsFromCoverage } from "./ReadProblemNotice";
 import { ReportFooter } from "./ReportFooter";
-import { type ChipRef, shortDocumentLabels, SourceChips } from "./SourceChip";
+import { type ChipRef, shortDocumentLabels, shortTypeChipLabels, SourceChips } from "./SourceChip";
 import { countStates, spineRowState, StateBar } from "./StateBar";
 import { STUDY_SECTION_IDS, studyStateTargets } from "./study-summary";
 import { formatDocumentDate, rowChips, selectUpcoming, Timeline } from "./Timeline";
@@ -114,9 +114,9 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
   const model = useMemo(() => {
     const rows = (name: StudyViewBlockName): readonly StudyViewRow[] => view.blocks.find((block) => block.name === name)?.rows ?? [];
     const documents = rows("documents");
-    const labels = shortDocumentLabels(
-      documents.map((row) => ({ sourceDocumentId: row.id, typeInPlainWords: row.typeInPlainWords, date: row.date })),
-    );
+    const labelled = documents.map((row) => ({ sourceDocumentId: row.id, typeInPlainWords: row.typeInPlainWords, date: row.date }));
+    const labels = shortDocumentLabels(labelled);
+    const chipLabels = shortTypeChipLabels(labelled);
     const readProblems = readProblemsFromCoverage(coverageGaps, (id) => labels.get(id), pageCountFor);
     const gaps = rows("gaps");
     const missing = groupMissing(gaps, readProblems, view.spineSource);
@@ -128,6 +128,7 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
     return {
       documents,
       labels,
+      chipLabels,
       readProblems,
       missing,
       structuralNote: gaps[0] && isStructuralNote(gaps[0], 0, view.spineSource) ? gaps[0] : null,
@@ -295,7 +296,13 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
     ) : null;
 
   return (
-    <EvidenceViewerProvider hiveId={hiveId} labels={model.labels} pageCountFor={pageCountFor} citationContexts={model.citationContexts}>
+    <EvidenceViewerProvider
+      hiveId={hiveId}
+      labels={model.labels}
+      chipLabels={model.chipLabels}
+      pageCountFor={pageCountFor}
+      citationContexts={model.citationContexts}
+    >
       <div className="flex flex-wrap items-start gap-6" data-testid="study-view" data-audience={isReport ? header.audience : "STUDY"}>
         <div className={`flex min-w-0 flex-[999_1_640px] flex-col ${pageGap}`}>
           <header className={`${CARD} gap-4`} data-testid="report-header">

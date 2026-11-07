@@ -114,3 +114,33 @@ export function shortDocumentLabels(documents: readonly LabelledDocument[]): Map
   }
   return out;
 }
+
+/**
+ * Chip line: short type (≤3 words) per document; when two share the same short type, number them in list order.
+ */
+export function shortTypeChipLabels(documents: readonly LabelledDocument[]): Map<string, string> {
+  const base = new Map<string, string>();
+  for (const document of documents) {
+    if (base.has(document.sourceDocumentId)) continue;
+    base.set(document.sourceDocumentId, shortTypeLabel(document.typeInPlainWords) || FALLBACK_LABEL);
+  }
+  const counts = new Map<string, number>();
+  for (const label of base.values()) {
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  const seen = new Map<string, number>();
+  const out = new Map<string, string>();
+  for (const document of documents) {
+    const id = document.sourceDocumentId;
+    const label = base.get(id);
+    if (label === undefined) continue;
+    if ((counts.get(label) ?? 0) > 1) {
+      const n = (seen.get(label) ?? 0) + 1;
+      seen.set(label, n);
+      out.set(id, `${label} · ${n}`);
+    } else {
+      out.set(id, label);
+    }
+  }
+  return out;
+}

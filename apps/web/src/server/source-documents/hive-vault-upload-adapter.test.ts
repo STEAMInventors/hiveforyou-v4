@@ -373,9 +373,10 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
         ...overrides,
       });
 
-    await expect(open()).resolves.toBe(
-      `memory://${DEFAULT_HIVE_SOURCE_BUCKET}/${buildSourceObjectPath(USER_A as never, HIVE_A as never, uploaded.sourceDocument.id as never)}?exp=60#page=2`,
-    );
+    await expect(open()).resolves.toEqual({
+      signedUrl: `memory://${DEFAULT_HIVE_SOURCE_BUCKET}/${buildSourceObjectPath(USER_A as never, HIVE_A as never, uploaded.sourceDocument.id as never)}?exp=60#page=2`,
+      mimeType: "application/pdf",
+    });
     await expect(open({ ownerUserId: USER_B })).rejects.toMatchObject({ errorCode: "NOT_FOUND" });
     await expect(open({ sourceDocumentId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" })).rejects.toMatchObject({
       errorCode: "NOT_FOUND",

@@ -3,18 +3,32 @@
 import { createContext, type ComponentType, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { documentPageTextPath, evidenceViewerOpenPath, postViewerOpenInit } from "@/lib/evidence-view-urls";
+import { isHttpOrHttpsUrlString, signedUrlShapeForLog } from "@/lib/signed-url-log-shape";
 
 import { type CitationContext, type SiblingPageTarget } from "./citation-context";
 import type { EvidencePdfPageProps } from "./EvidencePdfPage";
+import { HiveMark } from "./HiveMark";
 import { loadEvidencePdfPage } from "./load-evidence-pdf-page";
 import { type ChipRef } from "./SourceChip";
 
 type EvidenceViewerValue = {
   readonly labelFor: (sourceDocumentId: string) => string;
+  readonly chipLabelFor: (sourceDocumentId: string) => string;
   readonly open: (chip: ChipRef, trigger?: HTMLElement | null) => void;
 };
 
-const FALLBACK: EvidenceViewerValue = { labelFor: () => "Document", open: () => undefined };
+const FALLBACK: EvidenceViewerValue = {
+  labelFor: () => "Document",
+  chipLabelFor: () => "Document",
+  open: () => undefined,
+};
+
+function viewerMimeCategory(mime: string | null): "pdf" | "image" | "other" {
+  const m = (mime ?? "").trim().toLowerCase();
+  if (m === "application/pdf" || m.endsWith("/pdf")) return "pdf";
+  if (m.startsWith("image/")) return "image";
+  return "other";
+}
 
 const EvidenceViewerContext = createContext<EvidenceViewerValue>(FALLBACK);
 
@@ -25,6 +39,8 @@ export function useEvidenceViewer(): EvidenceViewerValue {
 type EvidenceViewerProviderProps = {
   hiveId: string;
   labels: ReadonlyMap<string, string>;
+  /** Short document kind for chips (≤3 words; numbered when ambiguous). */
+  chipLabels?: ReadonlyMap<string, string>;
   pageCountFor?: (sourceDocumentId: string) => number | undefined;
   citationContexts?: ReadonlyMap<string, readonly { context: CitationContext; siblings: readonly SiblingPageTarget[] }[]>;
   children: ReactNode;
@@ -37,6 +53,7 @@ function chipMapKey(sourceDocumentId: string, pageNumber: number): string {
 export function EvidenceViewerProvider({
   hiveId,
   labels,
+  chipLabels,
   pageCountFor = () => undefined,
   citationContexts = new Map(),
   children,
@@ -51,6 +68,8 @@ export function EvidenceViewerProvider({
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [pageText, setPageText] = useState<string | null>(null);
   const [pageMime, setPageMime] = useState<string | null>(null);
+  /** Registered file MIME from vault (viewer-open); overrides DB/page-text when set. */
+  const [vaultMime, setVaultMime] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [highlightFound, setHighlightFound] = useState<boolean | null>(null);
   /** Lazy pdf viewer (react-pdf) — loaded only when a PDF chip opens; `import()` keeps it out of the initial Study bundle. */
@@ -64,6 +83,7 @@ export function EvidenceViewerProvider({
     setSignedUrl(null);
     setPageText(null);
     setPageMime(null);
+    setVaultMime(null);
     setLoadError(null);
     setHighlightFound(null);
     setPdfViewer(null);
@@ -76,6 +96,7 @@ export function EvidenceViewerProvider({
     setSignedUrl(null);
     setPageText(null);
     setPageMime(null);
+    setVaultMime(null);
     setLoadError(null);
     setHighlightFound(null);
     setPdfViewer(null);
@@ -89,7 +110,11 @@ export function EvidenceViewerProvider({
     const n = pageCountFor(chip.sourceDocumentId);
     return typeof n === "number" && n >= 1 ? n : 1;
   })() : 1;
-  const docLabel = chip ? labelFor(chip.sourceDocumentId) : "Document";
+  const chipLabelFor = useCallback(
+    (id: string) => (chipLabels?.get(id) ?? labels.get(id) ?? "Document"),
+    [chipLabels, labels],
+  );
+  const docLabel = chip ? chipLabelFor(chip.sourceDocumentId) : "Document";
   const titleId = "evidence-viewer-title";
   const subtitleId = "evidence-viewer-subtitle";
 
@@ -106,8 +131,10 @@ export function EvidenceViewerProvider({
   const primaryContext = contexts[0]?.context;
   const siblingPages = contexts[0]?.siblings ?? [];
   const quoteForHighlight = primaryContext?.verifiedQuote ?? chip?.quote ?? "";
-  const isPdf = (pageMime ?? "application/pdf").toLowerCase().includes("pdf");
-  const isImage = (pageMime ?? "").toLowerCase().startsWith("image/");
+  const effectiveMime = vaultMime ?? pageMime;
+  const mimeKind = viewerMimeCategory(effectiveMime);
+  const isPdf = mimeKind === "pdf";
+  const isImage = mimeKind === "image";
 
   useEffect(() => {
     if (!chip) return;
@@ -127,13 +154,16 @@ export function EvidenceViewerProvider({
       setSignedUrl(null);
       setPageText(null);
       setPageMime(null);
+      setVaultMime(null);
       setHighlightFound(null);
       try {
+        let resolvedMime: string | null = null;
         const textRes = await fetch(documentPageTextPath(hiveId, chip.sourceDocumentId, pageNumber));
         if (textRes.ok) {
           const t = (await textRes.json()) as { pageText?: string; mimeType?: string };
           if (!cancelled && typeof t.pageText === "string") setPageText(t.pageText);
-          if (!cancelled) setPageMime(typeof t.mimeType === "string" ? t.mimeType : null);
+          resolvedMime = typeof t.mimeType === "string" ? t.mimeType : null;
+          if (!cancelled) setPageMime(resolvedMime);
         } else if (!cancelled) {
           setPageText(null);
           setPageMime(null);
@@ -145,10 +175,26 @@ export function EvidenceViewerProvider({
           setLoadError("Could not open the document.");
           return;
         }
-        const body = (await openRes.json()) as { signedUrl?: string };
-        if (cancelled || typeof body.signedUrl !== "string") {
-          if (!cancelled) setLoadError("Could not open the document.");
+        const body = (await openRes.json()) as { signedUrl?: string; mimeType?: string };
+        if (cancelled) return;
+        if (typeof body.signedUrl !== "string" || !isHttpOrHttpsUrlString(body.signedUrl)) {
+          setLoadError("Could not open the document.");
+          console.warn("[evidence-viewer] viewer-open returned invalid signedUrl shape (expected https URL string)");
           return;
+        }
+        if (typeof body.mimeType === "string" && body.mimeType.trim() !== "") {
+          setVaultMime(body.mimeType.trim());
+        }
+        const shape = signedUrlShapeForLog(body.signedUrl);
+        const kindForLog = viewerMimeCategory(
+          typeof body.mimeType === "string" && body.mimeType.trim() !== "" ? body.mimeType.trim() : resolvedMime,
+        );
+        if (shape.kind === "ok") {
+          console.info(
+            `[evidence-viewer] signedUrlReady host=${shape.host} scheme=${shape.scheme} pathSegments=${shape.pathSegmentCount} mimeKind=${kindForLog}`,
+          );
+        } else {
+          console.warn("[evidence-viewer] signedUrlReady could not parse URL shape");
         }
         setSignedUrl(body.signedUrl);
       } catch {
@@ -191,7 +237,7 @@ export function EvidenceViewerProvider({
     };
   }, [signedUrl, isPdf]);
 
-  const value = useMemo(() => ({ labelFor, open }), [labelFor, open]);
+  const value = useMemo(() => ({ labelFor, chipLabelFor, open }), [labelFor, chipLabelFor, open]);
 
   return (
     <EvidenceViewerContext.Provider value={value}>
@@ -213,8 +259,9 @@ export function EvidenceViewerProvider({
               <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-line bg-paper px-5 py-4 sm:px-7">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <h2 id={titleId} className="m-0 truncate font-brand text-section font-semibold text-ink">
-                      {docLabel}
+                    <h2 id={titleId} className="m-0 flex min-w-0 items-center gap-2 truncate font-brand text-section font-semibold text-ink">
+                      <HiveMark className="h-5 w-5 shrink-0" />
+                      <span className="min-w-0 truncate">{docLabel}</span>
                     </h2>
                     <p id={subtitleId} className="m-0 text-small text-quiet">
                       Page {pageNumber} of {totalPages}

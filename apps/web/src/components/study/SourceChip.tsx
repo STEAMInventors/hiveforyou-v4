@@ -3,7 +3,7 @@
 import { useEvidenceViewer } from "./EvidenceViewer";
 import { HiveMark } from "./HiveMark";
 
-export { type LabelledDocument, shortDocumentLabels, shortTypeLabel } from "./document-labels";
+export { type LabelledDocument, shortDocumentLabels, shortTypeChipLabels, shortTypeLabel } from "./document-labels";
 
 /** One citable page. `quote` is what the chip's sentence or row relies on there, if known. */
 export type ChipRef = {
@@ -43,20 +43,25 @@ export function useDocumentLabel(sourceDocumentId: string): string {
   return useEvidenceViewer().labelFor(sourceDocumentId);
 }
 
+export function useChipShortLabel(sourceDocumentId: string): string {
+  return useEvidenceViewer().chipLabelFor(sourceDocumentId);
+}
+
 export function SourceChip({ chip }: { chip: ChipRef }) {
   const viewer = useEvidenceViewer();
-  const label = viewer.labelFor(chip.sourceDocumentId);
+  const chipLabel = viewer.chipLabelFor(chip.sourceDocumentId);
+  const fullLabel = viewer.labelFor(chip.sourceDocumentId);
   return (
     <button
       type="button"
       className={CHIP_CLASS}
-      aria-label={`Open ${label}, page ${chip.pageNumber}`}
+      aria-label={`Open ${fullLabel}, page ${chip.pageNumber}`}
       data-testid="source-chip"
       onClick={(event) => viewer.open(chip, event.currentTarget)}
     >
       <HiveMark className="h-4 w-4 shrink-0" />
       <span>
-        {label} · p.{chip.pageNumber}
+        {chipLabel} · p.{chip.pageNumber}
       </span>
     </button>
   );

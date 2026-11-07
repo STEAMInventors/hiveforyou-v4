@@ -2,7 +2,9 @@ import { createHiveError } from "@hiveforyou/contracts";
 import type { NextRequest } from "next/server";
 
 import { CORRELATION_HEADER } from "@/server/observability/correlation";
+import { emitStructuredEvent } from "@/server/observability/logger";
 import { withApiRoute } from "@/server/observability/with-api-route";
+import { signedUrlShapeForLog } from "@/lib/signed-url-log-shape";
 import { createLiveHiveVaultUploadAdapterDeps, openSourceDocumentPageWithV3Vault } from "@/server/source-documents/hive-vault-upload-adapter";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
@@ -50,16 +52,32 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       });
     }
     const deps = createLiveHiveVaultUploadAdapterDeps(auth.client, correlationId);
-    const location = await openSourceDocumentPageWithV3Vault(deps, {
+    const { signedUrl: locationWithHash, mimeType } = await openSourceDocumentPageWithV3Vault(deps, {
       ownerUserId: auth.userId,
       hiveId,
       sourceDocumentId: documentId,
       pageNumber: String(page),
       correlationId,
     });
-    const signedUrl = location.includes("#") ? location.slice(0, location.indexOf("#")) : location;
+    const signedUrl = locationWithHash.includes("#") ? locationWithHash.slice(0, locationWithHash.indexOf("#")) : locationWithHash;
+    const shape = signedUrlShapeForLog(signedUrl);
+    if (shape.kind === "ok") {
+      emitStructuredEvent({
+        eventName: "viewerOpen.signedUrlReady",
+        severity: "INFO",
+        timestamp: new Date().toISOString(),
+        component: "sourceDocuments",
+        operation: "viewerOpen",
+        correlationId,
+        hiveId,
+        sourceDocumentId: documentId,
+        status: "OK",
+        diagnosticReason: "unclassified",
+        errorDetail: `host=${shape.host} scheme=${shape.scheme} pathSegments=${shape.pathSegmentCount}`,
+      });
+    }
     return Response.json(
-      { signedUrl },
+      { signedUrl, mimeType },
       {
         status: 200,
         headers: { "Cache-Control": "no-store", [CORRELATION_HEADER]: correlationId },

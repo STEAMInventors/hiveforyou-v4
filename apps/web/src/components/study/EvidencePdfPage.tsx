@@ -2,7 +2,9 @@
 
 import { normalizeQuoteText } from "@hiveforyou/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Document, Page } from "react-pdf";
+import { Document, type DocumentProps, Page } from "react-pdf";
+
+import { isHttpOrHttpsUrlString, signedUrlShapeForLog } from "@/lib/signed-url-log-shape";
 
 import { findNormalizedQuoteSpans, type NormalizedSpan } from "./evidence-highlight";
 import "./pdfjs-worker-init";
@@ -57,6 +59,10 @@ export type EvidencePdfPageProps = {
   readonly pageText: string | null;
   readonly onHighlightStatus: (status: { found: boolean; pageNumber: number }) => void;
 };
+
+function documentFileProp(fileUrl: string): DocumentProps["file"] {
+  return isHttpOrHttpsUrlString(fileUrl) ? { url: fileUrl } : fileUrl;
+}
 
 export function EvidencePdfPage({ fileUrl, pageNumber, quote, pageText, onHighlightStatus }: EvidencePdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -140,9 +146,23 @@ export function EvidencePdfPage({ fileUrl, pageNumber, quote, pageText, onHighli
     scroll({ top: Math.max(0, first.top - 24), behavior: "smooth" });
   }, [rects, pageNumber]);
 
+  const handlePdfLoadError = useCallback((err: Error) => {
+    const shape = signedUrlShapeForLog(fileUrl);
+    const detail =
+      shape.kind === "ok"
+        ? `evidencePdf.loadError name=${err.name} host=${shape.host} scheme=${shape.scheme} pathSegments=${shape.pathSegmentCount}`
+        : `evidencePdf.loadError name=${err.name} urlShape=invalid`;
+    console.warn(`[evidence-pdf] ${detail} message=${err.message}`);
+  }, [fileUrl]);
+
   return (
     <div ref={wrapRef} className="relative max-h-[min(70vh,720px)] overflow-auto rounded-card border border-line bg-mist">
-      <Document file={fileUrl} onLoadSuccess={(d) => setNumPages(d.numPages)} loading={null}>
+      <Document
+        file={documentFileProp(fileUrl)}
+        onLoadSuccess={(d) => setNumPages(d.numPages)}
+        onLoadError={handlePdfLoadError}
+        loading={null}
+      >
         {numPages !== null && pageNumber >= 1 && pageNumber <= numPages ? (
           <Page
             key={`${pageNumber}`}

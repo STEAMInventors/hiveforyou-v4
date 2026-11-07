@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
       });
     }
     const deps = createLiveHiveVaultUploadAdapterDeps(auth.client, correlationId);
-    const location = await openSourceDocumentPageWithV3Vault(deps, {
+    const { signedUrl } = await openSourceDocumentPageWithV3Vault(deps, {
       ownerUserId: auth.userId,
       hiveId,
       sourceDocumentId: documentId,
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
     });
     return new Response(null, {
       status: 302,
-      headers: { Location: location, "Cache-Control": "no-store", [CORRELATION_HEADER]: correlationId },
+      headers: { Location: signedUrl, "Cache-Control": "no-store", [CORRELATION_HEADER]: correlationId },
     });
   });
   return run(request);
