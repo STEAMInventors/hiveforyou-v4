@@ -216,6 +216,15 @@ export function EvidenceViewerProvider({
     });
   }, [highlightFound, pageNumber, chip]);
 
+  const onHighlightStatus = useCallback(({ found }: { found: boolean; pageNumber: number }) => {
+    setHighlightFound(found);
+  }, []);
+
+  const originalPageHref =
+    chip != null
+      ? `/api/v1/hives/${encodeURIComponent(hiveId)}/source-documents/${encodeURIComponent(chip.sourceDocumentId)}/pages/${encodeURIComponent(String(pageNumber))}`
+      : undefined;
+
   useEffect(() => {
     if (!signedUrl || !isPdf) {
       setPdfViewer(null);
@@ -318,7 +327,8 @@ export function EvidenceViewerProvider({
                     pageNumber={pageNumber}
                     quote={quoteForHighlight}
                     pageText={pageText}
-                    onHighlightStatus={({ found }) => setHighlightFound(found)}
+                    onHighlightStatus={onHighlightStatus}
+                    originalPageHref={originalPageHref}
                   />
                 ) : null}
                 {signedUrl && isPdf && !PdfViewer && !pdfViewerLoadError ? (

@@ -68,17 +68,37 @@ export type EvidencePdfPageProps = {
   readonly quote: string | undefined;
   readonly pageText: string | null;
   readonly onHighlightStatus: (status: { found: boolean; pageNumber: number }) => void;
+  /** Owner session page route — shown after an in-viewer PDF load failure (not the signed vault URL). */
+  readonly originalPageHref?: string;
 };
 
 function documentFileProp(fileUrl: string): DocumentProps["file"] {
   return isHttpOrHttpsUrlString(fileUrl) ? { url: fileUrl } : fileUrl;
 }
 
-export function EvidencePdfPage({ fileUrl, pageNumber, quote, pageText, onHighlightStatus }: EvidencePdfPageProps) {
+export function EvidencePdfPage({
+  fileUrl,
+  pageNumber,
+  quote,
+  pageText,
+  onHighlightStatus,
+  originalPageHref,
+}: EvidencePdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
+  const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
   const [pageWidth, setPageWidth] = useState(720);
   const [rects, setRects] = useState<{ left: number; top: number; width: number; height: number }[]>([]);
+
+  const file = useMemo(() => documentFileProp(fileUrl), [fileUrl]);
+
+  const boundFileUrlRef = useRef(fileUrl);
+  if (boundFileUrlRef.current !== fileUrl) {
+    boundFileUrlRef.current = fileUrl;
+    setPdfLoadError(null);
+    setNumPages(null);
+    setRects([]);
+  }
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -156,6 +176,10 @@ export function EvidencePdfPage({ fileUrl, pageNumber, quote, pageText, onHighli
     scroll({ top: Math.max(0, first.top - 24), behavior: "smooth" });
   }, [rects, pageNumber]);
 
+  const handlePdfLoadSuccess = useCallback((d: { numPages: number }) => {
+    setNumPages(d.numPages);
+  }, []);
+
   const handlePdfLoadError = useCallback((err: Error) => {
     const shape = signedUrlShapeForLog(fileUrl);
     const detail =
@@ -163,25 +187,43 @@ export function EvidencePdfPage({ fileUrl, pageNumber, quote, pageText, onHighli
         ? `evidencePdf.loadError name=${err.name} host=${shape.host} scheme=${shape.scheme} pathSegments=${shape.pathSegmentCount}`
         : `evidencePdf.loadError name=${err.name} urlShape=invalid`;
     console.error(`[evidence-pdf] ${detail} message=${err.message}`);
+    setPdfLoadError("Could not load this page in the viewer.");
   }, [fileUrl]);
+
+  const handlePageRenderSuccess = useCallback(() => {
+    requestAnimationFrame(() => relayoutHighlights());
+  }, [relayoutHighlights]);
+
+  if (pdfLoadError) {
+    const originalHref = originalPageHref?.trim() ? originalPageHref : fileUrl;
+    return (
+      <div className="flex flex-col gap-2 rounded-card border border-line bg-mist px-4 py-4">
+        <p className="m-0 text-small text-coral-deep" data-testid="evidence-pdf-load-error">
+          {pdfLoadError}
+        </p>
+        <a
+          href={originalHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-small text-graphite underline decoration-quiet underline-offset-2 hover:text-ink"
+          data-testid="evidence-pdf-open-original"
+        >
+          Open the original
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div ref={wrapRef} className="relative max-h-[min(70vh,720px)] overflow-auto rounded-card border border-line bg-mist">
-      <Document
-        file={documentFileProp(fileUrl)}
-        onLoadSuccess={(d) => setNumPages(d.numPages)}
-        onLoadError={handlePdfLoadError}
-        loading={null}
-      >
+      <Document file={file} onLoadSuccess={handlePdfLoadSuccess} onLoadError={handlePdfLoadError} loading={null}>
         {numPages !== null && pageNumber >= 1 && pageNumber <= numPages ? (
           <Page
             key={`${pageNumber}`}
             pageNumber={pageNumber}
             width={pageWidth}
             renderAnnotationLayer={false}
-            onRenderSuccess={() => {
-              requestAnimationFrame(() => relayoutHighlights());
-            }}
+            onRenderSuccess={handlePageRenderSuccess}
           />
         ) : null}
       </Document>
