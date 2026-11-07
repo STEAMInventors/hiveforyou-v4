@@ -126,7 +126,7 @@ function splitPagesInHalf(pages: VerificationPage[]): [VerificationPage[], Verif
   return [pages.slice(0, mid), pages.slice(mid)];
 }
 
-export function rangeLabel(pages: VerificationPage[]): string | null {
+export function rangeLabel(pages: readonly VerificationPage[]): string | null {
   if (pages.length === 0) return null;
   if (pages.length === 1) return String(pages[0]!.pageNumber);
   return `${pages[0]!.pageNumber}-${pages[pages.length - 1]!.pageNumber}`;
@@ -542,7 +542,27 @@ async function extractRange(
     const rangeAttempt = takeRangeAttempt(rangeState);
     let attemptRowId: string | null = null;
     if (lifecycle?.begin) {
-      attemptRowId = await lifecycle.begin({ pageRange: range.pageRange, attempt, rangeAttempt, callStartedAt });
+      try {
+        attemptRowId = await lifecycle.begin({ pageRange: range.pageRange, attempt, rangeAttempt, callStartedAt });
+      } catch (beginError) {
+        const hiveError = asHiveError(beginError);
+        if (!hiveError) throw beginError;
+        const roundTripMs = Math.max(0, Date.now() - started);
+        const durationMs = plannerCallDurationMs({ roundTripMs, latencyMs: null });
+        const failed = pushFailedExtractCall(calls, {
+          pageRange: range.pageRange,
+          attempt,
+          rangeAttempt,
+          callStartedAt,
+          started,
+          errorCode: hiveError.errorCode,
+          diagnosticReason: hiveError.diagnosticReason ?? "extract_attempt_record_failed",
+          httpStatus: null,
+          abortedByOurDeadline: false,
+        });
+        await recordFailedExtractPlannerCall(input, range, failed);
+        return { ok: false, error: hiveError };
+      }
     }
     try {
       const completion = await callPlanner(input.planner, {

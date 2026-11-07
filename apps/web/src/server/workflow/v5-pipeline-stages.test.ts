@@ -5,13 +5,23 @@ import {
   MIN_PLANNER_CALL_MS,
   invocationRemainingMs,
   type HiveError,
+  type SnapshotDocument,
   type StageMetric,
   V5_CLIENT_TASK_TIMEOUT_MS,
 } from "@hiveforyou/contracts";
 import { describe, expect, it, vi } from "vitest";
 
-import { DOC_1, DOC_2, RUN_ID, runJson, snapshotDocument, sourceSnapshot } from "@/server/study-preparation/study-preparation.fixtures";
-import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
+import {
+  DOC_1,
+  DOC_2,
+  HIVE_ID,
+  RUN_ID,
+  runJson,
+  snapshotDocument,
+  sourceSnapshot,
+} from "@/server/study-preparation/study-preparation.fixtures";
+import * as logger from "@/server/observability/logger";
+import { loadPromptCatalog, sha256Digest } from "@/server/study-preparation/prompt-catalog";
 
 import type { AnalysisWorkflowDeps } from "./analysis-workflow";
 import {
@@ -20,8 +30,10 @@ import {
   canStartExtractingDocument,
   documentsNeedingExtraction,
   documentPagesFullyExtracted,
+  extractOneRange,
   extractPlannerTimeoutMs,
   extractedDocumentIds,
+  loadDocumentPages,
   runExtractingWorkerPool,
   savedRangeKeysByDocument,
   type ExtractOneRangeResult,
@@ -30,6 +42,37 @@ import {
 import { missingExtractWorkItems, pageRangeStorageKey } from "@/server/pipeline/extract-runner";
 
 const throughput = defaultPipelineThroughput("extract");
+
+function normalizedSourceSha256(document: SnapshotDocument): string {
+  const raw = document.sha256.trim().toLowerCase();
+  return raw.startsWith("sha256:") ? raw : `sha256:${raw}`;
+}
+
+function listDocumentPagesPayload(document: SnapshotDocument, texts: readonly string[]) {
+  const sourceSha256 = normalizedSourceSha256(document);
+  return {
+    found: true,
+    source_document_id: document.sourceDocumentId,
+    hive_id: HIVE_ID,
+    source_sha256: sourceSha256,
+    read_fingerprint: document.readFingerprint,
+    page_set_digest: document.pageSetDigest,
+    read_status: "SUCCEEDED",
+    total_physical_pages: texts.length,
+    pages: texts.map((text, index) => ({
+      page_number: index + 1,
+      page_count: texts.length,
+      page_text: text,
+      page_text_sha256: sha256Digest(text),
+      page_byte_length: Buffer.byteLength(text, "utf8"),
+      source_document_id: document.sourceDocumentId,
+      hive_id: HIVE_ID,
+      source_sha256: sourceSha256,
+      read_fingerprint: document.readFingerprint,
+      page_set_digest: document.pageSetDigest,
+    })),
+  };
+}
 
 describe("extract invocation budget", () => {
   it("requires remaining route time to cover the minimum call budget plus handoff margin", () => {
@@ -78,15 +121,11 @@ describe("range work queue", () => {
     const client = {
       rpc: vi.fn(async (fn: string) => {
         if (fn === "get_study_source_pages") {
+          return { data: { snapshotCurrent: true, pages: [] }, error: null };
+        }
+        if (fn === "list_document_pages") {
           return {
-            data: {
-              snapshotCurrent: true,
-              pages: Array.from({ length: 25 }, (_, index) => ({
-                sourceDocumentId: DOC_1,
-                pageNumber: index + 1,
-                pageText: dense,
-              })),
-            },
+            data: listDocumentPagesPayload(documentWithPages, Array.from({ length: 25 }, () => dense)),
             error: null,
           };
         }
@@ -98,6 +137,7 @@ describe("range work queue", () => {
     };
     const items = await buildExtractWorkQueue({
       client,
+      hiveId: HIVE_ID,
       runId: RUN_ID,
       snapshot: { documents: [documentWithPages], excluded: [], coverageComplete: true },
       extractedIds: new Set(),
@@ -446,5 +486,94 @@ describe("runExtractingWorkerPool", () => {
     );
     expect(result.deferred).toBe(true);
     expect(extract).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadDocumentPages", () => {
+  it("loads persisted pages via list_document_pages for the frozen read fingerprint", async () => {
+    const document = snapshotDocument(DOC_1, "Petition.pdf", { verifiedPageCount: 35, totalPhysicalPages: 35 });
+    const texts = Array.from({ length: 35 }, (_, index) => `Petition page ${index + 1} content`);
+    const client = {
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_study_source_pages") return { data: { snapshotCurrent: true, pages: [] }, error: null };
+        if (fn === "list_document_pages") return { data: listDocumentPagesPayload(document, texts), error: null };
+        throw new Error(fn);
+      }),
+    };
+    const pages = await loadDocumentPages({
+      client,
+      hiveId: HIVE_ID,
+      runId: RUN_ID,
+      document,
+      correlationId: "corr",
+    });
+    expect(pages).toHaveLength(35);
+    expect(pages[0]?.text).toBe(texts[0]);
+    expect(pages[34]?.pageNumber).toBe(35);
+    expect(client.rpc.mock.calls.some((call) => call[0] === "list_document_pages")).toBe(true);
+  });
+
+  it("raises when a persisted page row is missing", async () => {
+    const document = snapshotDocument(DOC_1, "Petition.pdf", { verifiedPageCount: 35, totalPhysicalPages: 35 });
+    const texts = Array.from({ length: 34 }, (_, index) => `Petition page ${index + 1}`);
+    const client = {
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_study_source_pages") return { data: { snapshotCurrent: true, pages: [] }, error: null };
+        if (fn === "list_document_pages") return { data: listDocumentPagesPayload(document, texts), error: null };
+        throw new Error(fn);
+      }),
+    };
+    await expect(
+      loadDocumentPages({ client, hiveId: HIVE_ID, runId: RUN_ID, document, correlationId: "corr" }),
+    ).rejects.toMatchObject({ diagnosticReason: "extract_pages_missing" });
+  });
+});
+
+describe("extractOneRange attempt recording", () => {
+  const catalog = loadPromptCatalog();
+
+  it("logs and terminates the range without calling the planner when begin_doc_extraction_attempt fails", async () => {
+    const document = snapshotDocument(DOC_1, "Petition.pdf", { verifiedPageCount: 2 });
+    const texts = ["alpha", "beta"];
+    const logSpy = vi.spyOn(logger, "emitStructuredEvent");
+    const plannerFetch = vi.fn(async () => {
+      throw new Error("planner should not run when attempt recording fails");
+    });
+    const deps = {
+      client: {
+        rpc: vi.fn(async (fn: string) => {
+          if (fn === "get_study_source_pages") return { data: { snapshotCurrent: true }, error: null };
+          if (fn === "list_document_pages") {
+            return { data: listDocumentPagesPayload(document, texts), error: null };
+          }
+          if (fn === "get_pipeline_throughput") return { data: { sampleCount: 0 }, error: null };
+          if (fn === "begin_doc_extraction_attempt") {
+            return { data: null, error: { code: "PGRST202", message: "function not found" } };
+          }
+          throw new Error(fn);
+        }),
+      },
+      planner: { getConfig: () => ({ baseUrl: "https://x", serviceToken: "t", timeoutMs: 1 }), fetchFn: plannerFetch },
+    } as unknown as AnalysisWorkflowDeps;
+    const outcome = await extractOneRange({
+      deps,
+      run: runJson("EXTRACTING", { id: RUN_ID, hiveId: HIVE_ID }),
+      workItem: { document, pageRange: null },
+      catalog,
+      correlationId: "corr",
+      stageAttempt: 1,
+      now: () => new Date("2026-11-06T15:00:00.000Z"),
+      throughput,
+    });
+    expect(outcome.ok).toBe(false);
+    expect(plannerFetch).not.toHaveBeenCalled();
+    if (!outcome.ok) expect(outcome.calls.length).toBeGreaterThanOrEqual(1);
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "pipeline.extract.attempt_record_failed",
+        diagnosticReason: "extract_attempt_record_failed",
+      }),
+    );
+    logSpy.mockRestore();
   });
 });

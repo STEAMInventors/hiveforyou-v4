@@ -382,7 +382,58 @@ function fakeDatabase(
             pageSetDigest: document?.pageSetDigest,
           };
         });
-        return { data: { snapshotCurrent: true, pages }, error: null };
+        return { data: { snapshotCurrent: options.snapshotCurrent ?? true, pages }, error: null };
+      }
+      case "list_document_pages": {
+        const docId = String(args.p_source_document_id ?? "").toLowerCase();
+        const fp = String(args.p_read_fingerprint ?? "");
+        const digest = String(args.p_page_set_digest ?? "").toLowerCase();
+        const document = snapshot.documents.find((d) => d.sourceDocumentId.toLowerCase() === docId);
+        if (!document || document.readFingerprint !== fp || document.pageSetDigest.toLowerCase() !== digest) {
+          return {
+            data: { found: false, pages: [], source_document_id: docId, hive_id: args.p_hive_id, read_status: "PENDING" },
+            error: null,
+          };
+        }
+        const rawSha = document.sha256.trim().toLowerCase();
+        const sourceSha256 = rawSha.startsWith("sha256:") ? rawSha : `sha256:${rawSha}`;
+        const pageCount = document.verifiedPageCount;
+        const byPage = new Map<number, string>();
+        for (const [key, text] of Object.entries(options.pages ?? {})) {
+          const [sourceDocumentId, pageNumber] = key.split(":");
+          if (sourceDocumentId?.toLowerCase() !== docId) continue;
+          byPage.set(Number(pageNumber), text);
+        }
+        const pages = Array.from({ length: pageCount }, (_, index) => {
+          const pageNumber = index + 1;
+          const text = byPage.get(pageNumber) ?? "";
+          return {
+            page_number: pageNumber,
+            page_count: pageCount,
+            page_text: text,
+            page_text_sha256: sha256Digest(text),
+            page_byte_length: Buffer.byteLength(text, "utf8"),
+            source_document_id: docId,
+            hive_id: String(args.p_hive_id ?? "").toLowerCase(),
+            source_sha256: sourceSha256,
+            read_fingerprint: fp,
+            page_set_digest: digest,
+          };
+        });
+        return {
+          data: {
+            found: pages.length > 0,
+            source_document_id: docId,
+            hive_id: args.p_hive_id,
+            source_sha256: sourceSha256,
+            read_fingerprint: fp,
+            page_set_digest: digest,
+            read_status: "SUCCEEDED",
+            total_physical_pages: pageCount,
+            pages,
+          },
+          error: null,
+        };
       }
       case "accept_study_revision":
         accepted = args.p_revision as Record<string, unknown>;
@@ -758,6 +809,13 @@ describe("processAnalysisRun: reading documents", () => {
 // ---------------------------------------------------------------------------
 // V5 pipeline (D-052): EXTRACTING (bounded parallel) → CANONICALIZING → ACCEPTING_STUDY.
 // ---------------------------------------------------------------------------
+const V5_EXTRACT_SNAPSHOT = sourceSnapshot({
+  documents: [
+    snapshotDocument(DOC_1, "Quote A.pdf", { verifiedPageCount: 1, totalPhysicalPages: 1 }),
+    snapshotDocument(DOC_2, "Quote B.pdf", { verifiedPageCount: 1, totalPhysicalPages: 1 }),
+  ],
+});
+
 const V5_PAGES = {
   [`${DOC_1}:1`]: "Quote A: the total price is $1,200.00 for the year.",
   [`${DOC_2}:1`]: "Quote B: the total price is $1,200.00 for the year.",
@@ -829,7 +887,7 @@ const extractMessage = (planner: ReturnType<typeof fakePlanner>, call: number) =
 
 describe("processAnalysisRun: V5 pipeline", () => {
   it("extracts all snapshot documents in parallel, then advances to CANONICALIZING once", async () => {
-    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, snapshot: V5_EXTRACT_SNAPSHOT });
     const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
     const h = harness(db, planner);
 
@@ -842,7 +900,7 @@ describe("processAnalysisRun: V5 pipeline", () => {
   });
 
   it("advances immediately with no model calls when every document is already cached", async () => {
-    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, docExtractions: [...CACHED] });
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, snapshot: V5_EXTRACT_SNAPSHOT, docExtractions: [...CACHED] });
     const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
     const h = harness(db, planner);
 
@@ -852,7 +910,7 @@ describe("processAnalysisRun: V5 pipeline", () => {
   });
 
   it("skips cached documents immediately and extracts only the remaining ones", async () => {
-    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, docExtractions: [CACHED[0]!] });
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, snapshot: V5_EXTRACT_SNAPSHOT, docExtractions: [CACHED[0]!] });
     const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
     const h = harness(db, planner);
 
@@ -875,7 +933,7 @@ describe("processAnalysisRun: V5 pipeline", () => {
       },
       { extract: EXTRACT_ANSWER },
     );
-    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, snapshot: V5_EXTRACT_SNAPSHOT });
     const h = harness(db, planner);
 
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
@@ -951,7 +1009,7 @@ describe("processAnalysisRun: V5 pipeline", () => {
       },
       { extract: EXTRACT_ANSWER },
     );
-    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, snapshot: V5_EXTRACT_SNAPSHOT });
     const h = harness(db, planner);
 
     await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
@@ -962,7 +1020,7 @@ describe("processAnalysisRun: V5 pipeline", () => {
   });
 
   it("hands off EXTRACTING when the pool defers for a fresh invocation", async () => {
-    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES });
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, snapshot: V5_EXTRACT_SNAPSHOT });
     const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
     const pool = vi.spyOn(v5PipelineStages, "runExtractingWorkerPool").mockResolvedValue({ deferred: true });
     const h = harness(db, planner);

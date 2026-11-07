@@ -41,9 +41,11 @@ import {
   pageRangeStorageKey,
   pagesCoveredBySavedRangeKeys,
   parsePageRangeStorageKey,
+  rangeLabel,
 } from "@/server/pipeline/extract-runner";
 import { refreshProcessingRunProgressEstimateInWorker } from "@/server/pipeline/progress-estimate-persistence";
 import { loadPipelineThroughput, recordPipelineModelCall } from "@/server/pipeline/pipeline-throughput";
+import { listDocumentPagesForSource } from "@/server/source-documents/document-pages-persistence";
 import { sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import type { PromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
@@ -275,6 +277,7 @@ export function savedRangeKeysByDocument(rangesPayload: unknown): Map<string, Se
 
 export async function buildExtractWorkQueue(input: {
   client: RpcClient;
+  hiveId: string;
   runId: string;
   snapshot: SourceSnapshot;
   extractedIds: ReadonlySet<string>;
@@ -290,16 +293,12 @@ export async function buildExtractWorkQueue(input: {
   for (const document of documentsNeedingExtraction(input.snapshot, input.extractedIds)) {
     const docKey = document.sourceDocumentId.toLowerCase();
     const saved = input.savedRangeKeysByDocument.get(docKey) ?? new Set<string>();
-    let loadedPages: { pageNumber: number; text: string }[];
-    try {
-      loadedPages = await loadDocumentPages(input.client, input.runId, document, input.correlationId);
-    } catch {
-      loadedPages = [];
-    }
-    const textByPage = new Map(loadedPages.map((page) => [page.pageNumber, page.text]));
-    const pages = Array.from({ length: document.verifiedPageCount }, (_, index) => {
-      const pageNumber = index + 1;
-      return { pageNumber, text: textByPage.get(pageNumber) ?? "" };
+    const pages = await loadDocumentPages({
+      client: input.client,
+      hiveId: input.hiveId,
+      runId: input.runId,
+      document,
+      correlationId: input.correlationId,
     });
     const contentDigest = document.pageSetDigest.toLowerCase();
     for (const item of missingExtractWorkItems(pages, saved, throughput)) {
@@ -439,13 +438,30 @@ export async function runExtractingWorkerPool(input: {
     input.invocationStartedAt,
     input.run.leaseExpiresAt,
   );
-  await Promise.resolve(
-    input.deps.client.rpc("fail_stale_in_flight_doc_extraction_attempts", {
+  {
+    const { error } = await input.deps.client.rpc("fail_stale_in_flight_doc_extraction_attempts", {
       p_processing_run_id: input.run.id,
       p_this_invocation_started_at: new Date(input.invocationStartedAt).toISOString(),
       p_diagnostic_reason: "invocation_ended",
-    }),
-  ).catch(() => null);
+    });
+    if (error) {
+      emitStructuredEvent({
+        eventName: "pipeline.extract.stale_repair_failed",
+        severity: "ERROR",
+        timestamp: new Date().toISOString(),
+        component: "pipeline",
+        operation: "extract",
+        stage: "ANALYZE",
+        correlationId: input.correlationId,
+        processingRunId: input.run.id,
+        hiveId: input.run.hiveId,
+        task: "extract",
+        errorCode: error.code ?? "rpc_failed",
+        diagnosticReason: "extract_stale_in_flight_repair_failed",
+        diagnosticField: JSON.stringify({ message: error.message ?? "rpc_failed" }),
+      });
+    }
+  }
 
   let plannerHttpCallsStarted = 0;
   let plannerCallLedgerRows = 0;
@@ -766,14 +782,24 @@ function aggregateExtractMetric(
   };
 }
 
-export async function loadDocumentPages(
-  client: RpcClient,
-  runId: string,
-  document: SnapshotDocument,
-  correlationId: string,
-): Promise<{ pageNumber: number; text: string }[]> {
-  const payload = await rpc(client, "get_study_source_pages", { p_run_id: runId });
-  if (payload?.snapshotCurrent === false) {
+function isStoredPageTextEmpty(text: string): boolean {
+  return text.trim().length === 0;
+}
+
+function supabaseErrorFields(error: { code?: string; message?: string } | null): { code: string; message: string } {
+  return { code: error?.code ?? "unknown", message: error?.message ?? "rpc_failed" };
+}
+
+export async function loadDocumentPages(input: {
+  client: RpcClient;
+  hiveId: string;
+  runId: string;
+  document: SnapshotDocument;
+  correlationId: string;
+}): Promise<{ pageNumber: number; text: string }[]> {
+  const { client, hiveId, runId, document, correlationId } = input;
+  const snapshotPayload = await rpc(client, "get_study_source_pages", { p_run_id: runId });
+  if (snapshotPayload?.snapshotCurrent === false) {
     throw createHiveError({
       errorCode: "INTERNAL_ERROR",
       category: "VALIDATION",
@@ -785,20 +811,151 @@ export async function loadDocumentPages(
       diagnosticReason: "source_changed",
     });
   }
-  const rows = Array.isArray(payload?.pages) ? (payload.pages as Record<string, unknown>[]) : [];
-  const id = document.sourceDocumentId.toLowerCase();
-  const textByPage = new Map<number, string>();
-  for (const row of rows) {
-    if (String(row.sourceDocumentId ?? "").toLowerCase() !== id) continue;
-    const pageNumber = Number(row.pageNumber);
-    if (!Number.isInteger(pageNumber) || pageNumber <= 0) continue;
-    textByPage.set(pageNumber, String(row.pageText ?? ""));
-  }
-  // Match buildExtractWorkQueue / progress snapshot: always `verifiedPageCount` slots (missing → "").
-  return Array.from({ length: document.verifiedPageCount }, (_, index) => {
-    const pageNumber = index + 1;
-    return { pageNumber, text: textByPage.get(pageNumber) ?? "" };
+  const rawSha = document.sha256.trim().toLowerCase();
+  const expectedSourceSha256 = rawSha.startsWith("sha256:") ? rawSha : `sha256:${rawSha}`;
+  const listed = await listDocumentPagesForSource(client, {
+    hiveId,
+    sourceDocumentId: document.sourceDocumentId,
+    readFingerprint: document.readFingerprint,
+    pageSetDigest: document.pageSetDigest,
+    expectedSourceSha256,
+    correlationId,
   });
+  if (!listed.found || listed.pages.length === 0) {
+    emitStructuredEvent({
+      eventName: "pipeline.extract.pages_missing",
+      severity: "ERROR",
+      timestamp: new Date().toISOString(),
+      component: "pipeline",
+      operation: "extract",
+      stage: "ANALYZE",
+      correlationId,
+      processingRunId: runId,
+      hiveId,
+      sourceDocumentId: document.sourceDocumentId,
+      task: "extract",
+      diagnosticReason: "extract_pages_missing",
+      diagnosticField: JSON.stringify({
+        hiveId,
+        sourceDocumentId: document.sourceDocumentId,
+        readFingerprint: document.readFingerprint,
+        pageSetDigest: document.pageSetDigest,
+        sourceSha256: document.sha256,
+        verifiedPageCount: document.verifiedPageCount,
+      }),
+    });
+    throw createHiveError({
+      errorCode: "COVERAGE_INCOMPLETE",
+      category: "DOCUMENT",
+      stage: "ANALYZE",
+      retryable: false,
+      safeMessage: "A document in this analysis has no saved page text. Analyze again after reading completes.",
+      correlationId,
+      diagnosticReason: "extract_pages_missing",
+    });
+  }
+  if (listed.pages.length !== document.verifiedPageCount) {
+    const missing: number[] = [];
+    const textByPage = new Map(listed.pages.map((row) => [row.page_number, row.page_text]));
+    for (let pageNumber = 1; pageNumber <= document.verifiedPageCount; pageNumber += 1) {
+      if (!textByPage.has(pageNumber)) missing.push(pageNumber);
+    }
+    emitStructuredEvent({
+      eventName: "pipeline.extract.pages_missing",
+      severity: "ERROR",
+      timestamp: new Date().toISOString(),
+      component: "pipeline",
+      operation: "extract",
+      stage: "ANALYZE",
+      correlationId,
+      processingRunId: runId,
+      hiveId,
+      sourceDocumentId: document.sourceDocumentId,
+      task: "extract",
+      diagnosticReason: "extract_pages_missing",
+      diagnosticField: JSON.stringify({
+        hiveId,
+        sourceDocumentId: document.sourceDocumentId,
+        readFingerprint: document.readFingerprint,
+        pageSetDigest: document.pageSetDigest,
+        sourceSha256: document.sha256,
+        verifiedPageCount: document.verifiedPageCount,
+        persistedPageCount: listed.pages.length,
+        missingPageNumbers: missing,
+      }),
+    });
+    throw createHiveError({
+      errorCode: "COVERAGE_INCOMPLETE",
+      category: "DOCUMENT",
+      stage: "ANALYZE",
+      retryable: false,
+      safeMessage: "A document in this analysis is missing saved pages. Analyze again after reading completes.",
+      correlationId,
+      diagnosticReason: "extract_pages_missing",
+    });
+  }
+  return listed.pages.map((row) => ({ pageNumber: row.page_number, text: row.page_text }));
+}
+
+function filterPagesForWorkItem(
+  pages: readonly { pageNumber: number; text: string }[],
+  pageRange: string | null,
+): { pageNumber: number; text: string }[] {
+  return pages.filter((page) => {
+    if (pageRange === null) return true;
+    const match = /^(\d+)(?:-(\d+))?$/.exec(pageRange);
+    if (!match) return false;
+    const start = Number(match[1]);
+    const end = match[2] ? Number(match[2]) : start;
+    return page.pageNumber >= start && page.pageNumber <= end;
+  });
+}
+
+async function persistUnreadablePageGaps(input: {
+  deps: AnalysisWorkflowDeps;
+  run: ProcessingRun;
+  document: SnapshotDocument;
+  catalog: PromptCatalog;
+  correlationId: string;
+  pageRange: string | null;
+  blankPageNumbers: readonly number[];
+}): Promise<HiveError | null> {
+  for (const pageNumber of input.blankPageNumbers) {
+    const pageRange = String(pageNumber);
+    const rangePages = [{ pageNumber, text: "" }];
+    const extraction = buildPageExtractionGap(
+      { id: input.document.sourceDocumentId, fileName: input.document.fileName },
+      { pageRange, pages: rangePages },
+      pageNumber,
+    );
+    const saveError = await persistExtractedRange({
+      deps: input.deps,
+      run: input.run,
+      document: input.document,
+      catalog: input.catalog,
+      pageRange,
+      extraction,
+      stats: {
+        factsProposed: 0,
+        malformed: {},
+        factsIn: 0,
+        factsKept: 0,
+        evidenceIn: 0,
+        evidenceDropped: 0,
+        byReason: {},
+        emptyFields: { in: 0, kept: 0 },
+        referencedDocuments: { in: 0, kept: 0 },
+        documentEvidence: { in: 0, kept: 0 },
+        dropped: [],
+        ranges: [],
+        pageExtractionGaps: [pageNumber],
+      },
+      modelAlias: "harvester",
+      correlationId: input.correlationId,
+    });
+    if (saveError) return saveError;
+  }
+  return null;
 }
 
 export type ExtractOneDocumentResult =
@@ -1071,34 +1228,82 @@ export async function extractOneRange(input: {
   const startedAt = now().toISOString();
   let pages: { pageNumber: number; text: string }[];
   try {
-    pages = await loadDocumentPages(deps.client, run.id, document, correlationId);
-  } catch {
+    pages = await loadDocumentPages({
+      client: deps.client,
+      hiveId: run.hiveId,
+      runId: run.id,
+      document,
+      correlationId,
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && "errorCode" in error) {
+      return { ok: false, calls: [], metric: null, callsStarted: 0, error: error as HiveError };
+    }
+    throw error;
+  }
+  const rangePages = filterPagesForWorkItem(pages, workItem.pageRange);
+  if (rangePages.length === 0) {
     return {
       ok: false,
       calls: [],
       metric: null,
       callsStarted: 0,
       error: createHiveError({
-        errorCode: "INTERNAL_ERROR",
+        errorCode: "INVALID_REQUEST",
         category: "VALIDATION",
         stage: "ANALYZE",
-        retryable: true,
-        safeMessage:
-          "Your documents or request changed while analyzing. Analyze again to use the latest versions.",
+        retryable: false,
+        safeMessage: "The extraction range has no authorized pages.",
         correlationId,
-        diagnosticReason: "source_changed",
+        diagnosticReason: "extract_range_empty_input",
       }),
     };
   }
-  const rangePages = pages.filter((page) => {
-    if (workItem.pageRange === null) return true;
-    const match = /^(\d+)(?:-(\d+))?$/.exec(workItem.pageRange);
-    if (!match) return false;
-    const start = Number(match[1]);
-    const end = match[2] ? Number(match[2]) : start;
-    return page.pageNumber >= start && page.pageNumber <= end;
-  });
-  const expectedOutput = expectedExtractOutputTokens(rangePages, throughput);
+  const blankPageNumbers = rangePages.filter((page) => isStoredPageTextEmpty(page.text)).map((page) => page.pageNumber);
+  const readablePages = rangePages.filter((page) => !isStoredPageTextEmpty(page.text));
+  if (blankPageNumbers.length > 0) {
+    const gapError = await persistUnreadablePageGaps({
+      deps,
+      run,
+      document,
+      catalog,
+      correlationId,
+      pageRange: workItem.pageRange,
+      blankPageNumbers,
+    });
+    if (gapError) {
+      return { ok: false, error: gapError, calls: [], metric: null, callsStarted: 0 };
+    }
+  }
+  if (readablePages.length === 0) {
+    const startedAt = now().toISOString();
+    const metric = aggregateExtractMetric(stageAttempt, catalog.extract, [], "harvester", startedAt, now().toISOString());
+    const savedRanges = (await loadSavedDocExtractionRanges(deps.client, run.id)).filter(
+      (row) => row.sourceDocumentId === document.sourceDocumentId.toLowerCase(),
+    );
+    try {
+      const merged = await tryMergeDocumentExtraction({
+        deps,
+        run,
+        document,
+        catalog,
+        correlationId,
+        stageAttempt,
+        now,
+        savedRanges,
+        calls: [],
+        modelAlias: "harvester",
+      });
+      return { ok: true, metric, modelAlias: "harvester", documentMetric: merged.metric, callsStarted: 0 };
+    } catch (mergeError) {
+      if (mergeError && typeof mergeError === "object" && "errorCode" in mergeError) {
+        return { ok: false, error: mergeError as HiveError, calls: [], metric, callsStarted: 0 };
+      }
+      throw mergeError;
+    }
+  }
+  const plannerPageRange = workItem.pageRange ?? rangeLabel(readablePages);
+  const expectedOutput = expectedExtractOutputTokens(readablePages, throughput);
   const fullPlannerTimeoutMs = () =>
     computePlannerCallTimeoutMs({
       expectedOutputTokens: expectedOutput,
@@ -1111,11 +1316,11 @@ export async function extractOneRange(input: {
   const result = await extractScheduledRange({
     planner: deps.planner,
     document: { id: document.sourceDocumentId, fileName: document.fileName },
-    pages: rangePages,
+    pages: readablePages,
     correlationId,
     runId: run.id,
     prompt,
-    range: { pageRange: workItem.pageRange, pages: rangePages },
+    range: { pageRange: plannerPageRange, pages: readablePages },
     resolvePlannerTimeoutMs: () =>
       extractPlannerTimeoutMs(clock, invocationStartedAt, expectedOutput, throughput),
     resolveFullPlannerTimeoutMs: () => {
@@ -1124,37 +1329,94 @@ export async function extractOneRange(input: {
     },
     extractAttemptLifecycle: {
       begin: async ({ pageRange, callStartedAt }) => {
-        plannerHttpCallsStarted += 1;
         const { data, error } = await deps.client.rpc("begin_doc_extraction_attempt", {
           p_processing_run_id: run.id,
           p_hive_id: run.hiveId,
           p_source_document_id: document.sourceDocumentId,
           p_content_digest: document.pageSetDigest,
-          p_page_range: pageRangeStorageKey(pageRange ?? workItem.pageRange),
+          p_page_range: pageRangeStorageKey(pageRange ?? plannerPageRange),
           p_prompt_id: prompt.id,
           p_prompt_digest: prompt.digest,
           p_call_started_at: callStartedAt,
         });
-        if (error) return null;
+        if (error) {
+          const fields = supabaseErrorFields(error);
+          emitStructuredEvent({
+            eventName: "pipeline.extract.attempt_record_failed",
+            severity: "ERROR",
+            timestamp: new Date().toISOString(),
+            component: "pipeline",
+            operation: "extract",
+            stage: "ANALYZE",
+            correlationId,
+            processingRunId: run.id,
+            hiveId: run.hiveId,
+            sourceDocumentId: document.sourceDocumentId,
+            pageRange: pageRangeStorageKey(pageRange ?? plannerPageRange),
+            task: "extract",
+            errorCode: fields.code,
+            diagnosticReason: "extract_attempt_record_failed",
+            diagnosticField: JSON.stringify({ message: fields.message }),
+          });
+          throw createHiveError({
+            errorCode: "PERSISTENCE_FAILED",
+            category: "PERSISTENCE",
+            stage: "ANALYZE",
+            retryable: true,
+            safeMessage: "Analysis stopped before it finished. You can try again.",
+            correlationId,
+            diagnosticReason: "extract_attempt_record_failed",
+          });
+        }
         const row = parsePayload(data);
         const id = typeof row?.id === "string" ? row.id : null;
+        if (!id) {
+          throw createHiveError({
+            errorCode: "PERSISTENCE_FAILED",
+            category: "PERSISTENCE",
+            stage: "ANALYZE",
+            retryable: true,
+            safeMessage: "Analysis stopped before it finished. You can try again.",
+            correlationId,
+            diagnosticReason: "extract_attempt_record_failed",
+          });
+        }
+        plannerHttpCallsStarted += 1;
         return id;
       },
       finalize: async (row) => {
         if (!row.attemptRowId) return;
         const durationMs = Math.max(0, Math.trunc(row.durationMs));
-        await Promise.resolve(
-          deps.client.rpc("update_doc_extraction_attempt_outcome", {
-            p_attempt_id: row.attemptRowId,
-            p_processing_run_id: run.id,
-            p_outcome: row.outcome,
-            p_error_code: row.errorCode,
-            p_diagnostic_reason: row.diagnosticReason,
-            p_http_status: row.httpStatus,
-            p_duration_ms: durationMs,
-            p_aborted_by_our_deadline: row.abortedByOurDeadline,
-          }),
-        ).catch(() => null);
+        const { error } = await deps.client.rpc("update_doc_extraction_attempt_outcome", {
+          p_attempt_id: row.attemptRowId,
+          p_processing_run_id: run.id,
+          p_outcome: row.outcome,
+          p_error_code: row.errorCode,
+          p_diagnostic_reason: row.diagnosticReason,
+          p_http_status: row.httpStatus,
+          p_duration_ms: durationMs,
+          p_aborted_by_our_deadline: row.abortedByOurDeadline,
+        });
+        if (error) {
+          const fields = supabaseErrorFields(error);
+          emitStructuredEvent({
+            eventName: "pipeline.extract.attempt_outcome_record_failed",
+            severity: "ERROR",
+            timestamp: new Date().toISOString(),
+            component: "pipeline",
+            operation: "extract",
+            stage: "ANALYZE",
+            correlationId,
+            processingRunId: run.id,
+            hiveId: run.hiveId,
+            sourceDocumentId: document.sourceDocumentId,
+            pageRange: pageRangeStorageKey(row.pageRange ?? plannerPageRange),
+            task: "extract",
+            errorCode: fields.code,
+            diagnosticReason: "extract_attempt_outcome_record_failed",
+            diagnosticField: JSON.stringify({ message: fields.message }),
+          });
+        }
       },
     },
     persist: async ({ pageRange, extraction, stats, pageGaps, modelAlias: callModel }) => {
@@ -1194,7 +1456,7 @@ export async function extractOneRange(input: {
       resolvedModel: call.resolvedModel,
       concurrencyAtStart: input.concurrencyAtStart,
       pageRange: pageRangeStorageKey(call.pageRange ?? workItem.pageRange),
-      pageCount: rangePages.length,
+      pageCount: readablePages.length,
       errorCode: call.errorCode,
       diagnosticReason: call.diagnosticReason,
       httpStatus: call.httpStatus,

@@ -285,6 +285,11 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "worker_unauthorized",
   "reads_pending",
   "extract_adaptive_concurrency",
+  "extract_attempt_record_failed",
+  "extract_attempt_outcome_record_failed",
+  "extract_stale_in_flight_repair_failed",
+  "extract_pages_missing",
+  "extract_range_empty_input",
 ]);
 
 const ALLOWED_EXCEPTION_TYPES = new Set([

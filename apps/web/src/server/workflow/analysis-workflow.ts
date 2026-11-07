@@ -1003,6 +1003,7 @@ async function extractDocuments(context: Context): Promise<StepResult> {
   }
   const workItems = await buildExtractWorkQueue({
     client: context.deps.client,
+    hiveId: inputs.run.hiveId,
     runId: context.runId,
     snapshot: inputs.sourceSnapshot,
     extractedIds: extracted,
