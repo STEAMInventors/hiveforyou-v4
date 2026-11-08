@@ -1,3 +1,4 @@
+import { CLOUDFLARE_PROXY_LIMIT_MS } from "./extract-range-resilience";
 import { PLANNER_MAX_OUTPUT_TOKENS, type PipelinePlannerTask } from "../study-preparation/planner-wire-contracts";
 
 export type PipelineThroughputTask = PipelinePlannerTask;
@@ -8,6 +9,12 @@ export type PipelineThroughputStats = {
   /** Present for extract; used when page text is empty. */
   inputTokensPerPage: number;
   sampleCount: number;
+  /** Max UTF-8 characters of page text per extract range (under Cloudflare ~100 s). */
+  maxPageTextChars?: number;
+  /** Max pages bundled into one extract range. */
+  maxPagesPerRange?: number;
+  /** Expected wall clock budget per extract range planner call. */
+  maxRangeWallClockMs?: number;
 };
 
 export const PIPELINE_THROUGHPUT_MIN_SAMPLES = 5;
@@ -29,6 +36,11 @@ export const MIN_PLANNER_CALL_MS = 60_000;
 export const PLANNER_TIMEOUT_MULTIPLIER = 1.6;
 export const PLANNER_TIMEOUT_PADDING_MS = 20_000;
 export const EXTRACT_TARGET_RANGE_MS = 120_000;
+/** Default page-text budget for initial extract ranges (~4k chars). */
+export const EXTRACT_MAX_PAGE_TEXT_CHARS = 4_000;
+export const EXTRACT_MAX_PAGES_PER_RANGE = 6;
+/** Stay under Cloudflare tunnel ~100 s with margin for TLS and JSON overhead. */
+export const EXTRACT_RANGE_WALL_CLOCK_BUDGET_MS = Math.max(60_000, CLOUDFLARE_PROXY_LIMIT_MS - 15_000);
 export const EXTRACT_OUTPUT_CAP_FRACTION = 0.5;
 export const PROGRESS_ESTIMATE_SPREAD = 0.35;
 /** Client/server: ignore small ETA drift from polls so the countdown does not jump. */
@@ -123,12 +135,32 @@ function rangeLabelFromPages(pages: PageTextSlice[]): string | null {
   return `${pages[0]!.pageNumber}-${pages[pages.length - 1]!.pageNumber}`;
 }
 
+function extractRangeLimits(stats: PipelineThroughputStats): {
+  maxPageTextChars: number;
+  maxPagesPerRange: number;
+  maxRangeDurationMs: number;
+} {
+  return {
+    maxPageTextChars: positiveFiniteOrDefault(stats.maxPageTextChars, EXTRACT_MAX_PAGE_TEXT_CHARS),
+    maxPagesPerRange: Math.max(
+      1,
+      Math.floor(positiveFiniteOrDefault(stats.maxPagesPerRange, EXTRACT_MAX_PAGES_PER_RANGE)),
+    ),
+    maxRangeDurationMs: positiveFiniteOrDefault(stats.maxRangeWallClockMs, EXTRACT_RANGE_WALL_CLOCK_BUDGET_MS),
+  };
+}
+
 function rangeWithinExtractLimits(input: {
   pages: PageTextSlice[];
   stats: PipelineThroughputStats;
   outputCapTokens: number;
   maxRangeDurationMs: number;
+  maxPageTextChars: number;
+  maxPagesPerRange: number;
 }): boolean {
+  if (input.pages.length > input.maxPagesPerRange) return false;
+  const charCount = input.pages.reduce((total, page) => total + (typeof page.text === "string" ? page.text.length : 0), 0);
+  if (charCount > input.maxPageTextChars) return false;
   const inputTokens = input.pages.reduce(
     (total, page) => total + estimateInputTokensFromPageText(page.text, input.stats.inputTokensPerPage),
     0,
@@ -147,13 +179,15 @@ export function planExtractPageRanges(
   const sorted = [...pages].sort((left, right) => left.pageNumber - right.pageNumber);
   if (sorted.length === 0) return [];
   const outputCapTokens = extractRangeOutputCapTokens();
-  const maxRangeDurationMs = EXTRACT_TARGET_RANGE_MS;
+  const limits = extractRangeLimits(stats);
   if (
     rangeWithinExtractLimits({
       pages: sorted,
       stats,
       outputCapTokens,
-      maxRangeDurationMs,
+      maxRangeDurationMs: limits.maxRangeDurationMs,
+      maxPageTextChars: limits.maxPageTextChars,
+      maxPagesPerRange: limits.maxPagesPerRange,
     })
   ) {
     return [{ pageRange: null, pages: sorted }];
@@ -169,7 +203,9 @@ export function planExtractPageRanges(
           pages: candidate,
           stats,
           outputCapTokens,
-          maxRangeDurationMs,
+          maxRangeDurationMs: limits.maxRangeDurationMs,
+          maxPageTextChars: limits.maxPageTextChars,
+          maxPagesPerRange: limits.maxPagesPerRange,
         })
       ) {
         break;

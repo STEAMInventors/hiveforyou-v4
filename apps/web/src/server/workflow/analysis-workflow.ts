@@ -23,6 +23,7 @@ import {
   STUDY_AGENT_BUDGET,
   type StageMetric,
   type StoredIntent,
+  verifiedSavedRangeKeys,
   validateDomainProposal,
   validateExecutionManifest,
   validateIntentAnalysis,
@@ -60,20 +61,28 @@ import { refreshProcessingRunProgressEstimateInWorker } from "@/server/pipeline/
 import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
 import {
   buildExtractWorkQueue,
+  buildSavedRangeKeysByDocument,
   buildV5AcceptRevision,
+  completeExtractedDocumentIds,
   documentPagesFullyExtracted,
+  loadDocExtractionGapPagesForRun,
   ExtractStageFailure,
   extractedDocumentIds,
   documentsNeedingExtraction,
   isV5CanonicalStudy,
   loadSavedDocExtractionRanges,
   loadVerifiedExtractions,
+  persistV5ExtractStageOutputs,
+  recordGapsForWorkItems,
   runCanonicalizeForRun,
   runExtractingWorkerPool,
   savedRangeKeysByDocument,
   tryMergeDocumentExtraction,
   tryAdvanceExtractingToCanonicalizing,
+  type V5StageOutputs,
+  readExtractZeroProgressHandoffCount,
 } from "./v5-pipeline-stages";
+import { resolveExtractZeroProgressHandoffLimit } from "@hiveforyou/contracts";
 
 /**
  * The Analyze workflow (D-041): one durable run from reading documents to an accepted Canonical
@@ -970,8 +979,15 @@ async function extractDocuments(context: Context): Promise<StepResult> {
     );
   }
   const catalog = context.catalog();
+  const extractProgress = inputs.stageOutputs as V5StageOutputs;
   const payload = await rpc(context.deps.client, "get_doc_extractions_for_run", { p_processing_run_id: context.runId });
-  let extracted = extractedDocumentIds(payload);
+  let extracted = await completeExtractedDocumentIds({
+    client: context.deps.client,
+    runId: context.runId,
+    snapshot: inputs.sourceSnapshot,
+    extractionsPayload: payload,
+    extractProgress,
+  });
   let pending = documentsNeedingExtraction(inputs.sourceSnapshot, extracted);
   if (pending.length === 0) {
     return finishExtractingStage(context, inputs.run);
@@ -983,8 +999,13 @@ async function extractDocuments(context: Context): Promise<StepResult> {
   for (const document of pending) {
     const docKey = document.sourceDocumentId.toLowerCase();
     const docRanges = savedRanges.filter((row) => row.sourceDocumentId === docKey);
-    const savedKeys = new Set(docRanges.map((row) => row.pageRange));
-    if (!documentPagesFullyExtracted(document.verifiedPageCount, savedKeys)) continue;
+    const savedKeys = verifiedSavedRangeKeys(
+      docRanges.map((row) => ({ pageRange: row.pageRange, extraction: row.extraction })),
+      document.verifiedPageCount,
+    );
+    const gapPagesByDocument = await loadDocExtractionGapPagesForRun(context.deps.client, context.runId);
+    const gapPages = gapPagesByDocument.get(docKey) ?? new Set<number>();
+    if (!documentPagesFullyExtracted(document.verifiedPageCount, savedKeys, gapPages)) continue;
     const merged = await tryMergeDocumentExtraction({
       deps: context.deps,
       run: inputs.run,
@@ -1005,23 +1026,35 @@ async function extractDocuments(context: Context): Promise<StepResult> {
     }
     await refreshRunProgressEstimate(context, inputs.run, inputs.sourceSnapshot);
   }
+  const progressPatch: Pick<V5StageOutputs, "extractGapRetryCompleted" | "extractZeroProgressHandoffs"> = {
+    extractGapRetryCompleted: { ...(extractProgress.extractGapRetryCompleted ?? {}) },
+    extractZeroProgressHandoffs: readExtractZeroProgressHandoffCount(extractProgress),
+  };
   const payloadAfterMerge = await rpc(context.deps.client, "get_doc_extractions_for_run", {
     p_processing_run_id: context.runId,
   });
-  extracted = extractedDocumentIds(payloadAfterMerge);
+  extracted = await completeExtractedDocumentIds({
+    client: context.deps.client,
+    runId: context.runId,
+    snapshot: inputs.sourceSnapshot,
+    extractionsPayload: payloadAfterMerge,
+    extractProgress: progressPatch,
+  });
   pending = documentsNeedingExtraction(inputs.sourceSnapshot, extracted);
   if (pending.length === 0) {
     return finishExtractingStage(context, inputs.run);
   }
+  const savedRangeCountBefore = (await loadSavedDocExtractionRanges(context.deps.client, context.runId)).length;
   const workItems = await buildExtractWorkQueue({
     client: context.deps.client,
     hiveId: inputs.run.hiveId,
     runId: context.runId,
     snapshot: inputs.sourceSnapshot,
     extractedIds: extracted,
-    savedRangeKeysByDocument: savedRangeKeysByDocument(rangesPayload),
+    savedRangeKeysByDocument: buildSavedRangeKeysByDocument(savedRanges, inputs.sourceSnapshot),
     correlationId: context.correlationId,
     catalog,
+    extractProgress: progressPatch,
   });
   const invocationStartedAt = context.deps.invocationStartedAt ?? context.startedAt;
   const clock = context.deps.clock ?? (() => Date.now());
@@ -1044,8 +1077,82 @@ async function extractDocuments(context: Context): Promise<StepResult> {
     }
     throw error;
   }
+  const savedRangeCountAfter = (await loadSavedDocExtractionRanges(context.deps.client, context.runId)).length;
+  const extractedAfter = await completeExtractedDocumentIds({
+    client: context.deps.client,
+    runId: context.runId,
+    snapshot: inputs.sourceSnapshot,
+    extractionsPayload: await rpc(context.deps.client, "get_doc_extractions_for_run", {
+      p_processing_run_id: context.runId,
+    }),
+    extractProgress: progressPatch,
+  });
+  const madeProgress = savedRangeCountAfter > savedRangeCountBefore || extractedAfter.size > extracted.size;
+  for (const document of pending) {
+    const docKey = document.sourceDocumentId.toLowerCase();
+    if (!extractedDocumentIds(payloadAfterMerge).has(docKey)) continue;
+  const statsRow = (payloadAfterMerge as { extractions?: { sourceDocumentId?: string; stats?: { pageExtractionGaps?: unknown } }[] })
+      .extractions?.find((row) => String(row.sourceDocumentId ?? "").toLowerCase() === docKey)?.stats;
+    if (Array.isArray(statsRow?.pageExtractionGaps) && statsRow.pageExtractionGaps.length > 0) {
+      progressPatch.extractGapRetryCompleted = { ...progressPatch.extractGapRetryCompleted, [docKey]: true };
+    }
+  }
   if (poolResult.deferred) {
+    if (!madeProgress) {
+      const nextHandoffs = readExtractZeroProgressHandoffCount(progressPatch) + 1;
+      progressPatch.extractZeroProgressHandoffs = nextHandoffs;
+      await persistV5ExtractStageOutputs(context.deps.client, context.runId, {
+        extractZeroProgressHandoffs: nextHandoffs,
+        extractGapRetryCompleted: progressPatch.extractGapRetryCompleted,
+      }).catch(() => null);
+      if (nextHandoffs >= resolveExtractZeroProgressHandoffLimit()) {
+        const savedRangesAfter = await loadSavedDocExtractionRanges(context.deps.client, context.runId);
+        const remainingItems = await buildExtractWorkQueue({
+          client: context.deps.client,
+          hiveId: inputs.run.hiveId,
+          runId: context.runId,
+          snapshot: inputs.sourceSnapshot,
+          extractedIds: extractedAfter,
+          savedRangeKeysByDocument: buildSavedRangeKeysByDocument(savedRangesAfter, inputs.sourceSnapshot),
+          correlationId: context.correlationId,
+          catalog,
+          extractProgress: progressPatch,
+        });
+        await recordGapsForWorkItems({
+          deps: context.deps,
+          run: inputs.run,
+          workItems: remainingItems,
+          catalog,
+          correlationId: context.correlationId,
+          now: context.now,
+        });
+        progressPatch.extractZeroProgressHandoffs = 0;
+        await persistV5ExtractStageOutputs(context.deps.client, context.runId, {
+          extractZeroProgressHandoffs: 0,
+          extractGapRetryCompleted: progressPatch.extractGapRetryCompleted,
+        }).catch(() => null);
+        return finishExtractingStage(context, inputs.run);
+      }
+    } else if (
+      readExtractZeroProgressHandoffCount(progressPatch) > 0 ||
+      Object.keys(progressPatch.extractGapRetryCompleted ?? {}).length > 0
+    ) {
+      progressPatch.extractZeroProgressHandoffs = 0;
+      await persistV5ExtractStageOutputs(context.deps.client, context.runId, {
+        extractZeroProgressHandoffs: 0,
+        extractGapRetryCompleted: progressPatch.extractGapRetryCompleted,
+      }).catch(() => null);
+    }
     return { next: "handoff", status: "EXTRACTING", delaySeconds: 0 };
+  }
+  if (
+    readExtractZeroProgressHandoffCount(progressPatch) > 0 ||
+    Object.keys(progressPatch.extractGapRetryCompleted ?? {}).length > 0
+  ) {
+    await persistV5ExtractStageOutputs(context.deps.client, context.runId, {
+      extractZeroProgressHandoffs: 0,
+      extractGapRetryCompleted: progressPatch.extractGapRetryCompleted,
+    }).catch(() => null);
   }
   return finishExtractingStage(context, inputs.run);
 }

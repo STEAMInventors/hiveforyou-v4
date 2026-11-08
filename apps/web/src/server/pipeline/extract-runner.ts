@@ -346,6 +346,10 @@ async function extractRangeAdaptive(
   if (!truncated && !timedOut) return outcome;
   const { pages } = range;
   if (timedOut) {
+    const invocationBudgetAbort =
+      outcome.error.diagnosticReason === "invocation_deadline_abort" ||
+      calls.some((call) => call.abortedByOurDeadline && call.diagnosticReason === "invocation_deadline_abort");
+    if (invocationBudgetAbort) return outcome;
     if (pages.length > 1) {
       const [leftPages, rightPages] = splitPagesInHalf(pages);
       const left = await extractRangeAdaptive(
@@ -366,19 +370,7 @@ async function extractRangeAdaptive(
     }
     const nextAttempts = singlePageTimeoutAttempts + 1;
     if (nextAttempts >= EXTRACT_SINGLE_PAGE_ATTEMPT_LIMIT) {
-      const pageNumber = pages[0]!.pageNumber;
-      const extraction = buildPageExtractionGap(input.document, range, pageNumber);
-      const gapOutcome = {
-        ok: true as const,
-        extraction,
-        factsProposed: 0,
-        malformed: {},
-        stats: emptyVerificationStats(),
-        pageGaps: [pageNumber],
-        modelAlias: null,
-      };
-      await persistLeafRange(input, range, gapOutcome, persist);
-      return gapOutcome;
+      return outcome;
     }
     return extractRangeAdaptive(input, range, calls, persist, rangeState, nextAttempts);
   }
@@ -400,19 +392,7 @@ async function extractRangeAdaptive(
     );
     return mergeRangeOutcomes(left, right, pages);
   }
-  const pageNumber = pages[0]!.pageNumber;
-  const extraction = buildPageExtractionGap(input.document, range, pageNumber);
-  const gapOutcome = {
-    ok: true as const,
-    extraction,
-    factsProposed: 0,
-    malformed: {},
-    stats: emptyVerificationStats(),
-    pageGaps: [pageNumber],
-    modelAlias: null,
-  };
-  await persistLeafRange(input, range, gapOutcome, persist);
-  return gapOutcome;
+  return outcome;
 }
 
 function invocationDeadlineAbort(input: {

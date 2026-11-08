@@ -4,6 +4,17 @@ export const EXTRACT_RANGE_CUTOFF_OR_TIMEOUT_LIMIT = 2;
 /** After this many attempts on one page, record a page extraction gap and stop retrying that page. */
 export const EXTRACT_SINGLE_PAGE_ATTEMPT_LIMIT = 3;
 
+/** Max EXTRACTING hand-offs with no new saved range rows before remaining pages become gaps. */
+export const EXTRACT_ZERO_PROGRESS_HANDOFF_LIMIT = 3;
+
+export function resolveExtractZeroProgressHandoffLimit(): number {
+  const raw = typeof process !== "undefined" ? process.env.HIVE_EXTRACT_ZERO_PROGRESS_HANDOFF_LIMIT : undefined;
+  if (raw === undefined || raw === "") return EXTRACT_ZERO_PROGRESS_HANDOFF_LIMIT;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) return EXTRACT_ZERO_PROGRESS_HANDOFF_LIMIT;
+  return parsed;
+}
+
 /** Cloudflare (and similar) proxy read limits often surface near 100 s wall clock. */
 export const CLOUDFLARE_PROXY_LIMIT_MS = 100_000;
 export const CLOUDFLARE_PROXY_LIMIT_TOLERANCE_MS = 5_000;
@@ -52,13 +63,15 @@ export function decideExtractRangeFailureAction(input: {
   timeoutOrCutoffAttempts: number;
   totalAttempts: number;
   retryable: boolean;
+  /** Single-page output truncation is a coverage gap, not a run failure. */
+  truncationGap?: boolean;
 }): ExtractRangeFailureAction {
   const pageCount = Number.isInteger(input.pageCount) && input.pageCount > 0 ? input.pageCount : 1;
   const cutoffAttempts = Math.max(0, input.timeoutOrCutoffAttempts);
   const totalAttempts = Math.max(0, input.totalAttempts);
 
   if (pageCount === 1) {
-    if (totalAttempts >= EXTRACT_SINGLE_PAGE_ATTEMPT_LIMIT) return "record_gap";
+    if (input.truncationGap || totalAttempts >= EXTRACT_SINGLE_PAGE_ATTEMPT_LIMIT) return "record_gap";
     return input.retryable ? "retry" : "fail";
   }
 

@@ -182,11 +182,15 @@ function fakeDatabase(
           return { data: { applied: false, awaitingAcknowledgement: true, processingRun: run() }, error: null };
         }
         const details = (args.p_details ?? {}) as Record<string, unknown>;
-        transitions.push({ from: String(args.p_from_status), to: String(args.p_to_status), details });
+        if (args.p_from_status !== args.p_to_status) {
+          transitions.push({ from: String(args.p_from_status), to: String(args.p_to_status), details });
+        }
         Object.assign(stageOutputs, details.stage_outputs ?? {});
         if (details.stage_metric) stageMetrics.push(details.stage_metric as Record<string, unknown>);
-        status = String(args.p_to_status);
-        stageAttempt = 1;
+        if (args.p_from_status !== args.p_to_status) {
+          status = String(args.p_to_status);
+          stageAttempt = 1;
+        }
         return { data: { applied: true, sourceChanged: false, processingRun: run() }, error: null };
       }
       case "get_processing_run_queued_reads":
@@ -224,6 +228,18 @@ function fakeDatabase(
         };
       case "get_doc_extractions_for_run":
         return { data: { extractions: docExtractions.map((row) => ({ ...row })) }, error: null };
+      case "get_doc_extraction_gap_pages_for_run":
+        return {
+          data: {
+            gaps: docExtractionAttempts
+              .filter((row) => String(row.errorCode ?? "").toUpperCase() === "PAGE_EXTRACTION_GAP")
+              .map((row) => ({
+                sourceDocumentId: row.sourceDocumentId,
+                pageRange: row.pageRange,
+              })),
+          },
+          error: null,
+        };
       case "get_doc_extraction_ranges_for_run":
         return {
           data: {
@@ -303,6 +319,15 @@ function fakeDatabase(
       case "fail_stale_in_flight_doc_extraction_attempts":
         return { data: { failedCount: 0 }, error: null };
       case "begin_doc_extraction_attempt": {
+        docExtractionAttempts.push({
+          sourceDocumentId: String(args.p_source_document_id ?? "").toLowerCase(),
+          contentDigest: String(args.p_content_digest ?? "").toLowerCase(),
+          pageRange: String(args.p_page_range ?? "").toLowerCase(),
+          promptDigest: String(args.p_prompt_digest ?? "").toLowerCase(),
+          errorCode: "MODEL_TIMEOUT",
+          diagnosticReason: "planner_timeout",
+          abortedByOurDeadline: false,
+        });
         return { data: { id: "bbbbbbbb-0000-4000-8000-0000000000b1" }, error: null };
       }
       case "update_doc_extraction_attempt_outcome": {
@@ -461,6 +486,7 @@ function fakeDatabase(
     stageOutputs,
     stageMetrics,
     docExtractions,
+    docExtractionAttempts,
   };
 }
 
@@ -1029,6 +1055,24 @@ describe("processAnalysisRun: V5 pipeline", () => {
     expect(planner.calls).toEqual([]);
     expect(h.dispatched).toEqual([{ kind: "analysis", id: RUN_ID, delaySeconds: 0 }]);
     pool.mockRestore();
+  });
+
+  it("records gaps and advances after repeated zero-progress extract handoffs", async () => {
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, snapshot: V5_EXTRACT_SNAPSHOT });
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const pool = vi.spyOn(v5PipelineStages, "runExtractingWorkerPool").mockResolvedValue({ deferred: true });
+    const h = harness(db, planner);
+    try {
+      await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
+      await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("EXTRACTING");
+      await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("CANONICALIZING");
+      expect(planner.calls.filter((task) => task === "extract")).toHaveLength(0);
+      expect(
+        db.docExtractionAttempts.filter((row) => String(row.errorCode ?? "").toUpperCase() === "PAGE_EXTRACTION_GAP"),
+      ).not.toHaveLength(0);
+    } finally {
+      pool.mockRestore();
+    }
   });
 
   it("spans two invocations for a large document set and advances to CANONICALIZING once", async () => {

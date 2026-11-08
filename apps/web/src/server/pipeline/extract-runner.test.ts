@@ -142,12 +142,11 @@ describe("extractDocument", () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
-  it("records a gap after repeated single-page timeouts instead of failing the document", async () => {
+  it("fails after repeated single-page timeouts so the worker pool can record a coverage gap", async () => {
     const fetchFn = vi.fn().mockResolvedValue(failure(504, "MODEL_TIMEOUT", "litellm_timeout"));
     const result = await run(fetchFn, 1);
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
     expect(fetchFn).toHaveBeenCalledTimes(3);
-    expect(result.stats.pageExtractionGaps).toEqual([1]);
     expect(result.calls.at(-1)).toMatchObject({
       outcome: "failed",
       errorCode: "MODEL_TIMEOUT",
@@ -186,14 +185,12 @@ describe("extractDocument", () => {
     expect(result.stats.pageExtractionGaps).toEqual([]);
   });
 
-  it("records a page extraction gap when a single page still truncates and keeps the run going", async () => {
+  it("fails a single-page truncation so the worker pool can record a coverage gap", async () => {
     const fetchFn = vi.fn().mockResolvedValueOnce(failure(422, "MODEL_OUTPUT_INVALID", "model_output_truncated"));
     const result = await run(fetchFn, 1);
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
     expect(fetchFn).toHaveBeenCalledTimes(1);
-    expect(result.stats.pageExtractionGaps).toEqual([1]);
-    expect(result.extraction.facts).toEqual([]);
-    expect(result.extraction.coverage.pagesBlankOrUnreadable).toEqual([1]);
+    expect(result.error.errorCode).toBe("MODEL_OUTPUT_INVALID");
   });
 
   it("uses size-driven ranges for long documents and verifies each against its own pages", async () => {

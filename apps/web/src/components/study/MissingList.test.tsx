@@ -77,14 +77,63 @@ describe("readProblemsFromCoverage", () => {
       (id) => (id === "b" ? 3 : undefined),
     );
     expect(problems).toEqual([
-      { sourceDocumentId: "a", label: "Statement", pageNumbers: [2, 4], wholeDocument: false },
-      { sourceDocumentId: "b", label: "b", pageNumbers: [1, 2, 3], wholeDocument: true },
-      { sourceDocumentId: "d", label: "d", pageNumbers: [], wholeDocument: true },
+      {
+        sourceDocumentId: "a",
+        label: "Statement",
+        pageNumbers: [2, 4],
+        wholeDocument: false,
+        pendingExtraction: false,
+        verifiedPageCount: undefined,
+      },
+      {
+        sourceDocumentId: "b",
+        label: "b",
+        pageNumbers: [1, 2, 3],
+        wholeDocument: true,
+        pendingExtraction: false,
+        verifiedPageCount: 3,
+      },
+      {
+        sourceDocumentId: "d",
+        label: "d",
+        pageNumbers: [],
+        wholeDocument: true,
+        pendingExtraction: false,
+        verifiedPageCount: undefined,
+      },
     ]);
     expect(problems.map(readProblemSentence)).toEqual([
       "2 pages came back without text, so they are not part of this report.",
       "3 pages came back without text, so they are not part of this report.",
       "Its pages came back without text, so it is not part of this report.",
     ]);
+  });
+
+  it("marks PAGES_NOT_EXTRACTED with pendingExtraction and tailored copy", () => {
+    const problems = readProblemsFromCoverage(
+      [
+        {
+          sourceDocumentId: "e",
+          fileName: "e.pdf",
+          reason: "PAGES_NOT_EXTRACTED",
+          pageNumbers: [2, 5],
+        },
+      ],
+      () => "Estimate",
+      () => 6,
+    );
+    expect(problems).toEqual([
+      {
+        sourceDocumentId: "e",
+        label: "Estimate",
+        pageNumbers: [2, 5],
+        wholeDocument: false,
+        pendingExtraction: true,
+        verifiedPageCount: 6,
+      },
+    ]);
+    expect(readProblemSentence(problems[0]!)).toBe(
+      "2 of 6 pages could not be read yet. Analysis can continue once those pages finish extracting.",
+    );
   });
 });

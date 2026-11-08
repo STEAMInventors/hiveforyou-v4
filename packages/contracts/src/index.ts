@@ -34,6 +34,7 @@ export * from "./pipeline/extraction-contracts";
 export * from "./pipeline/extraction-coverage-gaps";
 export * from "./pipeline/pipeline-timing";
 export * from "./pipeline/extract-range-resilience";
+export * from "./pipeline/extraction-range-validity";
 export * from "./pipeline/canonical-study-contracts";
 export * from "./pipeline/study-view-contracts";
 export * from "./pipeline/write-audience";

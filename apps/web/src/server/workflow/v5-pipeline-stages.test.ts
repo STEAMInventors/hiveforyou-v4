@@ -4,7 +4,10 @@ import {
   INVOCATION_HANDOFF_MARGIN_MS,
   MIN_PLANNER_CALL_MS,
   invocationRemainingMs,
+  validateDocExtraction,
+  verifiedSavedRangeKeys,
   type HiveError,
+  PLANNER_CONTRACT_VERSION,
   type SnapshotDocument,
   type StageMetric,
   V5_CLIENT_TASK_TIMEOUT_MS,
@@ -29,6 +32,7 @@ import {
   EXTRACTING_CONCURRENCY,
   buildExtractWorkQueue,
   canStartExtractingDocument,
+  completeExtractedDocumentIds,
   documentsNeedingExtraction,
   documentPagesFullyExtracted,
   extractOneRange,
@@ -132,6 +136,12 @@ describe("range work queue", () => {
         if (fn === "get_doc_extraction_attempt_totals_for_run") {
           return { data: { totals: [] }, error: null };
         }
+        if (fn === "get_doc_extraction_gap_pages_for_run") {
+          return { data: { gaps: [] }, error: null };
+        }
+        if (fn === "get_doc_extractions_for_run") {
+          return { data: { extractions: [] }, error: null };
+        }
         throw new Error(fn);
       }),
     };
@@ -148,8 +158,38 @@ describe("range work queue", () => {
     });
     expect(items.length).toBeGreaterThan(1);
     expect(items.every((item) => item.pageRange !== "1-10")).toBe(true);
-    expect(documentPagesFullyExtracted(25, new Set(["1-10"]))).toBe(false);
-    expect(documentPagesFullyExtracted(25, new Set(["1-10", "11-20", "21-25"]))).toBe(true);
+    const partialKeys = verifiedSavedRangeKeys(
+      [
+        {
+          pageRange: "1-10",
+          extraction: { coverage: { pagesRead: [1, 2, 3], pagesBlankOrUnreadable: [] } },
+        } as never,
+      ],
+      25,
+    );
+    expect(documentPagesFullyExtracted(25, partialKeys)).toBe(false);
+    const fullKeys = verifiedSavedRangeKeys(
+      [
+        {
+          pageRange: "1-10",
+          extraction: {
+            coverage: { pagesRead: Array.from({ length: 10 }, (_, i) => i + 1), pagesBlankOrUnreadable: [] },
+          },
+        } as never,
+        {
+          pageRange: "11-20",
+          extraction: {
+            coverage: { pagesRead: Array.from({ length: 10 }, (_, i) => i + 11), pagesBlankOrUnreadable: [] },
+          },
+        } as never,
+        {
+          pageRange: "21-25",
+          extraction: { coverage: { pagesRead: [21, 22, 23, 24, 25], pagesBlankOrUnreadable: [] } },
+        } as never,
+      ],
+      25,
+    );
+    expect(documentPagesFullyExtracted(25, fullKeys)).toBe(true);
   });
 
   it("schedules adaptive sub-ranges after a split without redoing saved leaves", () => {
@@ -362,23 +402,9 @@ describe("runExtractingWorkerPool", () => {
           if (fn === "fail_stale_in_flight_doc_extraction_attempts") return { data: { failedCount: 0 }, error: null };
           if (fn === "begin_doc_extraction_attempt") return { data: { id: "aaaaaaaa-0000-4000-8000-000000000099" }, error: null };
           if (fn === "update_doc_extraction_attempt_outcome") return { data: { updated: true }, error: null };
-          if (fn === "put_doc_extraction_range") return { data: { saved: true }, error: null };
-          if (fn === "get_doc_extraction_ranges_for_run") {
-            return {
-              data: {
-                ranges: [
-                  {
-                    sourceDocumentId: DOC_1,
-                    pageRange: "3",
-                    extraction: { schema: "hive.doc-extraction/1" },
-                    stats: {},
-                    modelAlias: "harvester",
-                  },
-                ],
-              },
-              error: null,
-            };
-          }
+          if (fn === "record_doc_extraction_attempt") return { data: { recorded: true }, error: null };
+          if (fn === "get_doc_extraction_ranges_for_run") return { data: { ranges: [] }, error: null };
+          if (fn === "get_doc_extraction_gap_pages_for_run") return { data: { gaps: [] }, error: null };
           if (fn === "put_doc_extraction") return { data: { saved: true }, error: null };
           throw new Error(fn);
         }),
@@ -441,8 +467,10 @@ describe("runExtractingWorkerPool", () => {
           if (fn === "fail_stale_in_flight_doc_extraction_attempts") return { data: { failedCount: 0 }, error: null };
           if (fn === "begin_doc_extraction_attempt") return { data: { id: "aaaaaaaa-0000-4000-8000-000000000099" }, error: null };
           if (fn === "update_doc_extraction_attempt_outcome") return { data: { updated: true }, error: null };
+          if (fn === "record_doc_extraction_attempt") return { data: { recorded: true }, error: null };
           if (fn === "put_doc_extraction_range") return { data: { saved: true }, error: null };
           if (fn === "get_doc_extraction_ranges_for_run") return { data: { ranges: [] }, error: null };
+          if (fn === "get_doc_extraction_gap_pages_for_run") return { data: { gaps: [] }, error: null };
           throw new Error(fn);
         }),
       },
@@ -462,6 +490,87 @@ describe("runExtractingWorkerPool", () => {
       expect.arrayContaining(["1-4", "1-2", "3-4"]),
     );
     expect(extract.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("requeues work without caching empty ranges when two timeouts exhaust the invocation budget", async () => {
+    const deadlineError = createHiveError({
+      errorCode: "MODEL_TIMEOUT",
+      category: "DEPENDENCY",
+      stage: "ANALYZE",
+      retryable: true,
+      safeMessage: "timeout",
+      correlationId: "corr",
+      diagnosticReason: "invocation_deadline_abort",
+    }) as HiveError;
+    const failedCall = {
+      pageRange: "5",
+      attempt: 1 as const,
+      rangeAttempt: 1,
+      callStartedAt: "2026-11-05T00:00:00.000Z",
+      outcome: "failed" as const,
+      inputTokens: null,
+      outputTokens: null,
+      latencyMs: null,
+      roundTripMs: 1,
+      finishReason: null,
+      modelAlias: null,
+      resolvedModel: null,
+      errorCode: "MODEL_TIMEOUT",
+      diagnosticReason: "invocation_deadline_abort",
+      httpStatus: null,
+      abortedByOurDeadline: true,
+    };
+    let extractCalls = 0;
+    const extract = vi.fn(async (): Promise<ExtractOneRangeResult> => {
+      extractCalls += 1;
+      if (extractCalls <= 2) {
+        return { ok: false, calls: [failedCall], metric: null, error: deadlineError, callsStarted: 0 };
+      }
+      return successOutcome();
+    });
+    const putRange = vi.fn();
+    const deps = {
+      client: {
+        rpc: vi.fn(async (fn: string) => {
+          if (fn === "record_extracting_document_success") return { data: { saved: true }, error: null };
+          if (fn === "get_pipeline_throughput") return { data: { sampleCount: 0 }, error: null };
+          if (fn === "fail_stale_in_flight_doc_extraction_attempts") return { data: { failedCount: 0 }, error: null };
+          if (fn === "put_doc_extraction_range") {
+            putRange();
+            return { data: { saved: true }, error: null };
+          }
+          if (fn === "get_doc_extraction_ranges_for_run") return { data: { ranges: [] }, error: null };
+          if (fn === "get_doc_extraction_gap_pages_for_run") return { data: { gaps: [] }, error: null };
+          throw new Error(fn);
+        }),
+      },
+      planner: { getConfig: () => ({ baseUrl: "https://x", serviceToken: "t", timeoutMs: 1 }), fetchFn: fetch },
+    } as unknown as AnalysisWorkflowDeps;
+    const invocationStart = Date.now();
+  const workItems = [
+    { document: snapshotDocument(DOC_1, "Petition.pdf", { verifiedPageCount: 6 }), pageRange: "5" },
+    { document: snapshotDocument(DOC_1, "Petition.pdf", { verifiedPageCount: 6 }), pageRange: "6" },
+  ];
+    let clock = invocationStart;
+    const result = await runExtractingWorkerPool({
+      deps,
+      run: runJson({ status: "EXTRACTING" }),
+      sourceSnapshot: sourceSnapshot([snapshotDocument(DOC_1, "Petition.pdf", { verifiedPageCount: 6 })]),
+      workItems,
+      catalog: loadPromptCatalog(),
+      correlationId: "corr",
+      now: () => new Date(clock),
+      clock: () => {
+        clock += 120_000;
+        return clock;
+      },
+      invocationStartedAt: invocationStart,
+      extract,
+      canStart: () => extractCalls < 3,
+    });
+    expect(result.deferred).toBe(true);
+    expect(putRange).not.toHaveBeenCalled();
+    expect(extractCalls).toBeGreaterThanOrEqual(2);
   });
 
   it("defers when the route budget cannot fit another document start", async () => {
@@ -649,5 +758,180 @@ describe("extractOneRange attempt recording", () => {
       }),
     );
     logSpy.mockRestore();
+  });
+});
+
+describe("extractOneRange blank pages", () => {
+  it("persists unreadable pages and completes extraction for a single readable page", async () => {
+    const document = snapshotDocument(DOC_1, "Petition.pdf", { verifiedPageCount: 3, totalPhysicalPages: 3 });
+    const texts = ["page one text", "", ""];
+    const putRange = vi.fn(async () => ({ inserted: true, replayed: false }));
+    const putDoc = vi.fn(async () => ({ inserted: true, replayed: false }));
+    const savedRanges: Record<string, unknown>[] = [];
+    const client = {
+      rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        if (fn === "get_study_source_pages") return { data: { snapshotCurrent: true, pages: [] }, error: null };
+        if (fn === "list_document_pages") return { data: listDocumentPagesPayload(document, texts), error: null };
+        if (fn === "get_pipeline_throughput") return { data: { sampleCount: 0 }, error: null };
+        if (fn === "begin_doc_extraction_attempt") return { data: { id: "aaaaaaaa-0000-4000-8000-000000000099" }, error: null };
+        if (fn === "update_doc_extraction_attempt_outcome") return { data: { updated: true }, error: null };
+        if (fn === "put_doc_extraction_range") {
+          putRange();
+          savedRanges.push({
+            sourceDocumentId: String(args.p_source_document_id ?? "").toLowerCase(),
+            pageRange: String(args.p_page_range ?? "").toLowerCase(),
+            extraction: args.p_extraction,
+            stats: args.p_stats ?? {},
+            modelAlias: String(args.p_model_alias ?? "harvester"),
+          });
+          return { data: { inserted: true, replayed: false }, error: null };
+        }
+        if (fn === "put_doc_extraction") {
+          putDoc();
+          return { data: { inserted: true, replayed: false }, error: null };
+        }
+        if (fn === "get_doc_extraction_ranges_for_run") return { data: { ranges: savedRanges.map((row) => ({ ...row })) }, error: null };
+        if (fn === "get_doc_extraction_gap_pages_for_run") return { data: { gaps: [] }, error: null };
+        if (fn === "get_doc_extraction_attempt_totals_for_run") return { data: { totals: [] }, error: null };
+        if (fn === "record_extracting_document_success") return { data: { saved: true }, error: null };
+        throw new Error(fn);
+      }),
+    };
+    const extractAnswer = {
+      schema: "hive.doc-extraction/1",
+      document: { titleAsPrinted: "t", documentType: "q", summary: "s", issuer: { name: "x" } },
+      facts: [
+        {
+          id: "F1",
+          subject: "s",
+          attribute: "a",
+          valueAsWritten: "v",
+          modality: "stated",
+          evidence: [{ page: 1, quote: "page one" }],
+        },
+      ],
+      emptyFields: [],
+      referencedDocuments: [],
+      coverage: {
+        pageCount: 1,
+        pagesRead: [1],
+        pagesBlankOrUnreadable: [],
+        truncated: false,
+        lastPageCompleted: 1,
+      },
+    };
+    const plannerFetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            contract_version: PLANNER_CONTRACT_VERSION,
+            task: "extract",
+            model_alias: "harvester",
+            resolved_model: "synthetic-model",
+            content_json: extractAnswer,
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+            latency_ms: 1,
+            finish_reason: "stop",
+          }),
+          { status: 200 },
+        ),
+    );
+    const deps = {
+      client,
+      planner: { getConfig: () => ({ baseUrl: "https://x", serviceToken: "t", timeoutMs: 60000 }), fetchFn: plannerFetch },
+    } as unknown as AnalysisWorkflowDeps;
+    const outcome = await extractOneRange({
+      deps,
+      run: runJson("EXTRACTING", { id: RUN_ID, hiveId: HIVE_ID }),
+      workItem: { document, pageRange: null },
+      catalog: loadPromptCatalog(),
+      correlationId: "corr",
+      stageAttempt: 1,
+      now: () => new Date("2026-11-06T15:00:00.000Z"),
+      throughput,
+    });
+    expect(outcome.ok).toBe(true);
+    expect(putRange).toHaveBeenCalled();
+    expect(putDoc).toHaveBeenCalled();
+  });
+});
+
+describe("completeExtractedDocumentIds", () => {
+  it("treats validated cached extractions like workflow CACHED fixtures", async () => {
+    const validated = validateDocExtraction(
+      {
+        document: { titleAsPrinted: "Quote", documentType: "quote", issuer: { name: "Supplier" }, summary: "A quote." },
+        facts: [
+          {
+            id: "F-33333333-001",
+            subject: "Total price",
+            attribute: "amount",
+            valueAsWritten: "$1,200.00",
+            modality: "stated",
+            evidence: [{ page: 1, quote: "the total price is $1,200.00" }],
+          },
+        ],
+        emptyFields: [],
+        referencedDocuments: [],
+      },
+      { documentId: DOC_1, fileName: "Quote A.pdf", pageRange: null },
+    );
+    expect(validated.ok).toBe(true);
+    const document = snapshotDocument(DOC_1, "Quote A.pdf", { verifiedPageCount: 1, totalPhysicalPages: 1 });
+    const extractionsPayload = {
+      extractions: [{ sourceDocumentId: DOC_1, extraction: validated.value }],
+    };
+    const client = {
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_doc_extraction_gap_pages_for_run") return { data: { gaps: [] }, error: null };
+        if (fn === "get_doc_extraction_ranges_for_run") return { data: { ranges: [] }, error: null };
+        throw new Error(fn);
+      }),
+    };
+    const complete = await completeExtractedDocumentIds({
+      client,
+      runId: RUN_ID,
+      snapshot: sourceSnapshot({ documents: [document] }),
+      extractionsPayload,
+      extractProgress: { extractGapRetryCompleted: {} },
+    });
+    expect([...complete]).toEqual([DOC_1.toLowerCase()]);
+  });
+
+  it("excludes cached extractions with pageExtractionGaps until a one-time gap retry is recorded", async () => {
+    const document = snapshotDocument(DOC_1, "Cached.pdf", { verifiedPageCount: 3 });
+    const snapshot = sourceSnapshot({ documents: [document] });
+    const extractionsPayload = {
+      extractions: [
+        {
+          sourceDocumentId: DOC_1,
+          stats: { pageExtractionGaps: [2] },
+          extraction: { schema: "hive.doc-extraction/1", coverage: { pagesRead: [1, 3] } },
+        },
+      ],
+    };
+    const client = {
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_doc_extraction_gap_pages_for_run") return { data: { gaps: [] }, error: null };
+        if (fn === "get_doc_extraction_ranges_for_run") return { data: { ranges: [] }, error: null };
+        throw new Error(fn);
+      }),
+    };
+    const pending = await completeExtractedDocumentIds({
+      client,
+      runId: RUN_ID,
+      snapshot,
+      extractionsPayload,
+      extractProgress: { extractGapRetryCompleted: {} },
+    });
+    expect([...pending]).toEqual([]);
+    const afterRetry = await completeExtractedDocumentIds({
+      client,
+      runId: RUN_ID,
+      snapshot,
+      extractionsPayload,
+      extractProgress: { extractGapRetryCompleted: { [DOC_1.toLowerCase()]: true } },
+    });
+    expect([...afterRetry]).toEqual([DOC_1.toLowerCase()]);
   });
 });

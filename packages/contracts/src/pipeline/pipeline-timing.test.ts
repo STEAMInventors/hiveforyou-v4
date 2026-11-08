@@ -6,6 +6,8 @@ import {
   DEFAULT_OUTPUT_INPUT_RATIO,
   DEFAULT_OUTPUT_TOKENS_PER_SECOND,
   EXTRACTING_CONCURRENCY_FOR_ESTIMATE,
+  EXTRACT_MAX_PAGE_TEXT_CHARS,
+  EXTRACT_MAX_PAGES_PER_RANGE,
   EXTRACT_TARGET_RANGE_MS,
   INVOCATION_HANDOFF_MARGIN_MS,
   MIN_PLANNER_CALL_MS,
@@ -46,8 +48,26 @@ describe("planExtractPageRanges", () => {
     expect(maxDense).toBeLessThan(maxLight);
   });
 
+  it("caps ranges by page text characters and page count for extract", () => {
+    const stats = {
+      ...defaultPipelineThroughput("extract"),
+      maxPageTextChars: EXTRACT_MAX_PAGE_TEXT_CHARS,
+      maxPagesPerRange: EXTRACT_MAX_PAGES_PER_RANGE,
+    };
+    const text = "x".repeat(EXTRACT_MAX_PAGE_TEXT_CHARS + 1);
+    const ranges = planExtractPageRanges(
+      [
+        { pageNumber: 1, text },
+        { pageNumber: 2, text: "ok" },
+      ],
+      stats,
+    );
+    expect(ranges.length).toBeGreaterThan(1);
+    expect(ranges.every((range) => range.pages.length <= EXTRACT_MAX_PAGES_PER_RANGE)).toBe(true);
+  });
+
   it("keeps at least one page per range", () => {
-    const text = "x".repeat(stats.inputTokensPerPage * CHARS_PER_INPUT_TOKEN * 10);
+    const text = "brief";
     const ranges = planExtractPageRanges([{ pageNumber: 1, text }], stats);
     expect(ranges).toEqual([{ pageRange: null, pages: [{ pageNumber: 1, text }] }]);
   });
