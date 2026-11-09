@@ -220,6 +220,10 @@ export function coverageGapText(gap: Pick<CoverageGap, "reason" | "pageNumbers">
   return base;
 }
 
+/** One-line hint on the Study tab beside Rebuild study. */
+export const STUDY_TAB_REBUILD_HINT =
+  "Creates a new revision and re-reads only pages not yet extracted. Earlier revisions and reports stay.";
+
 export function rebuildHint(availability: RebuildAvailability): string {
   if (availability.canRebuild) {
     return availability.requiresCoverageAcknowledgement

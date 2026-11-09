@@ -3,6 +3,7 @@ import { isActiveProcessingRunStatus } from "@hiveforyou/contracts";
 import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
 import { usesLegacyProgress } from "@/components/hives/study-preparation-progress";
 import { StudyPromptPreview } from "@/components/study/StudyPromptPreview";
+import { StudyTabPanel } from "@/components/study/StudyTabPanel";
 import { StudyView } from "@/components/study/StudyView";
 import { TabEmptyState } from "@/components/tab-empty-state";
 import { requestCorrelationId } from "@/server/auth/action-support";
@@ -64,15 +65,27 @@ export default async function StudyPage({ params }: StudyPageProps) {
               A new study is being built. This page shows revision {revision.revisionNumber} until it&apos;s accepted.
             </p>
           ) : null}
-          <StudyView
-            hiveId={hive.id}
-            revisionFormat={revision.format}
-            view={built?.view ?? null}
-            sources={built?.sources ?? null}
-            revisionNumber={revision.revisionNumber}
-            coverageGaps={revision.coverageGaps}
-            documentPages={state ? documentPageCounts(state) : undefined}
-          />
+          {built?.view ? (
+            <StudyTabPanel
+              hiveId={hive.id}
+              revisionFormat={revision.format}
+              view={built.view}
+              sources={built.sources}
+              revisionNumber={revision.revisionNumber}
+              coverageGaps={revision.coverageGaps}
+              documentPages={state ? documentPageCounts(state) : undefined}
+            />
+          ) : (
+            <StudyView
+              hiveId={hive.id}
+              revisionFormat={revision.format}
+              view={null}
+              sources={null}
+              revisionNumber={revision.revisionNumber}
+              coverageGaps={revision.coverageGaps}
+              documentPages={state ? documentPageCounts(state) : undefined}
+            />
+          )}
         </div>
       ) : revision ? (
         <div className="flex flex-col gap-5">

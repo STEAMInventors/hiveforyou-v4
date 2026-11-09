@@ -2,6 +2,7 @@
 
 import type { CoverageGap, StudyRevisionFormat, StudyView as StudyViewData, StudyViewSources } from "@hiveforyou/contracts";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { QUIET_LINK_CLASS } from "@/components/button-classes";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
@@ -17,6 +18,7 @@ type StudyViewProps = {
   revisionNumber?: number;
   coverageGaps?: readonly CoverageGap[];
   documentPages?: Readonly<Record<string, number>>;
+  revisionActions?: ReactNode;
 };
 
 const NOTICE_CLASS = "flex flex-col gap-3 rounded-card border border-line bg-paper p-5 sm:p-7";
@@ -26,7 +28,16 @@ const NOTICE_HEADING = "m-0 font-brand text-section font-semibold text-ink";
  * The study tab: the canonical study of the current revision in the report layout, without the
  * audience switch or narrative. Every row and value links to the original physical page.
  */
-export function StudyView({ hiveId, revisionFormat, view, sources, revisionNumber, coverageGaps, documentPages }: StudyViewProps) {
+export function StudyView({
+  hiveId,
+  revisionFormat,
+  view,
+  sources,
+  revisionNumber,
+  coverageGaps,
+  documentPages,
+  revisionActions,
+}: StudyViewProps) {
   if (revisionFormat !== "canonical-study-1") {
     return (
       <section role="status" className={NOTICE_CLASS} data-testid="study-legacy-notice">
@@ -63,6 +74,7 @@ export function StudyView({ hiveId, revisionFormat, view, sources, revisionNumbe
       header={{ kind: "study", revisionNumber: revisionNumber ?? null }}
       coverageGaps={coverageGaps}
       documentPages={documentPages}
+      revisionActions={revisionActions}
       showStateBar={false}
     />
   );

@@ -198,6 +198,24 @@ describe("StudyReport", () => {
 });
 
 describe("StudyView", () => {
+  it("renders revision actions beside the revision line", () => {
+    const fixture = bankruptcyC13Fixture("CUSTOMER");
+    render(
+      <StudyView
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={2}
+        documentPages={fixture.documentPages}
+        revisionActions={<button type="button">Rebuild study</button>}
+      />,
+    );
+    const header = screen.getByTestId("report-header");
+    expect(within(header).getByRole("button", { name: "Rebuild study" })).toBeTruthy();
+    expect(header.textContent).toContain("From study revision 2");
+  });
+
   it("renders the study in the report layout without narrative or audience switch", () => {
     const fixture = bankruptcyC13Fixture("CUSTOMER");
     render(

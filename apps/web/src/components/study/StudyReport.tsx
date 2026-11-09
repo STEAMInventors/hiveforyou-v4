@@ -52,6 +52,8 @@ type StudyReportProps = {
   controls?: ReactNode;
   /** Run progress or errors, shown inside the header card. */
   status?: ReactNode;
+  /** Secondary actions beside the revision line (e.g. Rebuild study on the Study tab). */
+  revisionActions?: ReactNode;
   /** Off when the page header already shows this study's state bar. */
   showStateBar?: boolean;
 };
@@ -98,7 +100,18 @@ function usePrefersReducedMotion(): boolean {
  * One layout for both reports and the study view. Every count, label and calculation is made here
  * from the canonical study; the write output contributes only the narrative sections.
  */
-export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], documentPages, controls, status, showStateBar = true }: StudyReportProps) {
+export function StudyReport({
+  hiveId,
+  view,
+  sources,
+  header,
+  coverageGaps = [],
+  documentPages,
+  controls,
+  status,
+  revisionActions,
+  showStateBar = true,
+}: StudyReportProps) {
   const customer = header.kind === "report" && header.audience === "CUSTOMER";
   const isReport = header.kind === "report";
   const [detailsOpen, setDetailsOpen] = useState(!customer);
@@ -309,7 +322,12 @@ export function StudyReport({ hiveId, view, sources, header, coverageGaps = [], 
             {controls ? <div className="flex flex-wrap items-center justify-between gap-3">{controls}</div> : null}
             <div className="flex flex-col gap-1.5">
               <h2 className="m-0 font-brand text-title font-semibold text-ink">{title}</h2>
-              {meta ? <p className="m-0 text-small text-quiet">{meta}</p> : null}
+              {meta || revisionActions ? (
+                <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                  {meta ? <p className="m-0 text-small text-quiet">{meta}</p> : null}
+                  {revisionActions}
+                </div>
+              ) : null}
             </div>
             {view.intent ? (
               <p className="m-0 max-w-prose text-body text-graphite">

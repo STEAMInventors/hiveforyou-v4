@@ -53,7 +53,13 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
         hiveId={hive.id}
         initialDocuments={initialDocuments}
         initialError={initialError}
-        documentMeta={overview?.studyView ? studyDocumentMeta(overview.studyView.view) : undefined}
+        documentMeta={
+          overview?.studyTab?.view
+            ? studyDocumentMeta(overview.studyTab.view)
+            : overview?.studyView
+              ? studyDocumentMeta(overview.studyView.view)
+              : undefined
+        }
       />
     </HiveWorkspaceLayout>
   );

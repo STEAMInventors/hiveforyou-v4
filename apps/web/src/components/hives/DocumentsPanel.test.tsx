@@ -15,6 +15,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
 }));
 
+import { bankruptcyC13Fixture } from "@/components/study/fixtures/bankruptcy-c13";
+import { studyDocumentMeta } from "@/components/study/study-summary";
+
 import { DOCUMENT_READ_POLL_INTERVAL_MS } from "./document-read-progress";
 import { DocumentsPanel } from "./DocumentsPanel";
 
@@ -298,6 +301,26 @@ describe("DocumentsPanel — Analyze", () => {
     cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("shows short document labels from study metadata, not numbered placeholders", async () => {
+    const study = bankruptcyC13Fixture("PRO");
+    const meta = studyDocumentMeta(study.view);
+    const docRows = study.view.blocks.find((block) => block.name === "documents")!.rows;
+    server.documents = docRows.map((row, index) => ({
+      ...makeDocument(index, "SUCCEEDED"),
+      id: row.id,
+      sourceDocumentId: row.id,
+    }));
+    server.readDocuments = server.documents.length;
+    render(<DocumentsPanel hiveId={HIVE_ID} initialDocuments={server.documents} documentMeta={meta} />);
+    const rows = await screen.findAllByTestId("document-row");
+    for (const row of rows) {
+      const label = row.querySelector(".font-brand")?.textContent ?? "";
+      expect(label).not.toMatch(/^Document \d+$/);
+      expect(label.length).toBeGreaterThan(0);
+    }
+    expect(rows.some((row) => (row.textContent ?? "").includes("Trustee's objection"))).toBe(true);
   });
 
   it("offers Analyze as the only way to process documents", async () => {
