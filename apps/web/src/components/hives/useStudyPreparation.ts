@@ -64,6 +64,8 @@ function writeMinimized(hiveId: string, runId: string | null): void {
 
 export type UseStudyPreparationOptions = {
   readonly onReportsReady?: () => void;
+  /** Server-rendered preparation so Study/Documents actions are available before the client refetch. */
+  readonly initialPreparation?: GetStudyPreparationResponse;
 };
 
 /**
@@ -75,7 +77,8 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const onReportsReady = options?.onReportsReady;
   const onReportsReadyRef = useRef(onReportsReady);
   onReportsReadyRef.current = onReportsReady;
-  const [state, setState] = useState<GetStudyPreparationResponse | null>(null);
+  const initialPreparation = options?.initialPreparation ?? null;
+  const [state, setState] = useState<GetStudyPreparationResponse | null>(initialPreparation);
   const [modalMode, setModalMode] = useState<AnalyzeModalMode | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<AnalyzeStartError | null>(null);
@@ -83,8 +86,8 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const [authExpired, setAuthExpired] = useState(false);
   const [action, setAction] = useState<"analyze" | "rebuild">("analyze");
 
-  const runRef = useRef<ProcessingRun | null>(null);
-  const stateRef = useRef<GetStudyPreparationResponse | null>(null);
+  const runRef = useRef<ProcessingRun | null>(initialPreparation?.processingRun ?? null);
+  const stateRef = useRef<GetStudyPreparationResponse | null>(initialPreparation);
   const startingRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const requestSeqRef = useRef(0);

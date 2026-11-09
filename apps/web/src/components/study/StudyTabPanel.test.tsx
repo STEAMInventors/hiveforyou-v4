@@ -190,6 +190,71 @@ describe("StudyTabPanel", () => {
     expect((button as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("shows Rebuild study enabled after a failed preparation run", async () => {
+    server.runStatus = "FAILED";
+    render(
+      <StudyTabPanel
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={3}
+        coverageGaps={fixture.coverageGaps}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    const button = await screen.findByTestId("study-tab-rebuild-button");
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByText(STUDY_TAB_REBUILD_HINT)).toBeTruthy();
+  });
+
+  it("shows a disabled Rebuild study with hint while preparation state is loading", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    render(
+      <StudyTabPanel
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={3}
+        coverageGaps={fixture.coverageGaps}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    const button = screen.getByTestId("study-tab-rebuild-button");
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Loading rebuild options…")).toBeTruthy();
+  });
+
+  it("shows a disabled Rebuild study when client state lacks studyRevision", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input) === STUDY_URL) {
+          return json({ ...preparationBody(), studyRevision: null });
+        }
+        return json({ error: { errorCode: "NOT_FOUND", message: "Not found" } }, 404);
+      }),
+    );
+    render(
+      <StudyTabPanel
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={3}
+        coverageGaps={fixture.coverageGaps}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    const button = await screen.findByTestId("study-tab-rebuild-button");
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Analyze first. Rebuild starts a new revision after a study has been accepted.")).toBeTruthy();
+  });
+
   it("refreshes the page while a run is active", async () => {
     server.runStatus = "INVESTIGATING";
     render(
@@ -203,7 +268,7 @@ describe("StudyTabPanel", () => {
         documentPages={fixture.documentPages}
       />,
     );
-    await screen.findByTestId("study-tab-rebuild-button");
+    await screen.findByText("A study is already running.");
     await act(async () => {
       await Promise.resolve();
       vi.advanceTimersByTime(DOCUMENT_READ_POLL_INTERVAL_MS);

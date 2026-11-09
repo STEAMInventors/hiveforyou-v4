@@ -1,6 +1,12 @@
 "use client";
 
-import type { CoverageGap, StudyRevisionFormat, StudyView as StudyViewData, StudyViewSources } from "@hiveforyou/contracts";
+import type {
+  CoverageGap,
+  GetStudyPreparationResponse,
+  StudyRevisionFormat,
+  StudyView as StudyViewData,
+  StudyViewSources,
+} from "@hiveforyou/contracts";
 import { isActiveProcessingRunStatus } from "@hiveforyou/contracts";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -21,6 +27,7 @@ type StudyTabPanelProps = {
   revisionNumber: number;
   coverageGaps?: readonly CoverageGap[];
   documentPages?: Readonly<Record<string, number>>;
+  initialPreparation?: GetStudyPreparationResponse;
 };
 
 /**
@@ -35,13 +42,20 @@ export function StudyTabPanel({
   revisionNumber,
   coverageGaps,
   documentPages,
+  initialPreparation,
 }: StudyTabPanelProps) {
   const router = useRouter();
-  const analysis = useStudyPreparation(hiveId);
+  const analysis = useStudyPreparation(hiveId, { initialPreparation });
   const lastRefreshedRevision = useRef<number | null>(null);
 
-  const showRebuild = analysis.state?.studyRevision != null;
-  const rebuildDisabled = !analysis.rebuildAvailability?.canRebuild || analysis.starting || analysis.active;
+  const hasAcceptedStudy = revisionNumber > 0;
+  const rebuildAvailabilityResolved = analysis.state
+    ? analysis.state.studyRevision
+      ? analysis.rebuildAvailability
+      : ({ canRebuild: false, reason: "NO_ACCEPTED_STUDY" } as const)
+    : null;
+  const rebuildDisabled =
+    !rebuildAvailabilityResolved?.canRebuild || analysis.starting || analysis.active || !analysis.state;
 
   useEffect(() => {
     const run = analysis.run;
@@ -65,27 +79,30 @@ export function StudyTabPanel({
     }
   }, [analysis.run, analysis.state?.studyRevision, router]);
 
-  const revisionActions =
-    showRebuild && analysis.rebuildAvailability ? (
-      <div className="flex min-w-[12rem] flex-col items-stretch gap-1.5 sm:items-end">
-        <button
-          type="button"
-          className={SECONDARY_BUTTON_CLASS}
-          disabled={rebuildDisabled}
-          data-testid="study-tab-rebuild-button"
-          aria-describedby="study-tab-rebuild-hint"
-          onClick={(event) => {
-            analysis.returnFocusRef.current = event.currentTarget;
-            analysis.rebuild();
-          }}
-        >
-          Rebuild study
-        </button>
-        <p id="study-tab-rebuild-hint" className="m-0 max-w-xs text-caption text-quiet sm:text-end">
-          {analysis.rebuildAvailability.canRebuild ? STUDY_TAB_REBUILD_HINT : rebuildHint(analysis.rebuildAvailability)}
-        </p>
-      </div>
-    ) : null;
+  const revisionActions = hasAcceptedStudy ? (
+    <div className="flex min-w-[12rem] flex-col items-stretch gap-1.5 sm:items-end">
+      <button
+        type="button"
+        className={SECONDARY_BUTTON_CLASS}
+        disabled={rebuildDisabled}
+        data-testid="study-tab-rebuild-button"
+        aria-describedby="study-tab-rebuild-hint"
+        onClick={(event) => {
+          analysis.returnFocusRef.current = event.currentTarget;
+          analysis.rebuild();
+        }}
+      >
+        Rebuild study
+      </button>
+      <p id="study-tab-rebuild-hint" className="m-0 max-w-xs text-caption text-quiet sm:text-end">
+        {!analysis.state
+          ? "Loading rebuild options…"
+          : rebuildAvailabilityResolved?.canRebuild
+            ? STUDY_TAB_REBUILD_HINT
+            : rebuildHint(rebuildAvailabilityResolved ?? { canRebuild: false, reason: "NO_ACCEPTED_STUDY" })}
+      </p>
+    </div>
+  ) : null;
 
   return (
     <>
