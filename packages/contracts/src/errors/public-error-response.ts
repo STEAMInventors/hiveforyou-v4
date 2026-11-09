@@ -54,6 +54,8 @@ export function suggestedHttpStatus(errorCode: string): number {
       return 503;
     case "MODEL_TIMEOUT":
       return 504;
+    case "CLIENT_DEADLINE":
+      return 503;
     case "INTERNAL_ERROR":
     default:
       return 500;

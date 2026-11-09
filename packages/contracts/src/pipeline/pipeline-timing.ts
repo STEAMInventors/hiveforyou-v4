@@ -38,9 +38,48 @@ export const PLANNER_TIMEOUT_PADDING_MS = 20_000;
 export const EXTRACT_TARGET_RANGE_MS = 120_000;
 /** Default page-text budget for initial extract ranges (~4k chars). */
 export const EXTRACT_MAX_PAGE_TEXT_CHARS = 4_000;
-export const EXTRACT_MAX_PAGES_PER_RANGE = 6;
+export const EXTRACT_MAX_PAGES_PER_RANGE = 3;
+/** Default client abort for one extract planner HTTP call (under Cloudflare ~100 s). */
+export const EXTRACT_PLANNER_CALL_DEADLINE_MS = 90_000;
+/** Invocation wall clock reserved after an extract call starts (client abort cap). */
+export const EXTRACT_INVOCATION_DEADLINE_MARGIN_MS = 15_000;
 /** Stay under Cloudflare tunnel ~100 s with margin for TLS and JSON overhead. */
-export const EXTRACT_RANGE_WALL_CLOCK_BUDGET_MS = Math.max(60_000, CLOUDFLARE_PROXY_LIMIT_MS - 15_000);
+export const EXTRACT_RANGE_WALL_CLOCK_BUDGET_MS = Math.min(
+  EXTRACT_PLANNER_CALL_DEADLINE_MS,
+  Math.max(60_000, CLOUDFLARE_PROXY_LIMIT_MS - EXTRACT_INVOCATION_DEADLINE_MARGIN_MS),
+);
+
+export function resolveExtractPlannerCallDeadlineMs(): number {
+  const raw = typeof process !== "undefined" ? process.env.HIVE_EXTRACT_PLANNER_CALL_DEADLINE_MS : undefined;
+  if (raw === undefined || raw === "") return EXTRACT_PLANNER_CALL_DEADLINE_MS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) return EXTRACT_PLANNER_CALL_DEADLINE_MS;
+  return Math.min(parsed, CLOUDFLARE_PROXY_LIMIT_MS - 5_000);
+}
+
+export function resolveExtractInvocationDeadlineMarginMs(): number {
+  const raw = typeof process !== "undefined" ? process.env.HIVE_EXTRACT_INVOCATION_DEADLINE_MARGIN_MS : undefined;
+  if (raw === undefined || raw === "") return EXTRACT_INVOCATION_DEADLINE_MARGIN_MS;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) return EXTRACT_INVOCATION_DEADLINE_MARGIN_MS;
+  return parsed;
+}
+
+/** Per extract HTTP call: min(configured deadline, remaining invocation minus margin, task cap). */
+export function computeExtractPlannerCallTimeoutMs(input: {
+  remainingInvocationMs: number;
+  taskMaxMs?: number;
+}): number | "expired" {
+  const margin = resolveExtractInvocationDeadlineMarginMs();
+  const remaining = nonNegativeFiniteOrZero(input.remainingInvocationMs);
+  const capFromInvocation = remaining - margin;
+  if (!Number.isFinite(capFromInvocation) || capFromInvocation < 1_000) return "expired";
+  const taskMax = positiveFiniteOrDefault(input.taskMaxMs, V5_CLIENT_TASK_TIMEOUT_MS);
+  const defaultDeadline = resolveExtractPlannerCallDeadlineMs();
+  const deadline = Math.min(defaultDeadline, capFromInvocation, taskMax);
+  if (!Number.isFinite(deadline) || deadline < 1_000) return "expired";
+  return Math.floor(deadline);
+}
 export const EXTRACT_OUTPUT_CAP_FRACTION = 0.5;
 export const PROGRESS_ESTIMATE_SPREAD = 0.35;
 /** Client/server: ignore small ETA drift from polls so the countdown does not jump. */

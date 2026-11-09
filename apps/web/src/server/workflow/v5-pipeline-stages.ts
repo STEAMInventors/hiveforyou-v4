@@ -2,8 +2,8 @@ import {
   type CanonicalStudy,
   CANONICAL_STUDY_SCHEMA,
   cloudflareProxyLimitSuspect,
-  computePlannerCallTimeoutMs,
-  canStartPlannerCall,
+  computeExtractPlannerCallTimeoutMs,
+  resolveExtractPlannerCallDeadlineMs,
   createHiveError,
   INVOCATION_MAX_DURATION_MS,
   decideExtractRangeFailureAction,
@@ -22,7 +22,6 @@ import {
   expectedOutputTokens,
   type HiveError,
   invocationRemainingMs,
-  MIN_PLANNER_CALL_MS,
   normalizeProcessingRun,
   type PipelineThroughputStats,
   type ProcessingRun,
@@ -45,6 +44,7 @@ import {
   extractScheduledRange,
   mergeSavedRangeExtractions,
   missingExtractWorkItems,
+  planCappedExtractRangesForWorkItem,
   pageRangeStorageKey,
   pagesCoveredBySavedRangeKeys,
   parsePageRangeStorageKey,
@@ -89,30 +89,19 @@ export function extractInFlightCutoffIso(
 export function extractPlannerTimeoutMs(
   clock: () => number,
   invocationStartedAt: number,
-  expectedOutputTokens: number,
-  throughput?: Partial<PipelineThroughputStats> | null,
+  _expectedOutputTokens?: number,
+  _throughput?: Partial<PipelineThroughputStats> | null,
 ): number | "expired" {
-  const outputTokensPerSecond =
-    typeof throughput?.outputTokensPerSecond === "number" &&
-    Number.isFinite(throughput.outputTokensPerSecond) &&
-    throughput.outputTokensPerSecond > 0
-      ? throughput.outputTokensPerSecond
-      : 100;
-  return computePlannerCallTimeoutMs({
-    expectedOutputTokens,
-    outputTokensPerSecond,
-    taskMaxMs: V5_CLIENT_TASK_TIMEOUT_MS,
+  return computeExtractPlannerCallTimeoutMs({
     remainingInvocationMs: invocationRemainingMs(clock(), invocationStartedAt),
+    taskMaxMs: V5_CLIENT_TASK_TIMEOUT_MS,
   });
 }
 
 /** Whether a worker may start another extract call in this invocation. */
 export function canStartExtractingDocument(clock: () => number, invocationStartedAt: number): boolean {
   const remaining = invocationRemainingMs(clock(), invocationStartedAt);
-  return canStartPlannerCall({
-    remainingInvocationMs: remaining,
-    callTimeoutMs: MIN_PLANNER_CALL_MS,
-  });
+  return computeExtractPlannerCallTimeoutMs({ remainingInvocationMs: remaining }) !== "expired";
 }
 
 function pageCountForWorkItem(pageRange: string | null, verifiedPageCount: number): number {
@@ -134,7 +123,7 @@ function expectedExtractOutputTokens(
 /** Max concurrent `hive-extract/1` calls while a run is in EXTRACTING (bounded fan-out). */
 export const EXTRACTING_CONCURRENCY = 4;
 
-const EXTRACT_RETRYABLE_ERRORS = new Set(["MODEL_TIMEOUT", "MODEL_UNAVAILABLE"]);
+const EXTRACT_RETRYABLE_ERRORS = new Set(["MODEL_TIMEOUT", "CLIENT_DEADLINE", "MODEL_UNAVAILABLE"]);
 
 export function isRetryableExtractFailure(error: HiveError): boolean {
   if (error.errorCode === "MODEL_OUTPUT_INVALID") return false;
@@ -506,7 +495,12 @@ export async function buildExtractWorkQueue(input: {
         totalAttempts: totals?.failedAttemptCount ?? 0,
       });
     };
-    for (const item of missingExtractWorkItems(pages, effectiveSaved, throughput)) {
+    for (const item of missingExtractWorkItems(
+      pages,
+      effectiveSaved,
+      throughput,
+      document.verifiedPageCount,
+    )) {
       pushItem(item.pageRange);
     }
     for (const page of retryGapPages) {
@@ -788,7 +782,9 @@ export async function runExtractingWorkerPool(input: {
       }
       const lastCall = outcome.calls[outcome.calls.length - 1];
       const invocationBudgetAbort =
-        lastCall?.abortedByOurDeadline === true || outcome.error.diagnosticReason === "invocation_deadline_abort";
+        lastCall?.abortedByOurDeadline === true ||
+        outcome.error.errorCode === "CLIENT_DEADLINE" ||
+        outcome.error.diagnosticReason === "client_deadline";
       const cutoffFailure = isTimeoutOrCutoffFailure({
         errorCode: outcome.error.errorCode,
         diagnosticReason: outcome.error.diagnosticReason ?? lastCall?.diagnosticReason ?? null,
@@ -841,13 +837,49 @@ export async function runExtractingWorkerPool(input: {
         continue;
       }
       if (action === "split") {
-        const split = splitExtractPageRangeLabel(item.pageRange, item.document.verifiedPageCount);
-        if (split) {
-          const [left, right] = split;
-          queue.unshift(
-            { document: item.document, pageRange: right, timeoutOrCutoffAttempts: 0, totalAttempts: 0 },
-            { document: item.document, pageRange: left, timeoutOrCutoffAttempts: 0, totalAttempts: 0 },
+        let splitQueued = false;
+        try {
+          const pages = await loadDocumentPages({
+            client: input.deps.client,
+            hiveId: input.run.hiveId,
+            runId: input.run.id,
+            document: item.document,
+            correlationId: input.correlationId,
+          });
+          const planned = planCappedExtractRangesForWorkItem(
+            pages,
+            item.pageRange,
+            item.document.verifiedPageCount,
+            throughput,
           );
+          if (planned.length > 1) {
+            queue.unshift(
+              ...planned
+                .slice()
+                .reverse()
+                .map((part) => ({
+                  document: item.document,
+                  pageRange: part.pageRange,
+                  timeoutOrCutoffAttempts: 0,
+                  totalAttempts: 0,
+                })),
+            );
+            splitQueued = true;
+          }
+        } catch {
+          splitQueued = false;
+        }
+        if (!splitQueued) {
+          const split = splitExtractPageRangeLabel(item.pageRange, item.document.verifiedPageCount);
+          if (split) {
+            const [left, right] = split;
+            queue.unshift(
+              { document: item.document, pageRange: right, timeoutOrCutoffAttempts: 0, totalAttempts: 0 },
+              { document: item.document, pageRange: left, timeoutOrCutoffAttempts: 0, totalAttempts: 0 },
+            );
+            continue;
+          }
+        } else {
           continue;
         }
       }
@@ -1621,13 +1653,7 @@ export async function extractOneRange(input: {
       ? rangeLabel(readablePages)
       : (workItem.pageRange ?? rangeLabel(readablePages));
   const expectedOutput = expectedExtractOutputTokens(readablePages, throughput);
-  const fullPlannerTimeoutMs = () =>
-    computePlannerCallTimeoutMs({
-      expectedOutputTokens: expectedOutput,
-      outputTokensPerSecond: throughput.outputTokensPerSecond,
-      taskMaxMs: V5_CLIENT_TASK_TIMEOUT_MS,
-      remainingInvocationMs: Number.POSITIVE_INFINITY,
-    });
+  const fullPlannerTimeoutMs = () => resolveExtractPlannerCallDeadlineMs();
   let modelAlias = "harvester";
   let plannerHttpCallsStarted = 0;
   const result = await extractScheduledRange({

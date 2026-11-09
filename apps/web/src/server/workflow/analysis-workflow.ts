@@ -82,7 +82,7 @@ import {
   type V5StageOutputs,
   readExtractZeroProgressHandoffCount,
 } from "./v5-pipeline-stages";
-import { resolveExtractZeroProgressHandoffLimit } from "@hiveforyou/contracts";
+import { INVOCATION_MAX_DURATION_MS, resolveExtractZeroProgressHandoffLimit } from "@hiveforyou/contracts";
 
 /**
  * The Analyze workflow (D-041): one durable run from reading documents to an accepted Canonical
@@ -1458,10 +1458,18 @@ async function failRun(context: Context, status: ProcessingRunStatus, run: Proce
  * Runs the stages one invocation may run for this run. Safe to call for any run id at any time:
  * the claim is compare-and-set, so a duplicate or late invocation does nothing.
  */
+/** Write-ahead hand-off: scheduled continuation before work that can exceed one Vercel invocation. */
+export const WRITE_AHEAD_HANDOFF_DELAY_SECONDS = Math.ceil(INVOCATION_MAX_DURATION_MS / 1000);
+
 export async function processAnalysisRun(deps: AnalysisWorkflowDeps, runId: string): Promise<ProcessingRunStatus | null> {
   const claim = await rpc(deps.client, "claim_processing_run", { p_run_id: runId });
   let run = normalizeProcessingRun(claim?.processingRun);
   if (claim?.claimed !== true || !run) return run?.status ?? null;
+
+  await rpc(deps.client, "reserve_processing_run_handoff", {
+    p_run_id: runId,
+    p_delay_seconds: WRITE_AHEAD_HANDOFF_DELAY_SECONDS,
+  }).catch(() => null);
 
   let catalog: PromptCatalog | null = null;
   const context: Context = {

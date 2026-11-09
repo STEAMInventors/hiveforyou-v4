@@ -82,8 +82,8 @@ describe("applyExpiredLeaseRecovery", () => {
       attemptCount: 2,
       maxAttempts: 3,
       leaseExpiresAtMs: null,
-      nextDispatchAtMs: NOW - 4 * 60_000,
-      updatedAtMs: NOW - 4 * 60_000,
+      nextDispatchAtMs: NOW - 6 * 60_000,
+      workflowLastHandoffAtMs: NOW - 6 * 60_000,
     });
     const plan = applyExpiredLeaseRecovery([row], NOW);
     expect(plan.dispatch).toEqual([{ kind: "analysis", id: RUN_ID }]);
@@ -100,9 +100,44 @@ describe("applyExpiredLeaseRecovery", () => {
       status: "EXTRACTING",
       attemptCount: 1,
       leaseExpiresAtMs: null,
-      nextDispatchAtMs: NOW - 30_000,
+      nextDispatchAtMs: NOW - 4 * 60_000,
     });
     expect(applyExpiredLeaseRecovery([row], NOW).dispatch).toEqual([]);
+  });
+
+  it("re-dispatches a stalled run with no lease and no next_dispatch after the grace window", () => {
+    const row = report({
+      kind: "analysis",
+      id: RUN_ID,
+      status: "EXTRACTING",
+      attemptCount: 3,
+      maxAttempts: 3,
+      leaseExpiresAtMs: null,
+      nextDispatchAtMs: null,
+      workflowLastHandoffAtMs: NOW - 6 * 60_000,
+      extractZeroProgressHandoffs: 0,
+    });
+    const plan = applyExpiredLeaseRecovery([row], NOW);
+    expect(plan.dispatch).toEqual([{ kind: "analysis", id: RUN_ID }]);
+    expect(plan.failed).toEqual([]);
+    expect(row.attemptCount).toBe(3);
+  });
+
+  it("fails a stalled run only after the zero-progress handoff cap", () => {
+    const row = report({
+      kind: "analysis",
+      id: RUN_ID,
+      status: "EXTRACTING",
+      attemptCount: 2,
+      leaseExpiresAtMs: null,
+      nextDispatchAtMs: null,
+      workflowLastHandoffAtMs: NOW - 6 * 60_000,
+      extractZeroProgressHandoffs: 3,
+    });
+    const plan = applyExpiredLeaseRecovery([row], NOW);
+    expect(plan.failed).toEqual([{ kind: "analysis", id: RUN_ID }]);
+    expect(plan.dispatch).toEqual([]);
+    expect(row).toMatchObject({ status: "FAILED", errorCode: "PREPARATION_INTERRUPTED" });
   });
 
   it("fails an exhausted processing run and re-dispatches one that still has an attempt", () => {

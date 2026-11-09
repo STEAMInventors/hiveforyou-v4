@@ -158,15 +158,25 @@ export function pagesCoveredBySavedRangeKeys(savedRangeKeys: ReadonlySet<string>
   return covered;
 }
 
+function verifiedPageCountForPages(pages: readonly VerificationPage[], verifiedPageCount?: number): number {
+  if (typeof verifiedPageCount === "number" && Number.isInteger(verifiedPageCount) && verifiedPageCount > 0) {
+    return verifiedPageCount;
+  }
+  if (pages.length === 0) return 0;
+  return Math.max(...pages.map((page) => page.pageNumber));
+}
+
 /** Next planner work items: uncovered pages chunked like the initial full-document pass. */
 export function missingExtractWorkItems(
   pages: readonly VerificationPage[],
   savedRangeKeys: ReadonlySet<string>,
   stats: PipelineThroughputStats = defaultPipelineThroughput("extract"),
+  verifiedPageCount?: number,
 ): { pageRange: string | null; pages: VerificationPage[] }[] {
   const sorted = [...pages].sort((a, b) => a.pageNumber - b.pageNumber);
   if (sorted.length === 0) return [];
-  const covered = pagesCoveredBySavedRangeKeys(savedRangeKeys, sorted.length);
+  const totalPages = verifiedPageCountForPages(sorted, verifiedPageCount);
+  const covered = pagesCoveredBySavedRangeKeys(savedRangeKeys, totalPages);
   const uncovered = sorted.filter((page) => !covered.has(page.pageNumber));
   if (uncovered.length === 0) return [];
   return planExtractPageRanges(
@@ -176,6 +186,51 @@ export function missingExtractWorkItems(
     ...item,
     pageRange: item.pageRange ?? rangeLabel(item.pages),
   }));
+}
+
+/** Split one scheduled range into capped sub-ranges (pages and char limits). */
+export function planCappedExtractRangesForWorkItem(
+  pages: readonly VerificationPage[],
+  pageRange: string | null,
+  verifiedPageCount: number,
+  stats: PipelineThroughputStats,
+): { pageRange: string | null; pages: VerificationPage[] }[] {
+  const totalPages = verifiedPageCountForPages(pages, verifiedPageCount);
+  const pageNumbers =
+    pageRange === null
+      ? sortedPageNumbers(pages)
+      : parsePageRangeStorageKey(pageRangeStorageKey(pageRange), totalPages);
+  const allowed = new Set(pageNumbers);
+  const selected = pages.filter((page) => allowed.has(page.pageNumber)).sort((a, b) => a.pageNumber - b.pageNumber);
+  if (selected.length === 0) return [];
+  return planExtractPageRanges(
+    selected.map((page) => ({ pageNumber: page.pageNumber, text: page.text })),
+    stats,
+  ).map((item) => ({
+    pageRange: item.pageRange ?? rangeLabel(item.pages as VerificationPage[]),
+    pages: item.pages as VerificationPage[],
+  }));
+}
+
+function sortedPageNumbers(pages: readonly VerificationPage[]): number[] {
+  return [...pages].map((page) => page.pageNumber).sort((a, b) => a - b);
+}
+
+function createExtractClientDeadlineError(input: {
+  correlationId: string;
+  runId: string;
+  diagnosticReason?: string;
+}): HiveError {
+  return createHiveError({
+    errorCode: "CLIENT_DEADLINE",
+    category: "DEPENDENCY",
+    stage: "ANALYZE",
+    retryable: true,
+    safeMessage: "This analysis step ran out of time. You can try again.",
+    correlationId: input.correlationId,
+    operationId: input.runId,
+    diagnosticReason: input.diagnosticReason ?? "client_deadline",
+  });
 }
 
 function emptyVerificationStats(): ExtractionVerificationStats {
@@ -342,14 +397,15 @@ async function extractRangeAdaptive(
   }
   const truncated =
     outcome.error.errorCode === "MODEL_OUTPUT_INVALID" && outcome.error.diagnosticReason === TRUNCATION_REASON;
-  const timedOut = outcome.error.errorCode === "MODEL_TIMEOUT";
+  const timedOut = outcome.error.errorCode === "MODEL_TIMEOUT" || outcome.error.errorCode === "CLIENT_DEADLINE";
   if (!truncated && !timedOut) return outcome;
   const { pages } = range;
   if (timedOut) {
-    const invocationBudgetAbort =
-      outcome.error.diagnosticReason === "invocation_deadline_abort" ||
-      calls.some((call) => call.abortedByOurDeadline && call.diagnosticReason === "invocation_deadline_abort");
-    if (invocationBudgetAbort) return outcome;
+    const clientDeadlineAbort =
+      outcome.error.errorCode === "CLIENT_DEADLINE" ||
+      outcome.error.diagnosticReason === "client_deadline" ||
+      calls.some((call) => call.abortedByOurDeadline && call.errorCode === "CLIENT_DEADLINE");
+    if (clientDeadlineAbort) return outcome;
     if (pages.length > 1) {
       const [leftPages, rightPages] = splitPagesInHalf(pages);
       const left = await extractRangeAdaptive(
@@ -395,13 +451,30 @@ async function extractRangeAdaptive(
   return outcome;
 }
 
-function invocationDeadlineAbort(input: {
+function clientExtractDeadlineAbort(input: {
   timeoutMs: number | "expired" | undefined;
   fullTimeoutMs: number | undefined;
+  roundTripMs?: number;
 }): boolean {
   if (input.timeoutMs === "expired") return true;
+  if (typeof input.timeoutMs === "number" && typeof input.roundTripMs === "number") {
+    if (input.roundTripMs >= Math.max(0, input.timeoutMs - 2_000)) return true;
+  }
   if (typeof input.timeoutMs !== "number" || typeof input.fullTimeoutMs !== "number") return false;
   return input.timeoutMs + 1_000 < input.fullTimeoutMs;
+}
+
+function remapClientDeadlineError(
+  hiveError: HiveError,
+  input: { correlationId: string; runId: string; abortedByOurDeadline: boolean },
+): HiveError {
+  if (!input.abortedByOurDeadline) return hiveError;
+  if (hiveError.errorCode === "CLIENT_DEADLINE") return hiveError;
+  return createExtractClientDeadlineError({
+    correlationId: input.correlationId,
+    runId: input.runId,
+    diagnosticReason: "client_deadline",
+  });
 }
 
 async function recordFailedExtractPlannerCall(
@@ -489,7 +562,6 @@ async function extractRange(
     const callStartedAt = new Date(started).toISOString();
     const timeoutMs = input.resolvePlannerTimeoutMs?.();
     const fullTimeoutMs = input.resolveFullPlannerTimeoutMs?.();
-    const abortedByOurDeadline = invocationDeadlineAbort({ timeoutMs, fullTimeoutMs });
     if (timeoutMs === "expired") {
       const rangeAttempt = takeRangeAttempt(rangeState);
       const failed = pushFailedExtractCall(calls, {
@@ -498,23 +570,17 @@ async function extractRange(
         rangeAttempt,
         callStartedAt,
         started,
-        errorCode: "MODEL_TIMEOUT",
-        diagnosticReason: "invocation_deadline_abort",
+        errorCode: "CLIENT_DEADLINE",
+        diagnosticReason: "client_deadline",
         httpStatus: null,
         abortedByOurDeadline: true,
       });
       await recordFailedExtractPlannerCall(input, range, failed);
       return {
         ok: false,
-        error: createHiveError({
-          errorCode: "MODEL_TIMEOUT",
-          category: "DEPENDENCY",
-          stage: "ANALYZE",
-          retryable: true,
-          safeMessage: "The analysis model took too long to answer. You can try again.",
+        error: createExtractClientDeadlineError({
           correlationId: input.correlationId,
-          operationId: input.runId,
-          diagnosticReason: "invocation_deadline_abort",
+          runId: input.runId,
         }),
       };
     }
@@ -527,8 +593,6 @@ async function extractRange(
       } catch (beginError) {
         const hiveError = asHiveError(beginError);
         if (!hiveError) throw beginError;
-        const roundTripMs = Math.max(0, Date.now() - started);
-        const durationMs = plannerCallDurationMs({ roundTripMs, latencyMs: null });
         const failed = pushFailedExtractCall(calls, {
           pageRange: range.pageRange,
           attempt,
@@ -624,14 +688,13 @@ async function extractRange(
         throw error;
       }
       const unparseable = hiveError.errorCode === "MODEL_OUTPUT_INVALID" && UNPARSEABLE_REASONS.has(hiveError.diagnosticReason ?? "");
-      const deadlineAbort =
-        hiveError.errorCode === "MODEL_TIMEOUT" &&
-        (abortedByOurDeadline ||
-          invocationDeadlineAbort({
-            timeoutMs: typeof timeoutMs === "number" ? timeoutMs : undefined,
-            fullTimeoutMs,
-          }));
       const roundTripMs = Math.max(0, Date.now() - started);
+      const abortedByOurDeadline = clientExtractDeadlineAbort({
+        timeoutMs: typeof timeoutMs === "number" ? timeoutMs : timeoutMs,
+        fullTimeoutMs,
+        roundTripMs,
+      });
+      const deadlineAbort = abortedByOurDeadline;
       const durationMs = plannerCallDurationMs({ roundTripMs, latencyMs: null });
       if (unparseable) {
         calls.push({
@@ -666,16 +729,19 @@ async function extractRange(
           abortedByOurDeadline: false,
         }).catch(() => null);
       } else {
+        const remapped = remapClientDeadlineError(hiveError, {
+          correlationId: input.correlationId,
+          runId: input.runId,
+          abortedByOurDeadline: deadlineAbort,
+        });
         const failed = pushFailedExtractCall(calls, {
           pageRange: range.pageRange,
           attempt,
           rangeAttempt,
           callStartedAt,
           started,
-          errorCode: hiveError.errorCode,
-          diagnosticReason: deadlineAbort
-            ? "invocation_deadline_abort"
-            : (hiveError.diagnosticReason ?? "planner_unavailable"),
+          errorCode: remapped.errorCode,
+          diagnosticReason: deadlineAbort ? "client_deadline" : (hiveError.diagnosticReason ?? "planner_unavailable"),
           httpStatus: plannerHttpStatus(hiveError),
           abortedByOurDeadline: deadlineAbort,
         });
@@ -688,15 +754,20 @@ async function extractRange(
           callStartedAt,
           outcome: "failed",
           durationMs,
-          errorCode: hiveError.errorCode,
-          diagnosticReason: deadlineAbort
-            ? "invocation_deadline_abort"
-            : (hiveError.diagnosticReason ?? "planner_unavailable"),
+          errorCode: remapped.errorCode,
+          diagnosticReason: deadlineAbort ? "client_deadline" : (hiveError.diagnosticReason ?? "planner_unavailable"),
           httpStatus: plannerHttpStatus(hiveError),
           abortedByOurDeadline: deadlineAbort,
         }).catch(() => null);
       }
-      if (!unparseable) return { ok: false, error: hiveError };
+      if (!unparseable) {
+        const remapped = remapClientDeadlineError(hiveError, {
+          correlationId: input.correlationId,
+          runId: input.runId,
+          abortedByOurDeadline: deadlineAbort,
+        });
+        return { ok: false, error: remapped };
+      }
       parseError = hiveError.diagnosticReason!;
     }
   }

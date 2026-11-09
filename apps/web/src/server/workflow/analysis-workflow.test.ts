@@ -50,7 +50,7 @@ import {
   UNKNOWN_AUDIENCE,
 } from "@/server/study-preparation/study-preparation.fixtures";
 
-import { type AnalysisWorkflowDeps, processAnalysisRun } from "./analysis-workflow";
+import { type AnalysisWorkflowDeps, processAnalysisRun, WRITE_AHEAD_HANDOFF_DELAY_SECONDS } from "./analysis-workflow";
 import type { WorkItem } from "./dispatch";
 import * as v5PipelineStages from "./v5-pipeline-stages";
 
@@ -105,6 +105,7 @@ function fakeDatabase(
   const stageMetrics: Record<string, unknown>[] = [];
   const stageOutputs: Record<string, unknown> = {};
   const transitions: Transition[] = [];
+  const reserves: number[] = [];
   const releases: { status: string; delay: number }[] = [];
   const retries: { status: string; details: Record<string, unknown> }[] = [];
   let saved: Record<string, unknown> | null = null;
@@ -149,6 +150,10 @@ function fakeDatabase(
           },
           error: null,
         };
+      case "reserve_processing_run_handoff": {
+        reserves.push(Number(args.p_delay_seconds));
+        return { data: true, error: null };
+      }
       case "release_processing_run":
         leased = false;
         releases.push({ status: String(args.p_status), delay: Number(args.p_delay_seconds) });
@@ -371,8 +376,10 @@ function fakeDatabase(
             (r) =>
               r.abortedByOurDeadline === true ||
               r.errorCode === "MODEL_TIMEOUT" ||
+              r.errorCode === "CLIENT_DEADLINE" ||
               [
                 "planner_timeout",
+                "client_deadline",
                 "invocation_deadline_abort",
                 "litellm_timeout",
                 "planner_gateway_timeout",
@@ -478,6 +485,7 @@ function fakeDatabase(
   return {
     client: { rpc },
     transitions,
+    reserves,
     releases,
     retries,
     saved: () => saved,
@@ -1043,6 +1051,19 @@ describe("processAnalysisRun: V5 pipeline", () => {
     const gapDoc = db.docExtractions.find((row) => row.sourceDocumentId === DOC_2);
     expect(gapDoc?.stats?.pageExtractionGaps).toContain(1);
     expect(db.status()).not.toBe("FAILED");
+  });
+
+  it("reserves write-ahead hand-off immediately after claim", async () => {
+    const db = fakeDatabase({ status: "EXTRACTING", pages: V5_PAGES, snapshot: V5_EXTRACT_SNAPSHOT });
+    const planner = fakePlanner({}, { extract: EXTRACT_ANSWER });
+    const pool = vi.spyOn(v5PipelineStages, "runExtractingWorkerPool").mockResolvedValue({ deferred: true });
+    const h = harness(db, planner);
+    try {
+      await processAnalysisRun(h.deps, RUN_ID);
+      expect(db.reserves).toEqual([WRITE_AHEAD_HANDOFF_DELAY_SECONDS]);
+    } finally {
+      pool.mockRestore();
+    }
   });
 
   it("hands off EXTRACTING when the pool defers for a fresh invocation", async () => {

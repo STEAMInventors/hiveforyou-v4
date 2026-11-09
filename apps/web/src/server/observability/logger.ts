@@ -148,6 +148,7 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "planner_timeout",
   "planner_gateway_timeout",
   "invocation_deadline_abort",
+  "client_deadline",
   "planner_auth_failed",
   "planner_invalid_response",
   "planner_invalid_request",

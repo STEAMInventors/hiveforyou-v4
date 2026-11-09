@@ -1,9 +1,11 @@
 import {
   createHiveError,
   defaultPipelineThroughput,
-  INVOCATION_HANDOFF_MARGIN_MS,
-  MIN_PLANNER_CALL_MS,
+  EXTRACT_INVOCATION_DEADLINE_MARGIN_MS,
+  EXTRACT_MAX_PAGES_PER_RANGE,
+  EXTRACT_PLANNER_CALL_DEADLINE_MS,
   invocationRemainingMs,
+  parsePageNumbersFromRangeKey,
   validateDocExtraction,
   verifiedSavedRangeKeys,
   type HiveError,
@@ -79,11 +81,11 @@ function listDocumentPagesPayload(document: SnapshotDocument, texts: readonly st
 }
 
 describe("extract invocation budget", () => {
-  it("requires remaining route time to cover the minimum call budget plus handoff margin", () => {
+  it("allows another extract call while the configured deadline fits inside remaining invocation time", () => {
     const start = 1_000;
     expect(canStartExtractingDocument(() => start, start)).toBe(true);
 
-    const late = () => start + 300_000 - INVOCATION_HANDOFF_MARGIN_MS - MIN_PLANNER_CALL_MS + 1;
+    const late = () => start + 300_000 - EXTRACT_INVOCATION_DEADLINE_MARGIN_MS;
     expect(canStartExtractingDocument(late, start)).toBe(false);
   });
 
@@ -96,13 +98,16 @@ describe("extract invocation budget", () => {
     expect(invocationRemainingMs(clock(), start)).toBe(300_000);
   });
 
-  it("does not start a call with less than 60 s available", () => {
+  it("caps extract calls at min(90 s, remaining minus 15 s)", () => {
     const start = 0;
-    const remaining = INVOCATION_HANDOFF_MARGIN_MS + MIN_PLANNER_CALL_MS - 1;
+    expect(extractPlannerTimeoutMs(() => start, start, 1000, throughput)).toBe(EXTRACT_PLANNER_CALL_DEADLINE_MS);
+    const remaining = 40_000;
     const clock = () => start + 300_000 - remaining;
-    expect(
-      extractPlannerTimeoutMs(clock, start, 1000, throughput),
-    ).toBe("expired");
+    expect(extractPlannerTimeoutMs(clock, start, 1000, throughput)).toBe(
+      remaining - EXTRACT_INVOCATION_DEADLINE_MARGIN_MS,
+    );
+    const expiredClock = () => start + 300_000 - EXTRACT_INVOCATION_DEADLINE_MARGIN_MS;
+    expect(extractPlannerTimeoutMs(expiredClock, start, 1000, throughput)).toBe("expired");
   });
 });
 
@@ -195,9 +200,37 @@ describe("range work queue", () => {
   it("schedules adaptive sub-ranges after a split without redoing saved leaves", () => {
     const pages = Array.from({ length: 4 }, (_, index) => ({ pageNumber: index + 1, text: "x" }));
     const firstPass = missingExtractWorkItems(pages, new Set(), throughput);
-    expect(firstPass.map((item) => pageRangeStorageKey(item.pageRange))).toEqual(["1-4"]);
-    const afterSplit = missingExtractWorkItems(pages, new Set(["1-2"]), throughput);
+    expect(firstPass.map((item) => pageRangeStorageKey(item.pageRange))).toEqual(
+      expect.arrayContaining(["1-3", "4"]),
+    );
+    const afterSplit = missingExtractWorkItems(pages, new Set(["1-2"]), throughput, 4);
     expect(afterSplit.map((item) => pageRangeStorageKey(item.pageRange))).toEqual(["3-4"]);
+  });
+
+  it("regroups after partial success without redoing verified pages and respects page caps", () => {
+    const pages = Array.from({ length: 20 }, (_, index) => ({
+      pageNumber: index + 1,
+      text: "brief",
+    }));
+    const saved = new Set(["5-9", "10-11"]);
+    const items = missingExtractWorkItems(pages, saved, throughput, 20);
+    const covered = new Set<number>();
+    for (const key of saved) {
+      for (const page of parsePageNumbersFromRangeKey(key, 20)) covered.add(page);
+    }
+    for (const item of items) {
+      expect(item.pages.length).toBeLessThanOrEqual(EXTRACT_MAX_PAGES_PER_RANGE);
+      const chars = item.pages.reduce((total, page) => total + page.text.length, 0);
+      expect(chars).toBeLessThanOrEqual(4_000);
+      for (const page of item.pages) {
+        expect(covered.has(page.pageNumber)).toBe(false);
+      }
+    }
+    const regrouped = new Set(items.flatMap((item) => item.pages.map((page) => page.pageNumber)));
+    for (let page = 1; page <= 20; page += 1) {
+      if (covered.has(page)) continue;
+      expect(regrouped.has(page)).toBe(true);
+    }
   });
 });
 
@@ -494,13 +527,13 @@ describe("runExtractingWorkerPool", () => {
 
   it("requeues work without caching empty ranges when two timeouts exhaust the invocation budget", async () => {
     const deadlineError = createHiveError({
-      errorCode: "MODEL_TIMEOUT",
+      errorCode: "CLIENT_DEADLINE",
       category: "DEPENDENCY",
       stage: "ANALYZE",
       retryable: true,
       safeMessage: "timeout",
       correlationId: "corr",
-      diagnosticReason: "invocation_deadline_abort",
+      diagnosticReason: "client_deadline",
     }) as HiveError;
     const failedCall = {
       pageRange: "5",
@@ -515,8 +548,8 @@ describe("runExtractingWorkerPool", () => {
       finishReason: null,
       modelAlias: null,
       resolvedModel: null,
-      errorCode: "MODEL_TIMEOUT",
-      diagnosticReason: "invocation_deadline_abort",
+      errorCode: "CLIENT_DEADLINE",
+      diagnosticReason: "client_deadline",
       httpStatus: null,
       abortedByOurDeadline: true,
     };

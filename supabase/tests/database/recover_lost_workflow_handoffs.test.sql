@@ -18,7 +18,7 @@ VALUES ('99999999-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-0000000
 INSERT INTO hive.processing_runs (
   id, hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
   authorized_source_document_ids, intent_request_ids, stage_attempt,
-  lease_expires_at, next_dispatch_at, updated_at
+  lease_expires_at, next_dispatch_at, workflow_last_handoff_at, updated_at
 )
 VALUES (
   '22222222-2222-4222-8222-222222222222',
@@ -33,8 +33,9 @@ VALUES (
   ARRAY['99999999-0000-4000-8000-000000000001'::uuid],
   2,
   NULL,
-  now() - interval '4 minutes',
-  now() - interval '4 minutes'
+  now() - interval '6 minutes',
+  now() - interval '6 minutes',
+  now()
 );
 
 SET LOCAL role authenticated;

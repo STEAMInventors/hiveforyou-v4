@@ -46,8 +46,11 @@ import {
   type StudyViewContext,
   type WriteFactRecord,
   buildWriteAudienceText,
+  computePlannerCallTimeoutMs,
   estimateInputTokensFromUtf8Bytes,
   expectedOutputTokens,
+  invocationRemainingMs,
+  V5_CLIENT_TASK_TIMEOUT_MS,
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
@@ -65,7 +68,6 @@ import { loadPromptCatalog, type PromptCatalog, sha256Digest } from "@/server/st
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
 
 import type { Dispatch } from "./dispatch";
-import { extractPlannerTimeoutMs } from "./v5-pipeline-stages";
 import { createWriterSemanticReviewer } from "./writer-semantic-reviewer";
 
 /**
@@ -563,7 +565,12 @@ async function processStudyViewReportRun(
       clock,
       deadlineMs: writeClientDeadlineMs(invocationStartedAt),
       resolvePlannerTimeoutMs: () =>
-        extractPlannerTimeoutMs(clock, invocationStartedAt, expectedWriteOutput, writeThroughput),
+        computePlannerCallTimeoutMs({
+          expectedOutputTokens: expectedWriteOutput,
+          outputTokensPerSecond: writeThroughput.outputTokensPerSecond,
+          taskMaxMs: V5_CLIENT_TASK_TIMEOUT_MS,
+          remainingInvocationMs: invocationRemainingMs(clock(), invocationStartedAt),
+        }),
     });
     for (const call of result.calls) {
       emitStructuredEvent({

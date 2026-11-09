@@ -4,14 +4,15 @@ import {
   PLANNER_CONTRACT_VERSION,
   PLANNER_TIMEOUT_MULTIPLIER,
   PLANNER_TIMEOUT_PADDING_MS,
+  V5_CLIENT_TASK_TIMEOUT_MS,
   type CanonicalStudy,
+  computePlannerCallTimeoutMs,
   defaultPipelineThroughput,
   estimateInputTokensFromUtf8Bytes,
   expectedDurationMs,
   expectedOutputTokens,
   invocationRemainingMs,
 } from "@hiveforyou/contracts";
-import { extractPlannerTimeoutMs } from "@/server/workflow/v5-pipeline-stages";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildWritePayload, writeStudyView } from "./write-runner";
@@ -159,7 +160,12 @@ describe("writeStudyView", () => {
     const expectedTimeMs = expectedDurationMs(expectedWriteOutput, writeThroughput.outputTokensPerSecond);
     const rawFormulaMs = Math.ceil(expectedTimeMs * PLANNER_TIMEOUT_MULTIPLIER + PLANNER_TIMEOUT_PADDING_MS);
     const remainingMs = invocationRemainingMs(clock(), invocationStartedAt);
-    const computedTimeoutMs = extractPlannerTimeoutMs(clock, invocationStartedAt, expectedWriteOutput, writeThroughput);
+    const computedTimeoutMs = computePlannerCallTimeoutMs({
+      expectedOutputTokens: expectedWriteOutput,
+      outputTokensPerSecond: writeThroughput.outputTokensPerSecond,
+      taskMaxMs: V5_CLIENT_TASK_TIMEOUT_MS,
+      remainingInvocationMs: invocationRemainingMs(clock(), invocationStartedAt),
+    });
 
     expect(rawFormulaMs).toBeLessThan(MIN_PLANNER_CALL_MS);
     expect(remainingMs).toBe(299_000);
@@ -176,7 +182,13 @@ describe("writeStudyView", () => {
       runId: RUN_ID,
       clock,
       deadlineMs: invocationStartedAt + 270_000,
-      resolvePlannerTimeoutMs: () => extractPlannerTimeoutMs(clock, invocationStartedAt, expectedWriteOutput, writeThroughput),
+      resolvePlannerTimeoutMs: () =>
+        computePlannerCallTimeoutMs({
+          expectedOutputTokens: expectedWriteOutput,
+          outputTokensPerSecond: writeThroughput.outputTokensPerSecond,
+          taskMaxMs: V5_CLIENT_TASK_TIMEOUT_MS,
+          remainingInvocationMs: invocationRemainingMs(clock(), invocationStartedAt),
+        }),
     });
     expect(result.ok).toBe(true);
     expect(fetchFn).toHaveBeenCalledTimes(1);

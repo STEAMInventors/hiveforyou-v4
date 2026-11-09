@@ -29,6 +29,7 @@ describe("extract range resilience", () => {
       false,
     );
     expect(isTimeoutOrCutoffFailure({ errorCode: "MODEL_TIMEOUT", diagnosticReason: "invocation_ended" })).toBe(true);
+    expect(isTimeoutOrCutoffFailure({ errorCode: "CLIENT_DEADLINE", diagnosticReason: "client_deadline" })).toBe(true);
   });
 
   it("records a single-page truncation as a gap instead of failing the run", () => {

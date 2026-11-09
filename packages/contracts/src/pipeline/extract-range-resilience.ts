@@ -47,11 +47,13 @@ export function isTimeoutOrCutoffFailure(input: {
   abortedByInvocationDeadline?: boolean;
 }): boolean {
   if (input.abortedByInvocationDeadline) return true;
+  if (input.errorCode === "CLIENT_DEADLINE") return true;
   if (input.errorCode === "MODEL_TIMEOUT") return true;
   const reason = input.diagnosticReason ?? "";
   return (
     reason === "planner_timeout" ||
     reason === "planner_gateway_timeout" ||
+    reason === "client_deadline" ||
     reason === "invocation_deadline_abort" ||
     reason === "litellm_timeout" ||
     reason === "invocation_ended"

@@ -6,11 +6,14 @@ import {
   DEFAULT_OUTPUT_INPUT_RATIO,
   DEFAULT_OUTPUT_TOKENS_PER_SECOND,
   EXTRACTING_CONCURRENCY_FOR_ESTIMATE,
+  EXTRACT_INVOCATION_DEADLINE_MARGIN_MS,
   EXTRACT_MAX_PAGE_TEXT_CHARS,
   EXTRACT_MAX_PAGES_PER_RANGE,
+  EXTRACT_PLANNER_CALL_DEADLINE_MS,
   EXTRACT_TARGET_RANGE_MS,
   INVOCATION_HANDOFF_MARGIN_MS,
   MIN_PLANNER_CALL_MS,
+  computeExtractPlannerCallTimeoutMs,
   PIPELINE_THROUGHPUT_MIN_SAMPLES,
   V5_CLIENT_TASK_TIMEOUT_MS,
   canStartPlannerCall,
@@ -70,6 +73,39 @@ describe("planExtractPageRanges", () => {
     const text = "brief";
     const ranges = planExtractPageRanges([{ pageNumber: 1, text }], stats);
     expect(ranges).toEqual([{ pageRange: null, pages: [{ pageNumber: 1, text }] }]);
+  });
+
+  it("chunks a 35-page document into ranges of at most three pages", () => {
+    const light = "brief";
+    const pages = Array.from({ length: 35 }, (_, index) => ({ pageNumber: index + 1, text: light }));
+    const ranges = planExtractPageRanges(pages, stats);
+    expect(ranges.length).toBeGreaterThan(1);
+    expect(ranges.every((range) => range.pages.length <= EXTRACT_MAX_PAGES_PER_RANGE)).toBe(true);
+    const covered = ranges.flatMap((range) => range.pages.map((page) => page.pageNumber));
+    expect(new Set(covered).size).toBe(35);
+  });
+});
+
+describe("computeExtractPlannerCallTimeoutMs", () => {
+  it("uses min(90 s default, remaining invocation minus 15 s)", () => {
+    expect(
+      computeExtractPlannerCallTimeoutMs({
+        remainingInvocationMs: 200_000,
+      }),
+    ).toBe(EXTRACT_PLANNER_CALL_DEADLINE_MS);
+    expect(
+      computeExtractPlannerCallTimeoutMs({
+        remainingInvocationMs: 50_000,
+      }),
+    ).toBe(50_000 - EXTRACT_INVOCATION_DEADLINE_MARGIN_MS);
+  });
+
+  it("returns expired when less than one second remains after the margin", () => {
+    expect(
+      computeExtractPlannerCallTimeoutMs({
+        remainingInvocationMs: EXTRACT_INVOCATION_DEADLINE_MARGIN_MS,
+      }),
+    ).toBe("expired");
   });
 });
 

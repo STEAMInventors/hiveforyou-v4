@@ -7,8 +7,8 @@ import { parseWorkItem, type Dispatch, type WorkItem } from "./dispatch";
 /** How long a poll's re-dispatch reservation lasts. A second poll in that window does nothing. */
 export const LEASE_RECOVERY_RESERVATION_MS = 50_000;
 
-/** Grace before a null-lease hand-off is treated as lost. Matches `hive.is_overdue_workflow_handoff`. */
-export const LOST_HANDOFF_GRACE_MS = 45_000;
+/** Grace before a lost hand-off is re-dispatched. Matches `hive.workflow_handoff_grace_interval()`. */
+export const LOST_HANDOFF_GRACE_MS = 5 * 60_000;
 
 /**
  * Same ceiling as `claim_processing_run` (`v_attempt > 3`). Report runs use the row's `maxAttempts`
@@ -34,7 +34,10 @@ export type ExpiredLeaseRow = {
   maxAttempts: number;
   leaseExpiresAtMs: number | null;
   nextDispatchAtMs: number | null;
+  /** Matches `workflow_last_handoff_at`; not bumped by progress estimate writes. */
+  workflowLastHandoffAtMs?: number | null;
   updatedAtMs?: number | null;
+  extractZeroProgressHandoffs?: number;
   errorCode?: string | null;
   errorMessageSafe?: string | null;
   retryable?: boolean | null;
@@ -59,8 +62,12 @@ function overdueLostHandoff(row: ExpiredLeaseRow, nowMs: number): boolean {
   if (row.leaseExpiresAtMs !== null) return false;
   const cutoff = nowMs - LOST_HANDOFF_GRACE_MS;
   if (row.nextDispatchAtMs !== null) return row.nextDispatchAtMs <= cutoff;
-  const updatedAtMs = row.updatedAtMs ?? nowMs;
-  return updatedAtMs <= cutoff;
+  const handoffAtMs = row.workflowLastHandoffAtMs ?? row.updatedAtMs ?? nowMs;
+  return handoffAtMs <= cutoff;
+}
+
+function stalledHandoffExhausted(row: ExpiredLeaseRow): boolean {
+  return (row.extractZeroProgressHandoffs ?? 0) >= 3;
 }
 
 function attemptsExhausted(row: ExpiredLeaseRow): boolean {
@@ -87,12 +94,25 @@ export function applyExpiredLeaseRecovery(rows: readonly ExpiredLeaseRow[], nowM
     const expired = leaseExpired(row, nowMs);
     const lost = overdueLostHandoff(row, nowMs);
     if (!expired && !lost) continue;
-    if (attemptsExhausted(row)) {
+    const failStalled =
+      row.kind === "analysis" && lost && !expired && stalledHandoffExhausted(row);
+    const skipAttemptExhaustedFail = row.kind === "analysis" && lost && !expired;
+    if (attemptsExhausted(row) && !skipAttemptExhaustedFail) {
       row.status = "FAILED";
       row.leaseExpiresAtMs = null;
       row.nextDispatchAtMs = null;
       row.errorCode = row.kind === "report" ? "REPORT_INTERRUPTED" : "PREPARATION_INTERRUPTED";
       row.errorMessageSafe = row.kind === "report" ? REPORT_INTERRUPTED_MESSAGE : PREPARATION_INTERRUPTED_MESSAGE;
+      row.retryable = true;
+      failed.push({ kind: row.kind, id: row.id });
+      continue;
+    }
+    if (failStalled) {
+      row.status = "FAILED";
+      row.leaseExpiresAtMs = null;
+      row.nextDispatchAtMs = null;
+      row.errorCode = "PREPARATION_INTERRUPTED";
+      row.errorMessageSafe = PREPARATION_INTERRUPTED_MESSAGE;
       row.retryable = true;
       failed.push({ kind: row.kind, id: row.id });
       continue;
