@@ -37,6 +37,7 @@ import { normalizeContentDigest } from "@hiveforyou/contracts/document-read";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { buildCanonicalizePayload, canonicalizeCase } from "@/server/pipeline/canonicalize-runner";
+import { PlannerJobHandoffError } from "@/server/study-preparation/planner-async-jobs";
 import {
   type ExtractCallRecord,
   type ExtractDocumentStats,
@@ -143,12 +144,24 @@ async function rpc(client: RpcClient, fn: string, args: Record<string, unknown>)
   return parsePayload(data);
 }
 
+export type PlannerJobRef = {
+  readonly jobId: string;
+  readonly lostJobRetried?: boolean;
+  readonly sourceDocumentId?: string;
+  readonly pageRange?: string | null;
+};
+
 export type V5StageOutputs = {
   canonicalStudy?: CanonicalStudy;
   /** EXTRACTING hand-offs that deferred with no new saved range rows (see resolveExtractZeroProgressHandoffLimit). */
   extractZeroProgressHandoffs?: number | { count: number };
   /** Cached extractions with pageExtractionGaps: gap pages were retried once this run. */
   extractGapRetryCompleted?: Record<string, boolean>;
+  /** In-flight async planner jobs resumed on the next workflow invocation. */
+  plannerJobs?: {
+    readonly canonicalize?: PlannerJobRef;
+    readonly extract?: PlannerJobRef;
+  };
 };
 
 const TRUNCATION_GAP_DIAGNOSTIC = "model_output_truncated";
@@ -264,7 +277,7 @@ export async function completeExtractedDocumentIds(input: {
 export async function persistV5ExtractStageOutputs(
   client: RpcClient,
   runId: string,
-  patch: Pick<V5StageOutputs, "extractZeroProgressHandoffs" | "extractGapRetryCompleted">,
+  patch: Pick<V5StageOutputs, "extractZeroProgressHandoffs" | "extractGapRetryCompleted" | "plannerJobs">,
 ): Promise<void> {
   await rpc(client, "transition_processing_run", {
     p_run_id: runId,
@@ -276,7 +289,23 @@ export async function persistV5ExtractStageOutputs(
           ? { extractZeroProgressHandoffs: { count: patch.extractZeroProgressHandoffs } }
           : {}),
         ...(patch.extractGapRetryCompleted ? { extractGapRetryCompleted: patch.extractGapRetryCompleted } : {}),
+        ...(patch.plannerJobs ? { plannerJobs: patch.plannerJobs } : {}),
       },
+    },
+  });
+}
+
+export async function persistV5CanonicalizePlannerJob(
+  client: RpcClient,
+  runId: string,
+  plannerJob: PlannerJobRef | null,
+): Promise<void> {
+  await rpc(client, "transition_processing_run", {
+    p_run_id: runId,
+    p_from_status: "CANONICALIZING",
+    p_to_status: "CANONICALIZING",
+    p_details: {
+      stage_outputs: plannerJob ? { plannerJobs: { canonicalize: plannerJob } } : { plannerJobs: { canonicalize: null } },
     },
   });
 }
@@ -1908,9 +1937,11 @@ export async function runCanonicalizeForRun(input: {
   invocationStartedAt?: number;
   /** Rebuild Study: skip re-extract; re-run canonicalize only from cached extractions (cheap path). */
   rebuildMode?: boolean;
+  extractProgress?: V5StageOutputs;
 }): Promise<CanonicalizeRunResult> {
   void input.rebuildMode;
   const { deps, run, extractions, catalog, correlationId, stageAttempt, now } = input;
+  const pendingJob = input.extractProgress?.plannerJobs?.canonicalize;
   const clock = input.clock ?? deps.clock ?? (() => Date.now());
   const invocationStartedAt = input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now();
   const prompt = catalog.canonicalize;
@@ -1921,15 +1952,50 @@ export async function runCanonicalizeForRun(input: {
     estimateInputTokensFromUtf8Bytes(Buffer.byteLength(JSON.stringify(payload), "utf8")),
     throughput.outputInputRatio,
   );
-  const result = await canonicalizeCase({
-    planner: deps.planner,
-    extractions,
-    correlationId,
-    runId: run.id,
-    prompt,
-    resolvePlannerTimeoutMs: () =>
-      extractPlannerTimeoutMs(clock, invocationStartedAt, expectedOutput, throughput),
-  });
+  let result;
+  try {
+    result = await canonicalizeCase({
+      planner: deps.planner,
+      extractions,
+      correlationId,
+      runId: run.id,
+      prompt,
+      resolvePlannerTimeoutMs: () =>
+        extractPlannerTimeoutMs(clock, invocationStartedAt, expectedOutput, throughput),
+      asyncJob: {
+        resumeJobId: pendingJob?.jobId ?? null,
+        lostJobRetried: pendingJob?.lostJobRetried,
+        onJobSubmitted: async (jobId) => {
+          await persistV5CanonicalizePlannerJob(deps.client, run.id, { jobId, lostJobRetried: false });
+        },
+      },
+    });
+    if (pendingJob?.jobId) {
+      await persistV5CanonicalizePlannerJob(deps.client, run.id, null);
+    }
+  } catch (error) {
+    if (error instanceof PlannerJobHandoffError) {
+      await persistV5CanonicalizePlannerJob(deps.client, run.id, {
+        jobId: error.jobId,
+        lostJobRetried: pendingJob?.lostJobRetried,
+      });
+      return {
+        ok: false,
+        error: createHiveError({
+          errorCode: "MODEL_TIMEOUT",
+          category: "DEPENDENCY",
+          stage: "ANALYZE",
+          retryable: true,
+          safeMessage: "The analysis model is still running. It will continue on the next step.",
+          correlationId,
+          operationId: run.id,
+          diagnosticReason: "planner_job_handoff",
+        }),
+        metric: null,
+      };
+    }
+    throw error;
+  }
   for (const call of result.calls) {
     await logPipelineCall({
       client: deps.client,

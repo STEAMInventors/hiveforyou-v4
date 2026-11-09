@@ -36,14 +36,18 @@ describe("StateBar", () => {
   it("shows pills in fixed order, hides zero counts and links each to its section", () => {
     render(<StateBar counts={{ needs: 1, changed: 0, missing: 2, checked: 5 }} targets={targets} />);
     const links = screen.getAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["1 needs you", "2 missing", "5 checked"]);
+    expect(links.map((link) => link.textContent)).toEqual([
+      "1 issue to resolve",
+      "2 documents to request",
+      "5 facts confirmed",
+    ]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["#a", "#c", "#d"]);
   });
 
   it("uses the plural for more than one item that needs you, and hands navigation to the page", () => {
     const onNavigate = vi.fn();
     render(<StateBar counts={{ needs: 2, changed: 1, missing: 0, checked: 0 }} targets={targets} onNavigate={onNavigate} />);
-    fireEvent.click(screen.getByText("2 need you"));
+    fireEvent.click(screen.getByText("2 issues to resolve"));
     expect(onNavigate).toHaveBeenCalledWith("a");
   });
 

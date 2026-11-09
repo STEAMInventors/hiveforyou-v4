@@ -20,7 +20,7 @@ import { EstablishTable } from "./EstablishTable";
 import { buildCitationContextMap } from "./citation-context";
 import { EvidenceViewerProvider } from "./EvidenceViewer";
 import { InferenceLabel } from "./InferenceLabel";
-import { groupMissing, isStructuralNote, MissingList, missingCount } from "./MissingList";
+import { documentsToRequestCount, groupMissing, isStructuralNote, MissingList, missingCount } from "./MissingList";
 import { ReadProblemNotice, readProblemsFromCoverage } from "./ReadProblemNotice";
 import { ReportFooter } from "./ReportFooter";
 import { type ChipRef, shortDocumentLabels, shortTypeChipLabels, SourceChips } from "./SourceChip";
@@ -149,7 +149,7 @@ export function StudyReport({
       outsideSpine: rows("outside_spine"),
       timeline,
       conflicts,
-      counts: countStates(spine, missingCount(missing)),
+      counts: countStates(spine, documentsToRequestCount(missing)),
       upcoming: selectUpcoming(timeline, documents.map((row) => row.date)),
       needsRows: spine.filter((row) => spineRowState(row) === "needs"),
       documentDate: (id: string) => documentDate.get(id) ?? null,

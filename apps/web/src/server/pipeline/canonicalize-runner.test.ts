@@ -1,4 +1,4 @@
-import { type DocExtraction, PLANNER_CONTRACT_VERSION, validateDocExtraction } from "@hiveforyou/contracts";
+import { type DocExtraction, estimateInputTokensFromUtf8Bytes, PLANNER_CONTRACT_VERSION, validateDocExtraction } from "@hiveforyou/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildCanonicalizePayload, canonicalizeCase, draftDomainBrief } from "./canonicalize-runner";
@@ -83,7 +83,17 @@ function run(fetchFn: ReturnType<typeof vi.fn>, domainBrief: string | null = nul
 }
 
 describe("buildCanonicalizePayload", () => {
-  it("sends compact facts with the first evidence only and no empty fields", () => {
+  it("omits quote text and sends short refs (quotes stay in the database)", () => {
+    const slim = buildCanonicalizePayload(EXTRACTIONS, null);
+    const encoded = JSON.stringify(slim);
+    expect(encoded).not.toContain("quote");
+    expect(slim.documents[0]?.facts[0]).toMatchObject({
+      ref: { documentId: EXTRACTIONS[0]!.documentId, page: 2, factId: "F-aaaa0001-001" },
+    });
+    void estimateInputTokensFromUtf8Bytes(encoded.length);
+  });
+
+  it("sends compact facts with short references and no empty fields", () => {
     const payload = buildCanonicalizePayload(EXTRACTIONS, null);
     expect(payload.domainBrief).toBeNull();
     expect(payload.documents[0]).toEqual({
@@ -98,8 +108,7 @@ describe("buildCanonicalizePayload", () => {
           valueAsWritten: "$100.00",
           timeframe: "2026-01-01 to ?",
           modality: "stated",
-          page: 2,
-          quote: "The payment is $100.00.",
+          ref: { documentId: EXTRACTIONS[0]!.documentId, page: 2, factId: "F-aaaa0001-001" },
         },
       ],
       emptyFields: [{ id: "E-x", label: "Signature", page: 1 }],

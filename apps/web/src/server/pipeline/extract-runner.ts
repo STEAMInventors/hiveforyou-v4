@@ -16,6 +16,7 @@ import {
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
+import { PlannerJobHandoffError, type PlannerAsyncJobOptions } from "@/server/study-preparation/planner-async-jobs";
 import { callPlanner, plannerHttpStatus, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { type ExtractPrompt, loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 
@@ -109,6 +110,7 @@ export type ExtractDocumentInput = {
   /** Uncapped extract task timeout for the range; used to detect invocation-budget aborts. */
   readonly resolveFullPlannerTimeoutMs?: () => number;
   readonly extractAttemptLifecycle?: ExtractAttemptLifecycle;
+  readonly asyncJob?: PlannerAsyncJobOptions;
 };
 
 export function pageRanges(
@@ -615,6 +617,15 @@ async function extractRange(
         correlationId: input.correlationId,
         processingRunId: input.runId,
         ...(typeof timeoutMs === "number" ? { timeoutMs } : {}),
+        asyncJob: {
+          ...input.asyncJob,
+          resolveRemainingMs: () => {
+            const remaining = input.resolvePlannerTimeoutMs?.();
+            if (remaining === "expired") return "expired";
+            if (typeof remaining === "number") return remaining;
+            return Number.POSITIVE_INFINITY;
+          },
+        },
       });
       const validated = validateDocExtraction(completion.contentJson, {
         documentId: input.document.id,
@@ -670,6 +681,7 @@ async function extractRange(
       }
       parseError = validated.message;
     } catch (error) {
+      if (error instanceof PlannerJobHandoffError) throw error;
       const hiveError = asHiveError(error);
       if (!hiveError) {
         await lifecycle?.finalize?.({

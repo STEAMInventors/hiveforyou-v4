@@ -15,6 +15,7 @@ import {
 } from "@hiveforyou/contracts";
 
 import type { PlannerPrompt } from "./prompt-catalog";
+import { plannerTaskUsesAsyncJobs, runPlannerAsyncJob, type PlannerAsyncJobOptions } from "./planner-async-jobs";
 
 /** Above the planner's own 150 s LiteLLM timeout and below the 180 s stage lease. */
 export const PLANNER_HTTP_TIMEOUT_MS = 160_000;
@@ -294,8 +295,28 @@ export async function callPlanner(
     readonly processingRunId: string;
     /** Overrides the per-task HTTP abort. Write passes the time left before the function deadline. */
     readonly timeoutMs?: number;
+    readonly asyncJob?: PlannerAsyncJobOptions;
   },
 ): Promise<PlannerCallResult> {
+  if (plannerTaskUsesAsyncJobs(input.prompt.task)) {
+    const started = Date.now();
+    const resolveRemainingMs =
+      input.asyncJob?.resolveRemainingMs ??
+      (typeof input.timeoutMs === "number"
+        ? () => Math.max(0, input.timeoutMs! - (Date.now() - started))
+        : undefined);
+    const result = await runPlannerAsyncJob(
+      deps,
+      {
+        prompt: input.prompt,
+        userPayload: input.userPayload,
+        correlationId: input.correlationId,
+        processingRunId: input.processingRunId,
+      },
+      { ...input.asyncJob, resolveRemainingMs },
+    );
+    return { ...result.completion, roundTripMs: result.roundTripMs };
+  }
   const config = deps.getConfig();
   const body: PlannerCompletionRequest = {
     contract_version: PLANNER_CONTRACT_VERSION,

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { A2uiView } from "@/components/a2ui/A2uiView";
 import { COMPACT_PRIMARY_BUTTON_CLASS, COMPACT_SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import { DOCUMENT_READ_POLL_INTERVAL_MS } from "@/components/hives/document-read-progress";
-import { ProgressCountdown } from "@/components/hives/progress-countdown";
+import { ProgressElapsed } from "@/components/hives/progress-elapsed";
 import { coverageGapText } from "@/components/hives/study-preparation-progress";
 import { StudyReport } from "@/components/study/StudyReport";
 import { StudyView } from "@/components/study/StudyView";
@@ -187,7 +187,7 @@ export function ReportsPanel({ hiveId, initial, initialAudience = "CUSTOMER", do
                 ? `Writing this report again (attempt ${run.attemptCount + 1} of ${run.maxAttempts}).`
                 : "Writing this report from your study…"}
             </p>
-            <ProgressCountdown estimate={run.progressEstimate} />
+            <ProgressElapsed startedAt={run.createdAt} typicalRange="2–5 min" />
           </div>
         ) : null}
         {runFailed ? (

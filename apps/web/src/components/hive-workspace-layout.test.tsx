@@ -46,14 +46,19 @@ describe("HivePageHeader", () => {
     expect(header.getByText("Plan payments and the trustee's objection.")).toBeTruthy();
     expect(screen.getByTestId("hive-meta").textContent).toBe("4 documents · Study revision 3, accepted Nov 4, 2026");
     const pills = within(screen.getByTestId("state-bar")).getAllByRole("link");
-    expect(pills.map((pill) => pill.textContent)).toEqual(["4 need you", "6 changed", "2 missing", "3 checked"]);
+    expect(pills.map((pill) => pill.textContent)).toEqual([
+      "4 issues to resolve",
+      "2 documents to request",
+      "6 changes from the original",
+      "3 facts confirmed",
+    ]);
     expect(pills[0]!.getAttribute("href")).toBe(`/hives/${HIVE_ID}/study#where-documents-disagree`);
   });
 
   it("links the state bar within the page on the Study tab", () => {
     render(<HivePageHeader hiveId={HIVE_ID} hiveName="Chapter 13 plan" hiveDescription="" summary={WITH_STUDY} onStudyTab />);
     const pills = within(screen.getByTestId("state-bar")).getAllByRole("link");
-    expect(pills[2]!.getAttribute("href")).toBe("#what-is-missing");
+    expect(pills[1]!.getAttribute("href")).toBe("#what-is-missing");
   });
 
   it("says there is no study yet and hides the state bar without one", () => {

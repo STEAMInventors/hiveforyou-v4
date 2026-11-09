@@ -116,7 +116,7 @@ beforeEach(() => {
 describe("shortTypeLabel", () => {
   it.each([
     ["Repayment plan", "Repayment plan"],
-    ["Repayment plan, first amended", "Repayment plan"],
+    ["Repayment plan, first amended", "Repayment plan (amended)"],
     ["The water bill", "Water bill"],
     ["Plan dated April 10, 2026", "Plan"],
     ["March 2026 statement", "Statement"],
@@ -155,7 +155,7 @@ describe("shortDocumentLabels", () => {
       { sourceDocumentId: "c", typeInPlainWords: "Letter", date: null },
       { sourceDocumentId: "d", typeInPlainWords: "", date: null },
     ]);
-    expect([...labels.values()]).toEqual(["Plan · Mar 2026", "Plan · Apr 2026", "Letter", "Document"]);
+    expect([...labels.values()]).toEqual(["Plan", "Plan (amended)", "Letter", "Document"]);
   });
 
   it("numbers documents that still share a label after the date is added", () => {

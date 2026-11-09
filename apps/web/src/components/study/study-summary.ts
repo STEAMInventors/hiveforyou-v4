@@ -1,7 +1,7 @@
 import type { CoverageGap, StudyView, StudyViewBlockName, StudyViewRow } from "@hiveforyou/contracts";
 
 import { shortDocumentLabels } from "./document-labels";
-import { groupMissing, missingCount } from "./missing-groups";
+import { documentsToRequestCount, groupMissing } from "./missing-groups";
 import { readProblemsFromCoverage } from "./ReadProblemNotice";
 import { countStates, type StateCounts } from "./StateBar";
 import type { DisplayState } from "./StatusBadge";
@@ -21,7 +21,7 @@ const blockRows = (view: StudyView, name: StudyViewBlockName): readonly StudyVie
 /** The same counts the report's state bar shows, for headers and cards outside the report. */
 export function studyStateCounts(view: StudyView, coverageGaps: readonly CoverageGap[]): StateCounts {
   const missing = groupMissing(blockRows(view, "gaps"), readProblemsFromCoverage(coverageGaps, () => undefined), view.spineSource);
-  return countStates(blockRows(view, "spine_table"), missingCount(missing));
+  return countStates(blockRows(view, "spine_table"), documentsToRequestCount(missing));
 }
 
 /** The section each state-bar pill opens. */
@@ -29,8 +29,8 @@ export function studyStateTargets(view: StudyView): Record<DisplayState, string>
   const hasConflicts = blockRows(view, "conflicts").length > 0;
   return {
     needs: hasConflicts ? STUDY_SECTION_IDS.disagree : STUDY_SECTION_IDS.establish,
-    changed: STUDY_SECTION_IDS.establish,
     missing: STUDY_SECTION_IDS.missing,
+    changed: STUDY_SECTION_IDS.establish,
     checked: STUDY_SECTION_IDS.establish,
   };
 }

@@ -107,7 +107,7 @@ LITELLM_TIMEOUT_SECONDS = 150.0
 # Per-task override; tasks not listed use LITELLM_TIMEOUT_SECONDS. Web client waits 270 s (10 s above these).
 TASK_LITELLM_TIMEOUT_SECONDS: dict[str, float] = {
     "extract": 260.0,
-    "canonicalize": 260.0,
+    "canonicalize": 600.0,
     "write": 260.0,
 }
 
@@ -857,6 +857,25 @@ async def _agent_turn(request: StudyAgentTurnRequest, settings: dict[str, str]) 
 app = FastAPI(title="HiveForYou V4 Planner", version="0.2.0")
 
 
+def _planner_job_workers() -> int:
+    raw = os.environ.get("PLANNER_JOB_WORKERS", "").strip()
+    try:
+        workers = int(raw) if raw else 4
+    except ValueError:
+        workers = 4
+    return max(1, min(workers, 32))
+
+
+def _ensure_planner_job_store() -> None:
+    from planner_jobs import ensure_job_store
+
+    async def _run(request: PlannerCompletionRequest) -> dict[str, Any]:
+        settings = _settings()
+        return await _complete(request, settings)
+
+    ensure_job_store(_run, max_workers=_planner_job_workers())
+
+
 @app.get("/health")
 async def health() -> dict[str, object]:
     settings = _settings()
@@ -867,8 +886,70 @@ async def health() -> dict[str, object]:
         "task_aliases_configured": all(_model_alias(task, settings) for task in TASK_PROMPT_IDS),
         "litellm_configured": bool(settings["litellm_base_url"] and settings["litellm_api_key"]),
         "service_token_configured": bool(settings["service_token"]),
-        "contracts": [CONTRACT_VERSION, STUDY_AGENT_CONTRACT_VERSION],
+        "contracts": [CONTRACT_VERSION, STUDY_AGENT_CONTRACT_VERSION, "planner-job@1"],
     }
+
+
+@app.post("/v1/jobs")
+async def create_planner_job(request: Request) -> JSONResponse:
+    from planner_jobs import JOB_CONTRACT_VERSION, job_store
+
+    _ensure_planner_job_store()
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id"))
+    run_id = _safe_token((request.headers.get("x-study-run-id") or "").strip())
+    task: str | None = None
+    started = time.monotonic()
+    try:
+        _authorize(request.headers.get("authorization"), _settings()["service_token"])
+        parsed = _parse_request(await request.body())
+        task = parsed.task
+        job_id = await job_store().submit(parsed)
+        _log(
+            "v4_planner_job_submitted",
+            correlation_id=correlation_id,
+            processing_run_id=run_id,
+            task=task,
+            component="planner",
+            operation="planner_job_submit",
+            prompt_id=parsed.prompt_id,
+            job_id=job_id,
+        )
+        return JSONResponse(status_code=202, content={"contract_version": JOB_CONTRACT_VERSION, "job_id": job_id})
+    except PlannerError as error:
+        _log(
+            "v4_planner_job_submit_failed",
+            correlation_id=correlation_id,
+            processing_run_id=run_id,
+            task=task,
+            component="planner",
+            operation="planner_job_submit",
+            error_code=error.code,
+            diagnostic_reason=error.diagnostic_reason,
+            retryable=error.retryable,
+            latency_ms=int((time.monotonic() - started) * 1000),
+            **error.log_fields,
+        )
+        return _error_response(error, correlation_id, run_id, task)
+
+
+@app.get("/v1/jobs/{job_id}")
+async def get_planner_job(job_id: str, request: Request) -> JSONResponse:
+    from planner_jobs import job_store
+
+    _ensure_planner_job_store()
+    correlation_id = _correlation_id(request.headers.get("x-correlation-id"))
+    run_id = _safe_token((request.headers.get("x-study-run-id") or "").strip())
+    try:
+        _authorize(request.headers.get("authorization"), _settings()["service_token"])
+        safe_id = _safe_token(job_id.strip())
+        if not safe_id:
+            raise PlannerError(404, "DEPENDENCY_UNAVAILABLE", "validation", False, "Job not found.", "planner_job_not_found")
+        snapshot = job_store().snapshot(safe_id)
+        if snapshot is None:
+            raise PlannerError(404, "DEPENDENCY_UNAVAILABLE", "validation", False, "Job not found.", "planner_job_not_found")
+        return JSONResponse(status_code=200, content=snapshot)
+    except PlannerError as error:
+        return _error_response(error, correlation_id, run_id, None, "planner_job_poll")
 
 
 @app.post("/v1/plan-completion")

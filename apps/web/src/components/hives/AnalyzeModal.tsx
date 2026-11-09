@@ -20,7 +20,7 @@ import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
 
 import type { ReadPollState } from "./document-read-progress";
 import { HoneycombActivity, type LivingHiveMode } from "./HoneycombActivity";
-import { ProgressCountdown } from "./progress-countdown";
+import { ProgressElapsed } from "./progress-elapsed";
 import {
   coverageGapText,
   preparationCopy,
@@ -146,6 +146,7 @@ function AnalyzeDialog({
         }
     : preparationCopy(run);
   const steps = preparationSteps(confirming ? null : run);
+  const activeStep = steps.find((step) => step.state === "active") ?? null;
   const rebuilding = run?.preparationMode === "REBUILD" || (confirming && action === "rebuild");
   const acceptedRebuild =
     !confirming && outcome === "succeeded" && run?.preparationMode === "REBUILD" && studyRevision?.processingRunId === run.id
@@ -213,7 +214,14 @@ function AnalyzeDialog({
               {copy.title}
             </h2>
             <p className="m-0 text-base leading-[1.55] text-ink-muted">{copy.sub}</p>
-            {active ? <ProgressCountdown estimate={run?.progressEstimate} /> : null}
+            {active && run ? (
+              <ProgressElapsed
+                startedAt={run.startedAt ?? run.createdAt}
+                stepLabel={activeStep?.label ?? copy.title.replace(/…$/, "")}
+                detail={activeStep?.description}
+                typicalRange="2–5 min"
+              />
+            ) : null}
           </div>
 
           <p className="sr-only" aria-live="polite" aria-atomic="true" data-testid="analyze-live">

@@ -24,13 +24,13 @@ export function countStates(spineRows: readonly StudyViewRow[], missingItems: nu
 export function statePillText(state: DisplayState, n: number): string {
   switch (state) {
     case "needs":
-      return `${n} ${n === 1 ? "needs" : "need"} you`;
-    case "changed":
-      return `${n} changed`;
+      return `${n} ${n === 1 ? "issue" : "issues"} to resolve`;
     case "missing":
-      return `${n} missing`;
+      return `${n} ${n === 1 ? "document" : "documents"} to request`;
+    case "changed":
+      return `${n} ${n === 1 ? "change" : "changes"} from the original`;
     case "checked":
-      return `${n} checked`;
+      return `${n} ${n === 1 ? "fact" : "facts"} confirmed`;
   }
 }
 
@@ -52,7 +52,7 @@ export function StateBar({ counts, targets, onNavigate, hrefBase = "" }: StateBa
         <li key={state}>
           <a
             href={`${hrefBase}#${targets[state]}`}
-            className={`inline-flex min-h-[32px] items-center rounded-pill px-3 text-small font-semibold no-underline hover:underline max-sm:min-h-[44px] ${stateClass(state)}`}
+            className={`inline-flex min-h-[32px] items-center rounded-pill px-3 text-small font-semibold no-underline hover:underline max-sm:min-h-[44px] ${stateClass(state)}${state === "checked" ? " opacity-80" : ""}`}
             data-state={state}
             onClick={(event) => {
               if (!onNavigate) return;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 
 import httpx
@@ -343,7 +344,7 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
     assert data["task_aliases_configured"] is True
     assert data["litellm_configured"] is True
     assert data["service_token_configured"] is True
-    assert data["contracts"] == ["planner-completion@1", "study-agent-turn@1"]
+    assert data["contracts"] == ["planner-completion@1", "study-agent-turn@1", "planner-job@1"]
     assert "study_structured_output" not in data
     assert "sk-scoped-virtual-key" not in json.dumps(data)
 
@@ -447,7 +448,7 @@ def test_completion_caps_mirror_the_wire_contract() -> None:
 
 @pytest.mark.parametrize(
     ("task", "expected_read_timeout"),
-    [("extract", 260.0), ("canonicalize", 260.0), ("write", 260.0), ("intent", 150.0), ("domain", 150.0), ("intelligence", 150.0), ("plan", 150.0)],
+    [("extract", 260.0), ("canonicalize", 600.0), ("write", 260.0), ("intent", 150.0), ("domain", 150.0), ("intelligence", 150.0), ("plan", 150.0)],
 )
 def test_completion_uses_the_per_task_litellm_timeout(
     client: TestClient, pipeline_aliases: None, task: str, expected_read_timeout: float
@@ -1081,3 +1082,42 @@ def test_writer_editorial_wire_compatibility_and_rebuild_requirement(
     assert stale_response.json()["error_code"] == "INVALID_REQUEST"
     assert stale_response.json()["diagnostic_reason"] == "planner_invalid_request"
     assert stale_response.json()["retryable"] is False
+
+
+def test_planner_job_lifecycle(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_EXTRACT_LITELLM_ALIAS", "harvester")
+    use_litellm(lambda _: httpx.Response(200, json=completion('{"facts": []}', finish_reason="stop")))
+    job_body = body(task="extract", prompt_id="hive-extract/1", max_output_tokens=16000)
+    submit = client.post(
+        "/v1/jobs",
+        content=json.dumps(job_body),
+        headers={"Authorization": f"Bearer {TOKEN}", "x-correlation-id": "job-1"},
+    )
+    assert submit.status_code == 202
+    job_id = submit.json()["job_id"]
+    for _ in range(50):
+        poll = client.get(
+            f"/v1/jobs/{job_id}",
+            headers={"Authorization": f"Bearer {TOKEN}", "x-correlation-id": "job-1"},
+        )
+        assert poll.status_code == 200
+        data = poll.json()
+        if data["status"] in ("succeeded", "failed"):
+            break
+        time.sleep(0.05)  # noqa: S101
+    assert data["status"] == "succeeded"
+    assert data["result"]["task"] == "extract"
+    assert data["result"]["content_json"] == {"facts": []}
+
+
+def test_planner_job_requires_auth(client: TestClient) -> None:
+    response = client.post("/v1/jobs", content=json.dumps(body(task="extract", prompt_id="hive-extract/1")))
+    assert response.status_code == 401
+
+
+def test_planner_job_not_found(client: TestClient) -> None:
+    response = client.get(
+        "/v1/jobs/not-a-real-job",
+        headers={"Authorization": f"Bearer {TOKEN}", "x-correlation-id": "job-miss"},
+    )
+    assert response.status_code == 404

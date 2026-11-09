@@ -1183,8 +1183,14 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
     stageAttempt: context.stageAttempt,
     now: context.now,
     rebuildMode: inputs.run.preparationMode === "REBUILD",
+    extractProgress: inputs.stageOutputs as V5StageOutputs,
+    clock: context.deps.clock,
+    invocationStartedAt: context.deps.invocationStartedAt,
   });
   if (!result.ok) {
+    if (result.error.diagnosticReason === "planner_job_handoff" && result.error.retryable) {
+      return { next: "handoff", status: "CANONICALIZING", delaySeconds: 5 };
+    }
     throw new StageFailure(result.error, result.metric);
   }
   await advance(context, "CANONICALIZING", "ACCEPTING_STUDY", {

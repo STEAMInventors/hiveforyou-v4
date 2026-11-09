@@ -3,7 +3,13 @@
 import type { MissingGroups } from "./missing-groups";
 import { SourceChips } from "./SourceChip";
 
-export { groupMissing, isStructuralNote, type MissingGroups, missingCount } from "./missing-groups";
+export {
+  documentsToRequestCount,
+  groupMissing,
+  isStructuralNote,
+  type MissingGroups,
+  missingCount,
+} from "./missing-groups";
 
 function pagesText(pageNumbers: readonly number[]): string {
   if (pageNumbers.length === 0) return "";

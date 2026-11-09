@@ -40,6 +40,13 @@ function isDateWord(word: string): boolean {
  * than three words, cut before the first short joining word and then reduced to its last words,
  * where the head noun sits. Pure shape rules; no vocabulary beyond articles and month names.
  */
+function versionQualifier(typeInPlainWords: string | null | undefined): "original" | "amended" | null {
+  const lower = (typeInPlainWords ?? "").toLowerCase();
+  if (/\bfirst amended\b|\bamended\b/.test(lower)) return "amended";
+  if (/\boriginal\b/.test(lower) && !/\bamended\b/.test(lower)) return "original";
+  return null;
+}
+
 export function shortTypeLabel(typeInPlainWords: string | null | undefined): string {
   const firstPhrase = (typeInPlainWords ?? "").split(/[,;:()[\]]|\s[-–—]\s/)[0] ?? "";
   let words = firstPhrase.trim().split(/\s+/).filter((word) => word !== "");
@@ -65,8 +72,11 @@ export function shortTypeLabel(typeInPlainWords: string | null | undefined): str
   }
   if (words.length > MAX_LABEL_WORDS) words = words.slice(-MAX_LABEL_WORDS);
   if (words.length === 0 || (words.length === 1 && LEADING_ARTICLE.test(words[0]!))) return "";
-  const label = words.join(" ");
-  return label.charAt(0).toUpperCase() + label.slice(1);
+  let label = words.join(" ");
+  label = label.charAt(0).toUpperCase() + label.slice(1);
+  const version = versionQualifier(typeInPlainWords);
+  if (version) label = `${label} (${version})`;
+  return label;
 }
 
 const monthYear = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" });

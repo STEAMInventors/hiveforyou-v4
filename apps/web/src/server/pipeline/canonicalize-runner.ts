@@ -9,6 +9,7 @@ import {
   verifyCanonicalStudy,
 } from "@hiveforyou/contracts";
 
+import { PlannerJobHandoffError, type PlannerAsyncJobOptions } from "@/server/study-preparation/planner-async-jobs";
 import { callPlanner, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { type CanonicalizePrompt, loadPromptCatalog, sha256Digest } from "@/server/study-preparation/prompt-catalog";
 
@@ -46,6 +47,7 @@ type CallInput = {
   readonly correlationId: string;
   readonly runId: string;
   readonly resolvePlannerTimeoutMs?: () => number | "expired";
+  readonly asyncJob?: PlannerAsyncJobOptions;
 };
 
 export type CanonicalizeInput = CallInput & {
@@ -54,6 +56,7 @@ export type CanonicalizeInput = CallInput & {
   readonly domainBrief?: string | null;
   readonly prompt?: CanonicalizePrompt;
   readonly resolvePlannerTimeoutMs?: () => number | "expired";
+  readonly asyncJob?: PlannerAsyncJobOptions;
 };
 
 export type CanonicalizeResult =
@@ -89,7 +92,34 @@ function timeframeOf(fact: DocExtraction["facts"][number]): string | null {
   return null;
 }
 
-/** The case as sent to `hive-canonicalize/1`: identity, compact facts (first evidence only), empty fields, referenced documents. */
+function factDedupKey(fact: DocExtraction["facts"][number]): string {
+  const page = fact.evidence[0]?.page ?? 0;
+  return [fact.subject, fact.attribute, fact.valueAsWritten, fact.modality, String(page)].join("\0");
+}
+
+function mergeDuplicateFacts(facts: readonly DocExtraction["facts"][number][]): DocExtraction["facts"][number][] {
+  const byKey = new Map<string, DocExtraction["facts"][number]>();
+  for (const fact of facts) {
+    const key = factDedupKey(fact);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, fact);
+      continue;
+    }
+    const pages = new Set(existing.evidence.map((evidence) => evidence.page));
+    const mergedEvidence = [...existing.evidence];
+    for (const evidence of fact.evidence) {
+      if (!pages.has(evidence.page)) {
+        pages.add(evidence.page);
+        mergedEvidence.push(evidence);
+      }
+    }
+    byKey.set(key, { ...existing, evidence: mergedEvidence });
+  }
+  return [...byKey.values()];
+}
+
+/** The case as sent to `hive-canonicalize/1`: identity, compact facts (text + short ref only), empty fields, referenced documents. */
 export function buildCanonicalizePayload(extractions: readonly DocExtraction[], domainBrief: string | null) {
   return {
     domainBrief,
@@ -97,7 +127,7 @@ export function buildCanonicalizePayload(extractions: readonly DocExtraction[], 
       sourceDocumentId: extraction.documentId,
       fileName: extraction.fileName,
       identity: identityOf(extraction),
-      facts: extraction.facts.map((fact) =>
+      facts: mergeDuplicateFacts(extraction.facts).map((fact) =>
         compact({
           id: fact.id,
           subject: fact.subject,
@@ -106,8 +136,11 @@ export function buildCanonicalizePayload(extractions: readonly DocExtraction[], 
           timeframe: timeframeOf(fact),
           modality: fact.modality,
           attributedTo: fact.attributedTo,
-          page: fact.evidence[0]?.page ?? null,
-          quote: fact.evidence[0]?.quote ?? null,
+          ref: compact({
+            documentId: extraction.documentId,
+            page: fact.evidence[0]?.page ?? null,
+            factId: fact.id,
+          }),
         }),
       ),
       emptyFields: extraction.emptyFields.map((field) => ({ id: field.id, label: field.label, page: field.page })),
@@ -161,6 +194,15 @@ async function callWithRetry<T>(
         correlationId: input.correlationId,
         processingRunId: input.runId,
         ...(typeof timeoutMs === "number" ? { timeoutMs } : {}),
+        asyncJob: {
+          ...input.asyncJob,
+          resolveRemainingMs: () => {
+            const remaining = input.resolvePlannerTimeoutMs?.();
+            if (remaining === "expired") return "expired";
+            if (typeof remaining === "number") return remaining;
+            return Number.POSITIVE_INFINITY;
+          },
+        },
       });
       const parsed = parse(completion.contentJson);
       calls.push({
@@ -179,6 +221,7 @@ async function callWithRetry<T>(
       if (parsed.ok) return parsed;
       parseError = parsed.message;
     } catch (error) {
+      if (error instanceof PlannerJobHandoffError) throw error;
       const hiveError = asHiveError(error);
       if (!hiveError) throw error;
       const unparseable = hiveError.errorCode === "MODEL_OUTPUT_INVALID" && UNPARSEABLE_REASONS.has(hiveError.diagnosticReason ?? "");

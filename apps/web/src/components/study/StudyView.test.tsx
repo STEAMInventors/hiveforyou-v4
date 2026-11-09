@@ -32,7 +32,12 @@ describe("StudyReport", () => {
     cleanup();
     renderReport("PRO");
     const pro = screen.getAllByRole("link").filter((link) => link.closest('[data-testid="state-bar"]')).map((link) => link.textContent);
-    expect(customer).toEqual(["4 need you", "6 changed", "2 missing", "3 checked"]);
+    expect(customer).toEqual([
+      "4 issues to resolve",
+      "2 documents to request",
+      "6 changes from the original",
+      "3 facts confirmed",
+    ]);
     expect(pro).toEqual(customer);
   });
 
@@ -133,9 +138,9 @@ describe("StudyReport", () => {
     const rows = within(table).getAllByRole("row").slice(1).map((row) => Array.from(row.children).map((cell) => cell.textContent));
     expect(rows).toEqual([
       ["Bankruptcy petition", "Supporting", "Mar 2, 2026", "35"],
-      ["Repayment plan · Mar 2026", "Main document, earlier version", "Mar 2, 2026", "2"],
+      ["Repayment plan", "Main document, earlier version", "Mar 2, 2026", "2"],
       ["Trustee's objection", "Supporting", "Apr 10, 2026", "1"],
-      ["Repayment plan · Apr 2026", "Main document", "Apr 28, 2026", "2"],
+      ["Repayment plan (amended)", "Main document", "Apr 28, 2026", "2"],
       ["Employer pay summary", "Supporting", "Feb 27, 2026", "1"],
       ["Mortgage servicer letter", "Supporting", "Apr 2, 2026", "1"],
     ]);
@@ -193,7 +198,7 @@ describe("StudyReport", () => {
     expect(within(notice).queryByTestId("source-chip")).toBeNull();
     expect(screen.getByTestId("missing-list").querySelector('[data-group="unreadable"]')?.textContent).toContain("Water bill");
     expect(screen.getByText("Could not be read", { selector: "td" })).toBeTruthy();
-    expect(screen.getByText("3 missing")).toBeTruthy();
+    expect(screen.getByText("1 document to request")).toBeTruthy();
   });
 });
 
