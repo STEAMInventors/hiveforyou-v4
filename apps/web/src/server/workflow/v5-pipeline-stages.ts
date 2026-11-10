@@ -279,18 +279,16 @@ export async function persistV5ExtractStageOutputs(
   runId: string,
   patch: Pick<V5StageOutputs, "extractZeroProgressHandoffs" | "extractGapRetryCompleted" | "plannerJobs">,
 ): Promise<void> {
-  await rpc(client, "transition_processing_run", {
+  // Mutable bookkeeping: transition_processing_run rejects these keys (immutable stage outputs only).
+  await rpc(client, "patch_processing_run_workflow_state", {
     p_run_id: runId,
-    p_from_status: "EXTRACTING",
-    p_to_status: "EXTRACTING",
-    p_details: {
-      stage_outputs: {
-        ...(typeof patch.extractZeroProgressHandoffs === "number"
-          ? { extractZeroProgressHandoffs: { count: patch.extractZeroProgressHandoffs } }
-          : {}),
-        ...(patch.extractGapRetryCompleted ? { extractGapRetryCompleted: patch.extractGapRetryCompleted } : {}),
-        ...(patch.plannerJobs ? { plannerJobs: patch.plannerJobs } : {}),
-      },
+    p_expected_status: "EXTRACTING",
+    p_patch: {
+      ...(typeof patch.extractZeroProgressHandoffs === "number"
+        ? { extractZeroProgressHandoffs: { count: patch.extractZeroProgressHandoffs } }
+        : {}),
+      ...(patch.extractGapRetryCompleted ? { extractGapRetryCompleted: patch.extractGapRetryCompleted } : {}),
+      ...(patch.plannerJobs ? { plannerJobs: patch.plannerJobs } : {}),
     },
   });
 }
@@ -300,13 +298,10 @@ export async function persistV5CanonicalizePlannerJob(
   runId: string,
   plannerJob: PlannerJobRef | null,
 ): Promise<void> {
-  await rpc(client, "transition_processing_run", {
+  await rpc(client, "patch_processing_run_workflow_state", {
     p_run_id: runId,
-    p_from_status: "CANONICALIZING",
-    p_to_status: "CANONICALIZING",
-    p_details: {
-      stage_outputs: plannerJob ? { plannerJobs: { canonicalize: plannerJob } } : { plannerJobs: { canonicalize: null } },
-    },
+    p_expected_status: "CANONICALIZING",
+    p_patch: plannerJob ? { plannerJobs: { canonicalize: plannerJob } } : { plannerJobs: null },
   });
 }
 
