@@ -21,7 +21,7 @@ RUN pip install \
     'pydantic>=2,<3' \
     'httpx>=0.27,<1'
 
-COPY infra/oracle/v4_planner.py infra/oracle/model_json_parse.py /app/
+COPY infra/oracle/v4_planner.py infra/oracle/model_json_parse.py infra/oracle/planner_jobs.py /app/
 
 USER hiveplanner
 
