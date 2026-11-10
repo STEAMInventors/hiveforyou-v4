@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it } from "vitest";
 
 import { bankruptcyC13Fixture, bankruptcyC13StudyOnlyFixture } from "./fixtures/bankruptcy-c13";
+import { legacyCanonicalGapsFixture } from "./fixtures/legacy-canonical-gaps";
+import { mayaIepFixture } from "./fixtures/maya-iep";
 import { noAnchorHouseholdFixture } from "./fixtures/no-anchor-household";
 import { studyDocumentMeta, studyStateCounts } from "./study-summary";
 import { StudyReport, titleFromIntent } from "./StudyReport";
@@ -120,16 +122,18 @@ describe("StudyReport", () => {
     expect(within(cards[1]!).getByTestId("comparison-difference").textContent).toContain("$2,580.00");
   });
 
-  it("strikes through replaced values and groups what is missing", () => {
+  it("strikes through replaced values and lists what to ask for", () => {
     renderReport("PRO");
     const superseded = document.querySelector('[data-row-id="S2"]') as HTMLElement;
     expect(within(superseded).getByText("Changed")).toBeTruthy();
     expect(within(superseded).getByTestId("changed-value").querySelector("s")?.textContent).toContain("$510.00 per month for 60 months");
-    const missing = screen.getByTestId("missing-list");
-    expect(missing.querySelector('[data-group="referenced"]')?.textContent).toContain("2025 federal income tax return");
-    expect(within(missing.querySelector('[data-group="referenced"]') as HTMLElement).getAllByTestId("source-chip")).toHaveLength(3);
-    expect(missing.querySelector('[data-group="expected"]')?.textContent).toContain("No pay records after February 2026");
-    expect(missing.querySelector('[data-group="unreadable"]')).toBeNull();
+    const ask = screen.getByTestId("document-request-list");
+    expect(ask.textContent).toContain("2025 federal income tax return");
+    expect(within(ask).getAllByTestId("source-chip").length).toBeGreaterThanOrEqual(1);
+    expect(ask.textContent).toContain("Schedule D");
+    expect(ask.textContent).toContain("Ask for later");
+    expect(ask.textContent).toContain("Court ruling on confirmation");
+    expect(document.getElementById("what-to-ask-for")).not.toBeNull();
   });
 
   it("labels documents by kind, with month and year for the two plan versions, and plain roles", () => {
@@ -172,7 +176,7 @@ describe("StudyReport", () => {
     const fixture = noAnchorHouseholdFixture("CUSTOMER");
     renderReport("CUSTOMER", fixture);
     expect(document.getElementById("what-documents-establish")?.textContent).toContain("No single document governs this case");
-    expect(screen.getByTestId("missing-list").textContent).not.toContain("No single document governs");
+    expect(screen.getByTestId("document-request-list").textContent).not.toContain("No single document governs");
     expect(document.querySelector('[data-upcoming="true"]')?.textContent).toContain("Insurance premium due.");
     expect(screen.getByTestId("comparison-difference").textContent).toContain("$82.00");
   });
@@ -198,7 +202,62 @@ describe("StudyReport", () => {
     expect(within(notice).queryByTestId("source-chip")).toBeNull();
     expect(screen.getByTestId("missing-list").querySelector('[data-group="unreadable"]')?.textContent).toContain("Water bill");
     expect(screen.getByText("Could not be read", { selector: "td" })).toBeTruthy();
-    expect(screen.getByText("1 document to request")).toBeTruthy();
+    expect(screen.getByText("2 documents to request")).toBeTruthy();
+  });
+});
+
+describe("DocumentRequestList", () => {
+  it("renders statement-only legacy gaps with a rebuild hint and non-empty ask-now list", () => {
+    const fixture = legacyCanonicalGapsFixture();
+    render(
+      <StudyView
+        hiveId={fixture.hiveId}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={1}
+      />,
+    );
+    const list = screen.getByTestId("document-request-list");
+    expect(list.querySelectorAll('[data-kind="REQUESTABLE_DOCUMENT"]')).toHaveLength(2);
+    expect(screen.getByTestId("document-request-legacy-hint").textContent).toContain("Rebuild the study for a clearer list");
+    expect(document.getElementById("what-to-ask-for")).not.toBeNull();
+  });
+
+  it("shows Maya's Hive with 4 ask-now, 2 later, and attaches one observation to the spine row", () => {
+    const fixture = mayaIepFixture("CUSTOMER");
+    render(
+      <StudyReport
+        hiveId={fixture.hiveId}
+        view={fixture.view}
+        sources={fixture.sources}
+        header={{ kind: "report", audience: "CUSTOMER", fallbackTitle: fixture.title, revisionNumber: 1, writtenAt: fixture.writtenAt }}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    const list = screen.getByTestId("document-request-list");
+    expect(list.querySelectorAll('[data-kind="REQUESTABLE_DOCUMENT"]')).toHaveLength(4);
+    expect(list.querySelectorAll('[data-kind="FUTURE_RECORD"]')).toHaveLength(2);
+    expect(document.querySelector('[data-row-id="S1"] [data-observation="true"]')?.textContent).toContain("comprehension");
+  });
+
+  it("falls back to a plain list when the write model invents items", () => {
+    const fixture = bankruptcyC13Fixture("PRO");
+    const badWrite = {
+      ...fixture.view,
+      components: [{ ...fixture.view.components[0]!, fallback: true }],
+    };
+    render(
+      <StudyReport
+        hiveId={fixture.hiveId}
+        view={badWrite}
+        sources={fixture.sources}
+        header={{ kind: "report", audience: "PRO", fallbackTitle: fixture.title, revisionNumber: 3, writtenAt: fixture.writtenAt }}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    expect(screen.getByTestId("document-request-list").getAttribute("data-fallback")).toBe("true");
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 });
 
@@ -280,7 +339,7 @@ describe("StudyView", () => {
     expect(screen.queryAllByTestId("study-view-section")).toHaveLength(0);
     expect(screen.getByTestId("establish-table")).toBeTruthy();
     expect(screen.getAllByTestId("comparison-card")).toHaveLength(2);
-    expect(document.getElementById("what-is-missing")).not.toBeNull();
+    expect(document.getElementById("what-to-ask-for")).not.toBeNull();
     expect(screen.queryByRole("radiogroup")).toBeNull();
     expect(screen.queryByTestId("state-bar")).toBeNull();
   });

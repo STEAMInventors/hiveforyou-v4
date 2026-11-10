@@ -37,7 +37,9 @@ export * from "./pipeline/pipeline-timing";
 export * from "./pipeline/extract-range-resilience";
 export * from "./pipeline/extraction-range-validity";
 export * from "./pipeline/canonical-study-contracts";
+export * from "./pipeline/document-request-list-contracts";
 export * from "./pipeline/study-view-contracts";
+export * from "./pipeline/study-view-reference-match";
 export * from "./pipeline/write-audience";
 export {
   checkQuote,

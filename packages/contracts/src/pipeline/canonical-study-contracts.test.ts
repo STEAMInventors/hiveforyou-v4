@@ -65,7 +65,20 @@ describe("parseCanonicalStudy", () => {
     expect(study.outsideSpine[0]!.id).toBe("O1");
     expect(study.conflicts.map((c) => c.id)).toEqual(["C1", "C2"]);
     expect(study.timeline[0]).toEqual({ date: null, asWritten: "March 2, 2026", statement: "Filed", factIds: ["F-bbbb0002-002"] });
-    expect(study.gaps).toEqual([{ id: "X1", statement: "A referenced record is not in the case", relatedSpineIds: ["S3"] }]);
+    expect(study.gaps).toEqual([
+      {
+        id: "X1",
+        statement: "A referenced record is not in the case",
+        relatedSpineIds: ["S3"],
+        kind: null,
+        title: "",
+        why: "",
+        holder: "",
+        when: null,
+        basisType: null,
+        relatedFactIds: [],
+      },
+    ]);
     expect(parsed.malformed).toEqual({
       document_role_invalid: 1,
       document_not_object: 1,

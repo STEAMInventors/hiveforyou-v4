@@ -108,8 +108,54 @@ const INPUT: FixtureInput = {
       { date: "2026-05-14", asWritten: "May 14, 2026 at 9:30 a.m.", statement: "Confirmation hearing.", factIds: ["F14"] },
     ],
     gaps: [
-      { id: "X1", statement: "The 2025 federal income tax return (Exhibit C) that both plans rely on is not among the documents; the trustee states it was never provided.", relatedSpineIds: ["S11"] },
-      { id: "X2", statement: "No pay records after February 2026 are among the documents, so current income cannot be checked.", relatedSpineIds: ["S7"] },
+      {
+        id: "X1",
+        statement: "The 2025 federal income tax return (Exhibit C) that both plans rely on is not among the documents; the trustee states it was never provided.",
+        relatedSpineIds: ["S11"],
+        kind: "REQUESTABLE_DOCUMENT",
+        title: "2025 federal income tax return (Exhibit C)",
+        why: "The plans and the trustee's objection rely on Exhibit C, but the return itself is not in the case.",
+        holder: "Debtor or tax preparer",
+        when: null,
+        basisType: "MENTIONED",
+        relatedFactIds: ["F18", "F19"],
+      },
+      {
+        id: "X2",
+        statement: "Schedule D from the petition showing secured claims was referenced in the trustee's objection but a current copy is not separately supplied.",
+        relatedSpineIds: ["S4"],
+        kind: "REQUESTABLE_DOCUMENT",
+        title: "Schedule D (secured claims)",
+        why: "The trustee's objection discusses Schedule D treatment of the vehicle claim; a current Schedule D helps compare plan terms.",
+        holder: "Debtor or petition preparer",
+        when: null,
+        basisType: "USUALLY_EXPECTED",
+        relatedFactIds: ["F15"],
+      },
+      {
+        id: "X3",
+        statement: "No pay records after February 2026 are among the documents, so current income cannot be checked.",
+        relatedSpineIds: ["S7"],
+        kind: "OBSERVATION",
+        title: "",
+        why: "No pay records after February 2026 are among the documents, so current income cannot be checked against the employer summary.",
+        holder: "",
+        when: null,
+        basisType: null,
+        relatedFactIds: ["F10", "F11"],
+      },
+      {
+        id: "X4",
+        statement: "The confirmation hearing will decide whether the amended plan is approved.",
+        relatedSpineIds: ["S10"],
+        kind: "FUTURE_RECORD",
+        title: "Court ruling on confirmation",
+        why: "The judge will rule on confirmation at the hearing.",
+        holder: "Bankruptcy court",
+        when: "May 14, 2026",
+        basisType: null,
+        relatedFactIds: ["F14"],
+      },
     ],
   },
   referencedDocuments: [
@@ -145,7 +191,8 @@ const INPUT: FixtureInput = {
           ],
         },
       ],
-      blocks: ["conflicts", "spine_table", "gaps", "timeline", "documents"],
+      blocks: ["conflicts", "spine_table", "timeline", "documents"],
+      components: [{ name: "DocumentRequestList" }],
     },
     PRO: {
       sections: [
@@ -173,7 +220,8 @@ const INPUT: FixtureInput = {
           ],
         },
       ],
-      blocks: ["spine_table", "conflicts", "gaps", "timeline", "documents", "outside_spine"],
+      blocks: ["spine_table", "conflicts", "timeline", "documents", "outside_spine"],
+      components: [{ name: "DocumentRequestList" }],
     },
   },
 };
@@ -184,6 +232,6 @@ export function bankruptcyC13Fixture(audience: ReportAudience): ReportFixture {
 
 /** The same accepted study with no write output: no narrative sections, default block order. */
 export function bankruptcyC13StudyOnlyFixture(): ReportFixture {
-  const none = { sections: [], blocks: [] };
+  const none = { sections: [], blocks: [], components: [] as const };
   return buildFixture({ ...INPUT, writes: { CUSTOMER: none, PRO: none } }, "CUSTOMER");
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import type { StudyViewRow } from "@hiveforyou/contracts";
+import type { DocumentRequestObservation, StudyViewRow } from "@hiveforyou/contracts";
 
 import { AsWrittenValue, ChangedValue, distinctValues } from "./ChangedValue";
 import { spineRowState } from "./StateBar";
@@ -25,7 +25,17 @@ function AsWritten({ row }: { row: StudyViewRow }) {
   );
 }
 
-export function EstablishTable({ rows, compact }: { rows: readonly StudyViewRow[]; compact: boolean }) {
+export function EstablishTable({
+  rows,
+  compact,
+  observations = [],
+}: {
+  rows: readonly StudyViewRow[];
+  compact: boolean;
+  observations?: readonly DocumentRequestObservation[];
+}) {
+  const observationFor = (spineId: string) =>
+    observations.filter((observation) => observation.relatedSpineIds.includes(spineId)).map((observation) => observation.text);
   const cell = `border-b border-line px-3 align-top first:pl-0 last:pr-0 ${compact ? "py-2.5" : "py-4"}`;
   const head = "border-b border-line px-3 pb-2 text-left text-caption font-semibold text-quiet first:pl-0 last:pr-0";
   return (
@@ -47,6 +57,7 @@ export function EstablishTable({ rows, compact }: { rows: readonly StudyViewRow[
         <tbody>
           {rows.map((row) => {
             const state = spineRowState(row);
+            const notes = observationFor(row.id);
             return (
               <tr key={row.id} data-row-id={row.id}>
                 <td className={cell}>{state ? <StatusBadge state={state} /> : null}</td>
@@ -55,6 +66,11 @@ export function EstablishTable({ rows, compact }: { rows: readonly StudyViewRow[
                   {row.missing && row.missing.length > 0 ? (
                     <span className="mt-1 block text-small text-coral-deep">Missing: {row.missing.join("; ")}</span>
                   ) : null}
+                  {notes.map((text) => (
+                    <span key={text} className="mt-1 block text-small text-graphite" data-observation="true">
+                      {text}
+                    </span>
+                  ))}
                 </th>
                 <td className={cell}>
                   <AsWritten row={row} />

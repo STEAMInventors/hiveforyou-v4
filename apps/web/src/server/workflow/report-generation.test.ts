@@ -2519,7 +2519,6 @@ describe("processReportRun: revision formats", () => {
           { name: "spine_table" },
           { name: "conflicts" },
           { name: "timeline" },
-          { name: "gaps" },
           { name: "outside_spine" },
         ],
       },
@@ -2562,7 +2561,20 @@ describe("processReportRun: revision formats", () => {
   it("puts intent on the study view and attaches gap references from verified extractions", async () => {
     const studyWithGap: CanonicalStudy = {
       ...v5Study,
-      gaps: [{ id: "X1", statement: "The prior year income filing is not among the documents.", relatedSpineIds: [] }],
+      gaps: [
+        {
+          id: "X1",
+          statement: "The prior year income filing is not among the documents.",
+          relatedSpineIds: [],
+          kind: "REQUESTABLE_DOCUMENT",
+          title: "Prior year income filing",
+          why: "The prior year income filing is not among the documents.",
+          holder: "",
+          when: null,
+          basisType: "MENTIONED",
+          relatedFactIds: [],
+        },
+      ],
     };
     const extractionWithRef = validateDocExtraction(
       {
@@ -2600,10 +2612,13 @@ describe("processReportRun: revision formats", () => {
     expect(status).toBe("SUCCEEDED");
     const saved = db.saved()!;
     expect(saved.view).toMatchObject({ intent: "What do I have to pay?" });
-    const gapRows = (saved.view as { blocks: { name: string; rows: { referencedBy?: unknown[] }[] }[] }).blocks.find((b) => b.name === "gaps")!.rows;
-    expect(gapRows[0]).toMatchObject({
+    const list = (saved.view as { components: { items: { id: string; basis: { type: string; sourceRefs?: unknown[] } }[] }[] }).components[0]!;
+    expect(list.items[0]).toMatchObject({
       id: "X1",
-      referencedBy: [{ sourceDocumentId: V5_DOC, pageNumber: 2, quote: "See prior filing." }],
+      basis: {
+        type: "MENTIONED",
+        sourceRefs: [{ sourceDocumentId: V5_DOC, pageNumber: 2, quote: "See prior filing." }],
+      },
     });
   });
 

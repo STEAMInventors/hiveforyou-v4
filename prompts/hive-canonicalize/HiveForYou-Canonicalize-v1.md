@@ -65,7 +65,15 @@ With `TIMELINE` or `PARTIES_AND_OBLIGATIONS`, the **first gap** must say that no
 
 **Step 6 — Timeline.** Every dated event in date order. `date` as `YYYY-MM-DD` when unambiguous, otherwise null; `asWritten` exactly as the document writes the date; `statement` one sentence; `factIds` the facts that give the date.
 
-**Step 7 — Gaps.** What the case lacks that a reader would need: documents that are referenced but not supplied (see `referencedDocuments`), fields left visibly blank that matter (see `emptyFields`), information a spine element relies on that no document gives, and case-level gaps: documents or records a careful professional would expect in a case of this kind and cannot find, even if no single spine element depends on them. One sentence each; `relatedSpineIds` lists your ids of the spine elements affected, empty for a gap that concerns the case as a whole. Every phrase in a spine element's `missing` that names an absent document or record also appears as a gap. Do not list things the case does not need.
+**Step 7 — Gaps.** What the case lacks that a reader would need: documents that are referenced but not supplied (see `referencedDocuments`), fields left visibly blank that matter (see `emptyFields`), information a spine element relies on that no document gives, and case-level gaps: documents or records a careful professional would expect in a case of this kind and cannot find, even if no single spine element depends on them. One sentence each in `statement`; `relatedSpineIds` lists your ids of the spine elements affected, empty for a gap that concerns the case as a whole. Every phrase in a spine element's `missing` that names an absent document or record also appears as a gap. Do not list things the case does not need.
+
+For each gap, also set:
+
+- `kind`: `REQUESTABLE_DOCUMENT` (someone can supply a document now), `FUTURE_RECORD` (a ruling, decision or record expected later — include `when` as written), or `OBSERVATION` (a processing or coverage limit that is not a document request — use `relatedFactIds` when a fact row should show the note).
+- `title`: short name of the document or record (not for `OBSERVATION`).
+- `why`: one plain sentence for the reader.
+- `holder`: who likely has it (empty if unknown).
+- `basisType`: `MENTIONED` when a supplied page refers to this document (code checks the reference), otherwise `USUALLY_EXPECTED`.
 
 **Step 8 — `domainLabel`.** The field the case belongs to, in a few plain words.
 
@@ -104,6 +112,19 @@ Return only the JSON object below. No prose before or after it, no markdown fenc
   "outsideSpine": [{ "id": "O1", "statement": "", "factIds": [] }],
   "conflicts": [{ "id": "C1", "statement": "", "factIds": [] }],
   "timeline": [{ "date": "YYYY-MM-DD|null", "asWritten": "", "statement": "", "factIds": [] }],
-  "gaps": [{ "id": "X1", "statement": "", "relatedSpineIds": [] }]
+  "gaps": [
+    {
+      "id": "X1",
+      "statement": "",
+      "relatedSpineIds": [],
+      "kind": "REQUESTABLE_DOCUMENT|FUTURE_RECORD|OBSERVATION",
+      "title": "",
+      "why": "",
+      "holder": "",
+      "when": null,
+      "basisType": "MENTIONED|USUALLY_EXPECTED",
+      "relatedFactIds": []
+    }
+  ]
 }
 ```

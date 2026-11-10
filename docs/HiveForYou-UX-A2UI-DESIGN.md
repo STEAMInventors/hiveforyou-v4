@@ -84,7 +84,7 @@ The persistent mental model is: **Documents are the source; Study is the accepte
 
 ### Screen C â€” Documents (the main working screen)
 
-**Header:** Hive name/description and **Ask about these documents** input. Stable tabs: Documents Â· Study Â· Reports. Below: the brand **state bar** in order **Needs you Â· Changed Â· Missing Â· Checked** when supported by the actual data. Do not create fake counts to fill it.
+**Header:** Hive name/description and **Ask about these documents** input. Stable tabs: Documents Â· Study Â· Reports. Below: **summary chips** (D-057) in urgency order **issues to resolve Â· documents to request Â· changes from the original Â· facts confirmed** when supported by the actual data; hide any chip at zero; link each chip to its section. Do not create fake counts to fill it.
 
 **Core document interface:**
 
@@ -255,7 +255,7 @@ IDs here are placeholders. The server supplies authorized values from accepted e
 
 - **Source chip:** Honey wash, document role + physical page; clicking opens the original page; not a filename or a decorative tag.
 - **Four-color input ring:** Around the main intent input on hover/focus, restrained and accessible.
-- **State bar:** Exactly **Needs you Â· Changed Â· Missing Â· Checked**, in that order, using correct semantic colors and grounded counts.
+- **Summary chips (D-057):** In-product summary chips use **issues to resolve Â· documents to request Â· changes from the original Â· facts confirmed** (urgency order, hidden at 0, linked to sections). This supersedes the brand PDF wording **Needs you Â· Changed Â· Missing Â· Checked** for shipped UI; keep the same semantic colors (Cell Blue, Coral, Honey, Leaf).
 
 **Writing:** Sentence-case headings/buttons; body approximately 8th-grade reading level; numbers copied exactly from source when quoting; no all-caps labels, false urgency, adversarial wording, mascot/bees, fake proof or AI theatrics.
 

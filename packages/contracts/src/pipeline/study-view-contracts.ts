@@ -5,6 +5,30 @@
  */
 
 import type { CanonicalStudy, SpineSource } from "./canonical-study-contracts";
+import {
+  buildDocumentRequestListData,
+  DOCUMENT_REQUEST_LIST_COMPONENT,
+  parseWriteDocumentRequestListProposal,
+  type DocumentRequestItem,
+  type DocumentRequestObservation,
+  type StudyViewReferencedDocument,
+  type StudyViewSourceRef,
+  type WriteDocumentRequestListProposal,
+} from "./document-request-list-contracts";
+
+export { matchReferencedDocuments } from "./study-view-reference-match";
+export type { StudyViewReferencedDocument, StudyViewSourceRef } from "./document-request-list-contracts";
+export {
+  buildDocumentRequestListData,
+  DOCUMENT_REQUEST_LIST_COMPONENT,
+  draftRequestPlainText,
+  parseWriteDocumentRequestListProposal,
+  requestableDocumentCount,
+  type DocumentRequestItem,
+  type DocumentRequestListData,
+  type DocumentRequestObservation,
+  type WriteDocumentRequestListProposal,
+} from "./document-request-list-contracts";
 
 export const STUDY_VIEW_SCHEMA = "hive.study-view/1";
 export const WRITE_PROMPT_ID = "hive-write/1";
@@ -14,7 +38,6 @@ export const STUDY_VIEW_BLOCK_NAMES = [
   "spine_table",
   "conflicts",
   "timeline",
-  "gaps",
   "outside_spine",
 ] as const;
 export type StudyViewBlockName = (typeof STUDY_VIEW_BLOCK_NAMES)[number];
@@ -28,12 +51,6 @@ export type WriteFactRecord = {
   readonly subject: string;
   readonly attribute: string;
   readonly valueAsWritten: string;
-  readonly sourceDocumentId: string;
-  readonly pageNumber: number;
-  readonly quote: string;
-};
-
-export type StudyViewSourceRef = {
   readonly sourceDocumentId: string;
   readonly pageNumber: number;
   readonly quote: string;
@@ -83,21 +100,29 @@ export type StudyViewBlock = {
   readonly rows: readonly StudyViewRow[];
 };
 
+export type StudyViewDocumentRequestList = {
+  readonly name: typeof DOCUMENT_REQUEST_LIST_COMPONENT;
+  readonly intro?: StudyViewSentence;
+  readonly items: readonly DocumentRequestItem[];
+  /** When the write model proposed forbidden fields, render a plain accessible list. */
+  readonly fallback?: boolean;
+  /** Statement-only canonical gaps; show rebuild guidance in the list chrome. */
+  readonly legacyHint?: boolean;
+};
+
+export type StudyViewComponent = StudyViewDocumentRequestList;
+
 export type StudyView = {
   readonly schema: typeof STUDY_VIEW_SCHEMA;
   readonly sections: readonly StudyViewSection[];
   readonly blocks: readonly StudyViewBlock[];
+  readonly components: readonly StudyViewComponent[];
+  readonly documentRequestObservations?: readonly DocumentRequestObservation[];
+  /** When no single document organizes the case, a one-line note from the canonical study. */
+  readonly structuralNote?: string | null;
   /** The owner's intent the view was written for, when the builder was given it. */
   readonly intent?: string;
   readonly spineSource?: SpineSource | null;
-};
-
-/** A document one supplied document refers to (from verified extractions). */
-export type StudyViewReferencedDocument = {
-  readonly sourceDocumentId: string;
-  readonly description: string;
-  readonly page: number;
-  readonly quote: string;
 };
 
 /** Optional inputs beyond the canonical study; views built without them simply lack those fields. */
@@ -118,6 +143,7 @@ export type StudyViewSources = {
 export type WriteOutput = {
   readonly sections: readonly WriteSection[];
   readonly blocks: readonly StudyViewBlockName[];
+  readonly components?: readonly WriteDocumentRequestListProposal[];
 };
 
 export type WriteSection = {
@@ -129,6 +155,7 @@ export type StudyViewDrops = {
   readonly sentencesDropped: number;
   readonly unknownBlockNamesIgnored: number;
   readonly unknownFactIdsStripped: number;
+  readonly invalidWriteComponentsDropped: number;
 };
 
 export type WriteOutputParse =
@@ -196,6 +223,11 @@ export function parseWriteOutput(raw: unknown): WriteOutputParse {
   const blocks: StudyViewBlockName[] = [];
   const seenBlocks = new Set<string>();
   for (const item of arr(raw.blocks)) {
+    const text = typeof item === "string" ? item.trim() : "";
+    if (text === "gaps") {
+      tally.count("block_name_deprecated");
+      continue;
+    }
     const name = blockName(item);
     if (name === null) {
       tally.count("block_name_unknown");
@@ -208,7 +240,32 @@ export function parseWriteOutput(raw: unknown): WriteOutputParse {
     seenBlocks.add(name);
     blocks.push(name);
   }
-  return { ok: true, value: { sections, blocks }, malformed: tally.counts };
+  const components: WriteDocumentRequestListProposal[] = [];
+  const seenComponents = new Set<string>();
+  for (const item of arr(raw.components)) {
+    const parsed = parseWriteDocumentRequestProposal(item, tally);
+    if (!parsed) continue;
+    if (seenComponents.has(parsed.name)) {
+      tally.count("component_name_duplicate");
+      continue;
+    }
+    seenComponents.add(parsed.name);
+    components.push(parsed);
+  }
+  return { ok: true, value: { sections, blocks, components }, malformed: tally.counts };
+}
+
+function parseWriteDocumentRequestProposal(
+  raw: unknown,
+  tally: Tally,
+): WriteDocumentRequestListProposal | null {
+  const proposal = parseWriteDocumentRequestListProposal(raw, tally);
+  if (!proposal) return null;
+  if (proposal.name !== DOCUMENT_REQUEST_LIST_COMPONENT) {
+    tally.count("component_name_unknown");
+    return null;
+  }
+  return proposal;
 }
 
 function valuesForFactIds(
@@ -233,27 +290,14 @@ function valuesForFactIds(
   return out;
 }
 
-const matchTokens = (text: string): Set<string> =>
-  new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((token) => token.length >= 3 || /\d/.test(token)));
+const NO_ANCHOR_SPINE_SOURCES = new Set<SpineSource>(["TIMELINE", "PARTIES_AND_OBLIGATIONS"]);
 
-/** Share of a referenced document's description words that a gap statement must contain to match it. */
-const REFERENCE_MATCH_SHARE = 0.6;
-
-/**
- * The referenced-document entries a gap statement names: at least two shared words and at least
- * {@link REFERENCE_MATCH_SHARE} of the description's words. Pure text overlap, no vocabulary.
- */
-export function matchReferencedDocuments(
-  statement: string,
-  referencedDocuments: readonly StudyViewReferencedDocument[],
-): StudyViewReferencedDocument[] {
-  const gapTokens = matchTokens(statement);
-  return referencedDocuments.filter((reference) => {
-    const tokens = [...matchTokens(reference.description)];
-    if (tokens.length === 0) return false;
-    const shared = tokens.filter((token) => gapTokens.has(token)).length;
-    return shared >= 2 && shared / tokens.length >= REFERENCE_MATCH_SHARE;
-  });
+function structuralNoteFromStudy(study: CanonicalStudy): string | null {
+  const first = study.gaps[0];
+  if (!first || !study.spineSource || !NO_ANCHOR_SPINE_SOURCES.has(study.spineSource)) return null;
+  if (first.relatedSpineIds.length > 0) return null;
+  const statement = first.statement.trim();
+  return statement !== "" ? statement : null;
 }
 
 function dedupeRows(rows: StudyViewRow[]): StudyViewRow[] {
@@ -321,27 +365,6 @@ function buildTimelineBlock(study: CanonicalStudy, facts: ReadonlyMap<string, Wr
   }));
 }
 
-function buildGapsBlock(study: CanonicalStudy, referencedDocuments: readonly StudyViewReferencedDocument[]): StudyViewRow[] {
-  return dedupeRows(
-    study.gaps.map((gap) => {
-      const seen = new Set<string>();
-      const referencedBy = matchReferencedDocuments(gap.statement, referencedDocuments).flatMap((reference) => {
-        const key = `${reference.sourceDocumentId}:${reference.page}`;
-        if (seen.has(key) || reference.page < 1) return [];
-        seen.add(key);
-        return [{ sourceDocumentId: reference.sourceDocumentId, pageNumber: reference.page, quote: reference.quote }];
-      });
-      return {
-        id: gap.id,
-        statement: gap.statement,
-        relatedSpineIds: gap.relatedSpineIds,
-        ...(referencedBy.length > 0 ? { referencedBy } : {}),
-        values: [],
-      };
-    }),
-  );
-}
-
 function buildOutsideSpineBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>): StudyViewRow[] {
   return dedupeRows(
     study.outsideSpine.map((item) => ({
@@ -360,7 +383,6 @@ const BLOCK_BUILDERS: Record<
   spine_table: buildSpineBlock,
   conflicts: buildConflictsBlock,
   timeline: buildTimelineBlock,
-  gaps: (study, _facts, context) => buildGapsBlock(study, context.referencedDocuments ?? []),
   outside_spine: buildOutsideSpineBlock,
 };
 
@@ -416,24 +438,63 @@ export function buildStudyView(
   const knownFactIds = new Set(factMap.keys());
   const { sections, sentencesDropped, unknownFactIdsStripped } = filterSections(writeOutput.sections, knownFactIds);
   const order = resolveBlockOrder(writeOutput.blocks);
-  const unknownBlockNamesIgnored = parseMalformed.block_name_unknown ?? 0;
+  const unknownBlockNamesIgnored =
+    (parseMalformed.block_name_unknown ?? 0) + (parseMalformed.block_name_deprecated ?? 0);
   const blocks: StudyViewBlock[] = order.map((name) => ({
     name,
     rows: BLOCK_BUILDERS[name](canonicalStudy, factMap, context),
   }));
+  const referencedDocuments = context.referencedDocuments ?? [];
+  const requestData = buildDocumentRequestListData(canonicalStudy, referencedDocuments);
+  const structuralNote = structuralNoteFromStudy(canonicalStudy);
+  const components: StudyViewComponent[] = [];
+  let invalidWriteComponentsDropped = 0;
+  let extraUnknownFactIds = 0;
+  const writeComponents = writeOutput.components ?? [];
+  const wantsList =
+    writeComponents.some((component) => component.name === DOCUMENT_REQUEST_LIST_COMPONENT) || writeComponents.length === 0;
+  const writeFallback =
+    (parseMalformed.component_items_forbidden ?? 0) > 0 ||
+    (parseMalformed.component_actions_forbidden ?? 0) > 0 ||
+    (parseMalformed.component_field_forbidden ?? 0) > 0;
+  if (wantsList && requestData.items.length > 0) {
+    const proposal = writeComponents.find((component) => component.name === DOCUMENT_REQUEST_LIST_COMPONENT);
+    let intro: StudyViewSentence | undefined;
+    if (proposal?.intro && !writeFallback) {
+      const kept = proposal.intro.factIds.filter((id) => knownFactIds.has(id));
+      extraUnknownFactIds += proposal.intro.factIds.length - kept.length;
+      if (kept.length > 0) intro = { text: proposal.intro.text, factIds: kept };
+      else invalidWriteComponentsDropped += 1;
+    }
+    if (writeFallback) invalidWriteComponentsDropped += 1;
+    components.push({
+      name: DOCUMENT_REQUEST_LIST_COMPONENT,
+      items: requestData.items,
+      ...(intro ? { intro } : {}),
+      ...(writeFallback ? { fallback: true } : {}),
+      ...(requestData.legacyHint ? { legacyHint: true } : {}),
+    });
+  }
+
   const intent = context.intent?.trim() ?? "";
+  const observations =
+    requestData.observations.length > 0 ? requestData.observations : undefined;
   return {
     view: {
       schema: STUDY_VIEW_SCHEMA,
       sections,
       blocks,
+      components,
+      ...(observations ? { documentRequestObservations: observations } : {}),
+      ...(structuralNote ? { structuralNote } : {}),
       ...(intent !== "" ? { intent } : {}),
       spineSource: canonicalStudy.spineSource,
     },
     drops: {
       sentencesDropped,
       unknownBlockNamesIgnored,
-      unknownFactIdsStripped,
+      unknownFactIdsStripped: unknownFactIdsStripped + extraUnknownFactIds,
+      invalidWriteComponentsDropped,
     },
   };
 }
@@ -465,6 +526,16 @@ export function buildStudyViewSources(
       if (block.name === "documents") documentIds.add(row.id);
     }
   }
+  for (const component of view.components ?? []) {
+    component.intro?.factIds.forEach(cite);
+    if (component.name === DOCUMENT_REQUEST_LIST_COMPONENT) {
+      for (const item of component.items) {
+        if (item.basis.type === "MENTIONED") {
+          item.basis.sourceRefs.forEach((ref) => documentIds.add(ref.sourceDocumentId));
+        }
+      }
+    }
+  }
   const documents: Record<string, { fileName: string }> = {};
   for (const id of documentIds) {
     documents[id] = { fileName: fileNames.get(id.toLowerCase()) ?? fileNames.get(id) ?? "Document" };
@@ -477,7 +548,8 @@ export function isStudyView(value: unknown): value is StudyView {
     isRecord(value) &&
     value.schema === STUDY_VIEW_SCHEMA &&
     Array.isArray(value.sections) &&
-    Array.isArray(value.blocks)
+    Array.isArray(value.blocks) &&
+    (value.components === undefined || Array.isArray(value.components))
   );
 }
 

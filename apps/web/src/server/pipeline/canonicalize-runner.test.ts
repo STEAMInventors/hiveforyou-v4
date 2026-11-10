@@ -131,7 +131,20 @@ describe("canonicalizeCase", () => {
       ["S2", "UNSUPPORTED"],
     ]);
     expect(result.study.conflicts).toEqual([]);
-    expect(result.study.gaps).toEqual([{ id: "X1", statement: "Prior letter not supplied", relatedSpineIds: ["S1"] }]);
+    expect(result.study.gaps).toEqual([
+      {
+        id: "X1",
+        statement: "Prior letter not supplied",
+        relatedSpineIds: ["S1"],
+        kind: null,
+        title: "",
+        why: "",
+        holder: "",
+        when: null,
+        basisType: null,
+        relatedFactIds: [],
+      },
+    ]);
     expect(result.drops).toMatchObject({ unknownFactIds: 2, spineMarkedUnsupported: 1, conflictsDropped: 1 });
     expect(result.calls).toEqual([expect.objectContaining({ purpose: "canonicalize", attempt: 1, outcome: "ok", inputTokens: 9000, outputTokens: 3000 })]);
   });

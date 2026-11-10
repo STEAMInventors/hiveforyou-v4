@@ -42,7 +42,23 @@ export type SpineElement = {
 export type OutsideSpineItem = { id: string; statement: string; factIds: string[] };
 export type CanonicalConflict = { id: string; statement: string; factIds: string[] };
 export type TimelineEntry = { date: string | null; asWritten: string; statement: string; factIds: string[] };
-export type CanonicalGap = { id: string; statement: string; relatedSpineIds: string[] };
+export const CANONICAL_GAP_KINDS = ["REQUESTABLE_DOCUMENT", "FUTURE_RECORD", "OBSERVATION"] as const;
+export type CanonicalGapKind = (typeof CANONICAL_GAP_KINDS)[number];
+export const CANONICAL_GAP_BASIS_TYPES = ["MENTIONED", "USUALLY_EXPECTED"] as const;
+export type CanonicalGapBasisType = (typeof CANONICAL_GAP_BASIS_TYPES)[number];
+
+export type CanonicalGap = {
+  id: string;
+  statement: string;
+  relatedSpineIds: string[];
+  kind: CanonicalGapKind | null;
+  title: string;
+  why: string;
+  holder: string;
+  when: string | null;
+  basisType: CanonicalGapBasisType | null;
+  relatedFactIds: string[];
+};
 
 export type CanonicalStudy = {
   schema: typeof CANONICAL_STUDY_SCHEMA;
@@ -180,6 +196,13 @@ export function parseCanonicalStudy(raw: unknown): CanonicalStudyParse {
         if (mapped === undefined) tally.count("gap_spine_ref_unknown");
         return mapped === undefined ? [] : [mapped];
       }),
+      kind: oneOf(CANONICAL_GAP_KINDS, item.kind),
+      title: str(item.title),
+      why: str(item.why),
+      holder: str(item.holder),
+      when: nullableStr(item.when),
+      basisType: oneOf(CANONICAL_GAP_BASIS_TYPES, item.basisType),
+      relatedFactIds: strings(item.relatedFactIds),
     })),
     domainLabel: str(raw.domainLabel),
   };

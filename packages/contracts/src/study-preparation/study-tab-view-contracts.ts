@@ -174,8 +174,9 @@ export function buildStudyTabViewPayload(
       ? {
           sections: tab.narrativeSections,
           blocks: [...(tab.narrativeBlockNames ?? DEFAULT_STUDY_VIEW_BLOCK_ORDER)],
+          components: [],
         }
-      : { sections: [], blocks: [...DEFAULT_STUDY_VIEW_BLOCK_ORDER] };
+      : { sections: [], blocks: [...DEFAULT_STUDY_VIEW_BLOCK_ORDER], components: [] };
 
   const parsed = parseWriteOutput(writeShape);
   if (!parsed.ok) return null;

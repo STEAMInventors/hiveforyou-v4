@@ -48,7 +48,20 @@ const study: CanonicalStudy = {
   outsideSpine: [{ id: "O1", statement: "Background note", factIds: ["F-aaaa0001-001"] }],
   conflicts: [{ id: "C1", statement: "Two amounts", factIds: ["F-aaaa0001-001", "F-bbbb0002-001"] }],
   timeline: [{ date: "2026-01-01", asWritten: "Jan 1, 2026", statement: "Notice dated", factIds: ["F-aaaa0001-001"] }],
-  gaps: [{ id: "X1", statement: "Missing ledger", relatedSpineIds: ["S1"] }],
+  gaps: [
+    {
+      id: "X1",
+      statement: "Missing ledger",
+      relatedSpineIds: ["S1"],
+      kind: null,
+      title: "",
+      why: "",
+      holder: "",
+      when: null,
+      basisType: null,
+      relatedFactIds: [],
+    },
+  ],
 };
 
 describe("parseWriteOutput", () => {
@@ -92,42 +105,44 @@ describe("buildStudyView", () => {
   });
 
   it("uses the default block order when the model returns no blocks", () => {
-    const { view } = buildStudyView(study, { sections: [], blocks: [] }, FACTS);
-    expect(view.blocks.map((b) => b.name)).toEqual([
-      "documents",
-      "spine_table",
-      "conflicts",
-      "timeline",
-      "gaps",
-      "outside_spine",
-    ]);
+    const { view } = buildStudyView(study, { sections: [], blocks: [], components: [] }, FACTS);
+    expect(view.blocks.map((b) => b.name)).toEqual(["documents", "spine_table", "conflicts", "timeline", "outside_spine"]);
   });
 
   it("keeps the model's block order and appends every block it left out", () => {
-    const { view } = buildStudyView(study, { sections: [], blocks: ["gaps", "documents"] }, FACTS);
-    expect(view.blocks.map((b) => b.name)).toEqual([
-      "gaps",
-      "documents",
-      "spine_table",
-      "conflicts",
-      "timeline",
-      "outside_spine",
-    ]);
+    const { view } = buildStudyView(study, { sections: [], blocks: ["documents"], components: [] }, FACTS);
+    expect(view.blocks.map((b) => b.name)).toEqual(["documents", "spine_table", "conflicts", "timeline", "outside_spine"]);
     expect(view.spineSource).toBe("ANCHOR");
     expect(view.intent).toBeUndefined();
   });
 
   it("records the intent when given and how each spine value relates to its element", () => {
-    const { view } = buildStudyView(study, { sections: [], blocks: [] }, FACTS, {}, { intent: "  What is owed?  " });
+    const { view } = buildStudyView(study, { sections: [], blocks: [], components: [] }, FACTS, {}, { intent: "  What is owed?  " });
     expect(view.intent).toBe("What is owed?");
     const spine = view.blocks.find((b) => b.name === "spine_table")!;
     expect(spine.rows[0]!.values.map((v) => v.relation)).toEqual(["supporting", "contradicting"]);
   });
 
-  it("links a gap to the supplied pages that refer to the missing document", () => {
+  it("links a request item to the supplied pages that refer to the missing document", () => {
     const { view } = buildStudyView(
-      { ...study, gaps: [{ id: "X1", statement: "The 2025 annual ledger (Exhibit C) is referred to but not supplied.", relatedSpineIds: [] }] },
-      { sections: [], blocks: [] },
+      {
+        ...study,
+        gaps: [
+          {
+            id: "X1",
+            statement: "The 2025 annual ledger (Exhibit C) is referred to but not supplied.",
+            relatedSpineIds: [],
+            kind: "REQUESTABLE_DOCUMENT",
+            title: "2025 annual ledger (Exhibit C)",
+            why: "Referred to but not supplied.",
+            holder: "",
+            when: null,
+            basisType: "MENTIONED",
+            relatedFactIds: [],
+          },
+        ],
+      },
+      { sections: [], blocks: [], components: [] },
       FACTS,
       {},
       {
@@ -138,14 +153,17 @@ describe("buildStudyView", () => {
         ],
       },
     );
-    const gap = view.blocks.find((b) => b.name === "gaps")!.rows[0]!;
-    expect(gap.referencedBy).toEqual([{ sourceDocumentId: "doc-a", pageNumber: 3, quote: "Exhibit C" }]);
+    const item = view.components[0]!.items[0]!;
+    expect(item.basis.type).toBe("MENTIONED");
+    if (item.basis.type === "MENTIONED") {
+      expect(item.basis.sourceRefs).toEqual([{ sourceDocumentId: "doc-a", pageNumber: 3, quote: "Exhibit C" }]);
+    }
   });
 
   it("builds block rows from canonical ids with valueAsWritten and source refs", () => {
     const { view } = buildStudyView(
       study,
-      { sections: [], blocks: ["documents", "spine_table", "conflicts"] as const },
+      { sections: [], blocks: ["documents", "spine_table", "conflicts"] as const, components: [] },
       FACTS,
     );
     const spine = view.blocks.find((b) => b.name === "spine_table")!;
@@ -168,7 +186,7 @@ describe("buildStudyView", () => {
   });
 
   it("never throws on malformed write content", () => {
-    expect(() => buildStudyView(study, { sections: [], blocks: ["spine_table"] }, [])).not.toThrow();
+    expect(() => buildStudyView(study, { sections: [], blocks: ["spine_table"], components: [] }, [])).not.toThrow();
     const parsed = parseWriteOutput(null);
     expect(parsed.ok).toBe(false);
   });

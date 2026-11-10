@@ -1,16 +1,14 @@
 import type { CoverageGap, StudyView, StudyViewBlockName, StudyViewRow } from "@hiveforyou/contracts";
+import { DOCUMENT_REQUEST_LIST_COMPONENT } from "@hiveforyou/contracts";
 
 import { shortDocumentLabels } from "./document-labels";
-import { documentsToRequestCount, groupMissing } from "./missing-groups";
-import { readProblemsFromCoverage } from "./ReadProblemNotice";
 import { countStates, type StateCounts } from "./StateBar";
-import type { DisplayState } from "./StatusBadge";
 
 export const STUDY_SECTION_IDS = {
   glance: "at-a-glance",
   disagree: "where-documents-disagree",
   establish: "what-documents-establish",
-  missing: "what-is-missing",
+  missing: "what-to-ask-for",
   timeline: "timeline",
   documents: "documents",
 } as const;
@@ -18,14 +16,20 @@ export const STUDY_SECTION_IDS = {
 const blockRows = (view: StudyView, name: StudyViewBlockName): readonly StudyViewRow[] =>
   view.blocks.find((block) => block.name === name)?.rows ?? [];
 
+/** Requestable documents only (not future records or unreadable files). */
+export function studyDocumentRequestCount(view: StudyView): number {
+  const component = view.components?.find((entry) => entry.name === DOCUMENT_REQUEST_LIST_COMPONENT);
+  return component?.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT").length ?? 0;
+}
+
 /** The same counts the report's state bar shows, for headers and cards outside the report. */
 export function studyStateCounts(view: StudyView, coverageGaps: readonly CoverageGap[]): StateCounts {
-  const missing = groupMissing(blockRows(view, "gaps"), readProblemsFromCoverage(coverageGaps, () => undefined), view.spineSource);
-  return countStates(blockRows(view, "spine_table"), documentsToRequestCount(missing));
+  void coverageGaps;
+  return countStates(blockRows(view, "spine_table"), studyDocumentRequestCount(view));
 }
 
 /** The section each state-bar pill opens. */
-export function studyStateTargets(view: StudyView): Record<DisplayState, string> {
+export function studyStateTargets(view: StudyView): Record<import("./StatusBadge").DisplayState, string> {
   const hasConflicts = blockRows(view, "conflicts").length > 0;
   return {
     needs: hasConflicts ? STUDY_SECTION_IDS.disagree : STUDY_SECTION_IDS.establish,

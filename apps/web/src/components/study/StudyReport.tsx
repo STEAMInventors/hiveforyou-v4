@@ -1,8 +1,9 @@
 "use client";
 
-import type {
-  CoverageGap,
-  ReportAudience,
+import {
+  DOCUMENT_REQUEST_LIST_COMPONENT,
+  type CoverageGap,
+  type ReportAudience,
   StudyView,
   StudyViewBlockName,
   StudyViewRow,
@@ -20,7 +21,9 @@ import { EstablishTable } from "./EstablishTable";
 import { buildCitationContextMap } from "./citation-context";
 import { EvidenceViewerProvider } from "./EvidenceViewer";
 import { InferenceLabel } from "./InferenceLabel";
-import { documentsToRequestCount, groupMissing, isStructuralNote, MissingList, missingCount } from "./MissingList";
+import { DocumentRequestList } from "./DocumentRequestList";
+import { groupMissing, MissingList, missingCount } from "./MissingList";
+import { studyDocumentRequestCount } from "./study-summary";
 import { ReadProblemNotice, readProblemsFromCoverage } from "./ReadProblemNotice";
 import { ReportFooter } from "./ReportFooter";
 import { type ChipRef, shortDocumentLabels, shortTypeChipLabels, SourceChips } from "./SourceChip";
@@ -131,8 +134,8 @@ export function StudyReport({
     const labels = shortDocumentLabels(labelled);
     const chipLabels = shortTypeChipLabels(labelled);
     const readProblems = readProblemsFromCoverage(coverageGaps, (id) => labels.get(id), pageCountFor);
-    const gaps = rows("gaps");
-    const missing = groupMissing(gaps, readProblems, view.spineSource);
+    const missing = groupMissing([], readProblems, view.spineSource);
+    const documentRequestList = view.components?.find((component) => component.name === DOCUMENT_REQUEST_LIST_COMPONENT) ?? null;
     const spine = rows("spine_table");
     const timeline = rows("timeline");
     const conflicts = rows("conflicts");
@@ -144,12 +147,14 @@ export function StudyReport({
       chipLabels,
       readProblems,
       missing,
-      structuralNote: gaps[0] && isStructuralNote(gaps[0], 0, view.spineSource) ? gaps[0] : null,
+      structuralNote: view.structuralNote?.trim() ? view.structuralNote : null,
+      documentRequestList,
+      observations: view.documentRequestObservations ?? [],
       spine,
       outsideSpine: rows("outside_spine"),
       timeline,
       conflicts,
-      counts: countStates(spine, documentsToRequestCount(missing)),
+      counts: countStates(spine, studyDocumentRequestCount(view)),
       upcoming: selectUpcoming(timeline, documents.map((row) => row.date)),
       needsRows: spine.filter((row) => spineRowState(row) === "needs"),
       documentDate: (id: string) => documentDate.get(id) ?? null,
@@ -250,14 +255,17 @@ export function StudyReport({
 
   const narrative = isReport ? view.sections : [];
   const hasEstablish = model.spine.length > 0 || model.outsideSpine.length > 0 || !!model.structuralNote;
-  const hasMissing = missingCount(model.missing) > 0;
+  const hasAskSection =
+    model.documentRequestList !== null ||
+    model.missing.unreadable.length > 0 ||
+    missingCount(model.missing) > 0;
 
   const toc: { id: string; label: string }[] = [
     ...(glanceRows.length > 0 ? [{ id: SECTION_IDS.glance, label: "At a glance" }] : []),
     ...narrative.map((section, index) => ({ id: `narrative-${index + 1}`, label: section.heading })),
     ...(model.conflicts.length > 0 ? [{ id: SECTION_IDS.disagree, label: "Where the documents disagree" }] : []),
     ...(!customer && hasEstablish ? [{ id: SECTION_IDS.establish, label: "What the documents establish" }] : []),
-    ...(hasMissing ? [{ id: SECTION_IDS.missing, label: "What is missing" }] : []),
+    ...(hasAskSection ? [{ id: SECTION_IDS.missing, label: "What to ask for" }] : []),
     ...(customer && hasEstablish ? [{ id: SECTION_IDS.establish, label: "What the documents establish" }] : []),
     ...(model.timeline.length > 0 ? [{ id: SECTION_IDS.timeline, label: "Timeline" }] : []),
     ...(model.documents.length > 0 ? [{ id: SECTION_IDS.documents, label: "Documents" }] : []),
@@ -271,8 +279,10 @@ export function StudyReport({
       <h3 id={`${SECTION_IDS.establish}-h`} className={SECTION_HEADING}>
         What the documents establish
       </h3>
-      {model.structuralNote ? <p className="m-0 max-w-prose text-body text-graphite">{model.structuralNote.statement}</p> : null}
-      {model.spine.length > 0 ? <EstablishTable rows={model.spine} compact={!customer} /> : null}
+      {model.structuralNote ? <p className="m-0 max-w-prose text-body text-graphite">{model.structuralNote}</p> : null}
+      {model.spine.length > 0 ? (
+        <EstablishTable rows={model.spine} compact={!customer} observations={model.observations} />
+      ) : null}
       {model.outsideSpine.length > 0 ? (
         <div className="flex flex-col gap-2">
           <h4 className="m-0 text-small font-semibold text-ink">Also in the documents</h4>
@@ -398,12 +408,15 @@ export function StudyReport({
 
           {!customer ? establishCard : null}
 
-          {hasMissing ? (
+          {hasAskSection ? (
             <section id={SECTION_IDS.missing} tabIndex={-1} aria-labelledby={`${SECTION_IDS.missing}-h`} className={`${CARD} ${cardGap}`}>
               <h3 id={`${SECTION_IDS.missing}-h`} className={SECTION_HEADING}>
-                What is missing
+                What to ask for
               </h3>
-              <MissingList groups={model.missing} />
+              {model.documentRequestList ? (
+                <DocumentRequestList component={model.documentRequestList} customer={customer} sentenceChips={sentenceChips} />
+              ) : null}
+              {model.missing.unreadable.length > 0 ? <MissingList groups={{ unreadable: model.missing.unreadable, referenced: [], expected: [] }} /> : null}
             </section>
           ) : null}
 

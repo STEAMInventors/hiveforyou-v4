@@ -62,7 +62,8 @@ export function buildFixture(input: FixtureInput, audience: ReportAudience): Rep
     documents: input.documents.map((document) => ({ sourceDocumentId: document.id, ...document.canonical })),
     ...input.study,
   };
-  const { view } = buildStudyView(study, input.writes[audience], facts, {}, {
+  const write = { components: [] as const, ...input.writes[audience] };
+  const { view } = buildStudyView(study, write, facts, {}, {
     intent: input.intent,
     referencedDocuments: input.referencedDocuments,
   });
