@@ -66,7 +66,8 @@ export function MissingDocumentsBanner({ hiveId, summary, onRebuild, rebuilding 
       ) : (
         <>
           <p className="m-0 text-body text-ink">
-            {missingCount} {missingCount === 1 ? "document" : "documents"} missing — add them and rebuild the study{" "}
+            {missingCount} {missingCount === 1 ? "document would help" : "documents would help"} complete this review — add
+            them and rebuild the study{" "}
             <Link href={`${hiveDocumentsPath(hiveId)}#missing`} className="font-medium text-cell underline">
               on Documents
             </Link>

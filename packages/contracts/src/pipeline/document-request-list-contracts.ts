@@ -82,9 +82,13 @@ export type LegacyDocumentLine = {
   readonly text: string;
 };
 
+export type DocumentIntakePrompt = { readonly id: string; readonly text: string };
+
 export type DocumentRequestListData = {
   readonly items: readonly DocumentRequestItem[];
   readonly observations: readonly DocumentRequestObservation[];
+  /** Pack rows with "if any" timing — optional intake, not upload slots. */
+  readonly intakePrompts?: readonly DocumentIntakePrompt[];
   /** REQUESTABLE_DOCUMENT gaps held by the court (not upload slots). */
   readonly courtRecordCount: number;
   /** Statement-only gaps that are still worth showing, under a rebuild hint. */
@@ -257,11 +261,23 @@ export function buildDocumentRequestListData(
   };
 }
 
+/** Ask-now upload slots (excludes court records and later records), unique by title. */
+export function askNowDocumentRequestCount(data: DocumentRequestListData): number {
+  const seen = new Set<string>();
+  let count = 0;
+  for (const item of data.items) {
+    if (item.kind !== "REQUESTABLE_DOCUMENT" || item.holderType === "COURT_RECORD") continue;
+    const key = item.title.trim().toLowerCase();
+    if (key === "" || seen.has(key)) continue;
+    seen.add(key);
+    count += 1;
+  }
+  return count;
+}
+
 /** Uploadable missing documents only (excludes court-register items and future records). */
 export function requestableDocumentCount(data: DocumentRequestListData): number {
-  return data.items.filter(
-    (item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD",
-  ).length;
+  return askNowDocumentRequestCount(data);
 }
 
 export type WriteDocumentRequestListProposal = {

@@ -93,6 +93,14 @@ describe("loadPromptCatalog", () => {
     expect(canonicalize.systemPrompt).toContain('"schema": "hive.canonical-study/1"');
   });
 
+  it("hive-canonicalize/2 forbids obligation wording in checklist notes", () => {
+    const { canonicalizeV2 } = loadPromptCatalog();
+    expect(canonicalizeV2).toMatchObject({ task: "canonicalize", id: "hive-canonicalize/2" });
+    expect(canonicalizeV2.systemPrompt).toContain(
+      "Notes describe what the documents show or do not show. Never state a requirement or obligation; do not use must, required, should or shall.",
+    );
+  });
+
   it("loads hive-write/1 as the System and Output sections", () => {
     const { write } = loadPromptCatalog();
     expect(write).toMatchObject({ task: "write", id: "hive-write/1" });

@@ -66,7 +66,8 @@ export const PACK_CANONICALIZE_INSTRUCTION = [
   "A specialist checklist is attached. For every check return one verdict: SHOWN, PARTLY_SHOWN, NOT_SHOWN, CONFLICT or NOT_APPLICABLE.",
   "SHOWN, PARTLY_SHOWN and CONFLICT must cite fact ids; CONFLICT cites both sides.",
   'NOT_SHOWN means the facts do not show it - never that it did not happen. NOT_APPLICABLE needs a fact id showing why, or the note "condition not present".',
-  "Add a note of at most 25 words saying what is or is not shown. For each chain, return one row per starting item with a cell per link: the fact ids for that link, or missing.",
+  "Add a note of at most 25 words saying what is or is not shown. Notes describe what the documents show or do not show. Never state a requirement or obligation; do not use must, required, should or shall.",
+  "For each chain, return one row per starting item with a cell per link: the fact ids for that link, or missing.",
   "Do not use the readers, the checklist or the chains as a source of facts about this case.",
 ].join(" ");
 

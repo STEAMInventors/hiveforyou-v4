@@ -38,7 +38,7 @@ describe("StateBar", () => {
     const links = screen.getAllByRole("link");
     expect(links.map((link) => link.textContent)).toEqual([
       "1 issue to resolve",
-      "2 documents missing",
+      "2 documents would help complete this review",
       "5 facts confirmed",
     ]);
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["#a", "#c", "#d"]);

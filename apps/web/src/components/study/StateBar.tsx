@@ -26,7 +26,7 @@ export function statePillText(state: DisplayState, n: number): string {
     case "needs":
       return `${n} ${n === 1 ? "issue" : "issues"} to resolve`;
     case "missing":
-      return `${n} ${n === 1 ? "document" : "documents"} missing`;
+      return `${n} ${n === 1 ? "document would help" : "documents would help"} complete this review`;
     case "changed":
       return `${n} ${n === 1 ? "change" : "changes"} from the original`;
     case "checked":

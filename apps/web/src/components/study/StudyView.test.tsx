@@ -39,7 +39,7 @@ describe("StudyReport", () => {
     const pro = screen.getAllByRole("link").filter((link) => link.closest('[data-testid="state-bar"]')).map((link) => link.textContent);
     expect(customer).toEqual([
       "4 issues to resolve",
-      "2 documents missing",
+      "2 documents would help complete this review",
       "6 changes from the original",
       "3 facts confirmed",
     ]);
@@ -206,7 +206,7 @@ describe("StudyReport", () => {
     expect(within(notice).queryByTestId("source-chip")).toBeNull();
     expect(screen.getByTestId("missing-list").querySelector('[data-group="unreadable"]')?.textContent).toContain("Water bill");
     expect(screen.getByText("Could not be read", { selector: "td" })).toBeTruthy();
-    expect(screen.getByText("2 documents missing")).toBeTruthy();
+    expect(screen.getByText("2 documents would help complete this review")).toBeTruthy();
   });
 });
 
@@ -312,7 +312,7 @@ describe("DocumentRequestList", () => {
     );
     const row = document.querySelector('[data-row-id="X1"]');
     expect(row?.textContent?.match(/Tax return/g)).toHaveLength(1);
-    expect(row?.textContent).toContain("Likely held by: Debtor");
+    expect(row?.textContent).toContain("Likely held by: Client");
   });
 
   it("shows Maya's Hive with 4 ask-now, 2 later, and attaches one observation to the spine row", () => {

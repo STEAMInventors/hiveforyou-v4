@@ -31,7 +31,7 @@ describe("MissingDocumentsBanner", () => {
     expect(summary.futureRecordCount).toBe(2);
 
     render(<MissingDocumentsBanner hiveId={fixture.hiveId} summary={summary} />);
-    expect(screen.getByTestId("missing-documents-banner").textContent).toContain("4 documents missing");
+    expect(screen.getByTestId("missing-documents-banner").textContent).toContain("4 documents would help");
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(screen.queryByTestId("missing-documents-banner")).toBeNull();
   });

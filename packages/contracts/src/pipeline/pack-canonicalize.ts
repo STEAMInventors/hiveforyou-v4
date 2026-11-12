@@ -2,10 +2,9 @@
  * Verify-or-drop for pack-shaped canonicalize output (checklist, chains, personaCoverage, questionOrder).
  */
 
-import type { CanonicalGap, CanonicalStudy } from "./canonical-study-contracts";
-import type { Pack, PackCheck, PackDocumentExpectation, PackStandingQuestion } from "./pack-contracts";
-import type { GapHolderType } from "./canonical-gap-holders";
-import { inferGapHolderType, normalizeGapHolderType } from "./canonical-gap-holders";
+import type { CanonicalStudy } from "./canonical-study-contracts";
+import type { Pack, PackCheck, PackStandingQuestion } from "./pack-contracts";
+import { mergePackSettlesGaps } from "./document-gap-reconcile";
 
 export const CHECK_VERDICTS = [
   "SHOWN",
@@ -279,63 +278,6 @@ function parseQuestionOrder(
     if (!seen.has(id)) order.push(id);
   }
   return order;
-}
-
-function normalizeGapTitle(title: string): string {
-  return title.trim().toLowerCase();
-}
-
-function gapFromDocumentRow(row: PackDocumentExpectation, checkId: string): CanonicalGap | null {
-  if (!row.settlesCheckIds.includes(checkId)) return null;
-  const title = row.document.trim();
-  if (title === "") return null;
-  const kind = row.gapKind;
-  const holderType: GapHolderType | null =
-    kind === "REQUESTABLE_DOCUMENT" ? row.holderType ?? inferGapHolderType({
-      kind,
-      holder: row.holder,
-      title,
-      statement: title,
-      holderType: row.holderType,
-    }) : null;
-  return {
-    id: "",
-    statement: `The case does not include: ${title}.`,
-    relatedSpineIds: [],
-    kind,
-    title,
-    why: "May help show whether the related item is supported.",
-    holder: row.holder,
-    holderType,
-    when: row.when || null,
-    basisType: "USUALLY_EXPECTED",
-    relatedFactIds: [],
-  };
-}
-
-/** Merge pack-driven gaps for unsettled checks; dedupe by document title against existing gaps. */
-export function mergePackSettlesGaps(
-  study: CanonicalStudy,
-  pack: Pack,
-  checklist: readonly CanonicalChecklistItem[],
-): CanonicalStudy {
-  const existingTitles = new Set(study.gaps.map((g) => normalizeGapTitle(g.title || g.statement)));
-  const extra: CanonicalGap[] = [];
-  let nextId = study.gaps.length + 1;
-  for (const item of checklist) {
-    if (item.verdict !== "NOT_SHOWN" && item.verdict !== "PARTLY_SHOWN") continue;
-    for (const row of pack.documentsUsuallyNeeded) {
-      if (!row.settlesCheckIds.includes(item.checkId)) continue;
-      const titleKey = normalizeGapTitle(row.document);
-      if (existingTitles.has(titleKey)) continue;
-      const gap = gapFromDocumentRow(row, item.checkId);
-      if (!gap) continue;
-      existingTitles.add(titleKey);
-      extra.push({ ...gap, id: `X${nextId++}` });
-    }
-  }
-  if (extra.length === 0) return study;
-  return { ...study, gaps: [...study.gaps, ...extra] };
 }
 
 export function applyPackCanonicalizeOutput(

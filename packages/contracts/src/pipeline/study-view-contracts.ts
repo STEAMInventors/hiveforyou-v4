@@ -4,7 +4,7 @@
  * `buildStudyView` never throws on content.
  */
 
-import type { CanonicalStudy, SpineSource } from "./canonical-study-contracts";
+import type { CanonicalStudy, SpineElement, SpineSource } from "./canonical-study-contracts";
 import type { Pack, PackAudience } from "./pack-contracts";
 import {
   buildChainBlockRows,
@@ -20,11 +20,14 @@ import {
   type PackStudyViewMeta,
 } from "./pack-study-view";
 import { capCustomerQuestions } from "./pack-write";
+import { reconcilePackDocumentGaps } from "./document-gap-reconcile";
+import { displayValueForWrittenText } from "./fact-display-value";
 import {
   buildDocumentRequestListData,
   DOCUMENT_REQUEST_LIST_COMPONENT,
   parseWriteDocumentRequestListProposal,
   type DocumentRequestItem,
+  type DocumentRequestListData,
   type DocumentRequestObservation,
   type LegacyDocumentLine,
   type StudyViewReferencedDocument,
@@ -129,6 +132,7 @@ export type StudyViewDocumentRequestList = {
   readonly name: typeof DOCUMENT_REQUEST_LIST_COMPONENT;
   readonly intro?: StudyViewSentence;
   readonly items: readonly DocumentRequestItem[];
+  readonly intakePrompts?: readonly import("./document-request-list-contracts").DocumentIntakePrompt[];
   readonly courtRecordCount: number;
   /** When the write model proposed forbidden fields, render a plain accessible list. */
   readonly fallback?: boolean;
@@ -306,6 +310,7 @@ function valuesForFactIds(
   facts: ReadonlyMap<string, WriteFactRecord>,
   relation?: StudyViewValueRelation,
   seen: Set<string> = new Set<string>(),
+  spine: readonly SpineElement[] = [],
 ): StudyViewValue[] {
   const out: StudyViewValue[] = [];
   for (const factId of factIds) {
@@ -315,7 +320,7 @@ function valuesForFactIds(
     if (!fact) continue;
     out.push({
       factId: fact.id,
-      valueAsWritten: fact.valueAsWritten,
+      valueAsWritten: displayValueForWrittenText(fact.valueAsWritten, fact.subject, spine),
       sourceRef: { sourceDocumentId: fact.sourceDocumentId, pageNumber: fact.pageNumber, quote: fact.quote },
       ...(relation ? { relation } : {}),
     });
@@ -369,9 +374,9 @@ function buildSpineBlock(study: CanonicalStudy, facts: ReadonlyMap<string, Write
         status: element.status,
         missing: element.missing,
         values: [
-          ...valuesForFactIds(element.supportingFactIds, facts, "supporting", seen),
-          ...valuesForFactIds(element.contradictingFactIds, facts, "contradicting", seen),
-          ...valuesForFactIds(element.updatingFactIds, facts, "updating", seen),
+          ...valuesForFactIds(element.supportingFactIds, facts, "supporting", seen, study.spine),
+          ...valuesForFactIds(element.contradictingFactIds, facts, "contradicting", seen, study.spine),
+          ...valuesForFactIds(element.updatingFactIds, facts, "updating", seen, study.spine),
         ],
       };
     }),
@@ -383,7 +388,7 @@ function buildConflictsBlock(study: CanonicalStudy, facts: ReadonlyMap<string, W
     study.conflicts.map((conflict) => ({
       id: conflict.id,
       statement: conflict.statement,
-      values: valuesForFactIds(conflict.factIds, facts),
+      values: valuesForFactIds(conflict.factIds, facts, undefined, new Set(), study.spine),
     })),
   );
 }
@@ -394,7 +399,7 @@ function buildTimelineBlock(study: CanonicalStudy, facts: ReadonlyMap<string, Wr
     date: entry.date,
     asWritten: entry.asWritten || null,
     statement: entry.statement,
-    values: valuesForFactIds(entry.factIds, facts),
+    values: valuesForFactIds(entry.factIds, facts, undefined, new Set(), study.spine),
   }));
 }
 
@@ -403,7 +408,7 @@ function buildOutsideSpineBlock(study: CanonicalStudy, facts: ReadonlyMap<string
     study.outsideSpine.map((item) => ({
       id: item.id,
       statement: item.statement,
-      values: valuesForFactIds(item.factIds, facts),
+      values: valuesForFactIds(item.factIds, facts, undefined, new Set(), study.spine),
     })),
   );
 }
@@ -519,17 +524,25 @@ export function buildStudyView(
   const unknownBlockNamesIgnored =
     (parseMalformed.block_name_unknown ?? 0) + (parseMalformed.block_name_deprecated ?? 0);
   const packAudience = context.reportAudience;
+  const referencedDocuments = context.referencedDocuments ?? [];
+  const reconciled =
+    context.pack && !context.pack.briefOnly
+      ? reconcilePackDocumentGaps(canonicalStudy, context.pack)
+      : { study: canonicalStudy, intakePrompts: [] as import("./document-request-list-contracts").DocumentIntakePrompt[] };
+  const studyForBlocks = reconciled.study;
   const blocks: StudyViewBlock[] = order.map((name) => {
-    const rows = BLOCK_BUILDERS[name](canonicalStudy, factMap, context);
+    const rows = BLOCK_BUILDERS[name](studyForBlocks, factMap, context);
     const sanitized =
       packAudience === "customer" && context.pack
         ? redactCustomerPackBlockRows(name, rows, context.pack)
         : rows;
     return { name, rows: sanitized };
   });
-  const referencedDocuments = context.referencedDocuments ?? [];
-  const requestData = buildDocumentRequestListData(canonicalStudy, referencedDocuments);
-  const structuralNote = structuralNoteFromStudy(canonicalStudy);
+  const requestData: DocumentRequestListData = {
+    ...buildDocumentRequestListData(reconciled.study, referencedDocuments),
+    ...(reconciled.intakePrompts.length > 0 ? { intakePrompts: reconciled.intakePrompts } : {}),
+  };
+  const structuralNote = structuralNoteFromStudy(studyForBlocks);
   const components: StudyViewComponent[] = [];
   let invalidWriteComponentsDropped = 0;
   let extraUnknownFactIds = 0;
@@ -557,6 +570,7 @@ export function buildStudyView(
       ...(intro ? { intro } : {}),
       ...(writeFallback ? { fallback: true } : {}),
       ...(requestData.legacyLines.length > 0 ? { legacyLines: requestData.legacyLines, legacyHint: true } : {}),
+      ...(requestData.intakePrompts && requestData.intakePrompts.length > 0 ? { intakePrompts: requestData.intakePrompts } : {}),
     });
   }
 
@@ -565,7 +579,7 @@ export function buildStudyView(
     requestData.observations.length > 0 ? requestData.observations : undefined;
   const packMeta = context.pack ? packStudyViewMeta(context.pack) : undefined;
   const personaCoverageCard = context.pack
-    ? buildPersonaCoverageCard(canonicalStudy, context.pack, factMap)
+    ? buildPersonaCoverageCard(studyForBlocks, context.pack, factMap)
     : undefined;
   const writtenFor =
     context.reportAudience && context.pack
@@ -580,7 +594,7 @@ export function buildStudyView(
       ...(observations ? { documentRequestObservations: observations } : {}),
       ...(structuralNote ? { structuralNote } : {}),
       ...(intent !== "" ? { intent } : {}),
-      spineSource: canonicalStudy.spineSource,
+      spineSource: studyForBlocks.spineSource,
       ...(packMeta ? { packMeta } : {}),
       ...(personaCoverageCard && personaCoverageCard.length > 0 ? { personaCoverageCard } : {}),
       ...(writtenFor ? { writtenFor } : {}),

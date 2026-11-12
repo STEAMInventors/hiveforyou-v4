@@ -1,7 +1,13 @@
 "use client";
 
 import type { DocumentRequestItem, StudyViewDocumentRequestList } from "@hiveforyou/contracts";
-import { DOCUMENT_REQUEST_LIST_LEGACY_HINT, draftRequestPlainText, holderTypeLabel, partitionDocumentRequests } from "@hiveforyou/contracts";
+import {
+  DOCUMENT_REQUEST_LIST_LEGACY_HINT,
+  draftRequestPlainText,
+  type HolderLabelContext,
+  holderTypeLabel,
+  partitionDocumentRequests,
+} from "@hiveforyou/contracts";
 import { useCallback, useId, useMemo, useState } from "react";
 
 import { SourceChips, type ChipRef } from "./SourceChip";
@@ -10,6 +16,7 @@ type DocumentRequestListProps = {
   readonly component: StudyViewDocumentRequestList;
   readonly customer: boolean;
   sentenceChips: (factIds: readonly string[]) => ChipRef[];
+  readonly holderContext?: HolderLabelContext;
 };
 
 function headerLine(askNow: number, askLater: number, customer: boolean): string {
@@ -55,7 +62,8 @@ function showWhy(title: string, why: string): boolean {
   return reason !== "" && reason !== title.trim();
 }
 
-export function DocumentRequestList({ component, customer, sentenceChips }: DocumentRequestListProps) {
+export function DocumentRequestList({ component, customer, sentenceChips, holderContext }: DocumentRequestListProps) {
+  const holderCtx: HolderLabelContext = { customer, ...holderContext };
   const parts = partitionDocumentRequests(component);
   const askNow = parts.items.filter(
     (item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD",
@@ -120,10 +128,22 @@ export function DocumentRequestList({ component, customer, sentenceChips }: Docu
         </p>
       ) : null}
       {askNow.length > 0 ? (
-        <RequestGroup title="Ask now" items={askNow} listId={`${listId}-now`} interactive={interactive} selected={selected} onToggle={toggle} />
+        <RequestGroup title="Ask now" items={askNow} listId={`${listId}-now`} interactive={interactive} selected={selected} onToggle={toggle} holderCtx={holderCtx} />
       ) : null}
       {askLater.length > 0 ? (
-        <RequestGroup title="Later" items={askLater} listId={`${listId}-later`} interactive={false} selected={selected} onToggle={toggle} later />
+        <RequestGroup title="Later" items={askLater} listId={`${listId}-later`} interactive={false} selected={selected} onToggle={toggle} holderCtx={holderCtx} later />
+      ) : null}
+      {component.intakePrompts && component.intakePrompts.length > 0 ? (
+        <section className="flex flex-col gap-2" aria-labelledby={`${listId}-intake`}>
+          <h4 id={`${listId}-intake`} className="m-0 text-small font-semibold text-ink">
+            Worth collecting if you have them
+          </h4>
+          <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-body text-graphite">
+            {component.intakePrompts.map((prompt) => (
+              <li key={prompt.id}>{prompt.text}</li>
+            ))}
+          </ul>
+        </section>
       ) : null}
       {interactive && askNow.length > 0 ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -148,6 +168,7 @@ function RequestGroup({
   interactive,
   selected,
   onToggle,
+  holderCtx,
   later = false,
 }: {
   title: string;
@@ -156,6 +177,7 @@ function RequestGroup({
   interactive: boolean;
   selected: ReadonlySet<string>;
   onToggle: (id: string) => void;
+  holderCtx: HolderLabelContext;
   later?: boolean;
 }) {
   return (
@@ -183,7 +205,7 @@ function RequestGroup({
                   {showWhy(item.title, item.why) ? <span className="text-body text-graphite">{item.why}</span> : null}
                   <BasisTag item={item} />
                   {item.holderType ? (
-                    <span className="text-small text-quiet">Likely held by: {holderTypeLabel(item.holderType, item.holder)}</span>
+                    <span className="text-small text-quiet">Likely held by: {holderTypeLabel(item.holderType, item.holder, holderCtx)}</span>
                   ) : item.holder ? (
                     <span className="text-small text-quiet">Likely held by: {item.holder}</span>
                   ) : null}

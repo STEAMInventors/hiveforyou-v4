@@ -72,6 +72,8 @@ export type CanonicalGap = {
   when: string | null;
   basisType: CanonicalGapBasisType | null;
   relatedFactIds: string[];
+  /** Pack checklist ids this gap would settle; set when merged from pack rows or inferred. */
+  settlesCheckIds?: string[];
 };
 
 export type CanonicalStudy = {
@@ -225,6 +227,7 @@ export function parseCanonicalStudy(raw: unknown): CanonicalStudyParse {
       when: nullableStr(item.when),
       basisType: oneOf(CANONICAL_GAP_BASIS_TYPES, item.basisType),
       relatedFactIds: strings(item.relatedFactIds),
+      ...(strings(item.settlesCheckIds).length > 0 ? { settlesCheckIds: strings(item.settlesCheckIds) } : {}),
     })),
     domainLabel: str(raw.domainLabel),
     checklist: parseOptionalChecklist(raw.checklist, tally),

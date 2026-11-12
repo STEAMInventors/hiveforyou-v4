@@ -1,5 +1,5 @@
 import type { CoverageGap, StudyView, StudyViewBlockName, StudyViewRow } from "@hiveforyou/contracts";
-import { DOCUMENT_REQUEST_LIST_COMPONENT, partitionDocumentRequests } from "@hiveforyou/contracts";
+import { askNowDocumentRequestCount, DOCUMENT_REQUEST_LIST_COMPONENT, partitionDocumentRequests } from "@hiveforyou/contracts";
 
 import { shortDocumentLabels } from "./document-labels";
 import { countStates, type StateCounts } from "./StateBar";
@@ -20,9 +20,14 @@ const blockRows = (view: StudyView, name: StudyViewBlockName): readonly StudyVie
 export function studyDocumentRequestCount(view: StudyView): number {
   const component = view.components?.find((entry) => entry.name === DOCUMENT_REQUEST_LIST_COMPONENT);
   if (!component) return 0;
-  return partitionDocumentRequests(component).items.filter(
-    (item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD",
-  ).length;
+  const parts = partitionDocumentRequests(component);
+  return askNowDocumentRequestCount({
+    items: parts.items,
+    observations: [],
+    courtRecordCount: component.courtRecordCount ?? 0,
+    legacyLines: parts.legacyLines,
+    ...(component.intakePrompts ? { intakePrompts: component.intakePrompts } : {}),
+  });
 }
 
 /** The same counts the report's state bar shows, for headers and cards outside the report. */

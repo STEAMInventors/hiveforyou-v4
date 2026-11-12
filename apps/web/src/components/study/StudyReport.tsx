@@ -397,6 +397,7 @@ export function StudyReport({
                 }))}
                 compact={false}
                 observations={[]}
+                statusMode="checklist"
               />
             </section>
           ) : null}

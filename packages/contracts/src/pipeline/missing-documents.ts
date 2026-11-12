@@ -181,14 +181,42 @@ export function shouldShowMissingDocumentsBanner(summary: MissingDocumentsSummar
   return summary.uploadSlotCount > 0 || summary.hasPendingUploads;
 }
 
-export function holderTypeLabel(holderType: GapHolderType, holder: string): string {
+const HOLDER_HINT = /\(([^)]+)\)/;
+
+function thirdPartyHint(holder: string): "district" | "school" | "teacher" | "generic" {
+  const match = HOLDER_HINT.exec(holder);
+  const hint = (match?.[1] ?? holder).toLowerCase();
+  if (hint.includes("district")) return "district";
+  if (hint.includes("school")) return "school";
+  if (hint.includes("teacher")) return "teacher";
+  return "generic";
+}
+
+export type HolderLabelContext = {
+  readonly customer?: boolean;
+  readonly districtName?: string | null;
+  readonly schoolName?: string | null;
+};
+
+/** Holder line for document requests; never returns raw enum tokens. */
+export function holderTypeLabel(
+  holderType: GapHolderType,
+  holder: string,
+  context: HolderLabelContext = {},
+): string {
   switch (holderType) {
     case "ASKER_OR_CLIENT":
-      return holder.trim() !== "" ? holder : "You or your client";
+      return context.customer ? "You" : "Client";
     case "COUNSEL":
-      return holder.trim() !== "" ? holder : "Counsel";
-    case "THIRD_PARTY":
-      return holder.trim() !== "" ? holder : "Third party";
+      return holder.trim() !== "" ? holder.trim() : "Counsel";
+    case "THIRD_PARTY": {
+      const hint = thirdPartyHint(holder);
+      if (hint === "district") return context.districtName?.trim() || "the district";
+      if (hint === "school") return context.schoolName?.trim() || "the school";
+      if (hint === "teacher") return "the teacher";
+      const named = holder.replace(HOLDER_HINT, "").replace(/THIRD_PARTY/i, "").trim();
+      return named !== "" && !/^third[-\s]?party$/i.test(named) ? named : "the school";
+    }
     case "COURT_RECORD":
       return "Court claims register";
   }
