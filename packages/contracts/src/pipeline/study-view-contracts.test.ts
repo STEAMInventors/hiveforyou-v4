@@ -107,12 +107,36 @@ describe("buildStudyView", () => {
 
   it("uses the default block order when the model returns no blocks", () => {
     const { view } = buildStudyView(study, { sections: [], blocks: [], components: [] }, FACTS);
-    expect(view.blocks.map((b) => b.name)).toEqual(["documents", "spine_table", "conflicts", "timeline", "outside_spine"]);
+    expect(view.blocks.map((b) => b.name)).toEqual([
+      "documents",
+      "spine_table",
+      "conflicts",
+      "timeline",
+      "outside_spine",
+      "checklist",
+      "chains",
+      "questions",
+      "unanswered",
+      "terms",
+      "general_notes",
+    ]);
   });
 
   it("keeps the model's block order and appends every block it left out", () => {
     const { view } = buildStudyView(study, { sections: [], blocks: ["documents"], components: [] }, FACTS);
-    expect(view.blocks.map((b) => b.name)).toEqual(["documents", "spine_table", "conflicts", "timeline", "outside_spine"]);
+    expect(view.blocks.map((b) => b.name)).toEqual([
+      "documents",
+      "spine_table",
+      "conflicts",
+      "timeline",
+      "outside_spine",
+      "checklist",
+      "chains",
+      "questions",
+      "unanswered",
+      "terms",
+      "general_notes",
+    ]);
     expect(view.spineSource).toBe("ANCHOR");
     expect(view.intent).toBeUndefined();
   });

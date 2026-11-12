@@ -10,6 +10,7 @@ import {
   normalizeStartStudyPreparationResponse,
   type StartStudyPreparationResponse,
   validateAcknowledgeStudyCoverageInput,
+  validateRebuildStudyPreparationInput,
   validateStartStudyPreparationInput,
 } from "@hiveforyou/contracts";
 
@@ -207,10 +208,10 @@ export async function startStudyPreparation(
 export async function rebuildStudy(
   userClient: StudyPreparationRpcClient,
   input: { readonly hiveId: string; readonly rawBody: unknown; readonly correlationId: string },
-): Promise<{ response: StartStudyPreparationResponse; process: boolean }> {
+): Promise<{ response: StartStudyPreparationResponse; process: boolean; withoutDomainPack: boolean }> {
   const { correlationId } = input;
   const hiveId = requireHiveId(input.hiveId, correlationId);
-  const validated = validateStartStudyPreparationInput(input.rawBody);
+  const validated = validateRebuildStudyPreparationInput(input.rawBody);
   if (!validated.ok) {
     throw ownerError("INVALID_REQUEST", "VALIDATION", validated.message, validated.diagnosticReason, correlationId);
   }
@@ -237,6 +238,7 @@ export async function rebuildStudy(
   return {
     response: { ...response, reusedStudy: false, reportsReady: false, reportRuns: [] },
     process: response.created && response.processingRun.status === "QUEUED",
+    withoutDomainPack: validated.value.withoutDomainPack,
   };
 }
 

@@ -5,6 +5,7 @@ import { jsonWithCorrelation, readJsonBody, withApiRoute } from "@/server/observ
 import { loadPlannerServiceConfig } from "@/server/study-preparation/planner-client";
 import { rebuildStudy } from "@/server/study-preparation/study-preparation";
 import { requireApiSupabaseClient } from "@/server/supabase/server-client";
+import { markRebuildWithoutDomainPack } from "@/server/workflow/domain-pack-rebuild-opt-out";
 import { processAnalysisRunSafely } from "@/server/workflow/analysis-workflow";
 import { createWorkerDeps, requireWorkerDispatch } from "@/server/workflow/worker";
 
@@ -27,6 +28,9 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     requireWorkerDispatch(process.env, correlationId);
 
     const started = await rebuildStudy(client, { hiveId, rawBody, correlationId });
+    if (started.withoutDomainPack) {
+      markRebuildWithoutDomainPack(started.response.processingRun.id);
+    }
     if (started.process) {
       const deps = createWorkerDeps(process.env, {
         origin: resolveAppOrigin({ requestUrl: request.url }),

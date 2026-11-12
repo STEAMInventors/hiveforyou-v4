@@ -358,6 +358,8 @@ export type GetStudyPreparationResponse = {
 export type StartStudyPreparationRequest = {
   clientRequestId: string;
   coverageAcknowledgementDigest?: string;
+  /** Rebuild only: skip domain pack selection and canonicalize with hive-canonicalize/1. */
+  withoutDomainPack?: boolean;
 };
 
 export type AcknowledgeStudyCoverageRequest = {
@@ -427,7 +429,8 @@ export function stageIndexForStatus(status: ProcessingRunStatus): number {
   return STUDY_PREPARATION_STAGES.findIndex((stage) => stage.key === key);
 }
 
-const START_FIELDS = new Set(["clientRequestId", "coverageAcknowledgementDigest"]);
+const START_FIELDS = new Set(["clientRequestId", "coverageAcknowledgementDigest", "withoutDomainPack"]);
+const REBUILD_FIELDS = new Set(["clientRequestId", "coverageAcknowledgementDigest", "withoutDomainPack"]);
 const ACKNOWLEDGE_FIELDS = new Set(["processingRunId", "coverageDigest"]);
 
 export function validateAcknowledgeStudyCoverageInput(
@@ -460,6 +463,7 @@ export function validateAcknowledgeStudyCoverageInput(
 export function validateStartStudyPreparationInput(body: unknown): ContractValidation<{
   clientRequestId: string;
   coverageAcknowledgementDigest: string | null;
+  withoutDomainPack: boolean;
 }> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, message: "Request body must be a JSON object.", diagnosticReason: "invalid_payload_shape" };
@@ -479,8 +483,11 @@ export function validateStartStudyPreparationInput(body: unknown): ContractValid
       diagnosticReason: "invalid_client_request_id",
     };
   }
+  if (record.withoutDomainPack !== undefined && record.withoutDomainPack !== false) {
+    return { ok: false, message: "Unexpected field: withoutDomainPack.", diagnosticReason: "unexpected_field" };
+  }
   if (record.coverageAcknowledgementDigest === undefined || record.coverageAcknowledgementDigest === null) {
-    return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: null } };
+    return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: null, withoutDomainPack: false } };
   }
   const digest =
     typeof record.coverageAcknowledgementDigest === "string"
@@ -493,7 +500,48 @@ export function validateStartStudyPreparationInput(body: unknown): ContractValid
       diagnosticReason: "invalid_coverage_digest",
     };
   }
-  return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: digest } };
+  return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: digest, withoutDomainPack: false } };
+}
+
+export function validateRebuildStudyPreparationInput(body: unknown): ContractValidation<{
+  clientRequestId: string;
+  coverageAcknowledgementDigest: string | null;
+  withoutDomainPack: boolean;
+}> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, message: "Request body must be a JSON object.", diagnosticReason: "invalid_payload_shape" };
+  }
+  const record = body as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!REBUILD_FIELDS.has(key)) {
+      return { ok: false, message: `Unexpected field: ${key}.`, diagnosticReason: "unexpected_field" };
+    }
+  }
+  const clientRequestId =
+    typeof record.clientRequestId === "string" ? record.clientRequestId.trim().toLowerCase() : "";
+  if (!isValidUuid(clientRequestId)) {
+    return {
+      ok: false,
+      message: "clientRequestId must be a valid UUID.",
+      diagnosticReason: "invalid_client_request_id",
+    };
+  }
+  const withoutDomainPack = record.withoutDomainPack === true;
+  if (record.coverageAcknowledgementDigest === undefined || record.coverageAcknowledgementDigest === null) {
+    return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: null, withoutDomainPack } };
+  }
+  const digest =
+    typeof record.coverageAcknowledgementDigest === "string"
+      ? record.coverageAcknowledgementDigest.trim().toLowerCase()
+      : "";
+  if (!DIGEST.test(digest)) {
+    return {
+      ok: false,
+      message: "coverageAcknowledgementDigest must be the coverage digest you were shown.",
+      diagnosticReason: "invalid_coverage_digest",
+    };
+  }
+  return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: digest, withoutDomainPack } };
 }
 
 function nullableString(value: unknown): string | null | undefined {

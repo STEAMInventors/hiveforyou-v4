@@ -72,6 +72,7 @@ import {
   isV5CanonicalStudy,
   loadSavedDocExtractionRanges,
   loadVerifiedExtractions,
+  persistDomainPackWorkflowState,
   persistV5ExtractStageOutputs,
   recordGapsForWorkItems,
   runCanonicalizeForRun,
@@ -82,6 +83,7 @@ import {
   type V5StageOutputs,
   readExtractZeroProgressHandoffCount,
 } from "./v5-pipeline-stages";
+import { consumeRebuildWithoutDomainPack } from "./domain-pack-rebuild-opt-out";
 import { INVOCATION_MAX_DURATION_MS, resolveExtractZeroProgressHandoffLimit } from "@hiveforyou/contracts";
 
 /**
@@ -965,6 +967,9 @@ async function finishExtractingStage(context: Context, run: ProcessingRun): Prom
 
 async function extractDocuments(context: Context): Promise<StepResult> {
   const inputs = await loadInputs(context.deps.client, context.runId);
+  if (consumeRebuildWithoutDomainPack(context.runId)) {
+    await persistDomainPackWorkflowState(context.deps.client, context.runId, { skipped: "user opted out" });
+  }
   if (inputs.intents.length === 0) {
     throw new StageFailure(
       analysisError({
@@ -1174,6 +1179,7 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
     );
   }
   // Rebuild Study: re-run CANONICALIZING from cached extractions; re-extract only changed documents (cheap path).
+  const requestText = inputs.intents.map((intent) => intent.intentText).join("\n");
   const result = await runCanonicalizeForRun({
     deps: context.deps,
     run: inputs.run,
@@ -1185,6 +1191,7 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
     now: context.now,
     rebuildMode: inputs.run.preparationMode === "REBUILD",
     extractProgress: inputs.stageOutputs as V5StageOutputs,
+    requestText,
     clock: context.deps.clock,
     invocationStartedAt: context.deps.invocationStartedAt,
   });

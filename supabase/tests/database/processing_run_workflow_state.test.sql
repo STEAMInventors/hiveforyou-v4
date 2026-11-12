@@ -41,6 +41,13 @@ SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 SET LOCAL role service_role;
 
 SELECT is(
+  (public.patch_processing_run_workflow_state('44444444-4444-4444-8444-4444444444a1', 'EXTRACTING',
+     '{"domainPack": {"id": "widget-review", "version": 2, "score": 3}}'::jsonb) ->> 'applied'),
+  'true',
+  'domainPack can be recorded while EXTRACTING'
+);
+
+SELECT is(
   (public.patch_processing_run_workflow_state('44444444-4444-4444-8444-4444444444a1', 'CANONICALIZING',
      '{"plannerJobs": {"canonicalize": {"jobId": "job-1", "lostJobRetried": false}}}'::jsonb) ->> 'applied'),
   'true',

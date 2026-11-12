@@ -56,6 +56,16 @@ TASK_PROMPT_IDS: dict[str, str] = {
     "canonicalize": "hive-canonicalize/1",
     "write": "hive-write/1",
 }
+PIPELINE_PROMPT_IDS_V2: dict[str, str] = {
+    "canonicalize": "hive-canonicalize/2",
+    "write": "hive-write/2",
+}
+
+
+def _prompt_id_allowed(task: str, prompt_id: str) -> bool:
+    if prompt_id == TASK_PROMPT_IDS.get(task):
+        return True
+    return PIPELINE_PROMPT_IDS_V2.get(task) == prompt_id
 WRITER_SEMANTIC_REVIEW_PROMPT_ID = "hive.writer-semantic-review/1"
 DEFAULT_MODEL_ALIAS = "sorter"
 # Per-task model override; preparation tasks not listed use PLANNER_LITELLM_ALIAS.
@@ -365,7 +375,7 @@ def _parse_request(body: bytes) -> PlannerCompletionRequest:
         parsed = PlannerCompletionRequest.model_validate_json(body)
     except ValidationError as exc:
         raise _invalid_request("Planner request is invalid.") from exc
-    if parsed.prompt_id != TASK_PROMPT_IDS[parsed.task]:
+    if not _prompt_id_allowed(parsed.task, parsed.prompt_id):
         raise _invalid_request("Prompt does not match the task.")
     if not DIGEST_RE.match(parsed.prompt_digest):
         raise _invalid_request("Prompt digest is invalid.")

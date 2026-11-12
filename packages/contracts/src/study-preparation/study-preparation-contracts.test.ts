@@ -17,6 +17,7 @@ import {
   type SnapshotDocument,
   type StudyPreparationEligibility,
   validateAcknowledgeStudyCoverageInput,
+  validateRebuildStudyPreparationInput,
   validateStartStudyPreparationInput,
 } from "./study-preparation-contracts";
 
@@ -128,11 +129,11 @@ describe("validateStartStudyPreparationInput", () => {
   it("accepts a request id with or without a coverage acknowledgement", () => {
     expect(validateStartStudyPreparationInput({ clientRequestId: REQUEST_ID })).toEqual({
       ok: true,
-      value: { clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: null },
+      value: { clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: null, withoutDomainPack: false },
     });
     expect(
       validateStartStudyPreparationInput({ clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: DIGEST }),
-    ).toEqual({ ok: true, value: { clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: DIGEST } });
+    ).toEqual({ ok: true, value: { clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: DIGEST, withoutDomainPack: false } });
   });
 
   it("rejects unexpected fields (including blanket partial-coverage consent), bad ids and malformed digests", () => {
@@ -150,6 +151,15 @@ describe("validateStartStudyPreparationInput", () => {
     expect(
       validateStartStudyPreparationInput({ clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: "yes" }),
     ).toMatchObject({ ok: false, diagnosticReason: "invalid_coverage_digest" });
+  });
+});
+
+describe("validateRebuildStudyPreparationInput", () => {
+  it("accepts withoutDomainPack for rebuild", () => {
+    expect(validateRebuildStudyPreparationInput({ clientRequestId: REQUEST_ID, withoutDomainPack: true })).toEqual({
+      ok: true,
+      value: { clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: null, withoutDomainPack: true },
+    });
   });
 });
 

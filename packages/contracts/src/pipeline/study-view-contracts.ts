@@ -5,6 +5,21 @@
  */
 
 import type { CanonicalStudy, SpineSource } from "./canonical-study-contracts";
+import type { Pack, PackAudience } from "./pack-contracts";
+import {
+  buildChainBlockRows,
+  buildChecklistRows,
+  buildGeneralNotesRows,
+  buildPersonaCoverageCard,
+  buildQuestionRows,
+  buildTermsRows,
+  buildUnansweredRows,
+  redactCustomerPackBlockRows,
+  packStudyViewMeta,
+  type PersonaCoverageCardRow,
+  type PackStudyViewMeta,
+} from "./pack-study-view";
+import { capCustomerQuestions } from "./pack-write";
 import {
   buildDocumentRequestListData,
   DOCUMENT_REQUEST_LIST_COMPONENT,
@@ -33,6 +48,7 @@ export {
 
 export const STUDY_VIEW_SCHEMA = "hive.study-view/1";
 export const WRITE_PROMPT_ID = "hive-write/1";
+export const WRITE_PROMPT_ID_V2 = "hive-write/2";
 
 export const STUDY_VIEW_BLOCK_NAMES = [
   "documents",
@@ -40,6 +56,12 @@ export const STUDY_VIEW_BLOCK_NAMES = [
   "conflicts",
   "timeline",
   "outside_spine",
+  "checklist",
+  "chains",
+  "questions",
+  "unanswered",
+  "terms",
+  "general_notes",
 ] as const;
 export type StudyViewBlockName = (typeof STUDY_VIEW_BLOCK_NAMES)[number];
 
@@ -72,6 +94,8 @@ export type StudyViewRow = {
   readonly label?: string | null;
   readonly statement?: string | null;
   readonly status?: string | null;
+  /** Checklist only: regulation or reference text for Professional renders. */
+  readonly authority?: string | null;
   readonly kind?: string | null;
   readonly date?: string | null;
   readonly asWritten?: string | null;
@@ -127,12 +151,17 @@ export type StudyView = {
   /** The owner's intent the view was written for, when the builder was given it. */
   readonly intent?: string;
   readonly spineSource?: SpineSource | null;
+  readonly packMeta?: PackStudyViewMeta;
+  readonly personaCoverageCard?: readonly PersonaCoverageCardRow[];
+  readonly writtenFor?: string;
 };
 
 /** Optional inputs beyond the canonical study; views built without them simply lack those fields. */
 export type StudyViewContext = {
   readonly intent?: string;
   readonly referencedDocuments?: readonly StudyViewReferencedDocument[];
+  readonly pack?: Pack;
+  readonly reportAudience?: PackAudience;
 };
 
 /**
@@ -379,6 +408,45 @@ function buildOutsideSpineBlock(study: CanonicalStudy, facts: ReadonlyMap<string
   );
 }
 
+function buildChecklistBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext): StudyViewRow[] {
+  if (!context.pack) return [];
+  const audience = context.reportAudience ?? "professional";
+  return buildChecklistRows(study, context.pack, facts, audience);
+}
+
+function buildChainsBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext): StudyViewRow[] {
+  if (!context.pack) return [];
+  return buildChainBlockRows(study, context.pack, facts).flatMap((chain) =>
+    chain.rows.map((row) => ({
+      ...row,
+      id: `${chain.chainId}:${row.id}`,
+      label: `${chain.label} · ${row.label ?? ""}`.trim(),
+    })),
+  );
+}
+
+function buildQuestionsBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext): StudyViewRow[] {
+  if (!context.pack) return [];
+  const audience = context.reportAudience ?? "professional";
+  const rows = buildQuestionRows(study, context.pack, facts, audience);
+  return [...capCustomerQuestions(rows, audience)];
+}
+
+function buildUnansweredBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext): StudyViewRow[] {
+  if (!context.pack || !context.reportAudience) return [];
+  return buildUnansweredRows(study, context.pack, context.reportAudience, facts);
+}
+
+function buildTermsBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext): StudyViewRow[] {
+  if (!context.pack) return [];
+  return buildTermsRows(context.pack, [...facts.values()]);
+}
+
+function buildGeneralNotesBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext): StudyViewRow[] {
+  if (!context.pack) return [];
+  return buildGeneralNotesRows(context.pack);
+}
+
 const BLOCK_BUILDERS: Record<
   StudyViewBlockName,
   (study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext) => StudyViewRow[]
@@ -388,6 +456,12 @@ const BLOCK_BUILDERS: Record<
   conflicts: buildConflictsBlock,
   timeline: buildTimelineBlock,
   outside_spine: buildOutsideSpineBlock,
+  checklist: buildChecklistBlock,
+  chains: buildChainsBlock,
+  questions: buildQuestionsBlock,
+  unanswered: buildUnansweredBlock,
+  terms: buildTermsBlock,
+  general_notes: buildGeneralNotesBlock,
 };
 
 function filterSections(
@@ -444,10 +518,15 @@ export function buildStudyView(
   const order = resolveBlockOrder(writeOutput.blocks);
   const unknownBlockNamesIgnored =
     (parseMalformed.block_name_unknown ?? 0) + (parseMalformed.block_name_deprecated ?? 0);
-  const blocks: StudyViewBlock[] = order.map((name) => ({
-    name,
-    rows: BLOCK_BUILDERS[name](canonicalStudy, factMap, context),
-  }));
+  const packAudience = context.reportAudience;
+  const blocks: StudyViewBlock[] = order.map((name) => {
+    const rows = BLOCK_BUILDERS[name](canonicalStudy, factMap, context);
+    const sanitized =
+      packAudience === "customer" && context.pack
+        ? redactCustomerPackBlockRows(name, rows, context.pack)
+        : rows;
+    return { name, rows: sanitized };
+  });
   const referencedDocuments = context.referencedDocuments ?? [];
   const requestData = buildDocumentRequestListData(canonicalStudy, referencedDocuments);
   const structuralNote = structuralNoteFromStudy(canonicalStudy);
@@ -484,6 +563,14 @@ export function buildStudyView(
   const intent = context.intent?.trim() ?? "";
   const observations =
     requestData.observations.length > 0 ? requestData.observations : undefined;
+  const packMeta = context.pack ? packStudyViewMeta(context.pack) : undefined;
+  const personaCoverageCard = context.pack
+    ? buildPersonaCoverageCard(canonicalStudy, context.pack, factMap)
+    : undefined;
+  const writtenFor =
+    context.reportAudience && context.pack
+      ? context.pack.personas.find((p) => p.audience === context.reportAudience)?.who
+      : undefined;
   return {
     view: {
       schema: STUDY_VIEW_SCHEMA,
@@ -494,6 +581,9 @@ export function buildStudyView(
       ...(structuralNote ? { structuralNote } : {}),
       ...(intent !== "" ? { intent } : {}),
       spineSource: canonicalStudy.spineSource,
+      ...(packMeta ? { packMeta } : {}),
+      ...(personaCoverageCard && personaCoverageCard.length > 0 ? { personaCoverageCard } : {}),
+      ...(writtenFor ? { writtenFor } : {}),
     },
     drops: {
       sentencesDropped,

@@ -200,7 +200,7 @@ function fakeDatabase(
       }
       case "patch_processing_run_workflow_state": {
         // Mirrors the SQL function: allowlisted mutable keys only, overwrite allowed, null removes.
-        const allowed = new Set(["plannerJobs", "extractZeroProgressHandoffs", "extractGapRetryCompleted"]);
+        const allowed = new Set(["plannerJobs", "extractZeroProgressHandoffs", "extractGapRetryCompleted", "domainPack"]);
         const patch = (args.p_patch ?? {}) as Record<string, unknown>;
         for (const key of Object.keys(patch)) {
           if (!allowed.has(key)) {

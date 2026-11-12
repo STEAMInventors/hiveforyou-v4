@@ -8,10 +8,15 @@ import {
   type StudyViewContext,
   type StudyViewDrops,
   type WriteFactRecord,
+  type Pack,
+  type PackAudience,
   type WriteOutput,
   V5_CLIENT_TASK_TIMEOUT_MS,
   buildStudyView,
+  enforcePackWriteOrder,
+  packWriteInput,
   parseWriteOutput,
+  stripCustomerCheckAuthority,
 } from "@hiveforyou/contracts";
 
 import { callPlanner, type PlannerDeps } from "@/server/study-preparation/planner-client";
@@ -50,6 +55,7 @@ export type WriteStudyInput = CallInput & {
   readonly intent: string;
   /** Optional view context (intent on the view, referenced documents for gap grouping). */
   readonly studyViewContext?: StudyViewContext;
+  readonly pack?: Pack | null;
   readonly prompt?: WritePrompt;
   /**
    * Absolute time by which the write HTTP call must have aborted, at least 30s before the route's
@@ -70,6 +76,12 @@ export type WriteStudyResult =
     }
   | { ok: false; error: HiveError; calls: WriteCallRecord[] };
 
+export const PACK_WRITE_INSTRUCTION = [
+  "You are writing for the reader described under Reader. Use Situation, Knows and Does not know to choose what to explain and what to assume.",
+  "Answer the reader's questions in the order given, in the sections that name them; answer only questions whose coverage is ANSWERABLE or PARTLY, from the cited facts - the unanswered ones are listed for you by a block.",
+  "Follow Useful when and Leave out. Before finishing, apply the Success test and cut anything that does not help the reader meet it.",
+].join(" ");
+
 /** Payload for `hive-write/1`: verified canonical study, fact snippets only, intent and audience. */
 export function buildWritePayload(
   canonicalStudy: CanonicalStudy,
@@ -77,7 +89,9 @@ export function buildWritePayload(
   reportRole: ReportAudience,
   audience: string,
   intent: string,
+  pack: Pack | null = null,
 ) {
+  const packAudience: PackAudience = reportRole === "CUSTOMER" ? "customer" : "professional";
   return {
     canonicalStudy,
     facts: facts.map((fact) => ({
@@ -90,6 +104,12 @@ export function buildWritePayload(
     reportRole,
     audience: audience.trim(),
     intent: intent.trim(),
+    ...(pack && !pack.briefOnly
+      ? {
+          packInstructions: PACK_WRITE_INSTRUCTION,
+          ...packWriteInput(pack, packAudience, canonicalStudy),
+        }
+      : {}),
   };
 }
 
@@ -263,7 +283,15 @@ async function callWithRetry(
 /** Runs `hive-write/1` once (retry only on unusable JSON), then `buildStudyView`. */
 export async function writeStudyView(input: WriteStudyInput): Promise<WriteStudyResult> {
   const prompt = input.prompt ?? loadPromptCatalog().write;
-  const payload = buildWritePayload(input.canonicalStudy, input.facts, input.reportRole, input.audience, input.intent);
+  const pack = input.pack ?? null;
+  const payload = buildWritePayload(
+    input.canonicalStudy,
+    input.facts,
+    input.reportRole,
+    input.audience,
+    input.intent,
+    pack,
+  );
   const calls: WriteCallRecord[] = [];
   const outcome = await callWithRetry(
     {
@@ -277,10 +305,29 @@ export async function writeStudyView(input: WriteStudyInput): Promise<WriteStudy
     calls,
   );
   if (!outcome.ok) return { ok: false, error: outcome.error, calls };
+  const packAudience: PackAudience = input.reportRole === "CUSTOMER" ? "customer" : "professional";
+  const packOrdered =
+    pack && !pack.briefOnly
+      ? enforcePackWriteOrder(outcome.value, pack, packAudience).output
+      : outcome.value;
+  const sections =
+    input.reportRole === "CUSTOMER"
+      ? packOrdered.sections.map((section) => ({
+          ...section,
+          paragraphs: section.paragraphs.map((paragraph) => ({
+            sentences: paragraph.sentences.map((sentence) => ({
+              ...sentence,
+              text: stripCustomerCheckAuthority(sentence.text),
+            })),
+          })),
+        }))
+      : packOrdered.sections;
+  const writeOutput = { ...packOrdered, sections };
   const context: StudyViewContext = {
     ...(input.studyViewContext ?? {}),
     ...(input.intent.trim() !== "" ? { intent: input.intent.trim() } : {}),
+    ...(pack && !pack.briefOnly ? { pack, reportAudience: packAudience } : {}),
   };
-  const { view, drops } = buildStudyView(input.canonicalStudy, outcome.value, input.facts, outcome.malformed, context);
+  const { view, drops } = buildStudyView(input.canonicalStudy, writeOutput, input.facts, outcome.malformed, context);
   return { ok: true, view, drops, malformed: outcome.malformed, calls };
 }

@@ -2520,6 +2520,12 @@ describe("processReportRun: revision formats", () => {
           { name: "conflicts" },
           { name: "timeline" },
           { name: "outside_spine" },
+          { name: "checklist", rows: [] },
+          { name: "chains", rows: [] },
+          { name: "questions", rows: [] },
+          { name: "unanswered", rows: [] },
+          { name: "terms", rows: [] },
+          { name: "general_notes", rows: [] },
         ],
       },
       writer_output: {

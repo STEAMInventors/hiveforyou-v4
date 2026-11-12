@@ -38,6 +38,8 @@ import { normalizeContentDigest } from "@hiveforyou/contracts/document-read";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { buildCanonicalizePayload, canonicalizeCase } from "@/server/pipeline/canonicalize-runner";
+import { loadPackById, loadPackEntries } from "@/server/pipeline/pack-loader";
+import { selectDomainPack } from "@hiveforyou/contracts";
 import { PlannerJobHandoffError } from "@/server/study-preparation/planner-async-jobs";
 import {
   type ExtractCallRecord,
@@ -163,6 +165,9 @@ export type V5StageOutputs = {
     readonly canonicalize?: PlannerJobRef;
     readonly extract?: PlannerJobRef;
   };
+  domainPack?:
+    | { readonly id: string; readonly version: number; readonly score: number }
+    | { readonly skipped: string };
 };
 
 const TRUNCATION_GAP_DIAGNOSTIC = "model_output_truncated";
@@ -292,6 +297,42 @@ export async function persistV5ExtractStageOutputs(
       ...(patch.plannerJobs ? { plannerJobs: patch.plannerJobs } : {}),
     },
   });
+}
+
+export async function persistDomainPackWorkflowState(
+  client: RpcClient,
+  runId: string,
+  value: V5StageOutputs["domainPack"] | null,
+): Promise<void> {
+  await rpc(client, "patch_processing_run_workflow_state", {
+    p_run_id: runId,
+    p_expected_status: "EXTRACTING",
+    p_patch: value === undefined || value === null ? { domainPack: null } : { domainPack: value },
+  });
+}
+
+export async function selectAndPersistDomainPack(input: {
+  client: RpcClient;
+  runId: string;
+  requestText: string;
+  extractions: readonly DocExtraction[];
+  existing?: V5StageOutputs["domainPack"];
+}): Promise<{ pack: ReturnType<typeof loadPackById>; selection: V5StageOutputs["domainPack"] }> {
+  if (input.existing && "id" in input.existing) {
+    return { pack: loadPackById(input.existing.id, input.existing.version), selection: input.existing };
+  }
+  if (input.existing && "skipped" in input.existing) {
+    return { pack: null, selection: input.existing };
+  }
+  const selected = selectDomainPack(loadPackEntries(), input.requestText, input.extractions);
+  if (!selected) {
+    const skipped = { skipped: "below_threshold" } as const;
+    await persistDomainPackWorkflowState(input.client, input.runId, skipped);
+    return { pack: null, selection: skipped };
+  }
+  const selection = { id: selected.id, version: selected.version, score: selected.score };
+  await persistDomainPackWorkflowState(input.client, input.runId, selection);
+  return { pack: selected.pack, selection };
 }
 
 export async function persistV5CanonicalizePlannerJob(
@@ -1935,17 +1976,28 @@ export async function runCanonicalizeForRun(input: {
   /** Rebuild Study: skip re-extract; re-run canonicalize only from cached extractions (cheap path). */
   rebuildMode?: boolean;
   extractProgress?: V5StageOutputs;
+  requestText?: string;
 }): Promise<CanonicalizeRunResult> {
   void input.rebuildMode;
   const { deps, run, extractions, catalog, correlationId, stageAttempt, now } = input;
   const pendingJob = input.extractProgress?.plannerJobs?.canonicalize;
   const clock = input.clock ?? deps.clock ?? (() => Date.now());
   const invocationStartedAt = input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now();
-  const prompt = catalog.canonicalize;
+  const { pack, selection } = await selectAndPersistDomainPack({
+    client: deps.client,
+    runId: run.id,
+    requestText: input.requestText ?? "",
+    extractions,
+    existing: input.extractProgress?.domainPack,
+  });
+  const usePack = pack && !pack.briefOnly;
+  const prompt = usePack && catalog.canonicalizeV2 ? catalog.canonicalizeV2 : catalog.canonicalize;
   const startedAt = now().toISOString();
   const throughput = await loadPipelineThroughput(deps.client, "canonicalize");
   const gapFillLinks = input.sourceSnapshot ? gapFillLinksFromSnapshot(input.sourceSnapshot.documents) : [];
-  const payload = buildCanonicalizePayload(extractions, null, gapFillLinks);
+  void selection;
+  const studyBuiltOn = (now().toISOString().slice(0, 10));
+  const payload = buildCanonicalizePayload(extractions, null, gapFillLinks, usePack ? pack : null, studyBuiltOn);
   const expectedOutput = expectedOutputTokens(
     estimateInputTokensFromUtf8Bytes(Buffer.byteLength(JSON.stringify(payload), "utf8")),
     throughput.outputInputRatio,
@@ -1956,6 +2008,12 @@ export async function runCanonicalizeForRun(input: {
       planner: deps.planner,
       extractions,
       gapFillLinks,
+      pack: usePack ? pack : null,
+      packRef:
+        usePack && selection && "id" in selection
+          ? { id: selection.id, version: selection.version }
+          : null,
+      studyDate: studyBuiltOn,
       correlationId,
       runId: run.id,
       prompt,

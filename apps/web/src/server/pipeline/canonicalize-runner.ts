@@ -10,6 +10,9 @@ import {
   dropPipelineLanguageGaps,
   filledGapTitles,
   type GapFillLink,
+  type Pack,
+  applyPackCanonicalizeOutput,
+  packCanonicalizeInput,
   parseCanonicalStudy,
   verifyCanonicalStudy,
 } from "@hiveforyou/contracts";
@@ -56,12 +59,26 @@ type CallInput = {
   readonly asyncJob?: PlannerAsyncJobOptions;
 };
 
+export const PACK_CANONICALIZE_INSTRUCTION = [
+  "Two kinds of reader will use this study; they are described under Readers with the questions each is trying to answer.",
+  "Build one study that serves both: make sure the spine, findings, conflicts and gaps contain what is needed to answer every reader question.",
+  "Then, for each reader question, say whether these facts can answer it: ANSWERABLE, PARTLY or NOT_ANSWERABLE, citing the fact ids that carry the answer and, if not fully answerable, naming in at most 20 words what is missing. Do not write the answer itself.",
+  "A specialist checklist is attached. For every check return one verdict: SHOWN, PARTLY_SHOWN, NOT_SHOWN, CONFLICT or NOT_APPLICABLE.",
+  "SHOWN, PARTLY_SHOWN and CONFLICT must cite fact ids; CONFLICT cites both sides.",
+  'NOT_SHOWN means the facts do not show it - never that it did not happen. NOT_APPLICABLE needs a fact id showing why, or the note "condition not present".',
+  "Add a note of at most 25 words saying what is or is not shown. For each chain, return one row per starting item with a cell per link: the fact ids for that link, or missing.",
+  "Do not use the readers, the checklist or the chains as a source of facts about this case.",
+].join(" ");
+
 export type CanonicalizeInput = CallInput & {
   /** Verified extractions with final ids, one per document of the case. */
   readonly extractions: readonly DocExtraction[];
   /** Documents uploaded to fill a study gap (title-stable across revision renumbering). */
   readonly gapFillLinks?: readonly GapFillLink[];
   readonly domainBrief?: string | null;
+  readonly pack?: Pack | null;
+  readonly packRef?: { id: string; version: number } | null;
+  readonly studyDate?: string | null;
   readonly prompt?: CanonicalizePrompt;
   readonly resolvePlannerTimeoutMs?: () => number | "expired";
   readonly asyncJob?: PlannerAsyncJobOptions;
@@ -132,10 +149,20 @@ export function buildCanonicalizePayload(
   extractions: readonly DocExtraction[],
   domainBrief: string | null,
   gapFillLinks: readonly GapFillLink[] = [],
+  pack: Pack | null = null,
+  studyDate: string | null = null,
 ) {
   const fillByDocument = new Map(gapFillLinks.map((link) => [link.sourceDocumentId.toLowerCase(), link.gapTitle]));
+  const dated =
+    studyDate && /^\d{4}-\d{2}-\d{2}$/.test(studyDate) ? studyDate : new Date().toISOString().slice(0, 10);
   return {
     domainBrief,
+    ...(pack && !pack.briefOnly
+      ? {
+          packInstructions: PACK_CANONICALIZE_INSTRUCTION,
+          ...packCanonicalizeInput(pack, dated),
+        }
+      : {}),
     documents: extractions.map((extraction) => {
       const fillTitle = fillByDocument.get(extraction.documentId.toLowerCase());
       return {
@@ -281,9 +308,21 @@ async function callWithRetry<T>(
 export async function canonicalizeCase(input: CanonicalizeInput): Promise<CanonicalizeResult> {
   const prompt = input.prompt ?? loadPromptCatalog().canonicalize;
   const gapFillLinks = input.gapFillLinks ?? [];
-  const payload = buildCanonicalizePayload(input.extractions, input.domainBrief?.trim() || null, gapFillLinks);
+  const pack = input.pack ?? null;
+  const studyDate =
+    input.studyDate && /^\d{4}-\d{2}-\d{2}$/.test(input.studyDate)
+      ? input.studyDate
+      : new Date().toISOString().slice(0, 10);
+  const payload = buildCanonicalizePayload(
+    input.extractions,
+    input.domainBrief?.trim() || null,
+    gapFillLinks,
+    pack,
+    studyDate,
+  );
   const calls: CanonicalizeCallRecord[] = [];
   let malformed: Record<string, number> = {};
+  let rawContent: Record<string, unknown> | null = null;
   const outcome = await callWithRetry(
     {
       ...input,
@@ -293,10 +332,23 @@ export async function canonicalizeCase(input: CanonicalizeInput): Promise<Canoni
       resolvePlannerTimeoutMs: input.resolvePlannerTimeoutMs,
     },
     (content) => {
+      if (content && typeof content === "object" && !Array.isArray(content)) {
+        rawContent = content as Record<string, unknown>;
+      }
       const parsed = parseCanonicalStudy(content);
       if (!parsed.ok) return parsed;
       malformed = parsed.malformed;
-      return { ok: true, value: parsed.value };
+      const {
+        checklist: _checklist,
+        chains: _chains,
+        personaCoverage: _personaCoverage,
+        standingQuestions: _standingQuestions,
+        questionOrder: _questionOrder,
+        packRef: _packRef,
+        studyDate: _studyDate,
+        ...base
+      } = parsed.value;
+      return { ok: true, value: base };
     },
     calls,
   );
@@ -318,7 +370,10 @@ export async function canonicalizeCase(input: CanonicalizeInput): Promise<Canoni
     });
   }
   const withFilledGapsDropped = dropGapsFilledByUpload(withoutPipelineLanguage.study, filledGapTitles(gapFillLinks));
-  const study = assignCanonicalGapHolderTypes(withFilledGapsDropped);
+  let study = assignCanonicalGapHolderTypes(withFilledGapsDropped);
+  if (pack && input.packRef && !pack.briefOnly && rawContent) {
+    study = { ...applyPackCanonicalizeOutput(study, pack, input.packRef, rawContent, knownFactIds).study, studyDate };
+  }
   return { ok: true, study, drops: verified.drops, malformed, payloadBytes: Buffer.byteLength(JSON.stringify(payload), "utf8"), calls };
 }
 

@@ -161,6 +161,10 @@ export function StudyReport({
       documentDate: (id: string) => documentDate.get(id) ?? null,
       unreadableIds: new Set(readProblems.filter((problem) => problem.wholeDocument).map((problem) => problem.sourceDocumentId)),
       citationContexts,
+      checklist: rows("checklist"),
+      chains: rows("chains"),
+      packMeta: view.packMeta ?? null,
+      personaCoverageCard: view.personaCoverageCard ?? [],
     };
   }, [view, sources, coverageGaps, pageCountFor]);
 
@@ -332,6 +336,20 @@ export function StudyReport({
             {controls ? <div className="flex flex-wrap items-center justify-between gap-3">{controls}</div> : null}
             <div className="flex flex-col gap-1.5">
               <h2 className="m-0 font-brand text-title font-semibold text-ink">{title}</h2>
+              {view.writtenFor ? (
+                <p className="m-0 text-small text-quiet" data-testid="written-for">
+                  Written for: {view.writtenFor}
+                </p>
+              ) : null}
+              {model.packMeta ? (
+                <p
+                  className="m-0 text-small text-quiet"
+                  title={model.packMeta.verified}
+                  data-testid="pack-reviewed-with"
+                >
+                  Reviewed with: {model.packMeta.packTitle} (v{model.packMeta.packVersion})
+                </p>
+              ) : null}
               {meta || revisionActions ? (
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                   {meta ? <p className="m-0 text-small text-quiet">{meta}</p> : null}
@@ -352,6 +370,36 @@ export function StudyReport({
           </header>
 
           <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} />
+
+          {!isReport && model.personaCoverageCard.length > 0 ? (
+            <section className={`${CARD} ${cardGap}`} data-testid="persona-coverage-card">
+              <h3 className={SECTION_HEADING}>What each reader needs</h3>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {model.personaCoverageCard.map((row) => (
+                  <li key={`${row.audience}-${row.questionId}`} className="flex flex-col gap-1 border-b border-line pb-2 last:border-0">
+                    <span className="text-caption uppercase tracking-wide text-quiet">{row.audience}</span>
+                    <span className="text-body text-ink">{row.questionText}</span>
+                    <span className="text-small text-quiet">{row.status}</span>
+                    {row.values.length > 0 ? <SourceChips refs={row.values.map((v) => refChip(v.factId, v.sourceRef))} /> : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {!isReport && model.checklist.length > 0 ? (
+            <section className={`${CARD} ${cardGap}`} data-testid="pack-checklist">
+              <h3 className={SECTION_HEADING}>Checklist</h3>
+              <EstablishTable
+                rows={model.checklist.map((row) => ({
+                  ...row,
+                  label: row.statement ?? row.id,
+                }))}
+                compact={false}
+                observations={[]}
+              />
+            </section>
+          ) : null}
 
           {glanceRows.length > 0 ? (
             <section id={SECTION_IDS.glance} tabIndex={-1} aria-labelledby={`${SECTION_IDS.glance}-h`} className={`${CARD} ${cardGap}`}>

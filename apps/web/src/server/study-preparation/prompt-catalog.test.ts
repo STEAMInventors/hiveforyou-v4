@@ -127,7 +127,9 @@ describe("buildPromptCatalog", () => {
       "hive-writer/hive.writer-report-1.schema.json": "{}",
       "hive-extract/HiveForYou-Extract-v1.md": [planner("hive-extract/1"), "## User (template)", "Document id: `{{documentId}}`"].join(eol),
       "hive-canonicalize/HiveForYou-Canonicalize-v1.md": [planner("hive-canonicalize/1"), "## Output", "Return JSON."].join(eol),
+      "hive-canonicalize/HiveForYou-Canonicalize-v2.md": [planner("hive-canonicalize/2"), "## Output", "Return JSON."].join(eol),
       "hive-write/HiveForYou-Write-v1.md": [planner("hive-write/1"), "## Output", "Return write JSON."].join(eol),
+      "hive-write/HiveForYou-Write-v2.md": [planner("hive-write/2"), "## Output", "Return write JSON."].join(eol),
     };
   };
 

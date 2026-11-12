@@ -36,7 +36,12 @@ export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask | PipelinePlannerTask, 
   extract: "hive-extract/1",
   canonicalize: "hive-canonicalize/1",
   write: "hive-write/1",
-};
+} as const;
+
+export const PIPELINE_PROMPT_IDS_V2 = {
+  canonicalize: "hive-canonicalize/2",
+  write: "hive-write/2",
+} as const;
 
 /** Independent Writer semantic review (`study-agent-turn@1`, tool-free JSON completion on `task: "writer"`). */
 export const WRITER_SEMANTIC_REVIEW_PROMPT_ID = "hive.writer-semantic-review/1" as const;

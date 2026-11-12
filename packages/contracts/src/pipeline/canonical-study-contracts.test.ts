@@ -45,6 +45,7 @@ describe("parseCanonicalStudy", () => {
       timeline: [],
       gaps: [],
       domainLabel: "",
+      questionOrder: [],
     });
   });
 

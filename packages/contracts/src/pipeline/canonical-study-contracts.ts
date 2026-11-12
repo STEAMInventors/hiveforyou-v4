@@ -8,9 +8,16 @@
 
 import type { GapHolderType } from "./canonical-gap-holders";
 import { normalizeGapHolderType } from "./canonical-gap-holders";
+import type {
+  CanonicalChainItem,
+  CanonicalChecklistItem,
+  CanonicalStandingQuestionItem,
+  PersonaCoverageItem,
+} from "./pack-canonicalize";
 
 export const CANONICAL_STUDY_SCHEMA = "hive.canonical-study/1";
 export const CANONICALIZE_PROMPT_ID = "hive-canonicalize/1";
+export const CANONICALIZE_PROMPT_ID_V2 = "hive-canonicalize/2";
 
 export const DOCUMENT_ROLES = ["ANCHOR", "SUPPORTING", "REFERENCE"] as const;
 export type DocumentRole = (typeof DOCUMENT_ROLES)[number];
@@ -77,6 +84,13 @@ export type CanonicalStudy = {
   timeline: TimelineEntry[];
   gaps: CanonicalGap[];
   domainLabel: string;
+  checklist?: CanonicalChecklistItem[];
+  chains?: CanonicalChainItem[];
+  personaCoverage?: PersonaCoverageItem[];
+  standingQuestions?: CanonicalStandingQuestionItem[];
+  questionOrder?: string[];
+  studyDate?: string;
+  packRef?: { id: string; version: number };
 };
 
 export type CanonicalStudyParse =
@@ -213,9 +227,105 @@ export function parseCanonicalStudy(raw: unknown): CanonicalStudyParse {
       relatedFactIds: strings(item.relatedFactIds),
     })),
     domainLabel: str(raw.domainLabel),
+    checklist: parseOptionalChecklist(raw.checklist, tally),
+    chains: parseOptionalChains(raw.chains, tally),
+    personaCoverage: parseOptionalPersonaCoverage(raw.personaCoverage, tally),
+    standingQuestions: parseOptionalStandingQuestions(raw.standingQuestions, tally),
+    questionOrder: strings(raw.questionOrder),
+    studyDate: isoDate(raw.studyDate) ?? undefined,
+    packRef: parsePackRef(raw.packRef, tally),
   };
   if (raw.spineSource !== undefined && value.spineSource === null) tally.count("spine_source_invalid");
   return { ok: true, value, malformed: tally.counts };
+}
+
+function parsePackRef(raw: unknown, tally: Tally): { id: string; version: number } | undefined {
+  if (!isRecord(raw)) return undefined;
+  const id = str(raw.id);
+  const version = raw.version;
+  if (id === "" || typeof version !== "number" || !Number.isInteger(version) || version < 1) {
+    tally.count("pack_ref_invalid");
+    return undefined;
+  }
+  return { id, version };
+}
+
+function parseOptionalChecklist(raw: unknown, tally: Tally): CanonicalChecklistItem[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: CanonicalChecklistItem[] = [];
+  for (const item of raw) {
+    if (!isRecord(item)) {
+      tally.count("checklist_item_invalid");
+      continue;
+    }
+    const checkId = str(item.checkId);
+    const verdict = str(item.verdict).toUpperCase();
+    if (checkId === "" || verdict === "") continue;
+    out.push({ checkId, verdict: verdict as CanonicalChecklistItem["verdict"], factIds: strings(item.factIds), note: str(item.note) });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function parseOptionalChains(raw: unknown, tally: Tally): CanonicalChainItem[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: CanonicalChainItem[] = [];
+  for (const item of raw) {
+    if (!isRecord(item)) continue;
+    const chainId = str(item.chainId);
+    if (chainId === "") continue;
+    const rows: CanonicalChainItem["rows"] = [];
+    for (const row of arr(item.rows)) {
+      if (!isRecord(row)) continue;
+      const label = str(row.label);
+      if (label === "") continue;
+      const links: CanonicalChainItem["rows"][number]["links"] = [];
+      for (const link of arr(row.links)) {
+        if (!isRecord(link)) continue;
+        if (link.missing === true) links.push({ missing: true });
+        else links.push({ factIds: strings(link.factIds) });
+      }
+      rows.push({ label, links });
+    }
+    out.push({ chainId, rows });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function parseOptionalStandingQuestions(raw: unknown, tally: Tally): CanonicalStandingQuestionItem[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: CanonicalStandingQuestionItem[] = [];
+  for (const item of raw) {
+    if (!isRecord(item)) {
+      tally.count("standing_question_item_invalid");
+      continue;
+    }
+    const id = str(item.id);
+    if (id === "") continue;
+    const applies = item.applies === true;
+    out.push({ id, applies, factIds: strings(item.factIds) });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+function parseOptionalPersonaCoverage(raw: unknown, tally: Tally): PersonaCoverageItem[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: PersonaCoverageItem[] = [];
+  for (const item of raw) {
+    if (!isRecord(item)) continue;
+    const audience = str(item.audience);
+    const questionId = str(item.questionId);
+    const status = str(item.status).toUpperCase();
+    if (audience === "" || questionId === "" || status === "") continue;
+    out.push({
+      audience,
+      questionId,
+      status: status as PersonaCoverageItem["status"],
+      factIds: strings(item.factIds),
+      checkIds: strings(item.checkIds),
+      missing: str(item.missing),
+    });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 export type CanonicalStudyDrops = {

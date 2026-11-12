@@ -54,6 +54,7 @@ import {
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
+import { loadPackById } from "@/server/pipeline/pack-loader";
 import { refreshReportRunProgressEstimateInWorker } from "@/server/pipeline/progress-estimate-persistence";
 import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
 import {
@@ -527,30 +528,39 @@ async function processStudyViewReportRun(
   try {
     const inputs = studyViewInputsFrom(payload, audience);
     const catalog = (deps.loadCatalog ?? loadPromptCatalog)();
-    const baseMetric: StageMetric = {
-      stage: "WRITING",
-      attempt: claimed.attemptCount,
-      promptId: catalog.write.id,
-      promptDigest: catalog.write.digest,
-      modelAliasRequested: null,
-      startedAt: now().toISOString(),
-    };
     const clock = deps.clock ?? (() => Date.now());
     const invocationStartedAt = deps.invocationStartedAt ?? startedAt;
     const writeThroughput = await loadPipelineThroughput(deps.client, "write", clock());
+    const pack =
+      inputs.canonicalStudy.packRef != null
+        ? loadPackById(inputs.canonicalStudy.packRef.id, inputs.canonicalStudy.packRef.version)
+        : null;
+    const usePack = pack != null && !pack.briefOnly;
+    const writePrompt = usePack && catalog.writeV2 ? catalog.writeV2 : catalog.write;
+    const baseMetric: StageMetric = {
+      stage: "WRITING",
+      attempt: claimed.attemptCount,
+      promptId: writePrompt.id,
+      promptDigest: writePrompt.digest,
+      modelAliasRequested: null,
+      startedAt: now().toISOString(),
+    };
     const writePayload = buildWritePayload(
       inputs.canonicalStudy,
       inputs.facts,
       audience,
       inputs.audience,
       inputs.intent,
+      usePack ? pack : null,
     );
     const expectedWriteOutput = expectedOutputTokens(
       estimateInputTokensFromUtf8Bytes(Buffer.byteLength(JSON.stringify(writePayload), "utf8")),
       writeThroughput.outputInputRatio,
     );
-    const studyViewContext: StudyViewContext =
-      inputs.referencedDocuments.length > 0 ? { referencedDocuments: inputs.referencedDocuments } : {};
+    const studyViewContext: StudyViewContext = {
+      ...(inputs.referencedDocuments.length > 0 ? { referencedDocuments: inputs.referencedDocuments } : {}),
+      ...(usePack && pack ? { pack } : {}),
+    };
     const result = await writeStudyView({
       planner: deps.planner,
       canonicalStudy: inputs.canonicalStudy,
@@ -559,9 +569,10 @@ async function processStudyViewReportRun(
       audience: inputs.audience,
       intent: inputs.intent,
       studyViewContext,
+      pack: usePack ? pack : null,
       correlationId,
       runId: reportRunId,
-      prompt: catalog.write,
+      prompt: writePrompt,
       clock,
       deadlineMs: writeClientDeadlineMs(invocationStartedAt),
       resolvePlannerTimeoutMs: () =>

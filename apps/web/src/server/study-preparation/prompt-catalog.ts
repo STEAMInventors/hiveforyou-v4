@@ -30,7 +30,9 @@ const WRITER_SEMANTIC_REVIEW_PROMPT_FILE = "hive-writer/HiveForYou-Writer-Semant
 const WRITER_SCHEMA_FILE = "hive-writer/hive.writer-report-1.schema.json";
 const EXTRACT_PROMPT_FILE = "hive-extract/HiveForYou-Extract-v1.md";
 const CANONICALIZE_PROMPT_FILE = "hive-canonicalize/HiveForYou-Canonicalize-v1.md";
+const CANONICALIZE_PROMPT_V2_FILE = "hive-canonicalize/HiveForYou-Canonicalize-v2.md";
 const WRITE_PROMPT_FILE = "hive-write/HiveForYou-Write-v1.md";
+const WRITE_PROMPT_V2_FILE = "hive-write/HiveForYou-Write-v2.md";
 
 export type PlannerPrompt = {
   readonly task: PlannerCompletionTask;
@@ -67,7 +69,9 @@ export type PromptCatalog = {
   readonly planner: Record<PreparationPlannerTask, PlannerPrompt>;
   readonly extract: ExtractPrompt;
   readonly canonicalize: CanonicalizePrompt;
+  readonly canonicalizeV2: CanonicalizePrompt;
   readonly write: WritePrompt;
+  readonly writeV2: WritePrompt;
   readonly studyTemplate: { readonly id: string; readonly version: string; readonly digest: string; readonly text: string };
   readonly outputSchema: { readonly digest: string; readonly text: string };
   readonly writer: WriterPrompt;
@@ -163,8 +167,12 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
   readPromptId(extractFile, PLANNER_TASK_PROMPT_IDS.extract);
   const canonicalizeFile = normalize(readText(CANONICALIZE_PROMPT_FILE));
   readPromptId(canonicalizeFile, PLANNER_TASK_PROMPT_IDS.canonicalize);
+  const canonicalizeV2File = normalize(readText(CANONICALIZE_PROMPT_V2_FILE));
+  readPromptId(canonicalizeV2File, "hive-canonicalize/2");
   const writeFile = normalize(readText(WRITE_PROMPT_FILE));
   readPromptId(writeFile, PLANNER_TASK_PROMPT_IDS.write);
+  const writeV2File = normalize(readText(WRITE_PROMPT_V2_FILE));
+  readPromptId(writeV2File, "hive-write/2");
   return {
     planner,
     extract: {
@@ -180,11 +188,23 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
       digest: sha256Digest(canonicalizeFile),
       systemPrompt: `${extractSection(canonicalizeFile, "System")}\n\n${extractSection(canonicalizeFile, "Output", true)}`,
     },
+    canonicalizeV2: {
+      task: "canonicalize",
+      id: "hive-canonicalize/2",
+      digest: sha256Digest(canonicalizeV2File),
+      systemPrompt: `${extractSection(canonicalizeV2File, "System")}\n\n${extractSection(canonicalizeV2File, "Output", true)}`,
+    },
     write: {
       task: "write",
       id: PLANNER_TASK_PROMPT_IDS.write,
       digest: sha256Digest(writeFile),
       systemPrompt: `${extractSection(writeFile, "System")}\n\n${extractSection(writeFile, "Output", true)}`,
+    },
+    writeV2: {
+      task: "write",
+      id: "hive-write/2",
+      digest: sha256Digest(writeV2File),
+      systemPrompt: `${extractSection(writeV2File, "System")}\n\n${extractSection(writeV2File, "Output", true)}`,
     },
     writer: {
       task: "writer",

@@ -103,6 +103,19 @@ export function StudyTabPanel({
       >
         Rebuild study
       </button>
+      <button
+        type="button"
+        className={SECONDARY_BUTTON_CLASS}
+        disabled={rebuildDisabled}
+        data-testid="study-tab-rebuild-without-checklist-button"
+        aria-describedby="study-tab-rebuild-hint"
+        onClick={(event) => {
+          analysis.returnFocusRef.current = event.currentTarget;
+          analysis.rebuildWithoutChecklist();
+        }}
+      >
+        Rebuild without checklist
+      </button>
       <p id="study-tab-rebuild-hint" className="m-0 max-w-xs text-caption text-quiet sm:text-end">
         {!analysis.state
           ? "Loading rebuild options…"

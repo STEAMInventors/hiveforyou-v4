@@ -24,6 +24,10 @@ Source: NestIEP corpus, `cases/L001/clean/` (copied unchanged). The PDFs are sup
 
 Anchor: `08_initial_iep.pdf` (`ANCHOR`).
 
+## External baseline
+
+`baseline-notebooklm.txt` — NotebookLM answer on the same documents; external baseline, not a golden label. Do not score against it until a later eval ticket.
+
 ## Golden label provenance
 
 `generated_metadata/*.json` in the source case lists expected facts with a page and verbatim needle. All 19 of those facts are carried into spine elements G3-G10 and G12-G15 (see each element's `origin`). Where a needle was too generic to identify the fact (for example `"Reading Fluency"`, `"95%"`), a longer fragment from the same page is used. G1, G2 and G11 were drafted from the PDFs.

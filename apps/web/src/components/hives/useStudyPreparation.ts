@@ -95,6 +95,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const failuresRef = useRef(0);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const actionRef = useRef<"analyze" | "rebuild">("analyze");
+  const withoutDomainPackRef = useRef(false);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -179,6 +180,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
         const payload = {
           clientRequestId: crypto.randomUUID(),
           ...(consent ? { coverageAcknowledgementDigest: consent.coverageAcknowledgementDigest } : {}),
+          ...(action === "rebuild" && withoutDomainPackRef.current ? { withoutDomainPack: true } : {}),
         };
         const result = action === "rebuild" ? await rebuildStudy(hiveId, payload) : await startStudyPreparation(hiveId, payload);
         runRef.current = result.processingRun;
@@ -267,6 +269,26 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
       return;
     }
     actionRef.current = "rebuild";
+    withoutDomainPackRef.current = false;
+    setAction("rebuild");
+    if (rebuildReady.requiresCoverageAcknowledgement) {
+      setStartError(null);
+      setModalMode("confirm");
+      return;
+    }
+    void start();
+  }, [rebuildReady, start]);
+
+  const rebuildWithoutChecklist = useCallback(() => {
+    if (!rebuildReady?.canRebuild) {
+      if (rebuildReady?.reason === "AWAITING_ACKNOWLEDGEMENT") {
+        setStartError(null);
+        setModalMode("progress");
+      }
+      return;
+    }
+    actionRef.current = "rebuild";
+    withoutDomainPackRef.current = true;
     setAction("rebuild");
     if (rebuildReady.requiresCoverageAcknowledgement) {
       setStartError(null);
@@ -340,6 +362,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
     returnFocusRef,
     analyze,
     rebuild,
+    rebuildWithoutChecklist,
     confirmCoverage,
     acknowledge,
     retry: () => {
