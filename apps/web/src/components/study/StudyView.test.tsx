@@ -2,11 +2,14 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { CANONICAL_STUDY_SCHEMA, buildStudyView, buildStudyViewSources } from "@hiveforyou/contracts";
+
 import { bankruptcyC13Fixture, bankruptcyC13Revision4Fixture, bankruptcyC13StudyOnlyFixture } from "./fixtures/bankruptcy-c13";
 import { legacyCanonicalGapsFixture } from "./fixtures/legacy-canonical-gaps";
 import { mayaIepFixture } from "./fixtures/maya-iep";
+import { MAYA_REVISION_1_ANCHOR_GAP, MAYA_REVISION_1_PROGRESS_GAP, mayaRevision1Fixture } from "./fixtures/maya-revision-1";
 import { noAnchorHouseholdFixture } from "./fixtures/no-anchor-household";
-import { studyDocumentMeta, studyStateCounts } from "./study-summary";
+import { studyDocumentMeta, studyDocumentRequestCount, studyStateCounts } from "./study-summary";
 import { StudyReport, titleFromIntent } from "./StudyReport";
 import { StudyView } from "./StudyView";
 
@@ -227,7 +230,7 @@ describe("DocumentRequestList", () => {
     expect(screen.getByRole("heading", { name: "Missing documents" })).toBeTruthy();
   });
 
-  it("renders statement-only legacy gaps with a rebuild hint and non-empty ask-now list", () => {
+  it("renders statement-only legacy gaps as a plain list under the rebuild hint", () => {
     const fixture = legacyCanonicalGapsFixture();
     render(
       <StudyView
@@ -239,9 +242,77 @@ describe("DocumentRequestList", () => {
       />,
     );
     const list = screen.getByTestId("document-request-list");
-    expect(list.querySelectorAll('[data-kind="REQUESTABLE_DOCUMENT"]')).toHaveLength(2);
+    expect(list.querySelectorAll('[data-kind="REQUESTABLE_DOCUMENT"]')).toHaveLength(0);
+    expect(list.querySelectorAll('[data-kind="LEGACY_STATEMENT"]')).toHaveLength(2);
     expect(screen.getByTestId("document-request-legacy-hint").textContent).toContain("Rebuild the study for a clearer list");
+    expect(list.textContent).not.toContain("Likely held by");
+    expect(list.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(screen.queryByText(/documents missing/)).toBeNull();
     expect(document.getElementById("missing-documents")).not.toBeNull();
+    expect(studyDocumentRequestCount(fixture.view)).toBe(0);
+  });
+
+  it("drops Maya revision-1 pipeline gaps from Missing documents and does not count the rest", () => {
+    const fixture = mayaRevision1Fixture();
+    render(
+      <StudyView
+        hiveId={fixture.hiveId}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={1}
+      />,
+    );
+    const missing = document.getElementById("missing-documents");
+    expect(missing?.textContent).toContain(MAYA_REVISION_1_PROGRESS_GAP);
+    expect(missing?.textContent).not.toContain(MAYA_REVISION_1_ANCHOR_GAP);
+    expect(missing?.textContent).not.toContain("page could not");
+    expect(missing?.textContent).not.toContain("Likely held by");
+    expect(missing?.textContent).not.toContain("You or your client");
+    expect(missing?.querySelectorAll('[data-kind="LEGACY_STATEMENT"]')).toHaveLength(1);
+    expect(screen.queryByText(/documents missing/)).toBeNull();
+    expect(studyDocumentRequestCount(fixture.view)).toBe(0);
+  });
+
+  it("does not repeat a reason that equals the title", () => {
+    const study = {
+      schema: CANONICAL_STUDY_SCHEMA,
+      domainLabel: "",
+      spineSource: null,
+      documents: [],
+      spine: [],
+      outsideSpine: [],
+      conflicts: [],
+      timeline: [],
+      gaps: [
+        {
+          id: "X1",
+          statement: "Tax return",
+          relatedSpineIds: [],
+          kind: "REQUESTABLE_DOCUMENT" as const,
+          title: "Tax return",
+          why: "Tax return",
+          holder: "Debtor",
+          holderType: "ASKER_OR_CLIENT" as const,
+          when: null,
+          basisType: "USUALLY_EXPECTED" as const,
+          relatedFactIds: [],
+        },
+      ],
+    };
+    const { view } = buildStudyView(study, { sections: [], blocks: [] }, [], {});
+    render(
+      <StudyView
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={view}
+        sources={buildStudyViewSources(view, [], new Map())}
+        revisionNumber={1}
+      />,
+    );
+    const row = document.querySelector('[data-row-id="X1"]');
+    expect(row?.textContent?.match(/Tax return/g)).toHaveLength(1);
+    expect(row?.textContent).toContain("Likely held by: Debtor");
   });
 
   it("shows Maya's Hive with 4 ask-now, 2 later, and attaches one observation to the spine row", () => {

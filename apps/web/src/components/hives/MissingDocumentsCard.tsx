@@ -101,7 +101,9 @@ function MissingSlotRow({
     <li className="flex flex-col gap-2 rounded-card border border-line p-3 sm:flex-row sm:items-center sm:justify-between" data-gap-id={slot.gapId}>
       <div className="min-w-0">
         <p className="m-0 font-medium text-ink">{slot.title}</p>
-        <p className="m-0 text-body text-graphite">{slot.why}</p>
+        {slot.why.trim() !== "" && slot.why.trim() !== slot.title.trim() ? (
+          <p className="m-0 text-body text-graphite">{slot.why}</p>
+        ) : null}
         <p className="m-0 text-small text-quiet">{holder}</p>
         {slot.uploadState === "added_pending_rebuild" ? (
           <p className="m-0 text-small font-medium text-honey" data-testid="slot-added">

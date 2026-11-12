@@ -11,6 +11,7 @@ import {
   parseWriteDocumentRequestListProposal,
   type DocumentRequestItem,
   type DocumentRequestObservation,
+  type LegacyDocumentLine,
   type StudyViewReferencedDocument,
   type StudyViewSourceRef,
   type WriteDocumentRequestListProposal,
@@ -107,6 +108,8 @@ export type StudyViewDocumentRequestList = {
   readonly courtRecordCount: number;
   /** When the write model proposed forbidden fields, render a plain accessible list. */
   readonly fallback?: boolean;
+  /** Statement-only gaps shown as a plain list under the rebuild hint. */
+  readonly legacyLines?: readonly LegacyDocumentLine[];
   /** Statement-only canonical gaps; show rebuild guidance in the list chrome. */
   readonly legacyHint?: boolean;
 };
@@ -458,7 +461,7 @@ export function buildStudyView(
     (parseMalformed.component_items_forbidden ?? 0) > 0 ||
     (parseMalformed.component_actions_forbidden ?? 0) > 0 ||
     (parseMalformed.component_field_forbidden ?? 0) > 0;
-  if (wantsList && requestData.items.length > 0) {
+  if (wantsList && (requestData.items.length > 0 || requestData.legacyLines.length > 0)) {
     const proposal = writeComponents.find((component) => component.name === DOCUMENT_REQUEST_LIST_COMPONENT);
     let intro: StudyViewSentence | undefined;
     if (proposal?.intro && !writeFallback) {
@@ -474,7 +477,7 @@ export function buildStudyView(
       courtRecordCount: requestData.courtRecordCount,
       ...(intro ? { intro } : {}),
       ...(writeFallback ? { fallback: true } : {}),
-      ...(requestData.legacyHint ? { legacyHint: true } : {}),
+      ...(requestData.legacyLines.length > 0 ? { legacyLines: requestData.legacyLines, legacyHint: true } : {}),
     });
   }
 

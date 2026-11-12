@@ -1,5 +1,5 @@
 import type { CoverageGap, StudyView, StudyViewBlockName, StudyViewRow } from "@hiveforyou/contracts";
-import { DOCUMENT_REQUEST_LIST_COMPONENT } from "@hiveforyou/contracts";
+import { DOCUMENT_REQUEST_LIST_COMPONENT, partitionDocumentRequests } from "@hiveforyou/contracts";
 
 import { shortDocumentLabels } from "./document-labels";
 import { countStates, type StateCounts } from "./StateBar";
@@ -16,13 +16,13 @@ export const STUDY_SECTION_IDS = {
 const blockRows = (view: StudyView, name: StudyViewBlockName): readonly StudyViewRow[] =>
   view.blocks.find((block) => block.name === name)?.rows ?? [];
 
-/** Requestable documents only (not future records or unreadable files). */
+/** Requestable documents only. Legacy statement lines are not upload slots and do not count. */
 export function studyDocumentRequestCount(view: StudyView): number {
   const component = view.components?.find((entry) => entry.name === DOCUMENT_REQUEST_LIST_COMPONENT);
-  return (
-    component?.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD").length ??
-    0
-  );
+  if (!component) return 0;
+  return partitionDocumentRequests(component).items.filter(
+    (item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD",
+  ).length;
 }
 
 /** The same counts the report's state bar shows, for headers and cards outside the report. */

@@ -182,6 +182,42 @@ describe("canonicalizeCase", () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
+  it("drops Maya revision-1 pipeline gap text and logs the count without the statement", async () => {
+    const anchor = "No single document organizes all others as an anchor. The spine source is TIMELINE.";
+    const progress = "January 2026 progress report is not among the uploaded documents.";
+    const studyWithPipelineGaps = {
+      ...study,
+      spineSource: "TIMELINE",
+      gaps: [
+        { id: "G", statement: anchor, relatedSpineIds: [] },
+        { id: "H", statement: progress, relatedSpineIds: [] },
+        { id: "I", statement: "A page could not be read, so that page is not part of the study.", relatedSpineIds: [] },
+        {
+          id: "J",
+          statement: "Service log missing",
+          title: "Service delivery log",
+          why: "The minutes are not extractable from the pages supplied.",
+          relatedSpineIds: [],
+        },
+      ],
+    };
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const fetchFn = vi.fn().mockResolvedValueOnce(success(studyWithPipelineGaps));
+    const result = await run(fetchFn);
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    log.mockRestore();
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.study.gaps.map((gap) => gap.statement)).toEqual([progress]);
+    const dropped = lines.filter((line) => line.includes("gap_pipeline_language"));
+    expect(dropped).toHaveLength(1);
+    const record = JSON.parse(dropped[0]!) as { rejectionSummary?: string; eventName?: string };
+    expect(record.eventName).toBe("pipeline.canonicalize.gap_dropped");
+    expect(record.rejectionSummary).toBe("gap_pipeline_language:3");
+    expect(dropped[0]).not.toContain("TIMELINE");
+    expect(dropped[0]).not.toContain("organizes");
+    expect(dropped[0]).not.toContain("extractable");
+  });
+
   it("drops gaps filled by slot upload using normalized title, not stale gap id", async () => {
     const studyWithFilledGap = {
       ...study,

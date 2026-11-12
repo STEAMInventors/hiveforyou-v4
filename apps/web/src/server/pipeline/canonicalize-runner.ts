@@ -7,12 +7,14 @@ import {
   type HiveError,
   assignCanonicalGapHolderTypes,
   dropGapsFilledByUpload,
+  dropPipelineLanguageGaps,
   filledGapTitles,
   type GapFillLink,
   parseCanonicalStudy,
   verifyCanonicalStudy,
 } from "@hiveforyou/contracts";
 
+import { emitStructuredEvent } from "@/server/observability/logger";
 import { PlannerJobHandoffError, type PlannerAsyncJobOptions } from "@/server/study-preparation/planner-async-jobs";
 import { callPlanner, type PlannerDeps } from "@/server/study-preparation/planner-client";
 import { type CanonicalizePrompt, loadPromptCatalog, sha256Digest } from "@/server/study-preparation/prompt-catalog";
@@ -301,7 +303,21 @@ export async function canonicalizeCase(input: CanonicalizeInput): Promise<Canoni
   if (!outcome.ok) return { ok: false, error: outcome.error, calls };
   const knownFactIds = new Set(input.extractions.flatMap((extraction) => extraction.facts.map((fact) => fact.id)));
   const verified = verifyCanonicalStudy(outcome.value, knownFactIds);
-  const withFilledGapsDropped = dropGapsFilledByUpload(verified.study, filledGapTitles(gapFillLinks));
+  const withoutPipelineLanguage = dropPipelineLanguageGaps(verified.study);
+  if (withoutPipelineLanguage.dropped > 0) {
+    emitStructuredEvent({
+      eventName: "pipeline.canonicalize.gap_dropped",
+      severity: "WARN",
+      timestamp: new Date().toISOString(),
+      component: "pipeline",
+      operation: "canonicalize",
+      stage: "MERGE",
+      correlationId: input.correlationId,
+      processingRunId: input.runId,
+      rejectionSummary: `gap_pipeline_language:${withoutPipelineLanguage.dropped}`,
+    });
+  }
+  const withFilledGapsDropped = dropGapsFilledByUpload(withoutPipelineLanguage.study, filledGapTitles(gapFillLinks));
   const study = assignCanonicalGapHolderTypes(withFilledGapsDropped);
   return { ok: true, study, drops: verified.drops, malformed, payloadBytes: Buffer.byteLength(JSON.stringify(payload), "utf8"), calls };
 }

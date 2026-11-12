@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { CANONICAL_STUDY_SCHEMA, type CanonicalGap } from "./canonical-study-contracts";
+import { CANONICAL_STUDY_SCHEMA, type CanonicalGap, type CanonicalStudy } from "./canonical-study-contracts";
 import {
   buildDocumentRequestListData,
+  canonicalGapMentionsPipelineTerms,
   draftRequestPlainText,
+  dropPipelineLanguageGaps,
+  gapTextMentionsPipelineTerms,
   isLegacyCanonicalGap,
   parseWriteDocumentRequestListProposal,
+  partitionDocumentRequests,
+  requestableDocumentCount,
 } from "./document-request-list-contracts";
+import { buildMissingDocumentsSummary } from "./missing-documents";
 import { buildStudyView, parseWriteOutput } from "./study-view-contracts";
 
 const gap = (partial: Partial<CanonicalGap> & Pick<CanonicalGap, "id" | "statement">): CanonicalGap => ({
@@ -47,8 +53,22 @@ describe("parseWriteDocumentRequestListProposal", () => {
   });
 });
 
+const MAYA_REVISION_1_ANCHOR_GAP =
+  "No single document organizes all others as an anchor. The spine source is TIMELINE.";
+const MAYA_REVISION_1_PROGRESS_GAP = "January 2026 progress report is not among the uploaded documents.";
+
+describe("pipeline language in gap text", () => {
+  it("matches the pipeline terms and leaves ordinary document statements alone", () => {
+    for (const term of ["anchor", "spine", "TIMELINE", "canonical", "extraction", "extractable", "page could not"]) {
+      expect(gapTextMentionsPipelineTerms(`Note: ${term} here`)).toBe(true);
+    }
+    expect(gapTextMentionsPipelineTerms(MAYA_REVISION_1_PROGRESS_GAP)).toBe(false);
+    expect(gapTextMentionsPipelineTerms("The anchorage lease is missing.")).toBe(false);
+  });
+});
+
 describe("buildDocumentRequestListData", () => {
-  it("maps statement-only legacy gaps to requestable items with a rebuild hint", () => {
+  it("keeps statement-only legacy gaps as a plain list and not as upload slots", () => {
     const statement = "Water bill for March 2026 is not among the uploaded documents.";
     expect(
       isLegacyCanonicalGap(
@@ -70,14 +90,66 @@ describe("buildDocumentRequestListData", () => {
       [],
     );
     expect(data.legacyHint).toBe(true);
-    expect(data.items).toHaveLength(1);
-    expect(data.items[0]).toMatchObject({
-      kind: "REQUESTABLE_DOCUMENT",
-      title: statement,
-      why: statement,
-      holder: "",
-      basis: { type: "USUALLY_EXPECTED" },
+    expect(data.items).toHaveLength(0);
+    expect(data.legacyLines).toEqual([{ id: "X1", text: statement }]);
+    expect(requestableDocumentCount(data)).toBe(0);
+  });
+
+  it("drops Maya revision-1 pipeline gaps and keeps the other statement as a plain line", () => {
+    const anchor = gap({ id: "X1", statement: MAYA_REVISION_1_ANCHOR_GAP });
+    const progress = gap({ id: "X2", statement: MAYA_REVISION_1_PROGRESS_GAP });
+    const unread = gap({ id: "X3", statement: "A page could not be read, so that page is not part of the study." });
+    expect(canonicalGapMentionsPipelineTerms(anchor)).toBe(true);
+    expect(canonicalGapMentionsPipelineTerms(progress)).toBe(false);
+    const study: CanonicalStudy = {
+      schema: CANONICAL_STUDY_SCHEMA,
+      domainLabel: "Special education",
+      spineSource: "TIMELINE",
+      documents: [],
+      spine: [],
+      outsideSpine: [],
+      conflicts: [],
+      timeline: [],
+      gaps: [anchor, progress, unread],
+    };
+    const data = buildDocumentRequestListData(study, []);
+    expect(data.items).toEqual([]);
+    expect(data.legacyLines).toEqual([{ id: "X2", text: MAYA_REVISION_1_PROGRESS_GAP }]);
+    expect(requestableDocumentCount(data)).toBe(0);
+    const summary = buildMissingDocumentsSummary(study);
+    expect(summary.uploadSlotCount).toBe(0);
+    expect(summary.slots).toEqual([]);
+    const dropped = dropPipelineLanguageGaps(study);
+    expect(dropped.dropped).toBe(2);
+    expect(dropped.study.gaps.map((item) => item.id)).toEqual(["X2"]);
+  });
+
+  it("treats a saved list that copied the statement into title and why as legacy lines", () => {
+    const parts = partitionDocumentRequests({
+      legacyHint: true,
+      items: [
+        {
+          id: "X1",
+          kind: "REQUESTABLE_DOCUMENT",
+          title: MAYA_REVISION_1_ANCHOR_GAP,
+          why: MAYA_REVISION_1_ANCHOR_GAP,
+          holder: "",
+          holderType: "ASKER_OR_CLIENT",
+          basis: { type: "USUALLY_EXPECTED" },
+        },
+        {
+          id: "X2",
+          kind: "REQUESTABLE_DOCUMENT",
+          title: MAYA_REVISION_1_PROGRESS_GAP,
+          why: MAYA_REVISION_1_PROGRESS_GAP,
+          holder: "",
+          holderType: "ASKER_OR_CLIENT",
+          basis: { type: "USUALLY_EXPECTED" },
+        },
+      ],
     });
+    expect(parts.items).toEqual([]);
+    expect(parts.legacyLines).toEqual([{ id: "X2", text: MAYA_REVISION_1_PROGRESS_GAP }]);
   });
 
   it("downgrades MENTIONED when no referring page matches the title", () => {

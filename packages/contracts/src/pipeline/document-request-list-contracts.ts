@@ -7,6 +7,31 @@ import type { CanonicalGap, CanonicalStudy } from "./canonical-study-contracts";
 import { type GapHolderType, inferGapHolderType } from "./canonical-gap-holders";
 import { matchReferencedDocuments } from "./study-view-reference-match";
 
+/**
+ * Pipeline vocabulary that describes how a study was organized, not a document someone can supply.
+ * Matched on gap statement, title, and why.
+ */
+const PIPELINE_GAP_LANGUAGE = String.raw`\b(?:anchor|spine|timeline|canonical|extraction|extractable)\b|page could not`;
+
+export function gapTextMentionsPipelineTerms(text: string): boolean {
+  return new RegExp(PIPELINE_GAP_LANGUAGE, "i").test(text);
+}
+
+export function canonicalGapMentionsPipelineTerms(gap: Pick<CanonicalGap, "statement" | "title" | "why">): boolean {
+  return [gap.statement, gap.title, gap.why].some((part) => gapTextMentionsPipelineTerms(part));
+}
+
+/** Drops gaps whose text uses pipeline vocabulary. The caller logs the count; the text is not returned. */
+export function dropPipelineLanguageGaps(study: CanonicalStudy): { study: CanonicalStudy; dropped: number } {
+  let dropped = 0;
+  const gaps = study.gaps.filter((gap) => {
+    if (!canonicalGapMentionsPipelineTerms(gap)) return true;
+    dropped += 1;
+    return false;
+  });
+  return { study: dropped === 0 ? study : { ...study, gaps }, dropped };
+}
+
 export type StudyViewSourceRef = {
   readonly sourceDocumentId: string;
   readonly pageNumber: number;
@@ -51,11 +76,19 @@ export type DocumentRequestObservation = {
   readonly relatedFactIds: readonly string[];
 };
 
+/** Statement-only gap kept for older studies: one line, not an upload slot. */
+export type LegacyDocumentLine = {
+  readonly id: string;
+  readonly text: string;
+};
+
 export type DocumentRequestListData = {
   readonly items: readonly DocumentRequestItem[];
   readonly observations: readonly DocumentRequestObservation[];
   /** REQUESTABLE_DOCUMENT gaps held by the court (not upload slots). */
   readonly courtRecordCount: number;
+  /** Statement-only gaps that are still worth showing, under a rebuild hint. */
+  readonly legacyLines: readonly LegacyDocumentLine[];
   /** Gaps canonicalized before structured request fields existed; show a rebuild hint. */
   readonly legacyHint?: boolean;
 };
@@ -122,25 +155,67 @@ function basisForGap(gap: CanonicalGap, referencedDocuments: readonly StudyViewR
   return { type: "USUALLY_EXPECTED" };
 }
 
+/**
+ * Views saved before legacy lines were split stored the statement as both title and why, with a blank holder.
+ * Only used when the component itself is marked as a legacy list.
+ */
+export function isPersistedLegacyRequestItem(
+  item: Pick<DocumentRequestItem, "kind" | "title" | "why" | "holder" | "basis">,
+): boolean {
+  return (
+    item.kind === "REQUESTABLE_DOCUMENT" &&
+    item.holder.trim() === "" &&
+    item.basis.type === "USUALLY_EXPECTED" &&
+    item.title.trim() !== "" &&
+    item.title.trim() === item.why.trim()
+  );
+}
+
+export function partitionDocumentRequests(component: {
+  readonly items: readonly DocumentRequestItem[];
+  readonly legacyLines?: readonly LegacyDocumentLine[];
+  readonly legacyHint?: boolean;
+}): { items: readonly DocumentRequestItem[]; legacyLines: readonly LegacyDocumentLine[] } {
+  if (component.legacyLines) {
+    return {
+      items: component.items,
+      legacyLines: component.legacyLines.filter((line) => line.text.trim() !== "" && !gapTextMentionsPipelineTerms(line.text)),
+    };
+  }
+  if (!component.legacyHint) return { items: component.items, legacyLines: [] };
+  const items: DocumentRequestItem[] = [];
+  const legacyLines: LegacyDocumentLine[] = [];
+  for (const item of component.items) {
+    if (!isPersistedLegacyRequestItem(item)) {
+      items.push(item);
+      continue;
+    }
+    if (gapTextMentionsPipelineTerms(item.title) || gapTextMentionsPipelineTerms(item.why)) continue;
+    legacyLines.push({ id: item.id, text: item.title.trim() });
+  }
+  return { items, legacyLines };
+}
+
+export function documentRequestListHasContent(component: {
+  readonly items: readonly DocumentRequestItem[];
+  readonly legacyLines?: readonly LegacyDocumentLine[];
+  readonly legacyHint?: boolean;
+}): boolean {
+  const parts = partitionDocumentRequests(component);
+  return parts.items.length > 0 || parts.legacyLines.length > 0;
+}
+
 export function buildDocumentRequestListData(
   study: CanonicalStudy,
   referencedDocuments: readonly StudyViewReferencedDocument[] = [],
 ): DocumentRequestListData {
   const items: DocumentRequestItem[] = [];
   const observations: DocumentRequestObservation[] = [];
-  let legacyHint = false;
+  const legacyLines: LegacyDocumentLine[] = [];
   for (const gap of study.gaps) {
     if (isLegacyCanonicalGap(gap)) {
-      legacyHint = true;
-      items.push({
-        id: gap.id,
-        kind: "REQUESTABLE_DOCUMENT",
-        title: gap.statement.trim(),
-        why: gap.statement.trim(),
-        holder: "",
-        holderType: inferGapHolderType({ ...gap, kind: "REQUESTABLE_DOCUMENT", holderType: null }),
-        basis: { type: "USUALLY_EXPECTED" },
-      });
+      if (canonicalGapMentionsPipelineTerms(gap)) continue;
+      legacyLines.push({ id: gap.id, text: gap.statement.trim() });
       continue;
     }
     const kind = inferKind(gap);
@@ -177,7 +252,8 @@ export function buildDocumentRequestListData(
     items,
     observations,
     courtRecordCount,
-    ...(legacyHint ? { legacyHint: true } : {}),
+    legacyLines,
+    ...(legacyLines.length > 0 ? { legacyHint: true } : {}),
   };
 }
 

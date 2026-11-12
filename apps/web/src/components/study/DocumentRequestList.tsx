@@ -1,7 +1,7 @@
 "use client";
 
 import type { DocumentRequestItem, StudyViewDocumentRequestList } from "@hiveforyou/contracts";
-import { DOCUMENT_REQUEST_LIST_LEGACY_HINT, draftRequestPlainText, holderTypeLabel } from "@hiveforyou/contracts";
+import { DOCUMENT_REQUEST_LIST_LEGACY_HINT, draftRequestPlainText, holderTypeLabel, partitionDocumentRequests } from "@hiveforyou/contracts";
 import { useCallback, useId, useMemo, useState } from "react";
 
 import { SourceChips, type ChipRef } from "./SourceChip";
@@ -50,14 +50,20 @@ function BasisTag({ item }: { item: DocumentRequestItem }) {
   );
 }
 
+function showWhy(title: string, why: string): boolean {
+  const reason = why.trim();
+  return reason !== "" && reason !== title.trim();
+}
+
 export function DocumentRequestList({ component, customer, sentenceChips }: DocumentRequestListProps) {
-  const askNow = component.items.filter(
+  const parts = partitionDocumentRequests(component);
+  const askNow = parts.items.filter(
     (item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD",
   );
   const courtRecordCount =
     component.courtRecordCount ??
-    component.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType === "COURT_RECORD").length;
-  const askLater = component.items.filter((item) => item.kind === "FUTURE_RECORD");
+    parts.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType === "COURT_RECORD").length;
+  const askLater = parts.items.filter((item) => item.kind === "FUTURE_RECORD");
   const interactive = !component.fallback;
   const listId = useId();
   const [selected, setSelected] = useState<Set<string>>(() => new Set(askNow.map((item) => item.id)));
@@ -75,7 +81,7 @@ export function DocumentRequestList({ component, customer, sentenceChips }: Docu
   }, []);
 
   const copyDraft = useCallback(async () => {
-    const text = draftRequestPlainText(component.items, selected);
+    const text = draftRequestPlainText(parts.items, selected);
     if (text === "") return;
     try {
       await navigator.clipboard.writeText(text);
@@ -84,7 +90,7 @@ export function DocumentRequestList({ component, customer, sentenceChips }: Docu
     } catch {
       setCopied(false);
     }
-  }, [component.items, selected]);
+  }, [parts.items, selected]);
 
   return (
     <div className="flex flex-col gap-5" data-testid="document-request-list" data-fallback={component.fallback ? "true" : "false"}>
@@ -94,10 +100,19 @@ export function DocumentRequestList({ component, customer, sentenceChips }: Docu
           {component.intro.text} <SourceChips refs={sentenceChips(component.intro.factIds)} />
         </p>
       ) : null}
-      {component.legacyHint ? (
-        <p className="m-0 max-w-prose text-small text-quiet" data-testid="document-request-legacy-hint">
-          {DOCUMENT_REQUEST_LIST_LEGACY_HINT}
-        </p>
+      {parts.legacyLines.length > 0 ? (
+        <>
+          <p className="m-0 max-w-prose text-small text-quiet" data-testid="document-request-legacy-hint">
+            {DOCUMENT_REQUEST_LIST_LEGACY_HINT}
+          </p>
+          <ul className="m-0 flex list-disc flex-col gap-2 pl-5" data-testid="document-request-legacy-list">
+            {parts.legacyLines.map((line) => (
+              <li key={line.id} className="max-w-prose text-body text-ink" data-kind="LEGACY_STATEMENT">
+                {line.text}
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
       {courtRecordCount > 0 ? (
         <p className="m-0 max-w-prose text-body text-graphite" data-testid="court-register-line">
@@ -165,7 +180,7 @@ function RequestGroup({
               <span className="font-medium text-ink">{item.title}</span>
               {!later ? (
                 <>
-                  <span className="text-body text-graphite">{item.why}</span>
+                  {showWhy(item.title, item.why) ? <span className="text-body text-graphite">{item.why}</span> : null}
                   <BasisTag item={item} />
                   {item.holderType ? (
                     <span className="text-small text-quiet">Likely held by: {holderTypeLabel(item.holderType, item.holder)}</span>
@@ -174,7 +189,9 @@ function RequestGroup({
                   ) : null}
                 </>
               ) : (
-                <span className="text-body text-graphite">{item.when ? `Expected: ${item.when}` : item.why}</span>
+                <span className="text-body text-graphite">
+                  {item.when ? `Expected: ${item.when}` : showWhy(item.title, item.why) ? item.why : null}
+                </span>
               )}
             </div>
           </li>

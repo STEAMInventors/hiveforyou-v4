@@ -2,6 +2,7 @@
 
 import {
   DOCUMENT_REQUEST_LIST_COMPONENT,
+  documentRequestListHasContent,
   type CoverageGap,
   type ReportAudience,
   StudyView,
@@ -255,10 +256,9 @@ export function StudyReport({
 
   const narrative = isReport ? view.sections : [];
   const hasEstablish = model.spine.length > 0 || model.outsideSpine.length > 0 || !!model.structuralNote;
-  const hasAskSection =
-    model.documentRequestList !== null ||
-    model.missing.unreadable.length > 0 ||
-    missingCount(model.missing) > 0;
+  const requestList =
+    model.documentRequestList && documentRequestListHasContent(model.documentRequestList) ? model.documentRequestList : null;
+  const hasAskSection = requestList !== null || model.missing.unreadable.length > 0 || missingCount(model.missing) > 0;
 
   const toc: { id: string; label: string }[] = [
     ...(glanceRows.length > 0 ? [{ id: SECTION_IDS.glance, label: "At a glance" }] : []),
@@ -413,8 +413,8 @@ export function StudyReport({
               <h3 id={`${SECTION_IDS.missing}-h`} className={SECTION_HEADING}>
                 Missing documents
               </h3>
-              {model.documentRequestList ? (
-                <DocumentRequestList component={model.documentRequestList} customer={customer} sentenceChips={sentenceChips} />
+              {requestList ? (
+                <DocumentRequestList component={requestList} customer={customer} sentenceChips={sentenceChips} />
               ) : null}
               {model.missing.unreadable.length > 0 ? <MissingList groups={{ unreadable: model.missing.unreadable, referenced: [], expected: [] }} /> : null}
             </section>

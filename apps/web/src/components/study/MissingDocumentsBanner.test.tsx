@@ -3,7 +3,10 @@ import { buildMissingDocumentsSummary, CANONICAL_STUDY_SCHEMA, type CanonicalGap
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { MissingDocumentsCard } from "@/components/hives/MissingDocumentsCard";
+
 import { bankruptcyC13Revision4Fixture, BANKRUPTCY_C13_REVISION_4_GAPS } from "./fixtures/bankruptcy-c13";
+import { mayaRevision1Fixture } from "./fixtures/maya-revision-1";
 import { MissingDocumentsBanner } from "./MissingDocumentsBanner";
 
 afterEach(cleanup);
@@ -75,6 +78,20 @@ describe("MissingDocumentsBanner", () => {
     });
     render(<MissingDocumentsBanner hiveId="hive" summary={summary} onRebuild={() => undefined} />);
     expect(screen.getByTestId("missing-documents-banner").textContent).toContain("New documents added");
+  });
+
+  it("does not open an upload slot or a missing count for Maya revision-1 gaps", () => {
+    const fixture = mayaRevision1Fixture();
+    const summary = buildMissingDocumentsSummary(fixture.study);
+    expect(summary.uploadSlotCount).toBe(0);
+    expect(summary.slots).toEqual([]);
+    render(
+      <MissingDocumentsCard hiveId={fixture.hiveId} study={fixture.study} documents={[]} onDocumentsChange={() => undefined} />,
+    );
+    expect(screen.queryByTestId("missing-documents-card")).toBeNull();
+    expect(screen.queryByText("You or your client")).toBeNull();
+    render(<MissingDocumentsBanner hiveId={fixture.hiveId} summary={summary} />);
+    expect(screen.queryByTestId("missing-documents-banner")).toBeNull();
   });
 
   it("keeps a stable banner when summary props are unchanged across rerenders", async () => {
