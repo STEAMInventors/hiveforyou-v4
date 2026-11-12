@@ -291,6 +291,9 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "extract_stale_in_flight_repair_failed",
   "extract_pages_missing",
   "extract_range_empty_input",
+  "pack_directory_missing",
+  "pack_index_unreadable",
+  "pack_file_parse_failed",
 ]);
 
 const ALLOWED_EXCEPTION_TYPES = new Set([

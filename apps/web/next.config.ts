@@ -12,12 +12,17 @@ const reactPdfPdfjsDistRoot = path.dirname(
   require.resolve("pdfjs-dist/package.json", { paths: [require.resolve("react-pdf")] }),
 );
 
+const PACK_TRACE_GLOBS = ["../../packs/*.md"] as const;
+
 const nextConfig: NextConfig = {
   transpilePackages: ["@hiveforyou/contracts"],
   outputFileTracingRoot: workspaceRoot,
   outputFileTracingIncludes: {
-    "/api/v1/hives/[hiveId]/study-preparation": ["../../prompts/**/*"],
-    "/api/internal/workflow": ["../../prompts/**/*"],
+    "/api/v1/hives/[hiveId]/reports": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
+    "/api/v1/hives/[hiveId]/study-preparation": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
+    "/api/v1/hives/[hiveId]/study-preparation/rebuild": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
+    "/api/internal/workflow": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
+    "/api/internal/workflow-recovery": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
   },
   eslint: {
     dirs: ["src"],

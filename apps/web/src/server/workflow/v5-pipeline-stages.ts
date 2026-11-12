@@ -311,12 +311,37 @@ export async function persistDomainPackWorkflowState(
   });
 }
 
+function logDomainPackLoadIssue(input: {
+  correlationId?: string;
+  hiveId?: string;
+  runId: string;
+  diagnosticReason: string;
+  diagnosticField?: string;
+}): void {
+  if (!input.correlationId) return;
+  emitStructuredEvent({
+    eventName: "pipeline.domain_pack.load_skipped",
+    severity: "WARN",
+    timestamp: new Date().toISOString(),
+    component: "pipeline",
+    operation: "domain_pack",
+    stage: "ANALYZE",
+    correlationId: input.correlationId,
+    processingRunId: input.runId,
+    hiveId: input.hiveId,
+    diagnosticReason: input.diagnosticReason,
+    ...(input.diagnosticField ? { diagnosticField: input.diagnosticField } : {}),
+  });
+}
+
 export async function selectAndPersistDomainPack(input: {
   client: RpcClient;
   runId: string;
   requestText: string;
   extractions: readonly DocExtraction[];
   existing?: V5StageOutputs["domainPack"];
+  correlationId?: string;
+  hiveId?: string;
 }): Promise<{ pack: ReturnType<typeof loadPackById>; selection: V5StageOutputs["domainPack"] }> {
   if (input.existing && "id" in input.existing) {
     return { pack: loadPackById(input.existing.id, input.existing.version), selection: input.existing };
@@ -324,7 +349,28 @@ export async function selectAndPersistDomainPack(input: {
   if (input.existing && "skipped" in input.existing) {
     return { pack: null, selection: input.existing };
   }
-  const selected = selectDomainPack(loadPackEntries(), input.requestText, input.extractions);
+  const index = loadPackEntries();
+  if (index.skipped) {
+    logDomainPackLoadIssue({
+      correlationId: input.correlationId,
+      hiveId: input.hiveId,
+      runId: input.runId,
+      diagnosticReason: index.skipped,
+    });
+    const skipped = { skipped: index.skipped } as const;
+    await persistDomainPackWorkflowState(input.client, input.runId, skipped);
+    return { pack: null, selection: skipped };
+  }
+  for (const warning of index.fileWarnings ?? []) {
+    logDomainPackLoadIssue({
+      correlationId: input.correlationId,
+      hiveId: input.hiveId,
+      runId: input.runId,
+      diagnosticReason: "pack_file_parse_failed",
+      diagnosticField: warning,
+    });
+  }
+  const selected = selectDomainPack(index.entries, input.requestText, input.extractions);
   if (!selected) {
     const skipped = { skipped: "below_threshold" } as const;
     await persistDomainPackWorkflowState(input.client, input.runId, skipped);
@@ -1989,6 +2035,8 @@ export async function runCanonicalizeForRun(input: {
     requestText: input.requestText ?? "",
     extractions,
     existing: input.extractProgress?.domainPack,
+    correlationId,
+    hiveId: run.hiveId,
   });
   const usePack = pack && !pack.briefOnly;
   const prompt = usePack && catalog.canonicalizeV2 ? catalog.canonicalizeV2 : catalog.canonicalize;
