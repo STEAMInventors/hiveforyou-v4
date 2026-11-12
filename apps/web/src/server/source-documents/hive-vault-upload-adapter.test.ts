@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { CorrelationId } from "@hives/contracts";
@@ -10,11 +11,13 @@ import { createHiveError, FREE_UPLOADS_PER_UTC_MONTH, type Hive } from "@hivefor
 import { describe, expect, it } from "vitest";
 
 import {
+  completeHiveSourceDocumentUpload,
   createIntentRequestForOwnedHive,
   getUploadQuotaWithV3Vault,
   InMemoryClientRequestRegistry,
   listHiveSourceDocumentsWithV3Vault,
   openSourceDocumentPageWithV3Vault,
+  prepareHiveSourceDocumentUpload,
   ScanError,
   uploadHiveSourceDocumentWithV3Vault,
   type HashScanner,
@@ -156,6 +159,49 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
     const quota = await getUploadQuotaWithV3Vault(deps, USER_A, CORR_ID);
     expect(quota.quota.used).toBe(2);
     expect(quota.quota.remaining).toBe(FREE_UPLOADS_PER_UTC_MONTH - 2);
+  });
+
+  it("persists canonicalGapId when completing a missing-document slot upload", async () => {
+    const { vault, store, deps } = createTestHarness();
+    const clientRequestId = crypto.randomUUID();
+    const sha256 = createHash("sha256").update(PDF_BYTES).digest("hex");
+    await prepareHiveSourceDocumentUpload(deps, {
+      ownerUserId: USER_A,
+      hiveId: HIVE_A,
+      clientRequestId,
+      fileName: "Pay stub March.pdf",
+      mimeType: "application/pdf",
+      byteSize: PDF_BYTES.byteLength,
+      sha256,
+      correlationId: CORR_ID,
+      canonicalGapId: "X3",
+      canonicalGapStudyRevisionId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      canonicalGapTitle: "Pay stubs (March–April 2026)",
+    });
+    const operation = await vault.uploadOperations.getByClientRequestId(
+      USER_A as never,
+      HIVE_A as never,
+      clientRequestId,
+    );
+    expect(operation).toBeDefined();
+    await store.putCreateOnly({
+      bucket: DEFAULT_HIVE_SOURCE_BUCKET,
+      path: operation!.storagePath,
+      bytes: PDF_BYTES,
+      contentType: "application/pdf",
+      correlationId: CORR_ID as CorrelationId,
+    });
+    const completed = await completeHiveSourceDocumentUpload(deps, {
+      ownerUserId: USER_A,
+      hiveId: HIVE_A,
+      clientRequestId,
+      correlationId: CORR_ID,
+    });
+    expect(completed.sourceDocument.canonicalGapId).toBe("X3");
+    expect(completed.sourceDocument.canonicalGapTitle).toBe("Pay stubs (March–April 2026)");
+    const stored = await vault.sourceDocuments.getById(completed.sourceDocument.id as never);
+    expect(stored?.canonicalGapId).toBe("X3");
+    expect(stored?.canonicalGapTitle).toBe("Pay stubs (March–April 2026)");
   });
 
   it("isolates owners: another user cannot list or upload to someone else's Hive", async () => {

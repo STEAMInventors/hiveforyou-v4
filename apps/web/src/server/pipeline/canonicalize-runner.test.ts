@@ -93,6 +93,19 @@ describe("buildCanonicalizePayload", () => {
     void estimateInputTokensFromUtf8Bytes(encoded.length);
   });
 
+  it("includes uploadedToFill on documents uploaded for a gap slot", () => {
+    const docId = EXTRACTIONS[0]!.documentId;
+    const payload = buildCanonicalizePayload(EXTRACTIONS, null, [
+      {
+        sourceDocumentId: docId,
+        studyRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        gapId: "X3",
+        gapTitle: "Pay stubs (March–April 2026)",
+      },
+    ]);
+    expect(payload.documents[0]?.uploadedToFill).toBe("uploaded to fill: Pay stubs (March–April 2026)");
+  });
+
   it("sends compact facts with short references and no empty fields", () => {
     const payload = buildCanonicalizePayload(EXTRACTIONS, null);
     expect(payload.domainBrief).toBeNull();
@@ -140,6 +153,7 @@ describe("canonicalizeCase", () => {
         title: "",
         why: "",
         holder: "",
+        holderType: null,
         when: null,
         basisType: null,
         relatedFactIds: [],
@@ -166,6 +180,35 @@ describe("canonicalizeCase", () => {
     const result = await run(fetchFn);
     expect(result).toMatchObject({ ok: false, error: { errorCode: "MODEL_OUTPUT_INVALID", diagnosticReason: "canonicalize_unparseable_after_retry" } });
     expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops gaps filled by slot upload using normalized title, not stale gap id", async () => {
+    const studyWithFilledGap = {
+      ...study,
+      gaps: [
+        { id: "G", statement: "Prior letter not supplied", relatedSpineIds: ["S9"] },
+        { id: "H", statement: "Pay stubs missing", title: "Pay stubs (March–April 2026)", relatedSpineIds: [] },
+        { id: "I", statement: "Bank statements missing", title: "Bank statements", relatedSpineIds: [] },
+      ],
+    };
+    const fetchFn = vi.fn().mockResolvedValueOnce(success(studyWithFilledGap));
+    const result = await canonicalizeCase({
+      planner: { getConfig: () => config, fetchFn: fetchFn as unknown as typeof fetch },
+      extractions: EXTRACTIONS,
+      gapFillLinks: [
+        {
+          sourceDocumentId: EXTRACTIONS[0]!.documentId,
+          studyRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          gapId: "X3",
+          gapTitle: "Pay stubs (March–April 2026)",
+        },
+      ],
+      correlationId: CORRELATION_ID,
+      runId: RUN_ID,
+    });
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.study.gaps.map((gap) => gap.title || gap.statement)).not.toContain("Pay stubs (March–April 2026)");
+    expect(result.study.gaps.length).toBeGreaterThanOrEqual(1);
   });
 
   it("does not retry other planner failures", async () => {

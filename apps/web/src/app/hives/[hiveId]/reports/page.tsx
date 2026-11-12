@@ -13,7 +13,14 @@ type ReportsPageProps = {
 };
 
 type ReportsLoad =
-  | { ok: true; state: GetHiveReportsResponse; documentPages: Record<string, number>; summary: HiveSummary | null }
+  | {
+      ok: true;
+      state: GetHiveReportsResponse;
+      documentPages: Record<string, number>;
+      summary: HiveSummary | null;
+      canonicalStudy: import("@hiveforyou/contracts").CanonicalStudy | null;
+      referencedDocuments: readonly import("@hiveforyou/contracts").StudyViewReferencedDocument[];
+    }
   | { ok: false; message: string };
 
 /** `?audience=pro` selects the Pro report; anything else is the Customer report. */
@@ -34,6 +41,8 @@ async function loadReports(hiveId: string, correlationId: string): Promise<Repor
       state,
       documentPages: documentPageCounts(overview.preparation),
       summary: overview.summary,
+      canonicalStudy: overview.canonicalStudy,
+      referencedDocuments: overview.referencedDocuments,
     };
   } catch (error) {
     const safeMessage = (error as { safeMessage?: unknown } | null)?.safeMessage;
@@ -63,6 +72,8 @@ export default async function ReportsPage({ params, searchParams }: ReportsPageP
           initial={load.state}
           initialAudience={audienceFromParam(audience)}
           documentPages={load.documentPages}
+          canonicalStudy={load.canonicalStudy}
+          referencedDocuments={load.referencedDocuments}
         />
       ) : (
         <section role="alert" className="flex flex-col gap-2 rounded-card border border-line bg-paper p-7">

@@ -8,7 +8,7 @@ export const STUDY_SECTION_IDS = {
   glance: "at-a-glance",
   disagree: "where-documents-disagree",
   establish: "what-documents-establish",
-  missing: "what-to-ask-for",
+  missing: "missing-documents",
   timeline: "timeline",
   documents: "documents",
 } as const;
@@ -19,7 +19,10 @@ const blockRows = (view: StudyView, name: StudyViewBlockName): readonly StudyVie
 /** Requestable documents only (not future records or unreadable files). */
 export function studyDocumentRequestCount(view: StudyView): number {
   const component = view.components?.find((entry) => entry.name === DOCUMENT_REQUEST_LIST_COMPONENT);
-  return component?.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT").length ?? 0;
+  return (
+    component?.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD").length ??
+    0
+  );
 }
 
 /** The same counts the report's state bar shows, for headers and cards outside the report. */

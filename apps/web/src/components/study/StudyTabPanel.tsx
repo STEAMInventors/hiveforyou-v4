@@ -1,10 +1,12 @@
 "use client";
 
 import type {
+  CanonicalStudy,
   CoverageGap,
   GetStudyPreparationResponse,
   StudyRevisionFormat,
   StudyView as StudyViewData,
+  StudyViewReferencedDocument,
   StudyViewSources,
 } from "@hiveforyou/contracts";
 import { isActiveProcessingRunStatus } from "@hiveforyou/contracts";
@@ -17,6 +19,7 @@ import { DOCUMENT_READ_POLL_INTERVAL_MS } from "@/components/hives/document-read
 import { STUDY_TAB_REBUILD_HINT, rebuildHint } from "@/components/hives/study-preparation-progress";
 import { useStudyPreparation } from "@/components/hives/useStudyPreparation";
 
+import { HiveMissingDocumentsChrome } from "./HiveMissingDocumentsChrome";
 import { StudyView } from "./StudyView";
 
 type StudyTabPanelProps = {
@@ -28,6 +31,8 @@ type StudyTabPanelProps = {
   coverageGaps?: readonly CoverageGap[];
   documentPages?: Readonly<Record<string, number>>;
   initialPreparation?: GetStudyPreparationResponse;
+  canonicalStudy?: CanonicalStudy | null;
+  referencedDocuments?: readonly StudyViewReferencedDocument[];
 };
 
 /**
@@ -43,11 +48,15 @@ export function StudyTabPanel({
   coverageGaps,
   documentPages,
   initialPreparation,
+  canonicalStudy = null,
+  referencedDocuments = [],
 }: StudyTabPanelProps) {
   const router = useRouter();
   const analysis = useStudyPreparation(hiveId, { initialPreparation });
   const lastRefreshedRevision = useRef<number | null>(null);
 
+  const acceptedStudyRevisionId = analysis.state?.studyRevision?.id ?? null;
+  const acceptedStudyRevisionAcceptedAt = analysis.state?.studyRevision?.createdAt ?? null;
   const hasAcceptedStudy = revisionNumber > 0;
   const rebuildAvailabilityResolved = analysis.state
     ? analysis.state.studyRevision
@@ -106,6 +115,16 @@ export function StudyTabPanel({
 
   return (
     <>
+      <HiveMissingDocumentsChrome
+        hiveId={hiveId}
+        canonicalStudy={canonicalStudy}
+        referencedDocuments={referencedDocuments}
+        acceptedStudyRevisionId={acceptedStudyRevisionId}
+        acceptedStudyRevisionAcceptedAt={acceptedStudyRevisionAcceptedAt}
+        fetchDocuments
+        onRebuild={() => void analysis.rebuild()}
+        rebuilding={analysis.starting}
+      />
       <StudyView
         hiveId={hiveId}
         revisionFormat={revisionFormat}

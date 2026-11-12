@@ -48,7 +48,7 @@ describe("HivePageHeader", () => {
     const pills = within(screen.getByTestId("state-bar")).getAllByRole("link");
     expect(pills.map((pill) => pill.textContent)).toEqual([
       "4 issues to resolve",
-      "2 documents to request",
+      "2 documents missing",
       "6 changes from the original",
       "3 facts confirmed",
     ]);

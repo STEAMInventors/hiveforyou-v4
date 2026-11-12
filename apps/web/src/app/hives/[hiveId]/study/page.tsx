@@ -75,6 +75,8 @@ export default async function StudyPage({ params }: StudyPageProps) {
               coverageGaps={revision.coverageGaps}
               documentPages={state ? documentPageCounts(state) : undefined}
               initialPreparation={state ?? undefined}
+              canonicalStudy={load.overview.canonicalStudy}
+              referencedDocuments={load.overview.referencedDocuments}
             />
           ) : (
             <StudyView

@@ -71,6 +71,12 @@ export type SourceDocument = {
   registeredAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Canonical study gap id when the owner uploaded through a missing-document slot (D-055). */
+  canonicalGapId?: string | null;
+  /** Accepted study revision that defined the gap id at upload time. */
+  canonicalGapStudyRevisionId?: string | null;
+  /** Gap title on that revision (stable when ids are renumbered). */
+  canonicalGapTitle?: string | null;
 };
 
 export type UploadQuota = {
@@ -92,6 +98,9 @@ export type PrepareSourceDocumentRequest = {
   byteSize: number;
   sha256: string;
   clientRequestId: string;
+  canonicalGapId?: string | null;
+  canonicalGapStudyRevisionId?: string | null;
+  canonicalGapTitle?: string | null;
 };
 
 export type CompleteSourceDocumentRequest = {
@@ -294,6 +303,9 @@ export function validatePrepareSourceDocumentInput(
     "byteSize",
     "sha256",
     "clientRequestId",
+    "canonicalGapId",
+    "canonicalGapStudyRevisionId",
+    "canonicalGapTitle",
   ]);
   if (unexpected) {
     return unexpected;
@@ -327,7 +339,43 @@ export function validatePrepareSourceDocumentInput(
       diagnosticReason: "invalid_sha256",
     };
   }
-  return { ok: true, value: { ...candidate.value, sha256, clientRequestId } };
+  let canonicalGapId: string | null = null;
+  let canonicalGapStudyRevisionId: string | null = null;
+  let canonicalGapTitle: string | null = null;
+  if (record.canonicalGapId !== undefined && record.canonicalGapId !== null) {
+    const gapId = typeof record.canonicalGapId === "string" ? record.canonicalGapId.trim() : "";
+    if (!/^X\d+$/.test(gapId)) {
+      return {
+        ok: false,
+        message: "canonicalGapId must match a study gap id such as X1.",
+        diagnosticReason: "invalid_canonical_gap_id",
+      };
+    }
+    const revisionId =
+      typeof record.canonicalGapStudyRevisionId === "string" ? record.canonicalGapStudyRevisionId.trim().toLowerCase() : "";
+    const gapTitle = typeof record.canonicalGapTitle === "string" ? record.canonicalGapTitle.trim() : "";
+    if (!isValidUuid(revisionId) || gapTitle === "") {
+      return {
+        ok: false,
+        message: "Slot uploads require canonicalGapStudyRevisionId and canonicalGapTitle with canonicalGapId.",
+        diagnosticReason: "invalid_canonical_gap_link",
+      };
+    }
+    canonicalGapId = gapId;
+    canonicalGapStudyRevisionId = revisionId;
+    canonicalGapTitle = gapTitle;
+  }
+  return {
+    ok: true,
+    value: {
+      ...candidate.value,
+      sha256,
+      clientRequestId,
+      ...(canonicalGapId
+        ? { canonicalGapId, canonicalGapStudyRevisionId, canonicalGapTitle }
+        : {}),
+    },
+  };
 }
 
 export function validateCompleteSourceDocumentInput(
@@ -435,6 +483,18 @@ export function normalizeSourceDocumentRecord(raw: unknown): SourceDocument | nu
   const failureReason = includes(SOURCE_FAILURE_REASONS, record.failureReason)
     ? record.failureReason
     : null;
+  const canonicalGapId =
+    typeof record.canonicalGapId === "string" && record.canonicalGapId.trim() !== ""
+      ? record.canonicalGapId.trim()
+      : null;
+  const canonicalGapStudyRevisionId =
+    typeof record.canonicalGapStudyRevisionId === "string" && record.canonicalGapStudyRevisionId.trim() !== ""
+      ? record.canonicalGapStudyRevisionId.trim().toLowerCase()
+      : null;
+  const canonicalGapTitle =
+    typeof record.canonicalGapTitle === "string" && record.canonicalGapTitle.trim() !== ""
+      ? record.canonicalGapTitle.trim()
+      : null;
   return {
     id,
     sourceDocumentId: id,
@@ -447,6 +507,9 @@ export function normalizeSourceDocumentRecord(raw: unknown): SourceDocument | nu
     failureReason,
     scanStatus: record.scanStatus,
     readStatus: record.readStatus,
+    ...(canonicalGapId ? { canonicalGapId } : {}),
+    ...(canonicalGapStudyRevisionId ? { canonicalGapStudyRevisionId } : {}),
+    ...(canonicalGapTitle ? { canonicalGapTitle } : {}),
     registeredAt: typeof record.registeredAt === "string" ? record.registeredAt : null,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,

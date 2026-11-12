@@ -6,6 +6,9 @@
  * resolve `gaps[].relatedSpineIds`. `verifyCanonicalStudy` then checks fact ids against the case.
  */
 
+import type { GapHolderType } from "./canonical-gap-holders";
+import { normalizeGapHolderType } from "./canonical-gap-holders";
+
 export const CANONICAL_STUDY_SCHEMA = "hive.canonical-study/1";
 export const CANONICALIZE_PROMPT_ID = "hive-canonicalize/1";
 
@@ -47,6 +50,8 @@ export type CanonicalGapKind = (typeof CANONICAL_GAP_KINDS)[number];
 export const CANONICAL_GAP_BASIS_TYPES = ["MENTIONED", "USUALLY_EXPECTED"] as const;
 export type CanonicalGapBasisType = (typeof CANONICAL_GAP_BASIS_TYPES)[number];
 
+export type { GapHolderType };
+
 export type CanonicalGap = {
   id: string;
   statement: string;
@@ -55,6 +60,8 @@ export type CanonicalGap = {
   title: string;
   why: string;
   holder: string;
+  /** Code-validated holder category for requestable documents (set at canonicalize). */
+  holderType: GapHolderType | null;
   when: string | null;
   basisType: CanonicalGapBasisType | null;
   relatedFactIds: string[];
@@ -200,6 +207,7 @@ export function parseCanonicalStudy(raw: unknown): CanonicalStudyParse {
       title: str(item.title),
       why: str(item.why),
       holder: str(item.holder),
+      holderType: normalizeGapHolderType(item.holderType),
       when: nullableStr(item.when),
       basisType: oneOf(CANONICAL_GAP_BASIS_TYPES, item.basisType),
       relatedFactIds: strings(item.relatedFactIds),

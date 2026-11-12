@@ -212,6 +212,9 @@ export function mapV3DocumentToV4SourceDocument(
     registeredAt: record.createdAt,
     createdAt: record.createdAt,
     updatedAt: record.createdAt,
+    ...(record.canonicalGapId ? { canonicalGapId: record.canonicalGapId } : {}),
+    ...(record.canonicalGapStudyRevisionId ? { canonicalGapStudyRevisionId: record.canonicalGapStudyRevisionId } : {}),
+    ...(record.canonicalGapTitle ? { canonicalGapTitle: record.canonicalGapTitle } : {}),
   };
 }
 
@@ -410,6 +413,9 @@ export async function prepareHiveSourceDocumentUpload(
     readonly byteSize: number;
     readonly sha256: string;
     readonly correlationId: string;
+    readonly canonicalGapId?: string | null;
+    readonly canonicalGapStudyRevisionId?: string | null;
+    readonly canonicalGapTitle?: string | null;
   },
 ): Promise<PrepareSourceDocumentResponse> {
   const prepared = await prepareHiveSourceDocumentUploadInternal(deps, input);
@@ -477,12 +483,16 @@ export async function completeHiveSourceDocumentUpload(
       });
     }
     return {
-      sourceDocument: mapV3DocumentToV4SourceDocument(doc, {
-        clientRequestId: safeClientRequestId,
-      }),
+      sourceDocument: withPendingGapFill(
+        mapV3DocumentToV4SourceDocument(doc, {
+          clientRequestId: safeClientRequestId,
+        }),
+        safeClientRequestId,
+      ),
       created: false,
     };
   }
+  const pendingGap = pendingGapFillByClientRequest.get(safeClientRequestId) ?? null;
   try {
     const registered = await completePreparedSourceDocumentUpload(
       { vault: deps.vault, store: deps.store, sourceBucket },
@@ -491,12 +501,21 @@ export async function completeHiveSourceDocumentUpload(
         actorUserId: input.ownerUserId as UserId,
         actorType: "USER",
         correlationId: input.correlationId as CorrelationId,
+        canonicalGapId: pendingGap?.canonicalGapId ?? null,
+        canonicalGapStudyRevisionId: pendingGap?.canonicalGapStudyRevisionId ?? null,
+        canonicalGapTitle: pendingGap?.canonicalGapTitle ?? null,
       },
     );
+    if (pendingGap) {
+      pendingGapFillByClientRequest.delete(safeClientRequestId);
+    }
     return {
-      sourceDocument: mapV3DocumentToV4SourceDocument(registered.document, {
-        clientRequestId: safeClientRequestId,
-      }),
+      sourceDocument: withPendingGapFill(
+        mapV3DocumentToV4SourceDocument(registered.document, {
+          clientRequestId: safeClientRequestId,
+        }),
+        safeClientRequestId,
+      ),
       created: true,
     };
   } catch (error) {
@@ -514,6 +533,19 @@ export async function completeHiveSourceDocumentUpload(
   }
 }
 
+type PendingGapFillLink = {
+  readonly canonicalGapId: string;
+  readonly canonicalGapStudyRevisionId: string;
+  readonly canonicalGapTitle: string;
+};
+
+const pendingGapFillByClientRequest = new Map<string, PendingGapFillLink>();
+
+function withPendingGapFill(document: SourceDocument, clientRequestId: string): SourceDocument {
+  const link = pendingGapFillByClientRequest.get(clientRequestId);
+  return link ? { ...document, ...link } : document;
+}
+
 async function prepareHiveSourceDocumentUploadInternal(
   deps: HiveVaultUploadAdapterDeps,
   input: {
@@ -525,6 +557,9 @@ async function prepareHiveSourceDocumentUploadInternal(
     readonly byteSize: number;
     readonly sha256: string;
     readonly correlationId: string;
+    readonly canonicalGapId?: string | null;
+    readonly canonicalGapStudyRevisionId?: string | null;
+    readonly canonicalGapTitle?: string | null;
   },
 ): Promise<{
   sourceDocument: SourceDocument;
@@ -543,6 +578,38 @@ async function prepareHiveSourceDocumentUploadInternal(
     "clientRequestId must be a valid UUID.",
     "invalid_client_request_id",
   );
+  if (input.canonicalGapId) {
+    const gapId = input.canonicalGapId.trim();
+    const revisionId = input.canonicalGapStudyRevisionId?.trim().toLowerCase() ?? "";
+    const gapTitle = input.canonicalGapTitle?.trim() ?? "";
+    if (!/^X\d+$/.test(gapId)) {
+      throw createHiveError({
+        errorCode: "INVALID_REQUEST",
+        category: "VALIDATION",
+        stage: "REGISTER",
+        retryable: false,
+        safeMessage: "canonicalGapId must match a study gap id such as X1.",
+        correlationId: input.correlationId,
+        diagnosticReason: "invalid_canonical_gap_id",
+      });
+    }
+    if (!revisionId || gapTitle === "") {
+      throw createHiveError({
+        errorCode: "INVALID_REQUEST",
+        category: "VALIDATION",
+        stage: "REGISTER",
+        retryable: false,
+        safeMessage: "Slot uploads require the study revision and gap title.",
+        correlationId: input.correlationId,
+        diagnosticReason: "invalid_canonical_gap_link",
+      });
+    }
+    pendingGapFillByClientRequest.set(safeClientRequestId, {
+      canonicalGapId: gapId,
+      canonicalGapStudyRevisionId: revisionId,
+      canonicalGapTitle: gapTitle,
+    });
+  }
   const trimmedName = input.fileName.trim();
   const hive = await deps.loadOwnedHive(input.ownerUserId, safeHiveId, input.correlationId);
   const sourceBucket = deps.sourceBucket ?? DEFAULT_HIVE_SOURCE_BUCKET;
@@ -634,17 +701,23 @@ async function prepareHiveSourceDocumentUploadInternal(
     const doc = await deps.vault.sourceDocuments.getById(prepared.uploadOperation.sourceDocumentId);
     if (doc) {
       return {
-        sourceDocument: mapV3DocumentToV4SourceDocument(doc, {
-          clientRequestId: safeClientRequestId,
-          scanStatus,
-        }),
+        sourceDocument: withPendingGapFill(
+          mapV3DocumentToV4SourceDocument(doc, {
+            clientRequestId: safeClientRequestId,
+            scanStatus,
+          }),
+          safeClientRequestId,
+        ),
         signedUpload: prepared.signedUpload,
         created: false,
       };
     }
   }
   return {
-    sourceDocument: mapPendingUploadToSourceDocument(prepared.uploadOperation, scanStatus),
+    sourceDocument: withPendingGapFill(
+      mapPendingUploadToSourceDocument(prepared.uploadOperation, scanStatus),
+      safeClientRequestId,
+    ),
     signedUpload: prepared.signedUpload,
     created,
   };
@@ -773,6 +846,9 @@ export async function prepareHiveSourceDocumentFromApiBody(
     byteSize: validated.value.byteSize,
     sha256: validated.value.sha256,
     correlationId,
+    canonicalGapId: validated.value.canonicalGapId ?? null,
+    canonicalGapStudyRevisionId: validated.value.canonicalGapStudyRevisionId ?? null,
+    canonicalGapTitle: validated.value.canonicalGapTitle ?? null,
   });
 }
 

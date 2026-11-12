@@ -74,6 +74,7 @@ describe("parseCanonicalStudy", () => {
         title: "",
         why: "",
         holder: "",
+        holderType: null,
         when: null,
         basisType: null,
         relatedFactIds: [],

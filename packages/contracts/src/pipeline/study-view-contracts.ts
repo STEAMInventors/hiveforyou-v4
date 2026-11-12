@@ -104,6 +104,7 @@ export type StudyViewDocumentRequestList = {
   readonly name: typeof DOCUMENT_REQUEST_LIST_COMPONENT;
   readonly intro?: StudyViewSentence;
   readonly items: readonly DocumentRequestItem[];
+  readonly courtRecordCount: number;
   /** When the write model proposed forbidden fields, render a plain accessible list. */
   readonly fallback?: boolean;
   /** Statement-only canonical gaps; show rebuild guidance in the list chrome. */
@@ -470,6 +471,7 @@ export function buildStudyView(
     components.push({
       name: DOCUMENT_REQUEST_LIST_COMPONENT,
       items: requestData.items,
+      courtRecordCount: requestData.courtRecordCount,
       ...(intro ? { intro } : {}),
       ...(writeFallback ? { fallback: true } : {}),
       ...(requestData.legacyHint ? { legacyHint: true } : {}),

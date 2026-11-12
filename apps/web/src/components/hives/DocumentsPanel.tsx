@@ -1,6 +1,6 @@
 "use client";
 
-import { type SourceDocument, type UploadQuota } from "@hiveforyou/contracts";
+import { type CanonicalStudy, type SourceDocument, type StudyViewReferencedDocument, type UploadQuota } from "@hiveforyou/contracts";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useState } from "react";
@@ -14,6 +14,7 @@ import { hiveReportsPath, hiveStudyPath, sourcePagePath } from "@/lib/hive-route
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchSourceDocuments, fetchUploadQuota } from "@/lib/source-documents-client";
 
+import { MissingDocumentsCard } from "./MissingDocumentsCard";
 import { AnalyzeModal } from "./AnalyzeModal";
 import { analyzeHint, rebuildHint } from "./study-preparation-progress";
 import { AddFilesButton, SelectedFileList } from "./SourceFilePicker";
@@ -35,6 +36,8 @@ type DocumentsPanelProps = {
   onNavigateToReports?: () => void;
   /** What the current study says each document is, keyed by lowercase source document id. */
   documentMeta?: Readonly<Record<string, StudyDocumentMeta>>;
+  canonicalStudy?: CanonicalStudy | null;
+  referencedDocuments?: readonly StudyViewReferencedDocument[];
 };
 
 const TYPE_IN_PLAIN_WORDS: Record<SourceDocument["mimeType"], string> = {
@@ -163,6 +166,8 @@ export function DocumentsPanel({
   initialError = null,
   onNavigateToReports,
   documentMeta = {},
+  canonicalStudy = null,
+  referencedDocuments = [],
 }: DocumentsPanelProps) {
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
@@ -250,6 +255,18 @@ export function DocumentsPanel({
       <h2 id="documents-title" className="sr-only">
         Documents
       </h2>
+
+      {canonicalStudy ? (
+        <MissingDocumentsCard
+          hiveId={hiveId}
+          study={canonicalStudy}
+          acceptedStudyRevisionId={analysis.state?.studyRevision?.id ?? null}
+          acceptedStudyRevisionAcceptedAt={analysis.state?.studyRevision?.createdAt ?? null}
+          referencedDocuments={referencedDocuments}
+          documents={documents}
+          onDocumentsChange={setDocuments}
+        />
+      ) : null}
 
       <div
         className="flex flex-col items-start gap-3 rounded-card border-2 border-dashed border-line bg-paper p-5 sm:p-7"

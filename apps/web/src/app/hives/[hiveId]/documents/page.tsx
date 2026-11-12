@@ -60,6 +60,8 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
               ? studyDocumentMeta(overview.studyView.view)
               : undefined
         }
+        canonicalStudy={overview?.canonicalStudy ?? null}
+        referencedDocuments={overview?.referencedDocuments ?? []}
       />
     </HiveWorkspaceLayout>
   );

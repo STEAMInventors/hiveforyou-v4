@@ -1178,6 +1178,7 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
     deps: context.deps,
     run: inputs.run,
     extractions,
+    sourceSnapshot: inputs.sourceSnapshot,
     catalog: context.catalog(),
     correlationId: context.correlationId,
     stageAttempt: context.stageAttempt,

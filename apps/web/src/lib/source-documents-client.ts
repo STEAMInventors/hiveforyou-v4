@@ -105,7 +105,13 @@ export async function uploadFileToSignedTarget(
 /** prepare → signed Storage upload → complete; file bytes never pass through the app server. */
 export async function uploadSourceDocument(
   hiveId: string,
-  input: { file: File; clientRequestId: string },
+  input: {
+    file: File;
+    clientRequestId: string;
+    canonicalGapId?: string;
+    canonicalGapStudyRevisionId?: string;
+    canonicalGapTitle?: string;
+  },
 ): Promise<CompleteSourceDocumentResponse> {
   const { validateSourceFileCandidate } = await import("@hiveforyou/contracts");
   const validation = validateSourceFileCandidate({ name: input.file.name, size: input.file.size });
@@ -119,6 +125,9 @@ export async function uploadSourceDocument(
     byteSize: validation.value.byteSize,
     sha256,
     clientRequestId: input.clientRequestId,
+    ...(input.canonicalGapId ? { canonicalGapId: input.canonicalGapId } : {}),
+    ...(input.canonicalGapStudyRevisionId ? { canonicalGapStudyRevisionId: input.canonicalGapStudyRevisionId } : {}),
+    ...(input.canonicalGapTitle ? { canonicalGapTitle: input.canonicalGapTitle } : {}),
   });
   if (prepared.sourceDocument.status === "REJECTED") {
     return { sourceDocument: prepared.sourceDocument };

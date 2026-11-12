@@ -16,6 +16,7 @@ import {
   verifiedSavedRangeKeys,
   plannerCallDurationMs,
   splitExtractPageRangeLabel,
+  gapFillLinksFromSnapshot,
   type DocExtraction,
   estimateInputTokensFromPageText,
   estimateInputTokensFromUtf8Bytes,
@@ -1924,6 +1925,7 @@ export async function runCanonicalizeForRun(input: {
   deps: AnalysisWorkflowDeps;
   run: ProcessingRun;
   extractions: readonly DocExtraction[];
+  sourceSnapshot?: SourceSnapshot;
   catalog: PromptCatalog;
   correlationId: string;
   stageAttempt: number;
@@ -1942,7 +1944,8 @@ export async function runCanonicalizeForRun(input: {
   const prompt = catalog.canonicalize;
   const startedAt = now().toISOString();
   const throughput = await loadPipelineThroughput(deps.client, "canonicalize");
-  const payload = buildCanonicalizePayload(extractions, null);
+  const gapFillLinks = input.sourceSnapshot ? gapFillLinksFromSnapshot(input.sourceSnapshot.documents) : [];
+  const payload = buildCanonicalizePayload(extractions, null, gapFillLinks);
   const expectedOutput = expectedOutputTokens(
     estimateInputTokensFromUtf8Bytes(Buffer.byteLength(JSON.stringify(payload), "utf8")),
     throughput.outputInputRatio,
@@ -1952,6 +1955,7 @@ export async function runCanonicalizeForRun(input: {
     result = await canonicalizeCase({
       planner: deps.planner,
       extractions,
+      gapFillLinks,
       correlationId,
       runId: run.id,
       prompt,

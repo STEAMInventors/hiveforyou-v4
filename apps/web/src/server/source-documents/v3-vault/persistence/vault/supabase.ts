@@ -703,6 +703,9 @@ function mapSourceDocument(raw: unknown): SourceDocumentRecord {
     pageCount: numOrNull(row, "page_count"),
     uploadStatus: str(row, "upload_status") as SourceDocumentRecord["uploadStatus"],
     lifecycleStatus: str(row, "lifecycle_status") as SourceDocumentRecord["lifecycleStatus"],
+    canonicalGapId: strOrNull(row, "canonical_gap_id"),
+    canonicalGapStudyRevisionId: strOrNull(row, "canonical_gap_study_revision_id"),
+    canonicalGapTitle: strOrNull(row, "canonical_gap_title"),
     createdAt: iso(str(row, "created_at")),
     deletedAt: isoOrNull(strOrNull(row, "deleted_at")),
   };

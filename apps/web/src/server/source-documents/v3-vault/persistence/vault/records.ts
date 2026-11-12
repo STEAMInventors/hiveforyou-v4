@@ -60,6 +60,9 @@ export type SourceDocumentRecord = {
   readonly pageCount: number | null;
   readonly uploadStatus: SourceUploadStatus;
   readonly lifecycleStatus: SourceLifecycleStatus;
+  readonly canonicalGapId?: string | null;
+  readonly canonicalGapStudyRevisionId?: string | null;
+  readonly canonicalGapTitle?: string | null;
   readonly createdAt: string;
   readonly deletedAt: string | null;
 };

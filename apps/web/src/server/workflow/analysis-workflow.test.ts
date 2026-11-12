@@ -198,6 +198,24 @@ function fakeDatabase(
         }
         return { data: { applied: true, sourceChanged: false, processingRun: run() }, error: null };
       }
+      case "patch_processing_run_workflow_state": {
+        // Mirrors the SQL function: allowlisted mutable keys only, overwrite allowed, null removes.
+        const allowed = new Set(["plannerJobs", "extractZeroProgressHandoffs", "extractGapRetryCompleted"]);
+        const patch = (args.p_patch ?? {}) as Record<string, unknown>;
+        for (const key of Object.keys(patch)) {
+          if (!allowed.has(key)) {
+            return { data: null, error: { code: "22023", message: `invalid_request:workflow_state_key_not_allowed:${key}` } };
+          }
+        }
+        if (String(args.p_expected_status).toUpperCase() !== status) {
+          return { data: { applied: false }, error: null };
+        }
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === null) delete stageOutputs[key];
+          else stageOutputs[key] = value;
+        }
+        return { data: { applied: true }, error: null };
+      }
       case "get_processing_run_queued_reads":
         return { data: { readIds: [] }, error: null };
       case "get_study_preparation_inputs":

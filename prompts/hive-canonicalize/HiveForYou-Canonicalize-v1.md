@@ -73,6 +73,7 @@ For each gap, also set:
 - `title`: short name of the document or record (not for `OBSERVATION`).
 - `why`: one plain sentence for the reader.
 - `holder`: who likely has it (empty if unknown).
+- `holderType`: for `REQUESTABLE_DOCUMENT` only — `ASKER_OR_CLIENT`, `COUNSEL`, `THIRD_PARTY`, or `COURT_RECORD` (proofs of claim and other claims-register items only; code validates).
 - `basisType`: `MENTIONED` when a supplied page refers to this document (code checks the reference), otherwise `USUALLY_EXPECTED`.
 
 **Step 8 — `domainLabel`.** The field the case belongs to, in a few plain words.
@@ -121,6 +122,7 @@ Return only the JSON object below. No prose before or after it, no markdown fenc
       "title": "",
       "why": "",
       "holder": "",
+      "holderType": "ASKER_OR_CLIENT|COUNSEL|THIRD_PARTY|COURT_RECORD",
       "when": null,
       "basisType": "MENTIONED|USUALLY_EXPECTED",
       "relatedFactIds": []

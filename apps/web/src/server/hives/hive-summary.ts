@@ -1,9 +1,13 @@
 import {
+  assignCanonicalGapHolderTypes,
   buildStudyTabViewFromRpc,
+  type CanonicalStudy,
   type GetHiveReportsResponse,
   type GetStudyPreparationResponse,
   isStudyViewReport,
+  normalizeGetStudyTabViewResponse,
   type StudyView,
+  type StudyViewReferencedDocument,
   type StudyViewReport,
   type StudyViewSources,
 } from "@hiveforyou/contracts";
@@ -33,6 +37,8 @@ export type HiveOverview = {
   studyView: StudyViewReport | null;
   /** Built from `get_study_tab_view` for the Study tab (canonical + facts; narrative when a report exists). */
   studyTab: { view: StudyView; sources: StudyViewSources } | null;
+  canonicalStudy: CanonicalStudy | null;
+  referencedDocuments: readonly StudyViewReferencedDocument[];
   summary: HiveSummary;
 };
 
@@ -84,9 +90,21 @@ export async function loadHiveOverview(
   const studyView = latestStudyView(reports);
 
   let studyTab: HiveOverview["studyTab"] = null;
+  let canonicalStudy: CanonicalStudy | null = null;
+  let referencedDocuments: readonly StudyViewReferencedDocument[] = [];
   if (preparation.studyRevision?.format === "canonical-study-1") {
     try {
       const raw = await getStudyTabView(client, { hiveId: input.hiveId, correlationId: input.correlationId });
+      const tab = normalizeGetStudyTabViewResponse(raw);
+      if (tab?.canonicalStudy) {
+        canonicalStudy = assignCanonicalGapHolderTypes(tab.canonicalStudy);
+        referencedDocuments = tab.referencedDocuments.map((r) => ({
+          sourceDocumentId: r.sourceDocumentId,
+          description: r.description,
+          page: r.page,
+          quote: r.quote,
+        }));
+      }
       const fileNames = new Map(
         preparation.eligibility.documents.map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]),
       );
@@ -102,6 +120,8 @@ export async function loadHiveOverview(
     reports,
     studyView,
     studyTab,
+    canonicalStudy,
+    referencedDocuments,
     summary: summarizeHive(preparation, reports, studyTab),
   };
 }

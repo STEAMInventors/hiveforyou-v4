@@ -1,11 +1,13 @@
 "use client";
 
 import {
+  type CanonicalStudy,
   type GetHiveReportsResponse,
   type HiveReport,
   isActiveReportRunStatus,
   isStudyViewReport,
   type ReportAudience,
+  type StudyViewReferencedDocument,
 } from "@hiveforyou/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -14,6 +16,7 @@ import { COMPACT_PRIMARY_BUTTON_CLASS, COMPACT_SECONDARY_BUTTON_CLASS } from "@/
 import { DOCUMENT_READ_POLL_INTERVAL_MS } from "@/components/hives/document-read-progress";
 import { ProgressElapsed } from "@/components/hives/progress-elapsed";
 import { coverageGapText } from "@/components/hives/study-preparation-progress";
+import { HiveMissingDocumentsChrome } from "@/components/study/HiveMissingDocumentsChrome";
 import { StudyReport } from "@/components/study/StudyReport";
 import { StudyView } from "@/components/study/StudyView";
 import { HiveClientError } from "@/lib/hives-client";
@@ -25,6 +28,8 @@ type ReportsPanelProps = {
   initialAudience?: ReportAudience;
   /** Physical page count per document id, when known. */
   documentPages?: Readonly<Record<string, number>>;
+  canonicalStudy?: CanonicalStudy | null;
+  referencedDocuments?: readonly StudyViewReferencedDocument[];
 };
 
 const AUDIENCES: { key: ReportAudience; label: string; param: string; description: string }[] = [
@@ -55,7 +60,14 @@ function toActionError(error: unknown, fallback: string): ActionError {
  * Both reports of the accepted Study, freely readable. Each audience has its own Writer run: one
  * failing never hides the other, and "Generate again" reruns only that Writer, never the Study.
  */
-export function ReportsPanel({ hiveId, initial, initialAudience = "CUSTOMER", documentPages }: ReportsPanelProps) {
+export function ReportsPanel({
+  hiveId,
+  initial,
+  initialAudience = "CUSTOMER",
+  documentPages,
+  canonicalStudy = null,
+  referencedDocuments = [],
+}: ReportsPanelProps) {
   const [state, setState] = useState(initial);
   const [audience, setAudience] = useState<ReportAudience>(initialAudience);
   const [selected, setSelected] = useState<HiveReport | null>(null);
@@ -207,6 +219,14 @@ export function ReportsPanel({ hiveId, initial, initialAudience = "CUSTOMER", do
 
   return (
     <section aria-label="Reports" className="flex flex-col gap-5">
+      <HiveMissingDocumentsChrome
+        hiveId={hiveId}
+        canonicalStudy={canonicalStudy}
+        referencedDocuments={referencedDocuments}
+        acceptedStudyRevisionId={state.studyRevision.id}
+        acceptedStudyRevisionAcceptedAt={state.studyRevision.createdAt}
+        fetchDocuments
+      />
       {state.studyRevision.format !== "canonical-study-1" ? (
         <StudyView hiveId={hiveId} revisionFormat={state.studyRevision.format} view={null} sources={null} />
       ) : null}

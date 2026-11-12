@@ -4,6 +4,7 @@
  */
 
 import type { CanonicalGap, CanonicalStudy } from "./canonical-study-contracts";
+import { type GapHolderType, inferGapHolderType } from "./canonical-gap-holders";
 import { matchReferencedDocuments } from "./study-view-reference-match";
 
 export type StudyViewSourceRef = {
@@ -38,6 +39,7 @@ export type DocumentRequestItem = {
   readonly title: string;
   readonly why: string;
   readonly holder: string;
+  readonly holderType: GapHolderType | null;
   readonly basis: DocumentRequestBasis;
   readonly when?: string;
 };
@@ -52,6 +54,8 @@ export type DocumentRequestObservation = {
 export type DocumentRequestListData = {
   readonly items: readonly DocumentRequestItem[];
   readonly observations: readonly DocumentRequestObservation[];
+  /** REQUESTABLE_DOCUMENT gaps held by the court (not upload slots). */
+  readonly courtRecordCount: number;
   /** Gaps canonicalized before structured request fields existed; show a rebuild hint. */
   readonly legacyHint?: boolean;
 };
@@ -134,6 +138,7 @@ export function buildDocumentRequestListData(
         title: gap.statement.trim(),
         why: gap.statement.trim(),
         holder: "",
+        holderType: inferGapHolderType({ ...gap, kind: "REQUESTABLE_DOCUMENT", holderType: null }),
         basis: { type: "USUALLY_EXPECTED" },
       });
       continue;
@@ -152,6 +157,7 @@ export function buildDocumentRequestListData(
     const title = gap.title.trim() !== "" ? gap.title : defaultTitle(gap.statement);
     const why = gap.why.trim() !== "" ? gap.why : gap.statement;
     const holder = gap.holder.trim();
+    const holderType = kind === "REQUESTABLE_DOCUMENT" ? (gap.holderType ?? inferGapHolderType(gap)) : null;
     const when = gap.when?.trim() ?? "";
     items.push({
       id: gap.id,
@@ -159,19 +165,27 @@ export function buildDocumentRequestListData(
       title,
       why,
       holder,
+      holderType,
       basis: basisForGap(gap, referencedDocuments),
       ...(when !== "" ? { when } : {}),
     });
   }
+  const courtRecordCount = items.filter(
+    (item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType === "COURT_RECORD",
+  ).length;
   return {
     items,
     observations,
+    courtRecordCount,
     ...(legacyHint ? { legacyHint: true } : {}),
   };
 }
 
+/** Uploadable missing documents only (excludes court-register items and future records). */
 export function requestableDocumentCount(data: DocumentRequestListData): number {
-  return data.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT").length;
+  return data.items.filter(
+    (item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD",
+  ).length;
 }
 
 export type WriteDocumentRequestListProposal = {
@@ -229,7 +243,7 @@ export function parseWriteDocumentRequestListProposal(
 export function draftRequestPlainText(items: readonly DocumentRequestItem[], selectedIds: ReadonlySet<string>): string {
   const lines: string[] = [];
   for (const item of items) {
-    if (item.kind !== "REQUESTABLE_DOCUMENT" || !selectedIds.has(item.id)) continue;
+    if (item.kind !== "REQUESTABLE_DOCUMENT" || item.holderType === "COURT_RECORD" || !selectedIds.has(item.id)) continue;
     lines.push(`${item.title}\n${item.why}`);
   }
   return lines.join("\n\n");

@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { bankruptcyC13Fixture, bankruptcyC13StudyOnlyFixture } from "./fixtures/bankruptcy-c13";
+import { bankruptcyC13Fixture, bankruptcyC13Revision4Fixture, bankruptcyC13StudyOnlyFixture } from "./fixtures/bankruptcy-c13";
 import { legacyCanonicalGapsFixture } from "./fixtures/legacy-canonical-gaps";
 import { mayaIepFixture } from "./fixtures/maya-iep";
 import { noAnchorHouseholdFixture } from "./fixtures/no-anchor-household";
@@ -36,7 +36,7 @@ describe("StudyReport", () => {
     const pro = screen.getAllByRole("link").filter((link) => link.closest('[data-testid="state-bar"]')).map((link) => link.textContent);
     expect(customer).toEqual([
       "4 issues to resolve",
-      "2 documents to request",
+      "2 documents missing",
       "6 changes from the original",
       "3 facts confirmed",
     ]);
@@ -131,9 +131,10 @@ describe("StudyReport", () => {
     expect(ask.textContent).toContain("2025 federal income tax return");
     expect(within(ask).getAllByTestId("source-chip").length).toBeGreaterThanOrEqual(1);
     expect(ask.textContent).toContain("Schedule D");
-    expect(ask.textContent).toContain("Ask for later");
+    expect(ask.textContent).toContain("follow up on later");
+    expect(screen.getByRole("heading", { name: "Later" })).toBeTruthy();
     expect(ask.textContent).toContain("Court ruling on confirmation");
-    expect(document.getElementById("what-to-ask-for")).not.toBeNull();
+    expect(document.getElementById("missing-documents")).not.toBeNull();
   });
 
   it("labels documents by kind, with month and year for the two plan versions, and plain roles", () => {
@@ -202,11 +203,30 @@ describe("StudyReport", () => {
     expect(within(notice).queryByTestId("source-chip")).toBeNull();
     expect(screen.getByTestId("missing-list").querySelector('[data-group="unreadable"]')?.textContent).toContain("Water bill");
     expect(screen.getByText("Could not be read", { selector: "td" })).toBeTruthy();
-    expect(screen.getByText("2 documents to request")).toBeTruthy();
+    expect(screen.getByText("2 documents missing")).toBeTruthy();
   });
 });
 
 describe("DocumentRequestList", () => {
+  it("bankruptcy revision 4 lists 4 ask-now slots, 3 claims-register items, and 2 later", () => {
+    const fixture = bankruptcyC13Revision4Fixture("PRO");
+    render(
+      <StudyReport
+        hiveId={fixture.hiveId}
+        view={fixture.view}
+        sources={fixture.sources}
+        header={{ kind: "report", audience: "PRO", fallbackTitle: fixture.title, revisionNumber: 4, writtenAt: fixture.writtenAt }}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    const list = screen.getByTestId("document-request-list");
+    expect(list.querySelectorAll('[data-kind="REQUESTABLE_DOCUMENT"]')).toHaveLength(4);
+    expect(list.querySelectorAll('[data-kind="FUTURE_RECORD"]')).toHaveLength(2);
+    expect(screen.getByTestId("court-register-line").textContent).toContain("3 items");
+    expect(screen.getByTestId("court-register-line").textContent).toContain("claims register");
+    expect(screen.getByRole("heading", { name: "Missing documents" })).toBeTruthy();
+  });
+
   it("renders statement-only legacy gaps with a rebuild hint and non-empty ask-now list", () => {
     const fixture = legacyCanonicalGapsFixture();
     render(
@@ -221,7 +241,7 @@ describe("DocumentRequestList", () => {
     const list = screen.getByTestId("document-request-list");
     expect(list.querySelectorAll('[data-kind="REQUESTABLE_DOCUMENT"]')).toHaveLength(2);
     expect(screen.getByTestId("document-request-legacy-hint").textContent).toContain("Rebuild the study for a clearer list");
-    expect(document.getElementById("what-to-ask-for")).not.toBeNull();
+    expect(document.getElementById("missing-documents")).not.toBeNull();
   });
 
   it("shows Maya's Hive with 4 ask-now, 2 later, and attaches one observation to the spine row", () => {
@@ -339,7 +359,7 @@ describe("StudyView", () => {
     expect(screen.queryAllByTestId("study-view-section")).toHaveLength(0);
     expect(screen.getByTestId("establish-table")).toBeTruthy();
     expect(screen.getAllByTestId("comparison-card")).toHaveLength(2);
-    expect(document.getElementById("what-to-ask-for")).not.toBeNull();
+    expect(document.getElementById("missing-documents")).not.toBeNull();
     expect(screen.queryByRole("radiogroup")).toBeNull();
     expect(screen.queryByTestId("state-bar")).toBeNull();
   });

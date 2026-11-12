@@ -265,7 +265,7 @@ export function StudyReport({
     ...narrative.map((section, index) => ({ id: `narrative-${index + 1}`, label: section.heading })),
     ...(model.conflicts.length > 0 ? [{ id: SECTION_IDS.disagree, label: "Where the documents disagree" }] : []),
     ...(!customer && hasEstablish ? [{ id: SECTION_IDS.establish, label: "What the documents establish" }] : []),
-    ...(hasAskSection ? [{ id: SECTION_IDS.missing, label: "What to ask for" }] : []),
+    ...(hasAskSection ? [{ id: SECTION_IDS.missing, label: "Missing documents" }] : []),
     ...(customer && hasEstablish ? [{ id: SECTION_IDS.establish, label: "What the documents establish" }] : []),
     ...(model.timeline.length > 0 ? [{ id: SECTION_IDS.timeline, label: "Timeline" }] : []),
     ...(model.documents.length > 0 ? [{ id: SECTION_IDS.documents, label: "Documents" }] : []),
@@ -411,7 +411,7 @@ export function StudyReport({
           {hasAskSection ? (
             <section id={SECTION_IDS.missing} tabIndex={-1} aria-labelledby={`${SECTION_IDS.missing}-h`} className={`${CARD} ${cardGap}`}>
               <h3 id={`${SECTION_IDS.missing}-h`} className={SECTION_HEADING}>
-                What to ask for
+                Missing documents
               </h3>
               {model.documentRequestList ? (
                 <DocumentRequestList component={model.documentRequestList} customer={customer} sentenceChips={sentenceChips} />

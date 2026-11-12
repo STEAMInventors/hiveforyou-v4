@@ -1,7 +1,7 @@
 "use client";
 
 import type { DocumentRequestItem, StudyViewDocumentRequestList } from "@hiveforyou/contracts";
-import { DOCUMENT_REQUEST_LIST_LEGACY_HINT, draftRequestPlainText } from "@hiveforyou/contracts";
+import { DOCUMENT_REQUEST_LIST_LEGACY_HINT, draftRequestPlainText, holderTypeLabel } from "@hiveforyou/contracts";
 import { useCallback, useId, useMemo, useState } from "react";
 
 import { SourceChips, type ChipRef } from "./SourceChip";
@@ -51,7 +51,12 @@ function BasisTag({ item }: { item: DocumentRequestItem }) {
 }
 
 export function DocumentRequestList({ component, customer, sentenceChips }: DocumentRequestListProps) {
-  const askNow = component.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT");
+  const askNow = component.items.filter(
+    (item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType !== "COURT_RECORD",
+  );
+  const courtRecordCount =
+    component.courtRecordCount ??
+    component.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT" && item.holderType === "COURT_RECORD").length;
   const askLater = component.items.filter((item) => item.kind === "FUTURE_RECORD");
   const interactive = !component.fallback;
   const listId = useId();
@@ -94,11 +99,16 @@ export function DocumentRequestList({ component, customer, sentenceChips }: Docu
           {DOCUMENT_REQUEST_LIST_LEGACY_HINT}
         </p>
       ) : null}
+      {courtRecordCount > 0 ? (
+        <p className="m-0 max-w-prose text-body text-graphite" data-testid="court-register-line">
+          {courtRecordCount} {courtRecordCount === 1 ? "item" : "items"}: check the court&apos;s claims register
+        </p>
+      ) : null}
       {askNow.length > 0 ? (
         <RequestGroup title="Ask now" items={askNow} listId={`${listId}-now`} interactive={interactive} selected={selected} onToggle={toggle} />
       ) : null}
       {askLater.length > 0 ? (
-        <RequestGroup title="Ask for later" items={askLater} listId={`${listId}-later`} interactive={false} selected={selected} onToggle={toggle} later />
+        <RequestGroup title="Later" items={askLater} listId={`${listId}-later`} interactive={false} selected={selected} onToggle={toggle} later />
       ) : null}
       {interactive && askNow.length > 0 ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -157,7 +167,11 @@ function RequestGroup({
                 <>
                   <span className="text-body text-graphite">{item.why}</span>
                   <BasisTag item={item} />
-                  {item.holder ? <span className="text-small text-quiet">Likely held by: {item.holder}</span> : null}
+                  {item.holderType ? (
+                    <span className="text-small text-quiet">Likely held by: {holderTypeLabel(item.holderType, item.holder)}</span>
+                  ) : item.holder ? (
+                    <span className="text-small text-quiet">Likely held by: {item.holder}</span>
+                  ) : null}
                 </>
               ) : (
                 <span className="text-body text-graphite">{item.when ? `Expected: ${item.when}` : item.why}</span>

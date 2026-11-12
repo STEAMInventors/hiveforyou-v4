@@ -185,6 +185,10 @@ export type SnapshotDocument = {
   missingPageNumbers: number[];
   emptyPageNumbers: number[];
   createdAt: string;
+  /** Set when the owner uploaded through a missing-document slot on an accepted study revision. */
+  canonicalGapId?: string | null;
+  canonicalGapStudyRevisionId?: string | null;
+  canonicalGapTitle?: string | null;
 };
 
 export type ExcludedDocument = {

@@ -2570,6 +2570,7 @@ describe("processReportRun: revision formats", () => {
           title: "Prior year income filing",
           why: "The prior year income filing is not among the documents.",
           holder: "",
+          holderType: null,
           when: null,
           basisType: "MENTIONED",
           relatedFactIds: [],

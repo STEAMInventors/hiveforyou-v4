@@ -5,6 +5,10 @@ import {
   createHiveError,
   type DocExtraction,
   type HiveError,
+  assignCanonicalGapHolderTypes,
+  dropGapsFilledByUpload,
+  filledGapTitles,
+  type GapFillLink,
   parseCanonicalStudy,
   verifyCanonicalStudy,
 } from "@hiveforyou/contracts";
@@ -53,6 +57,8 @@ type CallInput = {
 export type CanonicalizeInput = CallInput & {
   /** Verified extractions with final ids, one per document of the case. */
   readonly extractions: readonly DocExtraction[];
+  /** Documents uploaded to fill a study gap (title-stable across revision renumbering). */
+  readonly gapFillLinks?: readonly GapFillLink[];
   readonly domainBrief?: string | null;
   readonly prompt?: CanonicalizePrompt;
   readonly resolvePlannerTimeoutMs?: () => number | "expired";
@@ -120,12 +126,20 @@ function mergeDuplicateFacts(facts: readonly DocExtraction["facts"][number][]): 
 }
 
 /** The case as sent to `hive-canonicalize/1`: identity, compact facts (text + short ref only), empty fields, referenced documents. */
-export function buildCanonicalizePayload(extractions: readonly DocExtraction[], domainBrief: string | null) {
+export function buildCanonicalizePayload(
+  extractions: readonly DocExtraction[],
+  domainBrief: string | null,
+  gapFillLinks: readonly GapFillLink[] = [],
+) {
+  const fillByDocument = new Map(gapFillLinks.map((link) => [link.sourceDocumentId.toLowerCase(), link.gapTitle]));
   return {
     domainBrief,
-    documents: extractions.map((extraction) => ({
+    documents: extractions.map((extraction) => {
+      const fillTitle = fillByDocument.get(extraction.documentId.toLowerCase());
+      return {
       sourceDocumentId: extraction.documentId,
       fileName: extraction.fileName,
+      ...(fillTitle ? { uploadedToFill: `uploaded to fill: ${fillTitle}` } : {}),
       identity: identityOf(extraction),
       facts: mergeDuplicateFacts(extraction.facts).map((fact) =>
         compact({
@@ -147,7 +161,8 @@ export function buildCanonicalizePayload(extractions: readonly DocExtraction[], 
       referencedDocuments: extraction.referencedDocuments.map((ref) =>
         compact({ id: ref.id, description: ref.description, date: ref.date, page: ref.page }),
       ),
-    })),
+    };
+    }),
   };
 }
 
@@ -263,7 +278,8 @@ async function callWithRetry<T>(
  */
 export async function canonicalizeCase(input: CanonicalizeInput): Promise<CanonicalizeResult> {
   const prompt = input.prompt ?? loadPromptCatalog().canonicalize;
-  const payload = buildCanonicalizePayload(input.extractions, input.domainBrief?.trim() || null);
+  const gapFillLinks = input.gapFillLinks ?? [];
+  const payload = buildCanonicalizePayload(input.extractions, input.domainBrief?.trim() || null, gapFillLinks);
   const calls: CanonicalizeCallRecord[] = [];
   let malformed: Record<string, number> = {};
   const outcome = await callWithRetry(
@@ -284,8 +300,10 @@ export async function canonicalizeCase(input: CanonicalizeInput): Promise<Canoni
   );
   if (!outcome.ok) return { ok: false, error: outcome.error, calls };
   const knownFactIds = new Set(input.extractions.flatMap((extraction) => extraction.facts.map((fact) => fact.id)));
-  const { study, drops } = verifyCanonicalStudy(outcome.value, knownFactIds);
-  return { ok: true, study, drops, malformed, payloadBytes: Buffer.byteLength(JSON.stringify(payload), "utf8"), calls };
+  const verified = verifyCanonicalStudy(outcome.value, knownFactIds);
+  const withFilledGapsDropped = dropGapsFilledByUpload(verified.study, filledGapTitles(gapFillLinks));
+  const study = assignCanonicalGapHolderTypes(withFilledGapsDropped);
+  return { ok: true, study, drops: verified.drops, malformed, payloadBytes: Buffer.byteLength(JSON.stringify(payload), "utf8"), calls };
 }
 
 /** Asks for a 10-line domain brief from the document identity blocks only. */

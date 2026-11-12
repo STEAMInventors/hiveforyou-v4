@@ -150,6 +150,9 @@ export async function completePreparedSourceDocumentUpload(
     readonly actorUserId: UserId;
     readonly actorType: ActorType;
     readonly correlationId: CorrelationId;
+    readonly canonicalGapId?: string | null;
+    readonly canonicalGapStudyRevisionId?: string | null;
+    readonly canonicalGapTitle?: string | null;
   },
 ): Promise<RegisterSourceDocumentResult> {
   const operation = await deps.vault.uploadOperations.getById(input.uploadOperationId);
@@ -218,6 +221,9 @@ export async function completePreparedSourceDocumentUpload(
     userId: input.actorUserId,
     actorType: input.actorType,
     correlationId: input.correlationId,
+    canonicalGapId: input.canonicalGapId ?? null,
+    canonicalGapStudyRevisionId: input.canonicalGapStudyRevisionId ?? null,
+    canonicalGapTitle: input.canonicalGapTitle ?? null,
   });
   const document = await deps.vault.sourceDocuments.getById(reconciled.sourceDocumentId);
   if (document === undefined) {
@@ -352,7 +358,14 @@ export async function registerSourceDocument(
 export async function reconcileUploadOperation(
   deps: RegisterSourceDocumentDeps,
   uploadOperationId: UploadOperationId,
-  actor: { readonly userId: UserId; readonly actorType: ActorType; readonly correlationId: CorrelationId },
+  actor: {
+    readonly userId: UserId;
+    readonly actorType: ActorType;
+    readonly correlationId: CorrelationId;
+    readonly canonicalGapId?: string | null;
+    readonly canonicalGapStudyRevisionId?: string | null;
+    readonly canonicalGapTitle?: string | null;
+  },
 ): Promise<UploadOperationRecord> {
   const operation = await deps.vault.uploadOperations.getById(uploadOperationId);
   if (operation === undefined) {
@@ -406,7 +419,11 @@ export async function reconcileUploadOperation(
       const bytes = await deps.store.downloadBytes(ref);
       const pageCount = determineSourcePageCount(stored.mimeType, bytes, actor.correlationId);
       await publishRegisteredDocument(deps.vault, {
-        document: documentFromOperation(stored, pageCount),
+        document: documentFromOperation(stored, pageCount, {
+          canonicalGapId: actor.canonicalGapId ?? null,
+          canonicalGapStudyRevisionId: actor.canonicalGapStudyRevisionId ?? null,
+          canonicalGapTitle: actor.canonicalGapTitle ?? null,
+        }),
         actorUserId: actor.userId,
         actorType: actor.actorType,
         correlationId: actor.correlationId,
@@ -554,6 +571,11 @@ function wrapRegistrationFailure(error: unknown, correlationId: CorrelationId): 
 function documentFromOperation(
   operation: UploadOperationRecord,
   pageCount: number,
+  gapLink: {
+    readonly canonicalGapId: string | null;
+    readonly canonicalGapStudyRevisionId: string | null;
+    readonly canonicalGapTitle: string | null;
+  } = { canonicalGapId: null, canonicalGapStudyRevisionId: null, canonicalGapTitle: null },
 ): SourceDocumentRecord {
   return {
     id: operation.sourceDocumentId,
@@ -568,6 +590,9 @@ function documentFromOperation(
     pageCount,
     uploadStatus: "UPLOADED",
     lifecycleStatus: "ACTIVE",
+    ...(gapLink.canonicalGapId ? { canonicalGapId: gapLink.canonicalGapId } : {}),
+    ...(gapLink.canonicalGapStudyRevisionId ? { canonicalGapStudyRevisionId: gapLink.canonicalGapStudyRevisionId } : {}),
+    ...(gapLink.canonicalGapTitle ? { canonicalGapTitle: gapLink.canonicalGapTitle } : {}),
     createdAt: operation.createdAt,
     deletedAt: null,
   };

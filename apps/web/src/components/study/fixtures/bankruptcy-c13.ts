@@ -116,6 +116,7 @@ const INPUT: FixtureInput = {
         title: "2025 federal income tax return (Exhibit C)",
         why: "The plans and the trustee's objection rely on Exhibit C, but the return itself is not in the case.",
         holder: "Debtor or tax preparer",
+        holderType: "ASKER_OR_CLIENT",
         when: null,
         basisType: "MENTIONED",
         relatedFactIds: ["F18", "F19"],
@@ -128,6 +129,7 @@ const INPUT: FixtureInput = {
         title: "Schedule D (secured claims)",
         why: "The trustee's objection discusses Schedule D treatment of the vehicle claim; a current Schedule D helps compare plan terms.",
         holder: "Debtor or petition preparer",
+        holderType: "ASKER_OR_CLIENT",
         when: null,
         basisType: "USUALLY_EXPECTED",
         relatedFactIds: ["F15"],
@@ -140,6 +142,7 @@ const INPUT: FixtureInput = {
         title: "",
         why: "No pay records after February 2026 are among the documents, so current income cannot be checked against the employer summary.",
         holder: "",
+        holderType: null,
         when: null,
         basisType: null,
         relatedFactIds: ["F10", "F11"],
@@ -152,6 +155,7 @@ const INPUT: FixtureInput = {
         title: "Court ruling on confirmation",
         why: "The judge will rule on confirmation at the hearing.",
         holder: "Bankruptcy court",
+        holderType: null,
         when: "May 14, 2026",
         basisType: null,
         relatedFactIds: ["F14"],
@@ -234,4 +238,100 @@ export function bankruptcyC13Fixture(audience: ReportAudience): ReportFixture {
 export function bankruptcyC13StudyOnlyFixture(): ReportFixture {
   const none = { sections: [], blocks: [], components: [] as const };
   return buildFixture({ ...INPUT, writes: { CUSTOMER: none, PRO: none } }, "CUSTOMER");
+}
+
+/** Revision 4 canonical gaps: 4 upload slots, 3 court-register items, 2 later records. */
+export const BANKRUPTCY_C13_REVISION_4_GAPS: FixtureInput["study"]["gaps"] = [
+  INPUT.study.gaps[0]!,
+  INPUT.study.gaps[1]!,
+  {
+    id: "X5",
+    statement: "Recent pay stubs after February 2026 are not in the case.",
+    relatedSpineIds: ["S7"],
+    kind: "REQUESTABLE_DOCUMENT",
+    title: "Pay stubs (March–April 2026)",
+    why: "The employer summary is dated February; current wages affect projected disposable income.",
+    holder: "Debtor or employer",
+    holderType: "ASKER_OR_CLIENT",
+    when: null,
+    basisType: "USUALLY_EXPECTED",
+    relatedFactIds: ["F11"],
+  },
+  {
+    id: "X6",
+    statement: "Bank statements showing plan payments are not supplied.",
+    relatedSpineIds: ["S1"],
+    kind: "REQUESTABLE_DOCUMENT",
+    title: "Bank statements (plan payments)",
+    why: "Confirms trustee payments match the amended plan.",
+    holder: "Debtor",
+    holderType: "ASKER_OR_CLIENT",
+    when: null,
+    basisType: "USUALLY_EXPECTED",
+    relatedFactIds: [],
+  },
+  {
+    id: "X7",
+    statement: "Cobalt Ridge Mortgage proof of claim is not in the claims register supplied here.",
+    relatedSpineIds: ["S13"],
+    kind: "REQUESTABLE_DOCUMENT",
+    title: "Cobalt Ridge Mortgage proof of claim",
+    why: "The servicer will file for $12,180.00; the filed claim amount must be checked on the register.",
+    holder: "Claims register",
+    holderType: "COURT_RECORD",
+    when: null,
+    basisType: "MENTIONED",
+    relatedFactIds: ["F17"],
+  },
+  {
+    id: "X8",
+    statement: "Harborline Auto Finance proof of claim is not in the claims register supplied here.",
+    relatedSpineIds: ["S4"],
+    kind: "REQUESTABLE_DOCUMENT",
+    title: "Harborline Auto Finance proof of claim",
+    why: "Plan treatment depends on the filed secured claim amount.",
+    holder: "Claims register",
+    holderType: "COURT_RECORD",
+    when: null,
+    basisType: "USUALLY_EXPECTED",
+    relatedFactIds: ["F7"],
+  },
+  {
+    id: "X9",
+    statement: "County of Westmarch priority tax proof of claim is not in the claims register supplied here.",
+    relatedSpineIds: ["S6"],
+    kind: "REQUESTABLE_DOCUMENT",
+    title: "County of Westmarch priority tax proof of claim",
+    why: "Priority treatment requires the amount on the filed claim.",
+    holder: "Claims register",
+    holderType: "COURT_RECORD",
+    when: null,
+    basisType: "USUALLY_EXPECTED",
+    relatedFactIds: ["F9"],
+  },
+  INPUT.study.gaps[3]!,
+  {
+    id: "X10",
+    statement: "The court's decision on Cobalt Ridge's objection, if filed, is not yet available.",
+    relatedSpineIds: ["S13"],
+    kind: "FUTURE_RECORD",
+    title: "Court ruling on mortgage servicer objection",
+    why: "Any servicer objection ruling affects the arrearage cure.",
+    holder: "Bankruptcy court",
+    holderType: null,
+    when: "After May 14, 2026",
+    basisType: null,
+    relatedFactIds: ["F17"],
+  },
+];
+
+export function bankruptcyC13Revision4Fixture(audience: ReportAudience): ReportFixture {
+  const built = buildFixture(
+    {
+      ...INPUT,
+      study: { ...INPUT.study, gaps: BANKRUPTCY_C13_REVISION_4_GAPS },
+    },
+    audience,
+  );
+  return { ...built, revisionNumber: 4 };
 }
