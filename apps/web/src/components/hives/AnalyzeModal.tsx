@@ -3,6 +3,7 @@
 import {
   type CoverageGap,
   documentsToRead,
+  formatStudyRevisionAcceptanceDetail,
   knownGapsToAcknowledge,
   knownLimitations,
   type ProcessingRun,
@@ -144,7 +145,7 @@ function AnalyzeDialog({
               ? "The analysis will use only what was read. Documents not read yet are read first; if more is missing then, you'll review it before the analysis continues."
               : "The analysis will use only what was read. Review what's missing before you continue.",
         }
-    : preparationCopy(run);
+    : preparationCopy(run, studyRevision);
   const steps = preparationSteps(confirming ? null : run);
   const activeStep = steps.find((step) => step.state === "active") ?? null;
   const rebuilding = run?.preparationMode === "REBUILD" || (confirming && action === "rebuild");
@@ -277,7 +278,7 @@ function AnalyzeDialog({
             <div className="flex flex-col gap-1.5 rounded-[12px] bg-mist px-4 py-3.5" role="status" data-testid="rebuild-study-result">
               <span className="text-[14.5px] font-semibold text-ink">Revision {acceptedRebuild.revisionNumber}</span>
               <span className="text-[14.5px] leading-[1.55] text-ink-muted">
-                {acceptedRebuild.sourceCount ?? 0} sources · {acceptedRebuild.documentFindingCount ?? 0} atomic document findings.
+                {formatStudyRevisionAcceptanceDetail(acceptedRebuild)}
               </span>
             </div>
           ) : null}

@@ -83,6 +83,7 @@ import {
   type V5StageOutputs,
   readExtractZeroProgressHandoffCount,
 } from "./v5-pipeline-stages";
+import { loadPackById } from "@/server/pipeline/pack-loader";
 import { consumeRebuildWithoutDomainPack } from "./domain-pack-rebuild-opt-out";
 import { INVOCATION_MAX_DURATION_MS, resolveExtractZeroProgressHandoffLimit } from "@hiveforyou/contracts";
 
@@ -968,7 +969,11 @@ async function finishExtractingStage(context: Context, run: ProcessingRun): Prom
 async function extractDocuments(context: Context): Promise<StepResult> {
   const inputs = await loadInputs(context.deps.client, context.runId);
   if (consumeRebuildWithoutDomainPack(context.runId)) {
-    await persistDomainPackWorkflowState(context.deps.client, context.runId, { skipped: "user opted out" });
+    await persistDomainPackWorkflowState(context.deps.client, context.runId, { skipped: "user opted out" }, {
+      expectedStatus: "EXTRACTING",
+      correlationId: context.correlationId,
+      hiveId: inputs.run.hiveId,
+    });
   }
   if (inputs.intents.length === 0) {
     throw new StageFailure(
@@ -1244,12 +1249,15 @@ async function acceptV5Study(context: Context, inputs: RunInputs, study: Canonic
     startedAt,
     completedAt,
   });
+  const packTitle =
+    study.packRef != null ? loadPackById(study.packRef.id, study.packRef.version)?.meta.title ?? null : null;
   const revision = buildV5AcceptRevision({
     study,
     intents: inputs.intents,
     canonicalMetric,
     catalog,
     runTimingMetric,
+    packTitle,
   });
   let payload: Record<string, unknown> | null;
   try {

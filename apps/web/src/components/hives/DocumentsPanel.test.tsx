@@ -178,8 +178,19 @@ function studyPreparationBody() {
           id: REVISION_ID,
           canonicalStudyId: "ffffffff-0000-4000-8000-000000000001",
           revisionNumber: server.revisionNumber,
+          format: server.revisionNumber >= 7 ? "canonical-study-1" : undefined,
           sourceCount: server.sourceCount,
           documentFindingCount: server.documentFindingCount,
+          counts:
+            server.revisionNumber >= 7
+              ? {
+                  verifiedFacts: 12,
+                  documents: 3,
+                  checklistShown: 4,
+                  checklistNotShown: 2,
+                  packReview: { id: "iep-initial", version: 6, title: "Initial IEP review" },
+                }
+              : undefined,
           predecessorRevisionId: null,
           processingRunId: RUN_ID,
           coverageComplete: true,
@@ -505,9 +516,10 @@ describe("DocumentsPanel — Analyze", () => {
     expect(server.analysisPosts).toHaveLength(0);
     const status = await screen.findByTestId("rebuild-study-status");
     expect(status.textContent).toContain("Study revision 7 accepted.");
-    expect(status.textContent).toContain("3 sources");
-    expect(status.textContent).toContain("5 atomic document findings");
-    expect(status.textContent).toContain("does not mean every fact was extracted");
+    expect(status.textContent).toContain("12 verified facts");
+    expect(status.textContent).toContain("3 documents");
+    expect(status.textContent).toContain("4 checks shown");
+    expect(status.textContent).toContain("Reviewed with: Initial IEP review (v6)");
     expect(screen.getByTestId("rebuild-study-link").getAttribute("href")).toBe(`/hives/${HIVE_ID}/study`);
   });
 

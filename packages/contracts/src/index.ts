@@ -9,6 +9,7 @@ export * from "./hives/hive-contracts";
 export * from "./source-documents/source-document-contracts";
 export * from "./source-documents/document-read-status-contracts";
 export * from "./study-preparation/study-preparation-contracts";
+export * from "./study-preparation/acceptance-summary";
 export * from "./study-preparation/planning-output-contracts";
 export * from "./study-preparation/investigation-plan-supplement";
 export * from "./study-preparation/investigation-plan-deterministic";

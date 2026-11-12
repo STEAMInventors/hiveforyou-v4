@@ -1,3 +1,4 @@
+import { parseStudyRevisionAcceptanceCounts, type StudyRevisionAcceptanceCounts } from "./acceptance-summary";
 import { isValidUuid } from "../hives/hive-contracts";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 import type { ProgressEstimate } from "../pipeline/pipeline-timing";
@@ -318,6 +319,8 @@ export type StudyRevisionSummary = {
   sourceCount?: number;
   /** Atomic `DF…` document findings, when the summary includes them. */
   documentFindingCount?: number;
+  /** V5 acceptance rollup from `verification.counts` on the revision. */
+  acceptanceCounts?: StudyRevisionAcceptanceCounts;
 };
 
 /** One Writer run for one audience over one accepted revision (D-041). */
@@ -742,6 +745,7 @@ export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummar
   if (typeof record.revisionNumber !== "number" || typeof record.createdAt !== "string") return null;
   const sourceCount = nonNegativeInteger(record.sourceCount);
   const documentFindingCount = nonNegativeInteger(record.documentFindingCount);
+  const acceptanceCounts = parseStudyRevisionAcceptanceCounts(record.counts);
   const formatRaw = record.format;
   const format: StudyRevisionFormat | undefined =
     formatRaw === "canonical-study-1" || formatRaw === "investigation-1" ? formatRaw : undefined;
@@ -765,6 +769,7 @@ export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummar
     createdAt: record.createdAt,
     ...(sourceCount !== undefined ? { sourceCount } : {}),
     ...(documentFindingCount !== undefined ? { documentFindingCount } : {}),
+    ...(acceptanceCounts ? { acceptanceCounts } : {}),
   };
 }
 

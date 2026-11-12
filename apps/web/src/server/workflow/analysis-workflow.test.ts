@@ -1226,6 +1226,19 @@ describe("processAnalysisRun: V5 pipeline", () => {
     expect(revision.investigation_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(h.dispatched.filter((item) => item.kind === "report").map((item) => item.id)).toEqual(REPORT_RUN_IDS);
   });
+
+  it("persists domainPack workflow state through CANONICALIZING and leaves it after acceptance", async () => {
+    const db = fakeDatabase({ status: "CANONICALIZING", docExtractions: [...CACHED] });
+    const planner = fakePlanner({}, { canonicalize: CANONICALIZE_ANSWER });
+    const h = harness(db, planner);
+
+    await processAnalysisRun(h.deps, RUN_ID);
+    expect(db.stageOutputs.domainPack).toBeDefined();
+
+    await expect(processAnalysisRun(h.deps, RUN_ID)).resolves.toBe("SUCCEEDED");
+    expect(db.stageOutputs.domainPack).toBeDefined();
+    expect(db.stageOutputs.canonicalStudy).toBeTruthy();
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,12 @@
 "use client";
 
-import { type CanonicalStudy, type SourceDocument, type StudyViewReferencedDocument, type UploadQuota } from "@hiveforyou/contracts";
+import {
+  type CanonicalStudy,
+  formatStudyRevisionAcceptanceDetail,
+  type SourceDocument,
+  type StudyViewReferencedDocument,
+  type UploadQuota,
+} from "@hiveforyou/contracts";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useState } from "react";
@@ -297,8 +303,7 @@ export function DocumentsPanel({
         <div role="status" data-testid="rebuild-study-status" className={`${CARD} gap-1 text-small text-ink`}>
           <p className="m-0 font-medium">Study revision {acceptedRebuild.revisionNumber} accepted.</p>
           <p className="m-0 text-graphite">
-            {acceptedRebuild.sourceCount ?? 0} sources · {acceptedRebuild.documentFindingCount ?? 0} atomic document findings.
-            Reading every saved page does not mean every fact was extracted.
+            {formatStudyRevisionAcceptanceDetail(acceptedRebuild)}
           </p>
           <Link href={hiveStudyPath(hiveId)} className={QUIET_LINK_CLASS} data-testid="rebuild-study-link">
             Open study revision {acceptedRebuild.revisionNumber}

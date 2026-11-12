@@ -33,6 +33,7 @@ import {
   STUDY_VERIFICATION_SCHEMA,
   V5_CLIENT_TASK_TIMEOUT_MS,
   resolveAudienceConfiguration,
+  buildV5AcceptanceCounts,
 } from "@hiveforyou/contracts";
 import { normalizeContentDigest } from "@hiveforyou/contracts/document-read";
 
@@ -145,6 +146,71 @@ async function rpc(client: RpcClient, fn: string, args: Record<string, unknown>)
   const { data, error } = await client.rpc(fn, args);
   if (error) throw new Error(error.message ?? `${fn} failed`);
   return parsePayload(data);
+}
+
+async function patchProcessingRunWorkflowState(
+  client: RpcClient,
+  input: {
+    runId: string;
+    expectedStatus: ProcessingRun["status"];
+    patch: Record<string, unknown>;
+    correlationId?: string;
+    hiveId?: string;
+    operation: string;
+  },
+): Promise<void> {
+  const { data, error } = await client.rpc("patch_processing_run_workflow_state", {
+    p_run_id: input.runId,
+    p_expected_status: input.expectedStatus,
+    p_patch: input.patch,
+  });
+  if (error) {
+    const code = typeof error.code === "string" ? error.code : "rpc_error";
+    logWorkflowStatePatchFailure({
+      correlationId: input.correlationId,
+      hiveId: input.hiveId,
+      runId: input.runId,
+      operation: input.operation,
+      diagnosticReason: "workflow_state_patch_failed",
+      diagnosticField: code,
+    });
+    return;
+  }
+  const payload = parsePayload(data);
+  if (payload?.applied !== true) {
+    logWorkflowStatePatchFailure({
+      correlationId: input.correlationId,
+      hiveId: input.hiveId,
+      runId: input.runId,
+      operation: input.operation,
+      diagnosticReason: "workflow_state_patch_not_applied",
+      diagnosticField: input.expectedStatus,
+    });
+  }
+}
+
+function logWorkflowStatePatchFailure(input: {
+  correlationId?: string;
+  hiveId?: string;
+  runId: string;
+  operation: string;
+  diagnosticReason: string;
+  diagnosticField?: string;
+}): void {
+  if (!input.correlationId) return;
+  emitStructuredEvent({
+    eventName: "pipeline.workflow_state.patch_failed",
+    severity: "WARN",
+    timestamp: new Date().toISOString(),
+    component: "pipeline",
+    operation: input.operation,
+    stage: "ANALYZE",
+    correlationId: input.correlationId,
+    processingRunId: input.runId,
+    ...(input.hiveId ? { hiveId: input.hiveId } : {}),
+    diagnosticReason: input.diagnosticReason,
+    ...(input.diagnosticField ? { diagnosticField: input.diagnosticField } : {}),
+  });
 }
 
 export type PlannerJobRef = {
@@ -284,12 +350,15 @@ export async function persistV5ExtractStageOutputs(
   client: RpcClient,
   runId: string,
   patch: Pick<V5StageOutputs, "extractZeroProgressHandoffs" | "extractGapRetryCompleted" | "plannerJobs">,
+  context?: { correlationId?: string; hiveId?: string },
 ): Promise<void> {
   // Mutable bookkeeping: transition_processing_run rejects these keys (immutable stage outputs only).
-  await rpc(client, "patch_processing_run_workflow_state", {
-    p_run_id: runId,
-    p_expected_status: "EXTRACTING",
-    p_patch: {
+  await patchProcessingRunWorkflowState(client, {
+    runId,
+    expectedStatus: "EXTRACTING",
+    operation: "extract_workflow_state",
+    ...context,
+    patch: {
       ...(typeof patch.extractZeroProgressHandoffs === "number"
         ? { extractZeroProgressHandoffs: { count: patch.extractZeroProgressHandoffs } }
         : {}),
@@ -303,11 +372,15 @@ export async function persistDomainPackWorkflowState(
   client: RpcClient,
   runId: string,
   value: V5StageOutputs["domainPack"] | null,
+  input: { expectedStatus: ProcessingRun["status"]; correlationId?: string; hiveId?: string },
 ): Promise<void> {
-  await rpc(client, "patch_processing_run_workflow_state", {
-    p_run_id: runId,
-    p_expected_status: "EXTRACTING",
-    p_patch: value === undefined || value === null ? { domainPack: null } : { domainPack: value },
+  await patchProcessingRunWorkflowState(client, {
+    runId,
+    expectedStatus: input.expectedStatus,
+    operation: "domain_pack_workflow_state",
+    correlationId: input.correlationId,
+    hiveId: input.hiveId,
+    patch: value === undefined || value === null ? { domainPack: null } : { domainPack: value },
   });
 }
 
@@ -358,7 +431,11 @@ export async function selectAndPersistDomainPack(input: {
       diagnosticReason: index.skipped,
     });
     const skipped = { skipped: index.skipped } as const;
-    await persistDomainPackWorkflowState(input.client, input.runId, skipped);
+    await persistDomainPackWorkflowState(input.client, input.runId, skipped, {
+      expectedStatus: "CANONICALIZING",
+      correlationId: input.correlationId,
+      hiveId: input.hiveId,
+    });
     return { pack: null, selection: skipped };
   }
   for (const warning of index.fileWarnings ?? []) {
@@ -373,11 +450,19 @@ export async function selectAndPersistDomainPack(input: {
   const selected = selectDomainPack(index.entries, input.requestText, input.extractions);
   if (!selected) {
     const skipped = { skipped: "below_threshold" } as const;
-    await persistDomainPackWorkflowState(input.client, input.runId, skipped);
+    await persistDomainPackWorkflowState(input.client, input.runId, skipped, {
+      expectedStatus: "CANONICALIZING",
+      correlationId: input.correlationId,
+      hiveId: input.hiveId,
+    });
     return { pack: null, selection: skipped };
   }
   const selection = { id: selected.id, version: selected.version, score: selected.score };
-  await persistDomainPackWorkflowState(input.client, input.runId, selection);
+  await persistDomainPackWorkflowState(input.client, input.runId, selection, {
+    expectedStatus: "CANONICALIZING",
+    correlationId: input.correlationId,
+    hiveId: input.hiveId,
+  });
   return { pack: selected.pack, selection };
 }
 
@@ -385,11 +470,14 @@ export async function persistV5CanonicalizePlannerJob(
   client: RpcClient,
   runId: string,
   plannerJob: PlannerJobRef | null,
+  context?: { correlationId?: string; hiveId?: string },
 ): Promise<void> {
-  await rpc(client, "patch_processing_run_workflow_state", {
-    p_run_id: runId,
-    p_expected_status: "CANONICALIZING",
-    p_patch: plannerJob ? { plannerJobs: { canonicalize: plannerJob } } : { plannerJobs: null },
+  await patchProcessingRunWorkflowState(client, {
+    runId,
+    expectedStatus: "CANONICALIZING",
+    operation: "canonicalize_planner_job",
+    ...context,
+    patch: plannerJob ? { plannerJobs: { canonicalize: plannerJob } } : { plannerJobs: null },
   });
 }
 
@@ -2148,15 +2236,26 @@ export function buildV5AcceptRevision(input: {
   canonicalMetric: StageMetric | undefined;
   catalog: PromptCatalog;
   runTimingMetric?: StageMetric | null;
+  packTitle?: string | null;
 }) {
   const investigationDigest = sha256Digest(canonicalJson(input.study));
   const canonicalMetric = input.canonicalMetric;
+  const acceptanceCounts = buildV5AcceptanceCounts(input.study, input.packTitle ?? null);
   return {
     format: "canonical-study-1",
     investigation: input.study,
     verification: {
       schema: STUDY_VERIFICATION_SCHEMA,
-      counts: { documentFindings: 0, claims: 0 },
+      counts: {
+        documentFindings: 0,
+        claims: 0,
+        verifiedFacts: acceptanceCounts.verifiedFacts,
+        documents: acceptanceCounts.documents,
+        ...(acceptanceCounts.checklistShown !== undefined
+          ? { checklistShown: acceptanceCounts.checklistShown, checklistNotShown: acceptanceCounts.checklistNotShown ?? 0 }
+          : {}),
+        ...(acceptanceCounts.packReview ? { packReview: acceptanceCounts.packReview } : {}),
+      },
       findings: [],
       documentCoverage: [],
     },

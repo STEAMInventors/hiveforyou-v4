@@ -3,6 +3,7 @@ import {
   type RebuildAvailability,
   type CoverageGap,
   type CoverageGapReason,
+  formatStudyRevisionAcceptanceDetail,
   isActiveProcessingRunStatus,
   isActiveReportRunStatus,
   isLegacyPipelineStatus,
@@ -10,8 +11,10 @@ import {
   LEGACY_STUDY_PREPARATION_STAGES,
   type ProcessingRun,
   type ReportRun,
+  type StudyRevisionSummary,
   STUDY_PREPARATION_STAGES,
   stageIndexForStatus,
+  studyRevisionAcceptanceSubtext,
 } from "@hiveforyou/contracts";
 
 export type PreparationStepState = "done" | "active" | "stopped" | "pending";
@@ -132,7 +135,10 @@ export function preparationSteps(
   });
 }
 
-export function preparationCopy(run: ProcessingRun | null): { title: string; sub: string } {
+export function preparationCopy(
+  run: ProcessingRun | null,
+  studyRevision?: StudyRevisionSummary | null,
+): { title: string; sub: string } {
   const outcome = preparationOutcome(run);
   if (!run || outcome === "idle") {
     return { title: "Analyze your documents", sub: "We'll study your documents and write two reports from the same evidence." };
@@ -144,13 +150,20 @@ export function preparationCopy(run: ProcessingRun | null): { title: string; sub
     };
   }
   if (outcome === "succeeded" && run.preparationMode === "REBUILD") {
+    const detail = studyRevision ? formatStudyRevisionAcceptanceDetail(studyRevision) : null;
     return {
       title: "Study revision accepted",
-      sub: "A new Canonical Study revision was accepted from the pages already saved. Earlier revisions and their reports are unchanged. Reports were not regenerated. Reading every page does not mean every fact was extracted.",
+      sub: [studyRevisionAcceptanceSubtext(studyRevision?.format, "REBUILD"), detail].filter(Boolean).join(" "),
     };
   }
   if (outcome === "succeeded") {
-    return { title: "Your study is complete", sub: "Every claim was checked against its page. Your reports are being written." };
+    const detail = studyRevision ? formatStudyRevisionAcceptanceDetail(studyRevision) : null;
+    return {
+      title: "Your study is complete",
+      sub: [studyRevisionAcceptanceSubtext(studyRevision?.format, run.preparationMode), detail]
+        .filter(Boolean)
+        .join(" "),
+    };
   }
   if (outcome === "needs_clarification") {
     return {
