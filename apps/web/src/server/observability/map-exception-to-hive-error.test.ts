@@ -13,7 +13,7 @@ describe("mapExceptionToHiveError", () => {
       {
         message: "database connection string failed",
         stack: "Error\n    at C:\\Users\\secret\\repo\\db.ts:10",
-        nested: { password: "hunter2", token: "sk-live", documentText: "patient chart" },
+        nested: { password: "hunter2", token: "sk-live", documentText: "source document" },
       },
       BOUNDARY_ID,
     );
@@ -30,7 +30,7 @@ describe("mapExceptionToHiveError", () => {
     expect(serialized).not.toContain("connection string");
     expect(serialized).not.toContain("hunter2");
     expect(serialized).not.toContain("sk-live");
-    expect(serialized).not.toContain("patient chart");
+    expect(serialized).not.toContain("source document");
     expect(serialized).not.toContain("db.ts");
 
     const body = toPublicErrorResponse(mapped);

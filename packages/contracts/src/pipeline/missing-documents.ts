@@ -183,19 +183,17 @@ export function shouldShowMissingDocumentsBanner(summary: MissingDocumentsSummar
 
 const HOLDER_HINT = /\(([^)]+)\)/;
 
-function thirdPartyHint(holder: string): "district" | "school" | "teacher" | "generic" {
-  const match = HOLDER_HINT.exec(holder);
-  const hint = (match?.[1] ?? holder).toLowerCase();
-  if (hint.includes("district")) return "district";
-  if (hint.includes("school")) return "school";
-  if (hint.includes("teacher")) return "teacher";
-  return "generic";
+function bracketHolderLabel(holder: string): string | null {
+  const match = HOLDER_HINT.exec(holder.trim());
+  const inner = match?.[1]?.trim();
+  if (!inner) return null;
+  return `the ${inner}`;
 }
 
 export type HolderLabelContext = {
   readonly customer?: boolean;
-  readonly districtName?: string | null;
-  readonly schoolName?: string | null;
+  /** Named organisation from verified facts when the pack row has no bracket label. */
+  readonly namedOrganization?: string | null;
 };
 
 /** Holder line for document requests; never returns raw enum tokens. */
@@ -210,12 +208,13 @@ export function holderTypeLabel(
     case "COUNSEL":
       return holder.trim() !== "" ? holder.trim() : "Counsel";
     case "THIRD_PARTY": {
-      const hint = thirdPartyHint(holder);
-      if (hint === "district") return context.districtName?.trim() || "the district";
-      if (hint === "school") return context.schoolName?.trim() || "the school";
-      if (hint === "teacher") return "the teacher";
-      const named = holder.replace(HOLDER_HINT, "").replace(/THIRD_PARTY/i, "").trim();
-      return named !== "" && !/^third[-\s]?party$/i.test(named) ? named : "the school";
+      const fromBracket = bracketHolderLabel(holder);
+      if (fromBracket) return fromBracket;
+      const fromFacts = context.namedOrganization?.trim();
+      if (fromFacts) return fromFacts;
+      const stripped = holder.replace(HOLDER_HINT, "").replace(/THIRD_PARTY/i, "").trim();
+      if (stripped !== "" && !/^third[-\s]?party$/i.test(stripped)) return stripped;
+      return "the other party";
     }
     case "COURT_RECORD":
       return "Court claims register";

@@ -36,7 +36,7 @@ const STORAGE_PATH = `${OWNER_ID}/${HIVE_ID}/${DOC_ID}/original`;
 const OWNED_HIVE: Hive = {
   id: HIVE_ID,
   hiveId: HIVE_ID,
-  name: "Synthetic IEP Review",
+  name: "Synthetic widget review",
   description: null,
   clientRequestId: "66666666-6666-4666-8666-666666666666",
   createdAt: "2026-11-01T12:00:00.000Z",

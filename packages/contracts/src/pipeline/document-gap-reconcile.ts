@@ -43,6 +43,48 @@ export function recordReasonForCheck(pack: Pack, checkId: string): string {
   return text === "" ? "" : `These documents don't show: ${text}`;
 }
 
+/** One lead line plus check texts for request-list bullets (no repeated lead). */
+export function recordReasonsForChecks(pack: Pack, checkIds: readonly string[]): { lead: string; bullets: string[] } {
+  const lead = "These documents don't show:";
+  const bullets: string[] = [];
+  const seen = new Set<string>();
+  for (const checkId of checkIds) {
+    const text = checksById(pack).get(checkId)?.check.replace(/\s+/g, " ").trim() ?? "";
+    if (text === "") continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    bullets.push(text);
+  }
+  return { lead, bullets };
+}
+
+export function formatRecordReasonsForChecks(pack: Pack, checkIds: readonly string[]): string {
+  const { lead, bullets } = recordReasonsForChecks(pack, checkIds);
+  if (bullets.length === 0) return "";
+  if (bullets.length === 1) return `${lead} ${bullets[0]}`;
+  return `${lead}\n${bullets.map((line) => `• ${line}`).join("\n")}`;
+}
+
+/** Parses multi-check reasons produced by {@link formatRecordReasonsForChecks}. */
+export function parseDocumentRequestWhy(why: string): { lead: string; bullets: string[] } | { plain: string } {
+  const text = why.replace(/\r\n/g, "\n").trim();
+  if (text === "") return { plain: "" };
+  const lead = "These documents don't show:";
+  if (!text.startsWith(lead)) return { plain: text };
+  const rest = text.slice(lead.length).trim();
+  const lines = text.includes("\n")
+    ? text
+        .split("\n")
+        .slice(1)
+        .map((line) => line.replace(/^\s*[•\-]\s*/, "").trim())
+        .filter((line) => line !== "")
+    : [];
+  if (lines.length > 0) return { lead, bullets: lines };
+  if (rest !== "") return { lead, bullets: [rest] };
+  return { plain: text };
+}
+
 function mergeReasons(...parts: string[]): string {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -123,7 +165,7 @@ function gapFromPackRow(row: PackDocumentExpectation, pack: Pack, id: string, un
           holderType: row.holderType,
         })
       : null;
-  const why = mergeReasons(...settles.map((checkId) => recordReasonForCheck(pack, checkId)));
+  const why = formatRecordReasonsForChecks(pack, settles);
   return {
     id,
     statement: `The case does not include: ${title}.`,
@@ -147,8 +189,23 @@ function splitDocumentParts(documentName: string): string[] {
     .filter((part) => part !== "");
 }
 
+function corpusDocumentTypes(study: CanonicalStudy): readonly string[] {
+  return study.documents.map((document) => document.typeInPlainWords.trim()).filter((text) => text !== "");
+}
+
 function corpusText(study: CanonicalStudy): string {
-  return study.documents.map((document) => document.typeInPlainWords.trim()).join(" ").toLowerCase();
+  return corpusDocumentTypes(study).join(" ").toLowerCase();
+}
+
+const UPLOAD_PART_OVERLAP_THRESHOLD = 0.55;
+
+/** Uploaded inventory covers this semicolon-separated document part (type/title tokens). */
+export function documentPartSatisfied(part: string, study: CanonicalStudy): boolean {
+  const corpus = corpusText(study);
+  if (corpus.trim() === "") return false;
+  if (tokenOverlapShare([part], corpus) >= UPLOAD_PART_OVERLAP_THRESHOLD) return true;
+  const types = corpusDocumentTypes(study);
+  return types.some((type) => tokenOverlapShare([part], type) >= UPLOAD_PART_OVERLAP_THRESHOLD);
 }
 
 /** Whether the uploaded inventory already covers this expectation (whole or in part). */
@@ -156,11 +213,10 @@ export function documentExpectationCoverage(
   expectation: string,
   study: CanonicalStudy,
 ): { satisfied: boolean; remainingTitle?: string } {
-  const corpus = corpusText(study);
-  if (corpus.trim() === "") return { satisfied: false };
+  if (corpusText(study).trim() === "") return { satisfied: false };
   const parts = splitDocumentParts(expectation);
   if (parts.length === 0) return { satisfied: false };
-  const missing = parts.filter((part) => tokenOverlapShare([part], corpus) < 0.55);
+  const missing = parts.filter((part) => !documentPartSatisfied(part, study));
   if (missing.length === 0) return { satisfied: true };
   if (missing.length === parts.length) return { satisfied: false };
   return { satisfied: false, remainingTitle: missing.join("; ") };
@@ -265,9 +321,9 @@ function enrichModelGap(gap: CanonicalGap, pack: Pack): CanonicalGap {
     ...gap,
     ...(row ? { title: row.document, settlesCheckIds: gap.settlesCheckIds ?? row.settlesCheckIds } : {}),
   }, pack);
-  const whyFromChecks = settlesCheckIds.map((checkId) => recordReasonForCheck(pack, checkId));
+  const whyFromChecks = formatRecordReasonsForChecks(pack, settlesCheckIds);
   const why =
-    gap.why.trim() !== "" && !GENERIC_WHY.test(gap.why) ? gap.why : mergeReasons(...whyFromChecks);
+    gap.why.trim() !== "" && !GENERIC_WHY.test(gap.why) ? gap.why : whyFromChecks;
   return {
     ...gap,
     ...(row ? { title: row.document, holder: gap.holder.trim() !== "" ? gap.holder : row.holder, when: gap.when ?? row.when ?? null } : {}),

@@ -45,7 +45,7 @@ describe("validateDocExtraction", () => {
           { ...good("F007"), tableContext: { columns: ["Service", 3, "Amount"] }, value: { nested: true } },
         ],
         emptyFields: [{ id: "E001", label: "Date", page: 2, quote: "Date:" }, { id: "E002", label: "x" }],
-        glossary: [{ term: "IEP", expansion: "Individualized Education Program", source: "general_knowledge" }, {}],
+        glossary: [{ term: "WPM", expansion: "Widgets per minute", source: "general_knowledge" }, {}],
       },
       expected,
     );
@@ -102,7 +102,7 @@ describe("assignFactIds", () => {
           aboutPeople: [
             person("P1", "Dana  Ruiz", "", 1),
             person("P2", "Lee Park", "parent", 1),
-            person("P3", "dana ruiz", "student", 2),
+            person("P3", "dana ruiz", "operator", 2),
             person(null, "", "unnamed", 3),
             person("P5", "", "unnamed", 3),
           ],
@@ -119,7 +119,7 @@ describe("assignFactIds", () => {
     if (!result.ok) throw new Error("expected ok");
     const out = assignFactIds(result.value, documentKeyFor(DOC_ID));
     expect(out.document.aboutPeople.map((p) => [p.ref, p.modelRefs, p.role, p.evidence.length])).toEqual([
-      ["P-3f2a9c1e-001", ["P1", "P3"], "student", 2],
+      ["P-3f2a9c1e-001", ["P1", "P3"], "operator", 2],
       ["P-3f2a9c1e-002", ["P2"], "parent", 1],
       ["P-3f2a9c1e-003", [], "unnamed", 1],
       ["P-3f2a9c1e-004", ["P5"], "unnamed", 1],

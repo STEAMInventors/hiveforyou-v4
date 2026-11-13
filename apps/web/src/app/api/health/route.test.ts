@@ -13,7 +13,7 @@ describe("GET /api/health", () => {
     try {
       const response = await GET(
         new NextRequest(
-          "http://localhost/api/health?token=sk-live&documentText=patient-chart",
+          "http://localhost/api/health?token=sk-live&documentText=source-doc-text",
           { headers: { "x-correlation-id": CORRELATION_ID } },
         ),
       );
@@ -31,7 +31,7 @@ describe("GET /api/health", () => {
 
       const combined = lines.join("\n");
       expect(combined).not.toContain("sk-live");
-      expect(combined).not.toContain("patient-chart");
+      expect(combined).not.toContain("source-doc-text");
       expect(combined.toLowerCase()).not.toContain("token");
       expect(combined).not.toContain("documentText");
     } finally {
@@ -42,7 +42,7 @@ describe("GET /api/health", () => {
   it("replaces an invalid correlation id and does not log it", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const secretHeader =
-      "password=hunter2 token=sk-live documentText=patient-chart exactQuote=verbatim";
+      "password=hunter2 token=sk-live documentText=source-doc-text exactQuote=verbatim";
 
     try {
       const response = await GET(
@@ -62,7 +62,7 @@ describe("GET /api/health", () => {
       expect(combined).toContain(body.correlationId);
       expect(combined).not.toContain("hunter2");
       expect(combined).not.toContain("sk-live");
-      expect(combined).not.toContain("patient-chart");
+      expect(combined).not.toContain("source-doc-text");
       expect(combined).not.toContain("verbatim");
       expect(combined.toLowerCase()).not.toContain("password");
       expect(combined).not.toContain("documentText");

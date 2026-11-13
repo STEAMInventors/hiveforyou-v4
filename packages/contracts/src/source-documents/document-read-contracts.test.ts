@@ -174,7 +174,7 @@ describe("normalizeReaderWireResponse", () => {
       mime_type: "application/pdf",
       byte_size: 2048,
       sha256: SOURCE_SHA,
-      filename: "synthetic-iep.pdf",
+      filename: "synthetic-batch.pdf",
     },
     source_hash_verified: true,
     page_count: 2,

@@ -12,6 +12,10 @@ const serverDir = path.join(root, "apps/web/.next/server");
 
 /** Route path segments (under `app/`) that must trace packs/*.md — keep in sync with next.config.ts */
 const ROUTE_PATH_MARKERS = [
+  "hives/[hiveId]/study/page",
+  "hives/[hiveId]/reports/page",
+  "hives/[hiveId]/documents/page",
+  "hives/page",
   "api/internal/workflow/route",
   "api/internal/workflow-recovery/route",
   "api/v1/hives/[hiveId]/reports/route",

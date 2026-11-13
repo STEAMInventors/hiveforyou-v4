@@ -353,7 +353,7 @@ function extractQuoteGroundingNumbers(quoteText: string): Set<string> {
 function extractCandidateDecimals(textValue: string, options: { isStatement?: boolean } = {}): string[] {
   let cleaned = textValue
     .replace(/\b[A-Za-z_]+\d+(?:\.[A-Za-z0-9_]+)*\b/g, " ")
-    .replace(/\b(?:goal|accommodation|section|sec|part|item|table|figure|fig|step)\s*\.?\s*#?\s*\d+\b/gi, " ");
+    .replace(/\b(?:goal|annotation|section|sec|part|item|table|figure|fig|step)\s*\.?\s*#?\s*\d+\b/gi, " ");
   if (options.isStatement) {
     cleaned = cleaned
       .replace(/\b(?:pages?|pp?\.?)\s*#?\s*\d+(?:\s*[-–—]\s*\d+)?\b/gi, " ")

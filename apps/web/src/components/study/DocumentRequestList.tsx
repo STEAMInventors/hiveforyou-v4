@@ -7,6 +7,7 @@ import {
   draftRequestPlainText,
   type HolderLabelContext,
   holderTypeLabel,
+  parseDocumentRequestWhy,
   partitionDocumentRequests,
 } from "@hiveforyou/contracts";
 import { useCallback, useId, useMemo, useState } from "react";
@@ -61,6 +62,24 @@ function BasisTag({ item }: { item: DocumentRequestItem }) {
 function showWhy(title: string, why: string): boolean {
   const reason = why.trim();
   return reason !== "" && reason !== title.trim();
+}
+
+function RequestWhy({ title, why }: { title: string; why: string }) {
+  if (!showWhy(title, why)) return null;
+  const parsed = parseDocumentRequestWhy(why);
+  if ("plain" in parsed) {
+    return <span className="text-body text-graphite">{parsed.plain}</span>;
+  }
+  return (
+    <div className="flex flex-col gap-1 text-body text-graphite">
+      <span>{parsed.lead}</span>
+      <ul className="m-0 list-disc pl-5">
+        {parsed.bullets.map((bullet) => (
+          <li key={bullet}>{bullet}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export function DocumentRequestList({ component, customer, sentenceChips, holderContext }: DocumentRequestListProps) {
@@ -214,7 +233,7 @@ function RequestGroup({
               <span className="font-medium text-ink">{item.title}</span>
               {!later ? (
                 <>
-                  {showWhy(item.title, item.why) ? <span className="text-body text-graphite">{item.why}</span> : null}
+                  <RequestWhy title={item.title} why={item.why} />
                   <BasisTag item={item} />
                   {item.holderType ? (
                     <span className="text-small text-quiet">Likely held by: {holderTypeLabel(item.holderType, item.holder, holderCtx)}</span>

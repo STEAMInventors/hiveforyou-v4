@@ -50,7 +50,6 @@ export * from "./pipeline/document-request-list-contracts";
 export * from "./pipeline/document-gap-reconcile";
 export * from "./pipeline/check-verdict-display";
 export * from "./pipeline/fact-display-value";
-export * from "./pipeline/organization-from-facts";
 export * from "./pipeline/study-view-contracts";
 export * from "./pipeline/study-view-reference-match";
 export * from "./pipeline/write-audience";

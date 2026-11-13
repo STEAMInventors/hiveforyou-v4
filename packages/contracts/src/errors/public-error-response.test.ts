@@ -35,8 +35,8 @@ describe("toPublicErrorResponse", () => {
       correlationId: "2eb8421a-b784-4bf8-ac2b-540299b61d13",
       cause: {
         password: "hunter2",
-        documentText: "patient chart text",
-        nested: { token: "sk-live", exactQuote: "verbatim diagnosis" },
+        documentText: "source document text",
+        nested: { token: "sk-live", exactQuote: "verbatim quote" },
       },
       sql: "select * from secrets",
       stack: "at C:\\Users\\secret\\db.ts",
@@ -45,9 +45,9 @@ describe("toPublicErrorResponse", () => {
     const serialized = JSON.stringify(error);
     expect(error.cause).toBeDefined();
     expect(serialized).not.toContain("hunter2");
-    expect(serialized).not.toContain("patient chart");
+    expect(serialized).not.toContain("source document");
     expect(serialized).not.toContain("sk-live");
-    expect(serialized).not.toContain("verbatim diagnosis");
+    expect(serialized).not.toContain("verbatim quote");
     expect(serialized).not.toContain("secrets");
     expect(serialized).not.toContain("db.ts");
 

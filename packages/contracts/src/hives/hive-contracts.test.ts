@@ -31,14 +31,14 @@ describe("validateCreateHiveInput", () => {
 
   it("trims name and description and normalizes empty description to null", () => {
     const result = validateCreateHiveInput({
-      name: "  Maya's IEP  ",
+      name: "  Widget batch review  ",
       description: "   ",
       clientRequestId: VALID_UUID.toUpperCase(),
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toEqual({
-        name: "Maya's IEP",
+        name: "Widget batch review",
         description: null,
         clientRequestId: VALID_UUID,
       });

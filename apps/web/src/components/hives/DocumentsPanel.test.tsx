@@ -188,7 +188,7 @@ function studyPreparationBody() {
                   documents: 3,
                   checklistShown: 4,
                   checklistNotShown: 2,
-                  packReview: { id: "iep-initial", version: 6, title: "Initial IEP review" },
+                  packReview: { id: "widget-review", version: 2, title: "Widget batch review" },
                 }
               : undefined,
           predecessorRevisionId: null,
@@ -519,7 +519,7 @@ describe("DocumentsPanel — Analyze", () => {
     expect(status.textContent).toContain("12 verified facts");
     expect(status.textContent).toContain("3 documents");
     expect(status.textContent).toContain("4 checks shown");
-    expect(status.textContent).toContain("Reviewed with: Initial IEP review (v6)");
+    expect(status.textContent).toContain("Reviewed with: Widget batch review (v2)");
     expect(screen.getByTestId("rebuild-study-link").getAttribute("href")).toBe(`/hives/${HIVE_ID}/study`);
   });
 

@@ -83,7 +83,7 @@ describe("V4-003 source routes", () => {
       adapter.createIntentRequestForOwnedHive
         .mockResolvedValueOnce({ intentRequest, created: true })
         .mockResolvedValueOnce({ intentRequest, created: false });
-      const payload = { intentText: "Prepare for an IEP meeting", clientRequestId: REQUEST_ID };
+      const payload = { intentText: "Prepare for a widget acceptance meeting", clientRequestId: REQUEST_ID };
       const url = `http://localhost/api/v1/hives/${HIVE_ID}/intent-requests`;
 
       const first = await postIntent(jsonRequest(url, payload), params);

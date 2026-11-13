@@ -25,7 +25,7 @@ const classOf = (element: Element) => element.getAttribute("class") ?? "";
 describe("AppHeader", () => {
   it("has no fixed height on the header and no overflow anywhere in it", () => {
     pathname = `/hives/${HIVE_ID}/study`;
-    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Chapter 13 plan" }} initials="MR" />);
+    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} initials="MR" />);
     const header = screen.getByTestId("app-header");
     expect(header.tagName).toBe("HEADER");
     const row = header.firstElementChild!;
@@ -37,10 +37,10 @@ describe("AppHeader", () => {
 
   it("shows the breadcrumb with the hive name as the current page", () => {
     pathname = `/hives/${HIVE_ID}/documents`;
-    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Chapter 13 plan" }} initials="MR" />);
+    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} initials="MR" />);
     const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
     expect(crumbs.getByRole("link", { name: "My hives" }).getAttribute("href")).toBe("/hives");
-    const current = crumbs.getByText("Chapter 13 plan");
+    const current = crumbs.getByText("Widget batch review");
     expect(current.getAttribute("aria-current")).toBe("page");
   });
 

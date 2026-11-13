@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@hiveforyou/contracts"],
   outputFileTracingRoot: workspaceRoot,
   outputFileTracingIncludes: {
+    "/hives/[hiveId]/study": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
+    "/hives/[hiveId]/reports": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
+    "/hives/[hiveId]/documents": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
+    "/hives": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
     "/api/v1/hives/[hiveId]/reports": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
     "/api/v1/hives/[hiveId]/study-preparation": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],
     "/api/v1/hives/[hiveId]/study-preparation/rebuild": ["../../prompts/**/*", ...PACK_TRACE_GLOBS],

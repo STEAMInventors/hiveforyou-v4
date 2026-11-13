@@ -30,7 +30,7 @@ describe("inferGapHolderType", () => {
     ).toBe("COURT_RECORD");
   });
 
-  it("classifies debtor-held records as ASKER_OR_CLIENT", () => {
+  it("classifies client-held tax records as ASKER_OR_CLIENT", () => {
     expect(
       inferGapHolderType(
         gap({

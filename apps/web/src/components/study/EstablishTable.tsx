@@ -3,7 +3,7 @@
 import type { DocumentRequestObservation, StudyViewRow } from "@hiveforyou/contracts";
 
 import { AsWrittenValue, ChangedValue, distinctValues } from "./ChangedValue";
-import { checklistVerdictLabel, rowHasChecklistVerdict } from "@hiveforyou/contracts";
+import { checklistVerdictLabel } from "@hiveforyou/contracts";
 
 import { spineRowState } from "./StateBar";
 import { StatusBadge } from "./StatusBadge";
@@ -42,24 +42,16 @@ export function EstablishTable({
     observations.filter((observation) => observation.relatedSpineIds.includes(spineId)).map((observation) => observation.text);
   const cell = `border-b border-line px-3 align-top first:pl-0 last:pr-0 ${compact ? "py-2.5" : "py-4"}`;
   const head = "border-b border-line px-3 pb-2 text-left text-caption font-semibold text-quiet first:pl-0 last:pr-0";
-  const showStatusColumn =
-    statusMode === "checklist"
-      ? rows.some((row) => rowHasChecklistVerdict(row))
-      : statusMode === "spine"
-        ? rows.some((row) => rowHasChecklistVerdict(row))
-        : false;
+  const showStateColumn = statusMode === "spine" || statusMode === "checklist";
+  const stateColumnLabel = statusMode === "checklist" ? "Status" : "State";
   return (
     <div className="overflow-x-auto" role="region" aria-label="What the documents establish" tabIndex={0}>
       <table className="w-full min-w-[560px] border-collapse text-body" data-testid="establish-table">
         <thead>
           <tr>
-            {showStatusColumn ? (
+            {showStateColumn ? (
               <th scope="col" className={`${head} w-[120px]`}>
-                Status
-              </th>
-            ) : statusMode === "spine" ? (
-              <th scope="col" className={`${head} w-[120px]`}>
-                State
+                {stateColumnLabel}
               </th>
             ) : null}
             <th scope="col" className={head}>
@@ -73,15 +65,19 @@ export function EstablishTable({
         <tbody>
           {rows.map((row) => {
             const verdict = checklistVerdictLabel(row.status);
-            const state = verdict ? null : spineRowState(row);
+            const spineState = verdict ? null : spineRowState(row);
             const notes = observationFor(row.id);
             const issueLines = row.issues ?? [];
             return (
               <tr key={row.id} data-row-id={row.id}>
-                {showStatusColumn ? (
-                  <td className={cell}>{verdict ? <StatusBadge state="neutral" label={verdict} /> : null}</td>
-                ) : statusMode === "spine" ? (
-                  <td className={cell}>{state ? <StatusBadge state={state} /> : null}</td>
+                {showStateColumn ? (
+                  <td className={cell}>
+                    {verdict ? (
+                      <StatusBadge state="neutral" label={verdict} />
+                    ) : spineState ? (
+                      <StatusBadge state={spineState} />
+                    ) : null}
+                  </td>
                 ) : null}
                 <th scope="row" className={`${cell} text-left font-normal text-ink`}>
                   {row.label}

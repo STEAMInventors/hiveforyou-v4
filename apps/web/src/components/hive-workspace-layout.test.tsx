@@ -35,14 +35,14 @@ describe("HivePageHeader", () => {
     render(
       <HivePageHeader
         hiveId={HIVE_ID}
-        hiveName="Chapter 13 plan"
+        hiveName="Widget batch review"
         hiveDescription="Plan payments and the trustee's objection."
         summary={WITH_STUDY}
         onStudyTab={false}
       />,
     );
     const header = within(screen.getByTestId("hive-page-header"));
-    expect(header.getByRole("heading", { level: 1 }).textContent).toBe("Chapter 13 plan");
+    expect(header.getByRole("heading", { level: 1 }).textContent).toBe("Widget batch review");
     expect(header.getByText("Plan payments and the trustee's objection.")).toBeTruthy();
     expect(screen.getByTestId("hive-meta").textContent).toBe("4 documents · Study revision 3, accepted Nov 4, 2026");
     const pills = within(screen.getByTestId("state-bar")).getAllByRole("link");
@@ -56,7 +56,7 @@ describe("HivePageHeader", () => {
   });
 
   it("links the state bar within the page on the Study tab", () => {
-    render(<HivePageHeader hiveId={HIVE_ID} hiveName="Chapter 13 plan" hiveDescription="" summary={WITH_STUDY} onStudyTab />);
+    render(<HivePageHeader hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" summary={WITH_STUDY} onStudyTab />);
     const pills = within(screen.getByTestId("state-bar")).getAllByRole("link");
     expect(pills[1]!.getAttribute("href")).toBe("#what-is-missing");
   });
@@ -105,7 +105,7 @@ describe("HiveTabNav", () => {
 describe("HiveWorkspaceLayout", () => {
   it("shows the Ask field on Study and Reports, not on Documents", () => {
     const { rerender } = render(
-      <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Chapter 13 plan" hiveDescription="" activeTab="study" summary={WITH_STUDY}>
+      <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" activeTab="study" summary={WITH_STUDY}>
         <p>Pane</p>
       </HiveWorkspaceLayout>,
     );
@@ -113,7 +113,7 @@ describe("HiveWorkspaceLayout", () => {
     expect(ask.getAttribute("placeholder")).toBe("Ask about these documents");
     expect(ask.closest(".hive-ask")).not.toBeNull();
     rerender(
-      <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Chapter 13 plan" hiveDescription="" activeTab="documents" summary={WITH_STUDY}>
+      <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" activeTab="documents" summary={WITH_STUDY}>
         <p>Pane</p>
       </HiveWorkspaceLayout>,
     );

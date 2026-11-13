@@ -103,7 +103,7 @@ describe("buildDocumentRequestListData", () => {
     expect(canonicalGapMentionsPipelineTerms(progress)).toBe(false);
     const study: CanonicalStudy = {
       schema: CANONICAL_STUDY_SCHEMA,
-      domainLabel: "Special education",
+      domainLabel: "neutral",
       spineSource: "TIMELINE",
       documents: [],
       spine: [],

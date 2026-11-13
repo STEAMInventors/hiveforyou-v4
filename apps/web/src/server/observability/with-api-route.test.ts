@@ -38,9 +38,9 @@ describe("withApiRoute", () => {
     const handler = withApiRoute("shell", "healthCheck", () => {
       const error = new Error(`connection failed ${secret} at C:\\Users\\secret\\db.ts`);
       (error as Error & { documentText?: string; nested?: unknown }).documentText =
-        "patient chart text";
+        "source document text";
       (error as Error & { nested?: unknown }).nested = {
-        exactQuote: "verbatim diagnosis",
+        exactQuote: "verbatim finding",
         password: "hunter2",
         token: "sk-live-secret",
       };
@@ -49,7 +49,7 @@ describe("withApiRoute", () => {
 
     try {
       const response = await handler(
-        new NextRequest("http://localhost/api/health?documentText=patient-chart", {
+        new NextRequest("http://localhost/api/health?documentText=source-doc-text", {
           headers: { "x-correlation-id": CORRELATION_ID },
         }),
       );
@@ -74,7 +74,7 @@ describe("withApiRoute", () => {
       expect(serialized).not.toContain("postgres");
       expect(serialized).not.toContain("password");
       expect(serialized).not.toContain("sk-live");
-      expect(serialized).not.toContain("patient");
+      expect(serialized).not.toContain("source document");
       expect(serialized).not.toContain("verbatim");
       expect(serialized).not.toContain("db.ts");
       expect(serialized).not.toContain("stack");
@@ -95,7 +95,7 @@ describe("withApiRoute", () => {
       const combined = lines.join("\n");
       expect(combined).not.toContain("postgres");
       expect(combined).not.toContain("sk-live");
-      expect(combined).not.toContain("patient");
+      expect(combined).not.toContain("source document");
       expect(combined).not.toContain("verbatim");
       expect(combined).not.toContain("hunter2");
       expect(combined).not.toContain("db.ts");

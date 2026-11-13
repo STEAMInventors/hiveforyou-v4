@@ -5,6 +5,7 @@ import {
   buildMissingDocumentsSummary,
   filterActionableGaps,
   gapsSatisfiedInStudy,
+  holderTypeLabel,
   parseGapUploadLinks,
   requestableDocumentCount,
 } from "./missing-documents";
@@ -22,6 +23,19 @@ const gap = (partial: Partial<CanonicalGap> & Pick<CanonicalGap, "id">): Canonic
   basisType: null,
   relatedFactIds: [],
   ...partial,
+});
+
+describe("holderTypeLabel", () => {
+  it("uses bracket holder labels for third parties", () => {
+    expect(holderTypeLabel("THIRD_PARTY", "THIRD_PARTY (vendor)", {})).toBe("the vendor");
+    expect(holderTypeLabel("THIRD_PARTY", "THIRD_PARTY", { namedOrganization: "Acme Co" })).toBe("Acme Co");
+    expect(holderTypeLabel("THIRD_PARTY", "THIRD_PARTY", {})).toBe("the other party");
+  });
+
+  it("uses You vs Client for asker slots", () => {
+    expect(holderTypeLabel("ASKER_OR_CLIENT", "", { customer: true })).toBe("You");
+    expect(holderTypeLabel("ASKER_OR_CLIENT", "", { customer: false })).toBe("Client");
+  });
 });
 
 describe("missing document counts", () => {

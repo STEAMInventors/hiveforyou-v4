@@ -31,7 +31,7 @@ describe("buildStructuredLogRecord", () => {
       correlationId: "2eb8421a-b784-4bf8-ac2b-540299b61d13",
       diagnosticReason: "audience_role_invalid",
       diagnosticField: "audience.customer",
-      intentText: "I want to understand Maya's IEP",
+      intentText: "I want to understand the widget batch",
     });
 
     expect(record.diagnosticField).toBe("audience.customer");
@@ -66,7 +66,7 @@ describe("emitStructuredEvent", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const trap = {
       toJSON() {
-        return { password: "hunter2", documentText: "patient chart", token: "sk-live" };
+        return { password: "hunter2", documentText: "source document", token: "sk-live" };
       },
     };
 
@@ -83,8 +83,8 @@ describe("emitStructuredEvent", () => {
       diagnosticReason: "unexpected_exception",
       hiveId: trap,
       details: {
-        documentText: "full page OCR of patient chart",
-        exactQuote: "verbatim diagnosis sentence",
+        documentText: "full page OCR of source document",
+        exactQuote: "verbatim finding sentence",
         password: "hunter2",
         nested: {
           token: "sk-live-secret",
@@ -101,8 +101,8 @@ describe("emitStructuredEvent", () => {
     expect(logged.stage).toBe("SHELL");
     expect(logged.errorCode).toBe("INTERNAL_ERROR");
     expect(logged.status).toBe("FAILED");
-    expect(line).not.toContain("patient chart");
-    expect(line).not.toContain("verbatim diagnosis");
+    expect(line).not.toContain("source document");
+    expect(line).not.toContain("verbatim finding");
     expect(line).not.toContain("hunter2");
     expect(line).not.toContain("sk-live");
     expect(line).not.toContain("Bearer");

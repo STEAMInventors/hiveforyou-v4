@@ -394,7 +394,7 @@ describe("V4-002 Hive Edge Function + RPC + Gateway architecture", () => {
         createHiveViaEdge(
           clientA,
           {
-            name: "  Maya's IEP  ",
+            name: "  Widget batch review  ",
             description: "   ",
             clientRequestId: REQ_1,
           },
@@ -403,7 +403,7 @@ describe("V4-002 Hive Edge Function + RPC + Gateway architecture", () => {
         createHiveViaEdge(
           clientA,
           {
-            name: "Maya's IEP",
+            name: "Widget batch review",
             description: null,
             clientRequestId: REQ_1,
           },

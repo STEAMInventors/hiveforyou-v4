@@ -26,7 +26,7 @@ const CORRELATION_ID = "44444444-4444-4444-8444-444444444444";
 const HIVE: Hive = {
   id: HIVE_ID,
   hiveId: HIVE_ID,
-  name: "Prepare for an IEP meeting",
+  name: "Prepare for a widget acceptance meeting",
   description: null,
   clientRequestId: HIVE_REQUEST_ID,
   createdAt: "2026-11-01T00:00:00.000Z",
@@ -110,7 +110,7 @@ describe("validateHiveName", () => {
 
 describe("provisionalHiveName", () => {
   it("uses short intent verbatim", () => {
-    expect(provisionalHiveName("Prepare for an IEP meeting")).toBe("Prepare for an IEP meeting");
+    expect(provisionalHiveName("Prepare for a widget acceptance meeting")).toBe("Prepare for a widget acceptance meeting");
   });
 
   it("collapses whitespace, strips trailing punctuation and capitalizes the first letter", () => {
@@ -119,8 +119,8 @@ describe("provisionalHiveName", () => {
 
   it("takes the first sentence of a longer intent", () => {
     expect(
-      provisionalHiveName("Help with my mother's Medicaid file. There are five years of statements."),
-    ).toBe("Help with my mother's Medicaid file");
+      provisionalHiveName("Help with my mother's benefits file. There are five years of statements."),
+    ).toBe("Help with my mother's benefits file");
   });
 
   it("keeps the whole text when the first sentence is too short to name anything", () => {
@@ -129,7 +129,7 @@ describe("provisionalHiveName", () => {
 
   it("truncates long intent at a word boundary with an ellipsis", () => {
     const name = provisionalHiveName(
-      "I need to understand five years of bank statements for my mother's Medicaid application and what is missing",
+      "I need to understand five years of bank statements for my mother's benefits application and what is missing",
     );
     expect(name).toBe("I need to understand five years of bank statements for my…");
     expect(Array.from(name).length).toBeLessThanOrEqual(61);
@@ -164,8 +164,8 @@ describe("runCreateHiveFlow", () => {
   function input(overrides: Partial<CreateHiveFlowInput> = {}): CreateHiveFlowInput {
     return {
       progress: { hive: null, intentSaved: false },
-      hiveName: "Prepare for an IEP meeting",
-      intentText: "  Prepare for an IEP meeting  ",
+      hiveName: "Prepare for a widget acceptance meeting",
+      intentText: "  Prepare for a widget acceptance meeting  ",
       hiveRequestId: HIVE_REQUEST_ID,
       intentRequestId: INTENT_REQUEST_ID,
       files,
@@ -202,11 +202,11 @@ describe("runCreateHiveFlow", () => {
 
     expect(result).toEqual({ ok: true, hive: HIVE });
     expect(deps.createHive).toHaveBeenCalledWith({
-      name: "Prepare for an IEP meeting",
+      name: "Prepare for a widget acceptance meeting",
       clientRequestId: HIVE_REQUEST_ID,
     });
     expect(deps.createIntentRequest).toHaveBeenCalledWith(HIVE_ID, {
-      intentText: "Prepare for an IEP meeting",
+      intentText: "Prepare for a widget acceptance meeting",
       clientRequestId: INTENT_REQUEST_ID,
     });
     expect(deps.uploadFiles).toHaveBeenCalledWith(HIVE_ID, files, expect.any(Function));
@@ -220,7 +220,7 @@ describe("runCreateHiveFlow", () => {
     registerAll();
     await runCreateHiveFlow(deps as CreateHiveFlowDeps, input({ audience: "  The school team " }));
     expect(deps.createIntentRequest).toHaveBeenCalledWith(HIVE_ID, {
-      intentText: "Prepare for an IEP meeting",
+      intentText: "Prepare for a widget acceptance meeting",
       clientRequestId: INTENT_REQUEST_ID,
       audience: "The school team",
     });

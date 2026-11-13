@@ -117,7 +117,7 @@ describe("failure diagnostics", () => {
   });
 
   it("redacts long quoted document text from unexpected exception messages", () => {
-    const documentText = "The student requires extended time on all assessments per the IEP team.";
+    const documentText = "The operator requires extended time on all assessments per the review team.";
     const paddedQuote = `"${documentText} ${"x".repeat(20)}"`;
     const error = new Error(`Quote verification failed for ${paddedQuote}`);
 

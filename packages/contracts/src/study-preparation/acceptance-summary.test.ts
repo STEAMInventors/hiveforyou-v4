@@ -17,8 +17,8 @@ const STUDY_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const baseStudy: CanonicalStudy = {
   schema: CANONICAL_STUDY_SCHEMA,
   documents: [
-    { sourceDocumentId: "doc-a", role: "ANCHOR", typeInPlainWords: "IEP", date: null, version: null, chainPosition: 1 },
-    { sourceDocumentId: "doc-b", role: "SUPPORTING", typeInPlainWords: "Evaluation", date: null, version: null, chainPosition: null },
+    { sourceDocumentId: "doc-a", role: "ANCHOR", typeInPlainWords: "Widget spec sheet", date: null, version: null, chainPosition: 1 },
+    { sourceDocumentId: "doc-b", role: "SUPPORTING", typeInPlainWords: "Acceptance log", date: null, version: null, chainPosition: null },
   ],
   spineSource: "ANCHOR",
   spine: [
@@ -37,12 +37,12 @@ const baseStudy: CanonicalStudy = {
   conflicts: [],
   timeline: [],
   gaps: [],
-  domainLabel: "education",
+  domainLabel: "neutral",
   checklist: [
     { checkId: "T1", verdict: "SHOWN" as const, factIds: ["F1"], note: "" },
     { checkId: "T2", verdict: "NOT_SHOWN" as const, factIds: [], note: "" },
   ],
-  packRef: { id: "iep-initial", version: 6 },
+  packRef: { id: "widget-review", version: 2 },
 };
 
 describe("acceptance-summary", () => {
@@ -52,12 +52,12 @@ describe("acceptance-summary", () => {
   });
 
   it("builds acceptance counts with pack review title", () => {
-    expect(buildV5AcceptanceCounts(baseStudy, "Initial IEP review")).toMatchObject({
+    expect(buildV5AcceptanceCounts(baseStudy, "Widget batch review")).toMatchObject({
       verifiedFacts: 2,
       documents: 2,
       checklistShown: 1,
       checklistNotShown: 1,
-      packReview: { id: "iep-initial", version: 6, title: "Initial IEP review" },
+      packReview: { id: "widget-review", version: 2, title: "Widget batch review" },
     });
   });
 
@@ -74,15 +74,15 @@ describe("acceptance-summary", () => {
       coverageGaps: [],
       coverageAcknowledgement: "NOT_REQUIRED",
       createdAt: "2026-11-12T04:35:00.000Z",
-      acceptanceCounts: buildV5AcceptanceCounts(baseStudy, "Initial IEP review"),
+      acceptanceCounts: buildV5AcceptanceCounts(baseStudy, "Widget batch review"),
     };
     expect(formatStudyRevisionAcceptanceDetail(revision)).toBe(
-      "2 verified facts · 2 documents · 1 checks shown · 1 not shown. Reviewed with: Initial IEP review (v6)",
+      "2 verified facts · 2 documents · 1 checks shown · 1 not shown. Reviewed with: Widget batch review (v2)",
     );
   });
 
   it("round-trips counts via parseStudyRevisionAcceptanceCounts", () => {
-    const counts = buildV5AcceptanceCounts(baseStudy, "Initial IEP review");
+    const counts = buildV5AcceptanceCounts(baseStudy, "Widget batch review");
     expect(parseStudyRevisionAcceptanceCounts(counts)).toEqual(counts);
   });
 });

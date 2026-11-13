@@ -1,6 +1,12 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { parsePackMarkdown } from "../pipeline/pack-contracts";
 import { buildStudyTabViewFromRpc, normalizeGetStudyTabViewResponse } from "./study-tab-view-contracts";
+
+const FIXTURE = join(import.meta.dirname, "../testing/fixtures/widget-review-pack.md");
+const widgetPack = parsePackMarkdown(readFileSync(FIXTURE, "utf8"));
 
 describe("study-tab-view-contracts", () => {
   it("normalizes RPC payload with canonical study and facts", () => {
@@ -63,5 +69,40 @@ describe("study-tab-view-contracts", () => {
     if (built.ok) {
       expect(built.view.blocks.some((b) => b.name === "documents")).toBe(true);
     }
+  });
+
+  it("includes pack checklist and persona coverage when packRef is set and pack is passed", () => {
+    if (!widgetPack.ok) throw new Error("widget-review pack load failed");
+    const pack = widgetPack.value;
+    const raw = {
+      revision: { id: "aaaaaaaa-0000-4000-8000-000000000002", revisionNumber: 6, format: "canonical-study-1" },
+      canonicalStudy: {
+        schema: "hive.canonical-study/1",
+        packRef: { id: pack.meta.pack, version: pack.meta.version },
+        documents: [],
+        spineSource: "ANCHOR",
+        spine: [],
+        outsideSpine: [],
+        conflicts: [],
+        timeline: [],
+        gaps: [],
+        checklist: [{ checkId: "T1", verdict: "NOT_SHOWN", factIds: [], note: "" }],
+        personaCoverage: [],
+        domainLabel: "neutral",
+      },
+      intent: null,
+      facts: [],
+      referencedDocuments: [],
+      writerOutput: null,
+      narrativeSections: null,
+      narrativeBlockNames: null,
+    };
+    const built = buildStudyTabViewFromRpc(raw, new Map(), pack);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    const checklist = built.view.blocks.find((block) => block.name === "checklist");
+    expect(checklist?.rows.length).toBeGreaterThan(0);
+    expect(built.view.personaCoverageCard?.length).toBeGreaterThan(0);
+    expect(built.view.packMeta?.packTitle).toBe(pack.meta.title);
   });
 });

@@ -162,7 +162,7 @@ export function HiveComposer({
               maxLength={INTENT_AUDIENCE_MAX_LENGTH}
               aria-label="Who is this for? (optional)"
               className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] text-ink placeholder:text-ink-subtle read-only:text-ink-muted focus:outline-none focus:ring-0 focus-visible:outline-none"
-              placeholder="Who is this for? Optional, for example the school team or my accountant"
+              placeholder="Who is this for? Optional, for example the vendor team or my accountant"
               onChange={(event) => onAudienceChange(event.target.value)}
             />
           </div>
