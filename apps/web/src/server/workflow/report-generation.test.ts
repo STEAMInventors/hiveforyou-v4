@@ -2545,7 +2545,7 @@ describe("processReportRun: revision formats", () => {
         ],
         drops: expect.objectContaining({ sentencesDropped: 0, unknownFactIdsStripped: 0 }),
         sources: {
-          documents: { [V5_DOC]: { fileName: "notice.pdf" } },
+          documents: { [V5_DOC]: { fileName: "Notice" } },
           facts: { [V5_FACT]: { sourceDocumentId: V5_DOC, pageNumber: 2, quote: "The fee is $10.00." } },
         },
       },

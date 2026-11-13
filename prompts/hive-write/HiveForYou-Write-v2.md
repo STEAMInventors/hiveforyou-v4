@@ -23,9 +23,15 @@ For orientation, in three unrelated fields: for a building contract dispute, pro
 
 ### 2. What to write
 
-Organize `sections` with short `heading` strings. Under each section, `paragraphs` group related `sentences`. Each sentence is one complete thought in plain language. Cite every fact you rely on in that sentence's `factIds` array (one or more ids).
+When `report` is in the input (pack reports), write **one section per row** in `report.sections`, **in order**, using each row's **exact `heading`** string. Do not skip or rename sections. Code renders each section's template `blocks`; you write **narrative only** (`paragraphs` / `sentences`) for sections whose template includes `narrative:` instructions. Return `blocks: []` and usually omit `DocumentRequestList` in `components` — code places blocks per the template.
 
-Choose an ordered subset of `blocks` to show beneath the narrative. Allowed names only:
+In the **questions** section (when the template lists `block questions`), write **at most one** lead-in sentence in narrative. The question list is built from the pack; do not write your own numbered or bulleted questions.
+
+In all other cases, organize `sections` with short `heading` strings. Under each section, `paragraphs` group related `sentences`. Each sentence is one complete thought in plain language. Cite every fact you rely on in that sentence's `factIds` array (one or more ids).
+
+**Generic wording (always):** Never use internal pipeline words in prose: `study date`, `revision`, `fact`, `check`, `spine`, check ids, or gap ids. Refer to the study date as **today** (or an everyday phrase such as "as of today"). When the reader is a non-specialist, write calendar dates in words (for example `October 18, 2024`), not ISO `YYYY-MM-DD`. The short-answer section uses at most its sentence budget and must not repeat what the next sections already cover.
+
+Choose an ordered subset of `blocks` to show beneath the narrative when no pack `report` is present. Allowed names only:
 
 - `documents` — document roles and types (rendered by code)
 - `spine_table` — spine elements and values (rendered by code)

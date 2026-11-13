@@ -20,7 +20,8 @@ import {
   type PackStudyViewMeta,
 } from "./pack-study-view";
 import { capCustomerQuestions } from "./pack-write";
-import { reconcilePackDocumentGaps } from "./document-gap-reconcile";
+import { assemblePackReportSections, type StudyViewPackSection } from "./pack-report-view";
+import { formatRecordReasonsForChecks, reconcilePackDocumentGaps } from "./document-gap-reconcile";
 import { spineCheckAnnotation } from "./spine-check-display";
 import { displayValueForWrittenText } from "./fact-display-value";
 import {
@@ -161,6 +162,7 @@ export type StudyView = {
   readonly packMeta?: PackStudyViewMeta;
   readonly personaCoverageCard?: readonly PersonaCoverageCardRow[];
   readonly writtenFor?: string;
+  readonly packSections?: readonly StudyViewPackSection[];
 };
 
 /** Optional inputs beyond the canonical study; views built without them simply lack those fields. */
@@ -196,6 +198,9 @@ export type StudyViewDrops = {
   readonly unknownBlockNamesIgnored: number;
   readonly unknownFactIdsStripped: number;
   readonly invalidWriteComponentsDropped: number;
+  readonly packSectionsOmitted?: number;
+  readonly packBlocksSkippedNotBuilt?: number;
+  readonly packBlocksUnknown?: number;
 };
 
 export type WriteOutputParse =
@@ -563,7 +568,18 @@ export function buildStudyView(
     (parseMalformed.component_items_forbidden ?? 0) > 0 ||
     (parseMalformed.component_actions_forbidden ?? 0) > 0 ||
     (parseMalformed.component_field_forbidden ?? 0) > 0;
-  if (wantsList && (requestData.items.length > 0 || requestData.legacyLines.length > 0)) {
+  const gapById = new Map(studyForBlocks.gaps.map((gap) => [gap.id, gap]));
+  const requestItems =
+    context.pack && packAudience === "customer"
+      ? requestData.items.map((item) => {
+          const settles = gapById.get(item.id)?.settlesCheckIds ?? [];
+          if (settles.length === 0) return item;
+          const why = formatRecordReasonsForChecks(context.pack!, settles, "customer");
+          return why.trim() !== "" ? { ...item, why } : item;
+        })
+      : requestData.items;
+
+  if (wantsList && (requestItems.length > 0 || requestData.legacyLines.length > 0)) {
     const proposal = writeComponents.find((component) => component.name === DOCUMENT_REQUEST_LIST_COMPONENT);
     let intro: StudyViewSentence | undefined;
     if (proposal?.intro && !writeFallback) {
@@ -575,7 +591,7 @@ export function buildStudyView(
     if (writeFallback) invalidWriteComponentsDropped += 1;
     components.push({
       name: DOCUMENT_REQUEST_LIST_COMPONENT,
-      items: requestData.items,
+      items: requestItems,
       courtRecordCount: requestData.courtRecordCount,
       ...(intro ? { intro } : {}),
       ...(writeFallback ? { fallback: true } : {}),
@@ -595,6 +611,34 @@ export function buildStudyView(
     context.reportAudience && context.pack
       ? context.pack.personas.find((p) => p.audience === context.reportAudience)?.who
       : undefined;
+
+  let packSections: StudyViewPackSection[] | undefined;
+  let packSectionsOmitted: number | undefined;
+  let packBlocksSkippedNotBuilt: number | undefined;
+  let packBlocksUnknown: number | undefined;
+  if (context.pack && !context.pack.briefOnly && context.reportAudience) {
+    const prebuilt = new Map(blocks.map((block) => [block.name, block.rows] as const));
+    const firstName =
+      facts.find((fact) => fact.subject.trim() !== "")?.subject.trim() ??
+      studyForBlocks.documents[0]?.typeInPlainWords?.split(/\s+/)[0] ??
+      null;
+    const assembled = assemblePackReportSections({
+      pack: context.pack,
+      audience: context.reportAudience,
+      study: studyForBlocks,
+      facts,
+      writeSections: writeOutput.sections,
+      prebuilt,
+      context,
+      documentRequestList: components.find((component) => component.name === DOCUMENT_REQUEST_LIST_COMPONENT),
+      firstName,
+    });
+    packSections = assembled.sections;
+    packSectionsOmitted = assembled.drops.packSectionsOmitted;
+    packBlocksSkippedNotBuilt = assembled.drops.packBlocksSkippedNotBuilt;
+    packBlocksUnknown = assembled.drops.packBlocksUnknown;
+  }
+
   return {
     view: {
       schema: STUDY_VIEW_SCHEMA,
@@ -608,12 +652,16 @@ export function buildStudyView(
       ...(packMeta ? { packMeta } : {}),
       ...(personaCoverageCard && personaCoverageCard.length > 0 ? { personaCoverageCard } : {}),
       ...(writtenFor ? { writtenFor } : {}),
+      ...(packSections && packSections.length > 0 ? { packSections } : {}),
     },
     drops: {
       sentencesDropped,
       unknownBlockNamesIgnored,
       unknownFactIdsStripped: unknownFactIdsStripped + extraUnknownFactIds,
       invalidWriteComponentsDropped,
+      ...(packSectionsOmitted !== undefined ? { packSectionsOmitted } : {}),
+      ...(packBlocksSkippedNotBuilt !== undefined ? { packBlocksSkippedNotBuilt } : {}),
+      ...(packBlocksUnknown !== undefined ? { packBlocksUnknown } : {}),
     },
   };
 }
@@ -656,8 +704,9 @@ export function buildStudyViewSources(
     }
   }
   const documents: Record<string, { fileName: string }> = {};
+  const fileNameFor = (id: string) => fileNames.get(id.toLowerCase()) ?? fileNames.get(id) ?? "";
   for (const id of documentIds) {
-    documents[id] = { fileName: fileNames.get(id.toLowerCase()) ?? fileNames.get(id) ?? "Document" };
+    documents[id] = { fileName: fileNameFor(id) || id };
   }
   return { documents, facts: cited };
 }

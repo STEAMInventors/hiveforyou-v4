@@ -80,6 +80,8 @@ For each gap, also set:
 
 **Step 9 — Pack review (when pack fields are in the input).** Follow `packInstructions`. Cover both readers under `readers`. For each reader question, set `personaCoverage` with ANSWERABLE, PARTLY or NOT_ANSWERABLE. A specialist checklist is attached under `checks`. For every check return one verdict: SHOWN, PARTLY_SHOWN, NOT_SHOWN, CONFLICT or NOT_APPLICABLE. SHOWN, PARTLY_SHOWN and CONFLICT must cite fact ids; CONFLICT cites both sides. NOT_SHOWN means the facts do not show it — never that it did not happen. NOT_APPLICABLE needs a fact id showing why, or the note "condition not present". Add a note of at most 25 words saying what is or is not shown. Notes describe what the documents show or do not show. Never state a requirement or obligation; do not use must, required, should or shall. For each chain, return one row per starting item with a cell per link: the fact ids for that link, or missing. Do not use the readers, the checklist or the chains as a source of facts about this case.
 
+**Step 10 — Upload satisfaction (when `documentsUsuallyNeeded` is in the input).** For each listed document name, split the name on `;` into **parts**. Return `uploadSatisfaction`: an array of `{ document, parts: [{ part, satisfiedBy, factId }] }`. Set `satisfiedBy` to a `sourceDocumentId` and `factId` to a fact id from that document **only when a cited fact from that upload shows the part is covered**. If no upload satisfies a part, set `satisfiedBy` and `factId` to null. Do not guess from titles alone.
+
 ### 3. Ids and length
 
 Give spine elements ids `S1`, `S2`, … so gaps can refer to them in `relatedSpineIds`; code renumbers every spine, outside-spine, conflict and gap id after your answer. Keep the whole answer compact: one sentence per statement, no quotes, no repeated explanations. If you run short of room, finish the spine, conflicts and gaps first; then shorten timeline and outside-spine statements before you leave out any dated event.
@@ -123,6 +125,12 @@ Return only the JSON object below. No prose before or after it, no markdown fenc
   "questionOrder": ["T1"],
   "standingQuestions": [{ "id": "SQ1", "applies": true, "factIds": [] }],
   "studyDate": "YYYY-MM-DD",
+  "uploadSatisfaction": [
+    {
+      "document": "Document name from documentsUsuallyNeeded",
+      "parts": [{ "part": "one semicolon-separated part", "satisfiedBy": "uuid|null", "factId": "F…|null" }]
+    }
+  ],
   "gaps": [
     {
       "id": "X1",

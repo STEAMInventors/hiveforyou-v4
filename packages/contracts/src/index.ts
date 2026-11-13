@@ -43,6 +43,7 @@ export * from "./pipeline/pack-canonicalize";
 export * from "./pipeline/pack-selection";
 export * from "./pipeline/pack-study-view";
 export * from "./pipeline/pack-write";
+export * from "./pipeline/pack-report-view";
 export * from "./pipeline/canonical-gap-holders";
 export * from "./pipeline/missing-documents";
 export * from "./pipeline/gap-fill";

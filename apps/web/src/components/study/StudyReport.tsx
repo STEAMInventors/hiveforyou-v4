@@ -27,6 +27,7 @@ import { groupMissing, MissingList, missingCount } from "./MissingList";
 import { studyDocumentRequestCount } from "./study-summary";
 import { ReadProblemNotice, readProblemsFromCoverage } from "./ReadProblemNotice";
 import { ReportFooter } from "./ReportFooter";
+import { PackReportSections } from "./PackReportSections";
 import { type ChipRef, shortDocumentLabels, shortTypeChipLabels, SourceChips } from "./SourceChip";
 import { countStates, spineRowState, StateBar } from "./StateBar";
 import { STUDY_SECTION_IDS, studyStateTargets } from "./study-summary";
@@ -69,7 +70,7 @@ const DETAIL_SECTION_IDS: ReadonlySet<string> = new Set([SECTION_IDS.establish, 
 const CARD = "flex flex-col rounded-card border border-line bg-paper p-5 sm:p-7";
 const SECTION_HEADING = "m-0 font-brand text-section font-semibold text-ink";
 
-const writtenFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const writtenFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 /** The first sentence of the owner's intent, sentence case, at most 120 characters. */
 export function titleFromIntent(intent: string | undefined): string | null {
@@ -258,15 +259,18 @@ export function StudyReport({
     });
   }
 
-  const narrative = isReport ? view.sections : [];
+  const packSections = isReport && (view.packSections?.length ?? 0) > 0 ? view.packSections! : null;
+  const narrative = isReport && !packSections ? view.sections : [];
   const hasEstablish = model.spine.length > 0 || model.outsideSpine.length > 0 || !!model.structuralNote;
   const requestList =
     model.documentRequestList && documentRequestListHasContent(model.documentRequestList) ? model.documentRequestList : null;
   const hasAskSection = requestList !== null || model.missing.unreadable.length > 0 || missingCount(model.missing) > 0;
 
   const toc: { id: string; label: string }[] = [
-    ...(glanceRows.length > 0 ? [{ id: SECTION_IDS.glance, label: "At a glance" }] : []),
-    ...narrative.map((section, index) => ({ id: `narrative-${index + 1}`, label: section.heading })),
+    ...(glanceRows.length > 0 && !packSections ? [{ id: SECTION_IDS.glance, label: "At a glance" }] : []),
+    ...(packSections
+      ? packSections.map((section) => ({ id: `pack-section-${section.order}`, label: section.heading }))
+      : narrative.map((section, index) => ({ id: `narrative-${index + 1}`, label: section.heading }))),
     ...(model.conflicts.length > 0 ? [{ id: SECTION_IDS.disagree, label: "Where the documents disagree" }] : []),
     ...(!customer && hasEstablish ? [{ id: SECTION_IDS.establish, label: "What the documents establish" }] : []),
     ...(hasAskSection ? [{ id: SECTION_IDS.missing, label: "Missing documents" }] : []),
@@ -418,7 +422,19 @@ export function StudyReport({
             </section>
           ) : null}
 
-          {narrative.map((section, sectionIndex) => (
+          {packSections ? (
+            <PackReportSections
+              sections={packSections}
+              customer={customer}
+              sentenceChips={sentenceChips}
+              documentDate={model.documentDate}
+              unreadableIds={model.unreadableIds}
+              pageCountFor={pageCountFor}
+            />
+          ) : null}
+
+          {!packSections
+            ? narrative.map((section, sectionIndex) => (
             <section
               key={`narrative-${sectionIndex + 1}`}
               id={`narrative-${sectionIndex + 1}`}
@@ -442,9 +458,10 @@ export function StudyReport({
                 </p>
               ))}
             </section>
-          ))}
+          ))
+            : null}
 
-          {model.conflicts.length > 0 ? (
+          {!packSections && model.conflicts.length > 0 ? (
             <section id={SECTION_IDS.disagree} tabIndex={-1} aria-labelledby={`${SECTION_IDS.disagree}-h`} className={`flex flex-col ${cardGap}`}>
               <h3 id={`${SECTION_IDS.disagree}-h`} className={`${SECTION_HEADING} px-1`}>
                 Where the documents disagree
@@ -455,9 +472,9 @@ export function StudyReport({
             </section>
           ) : null}
 
-          {!customer ? establishCard : null}
+          {!packSections && !customer ? establishCard : null}
 
-          {hasAskSection ? (
+          {!packSections && hasAskSection ? (
             <section id={SECTION_IDS.missing} tabIndex={-1} aria-labelledby={`${SECTION_IDS.missing}-h`} className={`${CARD} ${cardGap}`}>
               <h3 id={`${SECTION_IDS.missing}-h`} className={SECTION_HEADING}>
                 Missing documents
@@ -469,7 +486,7 @@ export function StudyReport({
             </section>
           ) : null}
 
-          {customer ? (
+          {!packSections && customer ? (
             establishCard || timelineCard || documentsCard ? (
               <>
                 <button
@@ -489,12 +506,12 @@ export function StudyReport({
                 </div>
               </>
             ) : null
-          ) : (
+          ) : !packSections ? (
             <>
               {timelineCard}
               {documentsCard}
             </>
-          )}
+          ) : null}
 
           <ReportFooter />
         </div>

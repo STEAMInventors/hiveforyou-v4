@@ -216,14 +216,23 @@ export function buildTermsRows(pack: Pack, facts: readonly WriteFactRecord[]): S
     }));
 }
 
+function generalNoteRows(notes: Pack["generalNotes"]): StudyViewRow[] {
+  return notes.map((note) => ({
+    id: note.id,
+    statement: note.text,
+    values: [],
+  }));
+}
+
 export function buildGeneralNotesRows(pack: Pack): StudyViewRow[] {
-  return pack.generalNotes
-    .filter((note) => note.showWhen.toLowerCase() === "always")
-    .map((note) => ({
-      id: note.id,
-      statement: note.text,
-      values: [],
-    }));
+  return generalNoteRows(pack.generalNotes.filter((note) => note.showWhen.toLowerCase() === "always"));
+}
+
+export function buildGeneralNotesRowsForIds(pack: Pack, noteIds: readonly string[]): StudyViewRow[] {
+  if (noteIds.length === 0) return buildGeneralNotesRows(pack);
+  const want = new Set(noteIds.map((id) => id.trim().toUpperCase()));
+  const selected = pack.generalNotes.filter((note) => want.has(note.id.toUpperCase()));
+  return generalNoteRows(selected.length > 0 ? selected : pack.generalNotes.filter((note) => note.showWhen.toLowerCase() === "always"));
 }
 
 export function buildPersonaCoverageCard(

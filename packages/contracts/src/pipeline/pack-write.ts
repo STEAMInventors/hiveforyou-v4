@@ -79,8 +79,11 @@ export function enforcePackWriteOrder(
   const ordered: WriteSection[] = [];
   for (const spec of template.sort((a, b) => a.order - b.order)) {
     const match = byHeading.get(sectionKey(spec.heading));
-    if (match) ordered.push(match);
-    else drops.sectionsReordered += 1;
+    if (match) ordered.push({ ...match, heading: spec.heading });
+    else {
+      drops.sectionsReordered += 1;
+      ordered.push({ heading: spec.heading, paragraphs: [] });
+    }
   }
   if (ordered.length < writeOutput.sections.length) drops.sectionsReordered += writeOutput.sections.length - ordered.length;
 

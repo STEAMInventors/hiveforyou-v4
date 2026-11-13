@@ -48,6 +48,29 @@ function renderViewHtml(view: StudyView, audience: string, intent: string): stri
     `<p class="meta"><strong>Audience:</strong> ${escapeHtml(audience)}</p>`,
     `<p class="meta"><strong>Intent:</strong> ${escapeHtml(intent)}</p>`,
   ];
+  if (view.packSections && view.packSections.length > 0) {
+    parts.push("<h2>Pack report sections</h2><ol>");
+    for (const section of view.packSections) {
+      parts.push(`<li><strong>${escapeHtml(`${section.order}. ${section.heading}`)}</strong> — blocks: ${escapeHtml(section.blocks.map((b) => b.name).join(", "))}</li>`);
+    }
+    parts.push("</ol>");
+    for (const section of view.packSections) {
+      parts.push(`<h2>${escapeHtml(`${section.order}. ${section.heading}`)}</h2>`);
+      for (const block of section.blocks) {
+        parts.push(`<h3>${escapeHtml(block.name)}</h3>`);
+        if (block.rows.length === 0) {
+          parts.push("<p><em>None</em></p>");
+          continue;
+        }
+        parts.push("<table><thead><tr><th>Id</th><th>Summary</th></tr></thead><tbody>");
+        for (const row of block.rows) {
+          const summary = row.label ?? row.statement ?? row.typeInPlainWords ?? row.id;
+          parts.push(`<tr><td>${escapeHtml(row.id)}</td><td>${escapeHtml(summary ?? "")}</td></tr>`);
+        }
+        parts.push("</tbody></table>");
+      }
+    }
+  }
   for (const section of view.sections) {
     parts.push(`<h2>${escapeHtml(section.heading)}</h2>`);
     for (const paragraph of section.paragraphs) {

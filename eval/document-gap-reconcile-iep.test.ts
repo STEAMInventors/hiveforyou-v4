@@ -25,7 +25,7 @@ describe("document-gap-reconcile (iep-initial pack)", () => {
   }
   const pack = iepPack.value;
 
-  it("matches consent parts when uploaded titles overlap pack tokens", () => {
+  it("drops satisfied consent parts from uploadSatisfaction judgments", () => {
     const study: CanonicalStudy = {
       schema: CANONICAL_STUDY_SCHEMA,
       domainLabel: "",
@@ -45,9 +45,17 @@ describe("document-gap-reconcile (iep-initial pack)", () => {
       conflicts: [],
       timeline: [],
       gaps: [],
+      uploadSatisfaction: [
+        {
+          document: "Signed consent to evaluate; consent for services",
+          parts: [
+            { part: "Signed consent to evaluate", satisfiedBy: "d1", factId: "F1" },
+            { part: "consent for services", satisfiedBy: null, factId: null },
+          ],
+        },
+      ],
     };
     const withEvaluate = "Signed consent to evaluate; consent for services";
-    expect(documentPartSatisfied("Signed consent to evaluate", study)).toBe(true);
     expect(documentExpectationCoverage(withEvaluate, study).remainingTitle?.toLowerCase()).toContain("consent for services");
   });
 
@@ -183,6 +191,15 @@ describe("document-gap-reconcile (iep-initial pack)", () => {
       timeline: [],
       checklist: unsettled.map((checkId) => ({ checkId, verdict: "NOT_SHOWN" as const, factIds: [], note: "" })),
       gaps: [],
+      uploadSatisfaction: [
+        {
+          document: "Signed consent to evaluate; consent for services",
+          parts: [
+            { part: "Signed consent to evaluate", satisfiedBy: "d1", factId: "F-consent" },
+            { part: "consent for services", satisfiedBy: null, factId: null },
+          ],
+        },
+      ],
     };
     const { study: reconciled, intakePrompts } = reconcilePackDocumentGaps(study, pack);
     const listData = buildDocumentRequestListData(reconciled);

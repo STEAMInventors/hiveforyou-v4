@@ -627,7 +627,12 @@ async function processStudyViewReportRun(
     if (!saving.applied) return saving.reportRun?.status ?? null;
     current = "SAVING";
 
-    const sources = buildStudyViewSources(result.view, inputs.facts, inputs.fileNames);
+    const chipFileNames = new Map(inputs.fileNames);
+    for (const document of inputs.canonicalStudy.documents) {
+      const label = document.typeInPlainWords.trim();
+      if (label !== "") chipFileNames.set(document.sourceDocumentId.toLowerCase(), label);
+    }
+    const sources = buildStudyViewSources(result.view, inputs.facts, chipFileNames);
     const lastOk = [...result.calls].reverse().find((call) => call.outcome === "ok");
     const saved = await rpc(deps.client, "save_report", {
       p_report_run_id: reportRunId,

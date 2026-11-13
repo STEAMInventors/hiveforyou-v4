@@ -2,7 +2,8 @@
  * Verify-or-drop for pack-shaped canonicalize output (checklist, chains, personaCoverage, questionOrder).
  */
 
-import type { CanonicalStudy } from "./canonical-study-contracts";
+import type { CanonicalStudy, UploadSatisfactionPart, UploadSatisfactionRow } from "./canonical-study-contracts";
+import { isValidUuid } from "../hives/hive-contracts";
 import type { Pack, PackCheck, PackStandingQuestion } from "./pack-contracts";
 import { mergePackSettlesGaps } from "./document-gap-reconcile";
 
@@ -64,6 +65,7 @@ export type PackCanonicalizeDrops = {
   checksNotAssessed: number;
   personaQuestionsNotAssessed: number;
   standingQuestionsNotAssessed: number;
+  uploadSatisfactionPartsDropped: number;
 };
 
 export type PackCanonicalStudyFields = {
@@ -249,6 +251,57 @@ function parseStandingQuestions(
   return [...byId.values()];
 }
 
+function parseUploadSatisfaction(
+  raw: unknown,
+  pack: Pack,
+  known: ReadonlySet<string>,
+  factsByDocument: ReadonlyMap<string, ReadonlySet<string>>,
+  drops: PackCanonicalizeDrops,
+): UploadSatisfactionRow[] {
+  const expected = new Set(pack.documentsUsuallyNeeded.map((row) => row.document.trim().toLowerCase()));
+  const out: UploadSatisfactionRow[] = [];
+  for (const row of arr(raw)) {
+    if (!isRecord(row)) continue;
+    const document = str(row.document);
+    if (document === "" || !expected.has(document.toLowerCase())) {
+      drops.uploadSatisfactionPartsDropped += 1;
+      continue;
+    }
+    const parts: UploadSatisfactionPart[] = [];
+    for (const partRow of arr(row.parts)) {
+      if (!isRecord(partRow)) continue;
+      const part = str(partRow.part);
+      if (part === "") {
+        drops.uploadSatisfactionPartsDropped += 1;
+        continue;
+      }
+      const satisfiedRaw = str(partRow.satisfiedBy).toLowerCase();
+      const satisfiedBy = isValidUuid(satisfiedRaw) ? satisfiedRaw : null;
+      const factId = str(partRow.factId);
+      if (satisfiedBy !== null) {
+        if (!factsByDocument.has(satisfiedBy)) {
+          drops.uploadSatisfactionPartsDropped += 1;
+          continue;
+        }
+        if (factId === "" || !known.has(factId)) {
+          drops.uploadSatisfactionPartsDropped += 1;
+          continue;
+        }
+        const docFacts = factsByDocument.get(satisfiedBy);
+        if (!docFacts?.has(factId)) {
+          drops.uploadSatisfactionPartsDropped += 1;
+          continue;
+        }
+        parts.push({ part, satisfiedBy, factId });
+      } else {
+        parts.push({ part, satisfiedBy: null, factId: factId !== "" && known.has(factId) ? factId : null });
+      }
+    }
+    if (parts.length > 0) out.push({ document, parts });
+  }
+  return out;
+}
+
 function parseQuestionOrder(
   raw: unknown,
   pack: Pack,
@@ -280,12 +333,24 @@ function parseQuestionOrder(
   return order;
 }
 
+function factsByDocumentMap(factSourceDocumentIds: ReadonlyMap<string, string>): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const [factId, documentId] of factSourceDocumentIds) {
+    const key = documentId.toLowerCase();
+    const set = out.get(key) ?? new Set<string>();
+    set.add(factId);
+    out.set(key, set);
+  }
+  return out;
+}
+
 export function applyPackCanonicalizeOutput(
   study: CanonicalStudy,
   pack: Pack,
   packRef: { id: string; version: number },
   raw: Record<string, unknown>,
   knownFactIds: ReadonlySet<string>,
+  factSourceDocumentIds: ReadonlyMap<string, string> = new Map(),
 ): { study: CanonicalStudy; drops: PackCanonicalizeDrops } {
   const drops: PackCanonicalizeDrops = {
     unknownCheckIds: 0,
@@ -298,12 +363,15 @@ export function applyPackCanonicalizeOutput(
     checksNotAssessed: 0,
     personaQuestionsNotAssessed: 0,
     standingQuestionsNotAssessed: 0,
+    uploadSatisfactionPartsDropped: 0,
   };
+  const factsByDocument = factsByDocumentMap(factSourceDocumentIds);
   const checklist = parseChecklist(raw.checklist, pack, knownFactIds, drops);
   const chains = parseChains(raw.chains, pack, knownFactIds, drops);
   const personaCoverage = parsePersonaCoverage(raw.personaCoverage, pack, knownFactIds, drops);
   const standingQuestions = parseStandingQuestions(raw.standingQuestions, pack, knownFactIds, drops);
   const questionOrder = parseQuestionOrder(raw.questionOrder, pack, checklist, standingQuestions);
+  const uploadSatisfaction = parseUploadSatisfaction(raw.uploadSatisfaction, pack, knownFactIds, factsByDocument, drops);
   const withPack: CanonicalStudy = {
     ...study,
     checklist,
@@ -312,6 +380,7 @@ export function applyPackCanonicalizeOutput(
     standingQuestions,
     questionOrder,
     packRef,
+    ...(uploadSatisfaction.length > 0 ? { uploadSatisfaction } : {}),
   };
   return { study: mergePackSettlesGaps(withPack, pack, checklist), drops };
 }

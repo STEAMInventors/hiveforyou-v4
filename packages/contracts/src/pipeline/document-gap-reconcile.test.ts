@@ -55,7 +55,7 @@ describe("document-gap-reconcile", () => {
     expect(documentExpectationCoverage("Calibration card for line 2", study).satisfied).toBe(false);
   });
 
-  it("matches uploaded titles via generic token overlap on each semicolon part", () => {
+  it("drops satisfied parts using uploadSatisfaction judgments", () => {
     const study: CanonicalStudy = {
       schema: CANONICAL_STUDY_SCHEMA,
       domainLabel: "",
@@ -75,12 +75,19 @@ describe("document-gap-reconcile", () => {
       conflicts: [],
       timeline: [],
       gaps: [],
+      uploadSatisfaction: [
+        {
+          document: "Signed notice before testing; Weekly progress log",
+          parts: [
+            { part: "Signed notice before testing", satisfiedBy: "d1", factId: "F1" },
+            { part: "Weekly progress log", satisfiedBy: null, factId: null },
+          ],
+        },
+      ],
     };
-    expect(documentPartSatisfied("Calibration card for line 2", study)).toBe(true);
     const partial = "Signed notice before testing; Weekly progress log";
+    expect(documentExpectationCoverage(partial, study).remainingTitle?.toLowerCase()).toContain("weekly progress");
     expect(documentExpectationCoverage(partial, study).satisfied).toBe(false);
-    expect(documentPartSatisfied("Signed notice before testing", study)).toBe(false);
-    expect(documentPartSatisfied("Weekly progress log", study)).toBe(false);
   });
 
   it("formats multi-check reasons with one lead and bullets", () => {

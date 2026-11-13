@@ -373,7 +373,15 @@ export async function canonicalizeCase(input: CanonicalizeInput): Promise<Canoni
   const withFilledGapsDropped = dropGapsFilledByUpload(withoutPipelineLanguage.study, filledGapTitles(gapFillLinks));
   let study = assignCanonicalGapHolderTypes(withFilledGapsDropped);
   if (pack && input.packRef && !pack.briefOnly && rawContent) {
-    study = { ...applyPackCanonicalizeOutput(study, pack, input.packRef, rawContent, knownFactIds).study, studyDate };
+    const factSourceDocumentIds = new Map(
+      input.extractions.flatMap((extraction) =>
+        extraction.facts.map((fact) => [fact.id, extraction.documentId.toLowerCase()] as const),
+      ),
+    );
+    study = {
+      ...applyPackCanonicalizeOutput(study, pack, input.packRef, rawContent, knownFactIds, factSourceDocumentIds).study,
+      studyDate,
+    };
   }
   return { ok: true, study, drops: verified.drops, malformed, payloadBytes: Buffer.byteLength(JSON.stringify(payload), "utf8"), calls };
 }

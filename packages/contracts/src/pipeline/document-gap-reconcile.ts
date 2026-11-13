@@ -4,7 +4,7 @@
  */
 
 import type { CanonicalGap, CanonicalStudy } from "./canonical-study-contracts";
-import type { Pack, PackCheck, PackDocumentExpectation } from "./pack-contracts";
+import type { Pack, PackAudience, PackCheck, PackDocumentExpectation } from "./pack-contracts";
 import type { CanonicalChecklistItem } from "./pack-canonicalize";
 import { inferGapHolderType } from "./canonical-gap-holders";
 import { normalizeGapTitle } from "./gap-fill";
@@ -36,20 +36,29 @@ function unsettledCheckIds(checklist: readonly CanonicalChecklistItem[] | undefi
   return out;
 }
 
-export function recordReasonForCheck(pack: Pack, checkId: string): string {
+function recordReasonText(pack: Pack, checkId: string, audience: PackAudience | "professional" = "professional"): string {
   const def = checksById(pack).get(checkId);
-  if (!def?.check) return "";
-  const text = def.check.trim();
+  if (!def) return "";
+  const text = (audience === "customer" ? def.question || def.check : def.check).replace(/\s+/g, " ").trim();
+  return text;
+}
+
+export function recordReasonForCheck(pack: Pack, checkId: string, audience: PackAudience | "professional" = "professional"): string {
+  const text = recordReasonText(pack, checkId, audience);
   return text === "" ? "" : `These documents don't show: ${text}`;
 }
 
 /** One lead line plus check texts for request-list bullets (no repeated lead). */
-export function recordReasonsForChecks(pack: Pack, checkIds: readonly string[]): { lead: string; bullets: string[] } {
+export function recordReasonsForChecks(
+  pack: Pack,
+  checkIds: readonly string[],
+  audience: PackAudience | "professional" = "professional",
+): { lead: string; bullets: string[] } {
   const lead = "These documents don't show:";
   const bullets: string[] = [];
   const seen = new Set<string>();
   for (const checkId of checkIds) {
-    const text = checksById(pack).get(checkId)?.check.replace(/\s+/g, " ").trim() ?? "";
+    const text = recordReasonText(pack, checkId, audience);
     if (text === "") continue;
     const key = text.toLowerCase();
     if (seen.has(key)) continue;
@@ -59,8 +68,12 @@ export function recordReasonsForChecks(pack: Pack, checkIds: readonly string[]):
   return { lead, bullets };
 }
 
-export function formatRecordReasonsForChecks(pack: Pack, checkIds: readonly string[]): string {
-  const { lead, bullets } = recordReasonsForChecks(pack, checkIds);
+export function formatRecordReasonsForChecks(
+  pack: Pack,
+  checkIds: readonly string[],
+  audience: PackAudience | "professional" = "professional",
+): string {
+  const { lead, bullets } = recordReasonsForChecks(pack, checkIds, audience);
   if (bullets.length === 0) return "";
   if (bullets.length === 1) return `${lead} ${bullets[0]}`;
   return `${lead}\n${bullets.map((line) => `• ${line}`).join("\n")}`;
@@ -197,15 +210,16 @@ function corpusText(study: CanonicalStudy): string {
   return corpusDocumentTypes(study).join(" ").toLowerCase();
 }
 
-const UPLOAD_PART_OVERLAP_THRESHOLD = 0.55;
+function uploadRowForExpectation(study: CanonicalStudy, expectation: string) {
+  const key = normalizeGapTitle(expectation);
+  return (study.uploadSatisfaction ?? []).find((row) => normalizeGapTitle(row.document) === key);
+}
 
-/** Uploaded inventory covers this semicolon-separated document part (type/title tokens). */
-export function documentPartSatisfied(part: string, study: CanonicalStudy): boolean {
-  const corpus = corpusText(study);
-  if (corpus.trim() === "") return false;
-  if (tokenOverlapShare([part], corpus) >= UPLOAD_PART_OVERLAP_THRESHOLD) return true;
-  const types = corpusDocumentTypes(study);
-  return types.some((type) => tokenOverlapShare([part], type) >= UPLOAD_PART_OVERLAP_THRESHOLD);
+function partSatisfiedByUpload(study: CanonicalStudy, part: string, expectation: string): boolean {
+  const row = uploadRowForExpectation(study, expectation);
+  if (!row) return false;
+  const match = row.parts.find((item) => item.part.trim().toLowerCase() === part.trim().toLowerCase());
+  return match !== undefined && match.satisfiedBy !== null && match.factId !== null;
 }
 
 /** Whether the uploaded inventory already covers this expectation (whole or in part). */
@@ -213,13 +227,20 @@ export function documentExpectationCoverage(
   expectation: string,
   study: CanonicalStudy,
 ): { satisfied: boolean; remainingTitle?: string } {
-  if (corpusText(study).trim() === "") return { satisfied: false };
   const parts = splitDocumentParts(expectation);
   if (parts.length === 0) return { satisfied: false };
-  const missing = parts.filter((part) => !documentPartSatisfied(part, study));
-  if (missing.length === 0) return { satisfied: true };
-  if (missing.length === parts.length) return { satisfied: false };
-  return { satisfied: false, remainingTitle: missing.join("; ") };
+  if ((study.uploadSatisfaction ?? []).length > 0) {
+    const missing = parts.filter((part) => !partSatisfiedByUpload(study, part, expectation));
+    if (missing.length === 0) return { satisfied: true };
+    if (missing.length === parts.length) return { satisfied: false };
+    return { satisfied: false, remainingTitle: missing.join("; ") };
+  }
+  return { satisfied: false, remainingTitle: expectation };
+}
+
+/** @deprecated Token overlap removed; kept for tests calling legacy API. */
+export function documentPartSatisfied(_part: string, _study: CanonicalStudy): boolean {
+  return false;
 }
 
 function dropSatisfiedExpectations(gaps: CanonicalGap[], study: CanonicalStudy): CanonicalGap[] {
@@ -357,7 +378,16 @@ export function reconcilePackDocumentGaps(
       continue;
     }
     if (addedPackRows.has(rowKey)) continue;
-    const gap = gapFromPackRow(row, pack, `X${nextId++}`, unsettled);
+    const coverage = documentExpectationCoverage(row.document, study);
+    if (coverage.satisfied) continue;
+    const gap = gapFromPackRow(
+      coverage.remainingTitle && coverage.remainingTitle !== row.document
+        ? { ...row, document: coverage.remainingTitle }
+        : row,
+      pack,
+      `X${nextId++}`,
+      unsettled,
+    );
     if (!gap) continue;
     packGapIds.add(gap.id);
     addedPackRows.add(rowKey);

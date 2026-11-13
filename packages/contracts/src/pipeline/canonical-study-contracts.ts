@@ -76,6 +76,18 @@ export type CanonicalGap = {
   settlesCheckIds?: string[];
 };
 
+export type UploadSatisfactionPart = {
+  readonly part: string;
+  readonly satisfiedBy: string | null;
+  readonly factId: string | null;
+};
+
+/** Model judgment per semicolon-separated part of a documentsUsuallyNeeded row. */
+export type UploadSatisfactionRow = {
+  readonly document: string;
+  readonly parts: readonly UploadSatisfactionPart[];
+};
+
 export type CanonicalStudy = {
   schema: typeof CANONICAL_STUDY_SCHEMA;
   documents: CanonicalDocument[];
@@ -93,6 +105,7 @@ export type CanonicalStudy = {
   questionOrder?: string[];
   studyDate?: string;
   packRef?: { id: string; version: number };
+  uploadSatisfaction?: readonly UploadSatisfactionRow[];
 };
 
 export type CanonicalStudyParse =
