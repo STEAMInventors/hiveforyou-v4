@@ -1,5 +1,6 @@
 import { isValidUuid } from "../hives/hive-contracts";
 import { parseCanonicalStudy, type CanonicalStudy } from "../pipeline/canonical-study-contracts";
+import type { Pack } from "../pipeline/pack-contracts";
 import {
   buildStudyView,
   buildStudyViewSources,
@@ -166,6 +167,7 @@ function referencedToStudyView(refs: readonly StudyTabViewReferencedRow[]): Stud
 export function buildStudyTabViewPayload(
   tab: GetStudyTabViewResponse,
   fileNames: ReadonlyMap<string, string>,
+  pack: Pack | null = null,
 ): { view: StudyView; sources: StudyViewSources } | null {
   if (!tab.canonicalStudy) return null;
 
@@ -182,13 +184,11 @@ export function buildStudyTabViewPayload(
   if (!parsed.ok) return null;
 
   const factRecords = factsToWriteRecords(tab.facts);
-  const context =
-    tab.referencedDocuments.length > 0 || tab.intent
-      ? {
-          ...(tab.intent ? { intent: tab.intent } : {}),
-          ...(tab.referencedDocuments.length > 0 ? { referencedDocuments: referencedToStudyView(tab.referencedDocuments) } : {}),
-        }
-      : {};
+  const context = {
+    ...(tab.intent ? { intent: tab.intent } : {}),
+    ...(tab.referencedDocuments.length > 0 ? { referencedDocuments: referencedToStudyView(tab.referencedDocuments) } : {}),
+    ...(pack ? { pack } : {}),
+  };
 
   const { view } = buildStudyView(tab.canonicalStudy, parsed.value, factRecords, parsed.malformed, context);
   const sources = buildStudyViewSources(view, factRecords, fileNames);
@@ -203,11 +203,12 @@ export type StudyTabViewBuild =
 export function buildStudyTabViewFromRpc(
   raw: unknown,
   fileNames: ReadonlyMap<string, string>,
+  pack: Pack | null = null,
 ): StudyTabViewBuild {
   const tab = normalizeGetStudyTabViewResponse(raw);
   if (!tab) return { ok: false, tab: null, reason: "response_shape" };
   if (!tab.canonicalStudy) return { ok: false, tab, reason: "no_canonical_study" };
-  const built = buildStudyTabViewPayload(tab, fileNames);
+  const built = buildStudyTabViewPayload(tab, fileNames, pack);
   if (!built) return { ok: false, tab, reason: "build_failed" };
   return { ok: true, tab, view: built.view, sources: built.sources };
 }

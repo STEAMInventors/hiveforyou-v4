@@ -17,6 +17,7 @@ import type { StateCounts } from "@/components/study/StateBar";
 import type { DisplayState } from "@/components/study/StatusBadge";
 import { studyStateCounts, studyStateTargets } from "@/components/study/study-summary";
 import { getHiveReports } from "@/server/reports/reports";
+import { loadPackById } from "@/server/pipeline/pack-loader";
 import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation/study-preparation";
 
 /** What the Hive page header and the My hives card show about a Hive. */
@@ -108,7 +109,11 @@ export async function loadHiveOverview(
       const fileNames = new Map(
         preparation.eligibility.documents.map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]),
       );
-      const built = buildStudyTabViewFromRpc(raw, fileNames);
+      const pack =
+        tab?.canonicalStudy?.packRef != null
+          ? loadPackById(tab.canonicalStudy.packRef.id, tab.canonicalStudy.packRef.version)
+          : null;
+      const built = buildStudyTabViewFromRpc(raw, fileNames, pack);
       if (built.ok) studyTab = { view: built.view, sources: built.sources };
     } catch {
       studyTab = null;

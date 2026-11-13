@@ -6,6 +6,7 @@ import { CANONICAL_STUDY_SCHEMA, type CanonicalStudy } from "./canonical-study-c
 import { askNowDocumentRequestCount, buildDocumentRequestListData } from "./document-request-list-contracts";
 import {
   documentExpectationCoverage,
+  findPackRowForModelGap,
   inferGapSettlesCheckIds,
   reconcilePackDocumentGaps,
   recordReasonForCheck,
@@ -46,7 +47,82 @@ describe("document-gap-reconcile", () => {
     expect(documentExpectationCoverage("Procedural safeguards notice", study).satisfied).toBe(false);
   });
 
-  it("dedupes model and pack gaps that settle the same check", () => {
+  it("keeps separate documents that settle the same check", () => {
+    const study: CanonicalStudy = {
+      schema: CANONICAL_STUDY_SCHEMA,
+      domainLabel: "",
+      spineSource: null,
+      documents: [],
+      spine: [],
+      outsideSpine: [],
+      conflicts: [],
+      timeline: [],
+      checklist: [{ checkId: "E3", verdict: "NOT_SHOWN", factIds: [], note: "" }],
+      gaps: [
+        {
+          id: "X1",
+          statement: "",
+          relatedSpineIds: [],
+          kind: "REQUESTABLE_DOCUMENT",
+          title: "Report cards",
+          why: "Model gap",
+          holder: "ASKER_OR_CLIENT",
+          holderType: "ASKER_OR_CLIENT",
+          when: null,
+          basisType: "MENTIONED",
+          relatedFactIds: [],
+          settlesCheckIds: ["E3"],
+        },
+      ],
+    };
+    const { study: reconciled } = reconcilePackDocumentGaps(study, pack);
+    const exclusionary = reconciled.gaps.find((gap) => /exclusionary/i.test(gap.title));
+    const reportCards = reconciled.gaps.find((gap) => /report card/i.test(gap.title));
+    expect(exclusionary).toBeDefined();
+    expect(reportCards).toBeDefined();
+    expect(exclusionary?.id).not.toBe(reportCards?.id);
+  });
+
+  it("matches model gap titles to pack rows when tokens are contained in the pack name", () => {
+    expect(
+      findPackRowForModelGap(
+        {
+          id: "X1",
+          statement: "",
+          relatedSpineIds: [],
+          kind: "REQUESTABLE_DOCUMENT",
+          title: "Meeting notice",
+          why: "",
+          holder: "",
+          holderType: null,
+          when: null,
+          basisType: "MENTIONED",
+          relatedFactIds: [],
+        },
+        pack,
+      )?.document.toLowerCase(),
+    ).toContain("meeting notice");
+    expect(
+      findPackRowForModelGap(
+        {
+          id: "X2",
+          statement: "",
+          relatedSpineIds: [],
+          kind: "REQUESTABLE_DOCUMENT",
+          title: "Classroom observation report",
+          why: "",
+          holder: "",
+          holderType: null,
+          when: null,
+          basisType: "MENTIONED",
+          relatedFactIds: [],
+        },
+        pack,
+      )?.document.toLowerCase(),
+    ).toContain("classroom observation");
+  });
+
+  it("dedupes model and pack gaps for the same document", () => {
     const study: CanonicalStudy = {
       schema: CANONICAL_STUDY_SCHEMA,
       domainLabel: "",
@@ -105,10 +181,12 @@ describe("document-gap-reconcile", () => {
     const askNow = askNowDocumentRequestCount({ ...listData, intakePrompts });
     const { view } = buildStudyView(reconciled, { sections: [], blocks: [], components: [{ name: "DocumentRequestList" }] }, [], {}, { pack, reportAudience: "customer" });
     const component = view.components?.[0];
-    expect(component?.items.filter((item) => item.kind === "REQUESTABLE_DOCUMENT").length).toBe(askNow);
+    expect(askNowDocumentRequestCount({ items: component?.items ?? [], observations: [], courtRecordCount: 0, legacyLines: [] })).toBe(
+      askNow,
+    );
     expect(askNow).toBeGreaterThan(0);
     expect(intakePrompts.some((row) => row.text.toLowerCase().includes("private evaluation"))).toBe(true);
-    // Snapshot for special-ed-l001-shaped corpora after reconcile (revision-4-style gap set).
-    expect(askNow).toBe(7);
+  // Snapshot for special-ed-l001-shaped corpora (no merge-by-check; consent partial upload).
+    expect(askNow).toBe(9);
   });
 });

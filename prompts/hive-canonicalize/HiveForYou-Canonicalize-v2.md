@@ -70,7 +70,7 @@ With `TIMELINE` or `PARTIES_AND_OBLIGATIONS`, the **first gap** must say that no
 For each gap, also set:
 
 - `kind`: `REQUESTABLE_DOCUMENT` (someone can supply a document now), `FUTURE_RECORD` (a ruling, decision or record expected later — include `when` as written), or `OBSERVATION` (a processing or coverage limit that is not a document request — use `relatedFactIds` when a fact row should show the note).
-- `title`: short name of the document or record (not for `OBSERVATION`).
+- `title`: short name of the document or record (not for `OBSERVATION`). When a gap is a document listed under `documentsUsuallyNeeded`, use that exact document name.
 - `why`: one plain sentence for the reader.
 - `holder`: who likely has it (empty if unknown).
 - `holderType`: for `REQUESTABLE_DOCUMENT` only — `ASKER_OR_CLIENT`, `COUNSEL`, `THIRD_PARTY`, or `COURT_RECORD` (proofs of claim and other claims-register items only; code validates).

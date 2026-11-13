@@ -21,6 +21,7 @@ import {
 } from "./pack-study-view";
 import { capCustomerQuestions } from "./pack-write";
 import { reconcilePackDocumentGaps } from "./document-gap-reconcile";
+import { spineCheckAnnotation } from "./spine-check-display";
 import { displayValueForWrittenText } from "./fact-display-value";
 import {
   buildDocumentRequestListData,
@@ -108,6 +109,8 @@ export type StudyViewRow = {
   readonly chainPosition?: number | null;
   readonly relatedSpineIds?: readonly string[];
   readonly missing?: readonly string[];
+  /** Pack spine rows: checklist issue lines with verdict prefixes. */
+  readonly issues?: readonly string[];
   /** Gaps only: pages of supplied documents that refer to the missing document. */
   readonly referencedBy?: readonly StudyViewSourceRef[];
   readonly values: readonly StudyViewValue[];
@@ -363,16 +366,23 @@ function buildDocumentsBlock(study: CanonicalStudy): StudyViewRow[] {
   );
 }
 
-function buildSpineBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>): StudyViewRow[] {
+function buildSpineBlock(study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext): StudyViewRow[] {
+  const pack = context.pack;
   return dedupeRows(
     study.spine.map((element) => {
       const seen = new Set<string>();
+      const annotation = pack && !pack.briefOnly ? spineCheckAnnotation(study, pack, element) : null;
+      const status =
+        pack && !pack.briefOnly
+          ? annotation?.displayVerdict ?? null
+          : element.status;
       return {
         id: element.id,
         label: element.label,
         kind: element.kind || null,
-        status: element.status,
+        status,
         missing: element.missing,
+        ...(annotation && annotation.issueLines.length > 0 ? { issues: annotation.issueLines } : {}),
         values: [
           ...valuesForFactIds(element.supportingFactIds, facts, "supporting", seen, study.spine),
           ...valuesForFactIds(element.contradictingFactIds, facts, "contradicting", seen, study.spine),
@@ -457,7 +467,7 @@ const BLOCK_BUILDERS: Record<
   (study: CanonicalStudy, facts: ReadonlyMap<string, WriteFactRecord>, context: StudyViewContext) => StudyViewRow[]
 > = {
   documents: (study) => buildDocumentsBlock(study),
-  spine_table: buildSpineBlock,
+  spine_table: (study, facts, context) => buildSpineBlock(study, facts, context),
   conflicts: buildConflictsBlock,
   timeline: buildTimelineBlock,
   outside_spine: buildOutsideSpineBlock,

@@ -42,7 +42,12 @@ export function EstablishTable({
     observations.filter((observation) => observation.relatedSpineIds.includes(spineId)).map((observation) => observation.text);
   const cell = `border-b border-line px-3 align-top first:pl-0 last:pr-0 ${compact ? "py-2.5" : "py-4"}`;
   const head = "border-b border-line px-3 pb-2 text-left text-caption font-semibold text-quiet first:pl-0 last:pr-0";
-  const showStatusColumn = statusMode === "checklist" && rows.some((row) => rowHasChecklistVerdict(row));
+  const showStatusColumn =
+    statusMode === "checklist"
+      ? rows.some((row) => rowHasChecklistVerdict(row))
+      : statusMode === "spine"
+        ? rows.some((row) => rowHasChecklistVerdict(row))
+        : false;
   return (
     <div className="overflow-x-auto" role="region" aria-label="What the documents establish" tabIndex={0}>
       <table className="w-full min-w-[560px] border-collapse text-body" data-testid="establish-table">
@@ -67,9 +72,10 @@ export function EstablishTable({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const state = spineRowState(row);
             const verdict = checklistVerdictLabel(row.status);
+            const state = verdict ? null : spineRowState(row);
             const notes = observationFor(row.id);
+            const issueLines = row.issues ?? [];
             return (
               <tr key={row.id} data-row-id={row.id}>
                 {showStatusColumn ? (
@@ -82,6 +88,11 @@ export function EstablishTable({
                   {row.missing && row.missing.length > 0 ? (
                     <span className="mt-1 block text-small text-coral-deep">Missing: {row.missing.join("; ")}</span>
                   ) : null}
+                  {issueLines.map((text) => (
+                    <span key={text} className="mt-1 block text-small text-graphite" data-spine-issue="true">
+                      {text}
+                    </span>
+                  ))}
                   {notes.map((text) => (
                     <span key={text} className="mt-1 block text-small text-graphite" data-observation="true">
                       {text}

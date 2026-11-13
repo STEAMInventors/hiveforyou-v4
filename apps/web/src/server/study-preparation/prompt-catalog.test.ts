@@ -99,6 +99,8 @@ describe("loadPromptCatalog", () => {
     expect(canonicalizeV2.systemPrompt).toContain(
       "Notes describe what the documents show or do not show. Never state a requirement or obligation; do not use must, required, should or shall.",
     );
+    expect(canonicalizeV2.systemPrompt).toContain("documentsUsuallyNeeded");
+    expect(canonicalizeV2.systemPrompt).toContain("use that exact document name");
   });
 
   it("loads hive-write/1 as the System and Output sections", () => {

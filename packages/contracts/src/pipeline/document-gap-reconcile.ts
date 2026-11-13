@@ -1,5 +1,5 @@
 /**
- * Pack-driven document gaps: dedupe by settles check, drop uploaded corpus matches,
+ * Pack-driven document gaps: one request per document, drop uploaded corpus matches,
  * intake prompts for conditional rows, and record-style reasons from the pack checklist.
  */
 
@@ -60,14 +60,55 @@ function packRowForTitle(pack: Pack, title: string): PackDocumentExpectation | u
   return pack.documentsUsuallyNeeded.find((row) => normalizeGapTitle(row.document) === key);
 }
 
+/** Model gap title tokens are contained in the pack row name (generic; no domain terms). */
+export function findPackRowForModelGap(gap: CanonicalGap, pack: Pack): PackDocumentExpectation | undefined {
+  const exact = packRowForTitle(pack, gap.title || gap.statement);
+  if (exact) return exact;
+  const probe = (gap.title || gap.statement).trim();
+  if (probe === "") return undefined;
+  const gapTokens = matchTokens(probe);
+  if (gapTokens.length === 0) return undefined;
+  const gapSettles = gap.settlesCheckIds ?? [];
+  let best: PackDocumentExpectation | undefined;
+  let bestScore = 0;
+  for (const row of pack.documentsUsuallyNeeded) {
+    const rowHaystack = row.document.toLowerCase();
+    if (gapSettles.length > 0 && gapSettles.some((checkId) => row.settlesCheckIds.includes(checkId))) {
+      if (gapTokens.some((token) => rowHaystack.includes(token))) return row;
+    }
+    const shared = gapTokens.filter((token) => rowHaystack.includes(token)).length;
+    if (shared === 0) continue;
+    const score = shared / gapTokens.length;
+    if (score > bestScore || (score === bestScore && row.document.length < (best?.document.length ?? Number.MAX_SAFE_INTEGER))) {
+      bestScore = score;
+      best = row;
+    }
+    if (shared === gapTokens.length && gapTokens.every((token) => rowHaystack.includes(token))) {
+      return row;
+    }
+  }
+  return bestScore >= 0.6 ? best : undefined;
+}
+
 export function inferGapSettlesCheckIds(gap: CanonicalGap, pack: Pack): string[] {
   if ((gap.settlesCheckIds?.length ?? 0) > 0) return [...gap.settlesCheckIds!];
-  const row = packRowForTitle(pack, gap.title || gap.statement);
+  const row = packRowForTitle(pack, gap.title || gap.statement) ?? findPackRowForModelGap(gap, pack);
   return row ? [...row.settlesCheckIds] : [];
 }
 
-function gapFromPackRow(row: PackDocumentExpectation, checkId: string, pack: Pack, id: string): CanonicalGap | null {
-  if (!row.settlesCheckIds.includes(checkId)) return null;
+const GENERIC_WHY = /may help show whether the related item is supported|what the checklist asks for/i;
+
+function isMoreSpecificWhy(candidate: string, fallback: string): boolean {
+  const a = candidate.replace(/\s+/g, " ").trim();
+  const b = fallback.replace(/\s+/g, " ").trim();
+  if (a === "" || GENERIC_WHY.test(a)) return false;
+  if (b === "" || GENERIC_WHY.test(b)) return true;
+  return a.length > b.length + 8;
+}
+
+function gapFromPackRow(row: PackDocumentExpectation, pack: Pack, id: string, unsettled: Set<string>): CanonicalGap | null {
+  const settles = row.settlesCheckIds.filter((checkId) => unsettled.has(checkId));
+  if (settles.length === 0) return null;
   const title = row.document.trim();
   if (title === "") return null;
   const kind = row.gapKind;
@@ -82,26 +123,26 @@ function gapFromPackRow(row: PackDocumentExpectation, checkId: string, pack: Pac
           holderType: row.holderType,
         })
       : null;
-  const why = recordReasonForCheck(pack, checkId);
+  const why = mergeReasons(...settles.map((checkId) => recordReasonForCheck(pack, checkId)));
   return {
     id,
     statement: `The case does not include: ${title}.`,
     relatedSpineIds: [],
     kind,
     title,
-    why: why || `These documents don't show what the checklist asks for (${checkId}).`,
+    why: why || `These documents don't show what the checklist asks for (${settles[0]}).`,
     holder: row.holder,
     holderType,
     when: row.when || null,
     basisType: "USUALLY_EXPECTED",
     relatedFactIds: [],
-    settlesCheckIds: [...row.settlesCheckIds],
+    settlesCheckIds: settles,
   };
 }
 
 function splitDocumentParts(documentName: string): string[] {
   return documentName
-    .split(/\s*;\s*|\s+and\s+/i)
+    .split(/\s*;\s*/)
     .map((part) => part.trim())
     .filter((part) => part !== "");
 }
@@ -152,73 +193,84 @@ function isIntakeWhen(when: string): boolean {
   return when.trim().toLowerCase().startsWith("if any");
 }
 
-function shareCheck(a: CanonicalGap, b: CanonicalGap, pack: Pack): boolean {
-  const aChecks = new Set(inferGapSettlesCheckIds(a, pack));
-  const bChecks = new Set(inferGapSettlesCheckIds(b, pack));
-  if (aChecks.size === 0 || bChecks.size === 0) {
-    const aTitle = normalizeGapTitle(a.title || a.statement);
-    const bTitle = normalizeGapTitle(b.title || b.statement);
-    return aTitle !== "" && aTitle === bTitle;
-  }
-  return [...aChecks].some((id) => bChecks.has(id));
+function isAskLaterWhen(when: string | null | undefined): boolean {
+  const text = when?.trim().toLowerCase() ?? "";
+  return text.includes("later") || text.startsWith("if ") || text.startsWith("each ");
 }
 
-function mergeGapPair(a: CanonicalGap, b: CanonicalGap, pack: Pack, preferPackTitle: boolean): CanonicalGap {
-  const aPackRow = !!packRowForTitle(pack, a.title);
-  const bPackRow = !!packRowForTitle(pack, b.title);
-  const packGap = preferPackTitle || bPackRow ? (bPackRow ? b : a) : a;
-  const other = packGap === a ? b : a;
-  const settles = [...new Set([...inferGapSettlesCheckIds(packGap, pack), ...inferGapSettlesCheckIds(other, pack)])];
-  const title =
-    packRowForTitle(pack, packGap.title)?.document.trim() ||
-    packRowForTitle(pack, other.title)?.document.trim() ||
-  packGap.title.trim() ||
-    other.title.trim();
+function documentIdentityKey(gap: CanonicalGap, pack: Pack): string {
+  const row = packRowForTitle(pack, gap.title) ?? findPackRowForModelGap(gap, pack);
+  const title = (row?.document ?? gap.title ?? gap.statement).trim();
+  return normalizeGapTitle(title);
+}
+
+function mergeDocumentPair(a: CanonicalGap, b: CanonicalGap, pack: Pack, packGapIds: ReadonlySet<string>): CanonicalGap {
+  const rowA = packRowForTitle(pack, a.title) ?? findPackRowForModelGap(a, pack);
+  const rowB = packRowForTitle(pack, b.title) ?? findPackRowForModelGap(b, pack);
+  const packRow = rowA ?? rowB;
+  const fromPack = packGapIds.has(a.id) ? a : packGapIds.has(b.id) ? b : a;
+  const fromModel = fromPack === a ? b : a;
+  const title = (packRow?.document ?? fromPack.title ?? fromModel.title).trim();
+  const settles = [...new Set([...inferGapSettlesCheckIds(fromPack, pack), ...inferGapSettlesCheckIds(fromModel, pack)])];
+  const packWhy = fromPack.why;
+  const modelWhy = fromModel.why;
+  const why = isMoreSpecificWhy(modelWhy, packWhy) ? modelWhy : isMoreSpecificWhy(packWhy, modelWhy) ? packWhy : mergeReasons(modelWhy, packWhy);
+  const when =
+    !isAskLaterWhen(fromPack.when) || isAskLaterWhen(fromModel.when) ? fromPack.when ?? fromModel.when : fromModel.when;
   return {
-    ...packGap,
-    id: packGap.id || other.id,
+    ...fromPack,
+    id: fromPack.id || fromModel.id,
     title,
-    statement: packGap.statement || other.statement,
-    why: mergeReasons(packGap.why, other.why),
-    holder: packGap.holder || other.holder,
-    holderType: packGap.holderType ?? other.holderType,
+    statement: fromPack.statement || fromModel.statement,
+    why,
+    holder: (packRow?.holder ?? fromPack.holder) || fromModel.holder,
+    holderType: fromPack.holderType ?? fromModel.holderType,
+    when: when ?? null,
     settlesCheckIds: settles,
   };
 }
 
-function consolidateBySettlesChecks(gaps: CanonicalGap[], pack: Pack, packGapIds: ReadonlySet<string>): CanonicalGap[] {
-  let list = [...gaps];
-  let changed = true;
-  while (changed) {
-    changed = false;
-    outer: for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const a = list[i]!;
-        const b = list[j]!;
-        if (!shareCheck(a, b, pack)) continue;
-        const preferPack = packGapIds.has(b.id) && !packGapIds.has(a.id);
-        const merged = mergeGapPair(a, b, pack, preferPack);
-        list = list.filter((_, index) => index !== i && index !== j);
-        list.push(merged);
-        changed = true;
-        break outer;
-      }
+function consolidateByDocumentTitle(gaps: CanonicalGap[], pack: Pack, packGapIds: ReadonlySet<string>): CanonicalGap[] {
+  const buckets = new Map<string, CanonicalGap[]>();
+  for (const gap of gaps) {
+    const key = documentIdentityKey(gap, pack);
+    if (key === "") {
+      const lone = buckets.get("__none__") ?? [];
+      lone.push(gap);
+      buckets.set("__none__", lone);
+      continue;
     }
+    const list = buckets.get(key) ?? [];
+    list.push(gap);
+    buckets.set(key, list);
   }
-  return list;
+  const out: CanonicalGap[] = [];
+  for (const [key, list] of buckets) {
+    if (key === "__none__" || list.length === 1) {
+      out.push(...list);
+      continue;
+    }
+    let merged = list[0]!;
+    for (let i = 1; i < list.length; i++) {
+      merged = mergeDocumentPair(merged, list[i]!, pack, packGapIds);
+    }
+    out.push(merged);
+  }
+  return out;
 }
 
 function enrichModelGap(gap: CanonicalGap, pack: Pack): CanonicalGap {
-  const settlesCheckIds = inferGapSettlesCheckIds(gap, pack);
-  const row = packRowForTitle(pack, gap.title || gap.statement);
+  const row = findPackRowForModelGap(gap, pack) ?? packRowForTitle(pack, gap.title || gap.statement);
+  const settlesCheckIds = inferGapSettlesCheckIds({
+    ...gap,
+    ...(row ? { title: row.document, settlesCheckIds: gap.settlesCheckIds ?? row.settlesCheckIds } : {}),
+  }, pack);
   const whyFromChecks = settlesCheckIds.map((checkId) => recordReasonForCheck(pack, checkId));
   const why =
-    gap.why.trim() !== "" && !/may help show whether the related item is supported/i.test(gap.why)
-      ? gap.why
-      : mergeReasons(...whyFromChecks);
+    gap.why.trim() !== "" && !GENERIC_WHY.test(gap.why) ? gap.why : mergeReasons(...whyFromChecks);
   return {
     ...gap,
-    ...(row && gap.title.trim() === "" ? { title: row.document, holder: gap.holder || row.holder } : {}),
+    ...(row ? { title: row.document, holder: gap.holder.trim() !== "" ? gap.holder : row.holder, when: gap.when ?? row.when ?? null } : {}),
     why,
     ...(settlesCheckIds.length > 0 ? { settlesCheckIds } : {}),
   };
@@ -235,35 +287,28 @@ export function reconcilePackDocumentGaps(
   const observations = study.gaps.filter((gap) => gap.kind === "OBSERVATION");
   const requestGaps = study.gaps.filter((gap) => gap.kind !== "OBSERVATION").map((gap) => enrichModelGap(gap, pack));
 
-  const occupiedChecks = new Set<string>();
-  for (const gap of requestGaps) {
-    for (const id of inferGapSettlesCheckIds(gap, pack)) occupiedChecks.add(id);
-  }
-
   const packGapIds = new Set<string>();
   let nextId = study.gaps.length + 1;
   const packGaps: CanonicalGap[] = [];
+  const addedPackRows = new Set<string>();
 
-  for (const item of study.checklist ?? []) {
-    if (!unsettled.has(item.checkId)) continue;
-    for (const row of pack.documentsUsuallyNeeded) {
-      if (!row.settlesCheckIds.includes(item.checkId)) continue;
-      if (isIntakeWhen(row.when)) {
-        intakePrompts.push({ id: `I-${promptId++}`, text: row.document.trim() });
-        continue;
-      }
-      const already = [...row.settlesCheckIds].every((id) => !unsettled.has(id) || occupiedChecks.has(id));
-      if (already && row.settlesCheckIds.includes(item.checkId) && occupiedChecks.has(item.checkId)) continue;
-      if (occupiedChecks.has(item.checkId)) continue;
-      const gap = gapFromPackRow(row, item.checkId, pack, `X${nextId++}`);
-      if (!gap) continue;
-      packGapIds.add(gap.id);
-      for (const id of row.settlesCheckIds) occupiedChecks.add(id);
-      packGaps.push(gap);
+  for (const row of pack.documentsUsuallyNeeded) {
+    const settlesUnsettled = row.settlesCheckIds.filter((checkId) => unsettled.has(checkId));
+    if (settlesUnsettled.length === 0) continue;
+    const rowKey = normalizeGapTitle(row.document);
+    if (isIntakeWhen(row.when)) {
+      intakePrompts.push({ id: `I-${promptId++}`, text: row.document.trim() });
+      continue;
     }
+    if (addedPackRows.has(rowKey)) continue;
+    const gap = gapFromPackRow(row, pack, `X${nextId++}`, unsettled);
+    if (!gap) continue;
+    packGapIds.add(gap.id);
+    addedPackRows.add(rowKey);
+    packGaps.push(gap);
   }
 
-  const consolidated = consolidateBySettlesChecks([...requestGaps, ...packGaps], pack, packGapIds);
+  const consolidated = consolidateByDocumentTitle([...requestGaps, ...packGaps], pack, packGapIds);
   const filtered = dropSatisfiedExpectations(consolidated, study);
 
   return {
@@ -272,7 +317,7 @@ export function reconcilePackDocumentGaps(
   };
 }
 
-/** Merge pack-driven gaps for unsettled checks; dedupe by settles check, not document title. */
+/** Merge pack-driven gaps; dedupe by document identity, not by check. */
 export function mergePackSettlesGaps(
   study: CanonicalStudy,
   pack: Pack,

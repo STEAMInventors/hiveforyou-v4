@@ -5,6 +5,7 @@
 
 import type { CanonicalGap, CanonicalStudy } from "./canonical-study-contracts";
 import { type GapHolderType, inferGapHolderType } from "./canonical-gap-holders";
+import { sentenceCaseDocumentTitle } from "./gap-fill";
 import { matchReferencedDocuments } from "./study-view-reference-match";
 
 /**
@@ -233,7 +234,8 @@ export function buildDocumentRequestListData(
       continue;
     }
     if (kind !== "REQUESTABLE_DOCUMENT" && kind !== "FUTURE_RECORD") continue;
-    const title = gap.title.trim() !== "" ? gap.title : defaultTitle(gap.statement);
+    const rawTitle = gap.title.trim() !== "" ? gap.title : defaultTitle(gap.statement);
+    const title = sentenceCaseDocumentTitle(rawTitle);
     const why = gap.why.trim() !== "" ? gap.why : gap.statement;
     const holder = gap.holder.trim();
     const holderType = kind === "REQUESTABLE_DOCUMENT" ? (gap.holderType ?? inferGapHolderType(gap)) : null;

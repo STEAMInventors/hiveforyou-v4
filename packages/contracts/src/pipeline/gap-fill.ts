@@ -7,6 +7,13 @@ export function normalizeGapTitle(value: string): string {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+/** Full pack or model document name in sentence case (first character upper; rest as written). */
+export function sentenceCaseDocumentTitle(value: string): string {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (text === "") return "";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export type GapFillLink = {
   readonly sourceDocumentId: string;
   readonly studyRevisionId: string;

@@ -3,6 +3,7 @@
 import type { DocumentRequestItem, StudyViewDocumentRequestList } from "@hiveforyou/contracts";
 import {
   DOCUMENT_REQUEST_LIST_LEGACY_HINT,
+  askNowDocumentRequestCount,
   draftRequestPlainText,
   type HolderLabelContext,
   holderTypeLabel,
@@ -77,7 +78,18 @@ export function DocumentRequestList({ component, customer, sentenceChips, holder
   const [selected, setSelected] = useState<Set<string>>(() => new Set(askNow.map((item) => item.id)));
   const [copied, setCopied] = useState(false);
 
-  const summary = useMemo(() => headerLine(askNow.length, askLater.length, customer), [askNow.length, askLater.length, customer]);
+  const askNowCount = useMemo(
+    () =>
+      askNowDocumentRequestCount({
+        items: parts.items,
+        observations: [],
+        courtRecordCount: component.courtRecordCount ?? 0,
+        legacyLines: parts.legacyLines,
+        ...(component.intakePrompts ? { intakePrompts: component.intakePrompts } : {}),
+      }),
+    [component.courtRecordCount, component.intakePrompts, parts.items, parts.legacyLines],
+  );
+  const summary = useMemo(() => headerLine(askNowCount, askLater.length, customer), [askNowCount, askLater.length, customer]);
 
   const toggle = useCallback((id: string) => {
     setSelected((prev) => {
