@@ -1,0 +1,1720 @@
+{
+  "caseDate": "2026-11-16",
+  "anchorDocument": null,
+  "spineSource": [
+    "PARTIES_AND_OBLIGATIONS",
+    "TIMELINE"
+  ],
+  "spine": [
+    {
+      "id": "G1",
+      "label": "Response to the Tallgrass Recovery Partners lawsuit is due December 7, 2026 (served November 9, 2026; 28 days to respond)",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "09_court_summons.pdf",
+          "page": 1,
+          "quoteFragment": "Response deadline: December 7, 2026"
+        },
+        {
+          "file": "09_court_summons.pdf",
+          "page": 1,
+          "quoteFragment": "Served date: November 9, 2026"
+        }
+      ]
+    },
+    {
+      "id": "G2",
+      "label": "Counseling certificate for Marcus T. Ellery completed April 22, 2026",
+      "kind": "date",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "10_counseling_certificate.pdf",
+          "page": 1,
+          "quoteFragment": "Date of completion: April 22, 2026"
+        }
+      ]
+    },
+    {
+      "id": "G3",
+      "label": "Harbor First Bank Visa ending 4471 is now held by Tallgrass Recovery Partners LLC; the client lists $6,180 and the report and the lawsuit state $6,412",
+      "kind": "obligation",
+      "expectedStatus": "CONFLICTED",
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Harbor First Bank Visa | ending 4471 | $6,180"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Original creditor: Harbor First Bank (Visa). Account ending 4471"
+        },
+        {
+          "file": "09_court_summons.pdf",
+          "page": 1,
+          "quoteFragment": "The amount claimed is $6,412.00"
+        }
+      ]
+    },
+    {
+      "id": "G4",
+      "label": "Alderpoint Commercial Properties LLC as landlord under the lease dated November 1, 2024; the lease was assigned to Kestrel Row Asset Management LLC on June 1, 2026",
+      "kind": "commitment",
+      "expectedStatus": "SUPERSEDED",
+      "evidence": [
+        {
+          "file": "06_shop_lease.pdf",
+          "page": 1,
+          "quoteFragment": "Landlord: Alderpoint Commercial Properties LLC"
+        },
+        {
+          "file": "07_balance_letter.pdf",
+          "page": 1,
+          "quoteFragment": "assigned to us the lease dated November 1, 2024"
+        }
+      ]
+    },
+    {
+      "id": "G5",
+      "label": "Unpaid shop rent balance: $7,935.00 per Kestrel Row's letter; $7,350 on the client's list and on the draft",
+      "kind": "figure",
+      "expectedStatus": "CONFLICTED",
+      "evidence": [
+        {
+          "file": "07_balance_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Unpaid balance as of September 22, 2026: $7,935.00"
+        },
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Alderpoint Commercial Properties | no account number | $7,350"
+        },
+        {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "ending 5120 | $7,350.00"
+        }
+      ]
+    },
+    {
+      "id": "G6",
+      "label": "Foundry Commerce Bank $45,000.00 term loan to the business with the owner's unconditional personal guarantee",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "08_loan_commitment_letter.pdf",
+          "page": 1,
+          "quoteFragment": "unconditional personal guarantee of Marcus T. Ellery"
+        },
+        {
+          "file": "08_loan_commitment_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Loan amount: $45,000.00"
+        }
+      ]
+    },
+    {
+      "id": "G7",
+      "label": "Ellery Print and Sign LLC: tax id 00-4417203, Marcus T. Ellery sole member with 100 percent",
+      "kind": "claim",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "05_business_formation.pdf",
+          "page": 1,
+          "quoteFragment": "Federal employer identification number: 00-4417203"
+        },
+        {
+          "file": "05_business_formation.pdf",
+          "page": 1,
+          "quoteFragment": "sole member and holds 100 percent of the membership interest"
+        }
+      ]
+    },
+    {
+      "id": "G8",
+      "label": "Coastal Plains Bank card ending 5538 with a balance of $2,315, on the report and absent from the client's list",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Account A3: Coastal Plains Bank"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "120 days past due. Balance: $2,315"
+        }
+      ]
+    },
+    {
+      "id": "G9",
+      "label": "Cedar Mutual Credit Union Visa ending 6641 is closed and paid in full, balance $0",
+      "kind": "claim",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "closed at consumer's request, paid in full February 2025. Balance: $0"
+        }
+      ]
+    },
+    {
+      "id": "G10",
+      "label": "Greywater Paper and Supply trade account ending 2231, $3,460, on the client's list and the report",
+      "kind": "obligation",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Greywater Paper and Supply | ending 2231 | $3,460"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Account B6: Greywater Paper and Supply"
+        }
+      ]
+    },
+    {
+      "id": "G11",
+      "label": "Tax year 2025 business net profit $23,415",
+      "kind": "figure",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "04_tax_return_summary_2025.pdf",
+          "page": 1,
+          "quoteFragment": "Net profit: $23,415"
+        }
+      ]
+    },
+    {
+      "id": "G12",
+      "label": "Tax year 2024 business net profit $41,870",
+      "kind": "figure",
+      "expectedStatus": "SUPPORTED",
+      "evidence": [
+        {
+          "file": "03_tax_return_summary_2024.pdf",
+          "page": 1,
+          "quoteFragment": "Net profit: $41,870"
+        }
+      ]
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "C1",
+      "description": "Harbor First Bank Visa ending 4471: the client's list says $6,180; the report (current holder Tallgrass Recovery Partners LLC) says $6,412 and the lawsuit claims $6,412.00.",
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Harbor First Bank Visa | ending 4471 | $6,180"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Status: in collection. Balance: $6,412"
+        },
+        {
+          "file": "09_court_summons.pdf",
+          "page": 1,
+          "quoteFragment": "The amount claimed is $6,412.00"
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "description": "Unpaid shop rent: the client's list and the draft say $7,350; Kestrel Row's letter and the report say $7,935 ($7,350.00 rent plus $585.00 late charges).",
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Alderpoint Commercial Properties | no account number | $7,350"
+        },
+        {
+          "file": "07_balance_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Unpaid balance as of September 22, 2026: $7,935.00"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Status: past due. Balance: $7,935"
+        },
+        {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "ending 5120 | $7,350.00"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "id": "X1",
+      "description": "No counseling certificate dated within 180 days before the case date is in the corpus; the only one is dated April 22, 2026."
+    },
+    {
+      "id": "X2",
+      "description": "No income records for 2026 are in the corpus (the tax return summaries end with tax year 2025). Not planted; simply absent."
+    },
+    {
+      "id": "X3",
+      "description": "No identity document, business bank statement or business financial statement is in the corpus. Not planted; simply absent."
+    }
+  ],
+  "negativeControls": [
+    {
+      "id": "N1",
+      "statement": "Harbor First Bank and Tallgrass Recovery Partners LLC are owed two separate debts.",
+      "why": "The report (A2) and the court paper both say Tallgrass holds the Harbor First Bank Visa account ending 4471 by assignment: one obligation, two names."
+    },
+    {
+      "id": "N2",
+      "statement": "Alderpoint Commercial Properties LLC is the current landlord and is owed the unpaid rent.",
+      "why": "Kestrel Row's letter of September 22, 2026 says the lease was assigned to it on June 1, 2026 and that rent goes to it, not to the former landlord."
+    },
+    {
+      "id": "N3",
+      "statement": "The client owes Cedar Mutual Credit Union on the Visa ending 6641.",
+      "why": "Report entry A5: closed, paid in full February 2025, balance $0."
+    },
+    {
+      "id": "N4",
+      "statement": "The counseling certificate is within 180 days of the case date.",
+      "why": "It is dated April 22, 2026; the case date is November 16, 2026: 208 days."
+    },
+    {
+      "id": "N5",
+      "statement": "The Foundry Commerce Bank loan balance is $45,000.",
+      "why": "$45,000.00 is the original commitment of August 14, 2024; the client's list and the report both give a balance of $38,214."
+    },
+    {
+      "id": "N6",
+      "statement": "The business has more than one owner.",
+      "why": "The certificate of organization names Marcus T. Ellery as sole member with 100 percent."
+    }
+  ],
+  "parties": [
+    {
+      "id": "P1",
+      "kind": "individual",
+      "name": "Marcus T. Ellery",
+      "evidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Prepared for: Marcus T. Ellery"
+        },
+        {
+          "file": "05_business_formation.pdf",
+          "page": 1,
+          "quoteFragment": "Member: Marcus T. Ellery"
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "kind": "business",
+      "name": "Ellery Print and Sign LLC",
+      "taxIdAsWritten": "00-4417203",
+      "ownedBy": [
+        {
+          "partyId": "P1",
+          "share": "100 percent"
+        }
+      ],
+      "evidence": [
+        {
+          "file": "05_business_formation.pdf",
+          "page": 1,
+          "quoteFragment": "Name: Ellery Print and Sign LLC"
+        },
+        {
+          "file": "05_business_formation.pdf",
+          "page": 1,
+          "quoteFragment": "Federal employer identification number: 00-4417203"
+        },
+        {
+          "file": "05_business_formation.pdf",
+          "page": 1,
+          "quoteFragment": "sole member and holds 100 percent of the membership interest"
+        }
+      ]
+    }
+  ],
+  "partyValues": {
+    "individual": "owed by P1 only",
+    "business": "owed by P2 only",
+    "joint": "owed by P2 with P1 personally liable as guarantor"
+  },
+  "records": [
+    {
+      "id": "D01",
+      "kind": "debt",
+      "label": "Card debt first owed to Harbor First Bank, now held by Tallgrass Recovery Partners LLC",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Account ending 4471. Responsibility: individual"
+        }
+      ],
+      "currentHolder": "Tallgrass Recovery Partners LLC",
+      "originalHolder": "Harbor First Bank",
+      "accountLast4": "4471",
+      "status": "open",
+      "clientList": {
+        "row": 1,
+        "amountAsWritten": "$6,180",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "1 | Harbor First Bank Visa | ending 4471 | $6,180"
+        }
+      },
+      "report": {
+        "entry": "A2",
+        "amountAsWritten": "$6,412",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Original creditor: Harbor First Bank (Visa). Account ending 4471"
+        }
+      },
+      "draft": {
+        "row": 1,
+        "amountAsWritten": "$6,412.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "1 | Tallgrass Recovery Partners LLC | Harbor First Bank Visa | ending 4471 | $6,412.00 | Individual"
+        }
+      },
+      "otherSources": [
+        {
+          "what": "court paper naming the current holder as assignee and the amount claimed",
+          "amountAsWritten": "$6,412.00",
+          "evidence": {
+            "file": "09_court_summons.pdf",
+            "page": 1,
+            "quoteFragment": "The amount claimed is $6,412.00"
+          }
+        },
+        {
+          "what": "assignment to the current holder",
+          "evidence": {
+            "file": "02_account_report.pdf",
+            "page": 1,
+            "quoteFragment": "Assigned to current holder: June 18, 2026"
+          }
+        }
+      ]
+    },
+    {
+      "id": "D02",
+      "kind": "debt",
+      "label": "Cedar Mutual Credit Union auto loan secured by a 2021 pickup truck",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Account ending 2086. Responsibility: individual"
+        }
+      ],
+      "currentHolder": "Cedar Mutual Credit Union",
+      "originalHolder": null,
+      "accountLast4": "2086",
+      "status": "open",
+      "clientList": {
+        "row": 2,
+        "amountAsWritten": "$14,863",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "2 | Cedar Mutual Credit Union truck loan | ending 2086 | $14,863"
+        }
+      },
+      "report": {
+        "entry": "A1",
+        "amountAsWritten": "$14,863",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Type: auto loan, secured by a 2021 pickup truck. Account ending 2086"
+        }
+      },
+      "draft": {
+        "row": 2,
+        "amountAsWritten": "$14,863.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "2 | Cedar Mutual Credit Union | none | ending 2086 | $14,863.00 | Individual"
+        }
+      },
+      "collateral": "2021 pickup truck",
+      "purposeQuestion": {
+        "why": "An individual vehicle loan; the client says the vehicle is also used for the business.",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "I also use it for shop deliveries"
+        }
+      }
+    },
+    {
+      "id": "D03",
+      "kind": "debt",
+      "label": "Westmarch Student Loan Servicing education loan",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Account ending 7754. Responsibility: individual"
+        }
+      ],
+      "currentHolder": "Westmarch Student Loan Servicing",
+      "originalHolder": null,
+      "accountLast4": "7754",
+      "status": "open",
+      "clientList": {
+        "row": 3,
+        "amountAsWritten": "$11,240",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "3 | Westmarch Student Loan Servicing | ending 7754 | $11,240"
+        }
+      },
+      "report": {
+        "entry": "A4",
+        "amountAsWritten": "$11,240",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Type: education loan. Account ending 7754"
+        }
+      },
+      "draft": {
+        "row": 3,
+        "amountAsWritten": "$11,240.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "3 | Westmarch Student Loan Servicing | none | ending 7754 | $11,240.00 | Individual"
+        }
+      }
+    },
+    {
+      "id": "D04",
+      "kind": "debt",
+      "label": "Marlow's Home Store retail card",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Account ending 3312. Responsibility: individual"
+        }
+      ],
+      "currentHolder": "Marlow's Home Store Card (issued by Lumen Bank)",
+      "originalHolder": null,
+      "accountLast4": "3312",
+      "status": "open",
+      "clientList": {
+        "row": 4,
+        "amountAsWritten": "$1,987",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "4 | Marlow's Home Store card | ending 3312 | $1,987"
+        }
+      },
+      "report": {
+        "entry": "A6",
+        "amountAsWritten": "$1,987",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: retail card. Account ending 3312"
+        }
+      },
+      "draft": {
+        "row": 4,
+        "amountAsWritten": "$1,987.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "4 | Marlow's Home Store Card (Lumen Bank) | none | ending 3312 | $1,987.00 | Individual"
+        }
+      }
+    },
+    {
+      "id": "D05",
+      "kind": "debt",
+      "label": "Brightwell Lending unsecured personal loan",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Account ending 9108. Responsibility: individual"
+        }
+      ],
+      "currentHolder": "Brightwell Lending",
+      "originalHolder": null,
+      "accountLast4": "9108",
+      "status": "open",
+      "clientList": {
+        "row": 5,
+        "amountAsWritten": "$9,274",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "5 | Brightwell Lending personal loan | ending 9108 | $9,274"
+        }
+      },
+      "report": {
+        "entry": "A8",
+        "amountAsWritten": "$9,274",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: unsecured personal loan. Account ending 9108"
+        }
+      },
+      "draft": {
+        "row": 5,
+        "amountAsWritten": "$9,274.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "5 | Brightwell Lending | none | ending 9108 | $9,274.00 | Individual"
+        }
+      },
+      "purposeQuestion": {
+        "why": "An individual loan the client says was mostly spent on business equipment; the purpose needs a client answer.",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "the loan is in my name, most of it paid for the wide-format printer"
+        }
+      }
+    },
+    {
+      "id": "D06",
+      "kind": "debt",
+      "label": "Pinecrest Medical Group medical account",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Account ending 0563. Responsibility: individual"
+        }
+      ],
+      "currentHolder": "Pinecrest Medical Group",
+      "originalHolder": null,
+      "accountLast4": "0563",
+      "status": "open",
+      "clientList": {
+        "row": 6,
+        "amountAsWritten": "$2,140",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "6 | Pinecrest Medical Group | ending 0563 | $2,140"
+        }
+      },
+      "report": {
+        "entry": "A7",
+        "amountAsWritten": "$2,140",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: medical account. Account ending 0563"
+        }
+      },
+      "draft": {
+        "row": 6,
+        "amountAsWritten": "$2,140.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "6 | Pinecrest Medical Group | none | ending 0563 | $2,140.00 | Individual"
+        }
+      }
+    },
+    {
+      "id": "D07",
+      "kind": "debt",
+      "label": "Summit Ridge Bank business credit card, personally guaranteed",
+      "party": "joint",
+      "partyIds": [
+        "P1",
+        "P2"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Account ending 6627. Borrower: Ellery Print and Sign LLC. Responsibility: business, with personal guarantor Marcus T. Ellery"
+        }
+      ],
+      "currentHolder": "Summit Ridge Bank",
+      "originalHolder": null,
+      "accountLast4": "6627",
+      "status": "open",
+      "clientList": {
+        "row": 7,
+        "amountAsWritten": "$8,804",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "7 | Summit Ridge Bank business Visa | ending 6627 | $8,804"
+        }
+      },
+      "report": {
+        "entry": "B2",
+        "amountAsWritten": "$8,804",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: business credit card (Visa). Account ending 6627"
+        }
+      },
+      "draft": {
+        "row": 8,
+        "amountAsWritten": "$8,804.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "8 | Summit Ridge Bank (business Visa) | none | ending 6627 | $8,804.00 | Both"
+        }
+      }
+    },
+    {
+      "id": "D08",
+      "kind": "debt",
+      "label": "Summit Ridge Bank business line of credit, personally guaranteed",
+      "party": "joint",
+      "partyIds": [
+        "P1",
+        "P2"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Account ending 1175. Borrower: Ellery Print and Sign LLC. Responsibility: business, with personal guarantor Marcus T. Ellery"
+        }
+      ],
+      "currentHolder": "Summit Ridge Bank",
+      "originalHolder": null,
+      "accountLast4": "1175",
+      "status": "open",
+      "clientList": {
+        "row": 8,
+        "amountAsWritten": "$17,950",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "8 | Summit Ridge Bank line of credit | ending 1175 | $17,950"
+        }
+      },
+      "report": {
+        "entry": "B4",
+        "amountAsWritten": "$17,950",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Type: business line of credit. Account ending 1175"
+        }
+      },
+      "draft": {
+        "row": 9,
+        "amountAsWritten": "$17,950.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "9 | Summit Ridge Bank (line of credit) | none | ending 1175 | $17,950.00 | Both"
+        }
+      }
+    },
+    {
+      "id": "D09",
+      "kind": "debt",
+      "label": "Orchard Equipment Finance equipment loan secured by a laminator and a vinyl cutter",
+      "party": "business",
+      "partyIds": [
+        "P2"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Account ending 4490. Borrower: Ellery Print and Sign LLC. Responsibility: business only"
+        }
+      ],
+      "currentHolder": "Orchard Equipment Finance",
+      "originalHolder": null,
+      "accountLast4": "4490",
+      "status": "open",
+      "clientList": {
+        "row": 9,
+        "amountAsWritten": "$12,480",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "9 | Orchard Equipment Finance | ending 4490 | $12,480"
+        }
+      },
+      "report": {
+        "entry": "B5",
+        "amountAsWritten": "$12,480",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "secured by a laminator and a vinyl cutter. Account ending 4490"
+        }
+      },
+      "draft": {
+        "row": 10,
+        "amountAsWritten": "$12,480.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "10 | Orchard Equipment Finance | none | ending 4490 | $12,480.00 | Business"
+        }
+      },
+      "collateral": "laminator and vinyl cutter"
+    },
+    {
+      "id": "D10",
+      "kind": "debt",
+      "label": "Foundry Commerce Bank business term loan, personally guaranteed",
+      "party": "joint",
+      "partyIds": [
+        "P1",
+        "P2"
+      ],
+      "partyEvidence": [
+        {
+          "file": "08_loan_commitment_letter.pdf",
+          "page": 1,
+          "quoteFragment": "unconditional personal guarantee of Marcus T. Ellery"
+        }
+      ],
+      "currentHolder": "Foundry Commerce Bank",
+      "originalHolder": null,
+      "accountLast4": "8802",
+      "status": "open",
+      "clientList": {
+        "row": 10,
+        "amountAsWritten": "$38,214",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "10 | Foundry Commerce Bank loan | ending 8802 | $38,214"
+        }
+      },
+      "report": {
+        "entry": "B1",
+        "amountAsWritten": "$38,214",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: business term loan. Account ending 8802"
+        }
+      },
+      "draft": {
+        "row": 11,
+        "amountAsWritten": "$38,214.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "11 | Foundry Commerce Bank | none | ending 8802 | $38,214.00 | Both"
+        }
+      },
+      "otherSources": [
+        {
+          "what": "loan commitment letter, original amount",
+          "amountAsWritten": "$45,000.00",
+          "evidence": {
+            "file": "08_loan_commitment_letter.pdf",
+            "page": 1,
+            "quoteFragment": "Loan amount: $45,000.00"
+          }
+        }
+      ],
+      "collateral": "all business equipment and accounts receivable"
+    },
+    {
+      "id": "D11",
+      "kind": "debt",
+      "label": "Unpaid shop rent first owed to Alderpoint Commercial Properties LLC, now held by Kestrel Row Asset Management LLC",
+      "party": "business",
+      "partyIds": [
+        "P2"
+      ],
+      "partyEvidence": [
+        {
+          "file": "06_shop_lease.pdf",
+          "page": 1,
+          "quoteFragment": "No personal guaranty is given for this lease. Tenant alone is responsible for rent"
+        }
+      ],
+      "currentHolder": "Kestrel Row Asset Management LLC",
+      "originalHolder": "Alderpoint Commercial Properties LLC",
+      "accountLast4": "5120",
+      "status": "open",
+      "clientList": {
+        "row": 11,
+        "amountAsWritten": "$7,350",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "11 | Alderpoint Commercial Properties | no account number | $7,350"
+        }
+      },
+      "report": {
+        "entry": "B3",
+        "amountAsWritten": "$7,935",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Original creditor: Alderpoint Commercial Properties LLC. Reference ending 5120"
+        }
+      },
+      "draft": {
+        "row": 12,
+        "amountAsWritten": "$7,350.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "12 | Kestrel Row Asset Management LLC | Alderpoint Commercial Properties LLC | ending 5120 | $7,350.00 | Business"
+        }
+      },
+      "otherSources": [
+        {
+          "what": "letter from the current holder stating the balance",
+          "amountAsWritten": "$7,935.00",
+          "evidence": {
+            "file": "07_balance_letter.pdf",
+            "page": 1,
+            "quoteFragment": "Unpaid balance as of September 22, 2026: $7,935.00"
+          }
+        },
+        {
+          "what": "assignment of the lease to the current holder",
+          "evidence": {
+            "file": "07_balance_letter.pdf",
+            "page": 1,
+            "quoteFragment": "assigned to us the lease dated November 1, 2024"
+          }
+        }
+      ]
+    },
+    {
+      "id": "D12",
+      "kind": "debt",
+      "label": "Greywater Paper and Supply trade account",
+      "party": "business",
+      "partyIds": [
+        "P2"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Account ending 2231. Borrower: Ellery Print and Sign LLC. Responsibility: business only"
+        }
+      ],
+      "currentHolder": "Greywater Paper and Supply",
+      "originalHolder": null,
+      "accountLast4": "2231",
+      "status": "open",
+      "clientList": {
+        "row": 12,
+        "amountAsWritten": "$3,460",
+        "evidence": {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "12 | Greywater Paper and Supply | ending 2231 | $3,460"
+        }
+      },
+      "report": {
+        "entry": "B6",
+        "amountAsWritten": "$3,460",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Type: trade account. Account ending 2231"
+        }
+      },
+      "draft": null
+    },
+    {
+      "id": "D13",
+      "kind": "debt",
+      "label": "Coastal Plains Bank credit card",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Account ending 5538. Responsibility: individual"
+        }
+      ],
+      "currentHolder": "Coastal Plains Bank",
+      "originalHolder": null,
+      "accountLast4": "5538",
+      "status": "open",
+      "clientList": null,
+      "report": {
+        "entry": "A3",
+        "amountAsWritten": "$2,315",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Type: credit card (Mastercard). Account ending 5538"
+        }
+      },
+      "draft": {
+        "row": 7,
+        "amountAsWritten": "$2,315.00",
+        "evidence": {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "7 | Coastal Plains Bank | none | ending 5538 | $2,315.00 | Individual"
+        }
+      }
+    },
+    {
+      "id": "D14",
+      "kind": "debt",
+      "label": "Cedar Mutual Credit Union credit card, closed and paid in full",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "partyEvidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Account ending 6641. Responsibility: individual"
+        }
+      ],
+      "currentHolder": "Cedar Mutual Credit Union",
+      "originalHolder": null,
+      "accountLast4": "6641",
+      "status": "closed",
+      "clientList": null,
+      "report": {
+        "entry": "A5",
+        "amountAsWritten": "$0",
+        "evidence": {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Type: credit card (Visa). Account ending 6641"
+        }
+      },
+      "draft": null
+    },
+    {
+      "id": "K01",
+      "kind": "contract",
+      "label": "Commercial lease of 212 Tanner Street, Unit B, dated November 1, 2024",
+      "party": "business",
+      "partyIds": [
+        "P2"
+      ],
+      "counterpartyAsWritten": "Alderpoint Commercial Properties LLC",
+      "currentHolder": "Kestrel Row Asset Management LLC",
+      "date": "2024-11-01",
+      "relatedRecordIds": [
+        "D11"
+      ],
+      "evidence": [
+        {
+          "file": "06_shop_lease.pdf",
+          "page": 1,
+          "quoteFragment": "Lease date: November 1, 2024"
+        },
+        {
+          "file": "06_shop_lease.pdf",
+          "page": 1,
+          "quoteFragment": "Landlord: Alderpoint Commercial Properties LLC"
+        },
+        {
+          "file": "06_shop_lease.pdf",
+          "page": 1,
+          "quoteFragment": "Tenant: Ellery Print and Sign LLC"
+        }
+      ]
+    },
+    {
+      "id": "K02",
+      "kind": "contract",
+      "label": "Foundry Commerce Bank loan commitment of $45,000.00 dated August 14, 2024, with a personal guarantee",
+      "party": "joint",
+      "partyIds": [
+        "P1",
+        "P2"
+      ],
+      "counterpartyAsWritten": "Foundry Commerce Bank",
+      "currentHolder": "Foundry Commerce Bank",
+      "date": "2024-08-14",
+      "relatedRecordIds": [
+        "D10"
+      ],
+      "evidence": [
+        {
+          "file": "08_loan_commitment_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Date: August 14, 2024"
+        },
+        {
+          "file": "08_loan_commitment_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Borrower: Ellery Print and Sign LLC"
+        },
+        {
+          "file": "08_loan_commitment_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Guarantee signed by Marcus T. Ellery, individually, on August 20, 2024"
+        }
+      ]
+    },
+    {
+      "id": "I01",
+      "kind": "income",
+      "label": "Tax year 2024: business net profit $41,870; adjusted gross income $39,024",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "taxYear": 2024,
+      "evidence": [
+        {
+          "file": "03_tax_return_summary_2024.pdf",
+          "page": 1,
+          "quoteFragment": "Net profit: $41,870"
+        },
+        {
+          "file": "03_tax_return_summary_2024.pdf",
+          "page": 1,
+          "quoteFragment": "Adjusted gross income: $39,024"
+        }
+      ]
+    },
+    {
+      "id": "I02",
+      "kind": "income",
+      "label": "Tax year 2025: business net profit $23,415; adjusted gross income $21,799",
+      "party": "individual",
+      "partyIds": [
+        "P1"
+      ],
+      "taxYear": 2025,
+      "evidence": [
+        {
+          "file": "04_tax_return_summary_2025.pdf",
+          "page": 1,
+          "quoteFragment": "Net profit: $23,415"
+        },
+        {
+          "file": "04_tax_return_summary_2025.pdf",
+          "page": 1,
+          "quoteFragment": "Adjusted gross income: $21,799"
+        }
+      ]
+    }
+  ],
+  "matches": [
+    {
+      "id": "M01",
+      "recordId": "D01",
+      "matchKind": "new_holder",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "1 | Harbor First Bank Visa | ending 4471 | $6,180"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Original creditor: Harbor First Bank (Visa). Account ending 4471"
+        }
+      ],
+      "matchedOn": [
+        "original holder name",
+        "account last 4",
+        "balance within 10 percent"
+      ]
+    },
+    {
+      "id": "M02",
+      "recordId": "D02",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "2 | Cedar Mutual Credit Union truck loan | ending 2086 | $14,863"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Type: auto loan, secured by a 2021 pickup truck. Account ending 2086"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M03",
+      "recordId": "D03",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "3 | Westmarch Student Loan Servicing | ending 7754 | $11,240"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Type: education loan. Account ending 7754"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M04",
+      "recordId": "D04",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "4 | Marlow's Home Store card | ending 3312 | $1,987"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: retail card. Account ending 3312"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M05",
+      "recordId": "D05",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "5 | Brightwell Lending personal loan | ending 9108 | $9,274"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: unsecured personal loan. Account ending 9108"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M06",
+      "recordId": "D06",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "6 | Pinecrest Medical Group | ending 0563 | $2,140"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: medical account. Account ending 0563"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M07",
+      "recordId": "D07",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "7 | Summit Ridge Bank business Visa | ending 6627 | $8,804"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: business credit card (Visa). Account ending 6627"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M08",
+      "recordId": "D08",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "8 | Summit Ridge Bank line of credit | ending 1175 | $17,950"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Type: business line of credit. Account ending 1175"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M09",
+      "recordId": "D09",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "9 | Orchard Equipment Finance | ending 4490 | $12,480"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "secured by a laminator and a vinyl cutter. Account ending 4490"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M10",
+      "recordId": "D10",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "10 | Foundry Commerce Bank loan | ending 8802 | $38,214"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 2,
+          "quoteFragment": "Type: business term loan. Account ending 8802"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    },
+    {
+      "id": "M11",
+      "recordId": "D11",
+      "matchKind": "new_holder",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "11 | Alderpoint Commercial Properties | no account number | $7,350"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Original creditor: Alderpoint Commercial Properties LLC. Reference ending 5120"
+        }
+      ],
+      "matchedOn": [
+        "original holder name",
+        "balance within 10 percent"
+      ]
+    },
+    {
+      "id": "M12",
+      "recordId": "D12",
+      "matchKind": "same",
+      "sources": [
+        "clientList",
+        "report"
+      ],
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "12 | Greywater Paper and Supply | ending 2231 | $3,460"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Type: trade account. Account ending 2231"
+        }
+      ],
+      "matchedOn": [
+        "holder name",
+        "account last 4",
+        "balance"
+      ]
+    }
+  ],
+  "missingEntries": [
+    {
+      "id": "ME1",
+      "recordId": "D13",
+      "presentIn": [
+        "report"
+      ],
+      "absentFrom": [
+        "clientList"
+      ],
+      "description": "Coastal Plains Bank card ending 5538, $2,315, open and past due: on the report, not on the client's list.",
+      "evidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Account A3: Coastal Plains Bank"
+        },
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Rows on this list: 12"
+        }
+      ]
+    }
+  ],
+  "closedEntries": [
+    {
+      "id": "CE1",
+      "recordId": "D14",
+      "description": "Cedar Mutual Credit Union Visa ending 6641: on the report as closed and paid, balance $0; correctly absent from the client's list and the draft. Not a missing entry.",
+      "evidence": [
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "closed at consumer's request, paid in full February 2025. Balance: $0"
+        }
+      ]
+    }
+  ],
+  "valueDifferences": [
+    {
+      "id": "VD1",
+      "recordId": "D01",
+      "a": {
+        "source": "clientList",
+        "amountAsWritten": "$6,180"
+      },
+      "b": {
+        "source": "report",
+        "amountAsWritten": "$6,412"
+      },
+      "difference": "232.00",
+      "percentOfLarger": "3.6",
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Harbor First Bank Visa | ending 4471 | $6,180"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 1,
+          "quoteFragment": "Status: in collection. Balance: $6,412"
+        }
+      ]
+    },
+    {
+      "id": "VD2",
+      "recordId": "D11",
+      "a": {
+        "source": "clientList",
+        "amountAsWritten": "$7,350"
+      },
+      "b": {
+        "source": "letter",
+        "amountAsWritten": "$7,935.00"
+      },
+      "difference": "585.00",
+      "percentOfLarger": "7.4",
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Alderpoint Commercial Properties | no account number | $7,350"
+        },
+        {
+          "file": "07_balance_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Unpaid balance as of September 22, 2026: $7,935.00"
+        }
+      ]
+    }
+  ],
+  "staleDocuments": [
+    {
+      "id": "SD1",
+      "recordId": "K01",
+      "file": "06_shop_lease.pdf",
+      "documentDate": "2024-11-01",
+      "laterDocument": "07_balance_letter.pdf",
+      "laterDocumentDate": "2026-09-22",
+      "daysBetween": 690,
+      "ageAtCaseDateDays": 745,
+      "description": "The lease names Alderpoint Commercial Properties LLC as landlord; a later letter from a different company, Kestrel Row Asset Management LLC, says the lease was assigned to it on June 1, 2026 and claims the unpaid balance. The lease in the file no longer shows the current holder.",
+      "evidence": [
+        {
+          "file": "06_shop_lease.pdf",
+          "page": 1,
+          "quoteFragment": "Lease date: November 1, 2024"
+        },
+        {
+          "file": "06_shop_lease.pdf",
+          "page": 1,
+          "quoteFragment": "Landlord: Alderpoint Commercial Properties LLC"
+        },
+        {
+          "file": "07_balance_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Date: September 22, 2026"
+        },
+        {
+          "file": "07_balance_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Kestrel Row Asset Management LLC became the owner of the building at 212 Tanner Street on June 1, 2026"
+        }
+      ]
+    }
+  ],
+  "deadlines": [
+    {
+      "id": "DL1",
+      "label": "Written response to the lawsuit (case CV-26-03184)",
+      "partyIds": [
+        "P1"
+      ],
+      "relatedRecordIds": [
+        "D01"
+      ],
+      "servedDate": "2026-11-09",
+      "rule": "within 28 days after service",
+      "dueDate": "2026-12-07",
+      "daysFromCaseDate": 21,
+      "evidence": [
+        {
+          "file": "09_court_summons.pdf",
+          "page": 1,
+          "quoteFragment": "Served date: November 9, 2026"
+        },
+        {
+          "file": "09_court_summons.pdf",
+          "page": 1,
+          "quoteFragment": "within 28 days after the day you were served"
+        },
+        {
+          "file": "09_court_summons.pdf",
+          "page": 1,
+          "quoteFragment": "Response deadline: December 7, 2026"
+        }
+      ]
+    }
+  ],
+  "validity": [
+    {
+      "id": "V1",
+      "label": "Counseling certificate",
+      "partyIds": [
+        "P1"
+      ],
+      "file": "10_counseling_certificate.pdf",
+      "documentDate": "2026-04-22",
+      "windowDays": 180,
+      "ageAtCaseDateDays": 208,
+      "expired": true,
+      "evidence": [
+        {
+          "file": "10_counseling_certificate.pdf",
+          "page": 1,
+          "quoteFragment": "Date of completion: April 22, 2026"
+        }
+      ]
+    }
+  ],
+  "draftDifferences": [
+    {
+      "id": "DD1",
+      "kind": "missing",
+      "recordId": "D12",
+      "description": "Greywater Paper and Supply (ending 2231, $3,460) is on the client's list and the report but not on the draft.",
+      "evidence": [
+        {
+          "file": "01_client_debt_list.pdf",
+          "page": 1,
+          "quoteFragment": "Greywater Paper and Supply | ending 2231 | $3,460"
+        },
+        {
+          "file": "02_account_report.pdf",
+          "page": 3,
+          "quoteFragment": "Account B6: Greywater Paper and Supply"
+        },
+        {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "Entries on this draft: 12"
+        }
+      ]
+    },
+    {
+      "id": "DD2",
+      "kind": "value_differs",
+      "recordId": "D11",
+      "draftAmountAsWritten": "$7,350.00",
+      "statementAmountAsWritten": "$7,935.00",
+      "difference": "585.00",
+      "description": "The draft lists Kestrel Row Asset Management LLC at $7,350.00; Kestrel Row's own letter states $7,935.00.",
+      "evidence": [
+        {
+          "file": "11_draft_filing_list.pdf",
+          "page": 1,
+          "quoteFragment": "ending 5120 | $7,350.00"
+        },
+        {
+          "file": "07_balance_letter.pdf",
+          "page": 1,
+          "quoteFragment": "Unpaid balance as of September 22, 2026: $7,935.00"
+        }
+      ]
+    }
+  ],
+  "draftExtras": [],
+  "totals": {
+    "clientListAsWritten": "$133,942",
+    "reportAsWritten": "$137,074",
+    "draftAsWritten": "$133,029.00"
+  },
+  "reviewed": false
+}

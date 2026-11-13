@@ -77,4 +77,29 @@ describe("parsePackMarkdown", () => {
     expect(parsed.reason).toBe("pack_duplicate_persona_question_id");
   });
 
+  it("ignores an unknown section such as Record kinds and parses the rest unchanged", () => {
+    const base = readFileSync(FIXTURE, "utf8");
+    const unknownSection = [
+      "## Record kinds",
+      "Read by a later parser. Keys are used to match the same record across sources.",
+      "| Kind | Fields | Match keys | Party required |",
+      "|---|---|---|---|",
+      "| widget | serial; weight; batch | serial | yes |",
+      "| fixture | label; position | label | no |",
+      "",
+      "",
+    ].join("\n");
+    expect(base).toContain("## Computed values");
+    const withUnknown = base.replace("## Computed values", `${unknownSection}## Computed values`);
+    expect(withUnknown).toContain("## Record kinds");
+
+    const parsed = parsePackMarkdown(withUnknown);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value).toEqual(loadFixture());
+    expect(parsed.value.chains).toHaveLength(2);
+    expect(parsed.value.computedValues.map((c) => c.id)).toEqual(["C1", "C2"]);
+    expect(Object.keys(parsed.value)).not.toContain("recordKinds");
+  });
+
 });
