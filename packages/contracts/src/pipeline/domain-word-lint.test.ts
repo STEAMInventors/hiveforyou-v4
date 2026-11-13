@@ -66,6 +66,12 @@ const V5_006_LEGACY_EXCLUSIONS = new Set<string>([
   "apps/web/src/components/hives/DocumentsPanel.test.tsx",
 ]);
 
+/**
+ * Single-word pack Terms that are ordinary English and must not forbid unrelated code
+ * (e.g. route tests "POST schedules no work…", fixture file names).
+ */
+const PACK_TERM_ORDINARY_WORDS = new Set(["schedules"]);
+
 const PACK_PHRASE_STOPWORDS = new Set(
   [
     "the",
@@ -256,7 +262,7 @@ function forbiddenTermsFromPacks(): PackForbiddenTerm[] {
     }
     for (const term of pack.terms) {
       const label = normalizePhrase(term.term);
-      if (label.length >= 3) termLabels.add(label);
+      if (label.length >= 3 && !PACK_TERM_ORDINARY_WORDS.has(label)) termLabels.add(label);
     }
     for (const persona of pack.personas) addPhraseSource(persona.who);
   }
@@ -315,6 +321,11 @@ describe("domain-word lint (D-053)", () => {
     },
     120_000,
   );
+
+  it("skips ordinary-word pack Terms but still forbids other single-word Terms from intake pack", () => {
+    expect(packTerms.some((term) => term.label === "schedules")).toBe(false);
+    expect(packTerms.some((term) => term.label === "garnishment")).toBe(true);
+  });
 
   it(
     "rule: pack-derived document names, holder labels, terms and persona Who must not appear in V5 code",

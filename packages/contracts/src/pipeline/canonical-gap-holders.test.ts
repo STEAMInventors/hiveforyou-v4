@@ -42,6 +42,19 @@ describe("inferGapHolderType", () => {
       ),
     ).toBe("ASKER_OR_CLIENT");
   });
+
+  it("classifies holders ending in preparer as ASKER_OR_CLIENT", () => {
+    expect(
+      inferGapHolderType(
+        gap({
+          id: "X3",
+          statement: "Income worksheets",
+          title: "Completed income worksheets",
+          holder: "Case preparer",
+        }),
+      ),
+    ).toBe("ASKER_OR_CLIENT");
+  });
 });
 
 describe("assignCanonicalGapHolderTypes", () => {

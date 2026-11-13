@@ -135,7 +135,8 @@ describe("document-gap-reconcile (iep-initial pack)", () => {
   });
 
   it("reports ask-now count for special-ed-l001-shaped unsettled checklist", () => {
-    const unsettled = ["T1", "T2", "T4", "T5", "T6", "E1", "E3", "E5", "G4", "S1"];
+    // T7 unsettled so v7 split row "Consent for services" is included (v6 used one combined consent row).
+    const unsettled = ["T1", "T2", "T4", "T5", "T6", "T7", "E1", "E3", "E5", "G4", "S1"];
     const study: CanonicalStudy = {
       schema: CANONICAL_STUDY_SCHEMA,
       domainLabel: "Special education",
@@ -193,11 +194,12 @@ describe("document-gap-reconcile (iep-initial pack)", () => {
       gaps: [],
       uploadSatisfaction: [
         {
-          document: "Signed consent to evaluate; consent for services",
-          parts: [
-            { part: "Signed consent to evaluate", satisfiedBy: "d1", factId: "F-consent" },
-            { part: "consent for services", satisfiedBy: null, factId: null },
-          ],
+          document: "Signed consent to evaluate",
+          parts: [{ part: "Signed consent to evaluate", satisfiedBy: "03", factId: "F-consent-eval" }],
+        },
+        {
+          document: "Consent for services",
+          parts: [{ part: "Consent for services", satisfiedBy: null, factId: null }],
         },
       ],
     };
@@ -218,8 +220,10 @@ describe("document-gap-reconcile (iep-initial pack)", () => {
     expect(askNow).toBeGreaterThan(0);
     expect(intakePrompts.some((row) => row.text.toLowerCase().includes("private evaluation"))).toBe(true);
     expect(askNow).toBe(9);
-    const consent = listData.items.find((item) => item.title.toLowerCase().includes("consent"));
+    const consent = listData.items.find((item) => item.title.toLowerCase().includes("consent for services"));
     expect(consent?.title.toLowerCase()).toContain("consent for services");
     expect(consent?.title.toLowerCase()).not.toContain("signed consent to evaluate");
+    // Document 03 satisfies "Signed consent to evaluate"; that request must not remain.
+    expect(listData.items.some((item) => item.title.toLowerCase().includes("consent to evaluate"))).toBe(false);
   });
 });

@@ -16,7 +16,7 @@ describe("ProgressElapsed", () => {
     render(
       <ProgressElapsed
         startedAt="2026-11-09T15:00:00.000Z"
-        stepLabel="Reading petition and schedules: page 24 of 35"
+        stepLabel="Reading source files: page 24 of 35"
         typicalRange="2–5 min"
       />,
     );

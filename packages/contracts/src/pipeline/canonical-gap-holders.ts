@@ -20,7 +20,7 @@ export function inferGapHolderType(gap: Pick<CanonicalGap, "kind" | "holder" | "
   if (gap.holderType) return gap.holderType;
   const probe = `${gap.title} ${gap.statement} ${gap.holder}`.trim();
   if (COURT_RECORD_GAP.test(probe)) return "COURT_RECORD";
-  if (/\b(?:client|party|filer|petition preparer|tax preparer|you)\b/i.test(gap.holder)) return "ASKER_OR_CLIENT";
+  if (/\b(?:client|party|filer|preparer|you)\b/i.test(gap.holder)) return "ASKER_OR_CLIENT";
   if (COUNSEL_GAP.test(gap.holder) || COUNSEL_GAP.test(probe)) return "COUNSEL";
   if (gap.holder.trim() !== "") return "THIRD_PARTY";
   return "ASKER_OR_CLIENT";
