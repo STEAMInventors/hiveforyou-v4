@@ -1,6 +1,6 @@
 import type { CanonicalStudy } from "./canonical-study-contracts";
 import type { Pack, PackAudience, PackCheck, PackStandingQuestion } from "./pack-contracts";
-import { stripCustomerCheckAuthority } from "./pack-write";
+import { capCustomerQuestions, stripCustomerCheckAuthority } from "./pack-write";
 import type { PersonaCoverageItem } from "./pack-canonicalize";
 import type { StudyViewRow, StudyViewSourceRef, StudyViewValue, WriteFactRecord } from "./study-view-contracts";
 
@@ -81,6 +81,12 @@ export function buildChecklistRows(
   });
 }
 
+function missingLinkLabel(pack: Pack, chainId: string, linkIndex: number): string {
+  const def = pack.chains.find((chain) => chain.id === chainId);
+  const label = def?.links[linkIndex]?.trim();
+  return label && label !== "" ? label : "the next step";
+}
+
 export function buildChainBlockRows(
   study: CanonicalStudy,
   pack: Pack,
@@ -90,12 +96,25 @@ export function buildChainBlockRows(
   return (study.chains ?? []).map((chain) => ({
     chainId: chain.chainId,
     label: labels.get(chain.chainId) ?? chain.chainId,
-    rows: chain.rows.map((row, index) => ({
-      id: `${chain.chainId}-R${index + 1}`,
-      label: row.label,
-      missing: row.links.filter((link) => "missing" in link && link.missing).map((_, linkIndex) => `link-${linkIndex + 1}`),
-      values: row.links.flatMap((link) => ("factIds" in link ? valuesForFactIds(link.factIds, facts) : [])),
-    })),
+    rows: chain.rows.map((row, index) => {
+      let missingIndex = -1;
+      row.links.forEach((link, linkIndex) => {
+        if (missingIndex < 0 && "missing" in link && link.missing) missingIndex = linkIndex;
+      });
+      const hasMissing = missingIndex >= 0;
+      const start = row.label.trim() || "This item";
+      const statement = hasMissing
+        ? `${start}: the documents do not show ${missingLinkLabel(pack, chain.chainId, missingIndex)}.`
+        : `${start}: the chain is complete in these documents.`;
+      return {
+        id: `${chain.chainId}-R${index + 1}`,
+        label: row.label,
+        statement,
+        kind: hasMissing ? "worth-asking" : "matches",
+        missing: hasMissing ? [`link-${missingIndex + 1}`] : [],
+        values: row.links.flatMap((link) => ("factIds" in link ? valuesForFactIds(link.factIds, facts) : [])),
+      };
+    }),
   }));
 }
 
@@ -112,6 +131,12 @@ function factIdsForStandingQuestion(study: CanonicalStudy, id: string): string[]
   return study.standingQuestions?.find((row) => row.id === id)?.factIds ?? [];
 }
 
+const QUESTION_VERDICTS = new Set(["NOT_SHOWN", "PARTLY_SHOWN", "CONFLICT"]);
+
+function checklistVerdict(study: CanonicalStudy, checkId: string): string | null {
+  return study.checklist?.find((row) => row.checkId === checkId)?.verdict ?? null;
+}
+
 export function buildQuestionRows(
   study: CanonicalStudy,
   pack: Pack,
@@ -121,36 +146,49 @@ export function buildQuestionRows(
   const checks = checkById(pack);
   const standing = standingQuestionById(pack);
   const order = study.questionOrder ?? [];
-  return order.flatMap((questionId, index) => {
+  const seenText = new Set<string>();
+  const rows: StudyViewRow[] = [];
+  let ordinal = 0;
+  for (const questionId of order) {
     const checkDef = checks.get(questionId);
     const standingDef = standing.get(questionId);
     if (checkDef?.question) {
-      return [
-        {
-          id: audience === "professional" ? questionId : `q-${index + 1}`,
-          statement: checkDef.question,
-          values: valuesForFactIds(factIdsForCheck(study, questionId), facts),
-        },
-      ];
+      const verdict = checklistVerdict(study, questionId);
+      if (verdict === "SHOWN" || verdict === "NOT_APPLICABLE") continue;
+      if (verdict != null && !QUESTION_VERDICTS.has(verdict)) continue;
+      const text = checkDef.question.trim();
+      const key = text.toLowerCase();
+      if (text === "" || seenText.has(key)) continue;
+      seenText.add(key);
+      ordinal += 1;
+      rows.push({
+        id: audience === "professional" ? questionId : `q-${ordinal}`,
+        statement: text,
+        values: valuesForFactIds(factIdsForCheck(study, questionId), facts),
+      });
+      continue;
     }
     if (standingDef && standingQuestionAudienceMatches(standingDef, audience)) {
       const applies = study.standingQuestions?.find((row) => row.id === questionId)?.applies === true;
-      if (!applies) return [];
-      return [
-        {
-          id: audience === "professional" ? questionId : `q-${index + 1}`,
-          statement: standingDef.question,
-          values: valuesForFactIds(factIdsForStandingQuestion(study, questionId), facts),
-        },
-      ];
+      if (!applies) continue;
+      const text = standingDef.question.trim();
+      const key = text.toLowerCase();
+      if (text === "" || seenText.has(key)) continue;
+      seenText.add(key);
+      ordinal += 1;
+      rows.push({
+        id: audience === "professional" ? questionId : `q-${ordinal}`,
+        statement: text,
+        values: valuesForFactIds(factIdsForStandingQuestion(study, questionId), facts),
+      });
     }
-    return [];
-  });
+  }
+  return [...capCustomerQuestions(rows, audience)];
 }
 
 /** Strip pack check ids and authority strings from customer-facing block rows. */
 export function redactCustomerPackBlockRows(
-  _blockName: string,
+  blockName: string,
   rows: readonly StudyViewRow[],
   pack: Pack,
 ): StudyViewRow[] {
@@ -165,13 +203,38 @@ export function redactCustomerPackBlockRows(
     }
     let label = row.label ?? null;
     if (typeof label === "string") label = stripCustomerCheckAuthority(label);
-    return {
+    let next: StudyViewRow = {
       ...row,
       id: `row-${index + 1}`,
       statement: statement || null,
       label,
       authority: null,
+      issues: undefined,
     };
+    if (blockName === "spine_table") {
+      next = {
+        ...next,
+        statement: (row.label ?? row.statement ?? "").trim() || null,
+        label: null,
+        status: null,
+        missing: [],
+        issues: undefined,
+      };
+    }
+    if (blockName === "terms" && row.label && row.statement) {
+      next = { ...next, statement: `${row.label} - ${row.statement}` };
+    }
+    if (blockName === "unanswered") {
+      const missingNote = (row.kind ?? "").trim();
+      const question = (row.statement ?? row.label ?? "").trim();
+      next = {
+        ...next,
+        statement: question || null,
+        kind: missingNote || null,
+        label: "These documents don't show",
+      };
+    }
+    return next;
   });
 }
 

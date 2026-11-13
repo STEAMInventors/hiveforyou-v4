@@ -1,6 +1,6 @@
 ---
 pack: iep-initial
-version: 6
+version: 7
 title: Initial IEP review (US special education)
 description: Use when a parent or their advocate uploads a first IEP with its evaluations and eligibility paperwork and wants to know what was decided, whether the plan matches the testing, and what to ask before signing.
 matches:
@@ -47,10 +47,10 @@ In table cells, items are separated by ";". "Looking for" items are the question
 | Situation | Taking on or preparing a case with limited prep time. Will verify anything before relying on it. Preparing for a meeting or a written request |
 | Knows | The law, the process, what a sound IEP looks like |
 | Does not know | This file: what is in it, what is missing, where the numbers disagree |
-| Looking for | L1 Is the record complete and current: what is missing, who holds it, and is this the plan in effect?; L2 Were the procedural steps and timelines met?; L3 Is eligibility supported, and were other causes ruled out on the record?; L4 Does each need trace to a present level, a goal, a service and a progress measure, and where does the chain break?; L5 Are the goals measurable and ambitious, and do services cover what the evaluations recommended?; L6 Where do the documents conflict or leave fields blank?; L7 What should be raised at the meeting and requested in writing, in what order? |
+| Looking for | L1 Is the record complete and current: what is missing, who holds it, and is this the plan in effect?; L2 Were the procedural steps and timelines met?; L3 Is eligibility supported, and were other causes ruled out on the record?; L4 Does each need trace to a present level, a goal, a service and a progress measure, and where does the chain break?; L5 Are the goals measurable and ambitious, and do services cover what the evaluations recommended?; L6 Where do the documents conflict or leave fields blank?; L7 What should be raised at the meeting and requested in writing, in what order, and what in the record supports each point? |
 | Decisions | Priority of issues; what to request; the meeting agenda; what to put in a parent-concerns letter |
-| Useful when | Dense; every row opens the source page; authority beside each check; day counts beside timelines; not-shown items first; text that can be lifted into a letter |
-| Leave out | Explanations of basic terms; reassurance; conclusions without a source; advice on strategy or likely outcome |
+| Useful when | Dense; every row opens the source page; authority beside each check; day counts beside timelines; not-shown items first; points to raise, each tied to a cited finding and a specific ask; text that can be lifted into a letter |
+| Leave out | Explanations of basic terms; reassurance; conclusions without a source; predictions of outcome; legal conclusions; asks that no finding in the record supports |
 | Success test | The professional can prepare for the meeting without re-reading every PDF first, and trusts the table because every row is traceable |
 
 ## Ask the person
@@ -127,6 +127,8 @@ Worth asking whenever the condition holds, even if every check is SHOWN. The stu
 | SQ4 | all | At least one accommodation is listed | How will each accommodation be used in class and on tests, and who makes sure it happens? |
 | SQ5 | all | At least one academic goal is listed | What can we do at home to support this goal without turning it into a struggle? |
 | SQ6 | all | The plan or the evaluations mention test results the parent may not have seen in full | Can someone walk me through each test result and what it means for teaching? |
+| SQ7 | all | At least one goal is measured by repeated probes or progress monitoring | If the numbers are not moving after six to eight weeks, what will the team change, and who decides? |
+| SQ8 | all | A reading need is documented and the child takes subjects with a lot of reading (such as science or social studies) | How will my child get the content in reading-heavy subjects while reading is still slow? |
 
 ## Chains
 Build one row per starting item; a missing link is a finding.
@@ -170,7 +172,8 @@ Hasbrouck & Tindal (2017). Words correct per minute on unpracticed grade-level p
 |---|---|---|---|
 | Prior written notice for evaluation, eligibility and placement | THIRD_PARTY (district) | before signing | T5, S3 |
 | Procedural safeguards notice | THIRD_PARTY (district) | before signing | T6 |
-| Signed consent to evaluate; consent for services | ASKER_OR_CLIENT or THIRD_PARTY (district) | before signing | T1, T2, T7 |
+| Signed consent to evaluate | ASKER_OR_CLIENT or THIRD_PARTY (district) | before signing | T1, T2 |
+| Consent for services | THIRD_PARTY (district) | before signing | T7 |
 | Referral or request for evaluation | ASKER_OR_CLIENT or THIRD_PARTY (school) | before signing | E1 |
 | Exclusionary-factors review (learning disability) | THIRD_PARTY (school) | before signing | E3, E4 |
 | Classroom observation | THIRD_PARTY (school) | before signing | E6 |
@@ -227,17 +230,18 @@ Title: Initial IEP file review: {student}
 | Order | Section | Built from |
 |---|---|---|
 | 1 | Bottom line | narrative: if check T0 is not SHOWN, state that first with the dates; then answer the Professional "Looking for" questions L1 to L7 in order, one sentence each; block unanswered |
-| 2 | Snapshot | narrative: student, grade, school, category, key dates, state, the request; block documents |
-| 3 | Chronology | block timeline + block computed (C1, C2, C3, C7a, C7b); flag "state timeline not verified" when no overlay (L2) |
-| 4 | Checklist | block checklist: id, check, verdict, evidence, authority; rows that are not SHOWN first (L2, L3) |
-| 5 | Alignment | block chains (CH1, CH2, CH3) with missing links marked (L4) |
-| 6 | Goal analysis | block spine_table (goals) + block computed (C4, C8, C9) (L5) |
-| 7 | Services against recommendations | block spine_table (services) + block computed (C5) + narrative on S3, S4 (L5) |
-| 8 | Conflicts and inconsistencies | block conflicts + block computed (C6) (L6) |
-| 9 | Document requests | block gaps with the check each one settles (L1) |
-| 10 | Meeting agenda | block questions (all, check and standing) + narrative: points for a parent-concerns letter (L7) |
-| 11 | Coverage and caveats | narrative: unreadable pages, checks not applicable, state rules not verified; pack version and verification date |
-Voice: dense; typed values as written; original quotes on expand; no advice on strategy or outcome; "see 34 CFR ..." rather than a conclusion.
+| 2 | Points to raise | narrative: one numbered point per issue a professional would raise, most important first, drawn from checks that are not SHOWN, chain rows with a missing link, and conflicts; each point states the finding, what is missing or weak, and the specific change, document or written request to ask for; every sentence, including the ask, cites the facts of its finding; no predictions of outcome and no legal conclusions (L7) |
+| 3 | Snapshot | narrative: student, grade, school, category, key dates, state, the request; block documents |
+| 4 | Chronology | block timeline + block computed (C1, C2, C3, C7a, C7b, C10); flag "state timeline not verified" when no overlay (L2) |
+| 5 | Checklist | block checklist: id, check, verdict, evidence, authority; rows that are not SHOWN first (L2, L3) |
+| 6 | Alignment | block chains (CH1, CH2, CH3) with missing links marked (L4) |
+| 7 | Goal analysis | block spine_table (goals) + block computed (C4, C8, C9) (L5) |
+| 8 | Services against recommendations | block spine_table (services) + block computed (C5) + narrative on S3, S4 (L5) |
+| 9 | Conflicts and inconsistencies | block conflicts + block computed (C6) (L6) |
+| 10 | Document requests | block gaps with the check each one settles (L1) |
+| 11 | Meeting agenda | block questions (all, check and standing) + narrative: points for a parent-concerns letter (L7) |
+| 12 | Coverage and caveats | narrative: unreadable pages, checks not applicable, state rules not verified; pack version and verification date |
+Voice: dense; typed values as written; original quotes on expand; points to raise are asks grounded in the record, never predictions or legal conclusions; "see 34 CFR ..." rather than a conclusion.
 
 ## Sources
 - 34 CFR Part 300, Subparts B, D and E (eCFR): 300.11, 300.106, 300.114, 300.300-300.311, 300.320-300.324, 300.503, 300.504.

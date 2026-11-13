@@ -56,4 +56,38 @@ describe("selectDomainPack", () => {
     const scoreA = scorePack(high, "widget quality review", [] as never);
     expect(scoreA).toBeGreaterThanOrEqual(PACK_SELECTION_THRESHOLD);
   });
+
+  it("prefers the higher pack version when scores tie", () => {
+    const older = {
+      ...entries[0],
+      pack: {
+        ...entries[0].pack,
+        meta: { ...entries[0].pack.meta, version: 1 },
+      },
+    };
+    const newer = {
+      ...entries[0],
+      pack: {
+        ...entries[0].pack,
+        meta: { ...entries[0].pack.meta, version: 9 },
+      },
+    };
+    const selected = selectDomainPack(
+      [older, newer],
+      "widget batch review acceptance test",
+      [
+        {
+          documentId: "d1",
+          fileName: "widget-spec.pdf",
+          schema: "hive.doc-extraction/1",
+          document: { documentType: "widget spec sheet", titleAsPrinted: "spec", summary: "" },
+          facts: [],
+          emptyFields: [],
+          referencedDocuments: [],
+          coverage: { pagesRead: [1] },
+        },
+      ] as never,
+    );
+    expect(selected?.version).toBe(9);
+  });
 });

@@ -39,7 +39,7 @@ import { normalizeContentDigest } from "@hiveforyou/contracts/document-read";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { buildCanonicalizePayload, canonicalizeCase } from "@/server/pipeline/canonicalize-runner";
-import { loadPackById, loadPackEntries } from "@/server/pipeline/pack-loader";
+import { loadPackById, loadPackEntries, logPinnedPackNotFound } from "@/server/pipeline/pack-loader";
 import { selectDomainPack } from "@hiveforyou/contracts";
 import { PlannerJobHandoffError } from "@/server/study-preparation/planner-async-jobs";
 import {
@@ -417,7 +417,18 @@ export async function selectAndPersistDomainPack(input: {
   hiveId?: string;
 }): Promise<{ pack: ReturnType<typeof loadPackById>; selection: V5StageOutputs["domainPack"] }> {
   if (input.existing && "id" in input.existing) {
-    return { pack: loadPackById(input.existing.id, input.existing.version), selection: input.existing };
+    const pack = loadPackById(input.existing.id, input.existing.version);
+    if (pack == null) {
+      logPinnedPackNotFound({
+        correlationId: input.correlationId,
+        hiveId: input.hiveId,
+        processingRunId: input.runId,
+        packId: input.existing.id,
+        packVersion: input.existing.version,
+        stage: "ANALYZE",
+      });
+    }
+    return { pack, selection: input.existing };
   }
   if (input.existing && "skipped" in input.existing) {
     return { pack: null, selection: input.existing };

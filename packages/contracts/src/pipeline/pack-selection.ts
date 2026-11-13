@@ -61,7 +61,11 @@ export function selectDomainPack(
   for (const entry of entries) {
     const score = scorePack(entry, requestText, extractions);
     if (score < threshold) continue;
-    if (!best || score > best.score) {
+    if (
+      !best ||
+      score > best.score ||
+      (score === best.score && entry.pack.meta.version > best.version)
+    ) {
       best = { id: entry.id, version: entry.pack.meta.version, score, pack: entry.pack };
     }
   }

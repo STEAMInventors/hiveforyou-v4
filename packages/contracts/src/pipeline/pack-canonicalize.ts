@@ -322,7 +322,11 @@ function parseQuestionOrder(
     }
   }
   const notShown = checklist
-    .filter((item) => (item.verdict === "NOT_SHOWN" || item.verdict === "PARTLY_SHOWN") && withQuestion.has(item.checkId))
+    .filter(
+      (item) =>
+        (item.verdict === "NOT_SHOWN" || item.verdict === "PARTLY_SHOWN" || item.verdict === "CONFLICT") &&
+        withQuestion.has(item.checkId),
+    )
     .map((item) => item.checkId);
   for (const id of notShown) {
     if (!seen.has(id)) order.push(id);

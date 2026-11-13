@@ -21,6 +21,7 @@ import {
 } from "./pack-study-view";
 import { capCustomerQuestions } from "./pack-write";
 import { assemblePackReportSections, type StudyViewPackSection } from "./pack-report-view";
+import { primarySubjectFirstName } from "./primary-subject";
 import { formatRecordReasonsForChecks, reconcilePackDocumentGaps } from "./document-gap-reconcile";
 import { spineCheckAnnotation } from "./spine-check-display";
 import { displayValueForWrittenText } from "./fact-display-value";
@@ -178,7 +179,7 @@ export type StudyViewContext = {
  * cites (sentences and block values) and the file name of every document it mentions.
  */
 export type StudyViewSources = {
-  readonly documents: Readonly<Record<string, { readonly fileName: string }>>;
+  readonly documents: Readonly<Record<string, { readonly fileName: string; readonly typeInPlainWords?: string | null }>>;
   readonly facts: Readonly<Record<string, StudyViewSourceRef>>;
 };
 
@@ -618,10 +619,7 @@ export function buildStudyView(
   let packBlocksUnknown: number | undefined;
   if (context.pack && !context.pack.briefOnly && context.reportAudience) {
     const prebuilt = new Map(blocks.map((block) => [block.name, block.rows] as const));
-    const firstName =
-      facts.find((fact) => fact.subject.trim() !== "")?.subject.trim() ??
-      studyForBlocks.documents[0]?.typeInPlainWords?.split(/\s+/)[0] ??
-      null;
+    const firstName = primarySubjectFirstName(studyForBlocks, facts);
     const assembled = assemblePackReportSections({
       pack: context.pack,
       audience: context.reportAudience,
@@ -703,10 +701,47 @@ export function buildStudyViewSources(
       }
     }
   }
-  const documents: Record<string, { fileName: string }> = {};
+  const typeInPlainWordsByDoc = new Map<string, string>();
+  const collectType = (sourceDocumentId: string, typeInPlainWords: string | null | undefined) => {
+    const text = typeInPlainWords?.trim() ?? "";
+    if (text !== "") typeInPlainWordsByDoc.set(sourceDocumentId.toLowerCase(), text);
+  };
+  for (const block of view.blocks) {
+    if (block.name !== "documents") continue;
+    for (const row of block.rows) collectType(row.id, row.typeInPlainWords);
+  }
+  if (view.packSections) {
+    for (const section of view.packSections) {
+      for (const block of section.blocks) {
+        if (block.name !== "documents") continue;
+        for (const row of block.rows) collectType(row.id, row.typeInPlainWords);
+      }
+      for (const paragraph of section.paragraphs) {
+        for (const sentence of paragraph.sentences) sentence.factIds.forEach(cite);
+      }
+      for (const block of section.blocks) {
+        for (const row of block.rows) row.values.forEach((value) => cite(value.factId));
+      }
+      const gapsList = section.documentRequestList;
+      if (gapsList) {
+        for (const item of gapsList.items) {
+          if (item.basis.type === "MENTIONED") {
+            item.basis.sourceRefs.forEach((ref) => documentIds.add(ref.sourceDocumentId));
+          }
+        }
+      }
+    }
+  }
+  const documents: Record<string, { fileName: string; typeInPlainWords?: string | null }> = {};
   const fileNameFor = (id: string) => fileNames.get(id.toLowerCase()) ?? fileNames.get(id) ?? "";
   for (const id of documentIds) {
-    documents[id] = { fileName: fileNameFor(id) || id };
+    const key = id.toLowerCase();
+    const typeInPlainWords = typeInPlainWordsByDoc.get(key) ?? null;
+    const fallbackName = fileNameFor(id) || id;
+    documents[id] = {
+      fileName: fallbackName,
+      ...(typeInPlainWords ? { fileName: typeInPlainWords, typeInPlainWords } : {}),
+    };
   }
   return { documents, facts: cited };
 }
@@ -728,7 +763,10 @@ export function normalizeStudyViewSources(raw: unknown): StudyViewSources {
   if (!isRecord(raw)) return { documents, facts };
   if (isRecord(raw.documents)) {
     for (const [id, entry] of Object.entries(raw.documents)) {
-      if (isRecord(entry) && typeof entry.fileName === "string") documents[id] = { fileName: entry.fileName };
+      if (isRecord(entry) && typeof entry.fileName === "string") {
+        const typeInPlainWords = typeof entry.typeInPlainWords === "string" ? entry.typeInPlainWords : null;
+        documents[id] = { fileName: entry.fileName, ...(typeInPlainWords ? { typeInPlainWords } : {}) };
+      }
     }
   }
   if (isRecord(raw.facts)) {

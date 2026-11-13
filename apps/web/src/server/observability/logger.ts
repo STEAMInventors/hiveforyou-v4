@@ -294,6 +294,7 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "pack_directory_missing",
   "pack_index_unreadable",
   "pack_file_parse_failed",
+  "pack_pinned_version_not_found",
 ]);
 
 const ALLOWED_EXCEPTION_TYPES = new Set([

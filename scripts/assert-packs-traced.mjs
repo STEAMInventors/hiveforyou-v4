@@ -45,7 +45,7 @@ function collectNftJson(dir, acc) {
 const nftFiles = [];
 collectNftJson(serverDir, nftFiles);
 
-const packPattern = /(^|[\\/])packs[\\/].+\.md$/i;
+const packPattern = /(^|[\\/])packs([\\/]archive)?[\\/].+\.md$/i;
 
 /** @param {string} nftPath */
 function routeMarkerForNft(nftPath) {

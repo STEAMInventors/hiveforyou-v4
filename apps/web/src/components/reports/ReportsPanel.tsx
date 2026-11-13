@@ -248,6 +248,7 @@ export function ReportsPanel({
             }}
             coverageGaps={state.studyRevision.coverageGaps}
             documentPages={documentPages}
+            canonicalStudy={canonicalStudy}
             controls={controls}
             status={status}
           />

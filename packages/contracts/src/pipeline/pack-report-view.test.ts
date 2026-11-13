@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { CANONICAL_STUDY_SCHEMA, type CanonicalStudy } from "./canonical-study-contracts";
 import { parsePackMarkdown } from "./pack-contracts";
-import { packReportSectionHeadings } from "./pack-report-view";
+import { assemblePackReportSections, packReportSectionHeadings } from "./pack-report-view";
 import { buildStudyView } from "./study-view-contracts";
 
 const ROOT = resolve(import.meta.dirname, "../../../..");
@@ -100,5 +100,62 @@ describe("pack report view", () => {
     ]);
     const questions = view.packSections?.find((section) => section.order === 3);
     expect(questions?.blocks.some((block) => block.name === "questions" && block.rows.length > 0)).toBe(true);
+  });
+
+  it("renders a narrative-only professional section with no template blocks", () => {
+    const pack = loadPack();
+    const proTemplate = pack.professionalReport?.sections ?? [];
+    const snapshot = proTemplate.find((section) => section.heading === "Alignment");
+    if (!snapshot) throw new Error("fixture pro template missing Alignment");
+    const narrativeOnly = {
+      ...snapshot,
+      order: 98,
+      heading: "Points to raise",
+      blocks: [],
+      builtFromRaw: "narrative: each point ties to a cited finding and a specific ask",
+    };
+    pack.professionalReport = {
+      ...pack.professionalReport!,
+      sections: [narrativeOnly],
+    };
+    const narrative = [
+      {
+        heading: "Points to raise",
+        paragraphs: [
+          {
+            sentences: [
+              {
+                text: "Ask whether the evaluation timelines in the file match the notice dates.",
+                factIds: ["F1"],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const { sections, drops } = assemblePackReportSections({
+      pack,
+      audience: "professional",
+      study: baseStudy(),
+      facts: [
+        {
+          id: "F1",
+          subject: "Lot A",
+          attribute: "notice",
+          valueAsWritten: "2024-10-01",
+          sourceDocumentId: "d1",
+          pageNumber: 1,
+          quote: "notice dated 2024-10-01",
+        },
+      ],
+      writeSections: narrative,
+      prebuilt: new Map(),
+      context: { pack, reportAudience: "professional" },
+    });
+    expect(drops.packSectionsOmitted).toBe(0);
+    expect(sections).toHaveLength(1);
+    expect(sections[0]!.heading).toBe("Points to raise");
+    expect(sections[0]!.blocks).toHaveLength(0);
+    expect(sections[0]!.paragraphs[0]!.sentences[0]!.text).toContain("evaluation timelines");
   });
 });

@@ -54,7 +54,7 @@ import {
 } from "@hiveforyou/contracts";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
-import { loadPackById } from "@/server/pipeline/pack-loader";
+import { loadPackById, logPinnedPackNotFound } from "@/server/pipeline/pack-loader";
 import { refreshReportRunProgressEstimateInWorker } from "@/server/pipeline/progress-estimate-persistence";
 import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
 import {
@@ -531,10 +531,17 @@ async function processStudyViewReportRun(
     const clock = deps.clock ?? (() => Date.now());
     const invocationStartedAt = deps.invocationStartedAt ?? startedAt;
     const writeThroughput = await loadPipelineThroughput(deps.client, "write", clock());
-    const pack =
-      inputs.canonicalStudy.packRef != null
-        ? loadPackById(inputs.canonicalStudy.packRef.id, inputs.canonicalStudy.packRef.version)
-        : null;
+    const packRef = inputs.canonicalStudy.packRef;
+    const pack = packRef != null ? loadPackById(packRef.id, packRef.version) : null;
+    if (packRef != null && pack == null) {
+      logPinnedPackNotFound({
+        correlationId,
+        processingRunId: reportRunId,
+        packId: packRef.id,
+        packVersion: packRef.version,
+        stage: "WRITE",
+      });
+    }
     const usePack = pack != null && !pack.briefOnly;
     const writePrompt = usePack && catalog.writeV2 ? catalog.writeV2 : catalog.write;
     const baseMetric: StageMetric = {

@@ -68,6 +68,8 @@ export const PACK_CANONICALIZE_INSTRUCTION = [
   'NOT_SHOWN means the facts do not show it - never that it did not happen. NOT_APPLICABLE needs a fact id showing why, or the note "condition not present".',
   "Add a note of at most 25 words saying what is or is not shown. Notes describe what the documents show or do not show. Never state a requirement or obligation; do not use must, required, should or shall.",
   "For each chain, return one row per starting item with a cell per link: the fact ids for that link, or missing.",
+  "Before marking a link missing, check the whole plan in the documents, including progress measurement and services; missing only when no fact supports that link.",
+  "Write gap titles and why lines in plain words for any reader: expand abbreviations, write dates in words, never use internal terms such as study date (say today for the review date).",
   "Do not use the readers, the checklist or the chains as a source of facts about this case.",
 ].join(" ");
 

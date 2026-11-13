@@ -14,6 +14,7 @@ import { rowChips } from "./Timeline";
 
 const CARD = "flex flex-col rounded-card border border-line bg-paper p-5 sm:p-7";
 const SECTION_HEADING = "m-0 font-brand text-section font-semibold text-ink";
+const LIST_HEADING = "m-0 text-small font-semibold text-ink";
 
 type PackReportSectionsProps = {
   readonly sections: readonly StudyViewPackSection[];
@@ -38,6 +39,72 @@ function questionListBlock(rows: readonly StudyViewRow[]): ReactNode {
   );
 }
 
+function customerSpineList(rows: readonly StudyViewRow[]): ReactNode {
+  if (rows.length === 0) return null;
+  return (
+    <ul className="m-0 flex list-none flex-col gap-2 p-0">
+      {rows.map((row) => (
+        <li key={row.id} className="max-w-prose text-body text-ink">
+          {row.statement ?? row.label}{" "}
+          <SourceChips refs={rowChips(row)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function customerChainLists(rows: readonly StudyViewRow[]): ReactNode {
+  const matches = rows.filter((row) => row.kind === "matches");
+  const worthAsking = rows.filter((row) => row.kind === "worth-asking");
+  if (matches.length === 0 && worthAsking.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-3">
+      {matches.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <h4 className={LIST_HEADING}>Matches</h4>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {matches.map((row) => (
+              <li key={row.id} className="max-w-prose text-body text-ink">
+                {row.statement ?? row.label} <SourceChips refs={rowChips(row)} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {worthAsking.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <h4 className={LIST_HEADING}>Worth asking</h4>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {worthAsking.map((row) => (
+              <li key={row.id} className="max-w-prose text-body text-ink">
+                {row.statement ?? row.label} <SourceChips refs={rowChips(row)} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function customerUnansweredList(rows: readonly StudyViewRow[]): ReactNode {
+  if (rows.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <h4 className={LIST_HEADING}>These documents don&apos;t show</h4>
+      <ul className="m-0 flex list-none flex-col gap-2 p-0">
+        {rows.map((row) => (
+          <li key={row.id} className="max-w-prose text-body text-ink">
+            {row.statement}
+            {row.kind ? <span className="text-quiet"> — {row.kind}</span> : null}
+            <SourceChips refs={rowChips(row)} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 type PackBlockRenderContext = Omit<PackReportSectionsProps, "sections">;
 
 function renderBlock(
@@ -50,6 +117,36 @@ function renderBlock(
     return <DocumentRequestList component={gapsList} customer={props.customer} sentenceChips={props.sentenceChips} />;
   }
   if (rows.length === 0) return null;
+  if (props.customer) {
+    switch (name) {
+      case "spine_table":
+        return customerSpineList(rows);
+      case "chains":
+        return customerChainLists(rows);
+      case "unanswered":
+        return customerUnansweredList(rows);
+      case "questions":
+        return questionListBlock(rows);
+      case "terms":
+      case "general_notes":
+      case "outside_spine":
+        return (
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {rows.map((row) => (
+              <li key={row.id} className="max-w-prose text-body text-ink">
+                {row.statement ?? row.label}
+              </li>
+            ))}
+          </ul>
+        );
+      case "checklist":
+        return (
+          <EstablishTable rows={rows.map((row) => ({ ...row, label: row.label ?? row.statement ?? row.id }))} compact observations={[]} statusMode="checklist" />
+        );
+      default:
+        break;
+    }
+  }
   switch (name) {
     case "spine_table":
     case "checklist":

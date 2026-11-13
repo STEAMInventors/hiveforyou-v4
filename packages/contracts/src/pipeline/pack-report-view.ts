@@ -215,6 +215,7 @@ export function assemblePackReportSections(input: {
 
   const firstName = input.firstName ?? null;
   const sections: StudyViewPackSection[] = [];
+  const emittedGeneralNoteIds = new Set<string>();
 
   for (const spec of [...template].sort((a, b) => a.order - b.order)) {
     const heading = normalizeHeading(spec.heading, firstName);
@@ -224,6 +225,14 @@ export function assemblePackReportSections(input: {
     for (const ref of spec.blocks) {
       const built = rowsForTemplateBlock(ref, input.study, factMap, input.context, input.prebuilt, drops);
       if (!built) continue;
+      if (built.name === "general_notes" && input.context.reportAudience === "customer") {
+        built.rows = built.rows.filter((row) => {
+          const noteId = row.id.trim().toUpperCase();
+          if (emittedGeneralNoteIds.has(noteId)) return false;
+          emittedGeneralNoteIds.add(noteId);
+          return true;
+        });
+      }
       if (built.name === "gaps" && input.documentRequestList) {
         gapsList = input.documentRequestList;
         blocks.push({ name: "gaps", rows: [] });

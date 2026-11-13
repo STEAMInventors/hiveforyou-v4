@@ -7,6 +7,7 @@ import {
   buildStudyView,
   packReportSectionHeadings,
   parsePackMarkdown,
+  primarySubjectFirstName,
 } from "@hiveforyou/contracts";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -30,6 +31,14 @@ describe("special-ed-l001 customer report sections", () => {
           date: "2024-10-18",
           version: null,
           chainPosition: null,
+        },
+        {
+          sourceDocumentId: "08acad0000-0000-4000-8000-000000000008",
+          role: "ANCHOR",
+          typeInPlainWords: "Initial individualized education program",
+          date: "2024-11-12",
+          version: null,
+          chainPosition: 1,
         },
       ],
       spine: [
@@ -80,8 +89,21 @@ describe("special-ed-l001 customer report sections", () => {
     };
 
     const template = iepPack.value.customerReport?.sections ?? [];
+    const firstName = primarySubjectFirstName(study, [
+      {
+        id: "F1",
+        subject: "Maya Carter",
+        attribute: "goal",
+        valueAsWritten: "70 wpm",
+        sourceDocumentId: "08acad0000-0000-4000-8000-000000000008",
+        pageNumber: 1,
+        quote: "Maya FAPE and IEP reading goal 70 wpm",
+      },
+    ]);
+    expect(firstName).toBe("Maya");
+
     const narrative = template.map((section) => ({
-      heading: section.heading.replace(/\{first name\}/gi, "Maya"),
+      heading: section.heading.replace(/\{first name\}/gi, firstName ?? ""),
       paragraphs: [{ sentences: [{ text: "Your documents show a reading goal for Maya.", factIds: ["F1"] }] }],
     }));
 
@@ -94,7 +116,7 @@ describe("special-ed-l001 customer report sections", () => {
           subject: "Maya",
           attribute: "goal",
           valueAsWritten: "70 wpm",
-          sourceDocumentId: "05acad0000-0000-4000-8000-000000000005",
+          sourceDocumentId: "08acad0000-0000-4000-8000-000000000008",
           pageNumber: 1,
           quote: "Maya FAPE and IEP reading goal 70 wpm",
         },
@@ -104,7 +126,16 @@ describe("special-ed-l001 customer report sections", () => {
     );
 
     const headings = packReportSectionHeadings(view.packSections ?? []);
-    console.log("Customer report sections (special-ed-l001, rev 6 template):\n" + headings.map((h) => `  ${h}`).join("\n"));
+    const withCounts = (view.packSections ?? []).map((section) => {
+      const blockCounts = section.blocks.map((block) => `${block.name}:${block.rows.length}`).join(", ");
+      const gaps =
+        blockCounts.includes("gaps:0") && section.documentRequestList
+          ? `gaps:${section.documentRequestList.items.length}`
+          : null;
+      const blocks = gaps ? blockCounts.replace("gaps:0", gaps) : blockCounts;
+      return `${section.order}. ${section.heading} [${blocks}]`;
+    });
+    console.log("Customer report sections (special-ed-l001):\n" + withCounts.map((h) => `  ${h}`).join("\n"));
     console.log(`packSectionsOmitted: ${drops.packSectionsOmitted}`);
 
     expect(headings.length).toBe(9);

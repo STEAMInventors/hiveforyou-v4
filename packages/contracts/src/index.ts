@@ -52,6 +52,7 @@ export * from "./pipeline/document-gap-reconcile";
 export * from "./pipeline/check-verdict-display";
 export * from "./pipeline/fact-display-value";
 export * from "./pipeline/study-view-contracts";
+export { primarySubjectFirstName } from "./pipeline/primary-subject";
 export * from "./pipeline/study-view-reference-match";
 export * from "./pipeline/write-audience";
 export {

@@ -3,6 +3,7 @@
 import {
   DOCUMENT_REQUEST_LIST_COMPONENT,
   documentRequestListHasContent,
+  type CanonicalStudy,
   type CoverageGap,
   type ReportAudience,
   StudyView,
@@ -61,6 +62,8 @@ type StudyReportProps = {
   revisionActions?: ReactNode;
   /** Off when the page header already shows this study's state bar. */
   showStateBar?: boolean;
+  /** Accepted canonical study for merging document type labels into chips when a stored view omits them. */
+  canonicalStudy?: CanonicalStudy | null;
 };
 
 const SECTION_IDS = STUDY_SECTION_IDS;
@@ -116,6 +119,7 @@ export function StudyReport({
   status,
   revisionActions,
   showStateBar = true,
+  canonicalStudy = null,
 }: StudyReportProps) {
   const customer = header.kind === "report" && header.audience === "CUSTOMER";
   const isReport = header.kind === "report";
@@ -132,7 +136,27 @@ export function StudyReport({
   const model = useMemo(() => {
     const rows = (name: StudyViewBlockName): readonly StudyViewRow[] => view.blocks.find((block) => block.name === name)?.rows ?? [];
     const documents = rows("documents");
-    const labelled = documents.map((row) => ({ sourceDocumentId: row.id, typeInPlainWords: row.typeInPlainWords, date: row.date }));
+    const typeByDoc = new Map(
+      documents.map((row) => [row.id.toLowerCase(), row.typeInPlainWords?.trim() || null] as const),
+    );
+    if (canonicalStudy) {
+      for (const document of canonicalStudy.documents) {
+        const key = document.sourceDocumentId.toLowerCase();
+        if (!typeByDoc.get(key)) typeByDoc.set(key, document.typeInPlainWords.trim() || null);
+      }
+    }
+    if (sources?.documents) {
+      for (const [id, entry] of Object.entries(sources.documents)) {
+        const fromSource = entry.typeInPlainWords?.trim() || entry.fileName?.trim() || null;
+        const key = id.toLowerCase();
+        if (!typeByDoc.get(key) && fromSource) typeByDoc.set(key, fromSource);
+      }
+    }
+    const labelled = [...typeByDoc.entries()].map(([sourceDocumentId, typeInPlainWords]) => ({
+      sourceDocumentId,
+      typeInPlainWords,
+      date: documents.find((row) => row.id.toLowerCase() === sourceDocumentId)?.date ?? null,
+    }));
     const labels = shortDocumentLabels(labelled);
     const chipLabels = shortTypeChipLabels(labelled);
     const readProblems = readProblemsFromCoverage(coverageGaps, (id) => labels.get(id), pageCountFor);
@@ -167,7 +191,7 @@ export function StudyReport({
       packMeta: view.packMeta ?? null,
       personaCoverageCard: view.personaCoverageCard ?? [],
     };
-  }, [view, sources, coverageGaps, pageCountFor]);
+  }, [view, sources, coverageGaps, pageCountFor, canonicalStudy]);
 
   const navigate = useCallback(
     (sectionId: string) => {
