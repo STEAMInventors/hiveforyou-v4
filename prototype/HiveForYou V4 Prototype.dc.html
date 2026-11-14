@@ -28,215 +28,433 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isLanding }}" hint-placeholder-val="{{ true }}">
-  <header style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px clamp(20px,4vw,48px);border-bottom:1px solid #E3E6EA">
-    <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:30px;width:auto;display:block">
-    <div style="display:flex;gap:8px;align-items:center">
-      <button onClick="{{ signIn }}" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;color:#1F2328;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#F4F6F8">Sign in</button>
-      <button onClick="{{ getStarted }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">Get started</button>
-    </div>
-  </header>
-
-  <section style="max-width:880px;margin:0 auto;padding:clamp(48px,9vw,112px) clamp(20px,4vw,48px) 40px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px">
-    <img src="assets/hiveforyou-mark.svg" alt="" style="width:64px;height:64px">
-    <h1 style="margin:0;font-family:Outfit,'Helvetica Neue',Arial,sans-serif;font-weight:600;font-size:clamp(36px,6vw,60px);line-height:1.08;letter-spacing:-0.01em;text-wrap:balance">What are you trying to get done?</h1>
-    <p style="margin:0;font-size:18px;line-height:1.55;color:#4A525C;max-width:560px;text-wrap:pretty">Give Hive the paperwork. Get the work done.</p>
-    <div style="width:100%;padding:2px;border-radius:22px;background:{{ ringBg }};margin-top:12px">
-      <div style="background:#fff;border-radius:20px;padding:16px 16px 12px 20px;display:flex;flex-direction:column;gap:10px;text-align:left">
-        <textarea value="{{ goalText }}" onChange="{{ onGoalInput }}" onFocus="{{ onGoalFocus }}" onBlur="{{ onGoalBlur }}" onKeyDown="{{ onGoalKey }}" rows="2" placeholder="Describe your situation, then add whatever documents you have…" aria-label="What are you trying to get done?" style="width:100%;border:none;resize:none;font-size:18px;line-height:1.5;color:#1F2328;background:transparent"></textarea>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-          <span style="font-size:13px;color:#6B737D">Old, partial or out of order is fine.</span>
-          <button onClick="{{ submitGoal }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#164AA8">Show me how
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+  <div style="min-height:100vh;display:flex;flex-direction:column">
+    <header style="display:flex;justify-content:flex-end;align-items:center;gap:8px;padding:16px clamp(16px,3vw,28px)">
+      <button onClick="{{ goSignin }}" style="height:44px;padding:0 22px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer" style-hover="background:#164AA8">Sign in</button>
+    </header>
+    <main style="flex:1 0 auto;width:100%;max-width:720px;margin:0 auto;padding:clamp(40px,10vh,112px) 20px 32px;display:flex;flex-direction:column;align-items:center;gap:26px">
+      <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:clamp(44px,8vw,64px);width:auto;display:block">
+      <h1 style="margin:0;font-weight:400;font-size:21px;line-height:1.4;color:#4A525C;text-align:center">What are you working on?</h1>
+      <div style="width:100%;padding:2px;border-radius:999px;background:{{ ringBg }};box-shadow:0 2px 12px rgba(31,35,40,.10)">
+        <div style="display:flex;align-items:center;gap:10px;min-height:56px;padding:0 6px 0 22px;border-radius:999px;background:#fff">
+          <input value="{{ goalText }}" onChange="{{ onGoalInput }}" onFocus="{{ onGoalFocus }}" onBlur="{{ onGoalBlur }}" onKeyDown="{{ onGoalKey }}" aria-label="Describe your situation" placeholder="Describe your situation" style="flex:1;min-width:0;height:44px;border:none;background:transparent;font-size:17px;color:#1F2328">
+          <button onClick="{{ startGuest }}" aria-label="Add documents" style="width:44px;height:44px;flex:none;border:none;border-radius:999px;background:#F4F6F8;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#E3E6EA">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F2328" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8"></path></svg>
           </button>
         </div>
       </div>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
-      <sc-for list="{{ examples }}" as="ex" hint-placeholder-count="4">
-        <button onClick="{{ ex.onClick }}" style="height:36px;padding:0 14px;border-radius:999px;border:1px solid {{ ex.bd }};background:{{ ex.bg }};color:{{ ex.fg }};font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">{{ ex.label }}</button>
-      </sc-for>
-    </div>
-  </section>
-
-  <sc-if value="{{ noMatch }}" hint-placeholder-val="{{ false }}">
-    <section style="max-width:880px;margin:0 auto;padding:0 clamp(20px,4vw,48px) 40px">
-      <div style="background:#F4F6F8;border-radius:20px;padding:24px;font-size:15px;line-height:1.6;color:#4A525C">Hive can work with paperwork like this. This prototype has three sample cases. Pick the closest one above to see how Hive would approach it.</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+        <button onClick="{{ startGuest }}" style="height:44px;padding:0 22px;border-radius:12px;border:none;background:#F4F6F8;color:#1F2328;font-size:15px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Add documents</button>
+        <button onClick="{{ goProSignin }}" style="height:44px;padding:0 22px;border-radius:12px;border:none;background:#F4F6F8;color:#1F2328;font-size:15px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">I work with clients</button>
+      </div>
+    </main>
+    <section style="width:100%;max-width:1040px;margin:0 auto;padding:16px 24px 56px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:36px">
+      <div style="display:flex;flex-direction:column;gap:6px"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:20px">Upload whatever you have</h2><p style="margin:0;color:#4A525C;font-size:15px;line-height:1.55">Letters, notices, statements, forms. Old, partial or out of order is fine.</p></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:20px">Every point opens its page</h2><p style="margin:0;color:#4A525C;font-size:15px;line-height:1.55">HiveForYou reads each page and ties every date, amount and finding to where it came from.</p></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:20px">See what is missing</h2><p style="margin:0;color:#4A525C;font-size:15px;line-height:1.55">A plain report, the places where documents disagree, and what the records don’t include.</p></div>
     </section>
-  </sc-if>
-
-  <sc-if value="{{ hasIntent }}" hint-placeholder-val="{{ false }}">
-    <section style="max-width:1180px;margin:0 auto;padding:8px clamp(20px,4vw,48px) 64px">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;border-top:1px solid #E3E6EA;padding-top:32px;margin-bottom:24px">
-        <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:30px">{{ it.label }}</h2>
-        <span style="font-size:13px;color:#6B737D">Examples come from a synthetic sample case</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
-        <div style="background:#F4F6F8;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
-          <div style="font-size:13px;font-weight:600;color:#4A525C">Paperwork you can upload</div>
-          <sc-for list="{{ it.accepts }}" as="a" hint-placeholder-count="4"><div style="font-size:15px;line-height:1.4;padding-bottom:10px;border-bottom:1px solid #E3E6EA">{{ a.t }}</div></sc-for>
-        </div>
-        <div style="background:#F4F6F8;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
-          <div style="font-size:13px;font-weight:600;color:#4A525C">Work Hive does</div>
-          <sc-for list="{{ it.work }}" as="w" hint-placeholder-count="4">
-            <div style="display:flex;gap:12px;font-size:15px;line-height:1.4"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B737D;padding-top:3px">{{ w.n }}</span><span>{{ w.t }}</span></div>
-          </sc-for>
-        </div>
-        <div style="background:#F4F6F8;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
-          <div style="font-size:13px;font-weight:600;color:#4A525C">What you receive</div>
-          <div style="font-size:15px;line-height:1.55">{{ it.gets }}</div>
-        </div>
-        <div style="background:#fff;border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:12px">
-          <div style="font-size:13px;font-weight:600;color:#4A525C">A finding, with its source</div>
-          <div style="font-size:15px;line-height:1.55">{{ it.finding }}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            <sc-for list="{{ it.chips }}" as="c" hint-placeholder-count="2"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for>
-          </div>
-          <div style="font-size:12.5px;color:#6B737D">Open a source chip to see the page it came from.</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:24px">
-        <button onClick="{{ startIntent }}" style="height:44px;padding:0 20px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#164AA8">Start this hive
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
-        </button>
-        <button onClick="{{ seeSample }}" style="height:44px;padding:0 20px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;color:#1F2328;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#F4F6F8">Explore the sample case</button>
-      </div>
-    </section>
-  </sc-if>
-
-  <sc-if value="{{ noIntent }}" hint-placeholder-val="{{ true }}">
-    <section style="max-width:1180px;margin:0 auto;padding:24px clamp(20px,4vw,48px) 64px">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0;border-top:1px solid #E3E6EA">
-        <div style="padding:28px 24px 28px 0;display:flex;flex-direction:column;gap:8px"><div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">Upload whatever you have</div><div style="font-size:15px;line-height:1.55;color:#4A525C">Statements, plans, letters, estimates. Duplicates and missing pages are fine; Hive tells you about them.</div></div>
-        <div style="padding:28px 24px;display:flex;flex-direction:column;gap:8px;border-left:1px solid #E3E6EA"><div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">Hive does the work</div><div style="font-size:15px;line-height:1.55;color:#4A525C">It checks coverage, matches records, calculates step by step and names what’s missing.</div></div>
-        <div style="padding:28px 0 28px 24px;display:flex;flex-direction:column;gap:8px;border-left:1px solid #E3E6EA"><div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">You review, then receive</div><div style="font-size:15px;line-height:1.55;color:#4A525C">Every line in the finished work links to the page it came from.</div></div>
-      </div>
-    </section>
-  </sc-if>
-
-  <footer style="border-top:1px solid #E3E6EA;padding:32px clamp(20px,4vw,48px);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-      <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:24px;width:auto">
-      <span style="font-family:Outfit,sans-serif;font-size:17px;font-weight:500">The complicated, made simple.</span>
-    </div>
-    <span style="font-size:12.5px;color:#6B737D">Prototype. All cases and documents are synthetic.</span>
-  </footer>
+    <footer style="background:#F4F6F8;padding:16px clamp(16px,3vw,28px);display:flex;gap:12px 32px;flex-wrap:wrap;justify-content:space-between;font-size:14px;color:#4A525C">
+      <span>The complicated, made simple.</span>
+      <span>Prototype. Every hive and document is synthetic. HiveForYou describes what documents say; it does not give advice.</span>
+    </footer>
+  </div>
 </sc-if>
 
-<sc-if value="{{ isInner }}" hint-placeholder-val="{{ false }}">
-  <header style="position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #E3E6EA">
-    <div style="display:flex;align-items:center;gap:20px;padding:0 clamp(16px,3vw,32px);height:64px">
-      <button onClick="{{ goHives }}" aria-label="My hives" style="border:none;background:none;padding:0;cursor:pointer;display:flex"><img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:28px;width:auto"></button>
-      <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#6B737D;min-width:0;flex:1 1 auto;overflow:hidden">
-          <button onClick="{{ goHives }}" style="border:none;background:none;padding:0;color:#4A525C;cursor:pointer;font-size:14px;white-space:nowrap" style-hover="color:#1A56C4">My hives</button>
-          <span>/</span>
-          <span style="color:#1F2328;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px">{{ hiveTitle }}</span>
+<sc-if value="{{ isSignin }}" hint-placeholder-val="{{ false }}">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px">
+    <div style="width:100%;max-width:420px;display:flex;flex-direction:column;gap:22px">
+      <button onClick="{{ goLanding }}" aria-label="HiveForYou home" style="align-self:flex-start;border:none;background:none;padding:0;cursor:pointer;display:flex"><img src="assets/hiveforyou-mark.svg" alt="" style="width:44px;height:44px"></button>
+
+      <sc-if value="{{ siEmail }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:32px;line-height:1.15">Sign in</h1>
+          <p style="margin:0;color:#4A525C;font-size:16px">to continue to HiveForYou</p>
+        </div>
+        <sc-if value="{{ hasPendingNote }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font-size:15px;color:#4A525C;line-height:1.5">{{ pendingNote }}</p></sc-if>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Email
+          <input type="email" value="{{ siEmailVal }}" onChange="{{ onSiEmail }}" onKeyDown="{{ onSiKey }}" autocomplete="email" style="height:52px;border:1px solid #6B737D;border-radius:12px;padding:0 16px;font-size:17px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
+        </label>
+        <sc-if value="{{ siErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;color:#B33A2E">{{ siErrText }}</div></sc-if>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:14px;color:#4A525C">No password. We email you a link.</span>
+          <button onClick="{{ siNext }}" style="height:44px;padding:0 26px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer" style-hover="background:#164AA8">Next</button>
+        </div>
+        <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:13px;color:#6B737D">Prototype accounts. Any other email creates a new account.</span>
+          <sc-for list="{{ demoAccts }}" as="a" hint-placeholder-count="2">
+            <button onClick="{{ a.pick }}" style="min-height:44px;padding:6px 0;border:none;background:none;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:0" style-hover="opacity:.8"><span style="font-size:15px;color:#1A56C4;font-weight:500">{{ a.email }}</span><span style="font-size:13px;color:#4A525C">{{ a.desc }}</span></button>
+          </sc-for>
         </div>
       </sc-if>
-      <div style="flex:1 1 0"></div>
-      <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
-        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#6B737D;white-space:nowrap;flex:none">
-          <select aria-label="Sample case" value="{{ scenValue }}" onChange="{{ onScen }}" style="height:34px;border:1px solid #E3E6EA;border-radius:12px;padding:0 10px;font-size:13px;color:#1F2328;background:#fff;cursor:pointer">
-            <sc-for list="{{ scenOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.value }}">{{ o.label }}</option></sc-for>
-          </select>
-        </label>
+
+      <sc-if value="{{ siSent }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:32px;line-height:1.15">Check your email</h1>
+          <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">We sent a sign-in link to <span style="color:#1F2328;font-weight:600">{{ siEmailVal }}</span>. It works once, for one hour.</p>
+        </div>
+        <button onClick="{{ siOpenLink }}" style="height:52px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:16px;cursor:pointer" style-hover="background:#164AA8">Open the sign-in link</button>
+        <span style="font-size:13px;color:#6B737D">Prototype: no email is sent. This button stands in for the link.</span>
+        <button onClick="{{ siBack }}" style="align-self:flex-start;min-height:44px;border:none;background:none;padding:0;color:#1A56C4;font-size:15px;font-weight:500;cursor:pointer">Use a different email</button>
       </sc-if>
-      <span style="height:24px;padding:0 10px;border-radius:999px;background:#FEF3D6;color:#7A5200;font-size:12px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">Synthetic data</span>
-      <button onClick="{{ goLanding }}" style="border:none;background:none;color:#4A525C;font-size:14px;cursor:pointer;white-space:nowrap;flex:none" style-hover="color:#1A56C4">Sign out</button>
+
+      <sc-if value="{{ siRole }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:32px;line-height:1.15">What brings you here?</h1>
+          <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">This sets where you start. You can do both later.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <sc-for list="{{ roleOpts }}" as="r" hint-placeholder-count="2">
+            <button onClick="{{ r.pick }}" aria-pressed="{{ r.on }}" style="text-align:left;padding:16px 18px;border-radius:16px;border:{{ r.bd }};background:{{ r.bg }};cursor:pointer;display:flex;flex-direction:column;gap:4px;color:#1F2328"><span style="font-size:17px;font-weight:600">{{ r.title }}</span><span style="font-size:14px;color:#4A525C;line-height:1.5">{{ r.desc }}</span></button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ siErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;color:#B33A2E">{{ siErrText }}</div></sc-if>
+        <button onClick="{{ siFinish }}" style="height:52px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:16px;cursor:pointer" style-hover="background:#164AA8">Continue</button>
+      </sc-if>
     </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showAppHeader }}" hint-placeholder-val="{{ false }}">
+  <header style="position:sticky;top:0;z-index:20;background:#fff;border-bottom:{{ headBd }}">
+    <div style="position:relative;display:flex;align-items:center;gap:12px 20px;flex-wrap:wrap;padding:12px clamp(16px,3vw,28px)">
+      <button onClick="{{ goHome }}" aria-label="Home" style="border:none;background:none;padding:0;cursor:pointer;display:flex;flex:none;min-height:44px;align-items:center;visibility:{{ headLogoVis }}"><img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:28px;width:auto"></button>
+      <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1 1 360px;max-width:680px;min-width:0;order:{{ pillOrder }};display:flex;align-items:center;gap:8px;min-height:48px;padding:0 4px 0 6px;border:1px solid #E3E6EA;border-radius:999px;box-shadow:0 1px 6px rgba(31,35,40,.10)">
+          <span style="flex:none;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 12px;border-radius:999px;background:#F4F6F8;font-size:14px;font-weight:600">{{ hiveTitle }}</span>
+          <input value="{{ qText }}" onChange="{{ onQ }}" onKeyDown="{{ onQKey }}" aria-label="Add a question for the next study build" placeholder="Add a question for the next study build" style="flex:1;min-width:0;height:40px;border:none;background:transparent;font-size:15px;color:#1F2328">
+          <button onClick="{{ addQuestion }}" style="flex:none;height:40px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap" style-hover="background:#E3E6EA">Add question</button>
+        </div>
+      </sc-if>
+      <div style="flex:1 1 0;order:1"></div>
+      <span style="order:2;height:24px;padding:0 10px;border-radius:999px;background:#FEF3D6;color:#7A5200;font-size:12px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">Synthetic data</span>
+      <button onClick="{{ toggleMenu }}" aria-label="Account" aria-expanded="{{ menuOpen }}" style="order:2;width:40px;height:40px;flex:none;border-radius:999px;border:none;background:#1F2328;color:#fff;font-size:14px;font-weight:600;cursor:pointer">{{ initials }}</button>
+      <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;right:clamp(16px,3vw,28px);top:64px;z-index:40;width:260px;background:#fff;border:1px solid #E3E6EA;border-radius:16px;box-shadow:0 12px 32px rgba(31,35,40,.14);padding:16px;display:flex;flex-direction:column;gap:4px">
+          <span style="font-weight:600">{{ userName }}</span>
+          <span style="font-size:14px;color:#4A525C">{{ userEmail }}</span>
+          <span style="font-size:13px;color:#6B737D;padding-bottom:8px">{{ userRole }}</span>
+          <button onClick="{{ signOut }}" style="height:44px;border-radius:12px;border:none;background:#F4F6F8;color:#1F2328;font-size:15px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Sign out</button>
+        </div>
+      </sc-if>
+    </div>
+    <sc-if value="{{ hasQSaved }}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="padding:0 clamp(16px,3vw,28px) 10px;font-size:13.5px;color:#197040">Saved. Your next study build uses this question.</div>
+    </sc-if>
     <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
-      <nav style="display:flex;gap:4px;padding:0 clamp(16px,3vw,32px)">
-        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
-          <button onClick="{{ t.onClick }}" style="height:44px;padding:0 14px;border:none;background:none;border-bottom:2px solid {{ t.bd }};color:{{ t.fg }};font-weight:500;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:8px" style-hover="color:#1F2328">{{ t.label }}<span style="font-size:12px;color:#6B737D">{{ t.count }}</span></button>
+      <nav aria-label="Hive sections" style="display:flex;gap:4px;flex-wrap:wrap;padding:0 clamp(16px,3vw,28px)">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+          <button onClick="{{ t.onClick }}" style="height:44px;padding:0 14px;border:none;background:none;border-bottom:3px solid {{ t.bd }};color:{{ t.fg }};font-weight:500;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:8px" style-hover="color:#1F2328">{{ t.label }}<span style="font-size:12px;color:#6B737D">{{ t.count }}</span></button>
         </sc-for>
       </nav>
     </sc-if>
   </header>
 </sc-if>
 
-<sc-if value="{{ isHives }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1240px;margin:0 auto;padding:40px clamp(16px,3vw,32px) 64px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:28px">
-      <div>
-        <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px">My hives</h1>
-        <p style="margin:6px 0 0;color:#4A525C;font-size:15px">Each hive holds one situation: its documents, what Hive understands, the work and the result.</p>
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ false }}">
+  <main style="width:100%;max-width:680px;margin:0 auto;padding:clamp(32px,8vh,88px) 20px 64px;display:flex;flex-direction:column;align-items:center;gap:22px">
+    <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:clamp(40px,7vw,56px);width:auto">
+    <p style="margin:0;font-size:19px;color:#4A525C">{{ greeting }}</p>
+
+    <sc-if value="{{ homeIsPro }}" hint-placeholder-val="{{ false }}">
+      <div style="width:100%;display:flex;align-items:center;gap:12px;min-height:52px;padding:0 20px;border:1px solid #E3E6EA;border-radius:999px;box-shadow:0 2px 12px rgba(31,35,40,.10)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <input value="{{ homeQuery }}" onChange="{{ onHomeQuery }}" aria-label="Find a client" placeholder="Find a client" style="flex:1;min-width:0;height:44px;border:none;background:transparent;font-size:17px;color:#1F2328">
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button onClick="{{ toggleEmpty }}" style="height:40px;padding:0 12px;border:none;background:none;color:#4A525C;font-size:13px;cursor:pointer;text-decoration:underline">{{ emptyToggleLabel }}</button>
-        <button onClick="{{ goCreate }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#164AA8">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>New hive</button>
-      </div>
-    </div>
-    <sc-if value="{{ showEmpty }}" hint-placeholder-val="{{ false }}">
-      <div style="border:1px dashed #C9CED5;border-radius:20px;padding:64px 32px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center">
-        <img src="assets/hiveforyou-mark.svg" alt="" style="width:48px;height:48px">
-        <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">No hives yet</div>
-        <div style="color:#4A525C;font-size:15px;max-width:420px;line-height:1.55">Start with what you’re trying to get done. You can add documents right after.</div>
-        <button onClick="{{ goCreate }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#164AA8">Start your first hive</button>
-      </div>
-    </sc-if>
-    <sc-if value="{{ showCards }}" hint-placeholder-val="{{ true }}">
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
-        <sc-for list="{{ hiveCards }}" as="h" hint-placeholder-count="3">
-          <button onClick="{{ h.open }}" style="text-align:left;border:1px solid #E3E6EA;border-radius:20px;background:#fff;padding:24px;cursor:pointer;display:flex;flex-direction:column;gap:16px;color:#1F2328" style-hover="border-color:#3B7CF6;box-shadow:0 6px 24px rgba(31,35,40,.06)">
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <div style="font-size:12.5px;color:#6B737D">{{ h.last }}</div>
-              <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500;line-height:1.25">{{ h.title }}</div>
-              <div style="font-size:14px;color:#4A525C;line-height:1.5">{{ h.purpose }}</div>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px">
-              <sc-for list="{{ h.bar }}" as="b" hint-placeholder-count="4"><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ b.bg }};color:{{ b.fg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center">{{ b.label }}</span></sc-for>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <div style="display:flex;justify-content:space-between;font-size:13px;color:#4A525C"><span>Work plan</span><span>{{ h.progress }}</span></div>
-              <div style="height:6px;border-radius:999px;background:#F4F6F8;overflow:hidden"><div style="height:100%;width:{{ h.pw }};background:#2FA35A"></div></div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;border-top:1px solid #E3E6EA;padding-top:14px;font-size:13px">
-              <div><div style="color:#6B737D;font-size:12px">Documents</div><div style="font-weight:500;margin-top:2px">{{ h.docs }}</div></div>
-              <div><div style="color:#6B737D;font-size:12px">Study</div><div style="font-weight:500;margin-top:2px">{{ h.rev }}</div></div>
-              <div><div style="color:#6B737D;font-size:12px">Latest deliverable</div><div style="font-weight:500;margin-top:2px">{{ h.rep }}</div></div>
-            </div>
-          </button>
+      <button onClick="{{ newClient }}" style="height:44px;padding:0 24px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer" style-hover="background:#164AA8">New client</button>
+      <nav aria-label="Filter clients" style="width:100%;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid #E3E6EA;margin-top:8px">
+        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="4">
+          <button onClick="{{ f.pick }}" style="height:44px;padding:0 12px;border:none;background:none;border-bottom:3px solid {{ f.bd }};color:{{ f.fg }};font-weight:{{ f.fw }};font-size:14.5px;cursor:pointer">{{ f.label }}</button>
         </sc-for>
-      </div>
+      </nav>
+      <span style="align-self:flex-start;font-size:14px;color:#6B737D">{{ homeCount }}</span>
+      <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}"><p style="align-self:flex-start;margin:0;color:#4A525C">{{ noRowsText }}</p></sc-if>
     </sc-if>
+
+    <sc-if value="{{ homeIsInd }}" hint-placeholder-val="{{ false }}">
+      <div style="width:100%;padding:2px;border-radius:999px;background:{{ ringBg }};box-shadow:0 2px 12px rgba(31,35,40,.10)">
+        <div style="display:flex;align-items:center;gap:10px;min-height:56px;padding:0 6px 0 22px;border-radius:999px;background:#fff">
+          <input value="{{ goalText }}" onChange="{{ onGoalInput }}" onFocus="{{ onGoalFocus }}" onBlur="{{ onGoalBlur }}" onKeyDown="{{ onMineKey }}" aria-label="What are you working on?" placeholder="What are you working on?" style="flex:1;min-width:0;height:44px;border:none;background:transparent;font-size:17px;color:#1F2328">
+          <button onClick="{{ startMine }}" aria-label="Start a hive and add documents" style="width:44px;height:44px;flex:none;border:none;border-radius:999px;background:#F4F6F8;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#E3E6EA">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1F2328" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5l-8.6 8.6a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.5 8.5a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8"></path></svg>
+          </button>
+        </div>
+      </div>
+      <button onClick="{{ startMine }}" style="height:44px;padding:0 22px;border-radius:12px;border:none;background:#F4F6F8;color:#1F2328;font-size:15px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Start a new hive</button>
+      <sc-if value="{{ hasHomeCount }}" hint-placeholder-val="{{ false }}"><span style="align-self:flex-start;font-size:14px;color:#6B737D;margin-top:16px">{{ homeCount }}</span></sc-if>
+    </sc-if>
+
+    <div style="width:100%;display:flex;flex-direction:column;gap:28px">
+      <sc-for list="{{ homeRows }}" as="r" hint-placeholder-count="3">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <span style="font-size:13px;color:#4A525C">{{ r.kicker }}</span>
+          <button onClick="{{ r.open }}" style="align-self:flex-start;border:none;background:none;padding:2px 0;color:#1A56C4;font-size:20px;font-weight:500;cursor:pointer;text-align:left;min-height:32px" style-hover="text-decoration:underline">{{ r.title }}</button>
+          <span style="font-size:15px;line-height:1.5">{{ r.sentence }}</span>
+          <span style="display:flex;gap:4px 14px;flex-wrap:wrap;font-size:13.5px;font-weight:600">
+            <sc-for list="{{ r.counts }}" as="c" hint-placeholder-count="2"><span style="color:{{ c.fg }}">{{ c.label }}</span></sc-for>
+            <span style="color:#6B737D;font-weight:400">{{ r.last }}</span>
+          </span>
+        </div>
+      </sc-for>
+    </div>
   </main>
 </sc-if>
 
-<sc-if value="{{ isCreate }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:760px;margin:0 auto;padding:56px clamp(16px,3vw,32px) 80px;display:flex;flex-direction:column;gap:24px">
-    <div>
-      <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px">New hive</h1>
-      <p style="margin:8px 0 0;color:#4A525C;font-size:15px;line-height:1.55">Describe what you want done, in your own words. Hive suggests a goal and a plan; you can change any of it.</p>
+<sc-if value="{{ isNewClient }}" hint-placeholder-val="{{ false }}">
+  <main style="width:100%;max-width:520px;margin:0 auto;padding:clamp(32px,8vh,80px) 20px 64px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;flex-direction:column;gap:6px;text-align:center">
+      <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:34px;line-height:1.15">Who is the client?</h1>
+      <p style="margin:0;color:#4A525C;font-size:16px">Their hive holds everything for this one matter.</p>
     </div>
-    <div style="padding:2px;border-radius:22px;background:{{ ringBg2 }}">
-      <div style="background:#fff;border-radius:20px;padding:16px 16px 12px 20px;display:flex;flex-direction:column;gap:10px">
-        <textarea value="{{ createText }}" onChange="{{ onCreateInput }}" onFocus="{{ onCreateFocus }}" onBlur="{{ onCreateBlur }}" rows="3" placeholder="I need to understand five years of bank statements for my mother’s Medicaid application." aria-label="Describe what you want done" style="width:100%;border:none;resize:none;font-size:17px;line-height:1.55;background:transparent;color:#1F2328"></textarea>
-        <div style="display:flex;justify-content:flex-end"><button onClick="{{ propose }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">Suggest a plan</button></div>
-      </div>
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Client’s name
+      <input value="{{ nc.name }}" onChange="{{ onNcName }}" autocomplete="off" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Client’s email <span style="font-weight:400;color:#6B737D">Needed only to invite them</span>
+      <input type="email" value="{{ nc.email }}" onChange="{{ onNcEmail }}" autocomplete="off" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">What is it about?
+      <input value="{{ nc.about }}" onChange="{{ onNcAbout }}" placeholder="A few words, for example a benefits application" autocomplete="off" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
+    </label>
+    <sc-if value="{{ ncErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;color:#B33A2E">{{ nc.err }}</div></sc-if>
+    <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
+      <button onClick="{{ ncInvite }}" style="height:52px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:16px;cursor:pointer" style-hover="background:#164AA8">Invite them to upload</button>
+      <button onClick="{{ ncDocs }}" style="height:52px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:16px;cursor:pointer" style-hover="background:#E3E6EA">I have their documents</button>
+      <button onClick="{{ goHome }}" style="align-self:center;min-height:44px;border:none;background:none;color:#4A525C;font-size:15px;cursor:pointer">Cancel</button>
     </div>
-    <sc-if value="{{ hasProposal }}" hint-placeholder-val="{{ false }}">
-      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
-        <div style="padding:16px 24px;background:#F4F6F8;font-size:13px;color:#4A525C">Hive’s suggestion. Edit anything that isn’t right.</div>
-        <div style="padding:24px;display:flex;flex-direction:column;gap:18px">
-          <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#4A525C">Goal
-            <input value="{{ prop.goal }}" onChange="{{ onPropGoal }}" style="height:44px;border:1px solid #E3E6EA;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
-          </label>
-          <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#4A525C">Expected output
-            <input value="{{ prop.output }}" onChange="{{ onPropOutput }}" style="height:44px;border:1px solid #E3E6EA;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
-          </label>
-          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600;color:#4A525C">Likely work</div><div style="font-size:15px;line-height:1.55">{{ prop.work }}</div></div>
-          <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600;color:#4A525C">Next step</div><div style="font-size:15px">Upload available documents.</div></div>
-          <sc-if value="{{ prop.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:#7A5200;background:#FEF3D6;border-radius:12px;padding:10px 14px">{{ prop.note }}</div></sc-if>
-          <div style="font-size:12.5px;color:#6B737D;line-height:1.5">This plan is a starting point Hive suggested from your description. It isn’t legal or agency guidance on what’s required.</div>
-        </div>
-        <div style="padding:16px 24px;border-top:1px solid #E3E6EA;display:flex;justify-content:flex-end;gap:8px">
-          <button onClick="{{ goHives }}" style="height:44px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:15px;cursor:pointer" style-hover="background:#F4F6F8">Cancel</button>
-          <button onClick="{{ createHive }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#164AA8">Create hive and add documents</button>
-        </div>
-      </div>
-    </sc-if>
+    <p style="margin:0;font-size:13.5px;color:#6B737D;text-align:center;line-height:1.5">An invitation emails your client a sign-in link. No password. In this prototype nothing is sent.</p>
   </main>
+</sc-if>
+
+<sc-if value="{{ isOverview }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:1160px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-wrap:wrap;gap:40px 48px;align-items:flex-start">
+    <section style="flex:999 1 480px;min-width:0;max-width:700px;display:flex;flex-direction:column;gap:28px">
+      <div style="border:1px solid #E3E6EA;border-radius:16px;padding:24px;box-shadow:0 1px 6px rgba(31,35,40,.08);display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:14px;font-weight:600;color:#1A56C4">Next for you</span>
+        <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:28px;line-height:1.15">{{ nx.title }}</h1>
+        <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">{{ nx.text }}</p>
+        <sc-if value="{{ nx.hasChips }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ nx.chips }}" as="c" hint-placeholder-count="2"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+        </sc-if>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <sc-if value="{{ nx.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nx.go }}" style="height:48px;padding:0 26px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer" style-hover="background:#164AA8">{{ nx.btn }}</button></sc-if>
+          <sc-if value="{{ nx.hasAlt }}" hint-placeholder-val="{{ false }}"><button onClick="{{ nx.alt }}" style="height:48px;padding:0 22px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#E3E6EA">{{ nx.altLabel }}</button></sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ hasReqs }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column">
+          <h2 style="margin:0 0 6px;font-size:18px;font-weight:600">{{ reqHead }}</h2>
+          <sc-for list="{{ reqRows }}" as="q" hint-placeholder-count="2">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #E3E6EA">
+              <span style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 260px"><span>{{ q.title }}</span><span style="font-size:14px;color:{{ q.fg }};font-weight:500">{{ q.status }}</span></span>
+              <sc-if value="{{ q.hasAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ q.act }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ q.actLabel }}</button></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <h2 style="margin:0;font-size:18px;font-weight:600">What the documents show</h2>
+        <sc-if value="{{ noFindings }}" hint-placeholder-val="{{ false }}"><p style="margin:0;color:#4A525C">{{ noFindText }}</p></sc-if>
+        <sc-for list="{{ findings }}" as="f" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <span style="font-size:13px;font-weight:600;color:{{ f.kfg }}">{{ f.kind }}</span>
+            <button onClick="{{ f.open }}" style="align-self:flex-start;border:none;background:none;padding:0;color:#1A56C4;font-size:19px;font-weight:500;line-height:1.35;text-align:left;cursor:pointer;min-height:28px" style-hover="text-decoration:underline">{{ f.title }}</button>
+            <span style="font-size:15px;line-height:1.55">{{ f.detail }}</span>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+              <sc-for list="{{ f.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for>
+              <sc-if value="{{ f.hasAsk }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.ask }}" style="min-height:32px;border:none;background:none;padding:0 4px;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer">{{ f.askLabel }}</button></sc-if>
+              <sc-if value="{{ f.hasAsked }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#4A525C">{{ f.askedLabel }}</span></sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <aside style="flex:1 1 280px;max-width:360px;border:1px solid #E3E6EA;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:22px">{{ hiveTitle }}</h2>
+        <span style="font-size:14px;color:#4A525C;line-height:1.5">{{ hivePurpose }}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:15px">
+        <sc-for list="{{ readyLines }}" as="r" hint-placeholder-count="5"><span style="display:flex;justify-content:space-between;gap:12px"><span style="color:#4A525C">{{ r.k }}</span><span style="font-weight:600;text-align:right">{{ r.v }}</span></span></sc-for>
+      </div>
+      <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
+        <span style="font-size:13px;color:#4A525C">{{ partyLabel }}</span>
+        <span style="font-weight:600">{{ partyLine }}</span>
+        <sc-if value="{{ hasPartyAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ partyAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ partyActLabel }}</button></sc-if>
+        <sc-if value="{{ hasPeek }}" hint-placeholder-val="{{ false }}"><button onClick="{{ peek }}" style="align-self:flex-start;min-height:40px;border:none;background:none;padding:0;color:#1A56C4;font-size:15px;font-weight:500;cursor:pointer">{{ peekLabel }}</button></sc-if>
+      </div>
+    </aside>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isClientView }}" hint-placeholder-val="{{ false }}">
+  <div style="min-height:100vh;background:#F4F6F8;display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 16px 40px">
+    <div style="width:100%;max-width:390px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;color:#4A525C">
+      <span>Prototype · seeing what {{ cv.first }} sees on a phone</span>
+      <button onClick="{{ cv.back }}" style="min-height:44px;border:none;background:none;padding:0;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap">Back to {{ cv.backTo }}</button>
+    </div>
+    <div style="width:100%;max-width:390px;min-height:780px;background:#fff;border:1px solid #E3E6EA;border-radius:28px;box-shadow:0 8px 32px rgba(31,35,40,.10);overflow:hidden;display:flex;flex-direction:column">
+
+      <sc-if value="{{ cv.isEmail }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:20px 22px 16px;border-bottom:1px solid #E3E6EA;display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:13px;color:#4A525C">Inbox</span>
+          <span style="font-weight:600;font-size:18px;line-height:1.3">{{ cv.subject }}</span>
+          <span style="font-size:13.5px;color:#4A525C">HiveForYou, for {{ cv.pro }}</span>
+        </div>
+        <div style="padding:26px 22px;display:flex;flex-direction:column;gap:16px;font-size:16px;line-height:1.55">
+          <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:24px;width:auto;align-self:flex-start">
+          <p style="margin:0">Hello {{ cv.first }},</p>
+          <p style="margin:0">{{ cv.pro }} opened a hive for you and asked for {{ cv.countWord }}. You can send each one from your phone by taking a photo.</p>
+          <button onClick="{{ cv.openLink }}" style="height:52px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:16px;cursor:pointer">Open your hive</button>
+          <p style="margin:0;font-size:14px;color:#4A525C">No password. The link works once, for one hour, and only for this email address. This email never includes what is in your documents.</p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ cv.isWelcome }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:18px 20px"><img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:24px;width:auto"></div>
+        <div style="flex:1;padding:28px 20px 24px;display:flex;flex-direction:column;gap:18px">
+          <span style="font-size:15px;color:#4A525C">Hello {{ cv.first }}. {{ cv.pro }} invited you.</span>
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:34px;line-height:1.1">{{ cv.proFirst }} needs {{ cv.countWord }} from you</h1>
+          <div style="display:flex;flex-direction:column;gap:16px;padding:6px 0">
+            <span style="display:flex;gap:14px;align-items:flex-start"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1F2328" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>Take a photo of each one, or choose a file. One at a time.</span>
+            <span style="display:flex;gap:14px;align-items:flex-start"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1F2328" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M4 5h16v11H9l-5 4z"></path></svg>If you don’t have something, say so and tell {{ cv.proFirst }} why.</span>
+            <span style="display:flex;gap:14px;align-items:flex-start"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1F2328" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Only you and {{ cv.proFirst }} see what you add.</span>
+          </div>
+          <button onClick="{{ cv.start }}" style="height:56px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:17px;cursor:pointer">Start</button>
+          <span style="text-align:center;color:#4A525C;font-size:15px">Old, partial or out of order is fine. You can stop and come back.</span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ cv.isTodo }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px"><img src="assets/hiveforyou-mark.svg" alt="HiveForYou" style="width:26px;height:26px"><span style="font-size:14px;color:#4A525C">For {{ cv.pro }}</span></div>
+        <div role="img" aria-label="{{ cv.pos }}" style="display:flex;gap:6px;padding:0 20px"><sc-for list="{{ cv.bars }}" as="b" hint-placeholder-count="3"><span style="flex:1;height:4px;border-radius:999px;background:{{ b.bg }}"></span></sc-for></div>
+        <div style="flex:1;padding:36px 20px 20px;display:flex;flex-direction:column;gap:14px">
+          <span style="font-size:14px;color:#4A525C">{{ cv.pos }}</span>
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px;line-height:1.12">{{ cv.title }}</h1>
+          <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.5">{{ cv.sub }}</p>
+          <div style="display:flex;flex-direction:column;gap:12px;padding-top:14px">
+            <button onClick="{{ cv.photo }}" style="height:56px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-size:17px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>Take a photo</button>
+            <input type="file" id="cv-file" onChange="{{ cv.onFile }}" style="display:none">
+            <label for="cv-file" tabindex="0" style="height:56px;border-radius:999px;background:#F4F6F8;color:#1F2328;font-size:17px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center">Choose a file</label>
+            <button onClick="{{ cv.noHave }}" style="min-height:44px;border:none;background:none;color:#4A525C;font-size:16px;cursor:pointer">I don’t have this</button>
+          </div>
+        </div>
+        <sc-if value="{{ cv.hasNext }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px 20px 22px;border-top:1px solid #E3E6EA;display:flex;flex-direction:column">
+            <span style="font-size:14px;color:#4A525C;padding-bottom:4px">Up next</span>
+            <sc-for list="{{ cv.next }}" as="n" hint-placeholder-count="2"><span style="padding:9px 0;border-top:1px solid #F4F6F8">{{ n.title }}</span></sc-for>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ cv.isNa }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:16px 20px"><img src="assets/hiveforyou-mark.svg" alt="HiveForYou" style="width:26px;height:26px"></div>
+        <div style="flex:1;padding:28px 20px;display:flex;flex-direction:column;gap:14px">
+          <span style="font-size:14px;color:#4A525C">{{ cv.title }}</span>
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:28px;line-height:1.15">Tell {{ cv.proFirst }} why you don’t have it</h1>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">A few words are enough
+            <textarea value="{{ cv.reason }}" onChange="{{ cv.onReason }}" rows="4" placeholder="For example: the bank says the account opened later" style="border:1px solid #6B737D;border-radius:12px;padding:12px 14px;font-size:16px;font-weight:400;line-height:1.5;resize:none;color:#1F2328"></textarea>
+          </label>
+          <sc-if value="{{ cv.hasErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;color:#B33A2E">{{ cv.err }}</div></sc-if>
+          <button onClick="{{ cv.sendNa }}" style="height:56px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-size:17px;font-weight:600;cursor:pointer">Send to {{ cv.proFirst }}</button>
+          <button onClick="{{ cv.cancelNa }}" style="min-height:44px;border:none;background:none;color:#4A525C;font-size:16px;cursor:pointer">Back</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ cv.isDone }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:16px 20px"><img src="assets/hiveforyou-mark.svg" alt="HiveForYou" style="width:26px;height:26px"></div>
+        <div style="flex:1;padding:36px 20px;display:flex;flex-direction:column;gap:16px">
+          <span style="width:52px;height:52px;border-radius:999px;background:#E6F4EA;display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#197040" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg></span>
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px;line-height:1.12">All sent. {{ cv.proFirst }} will review.</h1>
+          <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.5">You’ll get an email if {{ cv.proFirst }} asks for anything else.</p>
+          <div style="display:flex;flex-direction:column;padding-top:8px">
+            <sc-for list="{{ cv.sent }}" as="d" hint-placeholder-count="2"><span style="display:flex;flex-direction:column;padding:10px 0;border-top:1px solid #E3E6EA"><span>{{ d.title }}</span><span style="font-size:14px;color:#4A525C">{{ d.status }}</span></span></sc-for>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isProView }}" hint-placeholder-val="{{ false }}">
+  <div style="min-height:100vh;display:flex;flex-direction:column">
+    <div style="background:#F4F6F8;padding:8px clamp(16px,3vw,28px);display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;color:#4A525C">
+      <span>Prototype · seeing what {{ pv.proName }} sees</span>
+      <button onClick="{{ pv.back }}" style="min-height:40px;border:none;background:none;padding:0;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap">Back to {{ pv.backTo }}</button>
+    </div>
+
+    <sc-if value="{{ pv.isEmail }}" hint-placeholder-val="{{ false }}">
+      <main style="flex:1;width:100%;max-width:600px;margin:0 auto;padding:48px 20px">
+        <div style="border:1px solid #E3E6EA;border-radius:16px;overflow:hidden">
+          <div style="padding:18px 24px;border-bottom:1px solid #E3E6EA;display:flex;flex-direction:column;gap:2px"><span style="font-weight:600;font-size:18px">{{ pv.owner }} shared a hive with you</span><span style="font-size:13.5px;color:#4A525C">HiveForYou, for {{ pv.owner }}</span></div>
+          <div style="padding:24px;display:flex;flex-direction:column;gap:16px;font-size:16px;line-height:1.55">
+            <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:24px;width:auto;align-self:flex-start">
+            <p style="margin:0">Hello {{ pv.proFirst }},</p>
+            <p style="margin:0">{{ pv.owner }} would like your help with “{{ pv.hiveTitle }}” and shared a read-only summary of the documents.</p>
+            <button onClick="{{ pv.open }}" style="align-self:flex-start;height:48px;padding:0 28px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:16px;cursor:pointer">Open the summary</button>
+            <p style="margin:0;font-size:14px;color:#4A525C">No password. The link works once, for one hour. Opening it does not commit you to anything.</p>
+          </div>
+        </div>
+      </main>
+    </sc-if>
+
+    <sc-if value="{{ pv.isWelcome }}" hint-placeholder-val="{{ false }}">
+      <main style="flex:1;width:100%;max-width:680px;margin:0 auto;padding:clamp(48px,10vh,96px) 24px 48px;display:flex;flex-direction:column;align-items:center;gap:20px;text-align:center">
+        <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:32px;width:auto">
+        <span style="font-size:16px;color:#4A525C">{{ pv.owner }} shared a hive with you</span>
+        <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:clamp(34px,6vw,50px);line-height:1.08">{{ pv.headline }}</h1>
+        <p style="margin:0;font-size:18px;color:#4A525C;max-width:540px;line-height:1.55">You will see what the documents say, where they disagree and what is missing, each point tied to its page.</p>
+        <span style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:15px;font-weight:600"><sc-for list="{{ pv.counts }}" as="c" hint-placeholder-count="3"><span style="color:{{ c.fg }}">{{ c.label }}</span></sc-for></span>
+        <button onClick="{{ pv.read }}" style="height:56px;padding:0 36px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-size:17px;font-weight:600;cursor:pointer;margin-top:6px">Read the summary</button>
+        <span style="color:#4A525C;font-size:15px">Reading does not take it on. {{ pv.ownerFirst }} is told only what you decide.</span>
+      </main>
+    </sc-if>
+
+    <sc-if value="{{ pv.isSummary }}" hint-placeholder-val="{{ false }}">
+      <main style="width:100%;max-width:1160px;margin:0 auto;padding:32px clamp(16px,3vw,32px) 56px;display:flex;flex-wrap:wrap;gap:40px 48px;align-items:flex-start">
+        <section style="flex:999 1 480px;min-width:0;max-width:700px;display:flex;flex-direction:column;gap:24px">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:14px;color:#4A525C">{{ pv.owner }} shared this with you · {{ pv.asOf }}</span>
+            <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:32px;line-height:1.15">{{ pv.hiveTitle }}</h1>
+            <span style="display:flex;gap:16px;flex-wrap:wrap;font-size:14px;font-weight:600"><sc-for list="{{ pv.counts }}" as="c" hint-placeholder-count="3"><span style="color:{{ c.fg }}">{{ c.label }}</span></sc-for><span style="color:#4A525C;font-weight:400">{{ pv.docLine }}</span></span>
+          </div>
+          <sc-if value="{{ pv.hasShows }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ pv.shows }}" as="f" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <h2 style="margin:0;font-size:20px;font-weight:500;color:#1A56C4">{{ f.title }}</h2>
+                <p style="margin:0;line-height:1.55">{{ f.detail }}</p>
+                <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ f.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ pv.hasMissing }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <h2 style="margin:0;font-size:20px;font-weight:500;color:#1A56C4">These records don’t include</h2>
+              <sc-for list="{{ pv.missing }}" as="m" hint-placeholder-count="2"><span style="line-height:1.55">{{ m.title }}</span></sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ pv.empty }}" hint-placeholder-val="{{ false }}"><p style="margin:0;color:#4A525C">The documents in this hive are not read yet.</p></sc-if>
+        </section>
+        <aside style="flex:1 1 280px;max-width:340px;border:1px solid #E3E6EA;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px">
+          <sc-if value="{{ pv.undecided }}" hint-placeholder-val="{{ true }}">
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">Will you take this hive?</h2>
+            <p style="margin:0;color:#4A525C;font-size:15px;line-height:1.5">Reading does not take it. {{ pv.ownerFirst }} is told only when you choose.</p>
+            <button onClick="{{ pv.take }}" style="height:48px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer">Take this hive</button>
+            <button onClick="{{ pv.decline }}" style="height:48px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:15px;cursor:pointer">Decline</button>
+          </sc-if>
+          <sc-if value="{{ pv.taken }}" hint-placeholder-val="{{ false }}">
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">You took this hive</h2>
+            <p style="margin:0;color:#4A525C;font-size:15px;line-height:1.5">{{ pv.ownerFirst }} can see that you joined. You now see it alongside your other clients.</p>
+          </sc-if>
+          <sc-if value="{{ pv.declined }}" hint-placeholder-val="{{ false }}">
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">You declined</h2>
+            <p style="margin:0;color:#4A525C;font-size:15px;line-height:1.5">{{ pv.ownerFirst }} is told, and can share with someone else.</p>
+          </sc-if>
+        </aside>
+      </main>
+    </sc-if>
+  </div>
 </sc-if>
 
 <sc-if value="{{ isDocs }}" hint-placeholder-val="{{ false }}">
@@ -709,6 +927,26 @@ textarea:focus,input:focus{outline:none}
   </div>
 </sc-if>
 
+<sc-if value="{{ hasInvite }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(31,35,40,.4);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div role="dialog" aria-modal="true" aria-label="{{ iv.title }}" style="background:#fff;border-radius:20px;width:min(480px,100%);box-shadow:0 24px 80px rgba(0,0,0,.2);padding:24px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:4px"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:24px">{{ iv.title }}</h2><p style="margin:0;font-size:15px;color:#4A525C;line-height:1.5">{{ iv.sub }}</p></div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Name
+        <input value="{{ iv.name }}" onChange="{{ iv.onName }}" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Email
+        <input type="email" value="{{ iv.email }}" onChange="{{ iv.onEmail }}" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
+      </label>
+      <sc-if value="{{ iv.hasErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;color:#B33A2E">{{ iv.err }}</div></sc-if>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+        <button onClick="{{ iv.cancel }}" style="height:44px;padding:0 18px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:15px;font-weight:500;cursor:pointer">Cancel</button>
+        <button onClick="{{ iv.send }}" style="height:44px;padding:0 22px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Send invitation</button>
+      </div>
+      <span style="font-size:13px;color:#6B737D">Prototype: no email is sent.</span>
+    </div>
+  </div>
+</sc-if>
+
 <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
   <div role="status" style="position:fixed;left:24px;bottom:24px;z-index:80;background:#1F2328;color:#fff;border-radius:12px;padding:12px 16px;font-size:14px;max-width:420px;box-shadow:0 8px 24px rgba(0,0,0,.2)">{{ toast }}</div>
 </sc-if>
@@ -719,12 +957,16 @@ class Component extends DCLogic {
   TS = { PROPOSED: ['Suggested', '#F4F6F8', '#4A525C'], READY: ['Ready', '#E8F0FE', '#1A56C4'], RUNNING: ['Working…', '#E8F0FE', '#1A56C4'], BLOCKED: ['Waiting', '#F4F6F8', '#6B737D'], NEEDS_REVIEW: ['Needs you', '#E8F0FE', '#1A56C4'], COMPLETED: ['Done', '#E6F4EA', '#197040'], FAILED: ['Couldn’t finish', '#FDEDEB', '#B33A2E'], SKIPPED: ['Skipped', '#F4F6F8', '#6B737D'] };
   KD = { needs: ['Needs you', '#E8F0FE', '#1A56C4', '#3B7CF6'], changed: ['Changed', '#FEF3D6', '#7A5200', '#F6B826'], missing: ['Missing', '#FDEDEB', '#B33A2E', '#EF5143'], checked: ['Checked', '#E6F4EA', '#197040', '#2FA35A'] };
   MS = { complete: ['Complete', '#E6F4EA', '#197040'], gap: ['Missing months', '#FDEDEB', '#B33A2E'], missing: ['Missing', '#FDEDEB', '#B33A2E'], partial: ['Partial', '#FEF3D6', '#7A5200'], unknown: ['Unknown', '#F4F6F8', '#6B737D'] };
-  XS = { resolved: 'Explained by you', accepted: 'Accepted by you', rejected: 'Rejected by you', requested: 'Request drafted', na: 'Marked not available', questioned: 'Question added' };
+  XS = { received: 'Received from the client', resolved: 'Explained by you', accepted: 'Accepted by you', rejected: 'Rejected by you', requested: 'Request drafted', na: 'Marked not available', questioned: 'Question added' };
   RS = { DRAFT: ['Draft', '#F4F6F8', '#4A525C'], PARTIAL: ['Partial', '#FEF3D6', '#7A5200'], READY_FOR_REVIEW: ['Ready for review', '#E8F0FE', '#1A56C4'], REVIEWED: ['Reviewed', '#E6F4EA', '#197040'] };
   VS = { verified: ['Text matched on page', '#E6F4EA', '#197040'], uncertain: ['Matched, with uncertainty', '#FEF3D6', '#7A5200'], unreadable: ['Unreadable', '#FDEDEB', '#B33A2E'] };
   RING = 'conic-gradient(from 200deg, #3B7CF6, #EF5143, #F6B826, #2FA35A, #3B7CF6)';
+  ACCTS = {
+    'priya@example.com': { name: 'Priya Shah', role: 'individual', desc: 'Own paperwork: one hive' },
+    'dana@example.com': { name: 'Dana Rivera', role: 'professional', desc: 'Works with clients: three client hives' }
+  };
 
-  state = { ready: false, screen: 'landing', goalText: '', goalFocus: false, intent: null, noMatch: false, hives: null, live: {}, hiveId: null, tab: 'study', drawer: null, viewer: null, cell: null, modal: null, note: '', createText: '', createFocus: false, proposal: null, emptyPreview: false, toast: null, fmt: 'customer', exFilter: 'all', showRevs: false, dragOver: false, copied: false };
+  state = { ready: false, screen: 'landing', goalText: '', goalFocus: false, user: null, si: { step: 'email', email: '', err: '', role: null }, pending: null, menuOpen: false, homeQuery: '', homeFilter: 'all', nc: { name: '', email: '', about: '', err: '' }, invite: null, qText: '', qSaved: false, cv: null, pv: null, hives: null, live: {}, hiveId: null, tab: 'overview', drawer: null, viewer: null, cell: null, modal: null, note: '', toast: null, fmt: 'customer', exFilter: 'all', showRevs: false, dragOver: false, copied: false, createText: '', proposal: null };
 
   componentDidMount() {
     if (window.HIVE_DATA) this.init();
@@ -736,15 +978,28 @@ class Component extends DCLogic {
 
   init() {
     const D = this.D();
-    const hives = ['medicaid', 'iep', 'insurance'].map(s => ({ id: 'h-' + s, scen: s, title: D.S[s].hiveTitle, purpose: D.S[s].purpose, last: D.S[s].lastActivity }));
+    const mk = (id, scen, owner, title, extra) => ({ id, scen, owner, title, purpose: D.S[scen].purpose, last: D.S[scen].lastActivity, ...extra });
+    const hives = [
+      mk('h-mine', 'medicaid', 'priya@example.com', D.S.medicaid.hiveTitle, { pro: null }),
+      mk('h-medicaid', 'medicaid', 'dana@example.com', 'Ruth Ortiz', { client: { name: 'Ruth Ortiz', email: 'ruth.ortiz@example.com', status: 'joined' } }),
+      mk('h-iep', 'iep', 'dana@example.com', 'Maya Chen', { client: { name: 'Maya Chen', email: 'maya.chen@example.com', status: 'invited' } }),
+      mk('h-insurance', 'insurance', 'dana@example.com', 'Ken Park', { client: { name: 'Ken Park', email: '', status: 'none' } })
+    ];
     const live = {};
     hives.forEach(h => {
-      const s = D.S[h.scen];
-      const l = this.fresh(h.scen, true);
+      const s = D.S[h.scen]; const l = this.fresh(h.scen, true);
       const prev = s.studyRevs.length > 1 ? s.studyRevs[s.studyRevs.length - 2] : s.studyRevs[0];
       l.reports.push(this.buildReport(h.scen, l, 'DRAFT', { date: prev.date, rev: prev.rev, fmt: 'Customer' }, s.goal));
       live[h.id] = l;
     });
+    const ask = (hid, scen, xid, status, file, who) => {
+      const l = live[hid]; const r = this.mkReq(D.S[scen], xid, status, file); r.t = 'Earlier';
+      l.requests.push(r); l.ex[xid].status = 'requested'; l.ex[xid].history.push({ t: 'Earlier', txt: 'Asked ' + who });
+      if (file) l.uploads.push({ name: file, size: 'From ' + who });
+    };
+    ask('h-medicaid', 'medicaid', 'x4', 'received', 'Checking 4421, April to June 2023.pdf', 'Ruth Ortiz');
+    ask('h-medicaid', 'medicaid', 'x6', 'sent', null, 'Ruth Ortiz');
+    ask('h-iep', 'iep', 'y2', 'sent', null, 'Maya Chen');
     this.setState({ ready: true, hives, live });
   }
 
@@ -763,7 +1018,7 @@ class Component extends DCLogic {
     s.exceptions.forEach(x => { ex[x.id] = { status: 'open', note: '', history: [{ t: 'Earlier', txt: 'Found by Hive' }] }; });
     const docStatus = {};
     if (loaded) s.docs.forEach(d => { docStatus[d.id] = 'done'; });
-    return { loaded, docStatus, uploads: [], tasks, ex, revealed: {}, decisions: [], rev: s.studyRev, revs: s.studyRevs.slice(), pending: 0, reports: [], selReport: 0 };
+    return { loaded, docStatus, uploads: [], tasks, ex, revealed: {}, decisions: [], rev: s.studyRev, revs: s.studyRevs.slice(), pending: 0, reports: [], selReport: 0, requests: [], questions: [] };
   }
 
   hive() { return (this.state.hives || []).find(h => h.id === this.state.hiveId); }
@@ -806,7 +1061,7 @@ class Component extends DCLogic {
   toast(msg) { this.setState({ toast: msg }); clearTimeout(this.tt); this.tt = setTimeout(() => this.setState({ toast: null }), 2800); }
   later(fn, ms) { this.timers = this.timers || []; this.timers.push(setTimeout(fn, ms)); }
 
-  openHive(hid) { const l = this.state.live[hid]; this.setState({ screen: 'hive', hiveId: hid, tab: l.loaded || Object.keys(l.docStatus).length ? 'study' : 'documents', drawer: null, cell: null, exFilter: 'all' }); }
+  openHive(hid) { const l = this.state.live[hid]; this.setState({ screen: 'hive', hiveId: hid, tab: 'overview', drawer: null, cell: null, exFilter: 'all', qText: '', qSaved: false, menuOpen: false }); }
   classify(t) {
     t = (t || '').toLowerCase();
     if (/iep|school|daughter|son\b|special ed|evaluation|teacher/.test(t)) return 'iep';
@@ -903,6 +1158,137 @@ class Component extends DCLogic {
     const status = st === 'open' ? '' : st === 'accepted' && x.acceptLabel ? x.acceptLabel : st === 'rejected' && x.rejectLabel ? x.rejectLabel : this.XS[st];
     return { title: x.title, why: x.why, kind: k[0], kBg: k[1], kFg: k[2], status, hasStatus: !!status, op: st === 'open' || st === 'requested' ? 1 : 0.72, chips: this.chips(scen, x.ev), onClick: () => this.setState({ drawer: { type: 'ex', id: x.id }, note: l.ex[x.id].note || x.question || '' }) };
   }
+  myHives() { const u = this.state.user; return (this.state.hives || []).filter(h => u && h.owner === u.email); }
+  firstName(n) { return (n || '').trim().split(/\s+/)[0] || ''; }
+  validEmail(e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e || ''); }
+  updHive(hid, fn) { this.setState(st => ({ hives: st.hives.map(h => h.id === hid ? fn({ ...h }) : h) })); }
+  nid(p) { this.seq = (this.seq || 0) + 1; return p + '-' + this.seq; }
+  mkReq(s, xid, status, file) { const x = s.exceptions.find(e => e.id === xid); return { id: this.nid('r'), xid, title: (x.request || x.title).replace(/\.$/, ''), sub: x.why, status, file: file || null, reason: '', t: this.now() }; }
+  genReq() { return { id: this.nid('r'), xid: null, title: 'Whatever documents you have about this', sub: 'Old, partial or out of order is fine. Add as many as you like.', status: 'sent', file: null, reason: '', t: this.now() }; }
+
+  // What a hive needs, computed from its data. Same order as "Next for you" on Overview.
+  attn(h) {
+    const s = this.D().S[h.scen]; const l = this.state.live[h.id];
+    const vis = this.visEx(s, l); const stt = id => l.ex[id].status;
+    const needs = vis.filter(x => x.kind === 'needs' && stt(x.id) === 'open').length;
+    const changed = vis.filter(x => x.kind === 'changed' && stt(x.id) === 'open').length;
+    const missing = vis.filter(x => x.kind === 'missing' && ['open', 'requested'].includes(stt(x.id))).length;
+    const reqs = l.requests || [];
+    const received = reqs.filter(r => r.status === 'received' || r.status === 'na').length;
+    const waiting = reqs.filter(r => r.status === 'sent').length;
+    const reading = Object.keys(l.docStatus).length > 0;
+    const started = l.loaded || reading || l.uploads.length > 0;
+    const who = h.client ? this.firstName(h.client.name) : '';
+    const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+    let level, sentence;
+    if (received) { level = 'needs'; sentence = plural(received, 'reply', 'replies') + ' from ' + who + ' to review.'; }
+    else if (!started && waiting) { level = 'waiting'; sentence = 'Waiting on ' + who + ' to add documents.'; }
+    else if (!started) { level = 'needs'; sentence = 'No documents yet.'; }
+    else if (!l.loaded && reading) { level = 'progress'; sentence = 'Reading the documents.'; }
+    else if (!l.loaded) { level = 'needs'; sentence = plural(l.uploads.length, 'file', 'files') + ' added, not read yet.'; }
+    else if (l.pending) { level = 'needs'; sentence = plural(l.pending, 'decision is', 'decisions are') + ' not yet in the Study.'; }
+    else if (needs + changed) { level = 'needs'; sentence = plural(needs + changed, 'item needs', 'items need') + ' you.'; }
+    else if (waiting) { level = 'waiting'; sentence = 'Waiting on ' + who + ' for ' + plural(waiting, 'item.', 'items.'); }
+    else if (missing) { level = 'needs'; sentence = plural(missing, 'document is', 'documents are') + ' missing.'; }
+    else { level = 'ready'; sentence = 'Everything is read and checked.'; }
+    if (level === 'needs' && waiting && who && !received && l.loaded) sentence += ' Waiting on ' + who + ' for ' + plural(waiting, 'item.', 'items.');
+    const counts = [];
+    if (needs) counts.push({ label: needs + (needs === 1 ? ' needs you' : ' need you'), fg: '#1A56C4' });
+    if (changed) counts.push({ label: changed + ' changed', fg: '#7A5200' });
+    if (missing) counts.push({ label: missing + ' missing', fg: '#B33A2E' });
+    return { level, sentence, counts, needs, changed, missing, received, waiting, started, reading };
+  }
+
+  siNext() {
+    const si = this.state.si; const e = si.email.trim().toLowerCase();
+    if (!this.validEmail(e)) { this.setState({ si: { ...si, err: 'Enter an email address, like name@example.com.' } }); return; }
+    this.setState({ si: { ...si, email: e, step: 'sent', err: '' } });
+  }
+  siOpen() {
+    const si = this.state.si; const a = this.ACCTS[si.email];
+    if (a) this.finishSignin({ email: si.email, name: a.name, role: a.role });
+    else this.setState({ si: { ...si, step: 'role', err: '' } });
+  }
+  finishSignin(u) {
+    u.initials = u.name.split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase();
+    const p = this.state.pending;
+    this.setState({ user: u, screen: 'home', si: { step: 'email', email: '', err: '', role: null }, pending: null, menuOpen: false, homeQuery: '', homeFilter: 'all' }, () => {
+      if (p && p.text && p.text.trim() && u.role === 'individual') this.startHive(p.text);
+      else if (p && p.text && p.text.trim()) this.setState({ screen: 'newclient', nc: { name: '', email: '', about: p.text.trim(), err: '' } });
+    });
+  }
+  startHive(text) {
+    const D = this.D(); const t = (text || '').trim(); const sc = this.classify(t) || 'medicaid'; const u = this.state.user;
+    const id = this.nid('h-new');
+    const title = t ? (t.length > 60 ? t.slice(0, 57) + '…' : t) : 'New hive';
+    const hv = { id, scen: sc, owner: u.email, title, purpose: t || 'Started ' + this.now().replace('Today, ', 'today at '), last: this.now(), goal: D.S[sc].goal, deliverable: D.S[sc].deliverable, pro: null };
+    this.setState(st => ({ hives: [hv].concat(st.hives), live: { ...st.live, [id]: this.fresh(sc, false) }, hiveId: id, screen: 'hive', tab: 'documents', goalText: '', qText: '', qSaved: false, drawer: null }));
+  }
+  createClient(mode) {
+    const nc = this.state.nc; const name = nc.name.trim(); const email = nc.email.trim().toLowerCase();
+    if (!name) { this.setState({ nc: { ...nc, err: 'Enter the client’s name.' } }); return; }
+    if (mode === 'invite' && !this.validEmail(email)) { this.setState({ nc: { ...nc, err: 'Enter the client’s email to send an invitation.' } }); return; }
+    const D = this.D(); const sc = this.classify(nc.about) || 'medicaid'; const id = this.nid('h-new');
+    const l = this.fresh(sc, false);
+    if (mode === 'invite') l.requests = [this.genReq()];
+    const hv = { id, scen: sc, owner: this.state.user.email, title: name, purpose: nc.about.trim() || 'New client', last: this.now(), goal: D.S[sc].goal, deliverable: D.S[sc].deliverable, client: { name, email, status: mode === 'invite' ? 'invited' : 'none' } };
+    this.setState(st => ({ hives: [hv].concat(st.hives), live: { ...st.live, [id]: l }, hiveId: id, screen: 'hive', tab: mode === 'invite' ? 'overview' : 'documents', nc: { name: '', email: '', about: '', err: '' }, qText: '', qSaved: false, drawer: null }));
+    this.toast(mode === 'invite' ? 'Invitation sent to ' + email + '. Prototype: no email is sent.' : 'Hive created for ' + name + '. Add their documents.');
+  }
+  askClient(xid) {
+    const h = this.hive(); const s = this.D().S[h.scen];
+    if (!h.client || h.client.status === 'none' || !h.client.email) { this.setState({ invite: { kind: 'client', name: h.client ? h.client.name : h.title, email: h.client ? h.client.email : '', err: '', ask: xid } }); return; }
+    const who = this.firstName(h.client.name);
+    this.updLive(h.id, l => {
+      if (l.requests.some(r => r.xid === xid && ['sent', 'received', 'na'].includes(r.status))) return;
+      l.requests.push(this.mkReq(s, xid, 'sent')); l.ex[xid].status = 'requested'; l.ex[xid].history.push({ t: this.now(), txt: 'Asked ' + h.client.name });
+    });
+    this.toast('Asked ' + who + '. It is on their to-do now.');
+  }
+  sendInvite() {
+    const iv = this.state.invite; const name = iv.name.trim(); const email = iv.email.trim().toLowerCase();
+    if (!name || !this.validEmail(email)) { this.setState({ invite: { ...iv, err: 'Enter a name and an email address.' } }); return; }
+    const h = this.hive(); const s = this.D().S[h.scen];
+    if (iv.kind === 'client') {
+      this.updHive(h.id, x => { x.client = { name, email, status: 'invited' }; return x; });
+      this.updLive(h.id, l => {
+        if (iv.ask && !l.requests.some(r => r.xid === iv.ask)) { l.requests.push(this.mkReq(s, iv.ask, 'sent')); l.ex[iv.ask].status = 'requested'; l.ex[iv.ask].history.push({ t: this.now(), txt: 'Asked ' + name }); }
+        if (!l.requests.some(r => r.status === 'sent')) l.requests.push(this.genReq());
+      });
+    } else {
+      this.updHive(h.id, x => { x.pro = { name, email, status: 'invited' }; return x; });
+    }
+    this.setState({ invite: null });
+    this.toast('Invitation sent to ' + email + '. Prototype: no email is sent.');
+  }
+  acceptReq(rid) {
+    const h = this.hive(); const r = this.state.live[h.id].requests.find(x => x.id === rid);
+    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'accepted'; });
+    if (r.xid) this.setEx(r.xid, 'received', r.file);
+    else this.toast('Accepted. It joins the Study at the next build.');
+  }
+  acceptNa(rid) {
+    const h = this.hive(); const r = this.state.live[h.id].requests.find(x => x.id === rid);
+    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'closed'; });
+    if (r.xid) this.setEx(r.xid, 'na', h.client.name + ': ' + r.reason);
+    else this.toast('Noted.');
+  }
+  askAgain(rid) {
+    const h = this.hive();
+    this.updLive(h.id, l => { const r = l.requests.find(x => x.id === rid); r.status = 'sent'; r.file = null; r.reason = ''; });
+    this.toast('Asked again. ' + this.firstName(h.client.name) + ' sees it on their to-do.');
+  }
+  remind() { const h = this.hive(); this.toast('Reminder sent to ' + this.firstName(h.client.name) + '. Prototype: nothing is sent.'); }
+  clientUpload(hid, rid, fname) {
+    const h = this.state.hives.find(x => x.id === hid);
+    this.updLive(hid, l => {
+      const r = l.requests.find(x => x.id === rid); r.status = 'received'; r.t = this.now();
+      r.file = fname || ('Photo of ' + r.title.charAt(0).toLowerCase() + r.title.slice(1) + '.jpg');
+      l.uploads.push({ name: r.file, size: 'From ' + h.client.name });
+    });
+    this.updHive(hid, x => { x.last = this.now(); return x; });
+  }
+
   btn(label, fn, kind, dis, reason) {
     const p = kind === 'primary', g = kind === 'good';
     return { label, onClick: dis ? () => {} : fn, dis: !!dis, op: dis ? 0.45 : 1, bg: p ? '#1A56C4' : '#fff', fg: p ? '#fff' : g ? '#197040' : '#1F2328', bd: p ? '#1A56C4' : g ? '#2FA35A' : '#E3E6EA', reason: dis ? reason : '' };
@@ -913,67 +1299,102 @@ class Component extends DCLogic {
     if (!st.ready || !st.hives) return { notReady: true };
     const D = this.D();
     const v = { notReady: false };
-    v.isLanding = st.screen === 'landing'; v.isHives = st.screen === 'hives'; v.isCreate = st.screen === 'create'; v.isApp = st.screen === 'hive';
-    v.isInner = !v.isLanding;
+    v.isLanding = st.screen === 'landing'; v.isSignin = st.screen === 'signin'; v.isHome = st.screen === 'home'; v.isNewClient = st.screen === 'newclient';
+    v.isApp = st.screen === 'hive'; v.isClientView = st.screen === 'client'; v.isProView = st.screen === 'proview';
+    const u = st.user;
+    v.showAppHeader = !!u && (v.isHome || v.isNewClient || v.isApp);
+    v.headBd = v.isApp ? '1px solid #E3E6EA' : '1px solid transparent';
+    v.pillOrder = 0;
+    v.headLogoVis = v.isHome ? 'hidden' : 'visible';
+    const goHome = () => this.setState({ screen: u ? 'home' : 'landing', drawer: null, viewer: null, menuOpen: false, qSaved: false, cv: null, pv: null });
+    v.goHome = goHome; v.goHives = goHome;
     v.goLanding = () => this.setState({ screen: 'landing', drawer: null });
-    v.goHives = () => this.setState({ screen: 'hives', drawer: null });
-    v.goCreate = () => this.setState({ screen: 'create', createText: '', proposal: null });
-    v.signIn = () => this.setState({ screen: 'hives' });
-    v.getStarted = () => this.setState({ screen: 'create', createText: st.goalText, proposal: null });
+    v.goSignin = () => { if (u) goHome(); else this.setState({ screen: 'signin', pending: null, si: { step: 'email', email: '', err: '', role: null } }); };
+    v.goProSignin = () => { if (u) goHome(); else this.setState({ screen: 'signin', pending: { role: 'professional' }, si: { step: 'email', email: '', err: '', role: 'professional' } }); };
+    v.startGuest = () => { if (u) goHome(); else this.setState({ screen: 'signin', pending: { text: st.goalText }, si: { step: 'email', email: '', err: '', role: 'individual' } }); };
 
-    // Landing
+    // Landing and the individual's home share the one input
     v.goalText = st.goalText;
     v.ringBg = st.goalFocus ? this.RING : '#E3E6EA';
     v.onGoalInput = e => this.setState({ goalText: e.target.value });
     v.onGoalFocus = () => this.setState({ goalFocus: true });
     v.onGoalBlur = () => this.setState({ goalFocus: false });
-    const submit = () => { const sc = this.classify(st.goalText); if (!sc) { this.setState({ intent: null, noMatch: !!st.goalText.trim() }); return; } const it = D.intents.find(i => i.scen === sc && (sc !== 'medicaid' || /applica/i.test(st.goalText) ? true : i.id === 'fin')) || D.intents.find(i => i.scen === sc); this.setState({ intent: it.id, noMatch: false }); };
-    v.submitGoal = submit;
-    v.onGoalKey = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } };
-    v.examples = D.intents.map(i => { const a = st.intent === i.id; return { label: i.label, bg: a ? '#1F2328' : '#fff', fg: a ? '#fff' : '#1F2328', bd: a ? '#1F2328' : '#E3E6EA', onClick: () => this.setState({ intent: i.id, goalText: i.label, noMatch: false }) }; });
-    const it = D.intents.find(i => i.id === st.intent);
-    v.hasIntent = !!it; v.noIntent = !it && !st.noMatch; v.noMatch = st.noMatch;
-    if (it) {
-      v.it = { label: it.label, accepts: it.accepts.map(t => ({ t })), work: it.work.map((t, n) => ({ t, n: String(n + 1).padStart(2, '0') })), gets: it.gets, finding: it.finding.text, chips: this.chips(it.scen, it.finding.ev) };
-      v.startIntent = () => { const txt = st.goalText && st.goalText !== it.label ? st.goalText : D.S[it.scen].ask; this.setState({ screen: 'create', createText: txt }, () => this.propose()); };
-      v.seeSample = () => this.openHive('h-' + it.scen);
-    }
+    v.onGoalKey = e => { if (e.key === 'Enter') { e.preventDefault(); v.startGuest(); } };
 
-    // My hives
-    v.showEmpty = st.emptyPreview; v.showCards = !st.emptyPreview;
-    v.emptyToggleLabel = st.emptyPreview ? 'Show sample hives' : 'Preview empty state';
-    v.toggleEmpty = () => this.setState({ emptyPreview: !st.emptyPreview });
-    v.hiveCards = st.hives.map(h => {
-      const s = D.S[h.scen]; const l = st.live[h.id];
-      const active = s.tasks.filter(t => this.effState(s, l, t.id) !== 'SKIPPED');
-      const done = active.filter(t => this.effState(s, l, t.id) === 'COMPLETED').length;
-      const vis = this.visEx(s, l); const cnt = k => vis.filter(x => x.kind === k && l.ex[x.id].status === 'open').length;
-      const loaded = l.loaded;
-      const bar = loaded ? [['needs', cnt('needs')], ['changed', cnt('changed')], ['missing', vis.filter(x => x.kind === 'missing' && ['open', 'requested'].includes(l.ex[x.id].status)).length]].filter(b => b[1] > 0).map(([k, n]) => ({ label: k === 'needs' ? (n === 1 ? '1 needs you' : n + ' need you') : n + ' ' + k, bg: this.KD[k][1], fg: this.KD[k][2] })) : [{ label: 'Waiting for documents', bg: '#F4F6F8', fg: '#4A525C' }];
-      const rep = l.reports[l.reports.length - 1];
-      return { title: h.title, purpose: h.purpose, last: h.last, bar, progress: loaded ? done + ' of ' + active.length + ' done' : 'Not started', pw: loaded ? Math.round(done / active.length * 100) + '%' : '0%', docs: String((loaded ? s.docs.length : 0) + l.uploads.length), rev: loaded ? 'rev ' + l.rev : '—', rep: rep ? 'v' + rep.v + ' ' + this.RS[rep.state][0].toLowerCase() : 'None yet', open: () => this.openHive(h.id) };
+    // Sign in
+    const si = st.si;
+    v.siEmail = si.step === 'email'; v.siSent = si.step === 'sent'; v.siRole = si.step === 'role';
+    v.siEmailVal = si.email; v.siErr = !!si.err; v.siErrText = si.err;
+    v.onSiEmail = e => this.setState({ si: { ...si, email: e.target.value, err: '' } });
+    v.siNext = () => this.siNext();
+    v.onSiKey = e => { if (e.key === 'Enter') { e.preventDefault(); this.siNext(); } };
+    v.hasPendingNote = !!st.pending;
+    v.pendingNote = st.pending && st.pending.text && st.pending.text.trim() ? 'Sign in to keep your hive. It starts with what you wrote.' : 'New here? Use your email. Signing in and creating an account are the same step.';
+    v.demoAccts = Object.keys(this.ACCTS).map(e => ({ email: e, desc: this.ACCTS[e].desc, pick: () => this.setState({ si: { ...si, email: e, err: '' } }) }));
+    v.siOpenLink = () => this.siOpen();
+    v.siBack = () => this.setState({ si: { ...si, step: 'email', err: '' } });
+    v.roleOpts = [['individual', 'My own paperwork', 'A letter, a notice, a meeting coming up. You get a plain report and questions worth asking.'], ['professional', 'Hives for my clients', 'One hive per client. You see which client needs you today.']].map(([k, t, d]) => {
+      const on = si.role === k;
+      return { title: t, desc: d, on: on ? 'true' : 'false', bd: on ? '2px solid #1A56C4' : '1px solid #E3E6EA', bg: on ? '#E8F0FE' : '#fff', pick: () => this.setState({ si: { ...si, role: k, err: '' } }) };
     });
+    v.siFinish = () => {
+      if (!si.role) { this.setState({ si: { ...si, err: 'Choose one to continue.' } }); return; }
+      const local = si.email.split('@')[0].split(/[._-]/)[0] || 'there';
+      this.finishSignin({ email: si.email, name: local.charAt(0).toUpperCase() + local.slice(1), role: si.role });
+    };
 
-    // Create
-    v.createText = st.createText;
-    v.ringBg2 = st.createFocus ? this.RING : '#E3E6EA';
-    v.onCreateInput = e => this.setState({ createText: e.target.value });
-    v.onCreateFocus = () => this.setState({ createFocus: true });
-    v.onCreateBlur = () => this.setState({ createFocus: false });
-    v.propose = () => this.propose();
-    v.hasProposal = !!st.proposal;
-    if (st.proposal) {
-      const p = st.proposal; const s = D.S[p.scen];
-      v.prop = { goal: p.goal, output: p.output, work: s.likelyWork, hasNote: !!p.note, note: p.note || '' };
-      v.onPropGoal = e => this.setState({ proposal: { ...p, goal: e.target.value } });
-      v.onPropOutput = e => this.setState({ proposal: { ...p, output: e.target.value } });
-      v.createHive = () => {
-        const id = 'h-new-' + Date.now();
-        const hv = { id, scen: p.scen, title: p.goal.replace(/\.$/, ''), purpose: st.createText || p.goal, last: this.now(), goal: p.goal, deliverable: p.output };
-        const live = { ...st.live, [id]: this.fresh(p.scen, false) };
-        this.setState({ hives: [hv].concat(st.hives), live, hiveId: id, screen: 'hive', tab: 'documents', proposal: null });
-      };
+    // Signed-in header
+    if (u) { v.initials = u.initials; v.userName = u.name; v.userEmail = u.email; v.userRole = u.role === 'professional' ? 'Hives for clients' : 'Own paperwork'; }
+    v.menuOpen = !!st.menuOpen;
+    v.toggleMenu = () => this.setState({ menuOpen: !st.menuOpen });
+    v.signOut = () => this.setState({ user: null, screen: 'landing', toast: null, invite: null, menuOpen: false, hiveId: null, drawer: null, viewer: null, goalText: '', cv: null, pv: null });
+    v.qText = st.qText;
+    v.onQ = e => this.setState({ qText: e.target.value, qSaved: false });
+    const addQ = () => { const q = st.qText.trim(); if (!q) { this.toast('Type a question first.'); return; } this.updLive(st.hiveId, l => { l.questions.push({ t: this.now(), q }); }); this.setState({ qText: '', qSaved: true }); };
+    v.addQuestion = addQ;
+    v.onQKey = e => { if (e.key === 'Enter') { e.preventDefault(); addQ(); } };
+    v.hasQSaved = v.isApp && st.qSaved;
+
+    // Home
+    if (v.isHome && u) {
+      const isPro = u.role === 'professional'; v.homeIsPro = isPro; v.homeIsInd = !isPro;
+      const hr = new Date().getHours();
+      v.greeting = (hr < 12 ? 'Good morning, ' : hr < 18 ? 'Good afternoon, ' : 'Good evening, ') + this.firstName(u.name);
+      const ORDER = { needs: 0, progress: 1, waiting: 2, ready: 3 };
+      let rows = this.myHives().map((h, i) => ({ h, a: this.attn(h), i })).sort((x, y) => ORDER[x.a.level] - ORDER[y.a.level] || x.i - y.i);
+      if (isPro) {
+        const fl = { all: rows.length, needs: rows.filter(r => r.a.level === 'needs').length, waiting: rows.filter(r => r.a.waiting > 0).length, ready: rows.filter(r => r.a.level === 'ready').length };
+        const q = st.homeQuery.trim().toLowerCase();
+        if (st.homeFilter === 'needs') rows = rows.filter(r => r.a.level === 'needs');
+        if (st.homeFilter === 'waiting') rows = rows.filter(r => r.a.waiting > 0);
+        if (st.homeFilter === 'ready') rows = rows.filter(r => r.a.level === 'ready');
+        if (q) rows = rows.filter(r => r.h.title.toLowerCase().includes(q));
+        v.filters = [['all', 'All'], ['needs', 'Needs you'], ['waiting', 'Waiting on client'], ['ready', 'Ready']].map(([k, label]) => {
+          const on = st.homeFilter === k;
+          return { label: label + ' ' + fl[k], fg: on ? '#1A56C4' : '#4A525C', bd: on ? '#1A56C4' : 'transparent', fw: on ? '600' : '500', pick: () => this.setState({ homeFilter: k }) };
+        });
+        v.homeQuery = st.homeQuery;
+        v.onHomeQuery = e => this.setState({ homeQuery: e.target.value });
+        v.newClient = () => this.setState({ screen: 'newclient', menuOpen: false, nc: { name: q && !rows.length ? st.homeQuery.trim() : '', email: '', about: '', err: '' } });
+        v.homeCount = rows.length + (rows.length === 1 ? ' client' : ' clients') + (q ? ' matching “' + st.homeQuery.trim() + '”' : '') + (rows.length > 1 ? ', the ones that need you first' : '');
+        v.noRows = rows.length === 0;
+        v.noRowsText = fl.all === 0 ? 'No clients yet. Start with the first one.' : 'No clients match.';
+      } else {
+        v.startMine = () => this.startHive(st.goalText);
+        v.onMineKey = e => { if (e.key === 'Enter') { e.preventDefault(); this.startHive(st.goalText); } };
+        v.hasHomeCount = rows.length > 0;
+        v.homeCount = rows.length === 1 ? 'Your hive' : 'Your hives';
+      }
+      v.homeRows = rows.map(({ h, a }) => ({ title: h.title, kicker: isPro ? h.purpose : (h.pro && h.pro.status === 'taken' ? 'Shared with ' + h.pro.name : 'Your hive'), sentence: a.sentence, counts: a.counts, last: h.last, open: () => this.openHive(h.id) }));
     }
+
+    // New client
+    v.nc = st.nc; v.ncErr = !!st.nc.err;
+    v.onNcName = e => this.setState({ nc: { ...st.nc, name: e.target.value, err: '' } });
+    v.onNcEmail = e => this.setState({ nc: { ...st.nc, email: e.target.value, err: '' } });
+    v.onNcAbout = e => this.setState({ nc: { ...st.nc, about: e.target.value, err: '' } });
+    v.ncInvite = () => this.createClient('invite');
+    v.ncDocs = () => this.createClient('docs');
 
     // App
     const h = this.hive();
@@ -982,10 +1403,8 @@ class Component extends DCLogic {
       const goal = h.goal || s.goal; const deliverable = h.deliverable || s.deliverable;
       const vis = this.visEx(s, l);
       v.hiveTitle = h.title; v.goal = goal; v.deliverable = deliverable;
-      v.scenValue = scen; v.scenOpts = ['medicaid', 'iep', 'insurance'].map(k => ({ value: k, label: D.S[k].label }));
-      v.onScen = e => this.setState({ hiveId: 'h-' + e.target.value, drawer: null, cell: null, exFilter: 'all' });
       const openN = vis.filter(x => l.ex[x.id].status === 'open').length;
-      v.tabs = [['documents', 'Documents', l.loaded ? String(s.docs.length + l.uploads.length) : (l.uploads.length ? String(l.uploads.length) : '')], ['study', 'Study', l.loaded && openN ? openN + ' open' : ''], ['reports', 'Reports', l.reports.length ? String(l.reports.length) : '']].map(([k, label, count]) => ({ label, count, bd: st.tab === k ? '#3B7CF6' : 'transparent', fg: st.tab === k ? '#1F2328' : '#4A525C', onClick: () => this.setState({ tab: k, drawer: null }) }));
+      v.tabs = [['overview', 'Overview', ''], ['documents', 'Documents', l.loaded ? String(s.docs.length + l.uploads.length) : (l.uploads.length ? String(l.uploads.length) : '')], ['study', 'Study', l.loaded && openN ? openN + ' open' : ''], ['reports', 'Reports', l.reports.length ? String(l.reports.length) : '']].map(([k, label, count]) => ({ label, count, bd: st.tab === k ? '#3B7CF6' : 'transparent', fg: st.tab === k ? '#1F2328' : '#4A525C', onClick: () => this.setState({ tab: k, drawer: null }) }));
       v.isDocs = st.tab === 'documents'; v.isStudy = st.tab === 'study'; v.isReports = st.tab === 'reports';
       v.hasPending = l.pending > 0;
       v.pendingLabel = l.pending + (l.pending === 1 ? ' decision' : ' decisions') + ' not yet in the Study';
@@ -1136,7 +1555,8 @@ class Component extends DCLogic {
               if (a === 'coverage') actions.push(this.btn('See coverage', () => this.setState({ tab: 'documents', cell: x.cell, drawer: null })));
               if (a === 'explain') { actions.push(this.btn('Save explanation', () => this.setEx(x.id, 'resolved', n), 'primary', !n, 'Write a short explanation first.')); noteLabel = 'Your explanation'; notePh = 'e.g. Gift to her son for a car; letter to follow.'; }
               if (a === 'question') { actions.push(this.btn('Add to questions', () => this.setEx(x.id, 'questioned', n), 'primary', !n, 'Write the question first.')); noteLabel = 'Question to bring'; }
-              if (a === 'request') actions.push(this.btn('Draft request', () => this.setState({ modal: { xid: x.id, text: 'Hello,\n\nI’m gathering records for: ' + goal + '\n\nCould you please send:\n\n• ' + x.request + '\n\nThank you.' }, copied: false })));
+              if (a === 'request' && st.user && st.user.role === 'professional' && h.client) actions.push(this.btn('Ask ' + this.firstName(h.client.name), () => { this.askClient(x.id); this.setState({ drawer: null }); }, 'primary'));
+              else if (a === 'request') actions.push(this.btn('Draft request', () => this.setState({ modal: { xid: x.id, text: 'Hello,\n\nI’m gathering records for: ' + goal + '\n\nCould you please send:\n\n• ' + x.request + '\n\nThank you.' }, copied: false })));
               if (a === 'na') { actions.push(this.btn('Mark not available', () => this.setEx(x.id, 'na', n), null, !n, 'Add a short reason before marking it not available.')); if (!noteLabel) { noteLabel = 'Why it isn’t available'; notePh = 'e.g. The bank says this account opened in January 2023.'; } }
               if (a === 'accept') actions.push(this.btn(x.acceptLabel || 'Accept', () => this.setEx(x.id, 'accepted', n || null), 'good'));
               if (a === 'reject') actions.push(this.btn(x.rejectLabel || 'Reject', () => this.setEx(x.id, 'rejected', n || null)));
@@ -1162,6 +1582,76 @@ class Component extends DCLogic {
         v.hasDrawer = !!dr; v.dr = dr;
         v.note = st.note; v.onNote = e => this.setState({ note: e.target.value });
         v.closeDrawer = () => this.setState({ drawer: null });
+      }
+
+      // Overview: built by code from the hive's data, no model call
+      v.isOverview = st.tab === 'overview';
+      const ovAtt = this.attn(h); const proSeat = !!st.user && st.user.role === 'professional';
+      const ovWho = h.client ? this.firstName(h.client.name) : '';
+      const toTab = t => () => this.setState({ tab: t, drawer: null });
+      const peekC = () => this.setState({ screen: 'client', cv: { hid: h.id, step: h.client && h.client.status === 'invited' ? 'email' : 'todo', reason: '', err: '' } });
+      const inviteC = () => this.setState({ invite: { kind: 'client', name: h.client ? h.client.name : h.title, email: h.client ? h.client.email : '', err: '' } });
+      const ovReqs = l.requests || [];
+      const ovRcv = ovReqs.find(r => r.status === 'received' || r.status === 'na');
+      const kOrd = { needs: 0, changed: 1, missing: 2 };
+      const ovOpen = this.visEx(s, l).filter(x => l.ex[x.id].status === 'open').sort((p, q) => kOrd[p.kind] - kOrd[q.kind]);
+      const xNeed = ovOpen.find(x => x.kind !== 'missing'); const xMiss = ovOpen.find(x => x.kind === 'missing');
+      const lastRep = l.reports[l.reports.length - 1];
+      let nxt;
+      if (ovRcv && ovRcv.status === 'received') nxt = { title: ovWho + ' sent: ' + ovRcv.title, text: 'File: ' + ovRcv.file + '. Accepting adds it to the next Study build.', btn: 'Accept', go: () => this.acceptReq(ovRcv.id), altLabel: 'Ask again', alt: () => this.askAgain(ovRcv.id) };
+      else if (ovRcv) nxt = { title: ovWho + ' doesn’t have: ' + ovRcv.title, text: ovWho + ' says: “' + ovRcv.reason + '”', btn: 'Accept', go: () => this.acceptNa(ovRcv.id), altLabel: 'Ask again', alt: () => this.askAgain(ovRcv.id) };
+      else if (!ovAtt.started) nxt = proSeat && h.client && h.client.status !== 'none'
+        ? { title: 'Waiting on ' + ovWho + ' to add documents', text: ovWho + ' was sent a sign-in link. You can add documents yourself meanwhile.', btn: 'Add documents', go: toTab('documents'), altLabel: 'See what ' + ovWho + ' sees', alt: peekC }
+        : { title: 'Add the documents you have', text: 'Old, partial or out of order is fine.', btn: 'Add documents', go: toTab('documents'), altLabel: proSeat ? 'Invite ' + (ovWho || 'your client') + ' to upload' : '', alt: proSeat ? inviteC : null };
+      else if (!l.loaded && ovAtt.reading) nxt = { title: 'Reading the documents', text: v.procText + '. This updates as each one finishes.', btn: '', altLabel: 'Watch in Documents', alt: toTab('documents') };
+      else if (!l.loaded) nxt = { title: 'Your files are added', text: 'In this prototype, added files are kept but not read. Load the sample documents to see a full Study.', btn: 'Go to Documents', go: toTab('documents') };
+      else if (l.pending) nxt = { title: l.pending + (l.pending === 1 ? ' decision is' : ' decisions are') + ' not yet in the Study', text: 'Accept to build revision ' + (l.rev + 1) + '. The source documents never change.', btn: 'Accept into Study', go: () => this.acceptStudy() };
+      else if (xNeed) nxt = { title: xNeed.title, text: xNeed.detail, chips: this.chips(scen, xNeed.ev), btn: 'Review', go: () => openDrawer('ex', xNeed.id) };
+      else if (xMiss && proSeat && h.client) nxt = { title: xMiss.title, text: xMiss.detail, chips: this.chips(scen, xMiss.ev), btn: 'Ask ' + ovWho, go: () => this.askClient(xMiss.id), altLabel: 'Review', alt: () => openDrawer('ex', xMiss.id) };
+      else if (xMiss) nxt = { title: xMiss.title, text: xMiss.detail, chips: this.chips(scen, xMiss.ev), btn: 'Review', go: () => openDrawer('ex', xMiss.id) };
+      else if (ovAtt.waiting) nxt = { title: 'Waiting on ' + ovWho, text: ovAtt.waiting + (ovAtt.waiting === 1 ? ' item is' : ' items are') + ' asked and not sent yet.', btn: '', altLabel: 'See what ' + ovWho + ' sees', alt: peekC };
+      else if (!lastRep) nxt = { title: 'Ready for a report', text: 'Everything is read and checked.', btn: 'Generate report', go: () => { this.generate(); this.setState({ tab: 'reports' }); } };
+      else nxt = { title: 'Nothing needs you', text: 'Everything is read and checked.', btn: 'Open the latest report', go: toTab('reports') };
+      v.nx = { title: nxt.title, text: nxt.text, btn: nxt.btn || '', go: nxt.go || (() => {}), chips: nxt.chips || [], hasChips: !!(nxt.chips && nxt.chips.length), hasBtn: !!nxt.btn, hasAlt: !!(nxt.altLabel && nxt.alt), altLabel: nxt.altLabel || '', alt: nxt.alt || (() => {}) };
+
+      const ovF = this.visEx(s, l).filter(x => ['open', 'requested'].includes(l.ex[x.id].status)).sort((p, q) => kOrd[p.kind] - kOrd[q.kind]);
+      v.findings = ovF.map(x => {
+        const k = this.KD[x.kind]; const asked = l.ex[x.id].status === 'requested';
+        const canAsk = proSeat && !!h.client && x.kind === 'missing' && !asked && (x.acts || []).includes('request');
+        return { kind: k[0], kfg: k[2], title: x.title, detail: x.detail, chips: this.chips(scen, x.ev), open: () => openDrawer('ex', x.id), hasAsk: canAsk, ask: () => this.askClient(x.id), askLabel: 'Ask ' + ovWho + ' for this', hasAsked: asked, askedLabel: proSeat && ovWho ? 'Asked ' + ovWho : 'Request drafted' };
+      });
+      v.noFindings = ovF.length === 0;
+      v.noFindText = l.loaded ? 'Nothing open. Every finding has a decision.' : 'Findings appear once the documents are read.';
+
+      v.hasReqs = proSeat && ovReqs.some(r => r.status !== 'closed');
+      v.reqHead = 'Asked of ' + ovWho;
+      v.reqRows = ovReqs.filter(r => r.status !== 'closed').map(r => {
+        const m = { sent: ['Waiting on ' + ovWho, '#4A525C', 'Remind', () => this.remind()], received: [ovWho + ' sent ' + r.file, '#1A56C4', 'Accept', () => this.acceptReq(r.id)], accepted: ['Accepted', '#197040', '', null], na: [ovWho + ' says it isn’t available: “' + r.reason + '”', '#B33A2E', 'Accept', () => this.acceptNa(r.id)] }[r.status];
+        return { title: r.title, status: m[0], fg: m[1], hasAct: !!m[3], act: m[3] || (() => {}), actLabel: m[2] };
+      });
+
+      const docsN = (l.loaded ? s.docs.length : 0) + l.uploads.length;
+      v.readyLines = [
+        { k: 'Documents', v: !docsN ? 'None yet' : l.loaded ? s.docs.length + ' read' + (l.uploads.length ? ', ' + l.uploads.length + ' new' : '') : docsN + ' not read yet' },
+        { k: 'Need you', v: String(ovAtt.needs + ovAtt.changed) },
+        { k: 'Missing', v: String(ovAtt.missing) },
+        { k: 'Study', v: l.loaded ? 'Revision ' + l.rev : 'Not built yet' },
+        { k: 'Latest report', v: lastRep ? 'v' + lastRep.v + ', ' + this.RS[lastRep.state][0].toLowerCase() : 'None yet' }
+      ];
+      v.hivePurpose = h.purpose;
+      if (proSeat) {
+        const c = h.client; v.partyLabel = 'Client';
+        const cs = !c || c.status === 'none' ? 'not invited' : c.status === 'invited' ? 'invited, not joined yet' : 'joined';
+        v.partyLine = (c ? c.name : h.title) + ' · ' + cs;
+        v.hasPartyAct = !c || c.status === 'none'; v.partyActLabel = 'Invite ' + (c ? this.firstName(c.name) : 'your client'); v.partyAct = inviteC;
+        v.hasPeek = !!c && c.status !== 'none'; v.peekLabel = 'See what ' + ovWho + ' sees'; v.peek = peekC;
+      } else {
+        const p = h.pro; v.partyLabel = 'Professional';
+        v.partyLine = !p ? 'Not shared with anyone' : p.name + ' · ' + ({ invited: 'invited, not decided', taken: 'took this hive', declined: 'declined' })[p.status];
+        v.hasPartyAct = !p || p.status === 'declined'; v.partyActLabel = p ? 'Share with someone else' : 'Share with a professional';
+        v.partyAct = () => this.setState({ invite: { kind: 'pro', name: '', email: '', err: '' } });
+        v.hasPeek = !!p && p.status !== 'declined'; v.peekLabel = p ? 'See what ' + this.firstName(p.name) + ' sees' : '';
+        v.peek = () => this.setState({ screen: 'proview', pv: { hid: h.id, step: p && p.status === 'invited' ? 'email' : 'summary' } });
       }
 
       // Modal
@@ -1200,6 +1690,64 @@ class Component extends DCLogic {
       };
       v.vw.hasOthers = v.vw.others.length > 0;
       if (vw0.calc) { const c = this.calc(s, l, vw0.calc); v.vw.calc = { title: c.c.title, method: c.c.method, result: c.txt, rows: c.act.map(i => ({ label: i.label, val: (i.sign < 0 ? '− ' : '+ ') + this.fmtV(i.value, c.c.unit), bg: i.ev === vw0.ev ? '#FFF6DC' : '#fff', onClick: () => this.openEv(vw0.scen, i.ev) })), excl: c.exc.map(i => ({ label: i.label })) }; }
+    }
+
+    // Invite dialog
+    v.hasInvite = !!st.invite;
+    if (st.invite) {
+      const iv = st.invite;
+      v.iv = { title: iv.kind === 'client' ? 'Invite your client' : 'Share with a professional', sub: iv.kind === 'client' ? 'They get a sign-in link by email and see what you ask for. No password.' : 'They get a link to a read-only summary, and choose whether to take it on.', name: iv.name, email: iv.email, err: iv.err, hasErr: !!iv.err, onName: e => this.setState({ invite: { ...iv, name: e.target.value, err: '' } }), onEmail: e => this.setState({ invite: { ...iv, email: e.target.value, err: '' } }), cancel: () => this.setState({ invite: null }), send: () => this.sendInvite() };
+    }
+
+    // What the invited client sees, on a phone
+    if (v.isClientView && st.cv && u) {
+      const cv = st.cv; const ch = st.hives.find(x => x.id === cv.hid); const cl = st.live[ch.id];
+      const reqs = cl.requests; const open = reqs.filter(r => r.status === 'sent'); const cur = open[0];
+      const proFirst = this.firstName(u.name); const n = reqs.length;
+      const word = k => k + (k === 1 ? ' item' : ' items');
+      const setCv = p => this.setState({ cv: { ...cv, ...p } });
+      v.cv = {
+        first: this.firstName(ch.client.name), pro: u.name, proFirst, backTo: proFirst + '’s view',
+        back: () => this.setState({ screen: 'hive', cv: null, tab: 'overview' }),
+        isEmail: cv.step === 'email', isWelcome: cv.step === 'welcome', isTodo: cv.step === 'todo' && !!cur, isNa: cv.step === 'na' && !!cur, isDone: (cv.step === 'todo' || cv.step === 'na') && !cur,
+        countWord: word(open.length), subject: u.name + ' needs ' + word(open.length) + ' from you',
+        openLink: () => { this.updHive(ch.id, x => { x.client = { ...x.client, status: 'joined' }; return x; }); setCv({ step: 'welcome' }); },
+        start: () => setCv({ step: 'todo' }),
+        bars: reqs.map(r => ({ bg: r.status !== 'sent' ? '#1A56C4' : cur && r.id === cur.id ? '#3B7CF6' : '#E3E6EA' })),
+        pos: cur ? (n - open.length + 1) + ' of ' + n : '',
+        title: cur ? cur.title : '', sub: cur ? cur.sub : '',
+        photo: () => { if (cur) this.clientUpload(ch.id, cur.id, null); },
+        onFile: e => { const f = e.target.files && e.target.files[0]; if (cur) this.clientUpload(ch.id, cur.id, f ? f.name : null); e.target.value = ''; },
+        noHave: () => setCv({ step: 'na', reason: '', err: '' }),
+        reason: cv.reason || '', onReason: e => setCv({ reason: e.target.value, err: '' }), hasErr: !!cv.err, err: cv.err || '',
+        sendNa: () => { const r = (cv.reason || '').trim(); if (!r) { setCv({ err: 'Tell ' + proFirst + ' why, in a few words.' }); return; } this.updLive(ch.id, ll => { const q = ll.requests.find(x => x.id === cur.id); q.status = 'na'; q.reason = r; q.t = this.now(); }); setCv({ step: 'todo', reason: '' }); },
+        cancelNa: () => setCv({ step: 'todo', err: '' }),
+        next: open.slice(1).map(r => ({ title: r.title })), hasNext: open.length > 1,
+        sent: reqs.map(r => ({ title: r.title, status: r.status === 'na' || r.status === 'closed' ? 'You said you don’t have it' : r.status === 'accepted' ? 'Accepted by ' + proFirst : 'Sent' }))
+      };
+    }
+
+    // What an invited professional sees
+    if (v.isProView && st.pv && u) {
+      const pv = st.pv; const ph = st.hives.find(x => x.id === pv.hid); const ps = D.S[ph.scen]; const pl = st.live[ph.id]; const pa = this.attn(ph);
+      const ownerFirst = this.firstName(u.name); const pro = ph.pro;
+      const open = this.visEx(ps, pl).filter(x => ['open', 'requested'].includes(pl.ex[x.id].status));
+      const shows = pl.loaded ? open.filter(x => x.kind !== 'missing').map(x => ({ title: x.title, detail: x.detail, chips: this.chips(ph.scen, x.ev) })) : [];
+      const missing = pl.loaded ? open.filter(x => x.kind === 'missing').map(x => ({ title: x.title })) : [];
+      v.pv = {
+        owner: u.name, ownerFirst, proName: pro.name, proFirst: this.firstName(pro.name), backTo: ownerFirst + '’s view',
+        back: () => this.setState({ screen: 'hive', pv: null, tab: 'overview' }),
+        isEmail: pv.step === 'email', isWelcome: pv.step === 'welcome', isSummary: pv.step === 'summary',
+        open: () => this.setState({ pv: { ...pv, step: 'welcome' } }), read: () => this.setState({ pv: { ...pv, step: 'summary' } }),
+        headline: pl.loaded ? ps.docs.length + ' documents, read and checked' : 'The documents are not read yet',
+        docLine: pl.loaded ? ps.docs.length + ' documents, all pages read' : 'Not read yet',
+        counts: pa.counts, hiveTitle: ph.title,
+        asOf: 'as of ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+        shows, hasShows: shows.length > 0, missing, hasMissing: missing.length > 0, empty: !pl.loaded,
+        undecided: pro.status === 'invited', taken: pro.status === 'taken', declined: pro.status === 'declined',
+        take: () => { this.updHive(ph.id, x => { x.pro = { ...x.pro, status: 'taken' }; return x; }); this.toast(ownerFirst + ' is told you took this hive.'); },
+        decline: () => { this.updHive(ph.id, x => { x.pro = { ...x.pro, status: 'declined' }; return x; }); this.toast(ownerFirst + ' is told you declined.'); }
+      };
     }
 
     v.hasToast = !!st.toast; v.toast = st.toast || '';
