@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const createIntentRequest = vi.fn();
@@ -32,5 +32,26 @@ describe("HiveWorkspaceAsk", () => {
     );
     const pill = screen.getByTestId("hive-header-ask-pill");
     expect(within(pill).getByText("Widget batch review")).toBeTruthy();
+  });
+
+  it("clears the Saved line after four seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      createIntentRequest.mockResolvedValue({});
+      render(<HiveWorkspaceAsk hiveId={HIVE_ID} hiveName="Widget batch review" />);
+      const input = screen.getByLabelText("Add a question for the next study build");
+      fireEvent.change(input, { target: { value: "What changed in March?" } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Add question" }));
+        await Promise.resolve();
+      });
+      expect(screen.getByRole("status")).toBeTruthy();
+      await act(async () => {
+        vi.advanceTimersByTime(4000);
+      });
+      expect(screen.queryByRole("status")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

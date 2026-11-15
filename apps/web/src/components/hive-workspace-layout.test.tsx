@@ -13,6 +13,11 @@ const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 
 const WITH_STUDY: HiveSummary = {
   documentCount: 4,
+  attention: {
+    level: "needs_you",
+    sentence: "10 items need you.",
+    counts: { needs: 4, changed: 6, missing: 2, checked: 3 },
+  },
   study: {
     revisionNumber: 3,
     acceptedAt: "2026-11-04T10:00:00.000Z",
@@ -26,7 +31,11 @@ const WITH_STUDY: HiveSummary = {
   },
 };
 
-const NO_STUDY: HiveSummary = { documentCount: 1, study: null };
+const NO_STUDY: HiveSummary = {
+  documentCount: 1,
+  attention: { level: "needs_you", sentence: "No study yet.", counts: {} },
+  study: null,
+};
 
 afterEach(cleanup);
 
@@ -42,9 +51,10 @@ describe("HivePageHeader", () => {
       />,
     );
     const header = within(screen.getByTestId("hive-page-header"));
+    expect(header.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(header.getByRole("heading", { level: 1 }).textContent).toBe("Widget batch review");
     expect(header.getByText("Plan payments and the trustee's objection.")).toBeTruthy();
-    expect(screen.getByTestId("hive-meta").textContent).toBe("4 documents · Study revision 3, accepted Nov 4, 2026");
+    expect(screen.getByTestId("hive-meta").textContent).toBe("4 documents · 10 items need you.");
     const pills = within(screen.getByTestId("state-bar")).getAllByRole("link");
     expect(pills.map((pill) => pill.textContent)).toEqual([
       "4 issues to resolve",
@@ -63,15 +73,19 @@ describe("HivePageHeader", () => {
 
   it("says there is no study yet and hides the state bar without one", () => {
     render(<HivePageHeader hiveId={HIVE_ID} hiveName="Lease renewal" hiveDescription="" summary={NO_STUDY} onStudyTab={false} />);
-    expect(screen.getByTestId("hive-meta").textContent).toBe("1 document · No study yet");
+    expect(screen.getByTestId("hive-meta").textContent).toBe("1 document · No study yet.");
     expect(screen.queryByTestId("state-bar")).toBeNull();
     expect(screen.getByTestId("hive-page-header").querySelectorAll("p")).toHaveLength(1);
   });
 
   it("hides the state bar while an accepted study has no study view yet", () => {
-    const summary: HiveSummary = { documentCount: 2, study: { ...WITH_STUDY.study!, counts: null, targets: null } };
+    const summary: HiveSummary = {
+      documentCount: 2,
+      attention: { level: "ready", sentence: "Everything is read and checked.", counts: {} },
+      study: { ...WITH_STUDY.study!, counts: null, targets: null },
+    };
     render(<HivePageHeader hiveId={HIVE_ID} hiveName="Household bills" hiveDescription="" summary={summary} onStudyTab />);
-    expect(screen.getByTestId("hive-meta").textContent).toContain("Study revision 3");
+    expect(screen.getByTestId("hive-meta").textContent).toBe("2 documents · Everything is read and checked.");
     expect(screen.queryByTestId("state-bar")).toBeNull();
   });
 });
@@ -112,5 +126,15 @@ describe("HiveWorkspaceLayout", () => {
     expect(screen.queryByRole("textbox", { name: "Add a question for the next study build" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Ask about these documents" })).toBeNull();
     expect(screen.getByText("Pane")).toBeTruthy();
+  });
+
+  it("uses a white page background", () => {
+    const { container } = render(
+      <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" activeTab="documents" summary={WITH_STUDY}>
+        <p>Pane</p>
+      </HiveWorkspaceLayout>,
+    );
+    expect(container.firstElementChild?.className).toContain("bg-paper");
+    expect(container.firstElementChild?.className).not.toContain("bg-mist");
   });
 });

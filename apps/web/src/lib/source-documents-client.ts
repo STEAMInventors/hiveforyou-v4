@@ -9,6 +9,8 @@ import type {
   ListSourceDocumentsResponse,
   PrepareSourceDocumentRequest,
   PrepareSourceDocumentResponse,
+  StartDocumentReadsRequest,
+  StartDocumentReadsResponse,
 } from "@hiveforyou/contracts";
 
 import { CORRELATION_HEADER_NAME, parseApiJson } from "./hives-client";
@@ -41,6 +43,16 @@ export function fetchSourceDocuments(hiveId: string): Promise<ListSourceDocument
 
 export function fetchUploadQuota(): Promise<GetUploadQuotaResponse> {
   return requestJson("/api/v1/upload-quota", "Could not load your upload allowance.");
+}
+
+export function startDocumentReads(
+  hiveId: string,
+  payload: StartDocumentReadsRequest,
+): Promise<StartDocumentReadsResponse> {
+  return requestJson(hivePath(hiveId, "/document-reads"), "Could not start reading your documents.", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export function createIntentRequest(

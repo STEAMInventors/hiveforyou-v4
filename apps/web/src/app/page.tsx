@@ -23,7 +23,7 @@ export default async function LandingPage() {
       </header>
 
       <main className="flex flex-1 flex-col">
-        <section className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-6 px-5 pb-8 pt-[clamp(40px,10vh,112px)] text-center">
+        <section className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-[26px] px-5 pb-8 pt-[clamp(40px,10vh,112px)] text-center">
           <HiveAppLogo display="lockup" size="landingMain" />
           <p className="m-0 text-[21px] font-normal leading-[1.4] text-ink-muted">
             What are you working on?
@@ -33,7 +33,7 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section className="mx-auto grid w-full max-w-landing grid-cols-1 gap-9 px-6 pb-14 pt-4 min-[720px]:grid-cols-3 min-[720px]:gap-9">
+        <section className="mx-auto grid w-full max-w-[1040px] grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-9 px-6 pb-14 pt-4">
           <div className="flex flex-col gap-1.5 text-left">
             <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Upload whatever you have</h2>
             <p className="m-0 text-[15px] leading-[1.55] text-ink-muted">

@@ -4,7 +4,6 @@ import { useEffect, type ReactNode } from "react";
 
 import { useHiveHeaderWorkspace } from "@/components/app-header";
 import { PaneErrorBoundary } from "@/components/pane-error-boundary";
-import { HiveMark } from "@/components/study/HiveMark";
 import { StateBar } from "@/components/study/StateBar";
 import { hiveStudyPath } from "@/lib/hive-routes";
 import type { HiveSummary } from "@/server/hives/hive-summary";
@@ -23,14 +22,9 @@ type HiveWorkspaceLayoutProps = {
   children: ReactNode;
 };
 
-const acceptedFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-
 export function hiveMetaLine(summary: HiveSummary): string {
   const documents = `${summary.documentCount} ${summary.documentCount === 1 ? "document" : "documents"}`;
-  if (!summary.study) return `${documents} · No study yet`;
-  const accepted = new Date(summary.study.acceptedAt);
-  const when = Number.isNaN(accepted.getTime()) ? "" : `, accepted ${acceptedFormat.format(accepted)}`;
-  return `${documents} · Study revision ${summary.study.revisionNumber}${when}`;
+  return `${documents} · ${summary.attention.sentence}`;
 }
 
 export function HivePageHeader({
@@ -49,12 +43,11 @@ export function HivePageHeader({
   const study = summary?.study ?? null;
   return (
     <header className="flex flex-col gap-2" data-testid="hive-page-header">
-      <h1 className="m-0 break-words font-brand text-title font-semibold text-ink">{hiveName}</h1>
-      {hiveDescription ? <p className="m-0 max-w-prose text-body text-graphite">{hiveDescription}</p> : null}
+      <h1 className="m-0 break-words font-brand text-[30px] font-semibold leading-tight text-ink">{hiveName}</h1>
+      {hiveDescription ? <p className="m-0 max-w-prose text-[16px] text-graphite">{hiveDescription}</p> : null}
       {summary ? (
-        <p className="m-0 flex items-center gap-2 text-small text-quiet" data-testid="hive-meta">
-          <HiveMark className="h-4 w-4 shrink-0" />
-          <span>{hiveMetaLine(summary)}</span>
+        <p className="m-0 text-small text-graphite" data-testid="hive-meta">
+          {hiveMetaLine(summary)}
         </p>
       ) : null}
       {study?.counts && study.targets ? (
@@ -84,7 +77,7 @@ export function HiveWorkspaceLayout({
   }, [hiveId, hiveName, setWorkspace]);
 
   return (
-    <div className="flex flex-1 flex-col bg-mist">
+    <div className="flex flex-1 flex-col bg-paper">
       <div className="mx-auto w-full max-w-hive px-6 pt-7">
         <HivePageHeader
           hiveId={hiveId}

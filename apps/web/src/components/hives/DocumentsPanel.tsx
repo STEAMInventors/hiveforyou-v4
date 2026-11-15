@@ -23,6 +23,7 @@ import { fetchSourceDocuments, fetchUploadQuota } from "@/lib/source-documents-c
 import { MissingDocumentsCard } from "./MissingDocumentsCard";
 import { AnalyzeModal } from "./AnalyzeModal";
 import { analyzeHint, rebuildHint } from "./study-preparation-progress";
+import { DocumentDropZone } from "./DocumentDropZone";
 import { AddFilesButton, SelectedFileList } from "./SourceFilePicker";
 import {
   MAX_FILES_PER_BATCH,
@@ -97,7 +98,7 @@ function toLoadError(error: unknown, fallback: string): LoadError {
     : { message: fallback, correlationId: null };
 }
 
-const CARD = "flex flex-col rounded-card border border-line bg-paper p-5 sm:p-7";
+const CARD = "flex flex-col gap-3 bg-paper";
 
 type DocumentRowProps = {
   hiveId: string;
@@ -274,28 +275,32 @@ export function DocumentsPanel({
         />
       ) : null}
 
-      <div
-        className="flex flex-col items-start gap-3 rounded-card border-2 border-dashed border-line bg-paper p-5 sm:p-7"
-        data-testid="upload-card"
-      >
-        {!loadError && documents.length === 0 ? (
-          <h3 className="m-0 font-brand text-section font-semibold text-ink">Upload whatever you have to start your hive.</h3>
-        ) : null}
-        <p className="m-0 max-w-prose text-body text-graphite">
-          Upload whatever you have — old, partial or out of order is fine.
-        </p>
-        <AddFilesButton
-          showLabel
-          label="Add documents"
-          disabled={addDisabled}
-          describedBy="documents-quota"
-          className={analyzeIsPrimary ? SECONDARY_BUTTON_CLASS : PRIMARY_BUTTON_CLASS}
-          onAdd={(picked) => void addFiles(picked)}
-        />
-        <p id="documents-quota" className="m-0 text-[13px] text-quiet" aria-live="polite">
-          {quotaText}
-        </p>
-      </div>
+      {documents.length === 0 && !loadError ? (
+        <div className="flex flex-col gap-3" data-testid="upload-card">
+          <p className="m-0 max-w-prose text-body text-graphite">
+            Upload whatever you have. Old, partial or out of order is fine.
+          </p>
+          <DocumentDropZone
+            disabled={addDisabled}
+            quotaText={quotaText}
+            onAdd={(picked) => void addFiles(picked)}
+          />
+        </div>
+      ) : documents.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3" data-testid="upload-card">
+          <AddFilesButton
+            showLabel
+            label="Add documents"
+            disabled={addDisabled}
+            describedBy="documents-quota"
+            className={SECONDARY_BUTTON_CLASS}
+            onAdd={(picked) => void addFiles(picked)}
+          />
+          <p id="documents-quota" className="m-0 text-[13px] text-quiet" aria-live="polite">
+            {quotaText}
+          </p>
+        </div>
+      ) : null}
 
       <SelectedFileList files={batch} label="Uploading documents" busy />
 
@@ -335,7 +340,7 @@ export function DocumentsPanel({
       ) : null}
 
       {documents.length > 0 ? (
-        <div className={`${CARD} gap-3`} data-testid="documents-card">
+        <div className={CARD} data-testid="documents-card">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="m-0 font-brand text-section font-semibold text-ink">
               {documents.length} {documents.length === 1 ? "document" : "documents"}

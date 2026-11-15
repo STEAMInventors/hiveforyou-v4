@@ -43,7 +43,7 @@ function PaperclipIcon() {
   );
 }
 
-function UploadIcon() {
+export function UploadIcon() {
   return (
     <svg
       width="16"

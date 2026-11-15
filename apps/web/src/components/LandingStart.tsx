@@ -31,7 +31,7 @@ export function LandingStart() {
   const { composerProps } = guestComposer;
 
   return (
-    <div className="flex w-full flex-col items-center gap-3">
+    <div className="flex w-full flex-col items-center gap-[26px]">
       <HiveComposer {...composerProps} presentation="landing" />
       <div className="flex flex-wrap justify-center gap-3">
         <AddFilesButton

@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useState } from "react";
 
 import { HiveClientError } from "@/lib/hives-client";
 import { createIntentRequest } from "@/lib/source-documents-client";
@@ -112,10 +112,18 @@ export function HiveWorkspaceAsk({ hiveId, hiveName }: { hiveId: string; hiveNam
         ? `${state.message}${state.correlationId ? ` Support reference: ${state.correlationId}` : ""}`
         : "";
 
+  useEffect(() => {
+    if (state.kind !== "saved") {
+      return;
+    }
+    const handle = window.setTimeout(() => setState({ kind: "idle" }), 4000);
+    return () => window.clearTimeout(handle);
+  }, [state.kind]);
+
   return (
     <>
       <div
-        className="order-3 flex min-h-12 min-w-0 max-w-[680px] flex-[1_1_360px] basis-full items-center gap-2 rounded-pill border border-line bg-paper py-1 pl-1.5 pr-1 shadow-[0_1px_6px_rgb(31_35_40/0.1)] min-[600px]:order-2 min-[600px]:basis-auto"
+        className="order-3 flex min-h-[48px] min-w-0 max-w-[680px] flex-[1_1_360px] basis-full items-center gap-2 rounded-pill border border-line bg-paper py-1 pl-1.5 pr-1 shadow-[0_1px_6px_rgb(31_35_40/0.1)] min-[600px]:order-2 min-[600px]:basis-auto"
         data-testid="hive-header-ask-pill"
       >
         <span

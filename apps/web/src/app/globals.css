@@ -138,9 +138,59 @@
     border-radius: var(--r-pill);
   }
 
+  .hive-drop-zone {
+    position: relative;
+    border-radius: 20px;
+    box-sizing: border-box;
+    padding: 2px;
+    background: var(--color-line);
+  }
+
+  .hive-drop-zone::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 22px;
+    padding: 2px;
+    background: conic-gradient(
+      from 200deg,
+      var(--color-cell-blue),
+      var(--color-coral),
+      var(--color-honey),
+      var(--color-leaf),
+      var(--color-cell-blue)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+
+  .hive-drop-zone:focus-visible {
+    outline: none;
+  }
+
+  .hive-drop-zone:focus-visible::before,
+  .hive-drop-zone.hive-drop-zone--active::before {
+    opacity: 1;
+  }
+
+  .hive-drop-zone:focus-visible,
+  .hive-drop-zone.hive-drop-zone--active {
+    background: transparent;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .hive-composer,
     .hive-composer::before {
+      transition: none;
+    }
+
+    .hive-drop-zone::before {
       transition: none;
     }
   }

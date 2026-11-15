@@ -21,13 +21,16 @@ export function HiveAppLogo({
   className = "",
 }: HiveAppLogoProps) {
   const heightPx =
-    size === "landingMain"
-      ? BRAND_LOGO_SIZE.landingMainHeightPx
-      : size === "landing"
-        ? BRAND_LOGO_SIZE.landingHeaderHeightPx
-        : size === "footer"
-          ? BRAND_LOGO_SIZE.footerHeightPx
-          : BRAND_LOGO_SIZE.headerHeightPx;
+    size === "landing"
+      ? BRAND_LOGO_SIZE.landingHeaderHeightPx
+      : size === "footer"
+        ? BRAND_LOGO_SIZE.footerHeightPx
+        : size === "header"
+          ? BRAND_LOGO_SIZE.headerHeightPx
+          : BRAND_LOGO_SIZE.landingMainHeightPx;
+
+  const landingMainStyle = size === "landingMain" ? { height: "clamp(44px, 8vw, 64px)", width: "auto" as const } : undefined;
+  const fixedStyle = size === "landingMain" ? landingMainStyle : { height: heightPx, width: "auto" as const };
 
   const inner =
     display === "lockup" ? (
@@ -35,7 +38,7 @@ export function HiveAppLogo({
         <img
           src={BRAND_ASSETS.logo}
           alt="HiveForYou"
-          style={{ height: heightPx, width: "auto" }}
+          style={fixedStyle}
           className="block"
         />
       </span>
@@ -44,13 +47,17 @@ export function HiveAppLogo({
         <img
           src={BRAND_ASSETS.logo}
           alt="HiveForYou"
-          style={{ height: heightPx, width: "auto" }}
+          style={fixedStyle}
           className="hidden min-[400px]:block"
         />
         <img
           src={BRAND_ASSETS.mark}
           alt="HiveForYou"
-          style={{ height: heightPx, width: heightPx }}
+          style={
+            size === "landingMain"
+              ? { height: "clamp(44px, 8vw, 64px)", width: "clamp(44px, 8vw, 64px)" }
+              : { height: heightPx, width: heightPx }
+          }
           className="block min-[400px]:hidden"
         />
       </span>

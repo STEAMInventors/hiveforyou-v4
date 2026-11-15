@@ -85,7 +85,7 @@ export function HiveComposer({
             invalid ? "ring-2 ring-coral-deep ring-offset-0" : ""
           }`}
         >
-          <div className="flex min-h-14 items-center gap-2.5 rounded-pill bg-paper py-1 pl-5 pr-1.5">
+          <div className="flex min-h-14 items-center gap-2.5 rounded-pill bg-paper py-1 pl-[22px] pr-1.5">
             <label htmlFor={inputId} className="sr-only">
               Describe your situation
             </label>
@@ -111,7 +111,7 @@ export function HiveComposer({
               label="Add documents"
               disabled={!canAddFiles}
               onAdd={onAddFiles}
-              className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-pill border-0 bg-mist text-ink transition-colors hover:bg-line disabled:cursor-not-allowed disabled:opacity-45"
+              className="flex h-11 w-11 min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-pill border-0 bg-mist text-ink transition-colors hover:bg-line disabled:cursor-not-allowed disabled:opacity-45"
             />
           </div>
         </div>
