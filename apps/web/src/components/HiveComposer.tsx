@@ -76,7 +76,7 @@ export function HiveComposer({
         onSubmit={(event) => {
           event.preventDefault();
           if (!busy) {
-            onSubmit();
+            void onSubmit();
           }
         }}
       >
@@ -142,7 +142,7 @@ export function HiveComposer({
       onSubmit={(event) => {
         event.preventDefault();
         if (!busy) {
-          onSubmit();
+          void onSubmit();
         }
       }}
     >

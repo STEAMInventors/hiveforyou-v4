@@ -4,8 +4,13 @@ import {
   type CanonicalStudy,
   type GetHiveReportsResponse,
   type GetStudyPreparationResponse,
+  hiveAttention,
+  isActiveProcessingRunStatus,
+  isActiveReportRunStatus,
   isStudyViewReport,
   normalizeGetStudyTabViewResponse,
+  type HiveAttentionInput,
+  type HiveAttentionResult,
   type StudyView,
   type StudyViewReferencedDocument,
   type StudyViewReport,
@@ -23,6 +28,7 @@ import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation
 /** What the Hive page header and the My hives card show about a Hive. */
 export type HiveSummary = {
   documentCount: number;
+  attention: HiveAttentionResult;
   study: {
     revisionNumber: number;
     acceptedAt: string;
@@ -31,6 +37,51 @@ export type HiveSummary = {
     targets: Record<DisplayState, string> | null;
   } | null;
 };
+
+export function buildHiveAttentionInput(
+  preparation: GetStudyPreparationResponse,
+  reports: GetHiveReportsResponse | null,
+  studyTab: HiveOverview["studyTab"],
+  canonicalStudy: CanonicalStudy | null,
+): HiveAttentionInput {
+  const eligibility = preparation.eligibility;
+  const documentCount = eligibility.documents.length + eligibility.excluded.length;
+  const unreadableDocumentCount = eligibility.excluded.filter((item) => item.reason === "UNREADABLE").length;
+  const documentsNotReadCount = eligibility.excluded.filter(
+    (item) => item.reason === "NOT_READ" || item.reason === "READ_FAILED",
+  ).length;
+  const documentsNotInStudyCount =
+    preparation.studyRevision && preparation.staleness?.stale
+      ? preparation.staleness.reasons.filter((reason) => reason.kind === "DOCUMENT_ADDED").length
+      : 0;
+  const run = preparation.processingRun;
+  const processingRunFailed =
+    run?.status === "FAILED" ||
+    preparation.reportRuns.some((item) => item.status === "FAILED");
+  const processingRunActive =
+    (run !== null && isActiveProcessingRunStatus(run.status)) ||
+    preparation.reportRuns.some((item) => isActiveReportRunStatus(item.status));
+  const counts = studyTab?.view ? studyStateCounts(studyTab.view, preparation.studyRevision?.coverageGaps ?? []) : null;
+  const openConflicts = canonicalStudy?.conflicts?.length ?? 0;
+  const hasStudy = preparation.studyRevision !== null;
+  const hasReport = preparation.reportRuns.some((item) => item.status === "SUCCEEDED");
+  return {
+    documentCount,
+    unreadableDocumentCount,
+    documentsNotReadCount,
+    activeReadCount: eligibility.activeReadCount,
+    processingRunFailed,
+    processingRunActive,
+    documentsNotInStudyCount,
+    openConflicts,
+    openNeeds: counts?.needs ?? 0,
+    openChanged: counts?.changed ?? 0,
+    openMissing: counts?.missing ?? 0,
+    openChecked: counts?.checked ?? 0,
+    hasStudy,
+    hasReport,
+  };
+}
 
 export type HiveOverview = {
   preparation: GetStudyPreparationResponse;
@@ -59,12 +110,15 @@ export function summarizeHive(
   preparation: GetStudyPreparationResponse,
   reports: GetHiveReportsResponse | null,
   studyTab: HiveOverview["studyTab"],
+  canonicalStudy: CanonicalStudy | null = null,
 ): HiveSummary {
   const revision = preparation.studyRevision;
   const studyView = revision ? latestStudyView(reports) : null;
   const countsView = studyTab?.view ?? studyView?.view ?? null;
+  const attentionInput = buildHiveAttentionInput(preparation, reports, studyTab, canonicalStudy);
   return {
-    documentCount: preparation.eligibility.documents.length + preparation.eligibility.excluded.length,
+    documentCount: attentionInput.documentCount,
+    attention: hiveAttention(attentionInput),
     study: revision
       ? {
           revisionNumber: revision.revisionNumber,
@@ -134,6 +188,6 @@ export async function loadHiveOverview(
     studyTab,
     canonicalStudy,
     referencedDocuments,
-    summary: summarizeHive(preparation, reports, studyTab),
+    summary: summarizeHive(preparation, reports, studyTab, canonicalStudy),
   };
 }

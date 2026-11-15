@@ -29,6 +29,7 @@ type StoredHiveRow = {
   owner_user_id: string;
   name: string;
   description: string | null;
+  kind: "own" | "client";
   client_request_id: string;
   created_at: string;
   updated_at: string;
@@ -63,6 +64,7 @@ function createSimulatedDatabase() {
             hiveId: r.id,
             name: r.name,
             description: r.description,
+            kind: r.kind,
             clientRequestId: r.client_request_id,
             createdAt: r.created_at,
             updatedAt: r.updated_at,
@@ -96,6 +98,7 @@ function createSimulatedDatabase() {
             hiveId: found.id,
             name: found.name,
             description: found.description,
+            kind: found.kind,
             clientRequestId: found.client_request_id,
             createdAt: found.created_at,
             updatedAt: found.updated_at,
@@ -130,6 +133,7 @@ function createSimulatedDatabase() {
             hiveId: found.id,
             name: found.name,
             description: found.description,
+            kind: found.kind,
             clientRequestId: found.client_request_id,
             createdAt: found.created_at,
             updatedAt: found.updated_at,
@@ -151,6 +155,9 @@ function createSimulatedDatabase() {
         const trimmedName = rawName.trim();
         const trimmedDesc =
           rawDesc === null || rawDesc.trim() === "" ? null : rawDesc.trim();
+        const rawKind =
+          typeof args.p_kind === "string" ? args.p_kind.trim().toLowerCase() : "own";
+        const kind = rawKind === "client" ? "client" : "own";
 
         if (!reqId) {
           return {
@@ -193,7 +200,8 @@ function createSimulatedDatabase() {
         if (existing) {
           if (
             existing.name !== trimmedName ||
-            existing.description !== trimmedDesc
+            existing.description !== trimmedDesc ||
+            existing.kind !== kind
           ) {
             return {
               data: null,
@@ -210,6 +218,7 @@ function createSimulatedDatabase() {
                 hiveId: existing.id,
                 name: existing.name,
                 description: existing.description,
+                kind: existing.kind,
                 clientRequestId: existing.client_request_id,
                 createdAt: existing.created_at,
                 updatedAt: existing.updated_at,
@@ -226,6 +235,7 @@ function createSimulatedDatabase() {
           owner_user_id: userId,
           name: trimmedName,
           description: trimmedDesc,
+          kind,
           client_request_id: reqId,
           created_at: now,
           updated_at: now,
@@ -240,6 +250,7 @@ function createSimulatedDatabase() {
               hiveId: inserted.id,
               name: inserted.name,
               description: inserted.description,
+              kind: inserted.kind,
               clientRequestId: inserted.client_request_id,
               createdAt: inserted.created_at,
               updatedAt: inserted.updated_at,

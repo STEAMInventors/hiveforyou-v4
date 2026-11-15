@@ -29,6 +29,18 @@ describe("validateCreateHiveInput", () => {
     ).toBe(false);
   });
 
+  it("accepts client kind on create", () => {
+    const result = validateCreateHiveInput({
+      name: "Client hive",
+      clientRequestId: VALID_UUID,
+      kind: "client",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.kind).toBe("client");
+    }
+  });
+
   it("trims name and description and normalizes empty description to null", () => {
     const result = validateCreateHiveInput({
       name: "  Widget batch review  ",
@@ -41,6 +53,7 @@ describe("validateCreateHiveInput", () => {
         name: "Widget batch review",
         description: null,
         clientRequestId: VALID_UUID,
+        kind: "own",
       });
     }
   });
@@ -119,6 +132,7 @@ describe("normalizeHiveRecord & isValidUuid", () => {
       hiveId: VALID_UUID,
       name: "Alpha",
       description: null,
+      kind: "own",
       clientRequestId: VALID_UUID,
       createdAt: "2026-10-26T21:00:00Z",
       updatedAt: "2026-10-26T21:00:00Z",

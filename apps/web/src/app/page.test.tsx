@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeAll } from "vitest";
 
 const redirect = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -11,12 +11,17 @@ vi.mock("@/server/supabase/server-client", () => ({
 }));
 
 describe("LandingPage", () => {
+  let LandingPage: () => Promise<unknown>;
+
+  beforeAll(async () => {
+    ({ default: LandingPage } = await import("./page"));
+  }, 30_000);
+
   it("redirects signed-in visitors to /hives", async () => {
     requireAuthenticatedUser.mockResolvedValue({ ok: true });
     redirect.mockImplementation(() => {
       throw new Error("NEXT_REDIRECT");
     });
-    const { default: LandingPage } = await import("./page");
     await expect(LandingPage()).rejects.toThrow("NEXT_REDIRECT");
     expect(redirect).toHaveBeenCalledWith("/hives");
   });

@@ -39,7 +39,7 @@ export function AppShell({
 
   return (
     <HiveHeaderContext.Provider value={contextValue}>
-      <div className="flex min-h-dvh flex-col bg-mist text-ink">
+      <div className="flex min-h-dvh flex-col bg-paper text-ink">
         <AppHeader
           workspace={workspace}
           account={{

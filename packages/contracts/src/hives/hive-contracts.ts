@@ -1,6 +1,8 @@
 export const HIVE_NAME_MAX_LENGTH = 100;
 export const HIVE_DESCRIPTION_MAX_LENGTH = 500;
 
+import { isHiveKind } from "./hive-attention";
+
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -9,6 +11,7 @@ export type Hive = {
   hiveId: string;
   name: string;
   description: string | null;
+  kind: "own" | "client";
   clientRequestId: string;
   createdAt: string;
   updatedAt: string;
@@ -32,6 +35,7 @@ export type CreateHiveRequest = {
   name: string;
   description?: string | null;
   clientRequestId: string;
+  kind?: "own" | "client";
 };
 
 export type CreateHiveResponse = {
@@ -43,6 +47,7 @@ export type ValidatedCreateHiveInput = {
   name: string;
   description: string | null;
   clientRequestId: string;
+  kind: "own" | "client";
 };
 
 export type HiveValidationResult =
@@ -113,6 +118,16 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
     description = trimmedDesc.length > 0 ? trimmedDesc : null;
   }
 
+  const rawKind =
+    typeof record.kind === "string"
+      ? record.kind.trim().toLowerCase()
+      : typeof record.hiveKind === "string"
+        ? record.hiveKind.trim().toLowerCase()
+        : "own";
+  if (!isHiveKind(rawKind)) {
+    return null;
+  }
+
   let deletingAt: string | null | undefined = undefined;
   if ("deletingAt" in record || "deleting_at" in record) {
     const raw =
@@ -131,6 +146,7 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
     hiveId,
     name,
     description,
+    kind: rawKind,
     clientRequestId,
     createdAt,
     updatedAt,
@@ -153,6 +169,7 @@ export function validateCreateHiveInput(body: unknown): HiveValidationResult {
     "description",
     "clientRequestId",
     "client_request_id",
+    "kind",
   ]);
 
   for (const key of Object.keys(record)) {
@@ -237,6 +254,18 @@ export function validateCreateHiveInput(body: unknown): HiveValidationResult {
     descriptionError = `Description must be ${HIVE_DESCRIPTION_MAX_LENGTH} characters or fewer.`;
   }
 
+  let kind: "own" | "client" = "own";
+  if (record.kind !== undefined && record.kind !== null) {
+    if (typeof record.kind !== "string" || !isHiveKind(record.kind.trim().toLowerCase())) {
+      return {
+        ok: false,
+        message: "Invalid Hive kind.",
+        diagnosticReason: "invalid_kind",
+      };
+    }
+    kind = record.kind.trim().toLowerCase() as "own" | "client";
+  }
+
   if (nameError || descriptionError) {
     return {
       ok: false,
@@ -253,6 +282,7 @@ export function validateCreateHiveInput(body: unknown): HiveValidationResult {
       name: trimmedName,
       description: trimmedDescription.length > 0 ? trimmedDescription : null,
       clientRequestId,
+      kind,
     },
   };
 }

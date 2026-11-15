@@ -136,6 +136,20 @@ export async function createHive(
   );
 }
 
+export async function setHiveKind(hiveId: string, kind: "own" | "client"): Promise<void> {
+  const correlationId = crypto.randomUUID();
+  const response = await fetch(`/api/v1/hives/${encodeURIComponent(hiveId)}/kind`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      [CORRELATION_HEADER]: correlationId,
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({ kind }),
+  });
+  await parseApiJson<{ ok: true }>(response, correlationId, "Could not update this Hive.");
+}
+
 export async function deleteHive(hiveId: string): Promise<DeleteHiveResponse> {
   const correlationId = crypto.randomUUID();
   const response = await fetch(`/api/v1/hives/${encodeURIComponent(hiveId)}`, {

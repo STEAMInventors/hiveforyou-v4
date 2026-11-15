@@ -94,14 +94,6 @@ export function AccountMenu({ initials, displayName, email, startingView }: Acco
     }
   };
 
-  const switchView = () => {
-    startTransition(async () => {
-      await switchStartingViewAction();
-      close(false);
-      router.refresh();
-    });
-  };
-
   return (
     <div className="relative shrink-0">
       <button
@@ -142,16 +134,26 @@ export function AccountMenu({ initials, displayName, email, startingView }: Acco
             ) : null}
           </div>
           {startingView ? (
-            <button
-              type="button"
-              role="menuitem"
-              tabIndex={-1}
-              className={QUIET_BUTTON_CLASS}
-              disabled={pending}
-              onClick={switchView}
+            <form
+              action={switchStartingViewAction}
+              className="m-0"
+              onSubmit={() => {
+                close(false);
+                startTransition(() => {
+                  router.refresh();
+                });
+              }}
             >
-              {switchStartingViewLabel(startingView)}
-            </button>
+              <button
+                type="submit"
+                role="menuitem"
+                tabIndex={-1}
+                className={QUIET_BUTTON_CLASS}
+                disabled={pending}
+              >
+                {switchStartingViewLabel(startingView)}
+              </button>
+            </form>
           ) : null}
           <form action={signOutAction} className="m-0">
             <button type="submit" role="menuitem" tabIndex={-1} className={ITEM_CLASS}>

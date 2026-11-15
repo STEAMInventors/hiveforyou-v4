@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { SignInFlow } from "@/components/auth/SignInFlow";
 import { authLinkErrorMessage } from "@/server/auth/messages";
-import { safeNextPath } from "@/server/auth/redirects";
+import { isNextNavigationError, safeNextPath } from "@/server/auth/redirects";
 import { fetchMyProfile } from "@/lib/auth/profile";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -23,7 +23,10 @@ export default async function SignInPage({ searchParams }: PageProps) {
       const { profile } = await fetchMyProfile(supabase);
       redirect(profile ? next : `/welcome?next=${encodeURIComponent(next)}`);
     }
-  } catch {
+  } catch (error) {
+    if (isNextNavigationError(error)) {
+      throw error;
+    }
     // Misconfigured local env — still render sign-in UI.
   }
 

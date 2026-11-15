@@ -1,5 +1,7 @@
 export const MY_HIVES_PATH = "/hives";
 
+export const NEW_CLIENT_HIVE_PATH = `${MY_HIVES_PATH}/new-client`;
+
 export const CREATE_HIVE_PARAM = "create";
 
 export const MY_HIVES_CREATE_PATH = `${MY_HIVES_PATH}?${CREATE_HIVE_PARAM}=1`;

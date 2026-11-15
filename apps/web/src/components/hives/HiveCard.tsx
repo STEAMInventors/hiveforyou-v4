@@ -1,26 +1,31 @@
 "use client";
 
-import type { Hive } from "@hiveforyou/contracts";
+import type { Hive, HiveAttentionResult } from "@hiveforyou/contracts";
+import { hiveAttention } from "@hiveforyou/contracts";
 import Link from "next/link";
 import { useState } from "react";
 
 import { SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
-import { statePillText } from "@/components/study/StateBar";
-import { DISPLAY_STATES, StatusBadge } from "@/components/study/StatusBadge";
+import { StatusBadge } from "@/components/study/StatusBadge";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
+import { formatStateLineParts } from "@/lib/hives/state-line";
 import { isHiveDeletionPending } from "@/lib/hives/hive-deletion-state";
 import type { HiveSummary } from "@/server/hives/hive-summary";
 
 import { HiveCardMenu } from "./HiveCardMenu";
 
-const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const dateFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
 
 function formatHiveDate(isoTimestamp: string): string | null {
   const parsed = new Date(isoTimestamp);
   return Number.isNaN(parsed.getTime()) ? null : dateFormat.format(parsed);
 }
 
-/** The later of the Hive's own update and its accepted study. */
 function lastActivity(hive: Hive, summary: HiveSummary | undefined): string | null {
   const candidates = [hive.updatedAt, summary?.study?.acceptedAt].filter((value): value is string => !!value);
   const latest = candidates.reduce<string | null>(
@@ -30,46 +35,92 @@ function lastActivity(hive: Hive, summary: HiveSummary | undefined): string | nu
   return latest ? formatHiveDate(latest) : null;
 }
 
-export function hiveCardMeta(hive: Hive, summary: HiveSummary | undefined): string {
-  const parts: string[] = [];
-  if (summary) parts.push(`${summary.documentCount} ${summary.documentCount === 1 ? "document" : "documents"}`);
-  const activity = lastActivity(hive, summary);
-  if (activity) parts.push(`Last activity ${activity}`);
-  return parts.join(" · ");
-}
+const FALLBACK_ATTENTION: HiveAttentionResult = hiveAttention({
+  documentCount: 0,
+  unreadableDocumentCount: 0,
+  documentsNotReadCount: 0,
+  activeReadCount: 0,
+  processingRunFailed: false,
+  processingRunActive: false,
+  documentsNotInStudyCount: 0,
+  openConflicts: 0,
+  openNeeds: 0,
+  openChanged: 0,
+  openMissing: 0,
+  openChecked: 0,
+  hasStudy: false,
+  hasReport: false,
+});
 
-function StateSummary({ summary }: { summary: HiveSummary | undefined }) {
-  const study = summary?.study ?? null;
-  if (!summary) return null;
-  if (!study) return <StatusBadge state="neutral" label="No study yet" />;
-  const counts = study.counts;
-  const shown = counts ? DISPLAY_STATES.filter((state) => counts[state] > 0) : [];
+type HiveListProps = {
+  hives: Hive[];
+  summaries?: Readonly<Record<string, HiveSummary>>;
+  startingView: "own" | "clients";
+  onRequestDelete: (hive: Hive) => void;
+  onRetryDeletion: (hiveId: string) => Promise<void>;
+  onKindChanged: () => void | Promise<void>;
+};
+
+type HiveRowProps = {
+  hive: Hive;
+  summary: HiveSummary | undefined;
+  startingView: "own" | "clients";
+  onRequestDelete: (hive: Hive) => void;
+  onKindChanged: () => void | Promise<void>;
+};
+
+function HiveRow({ hive, summary, startingView, onRequestDelete, onKindChanged }: HiveRowProps) {
+  const attention = summary?.attention ?? FALLBACK_ATTENTION;
+  const activity = lastActivity(hive, summary);
+  const kicker =
+    startingView === "clients"
+      ? hive.description?.trim() || "Client hive"
+      : "Your hive";
+  const stateParts = formatStateLineParts(attention.counts);
+
   return (
-    <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0" aria-label={`Study revision ${study.revisionNumber}`}>
-      <li>
-        <StatusBadge state="neutral" label={`Study revision ${study.revisionNumber}`} />
-      </li>
-      {counts
-        ? shown.map((state) => (
-            <li key={state}>
-              <StatusBadge state={state} label={statePillText(state, counts[state])} />
-            </li>
-          ))
-        : null}
-    </ul>
+    <li className="relative flex flex-col gap-0.5 py-0" data-testid="hive-list-row">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="m-0 text-[13px] text-graphite">{kicker}</p>
+          <h2 className="m-0 mt-0.5 text-[20px] font-medium leading-snug">
+            <Link
+              href={hiveDocumentsPath(hive.id)}
+              className="text-cell-blue-deep no-underline hover:underline"
+            >
+              {hive.name}
+            </Link>
+          </h2>
+        </div>
+        <HiveCardMenu
+          hiveId={hive.id}
+          hiveName={hive.name}
+          hiveKind={hive.kind}
+          onDeleteHive={() => onRequestDelete(hive)}
+          onKindChanged={onKindChanged}
+        />
+      </div>
+      <p className="m-0 text-[15px] leading-relaxed text-ink">{attention.sentence}</p>
+      <p className="m-0 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13.5px]">
+        {stateParts.map((part) => (
+          <span key={part.key} className={`font-semibold ${part.className}`}>
+            {part.label}
+          </span>
+        ))}
+        {activity ? <span className="font-normal text-quiet">Last activity {activity}</span> : null}
+      </p>
+    </li>
   );
 }
 
-type HiveCardGridProps = {
-  hives: Hive[];
-  summaries?: Readonly<Record<string, HiveSummary>>;
-  onRequestDelete: (hive: Hive) => void;
-  onRetryDeletion: (hiveId: string) => Promise<void>;
-};
-
-const CARD = "relative flex flex-col gap-3 rounded-card border border-line bg-paper p-6 text-ink";
-
-export function HiveCardGrid({ hives, summaries = {}, onRequestDelete, onRetryDeletion }: HiveCardGridProps) {
+export function HiveList({
+  hives,
+  summaries = {},
+  startingView,
+  onRequestDelete,
+  onRetryDeletion,
+  onKindChanged,
+}: HiveListProps) {
   const [retryHiveId, setRetryHiveId] = useState<string | null>(null);
   const [retryErrorByHiveId, setRetryErrorByHiveId] = useState<Record<string, string>>({});
 
@@ -94,13 +145,13 @@ export function HiveCardGrid({ hives, summaries = {}, onRequestDelete, onRetryDe
   };
 
   return (
-    <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(320px,100%),1fr))] gap-5 p-0">
+    <ul className="m-0 flex list-none flex-col gap-7 p-0">
       {hives.map((hive) => {
         if (isHiveDeletionPending(hive)) {
           const retryBusy = retryHiveId === hive.id;
           const retryError = retryErrorByHiveId[hive.id];
           return (
-            <li key={hive.id} className={CARD} data-testid="hive-card-deleting">
+            <li key={hive.id} className="flex flex-col gap-2" data-testid="hive-card-deleting">
               <StatusBadge state="missing" label="Deletion incomplete" />
               <h2 className="m-0 break-words font-brand text-section font-semibold text-ink">{hive.name}</h2>
               <p className="m-0 text-body text-graphite">
@@ -111,50 +162,27 @@ export function HiveCardGrid({ hives, summaries = {}, onRequestDelete, onRetryDe
                   {retryError}
                 </p>
               ) : null}
-              <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-1">
-                <p className="m-0 text-small text-quiet">{hiveCardMeta(hive, undefined)}</p>
-                <button
-                  type="button"
-                  className={SECONDARY_BUTTON_CLASS}
-                  disabled={retryBusy}
-                  onClick={() => {
-                    void handleRetry(hive.id);
-                  }}
-                >
-                  {retryBusy ? "Retrying…" : "Retry deletion"}
-                </button>
-              </div>
+              <button
+                type="button"
+                className={`${SECONDARY_BUTTON_CLASS} self-start`}
+                disabled={retryBusy}
+                onClick={() => void handleRetry(hive.id)}
+              >
+                {retryBusy ? "Retrying…" : "Retry deletion"}
+              </button>
             </li>
           );
         }
 
-        const summary = summaries[hive.id];
-        const meta = hiveCardMeta(hive, summary);
         return (
-          <li
+          <HiveRow
             key={hive.id}
-            className={`${CARD} transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-[0_6px_24px_rgba(31,35,40,0.06)] has-[h2_a:focus-visible]:outline has-[h2_a:focus-visible]:outline-2 has-[h2_a:focus-visible]:outline-offset-2 has-[h2_a:focus-visible]:outline-cell-blue`}
-            data-testid="hive-card"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="m-0 min-w-0 flex-1 break-words font-brand text-section font-semibold text-ink">
-                <Link
-                  href={hiveDocumentsPath(hive.id)}
-                  className="text-ink no-underline after:absolute after:inset-0 after:rounded-card after:content-[''] focus-visible:outline-none"
-                >
-                  {hive.name}
-                </Link>
-              </h2>
-              <div className="relative z-10 -mr-2 -mt-2">
-                <HiveCardMenu hiveId={hive.id} hiveName={hive.name} onDeleteHive={() => onRequestDelete(hive)} />
-              </div>
-            </div>
-            {hive.description ? <p className="m-0 line-clamp-2 text-body text-graphite">{hive.description}</p> : null}
-            {meta ? <p className="m-0 text-small text-quiet">{meta}</p> : null}
-            <div className="mt-auto pt-1">
-              <StateSummary summary={summary} />
-            </div>
-          </li>
+            hive={hive}
+            summary={summaries[hive.id]}
+            startingView={startingView}
+            onRequestDelete={onRequestDelete}
+            onKindChanged={onKindChanged}
+          />
         );
       })}
     </ul>

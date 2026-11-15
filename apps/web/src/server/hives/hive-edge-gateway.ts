@@ -171,6 +171,7 @@ export async function createHiveViaEdge(
     description: input.description,
     clientRequestId: input.clientRequestId,
     client_request_id: input.clientRequestId,
+    kind: input.kind,
   });
 
   if (!result.ok) {

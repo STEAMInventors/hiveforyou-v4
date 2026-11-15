@@ -2,6 +2,7 @@ import type { Hive } from "@hiveforyou/contracts";
 import { redirect } from "next/navigation";
 
 import { MyHivesPanel } from "@/components/hives/MyHivesPanel";
+import { fetchMyProfile } from "@/lib/auth/profile";
 import { CREATE_HIVE_PARAM } from "@/lib/hive-routes";
 import { isHiveDeletionPending } from "@/lib/hives/hive-deletion-state";
 import { requestCorrelationId } from "@/server/auth/action-support";
@@ -17,6 +18,14 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
   const auth = await requireAuthenticatedUser();
   if (!auth.ok) {
     redirect("/sign-in?next=%2Fhives");
+  }
+
+  const { profile, error: profileError } = await fetchMyProfile(auth.client);
+  if (profileError) {
+    redirect("/sign-in?next=%2Fhives");
+  }
+  if (!profile) {
+    redirect("/welcome?next=%2Fhives");
   }
 
   const params = await searchParams;
@@ -37,8 +46,6 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
     };
   }
 
-  // One preparation read (and one reports read once a study exists) per hive; a card without a
-  // summary still shows its name and description.
   const summaries: Record<string, HiveSummary> = Object.fromEntries(
     (
       await Promise.all(
@@ -53,12 +60,26 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
     ).filter((entry): entry is readonly [string, HiveSummary] => entry !== null),
   );
 
+  const { data: userData } = await auth.client.auth.getUser();
+  const metadata = userData.user?.user_metadata as Record<string, unknown> | undefined;
+  const fullName =
+    typeof metadata?.full_name === "string"
+      ? metadata.full_name
+      : typeof metadata?.name === "string"
+        ? metadata.name
+        : null;
+  const greetingFirstName = fullName?.trim().split(/\s+/)[0] ?? null;
+  const greetingEmail = auth.email ?? userData.user?.email ?? null;
+
   return (
     <MyHivesPanel
       initialHives={hives}
       initialError={initialError}
       summaries={summaries}
       openCreateOnLoad={params[CREATE_HIVE_PARAM] === "1"}
+      startingView={profile.startingView}
+      greetingFirstName={greetingFirstName}
+      greetingEmail={greetingEmail}
     />
   );
 }

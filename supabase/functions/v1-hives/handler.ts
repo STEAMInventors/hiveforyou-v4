@@ -23,6 +23,7 @@ export type EdgeHivePayload = {
   hiveId: string;
   name: string;
   description: string | null;
+  kind: "own" | "client";
   clientRequestId: string;
   createdAt: string;
   updatedAt: string;
@@ -38,6 +39,7 @@ export type EdgeOperation =
       name: string;
       description: string | null;
       clientRequestId: string;
+      kind: "own" | "client";
     }
   | { op: "delete"; hiveId: string };
 
@@ -174,6 +176,7 @@ export function parseEdgeOperation(
       "description",
       "clientRequestId",
       "client_request_id",
+      "kind",
     ]);
     for (const key of Object.keys(record)) {
       if (!allowed.has(key)) {
@@ -283,6 +286,23 @@ export function parseEdgeOperation(
       };
     }
 
+  const rawKind =
+    typeof record.kind === "string" ? record.kind.trim().toLowerCase() : "own";
+  if (rawKind !== "own" && rawKind !== "client") {
+    return {
+      ok: false,
+      error: {
+        errorCode: "INVALID_REQUEST",
+        category: "VALIDATION",
+        stage: "SHELL",
+        message: "Invalid Hive kind.",
+        retryable: false,
+        diagnosticReason: "invalid_kind",
+        status: 422,
+      },
+    };
+  }
+
     return {
       ok: true,
       operation: {
@@ -290,6 +310,7 @@ export function parseEdgeOperation(
         name: trimmedName,
         description: trimmedDesc.length > 0 ? trimmedDesc : null,
         clientRequestId: rawReqId.toLowerCase(),
+        kind: rawKind,
       },
     };
   }
@@ -344,6 +365,9 @@ function normalizeEdgeHive(raw: unknown): EdgeHivePayload | null {
       ? row.description.trim()
       : null;
 
+  const rawKind = typeof row.kind === "string" ? row.kind.trim().toLowerCase() : "own";
+  const kind = rawKind === "client" ? "client" : "own";
+
   const deletingAt =
     row.deletingAt === null || row.deletingAt === undefined
       ? row.deleting_at === null || row.deleting_at === undefined
@@ -360,6 +384,7 @@ function normalizeEdgeHive(raw: unknown): EdgeHivePayload | null {
     hiveId,
     name,
     description,
+    kind,
     clientRequestId,
     createdAt,
     updatedAt,
@@ -774,6 +799,7 @@ export async function handleV1HivesRequest(
         p_name: operation.name,
         p_description: operation.description,
         p_client_request_id: operation.clientRequestId,
+        p_kind: operation.kind,
       }),
     );
     if (error) {
