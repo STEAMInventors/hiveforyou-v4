@@ -20,6 +20,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 textarea:focus,input:focus{outline:none}
 ::selection{background:#E8F0FE}
 </style>
+<style>
+  @media (max-width: 760px) {
+    .hfy-rowhead { display: none !important; }
+    .hfy-last { text-align: left !important; }
+    .hfy-rail { flex: 1 1 100% !important; flex-direction: row !important; flex-wrap: wrap; gap: 6px !important; padding: 12px 12px 0 !important; }
+    .hfy-rail > button { border-radius: 999px !important; margin: 0 !important; padding: 0 14px !important; }
+    .hfy-rail > div { display: none; }
+  }
+</style>
 </helmet>
 <div style="min-height:100vh;background:#fff;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;color:#1F2328">
 
@@ -125,6 +134,12 @@ textarea:focus,input:focus{outline:none}
           <button onClick="{{ addQuestion }}" style="flex:none;height:40px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap" style-hover="background:#E3E6EA">Add question</button>
         </div>
       </sc-if>
+      <sc-if value="{{ homeProHeader }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1 1 360px;max-width:680px;min-width:0;display:flex;align-items:center;gap:12px;min-height:48px;padding:0 18px;border-radius:999px;background:#F4F6F8">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A525C" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          <input value="{{ homeQuery }}" onChange="{{ onHomeQuery }}" aria-label="Find a client" placeholder="Find a client" style="flex:1;min-width:0;height:44px;border:none;background:transparent;font-size:16px;color:#1F2328">
+        </div>
+      </sc-if>
       <div style="flex:1 1 0;order:1"></div>
       <span style="order:2;height:24px;padding:0 10px;border-radius:999px;background:#FEF3D6;color:#7A5200;font-size:12px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">Synthetic data</span>
       <button onClick="{{ toggleMenu }}" aria-label="Account" aria-expanded="{{ menuOpen }}" style="order:2;width:40px;height:40px;flex:none;border-radius:999px;border:none;background:#1F2328;color:#fff;font-size:14px;font-weight:600;cursor:pointer">{{ initials }}</button>
@@ -151,24 +166,73 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isHome }}" hint-placeholder-val="{{ false }}">
+  <sc-if value="{{ homeIsPro }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-start">
+      <nav aria-label="Clients" class="hfy-rail" style="flex:0 0 256px;padding:16px 12px 24px 0;display:flex;flex-direction:column;gap:2px">
+        <button onClick="{{ newClient }}" style="align-self:flex-start;height:56px;padding:0 26px 0 20px;margin:0 0 14px 16px;border-radius:16px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;display:flex;align-items:center;gap:10px;cursor:pointer;box-shadow:0 1px 3px rgba(31,35,40,.25)" style-hover="background:#164AA8">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>New client
+        </button>
+        <sc-for list="{{ rail }}" as="r" hint-placeholder-count="5">
+          <button onClick="{{ r.pick }}" aria-current="{{ r.cur }}" style="height:44px;padding:0 18px 0 28px;border:none;border-radius:0 999px 999px 0;background:{{ r.bg }};color:{{ r.fg }};font-weight:{{ r.fw }};font-size:15px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;text-align:left" style-hover="background:{{ r.hov }}">
+            <span style="display:flex;align-items:center;gap:14px"><span aria-hidden="true" style="width:10px;height:10px;border-radius:999px;background:{{ r.dot }};border:{{ r.dotBd }}"></span>{{ r.label }}</span>
+            <span style="font-size:13px;font-weight:600">{{ r.count }}</span>
+          </button>
+        </sc-for>
+        <div style="margin:18px 0 0 28px;padding-top:14px;border-top:1px solid #E3E6EA;font-size:13px;line-height:1.5;color:#6B737D;max-width:200px">HiveForYou reads every document, keeps each client’s list of what’s missing, and tells you who needs you.</div>
+      </nav>
+
+      <main style="flex:1 1 560px;min-width:0;max-width:1080px;padding:20px clamp(16px,3vw,40px) 64px clamp(8px,2vw,24px)">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:15px;color:#4A525C">{{ greeting }}</span>
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:28px;line-height:1.2">{{ railTitle }}</h1>
+          <span style="font-size:14px;color:#6B737D">{{ homeCount }}</span>
+        </div>
+
+        <sc-if value="{{ showGlance }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:22px 0 8px">
+            <sc-for list="{{ glance }}" as="g" hint-placeholder-count="4">
+              <button onClick="{{ g.pick }}" style="text-align:left;padding:16px 18px;border-radius:16px;border:1px solid #E3E6EA;background:#fff;cursor:pointer;display:flex;flex-direction:column;gap:2px" style-hover="border-color:#B4B9C0;background:#F4F6F8">
+                <span style="font-family:Outfit,sans-serif;font-weight:600;font-size:30px;line-height:1.1;color:{{ g.fg }}">{{ g.n }}</span>
+                <span style="font-size:14px;color:#1F2328;font-weight:500">{{ g.label }}</span>
+                <span style="font-size:13px;color:#6B737D">{{ g.sub }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div class="hfy-rowhead" style="display:flex;gap:20px;padding:22px 12px 8px;border-bottom:1px solid #E3E6EA;font-size:13px;font-weight:600;color:#6B737D">
+          <span style="flex:1 1 200px">Client</span><span style="flex:2 1 260px">Where it stands</span><span style="flex:0 0 150px">Intake</span><span style="flex:0 0 110px;text-align:right">Last activity</span>
+        </div>
+        <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:40px 12px;display:flex;flex-direction:column;gap:12px;align-items:flex-start">
+            <span style="font-size:17px">{{ noRowsText }}</span>
+            <sc-if value="{{ noClientsAtAll }}" hint-placeholder-val="{{ false }}"><span style="font-size:15px;color:#4A525C;max-width:520px;line-height:1.55">Each client gets a hive. Add what they’ve already sent you, or invite them to upload from their phone. HiveForYou reads every page and keeps the list of what’s missing.</span></sc-if>
+          </div>
+        </sc-if>
+        <sc-for list="{{ homeRows }}" as="r" hint-placeholder-count="3">
+          <button onClick="{{ r.open }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:#fff;padding:16px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;cursor:pointer;color:#1F2328;font:inherit" style-hover="background:#F4F6F8">
+            <span style="flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:17px;font-weight:600;color:#1A56C4">{{ r.title }}</span>
+              <span style="font-size:13px;color:#4A525C">{{ r.kicker }}</span>
+            </span>
+            <span style="flex:2 1 260px;min-width:0;display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:15px;line-height:1.45">{{ r.sentence }}</span>
+              <span style="display:flex;gap:4px 12px;flex-wrap:wrap;font-size:13px;font-weight:600"><sc-for list="{{ r.counts }}" as="c" hint-placeholder-count="2"><span style="color:{{ c.fg }}">{{ c.label }}</span></sc-for></span>
+            </span>
+            <span style="flex:0 0 150px;display:flex;flex-direction:column;gap:5px">
+              <span role="img" aria-label="{{ r.progress }}" style="display:flex;gap:3px"><sc-for list="{{ r.segs }}" as="g" hint-placeholder-count="4"><span style="flex:1;height:5px;border-radius:999px;background:{{ g.bg }}"></span></sc-for></span>
+              <span style="font-size:13px;color:#4A525C">{{ r.progress }}</span>
+            </span>
+            <span class="hfy-last" style="flex:0 0 110px;font-size:13px;color:#6B737D;text-align:right">{{ r.last }}</span>
+          </button>
+        </sc-for>
+      </main>
+    </div>
+  </sc-if>
+  <sc-if value="{{ homeIsInd }}" hint-placeholder-val="{{ false }}">
   <main style="width:100%;max-width:680px;margin:0 auto;padding:clamp(32px,8vh,88px) 20px 64px;display:flex;flex-direction:column;align-items:center;gap:22px">
     <img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:clamp(40px,7vw,56px);width:auto">
     <p style="margin:0;font-size:19px;color:#4A525C">{{ greeting }}</p>
-
-    <sc-if value="{{ homeIsPro }}" hint-placeholder-val="{{ false }}">
-      <div style="width:100%;display:flex;align-items:center;gap:12px;min-height:52px;padding:0 20px;border:1px solid #E3E6EA;border-radius:999px;box-shadow:0 2px 12px rgba(31,35,40,.10)">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
-        <input value="{{ homeQuery }}" onChange="{{ onHomeQuery }}" aria-label="Find a client" placeholder="Find a client" style="flex:1;min-width:0;height:44px;border:none;background:transparent;font-size:17px;color:#1F2328">
-      </div>
-      <button onClick="{{ newClient }}" style="height:44px;padding:0 24px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer" style-hover="background:#164AA8">New client</button>
-      <nav aria-label="Filter clients" style="width:100%;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid #E3E6EA;margin-top:8px">
-        <sc-for list="{{ filters }}" as="f" hint-placeholder-count="4">
-          <button onClick="{{ f.pick }}" style="height:44px;padding:0 12px;border:none;background:none;border-bottom:3px solid {{ f.bd }};color:{{ f.fg }};font-weight:{{ f.fw }};font-size:14.5px;cursor:pointer">{{ f.label }}</button>
-        </sc-for>
-      </nav>
-      <span style="align-self:flex-start;font-size:14px;color:#6B737D">{{ homeCount }}</span>
-      <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}"><p style="align-self:flex-start;margin:0;color:#4A525C">{{ noRowsText }}</p></sc-if>
-    </sc-if>
 
     <sc-if value="{{ homeIsInd }}" hint-placeholder-val="{{ false }}">
       <div style="width:100%;padding:2px;border-radius:999px;background:{{ ringBg }};box-shadow:0 2px 12px rgba(31,35,40,.10)">
@@ -197,6 +261,7 @@ textarea:focus,input:focus{outline:none}
       </sc-for>
     </div>
   </main>
+  </sc-if>
 </sc-if>
 
 <sc-if value="{{ isNewClient }}" hint-placeholder-val="{{ false }}">
@@ -1389,7 +1454,9 @@ class Component extends DCLogic {
     v.showAppHeader = !!u && (v.isHome || v.isNewClient || v.isApp);
     v.headBd = v.isApp ? '1px solid #E3E6EA' : '1px solid transparent';
     v.pillOrder = 0;
-    v.headLogoVis = v.isHome ? 'hidden' : 'visible';
+    v.headLogoVis = v.isHome && u && u.role !== 'professional' ? 'hidden' : 'visible';
+    v.homeProHeader = v.isHome && !!u && u.role === 'professional';
+    v.headBd = v.isApp || v.homeProHeader ? '1px solid #E3E6EA' : '1px solid transparent';
     const goHome = () => this.setState({ screen: u ? 'home' : 'landing', drawer: null, viewer: null, menuOpen: false, qSaved: false, cv: null, pv: null });
     v.goHome = goHome; v.goHives = goHome;
     v.goLanding = () => this.setState({ screen: 'landing', drawer: null });
@@ -1447,29 +1514,66 @@ class Component extends DCLogic {
       const ORDER = { needs: 0, progress: 1, waiting: 2, ready: 3 };
       let rows = this.myHives().map((h, i) => ({ h, a: this.attn(h), i })).sort((x, y) => ORDER[x.a.level] - ORDER[y.a.level] || x.i - y.i);
       if (isPro) {
-        const fl = { all: rows.length, needs: rows.filter(r => r.a.level === 'needs').length, waiting: rows.filter(r => r.a.waiting > 0).length, ready: rows.filter(r => r.a.level === 'ready').length };
+        const all = rows.slice();
+        const isClient = r => !!r.h.client;
+        const fl = {
+          needs: all.filter(r => isClient(r) && r.a.level === 'needs').length,
+          waiting: all.filter(r => isClient(r) && r.a.waiting > 0).length,
+          ready: all.filter(r => isClient(r) && r.a.level === 'ready').length,
+          all: all.filter(isClient).length,
+          own: all.filter(r => !isClient(r)).length
+        };
+        const f = st.homeFilter || 'all';
         const q = st.homeQuery.trim().toLowerCase();
-        if (st.homeFilter === 'needs') rows = rows.filter(r => r.a.level === 'needs');
-        if (st.homeFilter === 'waiting') rows = rows.filter(r => r.a.waiting > 0);
-        if (st.homeFilter === 'ready') rows = rows.filter(r => r.a.level === 'ready');
-        if (q) rows = rows.filter(r => r.h.title.toLowerCase().includes(q));
-        v.filters = [['all', 'All'], ['needs', 'Needs you'], ['waiting', 'Waiting on client'], ['ready', 'Ready']].map(([k, label]) => {
-          const on = st.homeFilter === k;
-          return { label: label + ' ' + fl[k], fg: on ? '#1A56C4' : '#4A525C', bd: on ? '#1A56C4' : 'transparent', fw: on ? '600' : '500', pick: () => this.setState({ homeFilter: k }) };
+        if (f === 'own') rows = rows.filter(r => !isClient(r)); else rows = rows.filter(isClient);
+        if (f === 'needs') rows = rows.filter(r => r.a.level === 'needs');
+        if (f === 'waiting') rows = rows.filter(r => r.a.waiting > 0);
+        if (f === 'ready') rows = rows.filter(r => r.a.level === 'ready');
+        if (q) rows = all.filter(r => r.h.title.toLowerCase().includes(q));
+        const RAIL = [['needs', 'Needs you', '#3B7CF6'], ['waiting', 'Waiting on client', '#B4B9C0'], ['ready', 'Ready', '#2FA35A'], ['all', 'All clients', null]];
+        if (fl.own) RAIL.push(['own', 'My own matters', null]);
+        v.rail = RAIL.map(([k, label, dot]) => {
+          const on = !q && f === k;
+          return { label, count: fl[k] ? String(fl[k]) : '', cur: on ? 'page' : 'false', bg: on ? '#E8F0FE' : 'transparent', hov: on ? '#E8F0FE' : '#F4F6F8', fg: on ? '#1A56C4' : '#1F2328', fw: on ? '600' : '500', dot: dot || 'transparent', dotBd: dot ? 'none' : '2px solid #B4B9C0', pick: () => this.setState({ homeFilter: k, homeQuery: '' }) };
         });
+        v.railTitle = q ? 'Clients matching “' + st.homeQuery.trim() + '”' : ({ needs: 'Needs you', waiting: 'Waiting on client', ready: 'Ready', all: 'All clients', own: 'My own matters' })[f];
+        v.showGlance = !q && f === 'all' && fl.all > 0;
+        const missingTotal = all.filter(isClient).reduce((n, r) => n + r.a.missing, 0);
+        v.glance = [
+          { n: String(fl.needs), label: 'Need you', sub: fl.needs === 1 ? '1 client' : fl.needs + ' clients', fg: '#1A56C4', pick: () => this.setState({ homeFilter: 'needs' }) },
+          { n: String(fl.waiting), label: 'Waiting on a client', sub: 'Asked, not sent yet', fg: '#1F2328', pick: () => this.setState({ homeFilter: 'waiting' }) },
+          { n: String(missingTotal), label: 'Documents missing', sub: 'Across all clients', fg: '#B33A2E', pick: () => this.setState({ homeFilter: 'all' }) },
+          { n: String(fl.ready), label: 'Ready for review', sub: 'Everything in and checked', fg: '#197040', pick: () => this.setState({ homeFilter: 'ready' }) }
+        ];
         v.homeQuery = st.homeQuery;
         v.onHomeQuery = e => this.setState({ homeQuery: e.target.value });
         v.newClient = () => this.setState({ screen: 'newclient', menuOpen: false, nc: { name: q && !rows.length ? st.homeQuery.trim() : '', email: '', about: '', err: '' } });
-        v.homeCount = rows.length + (rows.length === 1 ? ' client' : ' clients') + (q ? ' matching “' + st.homeQuery.trim() + '”' : '') + (rows.length > 1 ? ', the ones that need you first' : '');
+        v.homeCount = rows.length + (rows.length === 1 ? ' client' : ' clients') + (rows.length > 1 ? ', the ones that need you first' : '');
         v.noRows = rows.length === 0;
-        v.noRowsText = fl.all === 0 ? 'No clients yet. Start with the first one.' : 'No clients match.';
+        v.noClientsAtAll = fl.all === 0 && !q;
+        v.noRowsText = q ? 'No client matches “' + st.homeQuery.trim() + '”.' : fl.all === 0 ? 'No clients yet. Start with the first one.' : 'Nothing here right now.';
       } else {
         v.startMine = () => this.startHive(st.goalText);
         v.onMineKey = e => { if (e.key === 'Enter') { e.preventDefault(); this.startHive(st.goalText); } };
         v.hasHomeCount = rows.length > 0;
         v.homeCount = rows.length === 1 ? 'Your hive' : 'Your hives';
       }
-      v.homeRows = rows.map(({ h, a }) => ({ title: h.title, kicker: isPro ? h.purpose : (h.pro && h.pro.status === 'taken' ? 'Shared with ' + h.pro.name : 'Your hive'), sentence: a.sentence, counts: a.counts, last: h.last, open: () => this.openHive(h.id) }));
+      const intake = h => {
+        const s = D.S[h.scen]; const l = st.live[h.id];
+        if (!l.loaded) return { tot: 0, done: 0 };
+        const miss = this.visEx(s, l).filter(x => x.kind === 'missing'); const gen = (l.requests || []).filter(r => !r.xid);
+        return { tot: miss.length + gen.length, done: miss.filter(x => !['open', 'requested'].includes(l.ex[x.id].status)).length + gen.filter(r => ['accepted', 'closed'].includes(r.status)).length };
+      };
+      v.homeRows = rows.map(({ h, a }) => {
+        const k = intake(h);
+        return {
+          title: h.title,
+          kicker: isPro ? (h.client ? h.purpose + (h.client.status === 'invited' ? ' · invited' : h.client.status === 'joined' ? ' · client joined' : '') : 'Your own matter') : (h.pro && h.pro.status === 'taken' ? 'Shared with ' + h.pro.name : 'Your hive'),
+          sentence: a.sentence, counts: a.counts, last: h.last, open: () => this.openHive(h.id),
+          progress: k.tot ? k.done + ' of ' + k.tot + ' in' : (a.started ? 'Nothing missing' : 'No documents yet'),
+          segs: k.tot ? Array.from({ length: k.tot }, (_, i) => ({ bg: i < k.done ? '#2FA35A' : '#E3E6EA' })) : [{ bg: a.started ? '#2FA35A' : '#E3E6EA' }]
+        };
+      });
     }
 
     // New client
