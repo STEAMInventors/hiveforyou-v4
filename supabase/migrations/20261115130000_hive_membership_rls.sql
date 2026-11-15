@@ -14,7 +14,7 @@ CREATE POLICY pol_hive_members__select ON hive.hive_members
 DROP POLICY IF EXISTS pol_hives__select__owner ON hive.hives;
 CREATE POLICY pol_hives__select__member ON hive.hives
   FOR SELECT TO authenticated
-  USING (hive.is_hive_member(id));
+  USING (owner_user_id = auth.uid() OR hive.is_hive_member(id));
 
 DROP POLICY IF EXISTS pol_hives__update__owner_deletion ON hive.hives;
 CREATE POLICY pol_hives__update__owner_deletion ON hive.hives

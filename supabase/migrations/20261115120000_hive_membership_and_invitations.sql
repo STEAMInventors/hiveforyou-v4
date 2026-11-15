@@ -700,7 +700,7 @@ CREATE OR REPLACE FUNCTION public.create_hive(
 )
 RETURNS json
 LANGUAGE plpgsql
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = hive, public, pg_temp
 AS $$
 DECLARE
@@ -745,7 +745,13 @@ BEGIN
 
   IF FOUND THEN
     v_created := true;
-    PERFORM hive.insert_owner_member(v_row.id, v_uid);
+    INSERT INTO hive.hive_members (hive_id, user_id, role, state, invited_by)
+    VALUES (v_row.id, v_uid, 'owner', 'active', v_uid)
+    ON CONFLICT (hive_id, user_id) DO UPDATE
+      SET role = 'owner',
+          state = 'active',
+          updated_at = now()
+      WHERE hive.hive_members.state <> 'active' OR hive.hive_members.role <> 'owner';
   ELSE
     SELECT *
       INTO v_row
