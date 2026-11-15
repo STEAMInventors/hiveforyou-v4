@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { InputHTMLAttributes, ReactNode } from "react";
 
-import { HiveMark } from "@/components/study/HiveMark";
+import { HiveBrandMark } from "@/components/HiveWordmark";
 
 export function SignInShell({ children }: { children: ReactNode }) {
   return (
@@ -12,7 +12,7 @@ export function SignInShell({ children }: { children: ReactNode }) {
           aria-label="HiveForYou home"
           className="inline-flex min-h-11 min-w-11 shrink-0 items-center self-start rounded-control"
         >
-          <HiveMark className="h-11 w-11" />
+          <HiveBrandMark variant="signIn" />
         </Link>
         {children}
       </div>

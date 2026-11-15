@@ -65,7 +65,7 @@ export function SignInFlow({ nextPath, startClients, linkError }: SignInFlowProp
       <>
         <SignInHeading
           title="Check your email"
-          lede={`We sent a code and a link to ${email}. They work once, for one hour.`}
+          lede={`We sent a 6-digit code to ${email}. It works once, for one hour.`}
         />
         <form action={verifyAction} className="flex flex-col gap-4">
           <input type="hidden" name="email" value={email} />
@@ -133,7 +133,7 @@ export function SignInFlow({ nextPath, startClients, linkError }: SignInFlowProp
             error={emailError}
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm text-ink-muted">No password. We email you a code and a link.</span>
+            <span className="text-sm text-ink-muted">No password. We email you a 6-digit code.</span>
             <button type="submit" disabled={requestPending} className={PRIMARY_BUTTON_CLASS}>
               {requestPending ? "Sending…" : "Next"}
             </button>

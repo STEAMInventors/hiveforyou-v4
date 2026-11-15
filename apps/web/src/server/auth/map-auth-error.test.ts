@@ -42,6 +42,12 @@ describe("classifyAuthError", () => {
     expect(verify.message).toContain("Too many attempts");
   });
 
+  it("uses one verify message for invalid and expired OTP codes", () => {
+    const shared = "That code didn't work. Check it, or send a new one.";
+    expect(classifyAuthError({ code: "invalid_otp" }, "otp_verify").message).toBe(shared);
+    expect(classifyAuthError({ code: "otp_expired" }, "otp_verify").message).toBe(shared);
+  });
+
   it("hides whether a signup email already exists", () => {
     const signup = classifyAuthError(
       { code: "user_already_exists", message: "User already registered" },

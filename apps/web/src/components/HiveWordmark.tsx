@@ -72,18 +72,21 @@ export function HiveBrandMark({
   variant = "standalone",
   className = "",
 }: {
-  variant?: "standalone" | "hero";
+  variant?: "standalone" | "hero" | "signIn";
   className?: string;
 }) {
   const size =
     variant === "hero"
       ? BRAND_LOGO_SIZE.markHeroPx
-      : BRAND_LOGO_SIZE.markStandalonePx;
+      : variant === "signIn"
+        ? BRAND_LOGO_SIZE.markSignInPx
+        : BRAND_LOGO_SIZE.markStandalonePx;
   return (
     <img
       src={BRAND_ASSETS.mark}
       alt=""
       aria-hidden
+      data-testid={variant === "signIn" ? "hive-mark" : undefined}
       style={{ width: size, height: size }}
       className={`block shrink-0 ${className}`.trim()}
     />

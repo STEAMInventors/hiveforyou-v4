@@ -12,5 +12,6 @@ export const BRAND_LOGO_SIZE = {
   landingHeaderHeightPx: 30,
   footerHeightPx: 24,
   markStandalonePx: 48,
+  markSignInPx: 44,
   markHeroPx: 64,
 } as const;

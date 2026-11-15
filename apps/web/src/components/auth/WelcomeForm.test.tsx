@@ -13,6 +13,7 @@ afterEach(() => cleanup());
 describe("WelcomeForm", () => {
   it("shows both starting choices with prototype copy", () => {
     render(<WelcomeForm nextPath="/hives" preselectClients={false} />);
+    expect(screen.getByTestId("hive-mark")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "What brings you here?" })).toBeTruthy();
     expect(screen.getByText("This sets where you start. You can switch any time.")).toBeTruthy();
     expect(screen.getByRole("button", { name: /My own paperwork/ })).toBeTruthy();

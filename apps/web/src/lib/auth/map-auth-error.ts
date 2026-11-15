@@ -203,14 +203,17 @@ function resolveKind(input: AuthErrorInput, context: AuthErrorContext): Resolved
 
 function messageFor(kind: AuthFailureKind, input: AuthErrorInput, context: AuthErrorContext): string {
   if (context === "otp_verify") {
-    if (kind === "link_expired") {
-      return "That code has expired. Send a new one and try again.";
+    const OTP_CODE_FAILED =
+      "That code didn't work. Check it, or send a new one.";
+    if (
+      kind === "link_expired" ||
+      kind === "link_invalid" ||
+      kind === "invalid_credentials"
+    ) {
+      return OTP_CODE_FAILED;
     }
     if (kind === "link_reused") {
       return "That code was already used. Send a new one and try again.";
-    }
-    if (kind === "link_invalid" || kind === "invalid_credentials") {
-      return "That code is wrong or has expired. Check the email and try again.";
     }
     if (kind === "rate_limited") {
       return "Too many attempts. Wait a few minutes and try again.";

@@ -32,16 +32,20 @@ async function goToCodeStep(next = "/hives") {
   const form = screen.getByLabelText("Email").closest("form")!;
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: TEST_EMAIL } });
   fireEvent.submit(form);
-  await waitFor(() => expect(screen.getByLabelText("Sign-in code")).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText("Sign-in code")).toBeTruthy());
+  await waitFor(() =>
+    expect(screen.getByText(/We sent a 6-digit code to/)).toBeTruthy(),
+  );
 }
 
 describe("SignInFlow", () => {
   it("shows the email step with prototype copy", () => {
     render(<SignInFlow nextPath="/hives" startClients={false} />);
+    expect(screen.getByTestId("hive-mark")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
     expect(screen.getByText("to continue to HiveForYou")).toBeTruthy();
     expect(screen.getByLabelText("Email")).toBeTruthy();
-    expect(screen.getByText("No password. We email you a code and a link.")).toBeTruthy();
+    expect(screen.getByText("No password. We email you a 6-digit code.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Next" })).toBeTruthy();
   });
 
@@ -105,15 +109,10 @@ describe("SignInFlow", () => {
   });
 
   describe("code step errors", () => {
+    const sharedCodeFailure = "That code didn't work. Check it, or send a new one.";
     const cases = [
-      {
-        name: "wrong code",
-        error: "That code is wrong or has expired. Check the email and try again.",
-      },
-      {
-        name: "expired code",
-        error: "That code has expired. Send a new one and try again.",
-      },
+      { name: "wrong code", error: sharedCodeFailure },
+      { name: "expired code", error: sharedCodeFailure },
       {
         name: "too many attempts",
         error: "Too many attempts. Wait a few minutes and try again.",
