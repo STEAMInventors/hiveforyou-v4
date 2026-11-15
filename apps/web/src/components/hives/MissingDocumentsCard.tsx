@@ -98,7 +98,11 @@ function MissingSlotRow({
 }) {
   const holder = holderTypeLabel(slot.holderType, slot.holder);
   return (
-    <li className="flex flex-col gap-2 rounded-card border border-line p-3 sm:flex-row sm:items-center sm:justify-between" data-gap-id={slot.gapId}>
+    <li
+      id={`missing-slot-${slot.gapId.toLowerCase()}`}
+      className="flex flex-col gap-2 rounded-card border border-line p-3 sm:flex-row sm:items-center sm:justify-between"
+      data-gap-id={slot.gapId}
+    >
       <div className="min-w-0">
         <p className="m-0 font-medium text-ink">{slot.title}</p>
         {slot.why.trim() !== "" && slot.why.trim() !== slot.title.trim() ? (

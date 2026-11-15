@@ -176,4 +176,19 @@ describe("MyHivesPanel", () => {
     expect(within(row).getByText("3 checked")).toBeTruthy();
     expect(within(row).queryByText(/^0 /)).toBeNull();
   });
+
+  it("links each hive name to the hive entry route so redirect picks board or documents", () => {
+    render(
+      <MyHivesPanel
+        initialHives={[hive()]}
+        startingView="clients"
+        greetingFirstName="Sam"
+        greetingEmail="sam@example.com"
+        summaries={{
+          [HIVE_ID]: { documentCount: 2, attention: readyAttention, study: null },
+        }}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Alex Carter" }).getAttribute("href")).toBe(`/hives/${HIVE_ID}`);
+  });
 });

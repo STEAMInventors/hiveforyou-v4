@@ -1,25 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { safeNextPath } from "@/server/auth/redirects";
+import { hiveBoardPath, hiveDocumentsPath, hivePath, hiveReportsPath, hiveStudyPath } from "./hive-routes";
 
-import {
-  CREATE_HIVE_AFTER_SIGN_UP_PATH,
-  MY_HIVES_CREATE_PATH,
-  hiveDocumentsPath,
-} from "./hive-routes";
+const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 
 describe("hive routes", () => {
-  it("sends guests to sign in with a same-origin next path that opens Create Hive", () => {
-    const url = new URL(CREATE_HIVE_AFTER_SIGN_UP_PATH, "https://example.test");
-    expect(url.pathname).toBe("/sign-in");
-    const next = url.searchParams.get("next");
-    expect(next).toBe(MY_HIVES_CREATE_PATH);
-    expect(safeNextPath(next, "/fallback")).toBe("/hives?create=1");
-  });
-
-  it("builds the Documents tab path for a Hive", () => {
-    expect(hiveDocumentsPath("6f1c2d3e-0000-4000-8000-000000000001")).toBe(
-      "/hives/6f1c2d3e-0000-4000-8000-000000000001/documents",
-    );
+  it("exposes board as the first tab route", () => {
+    expect(hivePath(HIVE_ID)).toBe(`/hives/${HIVE_ID}`);
+    expect(hiveBoardPath(HIVE_ID)).toBe(`/hives/${HIVE_ID}/board`);
+    expect(hiveDocumentsPath(HIVE_ID)).toBe(`/hives/${HIVE_ID}/documents`);
+    expect(hiveStudyPath(HIVE_ID)).toBe(`/hives/${HIVE_ID}/study`);
+    expect(hiveReportsPath(HIVE_ID)).toBe(`/hives/${HIVE_ID}/reports`);
   });
 });

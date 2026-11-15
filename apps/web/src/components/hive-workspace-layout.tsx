@@ -92,7 +92,7 @@ export function HiveWorkspaceLayout({
       </div>
 
       <div className="mx-auto flex w-full max-w-hive flex-col gap-5 px-6 pb-16 pt-6">
-        {activeTab !== "documents" ? (
+        {activeTab !== "documents" && activeTab !== "board" ? (
           <PaneErrorBoundary hiveId={hiveId} supportReference={supportReference}>
             {children}
           </PaneErrorBoundary>

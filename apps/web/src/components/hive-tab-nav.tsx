@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { hiveDocumentsPath, hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
+import { hiveBoardPath, hiveDocumentsPath, hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
 
-export type HiveTab = "documents" | "study" | "reports";
+export type HiveTab = "board" | "documents" | "study" | "reports";
 
 type HiveTabNavProps = {
   hiveId: string;
@@ -10,6 +10,7 @@ type HiveTabNavProps = {
 };
 
 const tabs = [
+  { key: "board" as const, label: "Hive board", href: hiveBoardPath },
   { key: "documents" as const, label: "Documents", href: hiveDocumentsPath },
   { key: "study" as const, label: "Study", href: hiveStudyPath },
   { key: "reports" as const, label: "Reports", href: hiveReportsPath },

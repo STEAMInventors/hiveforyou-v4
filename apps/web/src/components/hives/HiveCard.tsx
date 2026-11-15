@@ -7,7 +7,7 @@ import { useState } from "react";
 
 import { SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import { StatusBadge } from "@/components/study/StatusBadge";
-import { hiveDocumentsPath } from "@/lib/hive-routes";
+import { hivePath } from "@/lib/hive-routes";
 import { formatStateLineParts } from "@/lib/hives/state-line";
 import { isHiveDeletionPending } from "@/lib/hives/hive-deletion-state";
 import type { HiveSummary } from "@/server/hives/hive-summary";
@@ -85,7 +85,7 @@ function HiveRow({ hive, summary, startingView, onRequestDelete, onKindChanged }
           <p className="m-0 text-[13px] text-graphite">{kicker}</p>
           <h2 className="m-0 mt-0.5 text-[20px] font-medium leading-snug">
             <Link
-              href={hiveDocumentsPath(hive.id)}
+              href={hivePath(hive.id)}
               className="text-cell-blue-deep no-underline hover:underline"
             >
               {hive.name}

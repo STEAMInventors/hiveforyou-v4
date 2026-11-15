@@ -1,0 +1,203 @@
+import {
+  buildHiveBoard,
+  conflictRowsFromStudy,
+  parseGapUploadLinks,
+  type Hive,
+  type HiveBoardModel,
+  type HiveBoardStoredEvent,
+} from "@hiveforyou/contracts";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { readModalCopy } from "@/components/hives/document-read-progress";
+import { hiveDocumentsPath, hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
+import { listDocumentReads } from "@/server/source-documents/document-reads";
+import {
+  createLiveHiveVaultUploadAdapterDeps,
+  listHiveSourceDocumentsWithV3Vault,
+} from "@/server/source-documents/hive-vault-upload-adapter";
+
+import { loadHiveOverview, type HiveOverview } from "./hive-summary";
+
+export type HiveBoardLoad = {
+  overview: HiveOverview;
+  board: HiveBoardModel;
+};
+
+type IntentRow = {
+  id: string;
+  intent_text: string;
+  created_at: string;
+};
+
+function documentsNotInStudyCount(overview: HiveOverview): number {
+  const stale = overview.preparation.staleness;
+  if (!stale?.stale) return 0;
+  return stale.reasons.filter((reason) => reason.kind === "DOCUMENT_ADDED").length;
+}
+
+function unreadableFileNames(
+  overview: HiveOverview,
+  documents: readonly { fileName: string; readStatus: string }[],
+): readonly { readonly fileName: string }[] {
+  const excluded = overview.preparation.eligibility.excluded
+    .filter((item) => item.reason === "UNREADABLE" || item.reason === "READ_FAILED")
+    .map((item) => item.fileName);
+  const fromList = documents
+    .filter((doc) => doc.readStatus === "UNREADABLE" || doc.readStatus === "FAILED")
+    .map((doc) => doc.fileName);
+  return [...new Set([...excluded, ...fromList])].map((fileName) => ({ fileName }));
+}
+
+function buildStoredEvents(input: {
+  documents: readonly { fileName: string; registeredAt: string | null; createdAt: string; readStatus: string }[];
+  documentReads: readonly { sourceDocumentId: string; status: string; finishedAt: string | null }[];
+  documentNameById: Map<string, string>;
+  overview: HiveOverview;
+  intents: readonly IntentRow[];
+}): HiveBoardStoredEvent[] {
+  const events: HiveBoardStoredEvent[] = [];
+
+  for (const document of input.documents) {
+    const addedAt = document.registeredAt ?? document.createdAt;
+    if (addedAt) {
+      events.push({ kind: "document_added", at: addedAt, fileName: document.fileName });
+    }
+  }
+
+  for (const read of input.documentReads) {
+    if (!read.finishedAt) continue;
+    const fileName = input.documentNameById.get(read.sourceDocumentId.toLowerCase());
+    if (!fileName) continue;
+    if (read.status === "UNREADABLE") {
+      events.push({ kind: "document_unreadable", at: read.finishedAt, fileName });
+    } else if (read.status === "SUCCEEDED" || read.status === "PARTIAL") {
+      events.push({ kind: "document_read", at: read.finishedAt, fileName });
+    }
+  }
+
+  const revision = input.overview.preparation.studyRevision;
+  if (revision?.createdAt) {
+    events.push({ kind: "study_built", at: revision.createdAt, revisionNumber: revision.revisionNumber });
+  }
+
+  for (const intent of input.intents) {
+    events.push({ kind: "intent_saved", at: intent.created_at, intentText: intent.intent_text });
+  }
+
+  for (const run of input.overview.preparation.reportRuns) {
+    if (run.status !== "SUCCEEDED" || !run.finishedAt) continue;
+    events.push({ kind: "report_written", at: run.finishedAt, audience: run.audience });
+  }
+
+  return events;
+}
+
+export async function loadHiveBoard(
+  client: SupabaseClient,
+  input: { hive: Hive; correlationId: string; userId: string },
+): Promise<HiveBoardLoad> {
+  const overview = await loadHiveOverview(client, {
+    hiveId: input.hive.id,
+    correlationId: input.correlationId,
+    includePreview: false,
+  });
+
+  const deps = createLiveHiveVaultUploadAdapterDeps(client, input.correlationId);
+  const listed = await listHiveSourceDocumentsWithV3Vault(deps, {
+    ownerUserId: input.userId,
+    hiveId: input.hive.id,
+    correlationId: input.correlationId,
+  });
+  const documents = listed.sourceDocuments;
+
+  let intents: IntentRow[] = [];
+  const { data: intentRows } = await client
+    .schema("hive")
+    .from("intent_requests")
+    .select("id,intent_text,created_at")
+    .eq("hive_id", input.hive.id)
+    .order("created_at", { ascending: false });
+  if (Array.isArray(intentRows)) {
+    intents = intentRows.filter(
+      (row): row is IntentRow =>
+        !!row &&
+        typeof row === "object" &&
+        typeof (row as IntentRow).id === "string" &&
+        typeof (row as IntentRow).intent_text === "string" &&
+        typeof (row as IntentRow).created_at === "string",
+    );
+  }
+
+  let readingInProgress =
+    overview.preparation.eligibility.activeReadCount > 0 ||
+    overview.preparation.eligibility.excluded.some((item) => item.reason === "NOT_READ");
+  let readingProgressText: string | null = null;
+  let documentReads: Awaited<ReturnType<typeof listDocumentReads>>["documentReads"] = [];
+
+  try {
+    const reads = await listDocumentReads(client, { hiveId: input.hive.id, correlationId: input.correlationId });
+    documentReads = reads.documentReads;
+    readingInProgress = reads.documentReads.some((read) =>
+      ["QUEUED", "READING", "SAVING", "VERIFYING"].includes(read.status),
+    );
+    if (readingInProgress) {
+      readingProgressText = readModalCopy(reads.documentReads).sub;
+    }
+  } catch {
+    // preparation eligibility is enough when reads are unavailable
+  }
+
+  const conflictRows =
+    overview.canonicalStudy && overview.studyTab?.view && overview.studyTab.sources
+      ? conflictRowsFromStudy(
+          overview.canonicalStudy,
+          overview.studyTab.view.blocks.find((block) => block.name === "conflicts")?.rows ?? [],
+          overview.studyTab.sources,
+        )
+      : [];
+
+  const documentNameById = new Map(
+    documents.map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]),
+  );
+
+  const latestSucceeded = [...overview.preparation.reportRuns]
+    .filter((run) => run.status === "SUCCEEDED" && run.finishedAt)
+    .sort((left, right) => Date.parse(right.finishedAt!) - Date.parse(left.finishedAt!))[0];
+
+  const board = buildHiveBoard(
+    {
+      hiveName: input.hive.name,
+      hiveKind: input.hive.kind,
+      documentsPath: hiveDocumentsPath(input.hive.id),
+      studyPath: hiveStudyPath(input.hive.id),
+      reportsPath: hiveReportsPath(input.hive.id),
+      documentCount:
+        overview.preparation.eligibility.documents.length + overview.preparation.eligibility.excluded.length,
+      documentsReadCount: overview.preparation.eligibility.documents.length,
+      documentsNotInStudyCount: documentsNotInStudyCount(overview),
+      readingInProgress,
+      readingProgressText,
+      unreadableDocuments: unreadableFileNames(overview, documents),
+      canonicalStudy: overview.canonicalStudy,
+      referencedDocuments: overview.referencedDocuments,
+      gapUploads: parseGapUploadLinks(documents),
+      acceptedStudyRevisionId: overview.preparation.studyRevision?.id ?? null,
+      acceptedStudyRevisionAcceptedAt: overview.preparation.studyRevision?.createdAt ?? null,
+      conflictRows,
+      studyRevisionNumber: overview.preparation.studyRevision?.revisionNumber ?? null,
+      hasSucceededReport: overview.preparation.reportRuns.some((run) => run.status === "SUCCEEDED"),
+      latestReportAudience: latestSucceeded?.audience ?? null,
+      latestReportFinishedAt: latestSucceeded?.finishedAt ?? null,
+      storedEvents: buildStoredEvents({
+        documents,
+        documentReads,
+        documentNameById,
+        overview,
+        intents,
+      }),
+    },
+    new Date(),
+  );
+
+  return { overview, board };
+}

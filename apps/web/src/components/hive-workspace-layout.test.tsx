@@ -95,12 +95,13 @@ describe("HiveTabNav", () => {
     render(<HiveTabNav hiveId={HIVE_ID} active="study" />);
     const nav = screen.getByRole("navigation", { name: "Hive sections" });
     const tabs = within(nav).getAllByRole("link");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Documents", "Study", "Reports"]);
-    expect(tabs.map((tab) => tab.getAttribute("aria-current"))).toEqual([null, "page", null]);
-    expect(tabs[1]!.className).toContain("after:bg-cell-blue");
-    expect(tabs[1]!.className).toContain("after:-bottom-px");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Hive board", "Documents", "Study", "Reports"]);
+    expect(tabs.map((tab) => tab.getAttribute("aria-current"))).toEqual([null, null, "page", null]);
+    expect(tabs[2]!.className).toContain("after:bg-cell-blue");
+    expect(tabs[2]!.className).toContain("after:-bottom-px");
     expect(tabs[0]!.className).not.toContain("after:bg-cell-blue");
     expect(tabs.map((tab) => tab.getAttribute("href"))).toEqual([
+      `/hives/${HIVE_ID}/board`,
       `/hives/${HIVE_ID}/documents`,
       `/hives/${HIVE_ID}/study`,
       `/hives/${HIVE_ID}/reports`,
