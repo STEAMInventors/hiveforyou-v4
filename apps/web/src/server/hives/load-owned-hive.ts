@@ -16,7 +16,7 @@ export async function loadOwnedHiveOrNotFound(
 
   const auth = await requireAuthenticatedUser();
   if (!auth.ok) {
-    redirect(`/login?next=${encodeURIComponent(returnPath)}`);
+    redirect(`/sign-in?next=${encodeURIComponent(returnPath)}`);
   }
 
   const correlationId = await requestCorrelationId();
@@ -29,7 +29,7 @@ export async function loadOwnedHiveOrNotFound(
         ? String((error as { errorCode?: unknown }).errorCode)
         : "";
     if (code === "UNAUTHENTICATED") {
-      redirect(`/login?next=${encodeURIComponent(returnPath)}`);
+      redirect(`/sign-in?next=${encodeURIComponent(returnPath)}`);
     }
     if (
       code === "NOT_FOUND" ||

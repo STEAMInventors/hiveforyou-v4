@@ -1,71 +1,39 @@
 import {
-  signInAction as v3SignInAction,
-  signOutAction as v3SignOutAction,
-  signUpAction as v3SignUpAction,
-  verifyEmailOtpAction as v3VerifyEmailOtpAction,
-  requestPasswordResetAction as v3RequestPasswordResetAction,
-  resendConfirmationAction as v3ResendConfirmationAction,
-  updatePasswordFromRecoveryAction as v3UpdatePasswordFromRecoveryAction,
-  backToLoginFromRecoveryAction as v3BackToLoginFromRecoveryAction,
-  changePasswordAction as v3ChangePasswordAction,
-  type AuthActionState,
+  requestSignInCodeAction as libRequestSignInCodeAction,
+  setStartingViewAction as libSetStartingViewAction,
+  signOutAction as libSignOutAction,
+  switchStartingViewAction as libSwitchStartingViewAction,
+  verifySignInCodeAction as libVerifySignInCodeAction,
+  type SignInActionState,
 } from "@/lib/auth/index";
 
-export type { AuthActionState };
+export type { SignInActionState };
 
-export async function signInAction(
-  prev: AuthActionState,
+export async function requestSignInCodeAction(
+  prev: SignInActionState,
   formData: FormData,
-): Promise<AuthActionState> {
-  return v3SignInAction(prev, formData);
+): Promise<SignInActionState> {
+  return libRequestSignInCodeAction(prev, formData);
 }
 
-export async function signUpAction(
-  prev: AuthActionState,
+export async function verifySignInCodeAction(
+  prev: SignInActionState,
   formData: FormData,
-): Promise<AuthActionState> {
-  return v3SignUpAction(prev, formData);
+): Promise<SignInActionState> {
+  return libVerifySignInCodeAction(prev, formData);
+}
+
+export async function setStartingViewAction(
+  prev: SignInActionState,
+  formData: FormData,
+): Promise<SignInActionState> {
+  return libSetStartingViewAction(prev, formData);
 }
 
 export async function signOutAction(): Promise<void> {
-  return v3SignOutAction();
+  return libSignOutAction();
 }
 
-export async function verifyEmailOtpAction(
-  prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  return v3VerifyEmailOtpAction(prev, formData);
-}
-
-export async function requestPasswordResetAction(
-  prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  return v3RequestPasswordResetAction(prev, formData);
-}
-
-export async function resendConfirmationAction(
-  prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  return v3ResendConfirmationAction(prev, formData);
-}
-
-export async function updatePasswordFromRecoveryAction(
-  prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  return v3UpdatePasswordFromRecoveryAction(prev, formData);
-}
-
-export async function backToLoginFromRecoveryAction(): Promise<void> {
-  return v3BackToLoginFromRecoveryAction();
-}
-
-export async function changePasswordAction(
-  prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  return v3ChangePasswordAction(prev, formData);
+export async function switchStartingViewAction(): Promise<void> {
+  return libSwitchStartingViewAction();
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { AuthFrame, AuthHeading } from "@/components/auth/AuthFrame";
+import { SignInHeading, SignInShell } from "@/components/auth/SignInShell";
 import { TEXT_LINK_CLASS } from "@/components/button-classes";
 import {
   SIGN_IN_HELP_BODY,
@@ -18,24 +18,13 @@ export default async function SignInHelpPage({ searchParams }: PageProps) {
   const nextQuery = encodeURIComponent(next);
 
   return (
-    <AuthFrame>
-      <AuthHeading title={SIGN_IN_HELP_TITLE} lede={SIGN_IN_HELP_BODY} />
+    <SignInShell>
+      <SignInHeading title={SIGN_IN_HELP_TITLE} lede={SIGN_IN_HELP_BODY} />
       <p className="m-0 text-center text-sm leading-relaxed text-ink-muted">
-        <Link href={`/login?next=${nextQuery}`} className={TEXT_LINK_CLASS}>
-          Back to log in
-        </Link>
-        <span aria-hidden> · </span>
-        <Link
-          href={`/forgot-password?next=${nextQuery}`}
-          className={TEXT_LINK_CLASS}
-        >
-          Forgot password
-        </Link>
-        <span aria-hidden> · </span>
-        <Link href={`/register?next=${nextQuery}`} className={TEXT_LINK_CLASS}>
-          Create an account
+        <Link href={`/sign-in?next=${nextQuery}`} className={TEXT_LINK_CLASS}>
+          Back to sign in
         </Link>
       </p>
-    </AuthFrame>
+    </SignInShell>
   );
 }

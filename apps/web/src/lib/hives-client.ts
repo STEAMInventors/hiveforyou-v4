@@ -64,7 +64,7 @@ export async function parseApiJson<T>(
 
   if (!response.ok || isPublicErrorBody(body)) {
     if (response.status === 401 && typeof window !== "undefined") {
-      window.location.href = `/login?next=${encodeURIComponent("/hives")}`;
+      window.location.href = `/sign-in?next=${encodeURIComponent("/hives")}`;
     }
     if (isPublicErrorBody(body)) {
       throw new HiveClientError({

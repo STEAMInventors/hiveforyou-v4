@@ -1,13 +1,6 @@
 import { ErrorCode } from "@hiveforyou/contracts/errors/v1";
 
-import {
-  EMAIL_NOT_CONFIRMED_MESSAGE,
-  INVALID_CREDENTIALS_MESSAGE,
-  RESEND_ACCEPTED,
-  RESET_REQUEST_ACCEPTED,
-  SIGN_UP_CHECK_EMAIL_BODY,
-  type AuthLinkErrorCode,
-} from "./messages";
+import type { AuthLinkErrorCode } from "./messages";
 
 export type AuthErrorContext =
   | "sign_in"
@@ -16,7 +9,8 @@ export type AuthErrorContext =
   | "resend"
   | "password_update"
   | "callback"
-  | "otp_verify";
+  | "otp_verify"
+  | "otp_request";
 
 export type AuthFailureKind =
   | "invalid_email"
@@ -210,13 +204,27 @@ function resolveKind(input: AuthErrorInput, context: AuthErrorContext): Resolved
 function messageFor(kind: AuthFailureKind, input: AuthErrorInput, context: AuthErrorContext): string {
   if (context === "otp_verify") {
     if (kind === "link_expired") {
-      return "That code has expired. Request a new email and try again.";
+      return "That code has expired. Send a new one and try again.";
     }
     if (kind === "link_reused") {
-      return "That code was already used. Request a new email and try again.";
+      return "That code was already used. Send a new one and try again.";
     }
     if (kind === "link_invalid" || kind === "invalid_credentials") {
-      return "That code is incorrect. Check the email and try again.";
+      return "That code is wrong or has expired. Check the email and try again.";
+    }
+    if (kind === "rate_limited") {
+      return "Too many attempts. Wait a few minutes and try again.";
+    }
+  }
+  if (context === "otp_request") {
+    if (kind === "rate_limited") {
+      return "Too many codes sent. Wait a few minutes and try again.";
+    }
+    if (kind === "unavailable") {
+      return "We couldn't send the email. Check your connection and try again.";
+    }
+    if (kind === "invalid_email") {
+      return "Enter a valid email address.";
     }
   }
   if (kind === "weak_password") {
@@ -235,21 +243,15 @@ function messageFor(kind: AuthFailureKind, input: AuthErrorInput, context: AuthE
     return "The current password is incorrect.";
   }
   if (kind === "conceal_account") {
-    if (context === "recovery_request") {
-      return RESET_REQUEST_ACCEPTED;
-    }
-    if (context === "resend") {
-      return RESEND_ACCEPTED;
-    }
-    return SIGN_UP_CHECK_EMAIL_BODY;
+    return "If that email can be used here, we sent a sign-in message. Check your inbox.";
   }
   switch (kind) {
     case "invalid_email":
       return "Enter a valid email address.";
     case "invalid_credentials":
-      return INVALID_CREDENTIALS_MESSAGE;
+      return "Something went wrong. Try again.";
     case "email_not_confirmed":
-      return EMAIL_NOT_CONFIRMED_MESSAGE;
+      return "Confirm your email before signing in.";
     case "same_password":
       return "Choose a password that's different from your current one.";
     case "rate_limited":
@@ -309,7 +311,13 @@ export function classifyAuthError(input: AuthErrorInput, context: AuthErrorConte
   };
 }
 
-export function linkErrorCodeForKind(kind: AuthFailureKind): AuthLinkErrorCode {
+export function linkErrorCodeForKind(
+  kind: AuthFailureKind,
+  providerCode?: string,
+): AuthLinkErrorCode {
+  if (providerCode === "otp_expired") {
+    return "otp_expired";
+  }
   switch (kind) {
     case "link_expired":
       return "link_expired";

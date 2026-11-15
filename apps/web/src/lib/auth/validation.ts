@@ -42,6 +42,11 @@ export function isPlausibleOtpToken(value: string): boolean {
   );
 }
 
+export function isSignInOtpCode(value: string): boolean {
+  const normalized = normalizeOtpToken(value);
+  return normalized.length === OTP_MIN_LENGTH && /^[0-9]+$/.test(normalized);
+}
+
 export function newPasswordIssueMessage(issue: NewPasswordIssue): string {
   switch (issue) {
     case "missing":

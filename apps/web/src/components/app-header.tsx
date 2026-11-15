@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
-import { AccountMenu } from "@/components/account-menu";
+import { AccountMenu, type AccountMenuDetails } from "@/components/account-menu";
 import { HiveMark } from "@/components/study/HiveMark";
 import { MY_HIVES_PATH } from "@/lib/hive-routes";
 
@@ -24,19 +24,30 @@ export function useHiveHeaderWorkspace() {
   return useContext(HiveHeaderContext);
 }
 
-export type AppShellAccount = {
-  /** Up to two letters for the account button; null shows "Account". */
-  initials: string | null;
-};
+export type AppShellAccount = AccountMenuDetails;
 
-export function AppShell({ children, account }: { children: ReactNode; account?: AppShellAccount }) {
+export function AppShell({
+  children,
+  account,
+}: {
+  children: ReactNode;
+  account?: AppShellAccount;
+}) {
   const [workspace, setWorkspace] = useState<HiveHeaderWorkspace | null>(null);
   const contextValue = useMemo(() => ({ workspace, setWorkspace }), [workspace]);
 
   return (
     <HiveHeaderContext.Provider value={contextValue}>
       <div className="flex min-h-dvh flex-col bg-mist text-ink">
-        <AppHeader workspace={workspace} initials={account?.initials ?? null} />
+        <AppHeader
+          workspace={workspace}
+          account={{
+            initials: account?.initials ?? null,
+            displayName: account?.displayName ?? null,
+            email: account?.email ?? null,
+            startingView: account?.startingView ?? null,
+          }}
+        />
         <main className="flex flex-1 flex-col">{children}</main>
       </div>
     </HiveHeaderContext.Provider>
@@ -48,11 +59,16 @@ const CRUMB_LINK_CLASS =
 
 function currentCrumb(pathname: string, workspace: HiveHeaderWorkspace | null): string | null {
   if (workspace && pathname.startsWith(`/hives/${workspace.hiveId}`)) return workspace.hiveName;
-  if (pathname.startsWith("/account/password")) return "Change password";
   return null;
 }
 
-export function AppHeader({ workspace, initials }: { workspace: HiveHeaderWorkspace | null; initials: string | null }) {
+export function AppHeader({
+  workspace,
+  account,
+}: {
+  workspace: HiveHeaderWorkspace | null;
+  account: AccountMenuDetails;
+}) {
   const pathname = usePathname() ?? "";
   const current = currentCrumb(pathname, workspace);
 
@@ -97,7 +113,7 @@ export function AppHeader({ workspace, initials }: { workspace: HiveHeaderWorksp
           </ol>
         </nav>
 
-        <AccountMenu initials={initials} />
+        <AccountMenu {...account} />
       </div>
     </header>
   );

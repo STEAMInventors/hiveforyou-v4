@@ -7,14 +7,7 @@ import {
   publicAuthOutcome,
   sanitizeDiagnostic,
 } from "./map-auth-error";
-import {
-  EMAIL_NOT_CONFIRMED_MESSAGE,
-  INVALID_CREDENTIALS_MESSAGE,
-  RESET_REQUEST_ACCEPTED,
-  SIGN_UP_CHECK_EMAIL_BODY,
-  authInfoMessage,
-  authLinkErrorMessage,
-} from "./messages";
+import { authLinkErrorMessage } from "./messages";
 
 const SECRET = "recovery-token-secret password=hunter2 user@example.com";
 
@@ -25,7 +18,7 @@ function assertNoSecret(value: string) {
 }
 
 describe("classifyAuthError", () => {
-  it("maps invalid email and password policy without echoing provider message", () => {
+  it("maps invalid email without echoing provider message", () => {
     const email = classifyAuthError(
       { code: "email_address_invalid", message: SECRET },
       "sign_up",
@@ -35,51 +28,31 @@ describe("classifyAuthError", () => {
     expect(email.errorCode).toBe("INVALID_REQUEST");
     assertNoSecret(email.message);
     assertNoSecret(email.diagnostic);
-
-    const weak = classifyAuthError(
-      { code: "weak_password", message: `Password is known to be weak. ${SECRET}` },
-      "sign_up",
-    );
-    expect(weak.kind).toBe("weak_password");
-    expect(weak.errorCode).toBe("INVALID_REQUEST");
-    assertNoSecret(weak.message);
   });
 
-  it("uses one credentials message for wrong password and unknown account", () => {
-    const wrong = classifyAuthError(
-      { code: "invalid_credentials", message: SECRET },
-      "sign_in",
+  it("maps OTP rate limits for request and verify flows", () => {
+    const request = classifyAuthError(
+      { code: "over_email_send_rate_limit" },
+      "otp_request",
     );
-    const missing = classifyAuthError(
-      { code: "user_not_found", message: "User not found" },
-      "sign_in",
-    );
-    expect(wrong.message).toBe(INVALID_CREDENTIALS_MESSAGE);
-    expect(missing.message).toBe(wrong.message);
-    expect(missing.kind).toBe("invalid_credentials");
-    assertNoSecret(wrong.message);
+    expect(request.kind).toBe("rate_limited");
+    expect(request.message).toContain("Too many codes sent");
+
+    const verify = classifyAuthError({ code: "over_request_rate_limit" }, "otp_verify");
+    expect(verify.message).toContain("Too many attempts");
   });
 
-  it("hides whether a signup or reset email already exists", () => {
+  it("hides whether a signup email already exists", () => {
     const signup = classifyAuthError(
       { code: "user_already_exists", message: "User already registered" },
       "sign_up",
     );
-    const reset = classifyAuthError(
-      { code: "user_not_found", message: SECRET },
-      "recovery_request",
-    );
     expect(signup.kind).toBe("conceal_account");
-    expect(reset.kind).toBe("conceal_account");
-    expect(signup.message).toBe(SIGN_UP_CHECK_EMAIL_BODY);
-    expect(reset.message).toBe(RESET_REQUEST_ACCEPTED);
     expect(publicAuthOutcome("sign_up", signup)).toBe("neutral");
-    expect(publicAuthOutcome("recovery_request", reset)).toBe("neutral");
     assertNoSecret(signup.message);
-    assertNoSecret(reset.message);
   });
 
-  it("distinguishes rate limits, outages, expired links, and reused links", () => {
+  it("distinguishes rate limits, outages, and expired links", () => {
     const rate = classifyAuthError(
       { code: "over_request_rate_limit" },
       "sign_in",
@@ -94,18 +67,13 @@ describe("classifyAuthError", () => {
     );
     expect(offline.kind).toBe("unavailable");
     expect(offline.retryable).toBe(true);
-    expect(offline.errorCode).toBe("PERSISTENCE_FAILED");
     assertNoSecret(offline.message);
 
     expect(classifyAuthError({ code: "otp_expired" }, "callback").kind).toBe(
       "link_expired",
     );
-    expect(
-      classifyAuthError({ code: "email_not_confirmed", message: SECRET }, "sign_in")
-        .message,
-    ).toBe(EMAIL_NOT_CONFIRMED_MESSAGE);
     expect(linkErrorCodeForKind("link_expired")).toBe("link_expired");
-    expect(linkErrorCodeForKind("link_reused")).toBe("link_reused");
+    expect(linkErrorCodeForKind("link_expired", "otp_expired")).toBe("otp_expired");
     expect(linkErrorCodeForKind("unavailable")).toBe("link_unavailable");
     expect(linkErrorCodeForKind("unknown")).toBe("link_invalid");
   });
@@ -115,12 +83,10 @@ describe("classifyAuthError", () => {
   });
 });
 
-describe("authInfoMessage & authLinkErrorMessage", () => {
-  it("allows only known codes", () => {
-    expect(authInfoMessage("password_updated")).toContain("updated");
-    expect(authInfoMessage("email_confirmed")).toContain("confirmed");
-    expect(authInfoMessage("javascript:alert(1)")).toBeNull();
-    expect(authLinkErrorMessage("user@example.com", "login")).toBeNull();
-    expect(authLinkErrorMessage("link_expired", "recovery")).toContain("expired");
+describe("authLinkErrorMessage", () => {
+  it("allows only known sign-in link codes", () => {
+    expect(authLinkErrorMessage("javascript:alert(1)")).toBeNull();
+    expect(authLinkErrorMessage("otp_expired")).toContain("already been used");
+    expect(authLinkErrorMessage("link_expired")).toContain("already been used");
   });
 });

@@ -24,7 +24,7 @@ export default async function LandingPage() {
             </Link>
           ) : (
             <>
-              <Link href="/login" className={COMPACT_SECONDARY_BUTTON_CLASS}>
+              <Link href="/sign-in" className={COMPACT_SECONDARY_BUTTON_CLASS}>
                 Sign in
               </Link>
               <Link

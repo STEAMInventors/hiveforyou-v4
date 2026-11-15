@@ -4,8 +4,8 @@ import { safeNextPath } from "./redirects";
 
 describe("safeNextPath", () => {
   it("blocks open redirects", () => {
-    expect(safeNextPath("//evil.com")).toBe("/hives");
-    expect(safeNextPath("https://evil.com")).toBe("/hives");
+    expect(safeNextPath("//evil.example")).toBe("/hives");
+    expect(safeNextPath("https://evil.example")).toBe("/hives");
     expect(safeNextPath("")).toBe("/hives");
   });
 

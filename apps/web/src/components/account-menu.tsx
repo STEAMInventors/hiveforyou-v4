@@ -1,18 +1,32 @@
 "use client";
 
-import Link from "next/link";
-import { type KeyboardEvent, useCallback, useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { type KeyboardEvent, useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 
-import { signOutAction } from "@/server/auth/auth-actions";
+import type { StartingView } from "@/lib/auth/profile";
+import { startingViewLabel, switchStartingViewLabel } from "@/lib/auth/profile";
+import { signOutAction, switchStartingViewAction } from "@/server/auth/auth-actions";
 
 const ITEM_CLASS =
   "flex min-h-11 w-full cursor-pointer items-center rounded-control border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink no-underline hover:bg-mist focus-visible:bg-mist";
 
+const QUIET_BUTTON_CLASS =
+  "flex min-h-11 w-full items-center rounded-control border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-muted hover:bg-mist focus-visible:bg-mist disabled:cursor-not-allowed disabled:opacity-45";
+
 const menuItems = (menu: HTMLElement | null): HTMLElement[] =>
   Array.from(menu?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
 
-export function AccountMenu({ initials }: { initials: string | null }) {
+export type AccountMenuDetails = {
+  initials: string | null;
+  displayName: string | null;
+  email: string | null;
+  startingView: StartingView | null;
+};
+
+export function AccountMenu({ initials, displayName, email, startingView }: AccountMenuDetails) {
   const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const pendingFocus = useRef<"first" | "last" | null>(null);
@@ -80,6 +94,14 @@ export function AccountMenu({ initials }: { initials: string | null }) {
     }
   };
 
+  const switchView = () => {
+    startTransition(async () => {
+      await switchStartingViewAction();
+      close(false);
+      router.refresh();
+    });
+  };
+
   return (
     <div className="relative shrink-0">
       <button
@@ -109,15 +131,31 @@ export function AccountMenu({ initials }: { initials: string | null }) {
           id={menuId}
           role="menu"
           aria-label="Account"
-          className="absolute right-0 top-full z-50 mt-1 flex w-56 flex-col gap-0.5 rounded-control border border-line bg-paper p-1.5 shadow-[0_12px_28px_rgba(31,35,40,0.12)]"
+          className="absolute right-0 top-full z-50 mt-1 flex w-64 flex-col gap-1 rounded-control border border-line bg-paper p-2 shadow-[0_12px_28px_rgba(31,35,40,0.12)]"
           onKeyDown={onMenuKeyDown}
         >
-          <Link href="/account/password" role="menuitem" tabIndex={-1} className={ITEM_CLASS} onClick={() => close(false)}>
-            Change password
-          </Link>
+          <div className="flex flex-col gap-0.5 px-2 pb-2">
+            {displayName ? <span className="font-semibold text-ink">{displayName}</span> : null}
+            {email ? <span className="text-sm text-ink-muted">{email}</span> : null}
+            {startingView ? (
+              <span className="text-[13px] text-ink-subtle">{startingViewLabel(startingView)}</span>
+            ) : null}
+          </div>
+          {startingView ? (
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              className={QUIET_BUTTON_CLASS}
+              disabled={pending}
+              onClick={switchView}
+            >
+              {switchStartingViewLabel(startingView)}
+            </button>
+          ) : null}
           <form action={signOutAction} className="m-0">
             <button type="submit" role="menuitem" tabIndex={-1} className={ITEM_CLASS}>
-              Log out
+              Sign out
             </button>
           </form>
         </div>

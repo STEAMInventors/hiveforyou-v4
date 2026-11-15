@@ -9,9 +9,9 @@ import {
 } from "./hive-routes";
 
 describe("hive routes", () => {
-  it("sends guests to sign up with a same-origin next path that opens Create Hive", () => {
+  it("sends guests to sign in with a same-origin next path that opens Create Hive", () => {
     const url = new URL(CREATE_HIVE_AFTER_SIGN_UP_PATH, "https://example.test");
-    expect(url.pathname).toBe("/register");
+    expect(url.pathname).toBe("/sign-in");
     const next = url.searchParams.get("next");
     expect(next).toBe(MY_HIVES_CREATE_PATH);
     expect(safeNextPath(next, "/fallback")).toBe("/hives?create=1");

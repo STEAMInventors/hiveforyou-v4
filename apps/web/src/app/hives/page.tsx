@@ -16,7 +16,7 @@ type MyHivesPageProps = {
 export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
   const auth = await requireAuthenticatedUser();
   if (!auth.ok) {
-    redirect("/login?next=%2Fhives");
+    redirect("/sign-in?next=%2Fhives");
   }
 
   const params = await searchParams;

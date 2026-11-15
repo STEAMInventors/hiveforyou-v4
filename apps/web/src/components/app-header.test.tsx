@@ -1,16 +1,32 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 let pathname = "/hives";
-vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
-vi.mock("@/server/auth/auth-actions", () => ({ signOutAction: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => pathname,
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+vi.mock("@/server/auth/auth-actions", () => ({
+  signOutAction: vi.fn(),
+  switchStartingViewAction: vi.fn(),
+}));
 
+import { switchStartingViewAction } from "@/server/auth/auth-actions";
 import { accountInitials } from "@/lib/account-initials";
 
 import { AppHeader } from "./app-header";
 
+const mockedSwitchStartingView = vi.mocked(switchStartingViewAction);
+
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
+
+const account = {
+  initials: "MR" as const,
+  displayName: "Maya Rivera",
+  email: "maya.rivera@example.test",
+  startingView: "clients" as const,
+};
 
 afterEach(() => {
   cleanup();
@@ -25,7 +41,7 @@ const classOf = (element: Element) => element.getAttribute("class") ?? "";
 describe("AppHeader", () => {
   it("has no fixed height on the header and no overflow anywhere in it", () => {
     pathname = `/hives/${HIVE_ID}/study`;
-    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} initials="MR" />);
+    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} account={account} />);
     const header = screen.getByTestId("app-header");
     expect(header.tagName).toBe("HEADER");
     const row = header.firstElementChild!;
@@ -37,7 +53,7 @@ describe("AppHeader", () => {
 
   it("shows the breadcrumb with the hive name as the current page", () => {
     pathname = `/hives/${HIVE_ID}/documents`;
-    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} initials="MR" />);
+    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} account={account} />);
     const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
     expect(crumbs.getByRole("link", { name: "My hives" }).getAttribute("href")).toBe("/hives");
     const current = crumbs.getByText("Widget batch review");
@@ -45,14 +61,19 @@ describe("AppHeader", () => {
   });
 
   it("marks My hives as the current page on the list", () => {
-    render(<AppHeader workspace={null} initials={null} />);
+    render(
+      <AppHeader
+        workspace={null}
+        account={{ initials: null, displayName: null, email: null, startingView: null }}
+      />,
+    );
     const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
     expect(crumbs.queryByRole("link", { name: "My hives" })).toBeNull();
     expect(crumbs.getByText("My hives").getAttribute("aria-current")).toBe("page");
   });
 
   it("opens an accessible account menu from the keyboard and returns focus on Escape", () => {
-    render(<AppHeader workspace={null} initials="MR" />);
+    render(<AppHeader workspace={null} account={account} />);
     const button = screen.getByRole("button", { name: "Account" });
     expect(button.textContent).toBe("MR");
     expect(button.getAttribute("aria-haspopup")).toBe("menu");
@@ -62,27 +83,48 @@ describe("AppHeader", () => {
     const menu = screen.getByRole("menu", { name: "Account" });
     expect(button.getAttribute("aria-expanded")).toBe("true");
     expect(button.getAttribute("aria-controls")).toBe(menu.id);
+    expect(within(menu).getByText("Maya Rivera")).toBeTruthy();
+    expect(within(menu).getByText("maya.rivera@example.test")).toBeTruthy();
+    expect(within(menu).getByText("Client hives")).toBeTruthy();
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map((item) => item.textContent)).toEqual(["Change password", "Log out"]);
-    expect(items[0]!.getAttribute("href")).toBe("/account/password");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Switch to my own paperwork",
+      "Sign out",
+    ]);
     expect(document.activeElement).toBe(items[0]);
 
     fireEvent.keyDown(menu, { key: "ArrowDown" });
     expect(document.activeElement).toBe(items[1]);
-    fireEvent.keyDown(menu, { key: "ArrowDown" });
-    expect(document.activeElement).toBe(items[0]);
-    fireEvent.keyDown(menu, { key: "End" });
-    expect(document.activeElement).toBe(items[1]);
-    fireEvent.keyDown(menu, { key: "Home" });
-    expect(document.activeElement).toBe(items[0]);
-
     fireEvent.keyDown(menu, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(button);
   });
 
+  it("shows the current starting view and switches without a password item", async () => {
+    const ownAccount = { ...account, startingView: "own" as const };
+    render(<AppHeader workspace={null} account={ownAccount} />);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Account" }), { key: "ArrowDown" });
+    const menu = screen.getByRole("menu", { name: "Account" });
+    expect(within(menu).getByText("My own paperwork")).toBeTruthy();
+    const items = within(menu).getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Switch to client hives",
+      "Sign out",
+    ]);
+    expect(within(menu).queryByText(/password/i)).toBeNull();
+
+    mockedSwitchStartingView.mockResolvedValue();
+    fireEvent.click(items[0]!);
+    await waitFor(() => expect(mockedSwitchStartingView).toHaveBeenCalledTimes(1));
+  });
+
   it("closes the menu on a click outside it", () => {
-    render(<AppHeader workspace={null} initials={null} />);
+    render(
+      <AppHeader
+        workspace={null}
+        account={{ initials: null, displayName: null, email: null, startingView: null }}
+      />,
+    );
     const button = screen.getByRole("button", { name: "Account" });
     expect(button.textContent).toBe("Account");
     fireEvent.click(button);

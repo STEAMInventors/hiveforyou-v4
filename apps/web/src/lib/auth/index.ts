@@ -1,10 +1,17 @@
-export type { AuthActionState, AuthOtpPurpose } from "./auth-state";
-export { signInAction, signOutAction, signUpAction } from "./session-actions";
+export type { AuthActionState, SignInActionState, SignInStep } from "./auth-state";
+export { signOutAction } from "./session-actions";
 export {
-  backToLoginFromRecoveryAction,
-  changePasswordAction,
-  requestPasswordResetAction,
-  resendConfirmationAction,
-  updatePasswordFromRecoveryAction,
-} from "./recovery-actions";
-export { verifyEmailOtpAction } from "./otp-actions";
+  requestSignInCodeAction,
+  setStartingViewAction,
+  switchStartingViewAction,
+  verifySignInCodeAction,
+} from "./sign-in-actions";
+export type { StartingView, UserProfile } from "./profile";
+export {
+  fetchMyProfile,
+  parseUserProfile,
+  startingViewLabel,
+  switchStartingViewLabel,
+  switchedStartingView,
+} from "./profile";
+export { resolvePostSignInPath } from "./post-sign-in";

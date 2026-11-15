@@ -2,13 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { resolvePostSignInPath } from "@/lib/auth/post-sign-in";
 import { getPublicSupabaseConfig } from "@/lib/supabase-config";
 import { logAuthFailure, logAuthInfo } from "@/server/auth/action-support";
-import {
-  callbackRecoveryIntent,
-  callbackSuccessPath,
-  safeEmailOtpType,
-} from "@/server/auth/callback-intent";
+import { safeEmailOtpType } from "@/server/auth/callback-intent";
 import {
   classifyAuthError,
   linkErrorCodeForKind,
@@ -16,11 +13,6 @@ import {
   toAuthErrorInput,
 } from "@/server/auth/map-auth-error";
 import { verifyEmailOtp } from "@/server/auth/otp";
-import {
-  RECOVERY_COOKIE_NAME,
-  recoveryCookieIsSecure,
-  recoveryCookieOptions,
-} from "@/server/auth/recovery";
 import { safeNextPath } from "@/server/auth/redirects";
 import { resolveAppOrigin } from "@/server/config/app-origin";
 import {
@@ -36,28 +28,10 @@ function safeProviderCode(value: string | null): string | undefined {
   return sanitizeDiagnostic(normalized) === normalized ? normalized : undefined;
 }
 
-function attachRecoveryCookie(response: NextResponse): void {
-  response.cookies.set(
-    RECOVERY_COOKIE_NAME,
-    "1",
-    recoveryCookieOptions(recoveryCookieIsSecure()),
-  );
-}
-
-function failureRedirect(
-  appOrigin: string,
-  next: string,
-  errorCode: string,
-  recoveryIntent: boolean,
-): URL {
-  const destination = new URL(
-    recoveryIntent ? "/forgot-password" : "/login",
-    appOrigin,
-  );
+function failureRedirect(appOrigin: string, next: string, errorCode: string): URL {
+  const destination = new URL("/sign-in", appOrigin);
   destination.searchParams.set("error", errorCode);
-  if (!recoveryIntent) {
-    destination.searchParams.set("next", next);
-  }
+  destination.searchParams.set("next", next);
   return destination;
 }
 
@@ -73,21 +47,12 @@ export async function GET(request: Request) {
   const safeOtpType = safeEmailOtpType(otpTypeParam);
   const nextParam = requestUrl.searchParams.get("next");
   const next = safeNextPath(nextParam, "/hives");
-  const recoveryIntent = callbackRecoveryIntent({
-    next: nextParam,
-    type: otpTypeParam,
-  });
   const providerCode =
     safeProviderCode(requestUrl.searchParams.get("error_code")) ??
     safeProviderCode(requestUrl.searchParams.get("error"));
 
   const sendFailure = (errorCode: string) => {
-    const destination = failureRedirect(
-      appOrigin,
-      next,
-      errorCode,
-      recoveryIntent,
-    );
+    const destination = failureRedirect(appOrigin, next, errorCode);
     const redirect = NextResponse.redirect(destination);
     redirect.headers.set(CORRELATION_HEADER, correlationId);
     return redirect;
@@ -97,12 +62,22 @@ export async function GET(request: Request) {
   const hasTokenHash = Boolean(tokenHash && safeOtpType);
 
   if (!hasPkceCode && !hasTokenHash) {
+    if (providerCode === "otp_expired") {
+      logAuthFailure("authCallback", correlationId, {
+        kind: "link_expired",
+        message: "otp_expired",
+        errorCode: "AUTH_FAILED",
+        retryable: false,
+        diagnostic: "otp_expired",
+      });
+      return sendFailure("otp_expired");
+    }
     const mapped = classifyAuthError(
       { code: providerCode, status: providerCode ? 400 : undefined },
       "callback",
     );
     const linkCode = providerCode
-      ? linkErrorCodeForKind(mapped.kind)
+      ? linkErrorCodeForKind(mapped.kind, providerCode)
       : "link_invalid";
     logAuthFailure("authCallback", correlationId, {
       ...mapped,
@@ -123,9 +98,7 @@ export async function GET(request: Request) {
   }
 
   const cookieStore = await cookies();
-  const successPath = callbackSuccessPath(recoveryIntent, nextParam);
-  const response = NextResponse.redirect(new URL(successPath, appOrigin));
-  response.headers.set(CORRELATION_HEADER, correlationId);
+  let response = NextResponse.redirect(new URL("/hives", appOrigin));
 
   const supabase = createServerClient(supabaseUrl, anonKey, {
     cookies: {
@@ -155,7 +128,7 @@ export async function GET(request: Request) {
       if (error) {
         const mapped = classifyAuthError(toAuthErrorInput(error), "callback");
         logAuthFailure("authCallback", correlationId, mapped, durationMs);
-        return sendFailure(linkErrorCodeForKind(mapped.kind));
+        return sendFailure(linkErrorCodeForKind(mapped.kind, mapped.diagnostic));
       }
     } else if (tokenHash && safeOtpType) {
       const { error } = await verifyEmailOtp(supabase, {
@@ -166,7 +139,7 @@ export async function GET(request: Request) {
       if (error) {
         const mapped = classifyAuthError(toAuthErrorInput(error), "callback");
         logAuthFailure("authCallback", correlationId, mapped, durationMs);
-        return sendFailure(linkErrorCodeForKind(mapped.kind));
+        return sendFailure(linkErrorCodeForKind(mapped.kind, mapped.diagnostic));
       }
     }
   } catch (caught) {
@@ -177,24 +150,13 @@ export async function GET(request: Request) {
       mapped,
       Date.now() - started,
     );
-    return sendFailure(linkErrorCodeForKind(mapped.kind));
+    return sendFailure(linkErrorCodeForKind(mapped.kind, mapped.diagnostic));
   }
 
-  logAuthInfo(
-    "authCallback",
-    correlationId,
-    recoveryIntent ? "recovery_session" : "session_exchanged",
-    Date.now() - started,
-  );
+  logAuthInfo("authCallback", correlationId, "session_exchanged", Date.now() - started);
 
-  if (recoveryIntent) {
-    attachRecoveryCookie(response);
-    cookieStore.set(
-      RECOVERY_COOKIE_NAME,
-      "1",
-      recoveryCookieOptions(recoveryCookieIsSecure()),
-    );
-  }
-
+  const destination = await resolvePostSignInPath(supabase, next);
+  response = NextResponse.redirect(new URL(destination, appOrigin));
+  response.headers.set(CORRELATION_HEADER, correlationId);
   return response;
 }
