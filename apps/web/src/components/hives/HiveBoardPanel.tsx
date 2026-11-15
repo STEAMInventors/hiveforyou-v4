@@ -13,6 +13,7 @@ import { HiveBoardPeople } from "@/components/hives/HiveBoardPeople";
 
 type HiveBoardPanelProps = {
   readonly hive: Hive;
+  readonly currentUserId: string | null;
   readonly hiveId: string;
   readonly hiveName: string;
   readonly hiveDescription: string;
@@ -90,6 +91,7 @@ function BoardActionButton({
 
 export function HiveBoardPanel({
   hive,
+  currentUserId,
   hiveId,
   hiveName,
   hiveDescription,
@@ -254,7 +256,7 @@ export function HiveBoardPanel({
               </li>
             ))}
           </ul>
-          <HiveBoardPeople hive={hive} />
+          <HiveBoardPeople hive={hive} currentUserId={currentUserId} />
           <div className="border-t border-line pt-4">
             <p className="m-0 text-caption text-graphite">What HiveForYou does here</p>
             <p className="m-0 mt-1 text-small leading-relaxed text-graphite">

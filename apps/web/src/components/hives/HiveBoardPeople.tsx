@@ -15,6 +15,8 @@ type PersonRow = {
   removeUserId?: string;
 };
 
+const INVITE_SEND_FAILED = "We couldn't send the invitation. Try again.";
+
 type PeopleResponse = {
   people: PersonRow[];
   pendingInvitations: PersonRow[];
@@ -22,9 +24,29 @@ type PeopleResponse = {
 
 type HiveBoardPeopleProps = {
   hive: Hive;
+  currentUserId: string | null;
 };
 
-export function HiveBoardPeople({ hive }: HiveBoardPeopleProps) {
+function memberRoleLabel(role: string | undefined): string {
+  const normalized = role?.trim().toLowerCase();
+  if (normalized === "owner" || normalized === "client" || normalized === "professional") {
+    return normalized;
+  }
+  return "member";
+}
+
+function personPrimaryName(person: PersonRow, currentUserId: string | null): string {
+  if (person.userId && currentUserId && person.userId.toLowerCase() === currentUserId.toLowerCase()) {
+    return "You";
+  }
+  const display = person.displayName?.trim();
+  if (display) return display;
+  const email = person.email?.trim();
+  if (email) return email;
+  return "Member";
+}
+
+export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
   const [people, setPeople] = useState<PersonRow[]>([]);
   const [pending, setPending] = useState<PersonRow[]>([]);
   const [open, setOpen] = useState(false);
@@ -51,6 +73,28 @@ export function HiveBoardPeople({ hive }: HiveBoardPeopleProps) {
     void load();
   }, [load]);
 
+  const readInviteError = async (res: Response): Promise<string> => {
+    try {
+      const body = (await res.json()) as { error?: { message?: unknown } };
+      if (typeof body.error?.message === "string" && body.error.message.trim()) {
+        return body.error.message;
+      }
+    } catch {
+      // The response was not the public error JSON.
+    }
+    return INVITE_SEND_FAILED;
+  };
+
+  const inviterDisplayName = (): string => {
+    const self = people.find(
+      (person) =>
+        person.userId &&
+        currentUserId &&
+        person.userId.toLowerCase() === currentUserId.toLowerCase(),
+    );
+    return self?.displayName?.trim() ?? "";
+  };
+
   const sendInvite = async () => {
     const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
@@ -72,7 +116,7 @@ export function HiveBoardPeople({ hive }: HiveBoardPeopleProps) {
         }),
       });
       if (!res.ok) {
-        setErr("Could not send the invitation.");
+        setErr(await readInviteError(res));
         return;
       }
       setOpen(false);
@@ -87,6 +131,38 @@ export function HiveBoardPeople({ hive }: HiveBoardPeopleProps) {
   const revoke = async (invitationId: string) => {
     await fetch(`/api/v1/hives/${hive.id}/invitations/${invitationId}/revoke`, { method: "POST" });
     await load();
+  };
+
+  const sendAgain = async (invitationId: string, invitedEmail: string, invitedRole: string | undefined) => {
+    const role = invitedRole === "client" || invitedRole === "professional" ? invitedRole : inviteRole;
+    setBusy(true);
+    setErr(null);
+    try {
+      const revoked = await fetch(`/api/v1/hives/${hive.id}/invitations/${invitationId}/revoke`, {
+        method: "POST",
+      });
+      if (!revoked.ok) {
+        setErr(INVITE_SEND_FAILED);
+        return;
+      }
+      const res = await fetch(`/api/v1/hives/${hive.id}/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: invitedEmail,
+          role,
+          hiveName: hive.name,
+          inviterName: inviterDisplayName(),
+        }),
+      });
+      if (!res.ok) {
+        setErr(await readInviteError(res));
+        return;
+      }
+      await load();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const removeMember = async (userId: string) => {
@@ -106,24 +182,34 @@ export function HiveBoardPeople({ hive }: HiveBoardPeopleProps) {
 
   type PeopleRow = {
     key: string;
-    label: string;
-    status: string;
+    line: string;
     invitationId?: string;
+    email?: string;
+    role?: string;
     removeUserId?: string;
+    removeLabel: string;
   };
 
+  const viewerRole = memberRoleLabel(hive.membershipRole ?? (hive.isOwner ? "owner" : undefined));
+
   const rows: PeopleRow[] = [
-    ...people.map((p) => ({
-      key: p.userId ?? p.email ?? "member",
-      label: p.displayName ?? p.role ?? "Member",
-      status: "joined",
-      removeUserId: p.role !== "owner" && p.userId ? p.userId : undefined,
-    })),
+    ...people.map((p) => {
+      const name = personPrimaryName(p, currentUserId);
+      const line = `${name} · ${memberRoleLabel(p.role)}`;
+      return {
+        key: p.userId ?? p.email ?? "member",
+        line,
+        removeUserId: p.role !== "owner" && p.userId ? p.userId : undefined,
+        removeLabel: name,
+      };
+    }),
     ...pending.map((p) => ({
       key: p.invitationId ?? p.email ?? "pending",
-      label: p.email ?? "Invited",
-      status: "invited, not joined yet",
+      line: `${p.email?.trim() || "Invited"} · invited, not joined yet`,
       invitationId: p.invitationId,
+      email: p.email?.trim().toLowerCase(),
+      role: p.role,
+      removeLabel: p.email?.trim() || "Invited",
     })),
   ];
 
@@ -132,27 +218,37 @@ export function HiveBoardPeople({ hive }: HiveBoardPeopleProps) {
       <p className="m-0 text-caption text-graphite">People in this hive</p>
       <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
         {rows.length === 0 ? (
-          <li className="text-body text-graphite">You · owner</li>
+          <li className="text-body text-graphite">{`You · ${viewerRole}`}</li>
         ) : (
           rows.map((row) => (
-            <li key={row.key} className="flex items-center justify-between gap-2 text-body">
-              <span>
-                <span className="font-semibold text-ink">{row.label}</span>
-                <span className="text-graphite"> · {row.status}</span>
-              </span>
+            <li key={row.key} className="flex items-center justify-between gap-2 text-body text-graphite">
+              <span className="text-body">{row.line}</span>
               {isOwner && row.invitationId ? (
-                <button
-                  type="button"
-                  className="min-h-11 text-small text-cell-blue-deep underline"
-                  onClick={() => void revoke(row.invitationId!)}
-                >
-                  Revoke
-                </button>
+                <span className="flex shrink-0 items-center gap-3">
+                  {row.email ? (
+                    <button
+                      type="button"
+                      className="min-h-11 text-small text-cell-blue-deep underline"
+                      disabled={busy}
+                      onClick={() => void sendAgain(row.invitationId!, row.email!, row.role)}
+                    >
+                      Send again
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="min-h-11 text-small text-cell-blue-deep underline"
+                    disabled={busy}
+                    onClick={() => void revoke(row.invitationId!)}
+                  >
+                    Revoke
+                  </button>
+                </span>
               ) : isOwner && row.removeUserId ? (
                 <button
                   type="button"
                   className="min-h-11 text-small text-coral-deep underline"
-                  onClick={() => setRemoveTarget({ userId: row.removeUserId!, label: row.label })}
+                  onClick={() => setRemoveTarget({ userId: row.removeUserId!, label: row.removeLabel })}
                 >
                   Remove
                 </button>
@@ -160,12 +256,20 @@ export function HiveBoardPeople({ hive }: HiveBoardPeopleProps) {
             </li>
           ))
         )}
-      </ul>
+        </ul>
+      {err && !open && !removeTarget ? (
+        <p className="mt-2 text-small text-coral-deep" role="alert">
+          {err}
+        </p>
+      ) : null}
       {isOwner ? (
         <button
           type="button"
           className={`${QUIET_BUTTON_CLASS} mt-3 min-h-11`}
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setErr(null);
+            setOpen(true);
+          }}
         >
           {hive.kind === "client" ? "Invite your client" : "Share with a professional"}
         </button>

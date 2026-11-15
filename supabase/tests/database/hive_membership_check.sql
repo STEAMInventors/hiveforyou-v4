@@ -167,6 +167,21 @@ BEGIN
     RAISE EXCEPTION 'owner member email invite should fail';
   EXCEPTION WHEN OTHERS THEN NULL;
   END;
+
+  v_json := public.list_hive_people(v_hive);
+  IF jsonb_array_length(v_json::jsonb -> 'pendingInvitations') <> 2 THEN
+    RAISE EXCEPTION 'owner pendingInvitations count wrong: %', v_json;
+  END IF;
+
+  BEGIN
+    PERFORM 1 FROM hive.hive_invitations WHERE hive_id = v_hive LIMIT 1;
+    RAISE EXCEPTION 'owner direct hive_invitations select should fail';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
+    WHEN OTHERS THEN
+      RAISE;
+  END;
   RESET ROLE;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text, 'role', 'authenticated')::text, true);
@@ -186,8 +201,26 @@ BEGIN
   IF v_count < 1 THEN RAISE EXCEPTION 'client audit_events read failed'; END IF;
   SELECT count(*)::integer INTO v_count FROM hive.hive_members WHERE hive_id = v_hive;
   IF v_count < 2 THEN RAISE EXCEPTION 'client hive_members read failed'; END IF;
-  SELECT count(*)::integer INTO v_count FROM hive.hive_invitations WHERE hive_id = v_hive;
-  IF v_count < 2 THEN RAISE EXCEPTION 'client hive_invitations read failed'; END IF;
+
+  BEGIN
+    PERFORM 1 FROM hive.hive_invitations WHERE hive_id = v_hive LIMIT 1;
+    RAISE EXCEPTION 'client direct hive_invitations select should fail';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
+    WHEN OTHERS THEN
+      RAISE;
+  END;
+
+  v_json := public.list_hive_people(v_hive);
+  IF jsonb_array_length(v_json::jsonb -> 'people') < 2 THEN
+    RAISE EXCEPTION 'client list_hive_people people wrong: %', v_json;
+  END IF;
+  IF position('token_hash' in lower(v_json::text)) > 0
+     OR position('tokenhash' in lower(v_json::text)) > 0 THEN
+    RAISE EXCEPTION 'client list_hive_people must not expose token_hash';
+  END IF;
+
   SELECT count(*)::integer INTO v_count
     FROM storage.objects
    WHERE bucket_id = 'hive-source-documents' AND hive.storage_path_hive_id(name) = v_hive;
@@ -278,6 +311,16 @@ BEGIN
   IF v_count <> 0 THEN RAISE EXCEPTION 'pending pro storage.objects should be 0'; END IF;
 
   BEGIN
+    PERFORM 1 FROM hive.hive_invitations WHERE hive_id = v_hive LIMIT 1;
+    RAISE EXCEPTION 'pending pro direct hive_invitations select should fail';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
+    WHEN OTHERS THEN
+      RAISE;
+  END;
+
+  BEGIN
     PERFORM public.start_study_preparation(v_hive, gen_random_uuid(), gen_random_uuid());
     RAISE EXCEPTION 'pending pro start_study_preparation should fail';
   EXCEPTION WHEN OTHERS THEN NULL;
@@ -294,6 +337,24 @@ BEGIN
   END;
   RESET ROLE;
 
+  UPDATE hive.hive_members
+     SET state = 'active'
+   WHERE hive_id = v_hive AND user_id = v_pro;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_pro::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+
+  BEGIN
+    PERFORM 1 FROM hive.hive_invitations WHERE hive_id = v_hive LIMIT 1;
+    RAISE EXCEPTION 'active pro direct hive_invitations select should fail';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
+    WHEN OTHERS THEN
+      RAISE;
+  END;
+  RESET ROLE;
+
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
   v_json := public.list_hives();
@@ -304,7 +365,6 @@ BEGIN
     RAISE EXCEPTION 'owner display name missing from list_hives';
   END IF;
   PERFORM public.create_intent_request(v_hive, 'Owner intent', gen_random_uuid());
-  PERFORM public.list_hive_people(v_hive);
   RESET ROLE;
 
   RAISE NOTICE 'ALL CHECKS PASSED';

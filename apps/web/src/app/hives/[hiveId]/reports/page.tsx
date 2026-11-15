@@ -5,7 +5,8 @@ import { ReportsPanel } from "@/components/reports/ReportsPanel";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { documentPageCounts, loadHiveOverview, type HiveSummary } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
-import { createServerSupabaseClient } from "@/server/supabase/server-client";
+import { hiveWorkspaceStartingView } from "@/server/hives/hive-workspace-props";
+import { createServerSupabaseClient, requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 type ReportsPageProps = {
   params: Promise<{ hiveId: string }>;
@@ -55,6 +56,8 @@ export default async function ReportsPage({ params, searchParams }: ReportsPageP
   const { audience } = await searchParams;
   const hive = await loadOwnedHiveOrNotFound(hiveId, `/hives/${hiveId}/reports`);
   const correlationId = await requestCorrelationId();
+  const auth = await requireAuthenticatedUser();
+  const startingView = auth.ok ? await hiveWorkspaceStartingView(auth) : "own";
   const load = await loadReports(hive.id, correlationId);
 
   return (
@@ -62,6 +65,8 @@ export default async function ReportsPage({ params, searchParams }: ReportsPageP
       hiveId={hive.id}
       hiveName={hive.name}
       hiveDescription={hive.description ?? ""}
+      hiveKind={hive.kind}
+      startingView={startingView}
       activeTab="reports"
       summary={load.ok ? load.summary : null}
       supportReference={correlationId}

@@ -3,6 +3,7 @@ import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
+import { hiveWorkspaceStartingView } from "@/server/hives/hive-workspace-props";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 type BoardPageProps = {
@@ -18,6 +19,7 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
   }
 
   const correlationId = await requestCorrelationId();
+  const startingView = await hiveWorkspaceStartingView(auth);
   const loaded = await loadHiveBoard(auth.client, {
     hive,
     correlationId,
@@ -43,11 +45,14 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
       hiveId={hive.id}
       hiveName={hive.name}
       hiveDescription={hive.description ?? ""}
+      hiveKind={hive.kind}
+      startingView={startingView}
       activeTab="board"
       summary={loaded.overview.summary}
     >
       <HiveBoardPanel
         hive={hive}
+        currentUserId={auth.userId}
         hiveId={hive.id}
         hiveName={hive.name}
         hiveDescription={hive.description ?? ""}

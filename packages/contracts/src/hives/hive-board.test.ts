@@ -7,7 +7,12 @@ import {
   type DocumentRole,
 } from "../pipeline/canonical-study-contracts";
 
-import { buildHiveBoard, type HiveBoardInput, type HiveBoardStoredEvent } from "./hive-board";
+import {
+  buildHiveBoard,
+  hiveBoardOpenChecklistCount,
+  type HiveBoardInput,
+  type HiveBoardStoredEvent,
+} from "./hive-board";
 
 const BASE_PATHS = {
   documentsPath: "/hives/x/documents",
@@ -242,6 +247,58 @@ describe("buildHiveBoard activity", () => {
     ).activity;
     expect(activity).toHaveLength(1);
     expect(activity[0]?.text).toContain("ok.pdf");
+  });
+});
+
+describe("hiveBoardOpenChecklistCount", () => {
+  const revisionId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const acceptedAt = "2026-11-01T00:00:00.000Z";
+
+  it("counts added_pending rows that the study missing list omits", () => {
+    const study: CanonicalStudy = {
+      schema: CANONICAL_STUDY_SCHEMA,
+      domainLabel: "",
+      spineSource: null,
+      documents: [
+        {
+          sourceDocumentId: "d1",
+          role: "SUPPORTING" as DocumentRole,
+          typeInPlainWords: "Tax return",
+          date: null,
+          version: null,
+          chainPosition: null,
+        },
+      ],
+      spine: [],
+      outsideSpine: [],
+      conflicts: [],
+      timeline: [],
+      gaps: [
+        gap({ id: "G-open", title: "Lease" }),
+        gap({ id: "G-pending", title: "Insurance binder" }),
+      ],
+    };
+    const boardInput: HiveBoardInput = {
+      ...baseInput({
+        canonicalStudy: study,
+        acceptedStudyRevisionId: revisionId,
+        acceptedStudyRevisionAcceptedAt: acceptedAt,
+        gapUploads: [
+          {
+            gapId: "G-pending",
+            sourceDocumentId: "upload-1",
+            gapTitle: "Insurance binder",
+            studyRevisionId: revisionId,
+            registeredAt: "2026-11-02T00:00:00.000Z",
+          },
+        ],
+      }),
+    };
+    const open = hiveBoardOpenChecklistCount(boardInput);
+    expect(open).toBe(2);
+    const board = buildHiveBoard(boardInput, "2026-11-15");
+    expect(board.headline).toBe("2 still to come");
+    expect(board.readiness.find((line) => line.label === "Missing")?.value).toBe("2");
   });
 });
 

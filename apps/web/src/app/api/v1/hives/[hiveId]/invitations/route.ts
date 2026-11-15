@@ -11,6 +11,14 @@ import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 type RouteContext = { params: Promise<{ hiveId: string }> };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INVITE_SEND_FAILED = "We couldn't send the invitation. Try again.";
+
+function createdInvitationId(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const invitationId = (data as { invitationId?: unknown }).invitationId;
+  if (typeof invitationId !== "string" || !isValidUuid(invitationId)) return null;
+  return invitationId.trim().toLowerCase();
+}
 
 function resolvePublicBaseUrl(request: NextRequest): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -142,14 +150,35 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
 
     const baseUrl = resolvePublicBaseUrl(request);
     const inviteUrl = `${baseUrl}/invite/${token}`;
-    await sendInvitationEmail({
-      role,
-      toEmail: email,
-      inviteUrl,
-      ownerOrProfessionalName: inviterName || "Your contact",
-      hiveName: hiveName || "Hive",
-      requestedItemCount: role === "client" ? requestedItemCount : undefined,
-    });
+    try {
+      await sendInvitationEmail({
+        role,
+        toEmail: email,
+        inviteUrl,
+        ownerOrProfessionalName: inviterName || "Your contact",
+        hiveName: hiveName || "Hive",
+        requestedItemCount: role === "client" ? requestedItemCount : undefined,
+      });
+    } catch (sendError) {
+      const invitationId = createdInvitationId(data);
+      if (invitationId) {
+        try {
+          await auth.client.rpc("revoke_invitation", { p_invitation_id: invitationId });
+        } catch {
+          // The response stays the send failure, even if revoke did not complete.
+        }
+      }
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "INTERNAL",
+        stage: "SHELL",
+        retryable: true,
+        safeMessage: INVITE_SEND_FAILED,
+        correlationId,
+        diagnosticReason: "invitation_email_failed",
+        cause: sendError,
+      });
+    }
 
     return NextResponse.json({ ok: true, invitation: data }, {
       status: 201,

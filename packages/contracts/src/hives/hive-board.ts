@@ -273,6 +273,22 @@ function openChecklistCount(checklist: readonly HiveBoardChecklistItem[]): numbe
   return checklist.filter((row) => row.status !== "in").length;
 }
 
+export type HiveBoardChecklistCountInput = Pick<
+  HiveBoardInput,
+  | "canonicalStudy"
+  | "referencedDocuments"
+  | "gapUploads"
+  | "acceptedStudyRevisionId"
+  | "acceptedStudyRevisionAcceptedAt"
+  | "documentsPath"
+>;
+
+/** Open checklist rows (not_in and added_pending); single source for board headline, meta Missing, and progress. */
+export function hiveBoardOpenChecklistCount(input: HiveBoardChecklistCountInput): number {
+  if (!input.canonicalStudy) return 0;
+  return openChecklistCount(buildChecklist(input as HiveBoardInput));
+}
+
 function buildHeadline(needs: readonly HiveBoardNeedItem[], input: HiveBoardInput, checklist: readonly HiveBoardChecklistItem[]): string {
   if (needs.length > 0) {
     return needs.length === 1 ? "1 thing needs you" : `${needs.length} things need you`;

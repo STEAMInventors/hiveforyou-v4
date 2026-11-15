@@ -2,9 +2,11 @@ import {
   assignCanonicalGapHolderTypes,
   buildStudyTabViewFromRpc,
   type CanonicalStudy,
+  type GapUploadLink,
   type GetHiveReportsResponse,
   type GetStudyPreparationResponse,
   hiveAttention,
+  hiveBoardOpenChecklistCount,
   isActiveProcessingRunStatus,
   isActiveReportRunStatus,
   isStudyViewReport,
@@ -44,11 +46,34 @@ export type HiveSummary = {
   } | null;
 };
 
+export type HiveBoardMissingContext = {
+  readonly referencedDocuments: readonly StudyViewReferencedDocument[];
+  readonly gapUploads: readonly GapUploadLink[];
+  readonly acceptedStudyRevisionId: string | null;
+  readonly acceptedStudyRevisionAcceptedAt: string | null;
+};
+
+function boardOpenMissingCount(
+  canonicalStudy: CanonicalStudy | null,
+  context: HiveBoardMissingContext | null,
+): number | null {
+  if (!canonicalStudy || !context) return null;
+  return hiveBoardOpenChecklistCount({
+    canonicalStudy,
+    referencedDocuments: context.referencedDocuments,
+    gapUploads: context.gapUploads,
+    acceptedStudyRevisionId: context.acceptedStudyRevisionId,
+    acceptedStudyRevisionAcceptedAt: context.acceptedStudyRevisionAcceptedAt,
+    documentsPath: "",
+  });
+}
+
 export function buildHiveAttentionInput(
   preparation: GetStudyPreparationResponse,
   reports: GetHiveReportsResponse | null,
   studyTab: HiveOverview["studyTab"],
   canonicalStudy: CanonicalStudy | null,
+  boardMissingContext: HiveBoardMissingContext | null = null,
 ): HiveAttentionInput {
   const eligibility = preparation.eligibility;
   const documentCount = eligibility.documents.length + eligibility.excluded.length;
@@ -71,6 +96,7 @@ export function buildHiveAttentionInput(
   const openConflicts = canonicalStudy?.conflicts?.length ?? 0;
   const hasStudy = preparation.studyRevision !== null;
   const hasReport = preparation.reportRuns.some((item) => item.status === "SUCCEEDED");
+  const boardOpenMissing = boardOpenMissingCount(canonicalStudy, boardMissingContext);
   return {
     documentCount,
     unreadableDocumentCount,
@@ -82,7 +108,7 @@ export function buildHiveAttentionInput(
     openConflicts,
     openNeeds: counts?.needs ?? 0,
     openChanged: counts?.changed ?? 0,
-    openMissing: counts?.missing ?? 0,
+    openMissing: boardOpenMissing ?? counts?.missing ?? 0,
     openChecked: counts?.checked ?? 0,
     hasStudy,
     hasReport,
@@ -136,11 +162,22 @@ export function summarizeHive(
   reports: GetHiveReportsResponse | null,
   studyTab: HiveOverview["studyTab"],
   canonicalStudy: CanonicalStudy | null = null,
+  boardMissingContext: HiveBoardMissingContext | null = null,
 ): HiveSummary {
   const revision = preparation.studyRevision;
   const studyView = revision ? latestStudyView(reports) : null;
   const countsView = studyTab?.view ?? studyView?.view ?? null;
-  const attentionInput = buildHiveAttentionInput(preparation, reports, studyTab, canonicalStudy);
+  const attentionInput = buildHiveAttentionInput(
+    preparation,
+    reports,
+    studyTab,
+    canonicalStudy,
+    boardMissingContext,
+  );
+  const boardOpenMissing = boardOpenMissingCount(canonicalStudy, boardMissingContext);
+  const studyCounts = countsView ? studyStateCounts(countsView, revision?.coverageGaps ?? []) : null;
+  const alignedCounts =
+    studyCounts && boardOpenMissing !== null ? { ...studyCounts, missing: boardOpenMissing } : studyCounts;
   return {
     documentCount: attentionInput.documentCount,
     attention: hiveAttention(attentionInput),
@@ -149,7 +186,7 @@ export function summarizeHive(
       ? {
           revisionNumber: revision.revisionNumber,
           acceptedAt: revision.createdAt,
-          counts: countsView ? studyStateCounts(countsView, revision.coverageGaps) : null,
+          counts: alignedCounts,
           targets: countsView ? studyStateTargets(countsView) : null,
         }
       : null,
@@ -158,7 +195,12 @@ export function summarizeHive(
 
 export async function loadHiveOverview(
   client: SupabaseClient,
-  input: { hiveId: string; correlationId: string; includePreview?: boolean },
+  input: {
+    hiveId: string;
+    correlationId: string;
+    includePreview?: boolean;
+    gapUploads?: readonly GapUploadLink[];
+  },
 ): Promise<HiveOverview> {
   const preparation = await getStudyPreparation(client, {
     hiveId: input.hiveId,
@@ -207,6 +249,15 @@ export async function loadHiveOverview(
     }
   }
 
+  const boardMissingContext: HiveBoardMissingContext | null = canonicalStudy
+    ? {
+        referencedDocuments,
+        gapUploads: input.gapUploads ?? [],
+        acceptedStudyRevisionId: preparation.studyRevision?.id ?? null,
+        acceptedStudyRevisionAcceptedAt: preparation.studyRevision?.createdAt ?? null,
+      }
+    : null;
+
   return {
     preparation,
     reports,
@@ -214,6 +265,6 @@ export async function loadHiveOverview(
     studyTab,
     canonicalStudy,
     referencedDocuments,
-    summary: summarizeHive(preparation, reports, studyTab, canonicalStudy),
+    summary: summarizeHive(preparation, reports, studyTab, canonicalStudy, boardMissingContext),
   };
 }

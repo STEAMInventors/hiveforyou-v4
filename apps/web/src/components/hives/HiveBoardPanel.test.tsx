@@ -106,6 +106,7 @@ function renderPanel(input: HiveBoardInput, hasDocuments = true) {
         isOwner: true,
         membershipRole: "owner",
       }}
+      currentUserId={null}
       hiveId={HIVE_ID}
       hiveName="Widget batch"
       hiveDescription=""
@@ -208,6 +209,33 @@ describe("HiveBoardPanel", () => {
       .getAllByRole("link", { name: "Add it" })
       .find((element) => element.getAttribute("href")?.includes("#missing-slot-"));
     expect(checklistAddIt?.getAttribute("href")).toBe(`${PATHS.documentsPath}#missing-slot-g1`);
+  });
+
+  it("matches Missing in the aside with the board headline open checklist count", () => {
+    const study: CanonicalStudy = {
+      schema: CANONICAL_STUDY_SCHEMA,
+      domainLabel: "",
+      spineSource: null,
+      documents: [],
+      spine: [],
+      outsideSpine: [],
+      conflicts: [],
+      timeline: [],
+      gaps: [gap({ id: "G1", title: "Tax return" }), gap({ id: "G2", title: "Lease" })],
+    };
+    const board = renderPanel(
+      boardInput({
+        canonicalStudy: study,
+        acceptedStudyRevisionId: "rev-1",
+        hasSucceededReport: false,
+        unreadableDocuments: [],
+        conflictRows: [],
+        documentsNotInStudyCount: 0,
+      }),
+    );
+    const missingAside = screen.getByText("Missing").parentElement?.querySelector("span:last-child");
+    expect(missingAside?.textContent).toBe("2");
+    expect(board.headline).toBe("2 still to come");
   });
 
   it("does not render activity rows for events without a stored time", () => {

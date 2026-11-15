@@ -9,7 +9,8 @@ import { TabEmptyState } from "@/components/tab-empty-state";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { documentPageCounts, type HiveOverview, loadHiveOverview } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
-import { createServerSupabaseClient } from "@/server/supabase/server-client";
+import { hiveWorkspaceStartingView } from "@/server/hives/hive-workspace-props";
+import { createServerSupabaseClient, requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 type StudyPageProps = {
   params: Promise<{ hiveId: string }>;
@@ -33,6 +34,8 @@ export default async function StudyPage({ params }: StudyPageProps) {
   const { hiveId } = await params;
   const hive = await loadOwnedHiveOrNotFound(hiveId, `/hives/${hiveId}/study`);
   const correlationId = await requestCorrelationId();
+  const auth = await requireAuthenticatedUser();
+  const startingView = auth.ok ? await hiveWorkspaceStartingView(auth) : "own";
   const load = await loadPreparation(hive.id, correlationId);
 
   const state = load.ok ? load.overview.preparation : null;
@@ -48,6 +51,8 @@ export default async function StudyPage({ params }: StudyPageProps) {
       hiveId={hive.id}
       hiveName={hive.name}
       hiveDescription={hive.description ?? ""}
+      hiveKind={hive.kind}
+      startingView={startingView}
       activeTab="study"
       summary={load.ok ? load.overview.summary : null}
       supportReference={correlationId}

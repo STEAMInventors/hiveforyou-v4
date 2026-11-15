@@ -96,12 +96,6 @@ export async function loadHiveBoard(
   client: SupabaseClient,
   input: { hive: Hive; correlationId: string; userId: string },
 ): Promise<HiveBoardLoad> {
-  const overview = await loadHiveOverview(client, {
-    hiveId: input.hive.id,
-    correlationId: input.correlationId,
-    includePreview: false,
-  });
-
   const deps = createLiveHiveVaultUploadAdapterDeps(client, input.correlationId);
   const listed = await listHiveSourceDocumentsWithV3Vault(deps, {
     ownerUserId: input.userId,
@@ -109,6 +103,14 @@ export async function loadHiveBoard(
     correlationId: input.correlationId,
   });
   const documents = listed.sourceDocuments;
+  const gapUploads = parseGapUploadLinks(documents);
+
+  const overview = await loadHiveOverview(client, {
+    hiveId: input.hive.id,
+    correlationId: input.correlationId,
+    includePreview: false,
+    gapUploads,
+  });
 
   let intents: IntentRow[] = [];
   const { data: intentRows } = await client
@@ -180,7 +182,7 @@ export async function loadHiveBoard(
       unreadableDocuments: unreadableFileNames(overview, documents),
       canonicalStudy: overview.canonicalStudy,
       referencedDocuments: overview.referencedDocuments,
-      gapUploads: parseGapUploadLinks(documents),
+      gapUploads,
       acceptedStudyRevisionId: overview.preparation.studyRevision?.id ?? null,
       acceptedStudyRevisionAcceptedAt: overview.preparation.studyRevision?.createdAt ?? null,
       conflictRows,

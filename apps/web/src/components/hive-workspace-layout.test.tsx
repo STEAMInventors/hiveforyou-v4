@@ -39,9 +39,48 @@ const NO_STUDY: HiveSummary = {
   study: null,
 };
 
+const HEADER_PROPS = {
+  hiveKind: "client" as const,
+  startingView: "clients" as const,
+};
+
 afterEach(cleanup);
 
 describe("HivePageHeader", () => {
+  it("shows the way-back link above the hive name", () => {
+    render(
+      <HivePageHeader
+        hiveId={HIVE_ID}
+        hiveName="Widget batch review"
+        hiveDescription=""
+        summary={WITH_STUDY}
+        onStudyTab={false}
+        {...HEADER_PROPS}
+      />,
+    );
+    const back = screen.getByTestId("hive-list-back");
+    expect(back.textContent).toContain("All clients");
+    expect(back.getAttribute("href")).toBe("/hives?view=all");
+    expect(back.className).toContain("min-h-11");
+  });
+
+  it("hides the missing document chip on the Hive board tab", () => {
+    render(
+      <HivePageHeader
+        hiveId={HIVE_ID}
+        hiveName="Widget batch review"
+        hiveDescription=""
+        summary={WITH_STUDY}
+        onStudyTab={false}
+        hideMissingChip
+        {...HEADER_PROPS}
+      />,
+    );
+    const pills = within(screen.getByTestId("state-bar")).getAllByRole("link");
+    expect(pills.map((pill) => pill.textContent)).not.toContain("2 documents would help complete this review");
+    expect(pills.map((pill) => pill.textContent)).toContain("4 issues to resolve");
+  });
+
   it("shows the name, description, meta line and the state bar of the accepted study", () => {
     render(
       <HivePageHeader
@@ -50,6 +89,7 @@ describe("HivePageHeader", () => {
         hiveDescription="Plan payments and the trustee's objection."
         summary={WITH_STUDY}
         onStudyTab={false}
+        {...HEADER_PROPS}
       />,
     );
     const header = within(screen.getByTestId("hive-page-header"));
@@ -68,13 +108,31 @@ describe("HivePageHeader", () => {
   });
 
   it("links the state bar within the page on the Study tab", () => {
-    render(<HivePageHeader hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" summary={WITH_STUDY} onStudyTab />);
+    render(
+      <HivePageHeader
+        hiveId={HIVE_ID}
+        hiveName="Widget batch review"
+        hiveDescription=""
+        summary={WITH_STUDY}
+        onStudyTab
+        {...HEADER_PROPS}
+      />,
+    );
     const pills = within(screen.getByTestId("state-bar")).getAllByRole("link");
     expect(pills[1]!.getAttribute("href")).toBe("#what-is-missing");
   });
 
   it("says there is no study yet and hides the state bar without one", () => {
-    render(<HivePageHeader hiveId={HIVE_ID} hiveName="Lease renewal" hiveDescription="" summary={NO_STUDY} onStudyTab={false} />);
+    render(
+      <HivePageHeader
+        hiveId={HIVE_ID}
+        hiveName="Lease renewal"
+        hiveDescription=""
+        summary={NO_STUDY}
+        onStudyTab={false}
+        {...HEADER_PROPS}
+      />,
+    );
     expect(screen.getByTestId("hive-meta").textContent).toBe("1 document · No study yet.");
     expect(screen.queryByTestId("state-bar")).toBeNull();
     expect(screen.getByTestId("hive-page-header").querySelectorAll("p")).toHaveLength(1);
@@ -87,7 +145,17 @@ describe("HivePageHeader", () => {
       attention: { level: "ready", sentence: "Everything is read and checked.", counts: {} },
       study: { ...WITH_STUDY.study!, counts: null, targets: null },
     };
-    render(<HivePageHeader hiveId={HIVE_ID} hiveName="Household bills" hiveDescription="" summary={summary} onStudyTab />);
+    render(
+      <HivePageHeader
+        hiveId={HIVE_ID}
+        hiveName="Household bills"
+        hiveDescription=""
+        summary={summary}
+        onStudyTab
+        hiveKind="own"
+        startingView="own"
+      />,
+    );
     expect(screen.getByTestId("hive-meta").textContent).toBe("2 documents · Everything is read and checked.");
     expect(screen.queryByTestId("state-bar")).toBeNull();
   });
@@ -123,7 +191,15 @@ describe("HiveTabNav", () => {
 describe("HiveWorkspaceLayout", () => {
   it("does not duplicate the ask field in the hive pane", () => {
     render(
-      <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" activeTab="study" summary={WITH_STUDY}>
+      <HiveWorkspaceLayout
+        hiveId={HIVE_ID}
+        hiveName="Widget batch review"
+        hiveDescription=""
+        hiveKind="own"
+        startingView="own"
+        activeTab="study"
+        summary={WITH_STUDY}
+      >
         <p>Pane</p>
       </HiveWorkspaceLayout>,
     );
@@ -134,7 +210,15 @@ describe("HiveWorkspaceLayout", () => {
 
   it("uses a white page background", () => {
     const { container } = render(
-      <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" activeTab="documents" summary={WITH_STUDY}>
+      <HiveWorkspaceLayout
+        hiveId={HIVE_ID}
+        hiveName="Widget batch review"
+        hiveDescription=""
+        hiveKind="own"
+        startingView="own"
+        activeTab="documents"
+        summary={WITH_STUDY}
+      >
         <p>Pane</p>
       </HiveWorkspaceLayout>,
     );
