@@ -3,14 +3,28 @@ BEGIN;
 
 CREATE OR REPLACE FUNCTION hive.storage_path_hive_id(p_object_name text)
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 IMMUTABLE
 SET search_path = hive, public, pg_temp
 AS $$
-  SELECT NULLIF(split_part(p_object_name, '/', 2), '')::uuid
+DECLARE
+  v_seg text := NULLIF(split_part(p_object_name, '/', 2), '');
+BEGIN
+  IF v_seg IS NULL
+     OR v_seg !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
+    RETURN NULL;
+  END IF;
+  BEGIN
+    RETURN v_seg::uuid;
+  EXCEPTION
+    WHEN invalid_text_representation THEN
+      RETURN NULL;
+  END;
+END;
 $$;
 
-REVOKE ALL ON FUNCTION hive.storage_path_hive_id(text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION hive.storage_path_hive_id(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION hive.storage_path_hive_id(text) TO authenticated;
 
 DROP POLICY IF EXISTS hive_source_documents_select_member ON storage.objects;
 CREATE POLICY hive_source_documents_select_member ON storage.objects

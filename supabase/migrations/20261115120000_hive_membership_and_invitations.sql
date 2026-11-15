@@ -22,12 +22,6 @@ CREATE TABLE hive.hive_members (
 
 CREATE INDEX idx_hive_members__user_active ON hive.hive_members (user_id) WHERE state = 'active';
 
-DROP TRIGGER IF EXISTS trg_hive_members__set_updated_at ON hive.hive_members;
-CREATE TRIGGER trg_hive_members__set_updated_at
-  BEFORE UPDATE ON hive.hive_members
-  FOR EACH ROW
-  EXECUTE FUNCTION hive.set_updated_at();
-
 -- ---------------------------------------------------------------------------
 -- 2. hive.hive_invitations
 -- ---------------------------------------------------------------------------
@@ -253,6 +247,21 @@ BEGIN
   END IF;
   IF v_role NOT IN ('professional', 'client') THEN
     RAISE EXCEPTION 'invalid_request:role' USING ERRCODE = '22023';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM auth.users u WHERE u.id = v_uid AND lower(u.email) = v_email
+  ) THEN
+    RAISE EXCEPTION 'invalid_request:owner_email' USING ERRCODE = '22023';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM hive.hive_members m
+      JOIN auth.users u ON u.id = m.user_id
+     WHERE m.hive_id = p_hive_id
+       AND m.state IN ('active', 'pending')
+       AND lower(u.email) = v_email
+  ) THEN
+    RAISE EXCEPTION 'invitation_member_exists' USING ERRCODE = '23505';
   END IF;
   IF EXISTS (
     SELECT 1 FROM hive.hive_invitations i
@@ -895,7 +904,7 @@ CREATE OR REPLACE FUNCTION public.list_hive_source_documents(p_hive_id uuid)
 RETURNS json
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = hive, public, pg_temp
 AS $$
 DECLARE
@@ -964,9 +973,12 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION hive.is_hive_member(uuid) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION hive.is_hive_owner(uuid) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION hive.require_hive_member(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION hive.is_hive_member(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION hive.is_hive_owner(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION hive.require_hive_member(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION hive.is_hive_member(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION hive.is_hive_owner(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION hive.require_hive_member(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION hive.require_hive_owner(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION hive.insert_owner_member(uuid, uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION hive.write_membership_audit(uuid, uuid, text, jsonb) FROM PUBLIC, anon, authenticated;

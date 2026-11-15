@@ -764,7 +764,7 @@ CREATE OR REPLACE FUNCTION public.create_intent_request(
 )
 RETURNS json
 LANGUAGE plpgsql
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = hive, public, pg_temp
 AS $$
 DECLARE
@@ -824,7 +824,7 @@ CREATE OR REPLACE FUNCTION public.list_hive_source_documents(p_hive_id uuid)
 RETURNS json
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = hive, public, pg_temp
 AS $$
 DECLARE

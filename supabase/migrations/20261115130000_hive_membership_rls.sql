@@ -28,10 +28,11 @@ CREATE POLICY pol_intent_requests__select__member ON hive.intent_requests
   USING (hive.is_hive_member(hive_id));
 
 DROP POLICY IF EXISTS pol_intent_requests__insert__owner ON hive.intent_requests;
-CREATE POLICY pol_intent_requests__insert__member ON hive.intent_requests
+DROP POLICY IF EXISTS pol_intent_requests__insert__member ON hive.intent_requests;
+CREATE POLICY pol_intent_requests__insert__owner ON hive.intent_requests
   FOR INSERT TO authenticated
   WITH CHECK (
-    hive.is_hive_member(hive_id)
+    hive.is_hive_owner(hive_id)
     AND EXISTS (
       SELECT 1 FROM hive.hives h
        WHERE h.id = hive_id AND h.archived_at IS NULL AND h.deleting_at IS NULL

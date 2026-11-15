@@ -245,7 +245,7 @@ CREATE OR REPLACE FUNCTION public.get_study_tab_view(p_hive_id uuid)
 RETURNS json
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = hive, public, pg_temp
 AS $$
 DECLARE
@@ -316,13 +316,10 @@ BEGIN
     'hiveName', (SELECT h.name FROM hive.hives h WHERE h.id = v_row.hive_id),
     'role', v_row.role,
     'inviterDisplayName', v_inviter_name,
-    'requestedItemCount', (SELECT count(*)::integer FROM hive.intent_requests ir WHERE ir.hive_id = v_row.hive_id),
     'documentCount', v_doc_count,
     'documentsReadCount', v_read_count,
     'documentsReadLabel', CASE WHEN v_doc_count > 0 AND v_read_count = v_doc_count THEN v_doc_count::text || ' documents, read and checked'
-                               WHEN v_doc_count > 0 THEN 'The documents are not read yet' ELSE 'No documents yet' END,
-    'openFindingsCount', 0,
-    'missingItemsCount', 0
+                               WHEN v_doc_count > 0 THEN 'The documents are not read yet' ELSE 'No documents yet' END
   );
 END;
 $$;
@@ -351,11 +348,24 @@ BEGIN
   IF v_row.accepted_at IS NOT NULL THEN RAISE EXCEPTION 'invitation_used' USING ERRCODE = '42501'; END IF;
   IF v_row.expires_at <= now() THEN RAISE EXCEPTION 'invitation_expired' USING ERRCODE = '42501'; END IF;
   IF v_user_email IS DISTINCT FROM v_row.email THEN RAISE EXCEPTION 'invitation_email_mismatch' USING ERRCODE = '42501'; END IF;
+  IF hive.is_hive_owner(v_row.hive_id) THEN
+    RAISE EXCEPTION 'invitation_invalid' USING ERRCODE = '42501';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM hive.hive_members m
+     WHERE m.hive_id = v_row.hive_id AND m.user_id = v_uid AND m.state = 'active'
+  ) THEN
+    RAISE EXCEPTION 'member_already_active' USING ERRCODE = '42501';
+  END IF;
   SELECT h.owner_user_id INTO v_owner FROM hive.hives h WHERE h.id = v_row.hive_id;
   v_member_state := CASE WHEN v_row.role = 'professional' THEN 'pending' ELSE 'active' END;
   INSERT INTO hive.hive_members (hive_id, user_id, role, state, invited_by)
   VALUES (v_row.hive_id, v_uid, v_row.role, v_member_state, v_row.invited_by)
-  ON CONFLICT (hive_id, user_id) DO UPDATE SET role = EXCLUDED.role, state = EXCLUDED.state, invited_by = EXCLUDED.invited_by, updated_at = now();
+  ON CONFLICT (hive_id, user_id) DO UPDATE
+    SET role = CASE WHEN hive.hive_members.state = 'active' THEN hive.hive_members.role ELSE EXCLUDED.role END,
+        state = CASE WHEN hive.hive_members.state = 'active' THEN hive.hive_members.state ELSE EXCLUDED.state END,
+        invited_by = EXCLUDED.invited_by,
+        updated_at = now();
   UPDATE hive.hive_invitations SET accepted_at = now(), accepted_by = v_uid WHERE id = v_row.id;
   v_starting_view := CASE WHEN v_row.role = 'client' THEN 'own' ELSE 'clients' END;
   INSERT INTO hive.user_profiles (user_id, starting_view, created_at, updated_at) VALUES (v_uid, v_starting_view, now(), now()) ON CONFLICT (user_id) DO NOTHING;
@@ -368,7 +378,7 @@ CREATE OR REPLACE FUNCTION public.list_hives()
 RETURNS json
 LANGUAGE plpgsql
 STABLE
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = hive, public, pg_temp
 AS $$
 DECLARE
