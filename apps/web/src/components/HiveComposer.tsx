@@ -23,6 +23,7 @@ export type HiveComposerProps = {
   busy?: boolean;
   /** The intent is already saved with the Hive and can no longer change. */
   intentLocked?: boolean;
+  presentation?: "default" | "landing";
   onIntentTextChange: (value: string) => void;
   onAudienceChange?: (value: string) => void;
   onAddFiles: (files: File[]) => void;
@@ -39,6 +40,7 @@ export function HiveComposer({
   failure = null,
   busy = false,
   intentLocked = false,
+  presentation = "default",
   onIntentTextChange,
   onAudienceChange,
   onAddFiles,
@@ -63,6 +65,73 @@ export function HiveComposer({
   const describedBy = [hintId, intentError ? intentErrorId : null, filesError ? filesErrorId : null]
     .filter(Boolean)
     .join(" ");
+
+  if (presentation === "landing") {
+    return (
+      <form
+        noValidate
+        aria-label="Start a Hive"
+        aria-busy={busy || undefined}
+        className="flex w-full flex-col gap-2 text-left"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!busy) {
+            onSubmit();
+          }
+        }}
+      >
+        <div
+          className={`hive-composer hive-composer--pill box-border w-full bg-line p-0.5 shadow-[0_2px_12px_rgb(31_35_40/0.1)] ${
+            invalid ? "ring-2 ring-coral-deep ring-offset-0" : ""
+          }`}
+        >
+          <div className="flex min-h-14 items-center gap-2.5 rounded-pill bg-paper py-1 pl-5 pr-1.5">
+            <label htmlFor={inputId} className="sr-only">
+              Describe your situation
+            </label>
+            <input
+              id={inputId}
+              type="text"
+              required
+              value={intentText}
+              maxLength={INTENT_TEXT_MAX_LENGTH}
+              aria-invalid={intentError ? true : undefined}
+              aria-describedby={describedBy || undefined}
+              className="min-h-11 min-w-0 flex-1 border-0 bg-transparent p-0 text-[17px] text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-0 focus-visible:outline-none"
+              placeholder="Describe your situation"
+              onChange={(event) => onIntentTextChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <AddFilesButton
+              label="Add documents"
+              disabled={!canAddFiles}
+              onAdd={onAddFiles}
+              className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-pill border-0 bg-mist text-ink transition-colors hover:bg-line disabled:cursor-not-allowed disabled:opacity-45"
+            />
+          </div>
+        </div>
+        <SelectedFileChips files={files} onRemove={onRemoveFile} busy={busy} />
+        {intentError ? (
+          <p id={intentErrorId} className="m-0 text-center text-[14px] text-coral-deep" role="alert">
+            {intentError}
+          </p>
+        ) : null}
+        {filesError ? (
+          <p id={filesErrorId} className="m-0 text-center text-[14px] text-coral-deep" role="alert">
+            {filesError}
+          </p>
+        ) : null}
+        <p id={hintId} className="sr-only">
+          Attach PDF, PNG, JPG or DOCX. Old, partial or out of order is fine.
+        </p>
+      </form>
+    );
+  }
 
   return (
     <form

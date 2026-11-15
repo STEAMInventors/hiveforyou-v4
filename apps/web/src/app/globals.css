@@ -122,8 +122,20 @@
     pointer-events: none;
   }
 
+  .hive-composer:focus-within {
+    background: transparent;
+  }
+
   .hive-composer:focus-within::before {
     opacity: 1;
+  }
+
+  .hive-composer--pill {
+    border-radius: var(--r-pill);
+  }
+
+  .hive-composer--pill::before {
+    border-radius: var(--r-pill);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -145,7 +157,14 @@
     inset: -2px;
     border-radius: 14px;
     padding: 2px;
-    background: conic-gradient(from 200deg, #3b7cf6, #ef5143, #f6b826, #2fa35a, #3b7cf6);
+    background: conic-gradient(
+      from 200deg,
+      var(--color-cell-blue),
+      var(--color-coral),
+      var(--color-honey),
+      var(--color-leaf),
+      var(--color-cell-blue)
+    );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
       linear-gradient(#000 0 0);

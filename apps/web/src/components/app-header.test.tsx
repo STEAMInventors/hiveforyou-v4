@@ -11,6 +11,9 @@ vi.mock("@/server/auth/auth-actions", () => ({
   signOutAction: vi.fn(),
   switchStartingViewAction: vi.fn(),
 }));
+vi.mock("@/lib/source-documents-client", () => ({
+  createIntentRequest: vi.fn().mockResolvedValue({}),
+}));
 
 import { switchStartingViewAction } from "@/server/auth/auth-actions";
 import { accountInitials } from "@/lib/account-initials";
@@ -51,25 +54,26 @@ describe("AppHeader", () => {
     expect(overflowing).toEqual([]);
   });
 
-  it("shows the breadcrumb with the hive name as the current page", () => {
+  it("does not render a breadcrumb", () => {
     pathname = `/hives/${HIVE_ID}/documents`;
     render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} account={account} />);
-    const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
-    expect(crumbs.getByRole("link", { name: "My hives" }).getAttribute("href")).toBe("/hives");
-    const current = crumbs.getByText("Widget batch review");
-    expect(current.getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 
-  it("marks My hives as the current page on the list", () => {
-    render(
-      <AppHeader
-        workspace={null}
-        account={{ initials: null, displayName: null, email: null, startingView: null }}
-      />,
-    );
-    const crumbs = within(screen.getByRole("navigation", { name: "Breadcrumb" }));
-    expect(crumbs.queryByRole("link", { name: "My hives" })).toBeNull();
-    expect(crumbs.getByText("My hives").getAttribute("aria-current")).toBe("page");
+  it("keeps the header logo space hidden on the hive list", () => {
+    pathname = "/hives";
+    render(<AppHeader workspace={null} account={account} />);
+    const home = screen.getByRole("link", { name: "HiveForYou, my hives" });
+    expect(home.className).toContain("invisible");
+    expect(home.getAttribute("href")).toBe("/hives");
+  });
+
+  it("shows the in-hive question pill without a magnifier", () => {
+    pathname = `/hives/${HIVE_ID}/study`;
+    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} account={account} />);
+    expect(screen.getByTestId("hive-header-ask-pill")).toBeTruthy();
+    expect(screen.getByLabelText("Add a question for the next study build")).toBeTruthy();
+    expect(document.querySelector("svg circle")).toBeNull();
   });
 
   it("opens an accessible account menu from the keyboard and returns focus on Escape", () => {

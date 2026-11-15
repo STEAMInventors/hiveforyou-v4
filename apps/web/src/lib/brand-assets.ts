@@ -9,6 +9,7 @@ export const BRAND_ASSETS = {
 
 export const BRAND_LOGO_SIZE = {
   headerHeightPx: 28,
+  landingMainHeightPx: 56,
   landingHeaderHeightPx: 30,
   footerHeightPx: 24,
   markStandalonePx: 48,

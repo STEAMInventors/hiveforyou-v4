@@ -103,20 +103,14 @@ describe("HiveTabNav", () => {
 });
 
 describe("HiveWorkspaceLayout", () => {
-  it("shows the Ask field on Study and Reports, not on Documents", () => {
-    const { rerender } = render(
+  it("does not duplicate the ask field in the hive pane", () => {
+    render(
       <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" activeTab="study" summary={WITH_STUDY}>
         <p>Pane</p>
       </HiveWorkspaceLayout>,
     );
-    const ask = screen.getByRole("textbox", { name: "Ask about these documents" });
-    expect(ask.getAttribute("placeholder")).toBe("Ask about these documents");
-    expect(ask.closest(".hive-ask")).not.toBeNull();
-    rerender(
-      <HiveWorkspaceLayout hiveId={HIVE_ID} hiveName="Widget batch review" hiveDescription="" activeTab="documents" summary={WITH_STUDY}>
-        <p>Pane</p>
-      </HiveWorkspaceLayout>,
-    );
+    expect(screen.queryByRole("textbox", { name: "Add a question for the next study build" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Ask about these documents" })).toBeNull();
+    expect(screen.getByText("Pane")).toBeTruthy();
   });
 });

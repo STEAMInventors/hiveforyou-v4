@@ -6,7 +6,7 @@ import { BRAND_ASSETS, BRAND_LOGO_SIZE } from "@/lib/brand-assets";
 type HiveAppLogoProps = {
   linkHome?: boolean;
   display?: "lockup" | "responsive";
-  size?: "header" | "landing" | "footer";
+  size?: "header" | "landing" | "landingMain" | "footer";
   href?: string;
   ariaLabel?: string;
   className?: string;
@@ -21,11 +21,13 @@ export function HiveAppLogo({
   className = "",
 }: HiveAppLogoProps) {
   const heightPx =
-    size === "landing"
-      ? BRAND_LOGO_SIZE.landingHeaderHeightPx
-      : size === "footer"
-        ? BRAND_LOGO_SIZE.footerHeightPx
-        : BRAND_LOGO_SIZE.headerHeightPx;
+    size === "landingMain"
+      ? BRAND_LOGO_SIZE.landingMainHeightPx
+      : size === "landing"
+        ? BRAND_LOGO_SIZE.landingHeaderHeightPx
+        : size === "footer"
+          ? BRAND_LOGO_SIZE.footerHeightPx
+          : BRAND_LOGO_SIZE.headerHeightPx;
 
   const inner =
     display === "lockup" ? (

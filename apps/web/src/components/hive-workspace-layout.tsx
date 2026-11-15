@@ -3,7 +3,6 @@
 import { useEffect, type ReactNode } from "react";
 
 import { useHiveHeaderWorkspace } from "@/components/app-header";
-import { HiveAskInput } from "@/components/hive-ask-input";
 import { PaneErrorBoundary } from "@/components/pane-error-boundary";
 import { HiveMark } from "@/components/study/HiveMark";
 import { StateBar } from "@/components/study/StateBar";
@@ -84,8 +83,6 @@ export function HiveWorkspaceLayout({
     return () => setWorkspace(null);
   }, [hiveId, hiveName, setWorkspace]);
 
-  const pane = activeTab !== "documents";
-
   return (
     <div className="flex flex-1 flex-col bg-mist">
       <div className="mx-auto w-full max-w-hive px-6 pt-7">
@@ -102,8 +99,7 @@ export function HiveWorkspaceLayout({
       </div>
 
       <div className="mx-auto flex w-full max-w-hive flex-col gap-5 px-6 pb-16 pt-6">
-        {pane ? <HiveAskInput hiveId={hiveId} /> : null}
-        {pane ? (
+        {activeTab !== "documents" ? (
           <PaneErrorBoundary hiveId={hiveId} supportReference={supportReference}>
             {children}
           </PaneErrorBoundary>

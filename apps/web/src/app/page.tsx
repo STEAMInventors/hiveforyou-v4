@@ -1,100 +1,64 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { HiveAppLogo, HiveBrandMark } from "@/components/HiveWordmark";
 import { LandingStart } from "@/components/LandingStart";
-import {
-  COMPACT_PRIMARY_BUTTON_CLASS,
-  COMPACT_SECONDARY_BUTTON_CLASS,
-} from "@/components/button-classes";
-import { CREATE_HIVE_AFTER_SIGN_UP_PATH } from "@/lib/hive-routes";
+import { HiveAppLogo } from "@/components/HiveWordmark";
+import { PILL_PRIMARY_BUTTON_CLASS } from "@/components/button-classes";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 export default async function LandingPage() {
   const auth = await requireAuthenticatedUser();
-  const signedIn = auth.ok;
+  if (auth.ok) {
+    redirect("/hives");
+  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-paper text-ink">
-      <header className="flex items-center justify-between gap-4 border-b border-line px-[clamp(20px,4vw,48px)] py-5">
-        <HiveAppLogo linkHome display="lockup" size="landing" />
-        <nav aria-label="Account" className="flex items-center gap-2">
-          {signedIn ? (
-            <Link href="/hives" className={COMPACT_PRIMARY_BUTTON_CLASS}>
-              My Hives
-            </Link>
-          ) : (
-            <>
-              <Link href="/sign-in" className={COMPACT_SECONDARY_BUTTON_CLASS}>
-                Sign in
-              </Link>
-              <Link
-                href={CREATE_HIVE_AFTER_SIGN_UP_PATH}
-                className={COMPACT_PRIMARY_BUTTON_CLASS}
-              >
-                Get started
-              </Link>
-            </>
-          )}
+      <header className="flex items-center justify-end px-[clamp(16px,3vw,28px)] py-4">
+        <nav aria-label="Account">
+          <Link href="/sign-in" className={PILL_PRIMARY_BUTTON_CLASS}>
+            Sign in
+          </Link>
         </nav>
       </header>
 
       <main className="flex flex-1 flex-col">
-        <section className="mx-auto flex w-full max-w-hero flex-col items-center gap-5 px-[clamp(20px,4vw,48px)] pb-10 pt-[clamp(48px,9vw,112px)] text-center">
-          <HiveBrandMark variant="hero" />
-          <h1 className="m-0 font-brand text-[clamp(36px,6vw,60px)] font-semibold leading-[1.08] tracking-[-0.01em] text-ink [text-wrap:balance]">
-            What are you trying to get done?
-          </h1>
-          <p className="m-0 max-w-[560px] text-[18px] leading-[1.55] text-ink-muted [text-wrap:pretty]">
-            Give Hive the paperwork. Get the work done.
+        <section className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-6 px-5 pb-8 pt-[clamp(40px,10vh,112px)] text-center">
+          <HiveAppLogo display="lockup" size="landingMain" />
+          <p className="m-0 text-[21px] font-normal leading-[1.4] text-ink-muted">
+            What are you working on?
           </p>
-
-          <div className="mt-3 w-full">
-            <LandingStart signedIn={signedIn} />
+          <div className="w-full">
+            <LandingStart />
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-landing px-[clamp(20px,4vw,48px)] pb-16 pt-6">
-          <div className="grid grid-cols-1 border-t border-line md:grid-cols-3">
-            <div className="flex flex-col gap-2 py-7 md:pr-6">
-              <div className="font-brand text-[21px] font-medium text-ink">
-                Upload whatever you have
-              </div>
-              <div className="text-[15px] leading-[1.55] text-ink-muted">
-                Statements, plans, letters, estimates. Duplicates and missing
-                pages are fine; Hive tells you about them.
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 border-t border-line py-7 md:border-l md:border-t-0 md:px-6">
-              <div className="font-brand text-[21px] font-medium text-ink">
-                Hive does the work
-              </div>
-              <div className="text-[15px] leading-[1.55] text-ink-muted">
-                It checks coverage, matches records, calculates step by step and
-                names what&apos;s missing.
-              </div>
-            </div>
-            <div className="flex flex-col gap-2 border-t border-line py-7 md:border-l md:border-t-0 md:pl-6">
-              <div className="font-brand text-[21px] font-medium text-ink">
-                You review, then receive
-              </div>
-              <div className="text-[15px] leading-[1.55] text-ink-muted">
-                Every line in the finished work links to the page it came from.
-              </div>
-            </div>
+        <section className="mx-auto grid w-full max-w-landing grid-cols-1 gap-9 px-6 pb-14 pt-4 min-[720px]:grid-cols-3 min-[720px]:gap-9">
+          <div className="flex flex-col gap-1.5 text-left">
+            <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Upload whatever you have</h2>
+            <p className="m-0 text-[15px] leading-[1.55] text-ink-muted">
+              Letters, notices, statements, forms. Old, partial or out of order is fine.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5 text-left">
+            <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Every point opens its page</h2>
+            <p className="m-0 text-[15px] leading-[1.55] text-ink-muted">
+              HiveForYou reads each page and ties every date, amount and finding to where it came from.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5 text-left">
+            <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">See what is missing</h2>
+            <p className="m-0 text-[15px] leading-[1.55] text-ink-muted">
+              A plain report, the places where documents disagree, and what the records don&apos;t include.
+            </p>
           </div>
         </section>
       </main>
 
-      <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-line px-[clamp(20px,4vw,48px)] py-8">
-        <div className="flex flex-wrap items-center gap-4">
-          <HiveAppLogo display="lockup" size="footer" />
-          <span className="font-brand text-[17px] font-medium text-ink">
-            The complicated, made simple.
-          </span>
-        </div>
+      <footer className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 bg-mist px-[clamp(16px,3vw,28px)] py-4 text-[14px] text-ink-muted">
+        <span className="font-brand font-medium text-ink-muted">The complicated, made simple.</span>
         <span className="text-[12.5px] text-ink-subtle">
-          Your uploaded files stay private to your account. Not legal, financial
-          or medical advice.
+          Your uploaded files stay private to your account. Not legal, financial or medical advice.
         </span>
       </footer>
     </div>
