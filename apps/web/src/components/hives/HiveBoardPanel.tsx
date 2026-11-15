@@ -1,6 +1,6 @@
 "use client";
 
-import type { GetStudyPreparationResponse, HiveBoardModel } from "@hiveforyou/contracts";
+import type { GetStudyPreparationResponse, Hive, HiveBoardModel } from "@hiveforyou/contracts";
 import Link from "next/link";
 
 import { AnalyzeModal } from "@/components/hives/AnalyzeModal";
@@ -9,7 +9,10 @@ import { useStudyPreparation } from "@/components/hives/useStudyPreparation";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { SourceChips } from "@/components/study/SourceChip";
 
+import { HiveBoardPeople } from "@/components/hives/HiveBoardPeople";
+
 type HiveBoardPanelProps = {
+  readonly hive: Hive;
   readonly hiveId: string;
   readonly hiveName: string;
   readonly hiveDescription: string;
@@ -86,6 +89,7 @@ function BoardActionButton({
 }
 
 export function HiveBoardPanel({
+  hive,
   hiveId,
   hiveName,
   hiveDescription,
@@ -250,10 +254,7 @@ export function HiveBoardPanel({
               </li>
             ))}
           </ul>
-          <div className="border-t border-line pt-4">
-            <p className="m-0 text-caption text-graphite">People in this hive</p>
-            <p className="m-0 mt-1 font-semibold text-ink">You · owner</p>
-          </div>
+          <HiveBoardPeople hive={hive} />
           <div className="border-t border-line pt-4">
             <p className="m-0 text-caption text-graphite">What HiveForYou does here</p>
             <p className="m-0 mt-1 text-small leading-relaxed text-graphite">

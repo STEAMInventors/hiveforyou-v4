@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 
-import { PRIMARY_BUTTON_CLASS, QUIET_LINK_CLASS } from "@/components/button-classes";
+import { PRIMARY_BUTTON_CLASS, QUIET_BUTTON_CLASS, QUIET_LINK_CLASS } from "@/components/button-classes";
 import { DocumentDropZone } from "@/components/hives/DocumentDropZone";
 import { SelectedFileChips } from "@/components/hives/SourceFilePicker";
 import {
@@ -23,8 +23,10 @@ const DEFAULT_QUOTA_HINT = "PDF, PNG, JPG or DOCX, up to 25 MB each.";
 export function NewClientHiveForm() {
   const router = useRouter();
   const nameId = useId();
+  const emailId = useId();
   const aboutId = useId();
   const [name, setName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [about, setAbout] = useState("");
   const [files, setFiles] = useState<SelectedSourceFile[]>([]);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -82,9 +84,18 @@ export function NewClientHiveForm() {
     return true;
   };
 
-  const submit = async () => {
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  const submit = async (mode: "create" | "invite") => {
     if (!validate()) {
       return;
+    }
+    if (mode === "invite") {
+      const email = clientEmail.trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) {
+        setFormError("Enter the client's email to send an invitation.");
+        return;
+      }
     }
     const toUpload = files.filter((item) => item.state === "ready");
     if (files.length > 0 && toUpload.length === 0) {
@@ -116,7 +127,23 @@ export function NewClientHiveForm() {
         }
       }
 
-      router.push(hiveDocumentsPath(hiveId));
+      if (mode === "invite") {
+        const email = clientEmail.trim().toLowerCase();
+        await fetch(`/api/v1/hives/${hiveId}/invitations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            role: "client",
+            hiveName: name.trim(),
+            inviterName: "You",
+            requestedItemCount: 0,
+          }),
+        });
+        router.push(`/hives/${hiveId}/board`);
+      } else {
+        router.push(hiveDocumentsPath(hiveId));
+      }
     } catch (error) {
       setFormError(
         error instanceof HiveClientError ? error.message : "Could not create this hive. Try again.",
@@ -126,10 +153,10 @@ export function NewClientHiveForm() {
     }
   };
 
-  const submitLabel =
+  const createLabel =
     uploadableCount > 0
-      ? `Create hive and read ${uploadableCount} ${uploadableCount === 1 ? "document" : "documents"}`
-      : "Create hive";
+      ? `Create hive and add ${uploadableCount} ${uploadableCount === 1 ? "document" : "documents"}`
+      : "Create hive and add documents";
 
   return (
     <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5 px-5 pb-16 pt-[clamp(32px,8vh,80px)]">
@@ -159,6 +186,19 @@ export function NewClientHiveForm() {
         </p>
       ) : null}
 
+      <label htmlFor={emailId} className="flex flex-col gap-1.5 text-[14px] font-medium text-ink">
+        Client&apos;s email
+        <span className="text-[13px] font-normal text-quiet">Needed only to invite them</span>
+        <input
+          id={emailId}
+          type="email"
+          value={clientEmail}
+          onChange={(event) => setClientEmail(event.target.value)}
+          autoComplete="email"
+          className="min-h-12 rounded-control border border-line-strong px-3.5 text-[16px] font-normal text-ink"
+        />
+      </label>
+
       <label htmlFor={aboutId} className="flex flex-col gap-1.5 text-[14px] font-medium text-ink">
         What is it about?
         <input
@@ -180,9 +220,15 @@ export function NewClientHiveForm() {
         </p>
       ) : null}
 
-      <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={busy} onClick={() => void submit()}>
-        {busy ? "Creating…" : submitLabel}
+      <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={busy} onClick={() => void submit("invite")}>
+        {busy ? "Sending…" : "Invite them to upload"}
       </button>
+      <button type="button" className={QUIET_BUTTON_CLASS} disabled={busy} onClick={() => void submit("create")}>
+        {busy ? "Creating…" : createLabel}
+      </button>
+      <p className="m-0 text-center text-[13.5px] leading-snug text-quiet">
+        An invitation emails your client a sign-in link. No password.
+      </p>
       <Link href={MY_HIVES_PATH} className={`${QUIET_LINK_CLASS} self-center`}>
         Cancel
       </Link>

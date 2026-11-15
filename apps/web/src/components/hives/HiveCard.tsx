@@ -62,8 +62,14 @@ type HiveListProps = {
 };
 
 function hiveKicker(hive: Hive): string | null {
+  if (hive.homeKicker) {
+    return hive.homeKicker;
+  }
   if (hive.kind === "own") {
     return "Your own matter";
+  }
+  if (hive.membershipRole === "client" && hive.isOwner !== true && hive.ownerDisplayName) {
+    return `Your hive with ${hive.ownerDisplayName}`;
   }
   const description = hive.description?.trim();
   return description || null;

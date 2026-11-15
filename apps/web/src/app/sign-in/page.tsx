@@ -7,7 +7,7 @@ import { fetchMyProfile } from "@/lib/auth/profile";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type PageProps = {
-  searchParams: Promise<{ next?: string; start?: string; error?: string }>;
+  searchParams: Promise<{ next?: string; start?: string; error?: string; email?: string }>;
 };
 
 export default async function SignInPage({ searchParams }: PageProps) {
@@ -30,5 +30,18 @@ export default async function SignInPage({ searchParams }: PageProps) {
     // Misconfigured local env — still render sign-in UI.
   }
 
-  return <SignInFlow nextPath={next} startClients={startClients} linkError={linkError} />;
+  const inviteEmail =
+    typeof params.email === "string" && params.email.includes("@")
+      ? params.email.trim().toLowerCase()
+      : undefined;
+
+  return (
+    <SignInFlow
+      nextPath={next}
+      startClients={startClients}
+      linkError={linkError}
+      initialEmail={inviteEmail}
+      lockEmail={Boolean(inviteEmail)}
+    />
+  );
 }

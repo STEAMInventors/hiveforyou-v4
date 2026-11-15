@@ -6,6 +6,8 @@ import { isHiveKind } from "./hive-attention";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export type HiveMembershipRole = "owner" | "professional" | "client";
+
 export type Hive = {
   id: string;
   hiveId: string;
@@ -15,6 +17,12 @@ export type Hive = {
   clientRequestId: string;
   createdAt: string;
   updatedAt: string;
+  membershipRole?: HiveMembershipRole;
+  isOwner?: boolean;
+  memberState?: "active" | "pending" | "left" | "removed";
+  ownerDisplayName?: string | null;
+  clientShareStatus?: "invited" | "client_joined" | null;
+  homeKicker?: string | null;
   /** Set while permanent deletion is in progress (My Hives retry card). */
   deletingAt?: string | null;
 };
@@ -141,6 +149,55 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
     }
   }
 
+  let membershipRole: HiveMembershipRole | undefined;
+  const rawRole =
+    typeof record.membershipRole === "string"
+      ? record.membershipRole.trim().toLowerCase()
+      : typeof record.membership_role === "string"
+        ? record.membership_role.trim().toLowerCase()
+        : "";
+  if (rawRole === "owner" || rawRole === "professional" || rawRole === "client") {
+    membershipRole = rawRole;
+  }
+  const isOwner =
+    record.isOwner === true ||
+    record.is_owner === true ||
+    membershipRole === "owner";
+
+  const memberStateRaw =
+    typeof record.memberState === "string"
+      ? record.memberState.trim().toLowerCase()
+      : typeof record.member_state === "string"
+        ? record.member_state.trim().toLowerCase()
+        : "";
+  const memberState =
+    memberStateRaw === "active" ||
+    memberStateRaw === "pending" ||
+    memberStateRaw === "left" ||
+    memberStateRaw === "removed"
+      ? memberStateRaw
+      : undefined;
+  const ownerDisplayName =
+    typeof record.ownerDisplayName === "string"
+      ? record.ownerDisplayName.trim() || null
+      : typeof record.owner_display_name === "string"
+        ? record.owner_display_name.trim() || null
+        : undefined;
+  const homeKicker =
+    typeof record.homeKicker === "string"
+      ? record.homeKicker.trim() || null
+      : typeof record.home_kicker === "string"
+        ? record.home_kicker.trim() || null
+        : undefined;
+  const clientShareRaw =
+    typeof record.clientShareStatus === "string"
+      ? record.clientShareStatus.trim().toLowerCase()
+      : typeof record.client_share_status === "string"
+        ? record.client_share_status.trim().toLowerCase()
+        : "";
+  const clientShareStatus =
+    clientShareRaw === "invited" || clientShareRaw === "client_joined" ? clientShareRaw : undefined;
+
   return {
     id,
     hiveId,
@@ -150,6 +207,11 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
     clientRequestId,
     createdAt,
     updatedAt,
+    ...(membershipRole ? { membershipRole, isOwner } : isOwner ? { isOwner } : {}),
+    ...(memberState ? { memberState } : {}),
+    ...(ownerDisplayName !== undefined ? { ownerDisplayName } : {}),
+    ...(clientShareStatus ? { clientShareStatus } : {}),
+    ...(homeKicker !== undefined ? { homeKicker } : {}),
     ...(deletingAt !== undefined ? { deletingAt } : {}),
   };
 }

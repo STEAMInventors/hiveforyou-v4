@@ -20,9 +20,11 @@ type SignInFlowProps = {
   nextPath: string;
   startClients: boolean;
   linkError?: string | null;
+  initialEmail?: string;
+  lockEmail?: boolean;
 };
 
-export function SignInFlow({ nextPath, startClients, linkError }: SignInFlowProps) {
+export function SignInFlow({ nextPath, startClients, linkError, initialEmail, lockEmail }: SignInFlowProps) {
   const safeNext = safeNextPath(nextPath, "/hives");
   const [requestState, requestAction, requestPending] = useActionState(
     requestSignInCodeAction,
@@ -34,7 +36,7 @@ export function SignInFlow({ nextPath, startClients, linkError }: SignInFlowProp
   );
 
   const [step, setStep] = useState<"email" | "code">("email");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail?.trim().toLowerCase() ?? "");
   const [resendReadyIn, setResendReadyIn] = useState(0);
   const emailId = useId();
   const codeId = useId();
@@ -129,7 +131,8 @@ export function SignInFlow({ nextPath, startClients, linkError }: SignInFlowProp
             autoComplete="email"
             required
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            readOnly={lockEmail === true}
+            onChange={lockEmail ? undefined : (event) => setEmail(event.target.value)}
             error={emailError}
           />
           <div className="flex flex-wrap items-center justify-between gap-3">

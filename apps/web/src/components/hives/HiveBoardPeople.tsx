@@ -1,0 +1,255 @@
+"use client";
+
+import type { Hive } from "@hiveforyou/contracts";
+import { useCallback, useEffect, useId, useState } from "react";
+
+import { PRIMARY_BUTTON_CLASS, QUIET_BUTTON_CLASS } from "@/components/button-classes";
+
+type PersonRow = {
+  userId?: string;
+  role?: string;
+  displayName?: string | null;
+  joined?: boolean;
+  invitationId?: string;
+  email?: string;
+  removeUserId?: string;
+};
+
+type PeopleResponse = {
+  people: PersonRow[];
+  pendingInvitations: PersonRow[];
+};
+
+type HiveBoardPeopleProps = {
+  hive: Hive;
+};
+
+export function HiveBoardPeople({ hive }: HiveBoardPeopleProps) {
+  const [people, setPeople] = useState<PersonRow[]>([]);
+  const [pending, setPending] = useState<PersonRow[]>([]);
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<{ userId: string; label: string } | null>(null);
+  const nameId = useId();
+  const emailId = useId();
+  const isOwner = hive.isOwner ?? hive.membershipRole === "owner";
+  const inviteRole = hive.kind === "client" ? "client" : "professional";
+  const inviteTitle = hive.kind === "client" ? "Invite your client" : "Share with a professional";
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/v1/hives/${hive.id}/people`);
+    if (!res.ok) return;
+    const data = (await res.json()) as PeopleResponse;
+    setPeople(data.people ?? []);
+    setPending(data.pendingInvitations ?? []);
+  }, [hive.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const sendInvite = async () => {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedName || !trimmedEmail.includes("@")) {
+      setErr("Enter a name and an email address.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/v1/hives/${hive.id}/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: trimmedEmail,
+          role: inviteRole,
+          hiveName: hive.name,
+          inviterName: trimmedName,
+        }),
+      });
+      if (!res.ok) {
+        setErr("Could not send the invitation.");
+        return;
+      }
+      setOpen(false);
+      setName("");
+      setEmail("");
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async (invitationId: string) => {
+    await fetch(`/api/v1/hives/${hive.id}/invitations/${invitationId}/revoke`, { method: "POST" });
+    await load();
+  };
+
+  const removeMember = async (userId: string) => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/v1/hives/${hive.id}/people/${userId}/remove`, { method: "POST" });
+      if (!res.ok) {
+        setErr("Could not remove this person.");
+        return;
+      }
+      setRemoveTarget(null);
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  type PeopleRow = {
+    key: string;
+    label: string;
+    status: string;
+    invitationId?: string;
+    removeUserId?: string;
+  };
+
+  const rows: PeopleRow[] = [
+    ...people.map((p) => ({
+      key: p.userId ?? p.email ?? "member",
+      label: p.displayName ?? p.role ?? "Member",
+      status: "joined",
+      removeUserId: p.role !== "owner" && p.userId ? p.userId : undefined,
+    })),
+    ...pending.map((p) => ({
+      key: p.invitationId ?? p.email ?? "pending",
+      label: p.email ?? "Invited",
+      status: "invited, not joined yet",
+      invitationId: p.invitationId,
+    })),
+  ];
+
+  return (
+    <div className="border-t border-line pt-4">
+      <p className="m-0 text-caption text-graphite">People in this hive</p>
+      <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
+        {rows.length === 0 ? (
+          <li className="text-body text-graphite">You · owner</li>
+        ) : (
+          rows.map((row) => (
+            <li key={row.key} className="flex items-center justify-between gap-2 text-body">
+              <span>
+                <span className="font-semibold text-ink">{row.label}</span>
+                <span className="text-graphite"> · {row.status}</span>
+              </span>
+              {isOwner && row.invitationId ? (
+                <button
+                  type="button"
+                  className="min-h-11 text-small text-cell-blue-deep underline"
+                  onClick={() => void revoke(row.invitationId!)}
+                >
+                  Revoke
+                </button>
+              ) : isOwner && row.removeUserId ? (
+                <button
+                  type="button"
+                  className="min-h-11 text-small text-coral-deep underline"
+                  onClick={() => setRemoveTarget({ userId: row.removeUserId!, label: row.label })}
+                >
+                  Remove
+                </button>
+              ) : null}
+            </li>
+          ))
+        )}
+      </ul>
+      {isOwner ? (
+        <button
+          type="button"
+          className={`${QUIET_BUTTON_CLASS} mt-3 min-h-11`}
+          onClick={() => setOpen(true)}
+        >
+          {hive.kind === "client" ? "Invite your client" : "Share with a professional"}
+        </button>
+      ) : null}
+      {removeTarget ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-paper/80 px-5"
+        >
+          <div className="w-full max-w-[400px] rounded-card border border-line bg-paper p-6 shadow-lg">
+            <h2 className="m-0 font-brand text-[22px] font-semibold text-ink">Remove from this hive?</h2>
+            <p className="mt-2 text-small text-graphite">
+              <strong>{removeTarget.label}</strong> will lose access immediately. You can invite them again later.
+            </p>
+            {err ? (
+              <p className="mt-2 text-small text-coral-deep" role="alert">
+                {err}
+              </p>
+            ) : null}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className={PRIMARY_BUTTON_CLASS}
+                disabled={busy}
+                onClick={() => void removeMember(removeTarget.userId)}
+              >
+                Remove person
+              </button>
+              <button type="button" className={QUIET_BUTTON_CLASS} disabled={busy} onClick={() => setRemoveTarget(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {open ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-paper/80 px-5"
+        >
+          <div className="w-full max-w-[400px] rounded-card border border-line bg-paper p-6 shadow-lg">
+            <h2 className="m-0 font-brand text-[22px] font-semibold text-ink">{inviteTitle}</h2>
+            <p className="mt-2 text-small text-graphite">
+              {hive.kind === "client"
+                ? "They get a sign-in link by email and see what you ask for. No password."
+                : "They get a link to a read-only summary, and choose whether to take it on."}
+            </p>
+            <label htmlFor={nameId} className="mt-4 flex flex-col gap-1 text-[14px] font-medium">
+              Name
+              <input
+                id={nameId}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="min-h-11 rounded-control border border-line-strong px-3 text-[16px]"
+              />
+            </label>
+            <label htmlFor={emailId} className="mt-3 flex flex-col gap-1 text-[14px] font-medium">
+              Email
+              <input
+                id={emailId}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="min-h-11 rounded-control border border-line-strong px-3 text-[16px]"
+              />
+            </label>
+            {err ? (
+              <p className="mt-2 text-small text-coral-deep" role="alert">
+                {err}
+              </p>
+            ) : null}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={busy} onClick={() => void sendInvite()}>
+                Send invitation
+              </button>
+              <button type="button" className={QUIET_BUTTON_CLASS} onClick={() => setOpen(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

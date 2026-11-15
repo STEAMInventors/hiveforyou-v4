@@ -963,7 +963,6 @@ export async function openSourceDocumentPageWithV3Vault(
   if (
     !document ||
     document.caseId !== hiveId ||
-    document.ownerUserId !== input.ownerUserId ||
     document.deletedAt !== null ||
     document.lifecycleStatus !== "ACTIVE" ||
     document.uploadStatus !== "UPLOADED"

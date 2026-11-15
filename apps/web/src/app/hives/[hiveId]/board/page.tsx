@@ -47,6 +47,7 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
       summary={loaded.overview.summary}
     >
       <HiveBoardPanel
+        hive={hive}
         hiveId={hive.id}
         hiveName={hive.name}
         hiveDescription={hive.description ?? ""}

@@ -94,6 +94,18 @@ function renderPanel(input: HiveBoardInput, hasDocuments = true) {
   const board = buildHiveBoard(input, NOW);
   render(
     <HiveBoardPanel
+      hive={{
+        id: HIVE_ID,
+        hiveId: HIVE_ID,
+        name: "Widget batch",
+        description: null,
+        kind: "own",
+        clientRequestId: "550e8400-e29b-41d4-a716-446655440000",
+        createdAt: NOW,
+        updatedAt: NOW,
+        isOwner: true,
+        membershipRole: "owner",
+      }}
       hiveId={HIVE_ID}
       hiveName="Widget batch"
       hiveDescription=""
@@ -106,10 +118,17 @@ function renderPanel(input: HiveBoardInput, hasDocuments = true) {
 }
 
 beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify({ people: [], pendingInvitations: [] }), { status: 200 })),
+  );
   rebuildMock.mockClear();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  vi.unstubAllGlobals();
+  cleanup();
+});
 
 describe("HiveBoardPanel", () => {
   it("shows exactly one filled button for an open conflict", () => {

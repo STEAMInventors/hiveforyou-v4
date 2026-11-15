@@ -58,7 +58,7 @@ afterEach(async () => {
 describe("NewClientHiveForm", () => {
   it("validates the client name", () => {
     render(<NewClientHiveForm />);
-    fireEvent.click(screen.getByRole("button", { name: "Create hive" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create hive and add documents" }));
     expect(screen.getByText("Enter the client's name.")).toBeTruthy();
   });
 
@@ -66,10 +66,9 @@ describe("NewClientHiveForm", () => {
     const { createHive } = await import("@/lib/hives-client");
     const { startDocumentReads } = await import("@/lib/source-documents-client");
     render(<NewClientHiveForm />);
-    const [nameInput, aboutInput] = screen.getAllByRole("textbox");
-    fireEvent.change(nameInput, { target: { value: "Alex" } });
-    fireEvent.change(aboutInput, { target: { value: "Benefits" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create hive" }));
+    fireEvent.change(screen.getByLabelText(/Client's name/i), { target: { value: "Alex" } });
+    fireEvent.change(screen.getByLabelText(/What is it about/i), { target: { value: "Benefits" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create hive and add documents" }));
     await waitFor(() => {
       expect(createHive).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -89,12 +88,12 @@ describe("NewClientHiveForm", () => {
   it("uploads valid files and starts reading", async () => {
     const { startDocumentReads } = await import("@/lib/source-documents-client");
     render(<NewClientHiveForm />);
-    const [nameInput] = screen.getAllByRole("textbox");
+    const nameInput = screen.getByLabelText(/Client's name/i);
     fireEvent.change(nameInput, { target: { value: "Alex" } });
     const file = new File(["%PDF"], "notice.pdf", { type: "application/pdf" });
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: "Create hive and read 1 document" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create hive and add 1 document" }));
     await waitFor(() => expect(uploadSelectedSourceFiles).toHaveBeenCalled());
     await waitFor(() => expect(startDocumentReads).toHaveBeenCalled());
     await waitFor(() => expect(push).toHaveBeenCalled());
@@ -103,12 +102,12 @@ describe("NewClientHiveForm", () => {
   it("blocks submit when every chosen file is invalid", async () => {
     const { createHive } = await import("@/lib/hives-client");
     render(<NewClientHiveForm />);
-    const [nameInput] = screen.getAllByRole("textbox");
+    const nameInput = screen.getByLabelText(/Client's name/i);
     fireEvent.change(nameInput, { target: { value: "Alex" } });
     const file = new File(["x"], "notes.txt", { type: "text/plain" });
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: "Create hive" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create hive and add documents" }));
     expect(screen.getByText("Remove the files that aren't supported.")).toBeTruthy();
     expect(createHive).not.toHaveBeenCalled();
   });
@@ -116,12 +115,12 @@ describe("NewClientHiveForm", () => {
   it("still opens the hive when an upload fails", async () => {
     uploadSelectedSourceFiles.mockResolvedValueOnce({ allSettled: false });
     render(<NewClientHiveForm />);
-    const [nameInput] = screen.getAllByRole("textbox");
+    const nameInput = screen.getByLabelText(/Client's name/i);
     fireEvent.change(nameInput, { target: { value: "Alex" } });
     const file = new File(["%PDF"], "notice.pdf", { type: "application/pdf" });
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: "Create hive and read 1 document" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create hive and add 1 document" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/hives/550e8400-e29b-41d4-a716-446655440000/documents"));
   });
 });
