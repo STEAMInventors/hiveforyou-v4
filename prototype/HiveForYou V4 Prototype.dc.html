@@ -226,45 +226,85 @@ textarea:focus,input:focus{outline:none}
 
 <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ false }}">
   <main style="max-width:1160px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-wrap:wrap;gap:40px 48px;align-items:flex-start">
-    <section style="flex:999 1 480px;min-width:0;max-width:700px;display:flex;flex-direction:column;gap:28px">
-      <div style="border:1px solid #E3E6EA;border-radius:16px;padding:24px;box-shadow:0 1px 6px rgba(31,35,40,.08);display:flex;flex-direction:column;gap:12px">
-        <span style="font-size:14px;font-weight:600;color:#1A56C4">Next for you</span>
-        <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:28px;line-height:1.15">{{ nx.title }}</h1>
-        <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">{{ nx.text }}</p>
-        <sc-if value="{{ nx.hasChips }}" hint-placeholder-val="{{ false }}">
-          <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ nx.chips }}" as="c" hint-placeholder-count="2"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+    <section style="flex:999 1 480px;min-width:0;max-width:700px;display:flex;flex-direction:column;gap:30px">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <span style="font-size:14px;color:#4A525C">{{ bd.kicker }}</span>
+        <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px;line-height:1.15">{{ bd.headline }}</h1>
+        <sc-if value="{{ bd.hasProgress }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div role="img" aria-label="{{ bd.progressText }}" style="flex:1 1 220px;max-width:360px;display:flex;gap:4px"><sc-for list="{{ bd.segs }}" as="g" hint-placeholder-count="6"><span style="flex:1;height:6px;border-radius:999px;background:{{ g.bg }}"></span></sc-for></div>
+            <span style="font-size:14px;color:#4A525C">{{ bd.progressText }}</span>
+          </div>
         </sc-if>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
-          <sc-if value="{{ nx.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nx.go }}" style="height:48px;padding:0 26px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer" style-hover="background:#164AA8">{{ nx.btn }}</button></sc-if>
-          <sc-if value="{{ nx.hasAlt }}" hint-placeholder-val="{{ false }}"><button onClick="{{ nx.alt }}" style="height:48px;padding:0 22px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#E3E6EA">{{ nx.altLabel }}</button></sc-if>
-        </div>
       </div>
 
-      <sc-if value="{{ hasReqs }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex;flex-direction:column">
-          <h2 style="margin:0 0 6px;font-size:18px;font-weight:600">{{ reqHead }}</h2>
-          <sc-for list="{{ reqRows }}" as="q" hint-placeholder-count="2">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #E3E6EA">
-              <span style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 260px"><span>{{ q.title }}</span><span style="font-size:14px;color:{{ q.fg }};font-weight:500">{{ q.status }}</span></span>
-              <sc-if value="{{ q.hasAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ q.act }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ q.actLabel }}</button></sc-if>
+      <sc-if value="{{ bd.showNext }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid #E3E6EA;border-radius:16px;padding:24px;box-shadow:0 1px 6px rgba(31,35,40,.08);display:flex;flex-direction:column;gap:12px">
+          <span style="font-size:14px;font-weight:600;color:#1A56C4">Next for you</span>
+          <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:24px;line-height:1.2">{{ nx.title }}</h2>
+          <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">{{ nx.text }}</p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <sc-if value="{{ nx.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nx.go }}" style="height:48px;padding:0 26px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer" style-hover="background:#164AA8">{{ nx.btn }}</button></sc-if>
+            <sc-if value="{{ nx.hasAlt }}" hint-placeholder-val="{{ false }}"><button onClick="{{ nx.alt }}" style="height:48px;padding:0 22px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#E3E6EA">{{ nx.altLabel }}</button></sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ bd.hasNeeds }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <h2 style="margin:0 0 6px;font-size:18px;font-weight:600;color:#1A56C4">Needs you</h2>
+          <sc-for list="{{ bd.needs }}" as="n" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:6px;padding:14px 0;border-top:1px solid #E3E6EA">
+              <span style="font-size:13px;font-weight:600;color:{{ n.kfg }}">{{ n.kind }}</span>
+              <span style="font-size:17px;font-weight:500;line-height:1.35">{{ n.title }}</span>
+              <span style="font-size:15px;line-height:1.5;color:#4A525C">{{ n.detail }}</span>
+              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></sc-if>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:2px">
+                <button onClick="{{ n.f1 }}" style="height:40px;padding:0 18px;border-radius:999px;border:none;background:{{ n.b1bg }};color:{{ n.b1fg }};font-size:14px;font-weight:600;cursor:pointer">{{ n.a1 }}</button>
+                <sc-if value="{{ n.hasA2 }}" hint-placeholder-val="{{ false }}"><button onClick="{{ n.f2 }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ n.a2 }}</button></sc-if>
+              </div>
             </div>
           </sc-for>
         </div>
       </sc-if>
 
-      <div style="display:flex;flex-direction:column;gap:24px">
-        <h2 style="margin:0;font-size:18px;font-weight:600">What the documents show</h2>
-        <sc-if value="{{ noFindings }}" hint-placeholder-val="{{ false }}"><p style="margin:0;color:#4A525C">{{ noFindText }}</p></sc-if>
-        <sc-for list="{{ findings }}" as="f" hint-placeholder-count="3">
-          <div style="display:flex;flex-direction:column;gap:5px">
-            <span style="font-size:13px;font-weight:600;color:{{ f.kfg }}">{{ f.kind }}</span>
-            <button onClick="{{ f.open }}" style="align-self:flex-start;border:none;background:none;padding:0;color:#1A56C4;font-size:19px;font-weight:500;line-height:1.35;text-align:left;cursor:pointer;min-height:28px" style-hover="text-decoration:underline">{{ f.title }}</button>
-            <span style="font-size:15px;line-height:1.55">{{ f.detail }}</span>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-              <sc-for list="{{ f.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for>
-              <sc-if value="{{ f.hasAsk }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.ask }}" style="min-height:32px;border:none;background:none;padding:0 4px;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer">{{ f.askLabel }}</button></sc-if>
-              <sc-if value="{{ f.hasAsked }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#4A525C">{{ f.askedLabel }}</span></sc-if>
+      <sc-if value="{{ bd.hasWaiting }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <h2 style="margin:0;font-size:18px;font-weight:600">{{ bd.waitHead }}</h2>
+          <span style="font-size:14px;color:#4A525C;padding-bottom:6px">{{ bd.waitNote }}</span>
+          <sc-for list="{{ bd.waiting }}" as="w" hint-placeholder-count="2">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:12px 0;border-top:1px solid #E3E6EA">
+              <span style="display:flex;flex-direction:column;gap:2px;flex:1 1 260px;min-width:0"><span style="font-size:16px">{{ w.title }}</span><span style="font-size:14px;color:#4A525C">{{ w.when }}</span></span>
+              <button onClick="{{ w.remind }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Remind now</button>
             </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <h2 style="margin:0;font-size:18px;font-weight:600">What this hive needs</h2>
+        <span style="font-size:14px;color:#4A525C;padding-bottom:6px">{{ bd.checkNote }}</span>
+        <sc-if value="{{ bd.noChecklist }}" hint-placeholder-val="{{ false }}"><p style="margin:0;padding:12px 0;border-top:1px solid #E3E6EA;color:#4A525C">{{ bd.noChecklistText }}</p></sc-if>
+        <sc-for list="{{ bd.checklist }}" as="k" hint-placeholder-count="5">
+          <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid #E3E6EA">
+            <span aria-hidden="true" style="flex:none;width:22px;height:22px;margin-top:1px;border-radius:999px;background:{{ k.dotBg }};border:2px solid {{ k.dot }};display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;box-sizing:border-box">{{ k.mark }}</span>
+            <span style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0">
+              <button onClick="{{ k.open }}" style="align-self:flex-start;border:none;background:none;padding:0;text-align:left;font-size:16px;color:#1F2328;cursor:pointer;line-height:1.4" style-hover="color:#1A56C4">{{ k.title }}</button>
+              <span style="font-size:14px;color:{{ k.fg }};font-weight:500">{{ k.st }}</span>
+            </span>
+            <sc-if value="{{ k.hasAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ k.act }}" style="flex:none;height:36px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ k.actLabel }}</button></sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <h2 style="margin:0 0 6px;font-size:18px;font-weight:600">What happened</h2>
+        <sc-if value="{{ bd.noActivity }}" hint-placeholder-val="{{ false }}"><p style="margin:0;color:#4A525C">Nothing yet.</p></sc-if>
+        <sc-for list="{{ bd.activity }}" as="e" hint-placeholder-count="4">
+          <div style="display:flex;gap:12px;padding:8px 0">
+            <span style="flex:none;width:118px;font-size:13px;color:#6B737D;padding-top:2px">{{ e.t }}</span>
+            <span style="font-size:15px;line-height:1.5"><span style="font-weight:600;color:{{ e.whoFg }}">{{ e.who }}</span> {{ e.txt }}</span>
           </div>
         </sc-for>
       </div>
@@ -283,6 +323,20 @@ textarea:focus,input:focus{outline:none}
         <span style="font-weight:600">{{ partyLine }}</span>
         <sc-if value="{{ hasPartyAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ partyAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ partyActLabel }}</button></sc-if>
         <sc-if value="{{ hasPeek }}" hint-placeholder-val="{{ false }}"><button onClick="{{ peek }}" style="align-self:flex-start;min-height:40px;border:none;background:none;padding:0;color:#1A56C4;font-size:15px;font-weight:500;cursor:pointer">{{ peekLabel }}</button></sc-if>
+      </div>
+      <sc-if value="{{ bd.showReminders }}" hint-placeholder-val="{{ false }}">
+        <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:8px">
+          <span style="font-size:13px;color:#4A525C">Automatic reminders</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <span style="font-size:15px">{{ bd.remindLine }}</span>
+            <button onClick="{{ bd.toggleRemind }}" role="switch" aria-checked="{{ bd.remindOnStr }}" aria-label="Automatic reminders" style="flex:none;width:48px;height:28px;border-radius:999px;border:none;background:{{ bd.remindBg }};position:relative;cursor:pointer"><span style="position:absolute;top:3px;left:{{ bd.remindKnob }};width:22px;height:22px;border-radius:999px;background:#fff"></span></button>
+          </div>
+          <span style="font-size:13px;color:#6B737D;line-height:1.5">Counts and a link only. Reminders never include what is in the documents.</span>
+        </div>
+      </sc-if>
+      <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:4px">
+        <span style="font-size:13px;color:#4A525C">What HiveForYou does here</span>
+        <span style="font-size:14px;line-height:1.55;color:#4A525C">Checks each upload when it arrives, asks again if a page is missing or unreadable, reminds on schedule, and flags anything that needs you. It never gives advice; questions about the matter come to you.</span>
       </div>
     </aside>
   </main>
@@ -333,6 +387,7 @@ textarea:focus,input:focus{outline:none}
           <span style="font-size:14px;color:#4A525C">{{ cv.pos }}</span>
           <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px;line-height:1.12">{{ cv.title }}</h1>
           <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.5">{{ cv.sub }}</p>
+          <sc-if value="{{ cv.hasProblem }}" hint-placeholder-val="{{ false }}"><div role="alert" style="padding:12px 14px;border-radius:12px;background:#FDEDEB;color:#B33A2E;font-size:15px;line-height:1.5">{{ cv.problem }}</div></sc-if>
           <div style="display:flex;flex-direction:column;gap:12px;padding-top:14px">
             <button onClick="{{ cv.photo }}" style="height:56px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-size:17px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>Take a photo</button>
             <input type="file" id="cv-file" onChange="{{ cv.onFile }}" style="display:none">
@@ -1000,6 +1055,18 @@ class Component extends DCLogic {
     ask('h-medicaid', 'medicaid', 'x4', 'received', 'Checking 4421, April to June 2023.pdf', 'Ruth Ortiz');
     ask('h-medicaid', 'medicaid', 'x6', 'sent', null, 'Ruth Ortiz');
     ask('h-iep', 'iep', 'y2', 'sent', null, 'Maya Chen');
+    live['h-medicaid'].activity = [
+      { t: 'Nov 10', who: 'You', txt: 'invited Ruth Ortiz and asked for 2 items' },
+      { t: 'Nov 11', who: 'Ruth', txt: 'joined the hive' },
+      { t: 'Nov 13', who: 'HiveForYou', txt: 'reminded Ruth about 2 items' },
+      { t: 'Today, 9:42 AM', who: 'Ruth', txt: 'sent Checking 4421, April to June 2023.pdf' },
+      { t: 'Today, 9:42 AM', who: 'HiveForYou', txt: 'checked it: 3 pages, every page readable, dates match the request' }
+    ];
+    live['h-medicaid'].requests.find(r => r.xid === 'x6').reminded = 'Nov 13';
+    live['h-iep'].activity = [
+      { t: 'Yesterday, 4:15 PM', who: 'You', txt: 'invited Maya Chen and asked for 1 item' },
+      { t: 'Today, 8:00 AM', who: 'HiveForYou', txt: 'Maya hasn’t opened the invitation yet' }
+    ];
     this.setState({ ready: true, hives, live });
   }
 
@@ -1018,7 +1085,7 @@ class Component extends DCLogic {
     s.exceptions.forEach(x => { ex[x.id] = { status: 'open', note: '', history: [{ t: 'Earlier', txt: 'Found by Hive' }] }; });
     const docStatus = {};
     if (loaded) s.docs.forEach(d => { docStatus[d.id] = 'done'; });
-    return { loaded, docStatus, uploads: [], tasks, ex, revealed: {}, decisions: [], rev: s.studyRev, revs: s.studyRevs.slice(), pending: 0, reports: [], selReport: 0, requests: [], questions: [] };
+    return { loaded, docStatus, uploads: [], tasks, ex, revealed: {}, decisions: [], rev: s.studyRev, revs: s.studyRevs.slice(), pending: 0, reports: [], selReport: 0, requests: [], questions: [], activity: [], remindersOn: true };
   }
 
   hive() { return (this.state.hives || []).find(h => h.id === this.state.hiveId); }
@@ -1242,6 +1309,7 @@ class Component extends DCLogic {
     this.updLive(h.id, l => {
       if (l.requests.some(r => r.xid === xid && ['sent', 'received', 'na'].includes(r.status))) return;
       l.requests.push(this.mkReq(s, xid, 'sent')); l.ex[xid].status = 'requested'; l.ex[xid].history.push({ t: this.now(), txt: 'Asked ' + h.client.name });
+      l.activity.push({ t: this.now(), who: 'You', txt: 'asked ' + who + ' for “' + (s.exceptions.find(e => e.id === xid).request || '').replace(/\.$/, '') + '”' });
     });
     this.toast('Asked ' + who + '. It is on their to-do now.');
   }
@@ -1251,6 +1319,7 @@ class Component extends DCLogic {
     const h = this.hive(); const s = this.D().S[h.scen];
     if (iv.kind === 'client') {
       this.updHive(h.id, x => { x.client = { name, email, status: 'invited' }; return x; });
+      this.updLive(h.id, l => { l.activity.push({ t: this.now(), who: 'You', txt: 'invited ' + name }); });
       this.updLive(h.id, l => {
         if (iv.ask && !l.requests.some(r => r.xid === iv.ask)) { l.requests.push(this.mkReq(s, iv.ask, 'sent')); l.ex[iv.ask].status = 'requested'; l.ex[iv.ask].history.push({ t: this.now(), txt: 'Asked ' + name }); }
         if (!l.requests.some(r => r.status === 'sent')) l.requests.push(this.genReq());
@@ -1263,30 +1332,45 @@ class Component extends DCLogic {
   }
   acceptReq(rid) {
     const h = this.hive(); const r = this.state.live[h.id].requests.find(x => x.id === rid);
-    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'accepted'; });
+    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'accepted'; l.activity.push({ t: this.now(), who: 'You', txt: 'accepted ' + r.file }); });
     if (r.xid) this.setEx(r.xid, 'received', r.file);
     else this.toast('Accepted. It joins the Study at the next build.');
   }
   acceptNa(rid) {
     const h = this.hive(); const r = this.state.live[h.id].requests.find(x => x.id === rid);
-    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'closed'; });
+    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'closed'; l.activity.push({ t: this.now(), who: 'You', txt: 'accepted that “' + r.title + '” isn’t available' }); });
     if (r.xid) this.setEx(r.xid, 'na', h.client.name + ': ' + r.reason);
     else this.toast('Noted.');
   }
   askAgain(rid) {
     const h = this.hive();
-    this.updLive(h.id, l => { const r = l.requests.find(x => x.id === rid); r.status = 'sent'; r.file = null; r.reason = ''; });
+    this.updLive(h.id, l => { const r = l.requests.find(x => x.id === rid); r.status = 'sent'; r.file = null; r.reason = ''; l.activity.push({ t: this.now(), who: 'You', txt: 'asked ' + this.firstName(h.client.name) + ' again for “' + r.title + '”' }); });
     this.toast('Asked again. ' + this.firstName(h.client.name) + ' sees it on their to-do.');
   }
-  remind() { const h = this.hive(); this.toast('Reminder sent to ' + this.firstName(h.client.name) + '. Prototype: nothing is sent.'); }
+  remind(rid) {
+    const h = this.hive(); const who = this.firstName(h.client.name);
+    this.updLive(h.id, l => { const r = rid && l.requests.find(x => x.id === rid); if (r) r.reminded = this.now(); l.activity.push({ t: this.now(), who: 'You', txt: 'reminded ' + who + (r ? ' about “' + r.title + '”' : '') }); });
+    this.toast('Reminder sent to ' + who + '. Prototype: nothing is sent.');
+  }
   clientUpload(hid, rid, fname) {
-    const h = this.state.hives.find(x => x.id === hid);
+    const h = this.state.hives.find(x => x.id === hid); const first = this.firstName(h.client.name);
+    const r0 = this.state.live[hid].requests.find(x => x.id === rid);
+    const blurry = r0.xid === 'x6' && !r0.retake;
     this.updLive(hid, l => {
-      const r = l.requests.find(x => x.id === rid); r.status = 'received'; r.t = this.now();
-      r.file = fname || ('Photo of ' + r.title.charAt(0).toLowerCase() + r.title.slice(1) + '.jpg');
-      l.uploads.push({ name: r.file, size: 'From ' + h.client.name });
+      const r = l.requests.find(x => x.id === rid);
+      const file = fname || ('Photo of ' + r.title.charAt(0).toLowerCase() + r.title.slice(1) + '.jpg');
+      if (blurry) {
+        r.retake = true; r.problem = 'Page 2 of 3 looks blurry. Please take it again in good light, with the whole page in view.';
+        l.activity.push({ t: this.now(), who: 'HiveForYou', txt: 'checked ' + first + '’s photo of “' + r.title + '”: page 2 was blurry, so asked for a new one' });
+        return;
+      }
+      r.status = 'received'; r.problem = ''; r.t = this.now(); r.file = file;
+      l.uploads.push({ name: file, size: 'From ' + h.client.name });
+      l.activity.push({ t: this.now(), who: first, txt: 'sent ' + file });
+      l.activity.push({ t: this.now(), who: 'HiveForYou', txt: 'checked it: every page readable' });
     });
     this.updHive(hid, x => { x.last = this.now(); return x; });
+    this.toast(blurry ? 'Page 2 looks blurry. Please take it again.' : 'Checked: every page is readable.');
   }
 
   btn(label, fn, kind, dis, reason) {
@@ -1404,7 +1488,7 @@ class Component extends DCLogic {
       const vis = this.visEx(s, l);
       v.hiveTitle = h.title; v.goal = goal; v.deliverable = deliverable;
       const openN = vis.filter(x => l.ex[x.id].status === 'open').length;
-      v.tabs = [['overview', 'Overview', ''], ['documents', 'Documents', l.loaded ? String(s.docs.length + l.uploads.length) : (l.uploads.length ? String(l.uploads.length) : '')], ['study', 'Study', l.loaded && openN ? openN + ' open' : ''], ['reports', 'Reports', l.reports.length ? String(l.reports.length) : '']].map(([k, label, count]) => ({ label, count, bd: st.tab === k ? '#3B7CF6' : 'transparent', fg: st.tab === k ? '#1F2328' : '#4A525C', onClick: () => this.setState({ tab: k, drawer: null }) }));
+      v.tabs = [['overview', 'Hive board', ''], ['documents', 'Documents', l.loaded ? String(s.docs.length + l.uploads.length) : (l.uploads.length ? String(l.uploads.length) : '')], ['study', 'Study', l.loaded && openN ? openN + ' open' : ''], ['reports', 'Reports', l.reports.length ? String(l.reports.length) : '']].map(([k, label, count]) => ({ label, count, bd: st.tab === k ? '#3B7CF6' : 'transparent', fg: st.tab === k ? '#1F2328' : '#4A525C', onClick: () => this.setState({ tab: k, drawer: null }) }));
       v.isDocs = st.tab === 'documents'; v.isStudy = st.tab === 'study'; v.isReports = st.tab === 'reports';
       v.hasPending = l.pending > 0;
       v.pendingLabel = l.pending + (l.pending === 1 ? ' decision' : ' decisions') + ' not yet in the Study';
@@ -1654,6 +1738,76 @@ class Component extends DCLogic {
         v.peek = () => this.setState({ screen: 'proview', pv: { hid: h.id, step: p && p.status === 'invited' ? 'email' : 'summary' } });
       }
 
+      // Hive board: the intake job for this hive, built by code from its data
+      const noop = () => {};
+      const reqByX = {}; ovReqs.forEach(r => { if (r.xid) reqByX[r.xid] = r; });
+      const boardItems = [];
+      this.visEx(s, l).filter(x => x.kind === 'missing').forEach(x => boardItems.push({ x, r: reqByX[x.id] || null }));
+      ovReqs.filter(r => !r.xid).forEach(r => boardItems.push({ x: null, r }));
+      const STEP = { done: ['#2FA35A', '#2FA35A', '✓'], check: ['#3B7CF6', '#fff', ''], wait: ['#6B737D', '#fff', ''], todo: ['#EF5143', '#fff', ''] };
+      v.bd = {};
+      const checklist = boardItems.map(({ x, r }) => {
+        const es = x ? l.ex[x.id].status : null;
+        let st, fg, step, act = null, actLabel = '';
+        if (r && r.status === 'received') { step = 'check'; st = ovWho + ' sent it. It needs your check.'; fg = '#1A56C4'; act = () => this.acceptReq(r.id); actLabel = 'Accept'; }
+        else if (r && r.status === 'na') { step = 'check'; st = ovWho + ' says it isn’t available.'; fg = '#B33A2E'; act = () => this.acceptNa(r.id); actLabel = 'Accept'; }
+        else if (r && r.status === 'sent') { step = 'wait'; st = 'Asked' + (r.t && r.t !== 'Earlier' ? ' ' + r.t.replace('Today, ', 'today at ') : '') + '. Waiting on ' + ovWho + '.'; fg = '#4A525C'; }
+        else if (r && r.status === 'accepted') { step = 'done'; st = 'In and checked.'; fg = '#197040'; }
+        else if (r && r.status === 'closed') { step = 'done'; st = 'Not available. Noted.'; fg = '#4A525C'; }
+        else if (es && es !== 'open' && es !== 'requested') { step = 'done'; st = es === 'received' ? 'In and checked.' : es === 'na' ? 'Not available. Noted.' : this.XS[es] || 'Settled.'; fg = es === 'na' ? '#4A525C' : '#197040'; }
+        else if (es === 'requested') { step = 'wait'; st = 'Request drafted, not sent.'; fg = '#4A525C'; }
+        else { step = 'todo'; st = 'Not asked yet.'; fg = '#B33A2E'; if (proSeat && h.client) { act = () => this.askClient(x.id); actLabel = 'Ask ' + ovWho; } else { act = toTab('documents'); actLabel = 'Add it'; } }
+        const m = STEP[step];
+        return { title: x ? (x.request || x.title).replace(/\.$/, '') : r.title, st, fg, step, dot: m[0], dotBg: step === 'done' ? m[0] : '#fff', mark: m[2], hasAct: !!act, act: act || noop, actLabel, open: x ? () => openDrawer('ex', x.id) : noop };
+      });
+      const doneN = checklist.filter(c => c.step === 'done').length;
+      v.bd.checklist = checklist;
+      v.bd.noChecklist = checklist.length === 0;
+      v.bd.noChecklistText = l.loaded ? 'Nothing is missing from these records.' : 'The list appears once the documents are read.';
+      v.bd.checkNote = checklist.length ? doneN + ' of ' + checklist.length + ' in, from what the documents refer to or usually include.' : 'From what the documents refer to or usually include.';
+      v.bd.hasProgress = checklist.length > 0;
+      v.bd.progressText = doneN + ' of ' + checklist.length + ' in';
+      const segOrder = { done: 0, check: 1, wait: 2, todo: 3 };
+      v.bd.segs = checklist.map(c => c.step).sort((p, q) => segOrder[p] - segOrder[q]).map(sg => ({ bg: sg === 'done' ? '#2FA35A' : sg === 'check' ? '#3B7CF6' : '#E3E6EA' }));
+
+      const needs = [];
+      ovReqs.filter(r => r.status === 'received').forEach(r => needs.push({ kind: 'Sent by ' + ovWho, kfg: '#1A56C4', title: r.title, detail: 'File: ' + r.file + '. HiveForYou checked it: every page is readable.', f1: () => this.acceptReq(r.id), a1: 'Accept', f2: () => this.askAgain(r.id), a2: 'Ask again' }));
+      ovReqs.filter(r => r.status === 'na').forEach(r => needs.push({ kind: 'Not available', kfg: '#B33A2E', title: r.title, detail: ovWho + ' says: “' + r.reason + '”', f1: () => this.acceptNa(r.id), a1: 'Accept', f2: () => this.askAgain(r.id), a2: 'Ask again' }));
+      if (l.pending) needs.push({ kind: 'Study', kfg: '#7A5200', title: l.pending + (l.pending === 1 ? ' decision is' : ' decisions are') + ' not yet in the Study', detail: 'Accept to build revision ' + (l.rev + 1) + '. The source documents never change.', f1: () => this.acceptStudy(), a1: 'Accept into Study' });
+      ovOpen.filter(x => x.kind !== 'missing').forEach(x => needs.push({ kind: this.KD[x.kind][0], kfg: this.KD[x.kind][2], title: x.title, detail: x.detail, chips: this.chips(scen, x.ev), f1: () => openDrawer('ex', x.id), a1: 'Review' }));
+      v.bd.needs = needs.map((n, i) => ({ ...n, chips: n.chips || [], hasChips: !!(n.chips && n.chips.length), hasA2: !!n.a2, f2: n.f2 || noop, a2: n.a2 || '', b1bg: i === 0 ? '#1A56C4' : '#F4F6F8', b1fg: i === 0 ? '#fff' : '#1F2328' }));
+      v.bd.hasNeeds = needs.length > 0;
+      v.bd.showNext = needs.length === 0;
+
+      const waiting = ovReqs.filter(r => r.status === 'sent');
+      v.bd.hasWaiting = proSeat && !!h.client && waiting.length > 0;
+      v.bd.waitHead = 'Waiting on ' + ovWho;
+      v.bd.waitNote = l.remindersOn ? 'HiveForYou reminds ' + ovWho + ' every 3 days until these arrive.' : 'Automatic reminders are off.';
+      v.bd.waiting = waiting.map(r => ({ title: r.title, when: 'Asked ' + (r.t === 'Earlier' ? 'earlier' : (r.t || '').replace('Today, ', 'today at ')) + (r.reminded ? ' · reminded ' + r.reminded.replace('Today, ', 'today at ') : ''), remind: () => this.remind(r.id) }));
+
+      v.bd.showReminders = proSeat && !!h.client && h.client.status !== 'none';
+      v.bd.remindLine = l.remindersOn ? 'On, every 3 days' : 'Off';
+      v.bd.remindOnStr = l.remindersOn ? 'true' : 'false';
+      v.bd.remindBg = l.remindersOn ? '#1A56C4' : '#B4B9C0';
+      v.bd.remindKnob = l.remindersOn ? '23px' : '3px';
+      v.bd.toggleRemind = () => { const on = !l.remindersOn; this.updLive(h.id, ll => { ll.remindersOn = on; ll.activity.push({ t: this.now(), who: 'You', txt: on ? 'turned automatic reminders on' : 'turned automatic reminders off' }); }); };
+
+      const acts = (l.activity || []).slice().reverse().slice(0, 8);
+      v.bd.activity = acts.map(e => ({ t: e.t, who: e.who, txt: e.txt, whoFg: e.who === 'HiveForYou' ? '#1A56C4' : '#1F2328' }));
+      v.bd.noActivity = acts.length === 0;
+
+      const allIn = l.loaded && checklist.length > 0 && doneN === checklist.length;
+      v.bd.kicker = proSeat ? 'Intake for ' + h.title : 'Your hive';
+      v.bd.headline = needs.length ? needs.length + (needs.length === 1 ? ' thing needs you' : ' things need you')
+        : v.bd.hasWaiting ? 'Waiting on ' + ovWho + ' for ' + waiting.length + (waiting.length === 1 ? ' item' : ' items')
+        : !ovAtt.started ? 'Nothing is in yet'
+        : allIn || (l.loaded && !checklist.length) ? 'Everything is in and checked'
+        : !l.loaded ? 'Reading the documents'
+        : checklist.length - doneN + ' still to come';
+      if (v.bd.showNext && (allIn || (l.loaded && !checklist.length && !ovAtt.waiting))) {
+        v.nx = { ...v.nx, title: 'Ready for your review', text: 'Every item is in and checked. The handoff summary shows where this hive stands, with each point linked to its page.', btn: 'Open the handoff summary', hasBtn: true, go: () => { this.setState({ tab: 'reports' }); this.toast('Prototype: the handoff summary arrives with the board build.'); }, hasAlt: false, chips: [], hasChips: false };
+      }
+
       // Modal
       if (st.modal) {
         const x = s.exceptions.find(y => y.id === st.modal.xid);
@@ -1711,7 +1865,7 @@ class Component extends DCLogic {
         back: () => this.setState({ screen: 'hive', cv: null, tab: 'overview' }),
         isEmail: cv.step === 'email', isWelcome: cv.step === 'welcome', isTodo: cv.step === 'todo' && !!cur, isNa: cv.step === 'na' && !!cur, isDone: (cv.step === 'todo' || cv.step === 'na') && !cur,
         countWord: word(open.length), subject: u.name + ' needs ' + word(open.length) + ' from you',
-        openLink: () => { this.updHive(ch.id, x => { x.client = { ...x.client, status: 'joined' }; return x; }); setCv({ step: 'welcome' }); },
+        openLink: () => { this.updHive(ch.id, x => { x.client = { ...x.client, status: 'joined' }; return x; }); this.updLive(ch.id, ll => { ll.activity.push({ t: this.now(), who: this.firstName(ch.client.name), txt: 'joined the hive' }); }); setCv({ step: 'welcome' }); },
         start: () => setCv({ step: 'todo' }),
         bars: reqs.map(r => ({ bg: r.status !== 'sent' ? '#1A56C4' : cur && r.id === cur.id ? '#3B7CF6' : '#E3E6EA' })),
         pos: cur ? (n - open.length + 1) + ' of ' + n : '',
@@ -1720,7 +1874,8 @@ class Component extends DCLogic {
         onFile: e => { const f = e.target.files && e.target.files[0]; if (cur) this.clientUpload(ch.id, cur.id, f ? f.name : null); e.target.value = ''; },
         noHave: () => setCv({ step: 'na', reason: '', err: '' }),
         reason: cv.reason || '', onReason: e => setCv({ reason: e.target.value, err: '' }), hasErr: !!cv.err, err: cv.err || '',
-        sendNa: () => { const r = (cv.reason || '').trim(); if (!r) { setCv({ err: 'Tell ' + proFirst + ' why, in a few words.' }); return; } this.updLive(ch.id, ll => { const q = ll.requests.find(x => x.id === cur.id); q.status = 'na'; q.reason = r; q.t = this.now(); }); setCv({ step: 'todo', reason: '' }); },
+        sendNa: () => { const r = (cv.reason || '').trim(); if (!r) { setCv({ err: 'Tell ' + proFirst + ' why, in a few words.' }); return; } this.updLive(ch.id, ll => { const q = ll.requests.find(x => x.id === cur.id); q.status = 'na'; q.reason = r; q.t = this.now(); ll.activity.push({ t: this.now(), who: this.firstName(ch.client.name), txt: 'said “' + q.title + '” isn’t available' }); }); setCv({ step: 'todo', reason: '' }); },
+        hasProblem: !!(cur && cur.problem), problem: cur && cur.problem ? cur.problem : '',
         cancelNa: () => setCv({ step: 'todo', err: '' }),
         next: open.slice(1).map(r => ({ title: r.title })), hasNext: open.length > 1,
         sent: reqs.map(r => ({ title: r.title, status: r.status === 'na' || r.status === 'closed' ? 'You said you don’t have it' : r.status === 'accepted' ? 'Accepted by ' + proFirst : 'Sent' }))
