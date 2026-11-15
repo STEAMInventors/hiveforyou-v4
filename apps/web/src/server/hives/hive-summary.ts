@@ -20,15 +20,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { StateCounts } from "@/components/study/StateBar";
 import type { DisplayState } from "@/components/study/StatusBadge";
-import { studyStateCounts, studyStateTargets } from "@/components/study/study-summary";
+import { studyDocumentRequestCount, studyStateCounts, studyStateTargets } from "@/components/study/study-summary";
 import { getHiveReports } from "@/server/reports/reports";
 import { loadPackById, logPinnedPackNotFound } from "@/server/pipeline/pack-loader";
 import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation/study-preparation";
 
 /** What the Hive page header and the My hives card show about a Hive. */
+export type HiveIntakeCounts = {
+  total: number;
+  received: number;
+};
+
 export type HiveSummary = {
   documentCount: number;
   attention: HiveAttentionResult;
+  intake: HiveIntakeCounts;
   study: {
     revisionNumber: number;
     acceptedAt: string;
@@ -106,6 +112,25 @@ export function documentPageCounts(preparation: GetStudyPreparationResponse): Re
   );
 }
 
+export function hiveIntakeCounts(
+  preparation: GetStudyPreparationResponse,
+  studyTab: HiveOverview["studyTab"],
+  attentionInput: HiveAttentionInput,
+): HiveIntakeCounts {
+  const documentCount = attentionInput.documentCount;
+  if (documentCount === 0) {
+    return { total: 0, received: 0 };
+  }
+  const view = studyTab?.view;
+  const requestSlots = view ? studyDocumentRequestCount(view) : 0;
+  if (requestSlots > 0) {
+    const openMissing = attentionInput.openMissing;
+    return { total: requestSlots, received: Math.max(0, requestSlots - openMissing) };
+  }
+  const readCount = Math.max(0, documentCount - attentionInput.documentsNotReadCount);
+  return { total: documentCount, received: readCount };
+}
+
 export function summarizeHive(
   preparation: GetStudyPreparationResponse,
   reports: GetHiveReportsResponse | null,
@@ -119,6 +144,7 @@ export function summarizeHive(
   return {
     documentCount: attentionInput.documentCount,
     attention: hiveAttention(attentionInput),
+    intake: hiveIntakeCounts(preparation, studyTab, attentionInput),
     study: revision
       ? {
           revisionNumber: revision.revisionNumber,

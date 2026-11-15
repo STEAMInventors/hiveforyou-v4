@@ -55,60 +55,112 @@ const FALLBACK_ATTENTION: HiveAttentionResult = hiveAttention({
 type HiveListProps = {
   hives: Hive[];
   summaries?: Readonly<Record<string, HiveSummary>>;
-  startingView: "own" | "clients";
+  showColumnHeaders?: boolean;
   onRequestDelete: (hive: Hive) => void;
   onRetryDeletion: (hiveId: string) => Promise<void>;
   onKindChanged: () => void | Promise<void>;
 };
 
-type HiveRowProps = {
+function hiveKicker(hive: Hive): string | null {
+  if (hive.kind === "own") {
+    return "Your own matter";
+  }
+  const description = hive.description?.trim();
+  return description || null;
+}
+
+function intakeLabel(summary: HiveSummary | undefined, attention: HiveAttentionResult): string {
+  const documentCount = summary?.documentCount ?? 0;
+  const intake = summary?.intake ?? { total: 0, received: 0 };
+  if (documentCount === 0) {
+    return "No documents yet";
+  }
+  if (intake.total === 0 && attention.counts.missing === 0) {
+    return "Nothing missing";
+  }
+  if (intake.total > 0) {
+    return `${intake.received} of ${intake.total} in`;
+  }
+  return "Nothing missing";
+}
+
+function IntakeSegments({ summary }: { summary: HiveSummary | undefined }) {
+  const documentCount = summary?.documentCount ?? 0;
+  const intake = summary?.intake ?? { total: 0, received: 0 };
+  const total = intake.total > 0 ? intake.total : documentCount > 0 ? 1 : 0;
+  const received = intake.total > 0 ? intake.received : documentCount > 0 ? 1 : 0;
+  if (total === 0) {
+    return null;
+  }
+  return (
+    <span className="flex gap-[3px]" role="img" aria-label={intakeLabel(summary, summary?.attention ?? FALLBACK_ATTENTION)}>
+      {Array.from({ length: total }, (_, index) => (
+        <span
+          key={index}
+          className={`h-[5px] flex-1 rounded-pill ${index < received ? "bg-leaf" : "bg-line"}`}
+        />
+      ))}
+    </span>
+  );
+}
+
+function HiveRow({
+  hive,
+  summary,
+  onRequestDelete,
+  onKindChanged,
+}: {
   hive: Hive;
   summary: HiveSummary | undefined;
-  startingView: "own" | "clients";
   onRequestDelete: (hive: Hive) => void;
   onKindChanged: () => void | Promise<void>;
-};
-
-function HiveRow({ hive, summary, startingView, onRequestDelete, onKindChanged }: HiveRowProps) {
+}) {
   const attention = summary?.attention ?? FALLBACK_ATTENTION;
   const activity = lastActivity(hive, summary);
-  const kicker =
-    startingView === "clients"
-      ? hive.description?.trim() || "Client hive"
-      : "Your hive";
+  const kicker = hiveKicker(hive);
   const stateParts = formatStateLineParts(attention.counts);
 
   return (
-    <li className="relative flex flex-col gap-0.5 py-0" data-testid="hive-list-row">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="m-0 text-[13px] text-graphite">{kicker}</p>
-          <h2 className="m-0 mt-0.5 text-[20px] font-medium leading-snug">
-            <Link
-              href={hivePath(hive.id)}
-              className="text-cell-blue-deep no-underline hover:underline"
-            >
-              {hive.name}
-            </Link>
-          </h2>
+    <li
+      className="group border-b border-line last:border-b-0"
+      data-testid="hive-list-row"
+    >
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-3 py-4 min-[760px]:flex-nowrap min-[760px]:gap-x-5">
+        <div className="min-w-0 flex-1 basis-[200px]">
+          <Link href={hivePath(hive.id)} className="block rounded-control no-underline hover:bg-mist group-hover:bg-mist -mx-2 px-2 py-1">
+            <p className="m-0 text-[17px] font-semibold text-cell-blue-deep">{hive.name}</p>
+            {kicker ? <p className="m-0 mt-0.5 text-[13px] text-graphite">{kicker}</p> : null}
+          </Link>
         </div>
-        <HiveCardMenu
-          hiveId={hive.id}
-          hiveName={hive.name}
-          hiveKind={hive.kind}
-          onDeleteHive={() => onRequestDelete(hive)}
-          onKindChanged={onKindChanged}
-        />
+        <div className="min-w-0 flex-[2] basis-[260px]">
+          <p className="m-0 text-[15px] leading-relaxed text-ink">{attention.sentence}</p>
+          <p className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-semibold">
+            {stateParts.map((part) => (
+              <span key={part.key} className={part.className}>
+                {part.label}
+              </span>
+            ))}
+          </p>
+        </div>
+        <div className="flex min-w-[150px] flex-col gap-1.5 basis-[150px]">
+          <IntakeSegments summary={summary} />
+          <span className="text-[13px] text-graphite">{intakeLabel(summary, attention)}</span>
+        </div>
+        <div className="ml-auto flex min-w-[110px] items-start gap-2 basis-[110px] min-[760px]:ml-0">
+          {activity ? (
+            <span className="flex-1 text-right text-[13px] text-quiet min-[760px]:block">{activity}</span>
+          ) : (
+            <span className="flex-1" />
+          )}
+          <HiveCardMenu
+            hiveId={hive.id}
+            hiveName={hive.name}
+            hiveKind={hive.kind}
+            onDeleteHive={() => onRequestDelete(hive)}
+            onKindChanged={onKindChanged}
+          />
+        </div>
       </div>
-      <p className="m-0 text-[15px] leading-relaxed text-ink">{attention.sentence}</p>
-      <p className="m-0 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13.5px]">
-        {stateParts.map((part) => (
-          <span key={part.key} className={`font-semibold ${part.className}`}>
-            {part.label}
-          </span>
-        ))}
-        {activity ? <span className="font-normal text-quiet">Last activity {activity}</span> : null}
-      </p>
     </li>
   );
 }
@@ -116,7 +168,7 @@ function HiveRow({ hive, summary, startingView, onRequestDelete, onKindChanged }
 export function HiveList({
   hives,
   summaries = {},
-  startingView,
+  showColumnHeaders = false,
   onRequestDelete,
   onRetryDeletion,
   onKindChanged,
@@ -145,46 +197,58 @@ export function HiveList({
   };
 
   return (
-    <ul className="m-0 flex list-none flex-col gap-7 p-0">
-      {hives.map((hive) => {
-        if (isHiveDeletionPending(hive)) {
-          const retryBusy = retryHiveId === hive.id;
-          const retryError = retryErrorByHiveId[hive.id];
-          return (
-            <li key={hive.id} className="flex flex-col gap-2" data-testid="hive-card-deleting">
-              <StatusBadge state="missing" label="Deletion incomplete" />
-              <h2 className="m-0 break-words font-brand text-section font-semibold text-ink">{hive.name}</h2>
-              <p className="m-0 text-body text-graphite">
-                We couldn&apos;t finish deleting this hive. Try again to remove its files and take it off your list.
-              </p>
-              {retryError ? (
-                <p className="m-0 text-small text-missing-fg" role="alert">
-                  {retryError}
+    <div className="w-full">
+      {showColumnHeaders ? (
+        <div
+          className="hidden min-[760px]:flex gap-5 border-b border-line px-3 pb-2 pt-4 text-[13px] font-semibold text-quiet"
+          data-testid="hive-list-column-headers"
+        >
+          <span className="min-w-0 flex-1 basis-[200px]">Client</span>
+          <span className="min-w-0 flex-[2] basis-[260px]">Where it stands</span>
+          <span className="w-[150px] shrink-0">Intake</span>
+          <span className="w-[110px] shrink-0 text-right">Last activity</span>
+        </div>
+      ) : null}
+      <ul className="m-0 list-none p-0">
+        {hives.map((hive) => {
+          if (isHiveDeletionPending(hive)) {
+            const retryBusy = retryHiveId === hive.id;
+            const retryError = retryErrorByHiveId[hive.id];
+            return (
+              <li key={hive.id} className="flex flex-col gap-2 border-b border-line px-3 py-4" data-testid="hive-card-deleting">
+                <StatusBadge state="missing" label="Deletion incomplete" />
+                <h2 className="m-0 break-words font-brand text-section font-semibold text-ink">{hive.name}</h2>
+                <p className="m-0 text-body text-graphite">
+                  We couldn&apos;t finish deleting this hive. Try again to remove its files and take it off your list.
                 </p>
-              ) : null}
-              <button
-                type="button"
-                className={`${SECONDARY_BUTTON_CLASS} self-start`}
-                disabled={retryBusy}
-                onClick={() => void handleRetry(hive.id)}
-              >
-                {retryBusy ? "Retrying…" : "Retry deletion"}
-              </button>
-            </li>
-          );
-        }
+                {retryError ? (
+                  <p className="m-0 text-small text-missing-fg" role="alert">
+                    {retryError}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className={`${SECONDARY_BUTTON_CLASS} self-start`}
+                  disabled={retryBusy}
+                  onClick={() => void handleRetry(hive.id)}
+                >
+                  {retryBusy ? "Retrying…" : "Retry deletion"}
+                </button>
+              </li>
+            );
+          }
 
-        return (
-          <HiveRow
-            key={hive.id}
-            hive={hive}
-            summary={summaries[hive.id]}
-            startingView={startingView}
-            onRequestDelete={onRequestDelete}
-            onKindChanged={onKindChanged}
-          />
-        );
-      })}
-    </ul>
+          return (
+            <HiveRow
+              key={hive.id}
+              hive={hive}
+              summary={summaries[hive.id]}
+              onRequestDelete={onRequestDelete}
+              onKindChanged={onKindChanged}
+            />
+          );
+        })}
+      </ul>
+    </div>
   );
 }

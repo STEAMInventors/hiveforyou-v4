@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { WelcomeForm } from "@/components/auth/WelcomeForm";
 import { fetchMyProfile } from "@/lib/auth/profile";
+import { suggestedFirstNameFromEmail } from "@/lib/hives/suggested-first-name";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isNextNavigationError, safeNextPath } from "@/server/auth/redirects";
 
@@ -13,6 +14,7 @@ export default async function WelcomePage({ searchParams }: PageProps) {
   const params = await searchParams;
   const next = safeNextPath(params.next, "/hives");
   const preselectClients = params.start === "clients";
+  let defaultFirstName = "";
 
   try {
     const supabase = await createServerSupabaseClient();
@@ -20,6 +22,7 @@ export default async function WelcomePage({ searchParams }: PageProps) {
     if (!userData.user) {
       redirect(`/sign-in?next=${encodeURIComponent(next)}`);
     }
+    defaultFirstName = suggestedFirstNameFromEmail(userData.user.email ?? "");
 
     const { profile, error: profileError } = await fetchMyProfile(supabase);
     if (profileError) {
@@ -35,5 +38,7 @@ export default async function WelcomePage({ searchParams }: PageProps) {
     redirect(`/sign-in?next=${encodeURIComponent(next)}`);
   }
 
-  return <WelcomeForm nextPath={next} preselectClients={preselectClients} />;
+  return (
+    <WelcomeForm nextPath={next} preselectClients={preselectClients} defaultFirstName={defaultFirstName} />
+  );
 }

@@ -13,6 +13,7 @@ const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 
 const WITH_STUDY: HiveSummary = {
   documentCount: 4,
+  intake: { total: 4, received: 2 },
   attention: {
     level: "needs_you",
     sentence: "10 items need you.",
@@ -33,6 +34,7 @@ const WITH_STUDY: HiveSummary = {
 
 const NO_STUDY: HiveSummary = {
   documentCount: 1,
+  intake: { total: 1, received: 0 },
   attention: { level: "needs_you", sentence: "No study yet.", counts: {} },
   study: null,
 };
@@ -81,6 +83,7 @@ describe("HivePageHeader", () => {
   it("hides the state bar while an accepted study has no study view yet", () => {
     const summary: HiveSummary = {
       documentCount: 2,
+      intake: { total: 2, received: 2 },
       attention: { level: "ready", sentence: "Everything is read and checked.", counts: {} },
       study: { ...WITH_STUDY.study!, counts: null, targets: null },
     };

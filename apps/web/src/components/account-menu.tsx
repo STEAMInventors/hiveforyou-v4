@@ -3,8 +3,10 @@
 import { useRouter } from "next/navigation";
 import { type KeyboardEvent, useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 
+import { DisplayNameDialog } from "@/components/account/DisplayNameDialog";
 import type { StartingView } from "@/lib/auth/profile";
 import { startingViewLabel, switchStartingViewLabel } from "@/lib/auth/profile";
+import { QUIET_LINK_CLASS } from "@/components/button-classes";
 import { signOutAction, switchStartingViewAction } from "@/server/auth/auth-actions";
 
 const ITEM_CLASS =
@@ -25,6 +27,7 @@ export type AccountMenuDetails = {
 
 export function AccountMenu({ initials, displayName, email, startingView }: AccountMenuDetails) {
   const [open, setOpen] = useState(false);
+  const [editNameOpen, setEditNameOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -127,7 +130,19 @@ export function AccountMenu({ initials, displayName, email, startingView }: Acco
           onKeyDown={onMenuKeyDown}
         >
           <div className="flex flex-col gap-0.5 px-2 pb-2">
-            {displayName ? <span className="font-semibold text-ink">{displayName}</span> : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {displayName ? <span className="font-semibold text-ink">{displayName}</span> : null}
+              <button
+                type="button"
+                className={`${QUIET_LINK_CLASS} min-h-11 px-0 text-sm`}
+                onClick={() => {
+                  setEditNameOpen(true);
+                  close(false);
+                }}
+              >
+                Edit
+              </button>
+            </div>
             {email ? <span className="text-sm text-ink-muted">{email}</span> : null}
             {startingView ? (
               <span className="text-[13px] text-ink-subtle">{startingViewLabel(startingView)}</span>
@@ -162,6 +177,11 @@ export function AccountMenu({ initials, displayName, email, startingView }: Acco
           </form>
         </div>
       ) : null}
+      <DisplayNameDialog
+        open={editNameOpen}
+        initialName={displayName ?? ""}
+        onClose={() => setEditNameOpen(false)}
+      />
     </div>
   );
 }

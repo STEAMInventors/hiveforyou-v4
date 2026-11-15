@@ -5,6 +5,7 @@ export type StartingView = "own" | "clients";
 export type UserProfile = {
   userId: string;
   startingView: StartingView;
+  displayName: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -26,9 +27,14 @@ export function parseUserProfile(data: unknown): UserProfile | null {
   ) {
     return null;
   }
+  const displayName =
+    typeof row.displayName === "string" && row.displayName.trim()
+      ? row.displayName.trim()
+      : null;
   return {
     userId: row.userId,
     startingView: row.startingView,
+    displayName,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

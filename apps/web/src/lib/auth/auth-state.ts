@@ -9,5 +9,5 @@ export type SignInActionState = AuthActionState & {
   step?: SignInStep;
   email?: string;
   next?: string;
-  field?: "email" | "code" | "startingView";
+  field?: "email" | "code" | "startingView" | "displayName";
 };

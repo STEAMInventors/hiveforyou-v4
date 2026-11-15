@@ -1,5 +1,6 @@
 import {
   requestSignInCodeAction as libRequestSignInCodeAction,
+  setDisplayNameAction as libSetDisplayNameAction,
   setStartingViewAction as libSetStartingViewAction,
   signOutAction as libSignOutAction,
   switchStartingViewAction as libSwitchStartingViewAction,
@@ -28,6 +29,13 @@ export async function setStartingViewAction(
   formData: FormData,
 ): Promise<SignInActionState> {
   return libSetStartingViewAction(prev, formData);
+}
+
+export async function setDisplayNameAction(
+  prev: SignInActionState,
+  formData: FormData,
+): Promise<SignInActionState> {
+  return libSetDisplayNameAction(prev, formData);
 }
 
 export async function signOutAction(): Promise<void> {

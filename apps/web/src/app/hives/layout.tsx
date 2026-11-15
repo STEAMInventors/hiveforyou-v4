@@ -2,13 +2,23 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-header";
 import { accountMenuDetails } from "@/lib/account-shell";
+import { ClientsHomeProvider } from "@/lib/hives/clients-home-context";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 export default async function HivesLayout({ children }: { children: ReactNode }) {
   const session = await requireAuthenticatedUser();
   if (!session.ok) {
-    return <AppShell>{children}</AppShell>;
+    return (
+      <ClientsHomeProvider enabled={false}>
+        <AppShell>{children}</AppShell>
+      </ClientsHomeProvider>
+    );
   }
   const account = await accountMenuDetails(session);
-  return <AppShell account={account}>{children}</AppShell>;
+  const clientsHome = account.startingView === "clients";
+  return (
+    <ClientsHomeProvider enabled={clientsHome}>
+      <AppShell account={account}>{children}</AppShell>
+    </ClientsHomeProvider>
+  );
 }

@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/server/auth/auth-actions", () => ({
   signOutAction: vi.fn(),
   switchStartingViewAction: vi.fn(),
+  setDisplayNameAction: vi.fn(),
 }));
 vi.mock("@/lib/source-documents-client", () => ({
   createIntentRequest: vi.fn().mockResolvedValue({}),
@@ -17,6 +18,8 @@ vi.mock("@/lib/source-documents-client", () => ({
 
 import { switchStartingViewAction } from "@/server/auth/auth-actions";
 import { accountInitials } from "@/lib/account-initials";
+
+import { ClientsHomeProvider } from "@/lib/hives/clients-home-context";
 
 import { AppHeader } from "./app-header";
 
@@ -60,12 +63,30 @@ describe("AppHeader", () => {
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 
-  it("keeps the header logo space hidden on the hive list", () => {
+  it("keeps the header logo hidden on the hive list for the own view", () => {
     pathname = "/hives";
-    render(<AppHeader workspace={null} account={account} />);
+    render(
+      <ClientsHomeProvider enabled={false}>
+        <AppHeader workspace={null} account={{ ...account, startingView: "own" }} />
+      </ClientsHomeProvider>,
+    );
     const home = screen.getByRole("link", { name: "HiveForYou, my hives" });
     expect(home.className).toContain("invisible");
     expect(home.getAttribute("href")).toBe("/hives");
+    expect(screen.queryByTestId("header-find-client")).toBeNull();
+  });
+
+  it("shows the header logo and Find a client on the clients hive list", () => {
+    pathname = "/hives";
+    render(
+      <ClientsHomeProvider enabled>
+        <AppHeader workspace={null} account={account} />
+      </ClientsHomeProvider>,
+    );
+    const home = screen.getByRole("link", { name: "HiveForYou, my hives" });
+    expect(home.className).not.toContain("invisible");
+    expect(screen.getByTestId("header-find-client")).toBeTruthy();
+    expect(screen.getByLabelText("Find a client")).toBeTruthy();
   });
 
   it("shows the in-hive question pill without a magnifier", () => {

@@ -7,9 +7,10 @@ describe("white page background", () => {
   it("uses paper on the root body and AppShell", () => {
     const layout = readFileSync(path.join(__dirname, "../app/layout.tsx"), "utf8");
     const header = readFileSync(path.join(__dirname, "app-header.tsx"), "utf8");
+    const appShell = header.match(/export function AppShell[\s\S]*?^}/m)?.[0] ?? "";
     expect(layout).toContain("bg-paper");
     expect(header).toContain("bg-paper");
-    expect(header).not.toMatch(/AppShell[\s\S]*bg-mist/);
+    expect(appShell).not.toMatch(/bg-mist/);
   });
 
   it("does not use a mist page band on hive workspace or new client screens", () => {

@@ -35,15 +35,17 @@ const CHOICES: Choice[] = [
 type WelcomeFormProps = {
   nextPath: string;
   preselectClients: boolean;
+  defaultFirstName: string;
 };
 
-export function WelcomeForm({ nextPath, preselectClients }: WelcomeFormProps) {
+export function WelcomeForm({ nextPath, preselectClients, defaultFirstName }: WelcomeFormProps) {
   const safeNext = safeNextPath(nextPath, "/hives");
   const [state, formAction, pending] = useActionState(setStartingViewAction, initialState);
   const [selected, setSelected] = useState<StartingView | null>(
     preselectClients ? "clients" : null,
   );
   const [chooseError, setChooseError] = useState(false);
+  const [firstName, setFirstName] = useState(defaultFirstName);
 
   return (
     <SignInShell>
@@ -51,6 +53,23 @@ export function WelcomeForm({ nextPath, preselectClients }: WelcomeFormProps) {
         title="What brings you here?"
         lede="This sets where you start. You can switch any time."
       />
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="welcome-first-name" className="text-sm font-medium text-ink">
+          Your first name
+        </label>
+        <input
+          id="welcome-first-name"
+          type="text"
+          maxLength={60}
+          value={firstName}
+          onChange={(event) => setFirstName(event.target.value)}
+          className="min-h-11 rounded-control border border-line bg-paper px-3 text-[15px] text-ink"
+          autoComplete="given-name"
+        />
+        {state.field === "displayName" && state.error ? (
+          <SignInFieldError message={state.error} />
+        ) : null}
+      </div>
       <div className="flex flex-col gap-3">
         {CHOICES.map((choice) => {
           const pressed = selected === choice.view;
@@ -82,6 +101,7 @@ export function WelcomeForm({ nextPath, preselectClients }: WelcomeFormProps) {
       <form action={formAction} className="m-0">
         <input type="hidden" name="next" value={safeNext} />
         <input type="hidden" name="startingView" value={selected ?? ""} />
+        <input type="hidden" name="displayName" value={firstName.trim()} />
         <button
           type="submit"
           disabled={pending}

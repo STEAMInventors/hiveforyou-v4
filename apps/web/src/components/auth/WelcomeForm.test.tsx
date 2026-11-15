@@ -12,7 +12,8 @@ afterEach(() => cleanup());
 
 describe("WelcomeForm", () => {
   it("shows both starting choices with prototype copy", () => {
-    render(<WelcomeForm nextPath="/hives" preselectClients={false} />);
+    render(<WelcomeForm nextPath="/hives" preselectClients={false} defaultFirstName="Dana" />);
+    expect(screen.getByLabelText("Your first name")).toBeTruthy();
     expect(screen.getByTestId("hive-mark")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "What brings you here?" })).toBeTruthy();
     expect(screen.getByText("This sets where you start. You can switch any time.")).toBeTruthy();
@@ -22,14 +23,14 @@ describe("WelcomeForm", () => {
   });
 
   it("preselects client hives when start=clients", () => {
-    render(<WelcomeForm nextPath="/hives" preselectClients />);
+    render(<WelcomeForm nextPath="/hives" preselectClients defaultFirstName="" />);
     expect(screen.getByRole("button", { name: /Hives for my clients/ }).getAttribute("aria-pressed")).toBe(
       "true",
     );
   });
 
   it("keeps a safe next destination in the continue form", () => {
-    render(<WelcomeForm nextPath="/hives/x" preselectClients={false} />);
+    render(<WelcomeForm nextPath="/hives/x" preselectClients={false} defaultFirstName="" />);
     const nextInput = screen.getByRole("button", { name: "Continue" }).closest("form")!
       .querySelector<HTMLInputElement>('input[name="next"]');
     expect(nextInput?.value).toBe("/hives/x");

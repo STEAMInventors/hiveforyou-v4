@@ -132,8 +132,46 @@ export async function setStartingViewAction(
     return { error: mapped.message, field: "startingView" };
   }
 
+  const displayName = String(formData.get("displayName") ?? "").trim();
+  if (displayName) {
+    const nameStarted = Date.now();
+    const { error: nameError } = await supabase.rpc("set_display_name", { p_name: displayName });
+    if (nameError) {
+      const mapped = classifyAuthError(toAuthErrorInput(nameError), "sign_in");
+      logAuthFailure(route, correlationId, mapped, Date.now() - nameStarted);
+      return { error: mapped.message, field: "displayName" };
+    }
+  }
+
   logAuthInfo(route, correlationId, "starting_view_saved", durationMs);
   redirect(safeNextPath(next, "/hives"));
+}
+
+export async function setDisplayNameAction(
+  _prev: SignInActionState,
+  formData: FormData,
+): Promise<SignInActionState> {
+  const displayName = String(formData.get("displayName") ?? "").trim();
+  const correlationId = await requestCorrelationId();
+  const route = "auth.set_display_name";
+
+  if (!displayName || displayName.length > 60) {
+    const mapped = localAuthFailure("email_invalid", "Enter a first name between 1 and 60 characters.");
+    logAuthFailure(route, correlationId, mapped);
+    return { error: mapped.message, field: "displayName" };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const started = Date.now();
+  const { error } = await supabase.rpc("set_display_name", { p_name: displayName });
+  if (error) {
+    const mapped = classifyAuthError(toAuthErrorInput(error), "sign_in");
+    logAuthFailure(route, correlationId, mapped, Date.now() - started);
+    return { error: mapped.message, field: "displayName" };
+  }
+
+  logAuthInfo(route, correlationId, "display_name_saved", Date.now() - started);
+  return {};
 }
 
 export async function switchStartingViewAction(): Promise<void> {

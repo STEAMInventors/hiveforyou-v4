@@ -2,6 +2,7 @@ export type { AuthActionState, SignInActionState, SignInStep } from "./auth-stat
 export { signOutAction } from "./session-actions";
 export {
   requestSignInCodeAction,
+  setDisplayNameAction,
   setStartingViewAction,
   switchStartingViewAction,
   verifySignInCodeAction,

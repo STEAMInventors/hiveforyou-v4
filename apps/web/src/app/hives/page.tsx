@@ -60,16 +60,7 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
     ).filter((entry): entry is readonly [string, HiveSummary] => entry !== null),
   );
 
-  const { data: userData } = await auth.client.auth.getUser();
-  const metadata = userData.user?.user_metadata as Record<string, unknown> | undefined;
-  const fullName =
-    typeof metadata?.full_name === "string"
-      ? metadata.full_name
-      : typeof metadata?.name === "string"
-        ? metadata.name
-        : null;
-  const greetingFirstName = fullName?.trim().split(/\s+/)[0] ?? null;
-  const greetingEmail = auth.email ?? userData.user?.email ?? null;
+  const greetingFirstName = profile.displayName?.trim().split(/\s+/)[0] ?? null;
 
   return (
     <MyHivesPanel
@@ -79,7 +70,6 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
       openCreateOnLoad={params[CREATE_HIVE_PARAM] === "1"}
       startingView={profile.startingView}
       greetingFirstName={greetingFirstName}
-      greetingEmail={greetingEmail}
     />
   );
 }
