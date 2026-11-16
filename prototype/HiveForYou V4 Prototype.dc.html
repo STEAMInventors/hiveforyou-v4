@@ -29,6 +29,35 @@ textarea:focus,input:focus{outline:none}
     .hfy-rail > div { display: none; }
   }
 </style>
+<style>
+  .hfy-3p { display: grid; grid-template-columns: 272px minmax(0, 1fr) 384px; height: calc(100vh - 117px); min-height: 560px; }
+  .hfy-col { overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .p-team { border-right: 1px solid #E3E6EA; }
+  .p-client { border-left: 1px solid #E3E6EA; overflow: hidden !important; }
+  .hfy-log { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .hfy-card { background: #fff; border: 1px solid #E9ECEF; border-radius: 14px; padding: 12px 14px; }
+  .hfy-eyebrow { font-size: 12px; font-weight: 600; color: #6B737D; }
+  .hfy-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .hfy-chipbtn { height: 34px; padding: 0 12px; border-radius: 999px; border: none; background: #F1F3F5; color: #1F2328; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .hfy-chipbtn:hover { filter: brightness(0.96); }
+  .hfy-iconbtn { flex: none; width: 36px; height: 36px; border-radius: 999px; border: none; background: #F4F6F8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .hfy-composer { display: flex; align-items: center; gap: 6px; padding: 3px 3px 3px 14px; border-radius: 14px; background: #fff; border: 1px solid #E3E6EA; }
+  .hfy-need { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid #E9ECEF; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.05); }
+  .hfy-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; margin: 0 -10px; border-radius: 10px; }
+  .hfy-item:hover { background: #F7F8FA; }
+  .hfy-clamp1 { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hfy-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  @media (min-width: 1100px) { .hfy-3tabs { display: none !important; } }
+  @media (max-width: 1099px) {
+    .hfy-3p { grid-template-columns: 1fr; height: auto; }
+    .hfy-col { overflow: visible; }
+    .p-team, .p-client { border: none; }
+    .hfy-log { max-height: 60vh; }
+    .hfy-3p[data-tab=items] .p-team, .hfy-3p[data-tab=items] .p-client,
+    .hfy-3p[data-tab=team] .p-items, .hfy-3p[data-tab=team] .p-client,
+    .hfy-3p[data-tab=client] .p-team, .hfy-3p[data-tab=client] .p-items { display: none !important; }
+  }
+</style>
 </helmet>
 <div style="min-height:100vh;background:#fff;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif;color:#1F2328">
 
@@ -66,6 +95,62 @@ textarea:focus,input:focus{outline:none}
       <span>The complicated, made simple.</span>
       <span>Prototype. Every hive and document is synthetic. HiveForYou describes what documents say; it does not give advice.</span>
     </footer>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isFirm }}" hint-placeholder-val="{{ false }}">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px">
+    <div style="width:100%;max-width:480px;display:flex;flex-direction:column;gap:22px">
+      <img src="assets/hiveforyou-mark.svg" alt="" style="width:44px;height:44px">
+      <div role="img" aria-label="{{ fs.stepText }}" style="display:flex;gap:6px"><sc-for list="{{ fs.bars }}" as="b" hint-placeholder-count="3"><span style="flex:1;height:4px;border-radius:999px;background:{{ b.bg }}"></span></sc-for></div>
+      <span style="font-size:14px;color:#4A525C">{{ fs.stepText }}</span>
+
+      <sc-if value="{{ fs.isName }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:32px;line-height:1.15">Name your firm</h1>
+          <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">Your clients and your team see it. Every client hive belongs to the firm, so anyone on the team can pick it up.</p>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Firm name
+          <input value="{{ fs.name }}" onChange="{{ fs.onName }}" placeholder="For example, Rivera Law" style="height:52px;border:1px solid #6B737D;border-radius:12px;padding:0 16px;font-size:17px;font-weight:400;color:#1F2328">
+        </label>
+      </sc-if>
+
+      <sc-if value="{{ fs.isTeam }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:32px;line-height:1.15">Who works with you?</h1>
+          <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">They get an invitation by email. Working alone? Skip this; you can add people later.</p>
+        </div>
+        <sc-for list="{{ fs.rows }}" as="r" hint-placeholder-count="2">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <label style="flex:2 1 220px;display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Email
+              <input type="email" value="{{ r.email }}" onChange="{{ r.onEmail }}" placeholder="name@yourfirm.com" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328">
+            </label>
+            <label style="flex:1 1 140px;display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Title
+              <input value="{{ r.title }}" onChange="{{ r.onTitle }}" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328">
+            </label>
+          </div>
+        </sc-for>
+        <button onClick="{{ fs.addRow }}" style="align-self:flex-start;min-height:44px;border:none;background:none;padding:0;color:#1A56C4;font-size:15px;font-weight:500;cursor:pointer">Add someone else</button>
+      </sc-if>
+
+      <sc-if value="{{ fs.isAsst }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:32px;line-height:1.15">Name your intake assistant</h1>
+          <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">It asks your clients for documents and checks every page. Clients always see that it is automated, and it never answers questions about the matter.</p>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Assistant’s name
+          <input value="{{ fs.asst }}" onChange="{{ fs.onAsst }}" style="height:52px;border:1px solid #6B737D;border-radius:12px;padding:0 16px;font-size:17px;font-weight:400;color:#1F2328">
+        </label>
+        <span style="font-size:14px;color:#4A525C">Clients see: “{{ fs.asstPreview }} · automated”</span>
+      </sc-if>
+
+      <sc-if value="{{ fs.hasErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;color:#B33A2E">{{ fs.err }}</div></sc-if>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <sc-if value="{{ fs.canSkip }}" hint-placeholder-val="{{ false }}"><button onClick="{{ fs.skip }}" style="height:44px;padding:0 18px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:15px;font-weight:500;cursor:pointer">Skip for now</button></sc-if>
+        <sc-if value="{{ fs.noSkip }}" hint-placeholder-val="{{ true }}"><span></span></sc-if>
+        <button onClick="{{ fs.next }}" style="height:48px;padding:0 28px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:16px;cursor:pointer" style-hover="background:#164AA8">{{ fs.nextLabel }}</button>
+      </div>
+    </div>
   </div>
 </sc-if>
 
@@ -148,6 +233,7 @@ textarea:focus,input:focus{outline:none}
           <span style="font-weight:600">{{ userName }}</span>
           <span style="font-size:14px;color:#4A525C">{{ userEmail }}</span>
           <span style="font-size:13px;color:#6B737D;padding-bottom:8px">{{ userRole }}</span>
+          <sc-if value="{{ hasFirmLine }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#4A525C;padding-bottom:8px">{{ firmLine }}</span></sc-if>
           <button onClick="{{ signOut }}" style="height:44px;border-radius:12px;border:none;background:#F4F6F8;color:#1F2328;font-size:15px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Sign out</button>
         </div>
       </sc-if>
@@ -289,10 +375,208 @@ textarea:focus,input:focus{outline:none}
   </main>
 </sc-if>
 
+<sc-if value="{{ isBoard3 }}" hint-placeholder-val="{{ false }}">
+<main style="display:block">
+  <div class="hfy-3tabs" role="tablist" aria-label="Board panes" style="display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid #E3E6EA">
+    <sc-for list="{{ b3.tabs }}" as="t" hint-placeholder-count="3">
+      <button role="tab" aria-selected="{{ t.on }}" onClick="{{ t.pick }}" style="min-height:44px;padding:0 14px;border:none;background:none;border-bottom:2px solid {{ t.bd }};color:{{ t.fg }};font-size:14px;font-weight:600;cursor:pointer">{{ t.label }}</button>
+    </sc-for>
+  </div>
+  <div class="hfy-3p" data-tab="{{ b3.tab }}">
+
+    <section class="p-team hfy-col" aria-label="Your team" style="background:#F4F6F8">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="display:flex;flex-direction:column;gap:1px"><span style="font-weight:600;font-size:15px">{{ b3.firmName }}</span><span style="display:flex;align-items:center;gap:4px;font-size:12px;color:#6B737D"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Team only</span></span>
+        <span style="display:flex"><sc-for list="{{ b3.avatars }}" as="a" hint-placeholder-count="3"><span title="{{ a.name }}" style="width:28px;height:28px;margin-left:-6px;border-radius:999px;border:2px solid #F4F6F8;background:{{ a.bg }};color:{{ a.fg }};font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ a.ini }}</span></sc-for></span>
+      </div>
+
+      <div class="hfy-card" style="display:flex;flex-direction:column;gap:10px">
+        <span class="hfy-eyebrow">On this hive</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="flex:none;width:34px;height:34px;border-radius:999px;background:{{ b3.on.bg }};color:{{ b3.on.fg }};font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ b3.on.ini }}</span>
+          <span style="font-size:14px;min-width:0"><span style="font-weight:600">{{ b3.on.name }}</span><span style="color:#6B737D">{{ b3.on.title }}</span></span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <sc-if value="{{ bd.canTake }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.take }}" class="hfy-chipbtn">Take it</button></sc-if>
+          <button onClick="{{ bd.handOver }}" class="hfy-chipbtn">Hand over</button>
+        </div>
+        <sc-if value="{{ bd.hasBanner }}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="padding:10px 12px;border-radius:10px;background:#E8F0FE;display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:12px;font-weight:600;color:#1A56C4">{{ bd.bannerHead }}</span>
+            <span style="font-size:13px;line-height:1.45;color:#1F2328">{{ bd.bannerText }}</span>
+          </div>
+        </sc-if>
+      </div>
+
+      <div class="hfy-card" style="display:flex;flex-direction:column;gap:10px">
+        <span class="hfy-eyebrow">Intake</span>
+        <div role="img" aria-label="{{ bd.stageLine }}" style="display:flex;align-items:center;gap:6px">
+          <sc-for list="{{ b3.steps }}" as="s" hint-placeholder-count="3"><span style="flex:1;height:4px;border-radius:999px;background:{{ s.bg }}"></span></sc-for>
+        </div>
+        <span style="font-size:13px;font-weight:600;color:{{ bd.stageFg }}">{{ bd.stageLine }}</span>
+        <sc-if value="{{ bd.hasStageAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.stageAct }}" class="hfy-chipbtn" style="align-self:flex-start;color:#1A56C4;background:#E8F0FE">{{ bd.stageLabel }}</button></sc-if>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;flex:1">
+        <span class="hfy-eyebrow" style="padding:0 2px">{{ b3.notesHead }}</span>
+        <sc-if value="{{ b3.noNotes }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#6B737D;padding:0 2px">No notes yet.</span></sc-if>
+        <sc-for list="{{ b3.notes }}" as="n" hint-placeholder-count="2">
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <span style="flex:none;width:24px;height:24px;border-radius:999px;background:{{ n.bg }};color:{{ n.fg }};font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ n.ini }}</span>
+            <span style="display:flex;flex-direction:column;gap:1px;min-width:0"><span style="font-size:11.5px;color:#6B737D"><span style="font-weight:600;color:#1F2328">{{ n.by }}</span> · {{ n.t }}{{ n.tag }}</span><span style="font-size:13px;line-height:1.45">{{ n.txt }}</span></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div class="hfy-composer">
+          <input value="{{ b3.noteDraft }}" onChange="{{ b3.onNote }}" onKeyDown="{{ b3.noteKey }}" aria-label="{{ b3.noteLabel }}" placeholder="{{ b3.notePh }}" style="flex:1;min-width:0;border:none;background:transparent;font-size:13px;color:#1F2328;height:36px">
+          <button onClick="{{ b3.addNote }}" aria-label="Add note" class="hfy-iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        </div>
+        <sc-if value="{{ b3.hasNoteErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:12px;color:#B33A2E">Write a note first.</span></sc-if>
+      </div>
+    </section>
+
+    <section class="p-items hfy-col" aria-label="{{ b3.midLabel }}" style="background:#fff">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;color:#6B737D">{{ bd.kicker }}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:24px;line-height:1.2"><span style="color:{{ b3.hNumFg }}">{{ b3.hNum }}</span>{{ b3.hRest }}</h1>
+          <span style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ b3.stats }}" as="s" hint-placeholder-count="3"><span class="hfy-pill" style="background:{{ s.bg }};color:{{ s.fg }}">{{ s.label }}</span></sc-for></span>
+        </div>
+        <sc-if value="{{ bd.hasProgress }}" hint-placeholder-val="{{ true }}"><div role="img" aria-label="{{ b3.segLabel }}" style="display:flex;gap:4px"><sc-for list="{{ b3.segs }}" as="g" hint-placeholder-count="5"><span style="flex:1;height:6px;border-radius:999px;background:{{ g.bg }}"></span></sc-for></div></sc-if>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#F4F6F8">
+        <span aria-hidden="true" style="flex:none;width:34px;height:34px;border-radius:999px;background:{{ b3.ring }};padding:2px;display:flex"><span style="flex:1;border-radius:999px;background:#fff;color:#1A56C4;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center">{{ b3.asstInitials }}</span></span>
+        <span style="flex:1;min-width:0;font-size:13px;color:#4A525C"><span style="font-weight:600;color:#1F2328">{{ b3.midLabel }}</span> · automated. Asks, checks every page. People decide.</span>
+        <sc-if value="{{ bd.notRenaming }}" hint-placeholder-val="{{ true }}"><button onClick="{{ bd.startRename }}" style="flex:none;min-height:32px;border:none;background:none;padding:0;color:#1A56C4;font-size:13px;font-weight:500;cursor:pointer">Rename</button></sc-if>
+      </div>
+      <sc-if value="{{ bd.renaming }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <label style="flex:1 1 200px;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600">Assistant’s name
+            <input value="{{ bd.renameVal }}" onChange="{{ bd.onRename }}" style="height:38px;border:1px solid #6B737D;border-radius:10px;padding:0 10px;font-size:14px;font-weight:400;color:#1F2328">
+          </label>
+          <button onClick="{{ bd.saveRename }}" class="hfy-chipbtn" style="color:#1A56C4;background:#E8F0FE">Save</button>
+          <button onClick="{{ bd.cancelRename }}" class="hfy-chipbtn">Cancel</button>
+          <sc-if value="{{ bd.hasRenameErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="flex-basis:100%;font-size:12px;color:#B33A2E">{{ bd.renameErr }}</span></sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ bd.hasNeeds }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <h2 style="margin:0;font-size:13px;font-weight:600;color:#1A56C4;display:flex;align-items:center;gap:6px">Needs you <span class="hfy-pill" style="background:#1A56C4;color:#fff">{{ b3.needN }}</span></h2>
+          <sc-for list="{{ b3.needs }}" as="n" hint-placeholder-count="2">
+            <div class="hfy-need">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                <span class="hfy-pill" style="background:{{ n.pillBg }};color:{{ n.kfg }};gap:5px"><svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,1.8 21.2,7 21.2,17 12,22.2 2.8,17 2.8,7" fill="{{ n.hexC }}"></polygon></svg>{{ n.kind }}</span>
+              </div>
+              <span class="hfy-clamp1" style="font-size:14.5px;font-weight:600;line-height:1.4">{{ n.title }}</span>
+              <span class="hfy-clamp2" style="font-size:13px;line-height:1.45;color:#4A525C">{{ n.detail }}</span>
+              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:4px;flex-wrap:wrap"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="padding:2px 6px;border-radius:6px;border:1px solid #7A5200;background:#FEF3D6;color:#1F2328;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer">{{ c.label }}</button></sc-for></div></sc-if>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:2px">
+                <button onClick="{{ n.f1 }}" class="hfy-chipbtn" style="background:{{ n.b1bg }};color:{{ n.b1fg }};font-weight:600">{{ n.a1 }}</button>
+                <sc-if value="{{ n.hasA2 }}" hint-placeholder-val="{{ false }}"><button onClick="{{ n.f2 }}" class="hfy-chipbtn">{{ n.a2 }}</button></sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:6px">
+          <h2 style="margin:0;font-size:13px;font-weight:600">Items</h2>
+          <span style="font-size:12px;color:#6B737D">{{ bd.progressText }}</span>
+        </div>
+        <sc-for list="{{ b3.items }}" as="k" hint-placeholder-count="4">
+          <div class="hfy-item" style="background:{{ k.bg }}">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><polygon points="12,1.8 21.2,7 21.2,17 12,22.2 2.8,17 2.8,7" fill="{{ k.hexFill }}" stroke="{{ k.hexStroke }}" stroke-width="2" stroke-linejoin="round"></polygon><path d="M8 12.2l2.6 2.6L16 9.6" fill="none" stroke="{{ k.checkStroke }}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            <button onClick="{{ k.focus }}" aria-pressed="{{ k.on }}" style="flex:1;min-width:0;border:none;background:none;padding:0;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;color:#1F2328">
+              <span class="hfy-clamp1" style="font-size:14px;line-height:1.4">{{ k.title }}</span>
+              <span class="hfy-clamp1" style="font-size:12px;color:#6B737D">{{ k.thread }}</span>
+            </button>
+            <span class="hfy-pill" style="flex:none;background:{{ k.pillBg }};color:{{ k.pillFg }}">{{ k.pill }}</span>
+            <sc-if value="{{ k.hasAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ k.act }}" class="hfy-chipbtn" style="flex:none">{{ k.actLabel }}</button></sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <button onClick="{{ b3.toggleHistory }}" aria-expanded="{{ b3.historyOpenStr }}" style="align-self:flex-start;min-height:36px;border:none;background:none;padding:0;font-size:13px;font-weight:600;color:#4A525C;cursor:pointer;display:flex;align-items:center;gap:6px">History · {{ b3.historyN }}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" style="transform:rotate({{ b3.historyRot }})"><path d="M6 9l6 6 6-6"></path></svg></button>
+        <sc-if value="{{ b3.historyOpen }}" hint-placeholder-val="{{ false }}">
+          <sc-for list="{{ b3.activity }}" as="e" hint-placeholder-count="4">
+            <div style="display:flex;gap:10px;padding:4px 0;font-size:13px;line-height:1.45">
+              <span style="flex:none;width:96px;font-size:12px;color:#6B737D">{{ e.t }}</span>
+              <span><span style="font-weight:600;color:{{ e.whoFg }}">{{ e.who }}</span> {{ e.txt }}</span>
+            </div>
+          </sc-for>
+        </sc-if>
+      </div>
+    </section>
+
+    <section class="p-client hfy-col" aria-label="{{ b3.clientName }}" style="background:#fff;padding:0;gap:0">
+      <div style="display:flex;align-items:center;gap:10px;padding:16px 18px 12px;border-bottom:1px solid #E3E6EA">
+        <span style="flex:none;width:36px;height:36px;border-radius:999px;background:#F4F6F8;color:#1F2328;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ b3.clientIni }}</span>
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-weight:600;font-size:15px">{{ b3.clientName }}</span><span style="font-size:12px;color:#6B737D;display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:{{ b3.dot }}"></span>{{ b3.clientLine }}</span></span>
+        <button onClick="{{ b3.peek }}" aria-label="{{ b3.peekLabel }}" title="{{ b3.peekLabel }}" class="hfy-iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+      </div>
+      <sc-if value="{{ bd.hasWaiting }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:10px 18px;border-bottom:1px solid #E3E6EA;display:flex;flex-direction:column;gap:8px;background:#FEF3D6">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <span style="font-size:12px;font-weight:600;color:#7A5200;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,1.8 21.2,7 21.2,17 12,22.2 2.8,17 2.8,7" fill="#F6B826"></polygon></svg>{{ bd.waitHead }}</span>
+            <sc-if value="{{ bd.showReminders }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#6B737D">Auto-remind<button onClick="{{ bd.toggleRemind }}" role="switch" aria-checked="{{ bd.remindOnStr }}" aria-label="Automatic reminders" style="flex:none;width:36px;height:22px;border-radius:999px;border:none;background:{{ bd.remindBg }};position:relative;cursor:pointer"><span style="position:absolute;top:3px;left:{{ b3.knob }};width:16px;height:16px;border-radius:999px;background:#fff"></span></button></span></sc-if>
+          </div>
+          <sc-for list="{{ bd.waiting }}" as="w" hint-placeholder-count="1">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <span class="hfy-clamp1" style="font-size:13px;min-width:0">{{ w.title }}</span>
+              <button onClick="{{ w.remind }}" class="hfy-chipbtn" style="flex:none;background:#fff;border:1px solid #E3E6EA">Remind now</button>
+            </div>
+          </sc-for>
+          <span style="font-size:11.5px;color:#6B737D">{{ bd.waitNote }}</span>
+        </div>
+      </sc-if>
+      <sc-if value="{{ b3.hasFocus }}" hint-placeholder-val="{{ false }}">
+        <div style="margin:10px 18px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 6px 6px 12px;border-radius:999px;background:#E8F0FE;font-size:12px;color:#1A56C4">
+          <span class="hfy-clamp1" style="min-width:0">{{ b3.focusText }}</span>
+          <button onClick="{{ b3.clearFocus }}" style="flex:none;min-height:28px;padding:0 10px;border:none;border-radius:999px;background:#fff;color:#1A56C4;font-size:12px;font-weight:600;cursor:pointer">Show all</button>
+        </div>
+      </sc-if>
+      <div role="log" aria-label="{{ b3.logLabel }}" class="hfy-log" style="flex-direction:column-reverse">
+        <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-if value="{{ b3.noMsgs }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#6B737D;text-align:center;padding:24px 0">{{ b3.noMsgsText }}</span></sc-if>
+        <sc-for list="{{ b3.msgs }}" as="m" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;align-items:{{ m.align }};gap:2px">
+            <span style="font-size:11px;color:#6B737D;padding:0 6px">{{ m.label }}</span>
+            <div style="max-width:86%;padding:8px 12px;border-radius:{{ m.radius }};background:{{ m.bg }};color:{{ m.fg }};font-size:13.5px;line-height:1.45">
+              <sc-if value="{{ m.hasAtt }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;font-weight:500"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path></svg>{{ m.att }}</span></sc-if>
+              <sc-if value="{{ m.hasTxt }}" hint-placeholder-val="{{ true }}"><span style="white-space:pre-wrap">{{ m.txt }}</span></sc-if>
+            </div>
+          </div>
+        </sc-for>
+        </div>
+      </div>
+      <div style="padding:10px 14px 14px;border-top:1px solid #E3E6EA;display:flex;flex-direction:column;gap:4px">
+        <div class="hfy-composer" style="align-items:flex-end;background:#F4F6F8">
+          <textarea value="{{ b3.replyDraft }}" onChange="{{ b3.onReply }}" aria-label="{{ b3.replyLabel }}" rows="2" placeholder="{{ b3.replyPh }}" style="flex:1;min-width:0;border:none;background:transparent;font-size:13.5px;line-height:1.45;resize:none;color:#1F2328;padding:8px 0"></textarea>
+          <button onClick="{{ b3.sendReply }}" aria-label="Send reply" class="hfy-iconbtn" style="background:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
+        </div>
+        <sc-if value="{{ b3.hasReplyErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:12px;color:#B33A2E">Write a reply first.</span></sc-if>
+        <span style="font-size:11px;color:#6B737D;padding:0 4px">{{ b3.replyNote }}</span>
+      </div>
+    </section>
+  </div>
+</main>
+</sc-if>
+
 <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ false }}">
   <main style="max-width:1160px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-wrap:wrap;gap:40px 48px;align-items:flex-start">
     <section style="flex:999 1 480px;min-width:0;max-width:700px;display:flex;flex-direction:column;gap:30px">
 
+      <sc-if value="{{ bd.hasBanner }}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="padding:14px 16px;border-radius:14px;background:#E8F0FE;display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:14px;font-weight:600;color:#1A56C4">{{ bd.bannerHead }}</span>
+          <span style="font-size:15px;line-height:1.5;color:#1F2328">{{ bd.bannerText }}</span>
+        </div>
+      </sc-if>
       <div style="display:flex;flex-direction:column;gap:10px">
         <span style="font-size:14px;color:#4A525C">{{ bd.kicker }}</span>
         <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px;line-height:1.15">{{ bd.headline }}</h1>
@@ -397,6 +681,21 @@ textarea:focus,input:focus{outline:none}
       <div style="display:flex;flex-direction:column;gap:8px;font-size:15px">
         <sc-for list="{{ readyLines }}" as="r" hint-placeholder-count="5"><span style="display:flex;justify-content:space-between;gap:12px"><span style="color:#4A525C">{{ r.k }}</span><span style="font-weight:600;text-align:right">{{ r.v }}</span></span></sc-for>
       </div>
+      <sc-if value="{{ bd.showTeam }}" hint-placeholder-val="{{ false }}">
+        <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:13px;color:#4A525C">On this hive</span>
+          <span style="font-weight:600">{{ bd.onIt }}</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+            <sc-if value="{{ bd.canTake }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.take }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:600;cursor:pointer" style-hover="background:#E3E6EA">Take it</button></sc-if>
+            <button onClick="{{ bd.handOver }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Hand over</button>
+          </div>
+        </div>
+        <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:13px;color:#4A525C">Intake</span>
+          <span style="font-weight:600;color:{{ bd.stageFg }}">{{ bd.stageLine }}</span>
+          <sc-if value="{{ bd.hasStageAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.stageAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:999px;border:1px solid #1A56C4;background:#fff;color:#1A56C4;font-size:14px;font-weight:600;cursor:pointer">{{ bd.stageLabel }}</button></sc-if>
+        </div>
+      </sc-if>
       <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
         <span style="font-size:13px;color:#4A525C">{{ partyLabel }}</span>
         <span style="font-weight:600">{{ partyLine }}</span>
@@ -445,10 +744,16 @@ textarea:focus,input:focus{outline:none}
 
 <sc-if value="{{ isClientView }}" hint-placeholder-val="{{ false }}">
   <div style="min-height:100vh;background:#F4F6F8;display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 16px 40px">
-    <div style="width:100%;max-width:390px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;color:#4A525C">
-      <span>Prototype · seeing what {{ cv.first }} sees on a phone</span>
+    <div style="width:100%;max-width:{{ cv.barW }};display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:#4A525C">
+      <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Prototype · what {{ cv.first }} sees on
+        <span role="group" aria-label="Device" style="display:inline-flex;border:1px solid #E3E6EA;border-radius:999px;overflow:hidden;background:#fff">
+          <button onClick="{{ cv.toPhone }}" aria-pressed="{{ cv.phoneOn }}" style="min-height:36px;padding:0 14px;border:none;background:{{ cv.phoneBg }};color:{{ cv.phoneFg }};font-size:13px;font-weight:600;cursor:pointer">Phone</button>
+          <button onClick="{{ cv.toLaptop }}" aria-pressed="{{ cv.laptopOn }}" style="min-height:36px;padding:0 14px;border:none;background:{{ cv.laptopBg }};color:{{ cv.laptopFg }};font-size:13px;font-weight:600;cursor:pointer">Laptop</button>
+        </span>
+      </span>
       <button onClick="{{ cv.back }}" style="min-height:44px;border:none;background:none;padding:0;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap">Back to {{ cv.backTo }}</button>
     </div>
+    <sc-if value="{{ cv.isPhone }}" hint-placeholder-val="{{ true }}">
     <div style="width:100%;max-width:390px;min-height:780px;background:#fff;border:1px solid #E3E6EA;border-radius:28px;box-shadow:0 8px 32px rgba(31,35,40,.10);overflow:hidden;display:flex;flex-direction:column">
 
       <sc-if value="{{ cv.isEmail }}" hint-placeholder-val="{{ false }}">
@@ -483,7 +788,7 @@ textarea:focus,input:focus{outline:none}
 
       <sc-if value="{{ cv.isChat }}" hint-placeholder-val="{{ false }}">
         <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #E3E6EA">
-          <span aria-hidden="true" style="flex:none;width:40px;height:40px;border-radius:999px;background:#E8F0FE;color:#1A56C4;font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center">{{ cv.asstInitials }}</span>
+          <span aria-hidden="true" style="flex:none;width:42px;height:42px;border-radius:999px;background:{{ cv.ring }};padding:2px;display:flex"><span style="flex:1;border-radius:999px;background:#fff;color:#1A56C4;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center">{{ cv.asstInitials }}</span></span>
           <span style="display:flex;flex-direction:column;gap:1px;min-width:0">
             <span style="font-weight:600;font-size:16px">{{ cv.asstName }}</span>
             <span style="font-size:13px;color:#4A525C">Automated intake assistant for {{ cv.pro }}</span>
@@ -523,6 +828,92 @@ textarea:focus,input:focus{outline:none}
         </div>
       </sc-if>
     </div>
+    </sc-if>
+    <sc-if value="{{ cv.isLaptop }}" hint-placeholder-val="{{ false }}">
+      <div style="width:100%;max-width:1240px;background:#fff;border:1px solid #E3E6EA;border-radius:16px;box-shadow:0 8px 32px rgba(31,35,40,.10);padding:20px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:10px"><img src="assets/hiveforyou-mark.svg" alt="" style="width:28px;height:28px"><span style="font-family:Outfit,sans-serif;font-weight:600;font-size:20px">Your hive with {{ cv.firmName }}</span></span>
+          <span style="font-size:14px;color:#4A525C">{{ cv.pos }}</span>
+        </div>
+        <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+
+          <section aria-label="You" style="flex:0 0 300px;min-width:0;border:1px solid #E3E6EA;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-family:Outfit,sans-serif;font-weight:600;font-size:18px">Your items</span>
+              <span style="font-size:13px;color:#4A525C">One at a time. Old, partial or out of order is fine.</span>
+            </div>
+            <sc-if value="{{ cv.hasCard }}" hint-placeholder-val="{{ true }}">
+              <div style="border:1px solid #E3E6EA;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px">
+                <span style="font-size:12px;color:#4A525C">Now</span>
+                <span style="font-weight:600;font-size:16px;line-height:1.35">{{ cv.title }}</span>
+                <span style="font-size:13px;line-height:1.5;color:#4A525C">{{ cv.sub }}</span>
+                <sc-if value="{{ cv.hasProblem }}" hint-placeholder-val="{{ false }}"><div role="alert" style="padding:8px 10px;border-radius:8px;background:#FDEDEB;color:#B33A2E;font-size:13px;line-height:1.45">{{ cv.problem }}</div></sc-if>
+                <button onClick="{{ cv.photo }}" style="height:44px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Upload or take a photo</button>
+                <button onClick="{{ cv.noHave }}" style="min-height:40px;border:none;background:none;color:#4A525C;font-size:14px;cursor:pointer">I don’t have this</button>
+              </div>
+            </sc-if>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ cv.items }}" as="it" hint-placeholder-count="3">
+                <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid #E3E6EA">
+                  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="flex:none;margin-top:1px"><polygon points="12,1.8 21.2,7 21.2,17 12,22.2 2.8,17 2.8,7" fill="{{ it.hexFill }}" stroke="{{ it.dot }}" stroke-width="2" stroke-linejoin="round"></polygon></svg>
+                  <span style="display:flex;flex-direction:column;gap:1px;min-width:0"><span style="font-size:14px;line-height:1.4">{{ it.title }}</span><span style="font-size:12px;color:{{ it.fg }}">{{ it.st }}</span></span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <section aria-label="{{ cv.asstName }}" style="flex:1 1 400px;min-width:0;border:1px solid #E3E6EA;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span aria-hidden="true" style="flex:none;width:38px;height:38px;border-radius:999px;background:{{ cv.ring }};padding:2px;display:flex"><span style="flex:1;border-radius:999px;background:#fff;color:#1A56C4;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center">{{ cv.asstInitials }}</span></span>
+              <span style="display:flex;flex-direction:column;gap:1px"><span style="font-weight:600;font-size:16px">{{ cv.asstName }}</span><span style="font-size:13px;color:#4A525C">Automated intake assistant for {{ cv.pro }}</span></span>
+            </div>
+            <div role="log" aria-label="Conversation with {{ cv.asstName }}" style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ cv.sarahMsgs }}" as="m" hint-placeholder-count="4">
+                <div style="display:flex;flex-direction:column;align-items:{{ m.align }};gap:3px">
+                  <span style="font-size:12px;color:#6B737D;padding:0 4px">{{ m.label }}</span>
+                  <div style="max-width:84%;padding:10px 14px;border-radius:{{ m.radius }};background:{{ m.bg }};color:{{ m.fg }};border:{{ m.bd }};font-size:15px;line-height:1.5">
+                    <sc-if value="{{ m.hasAtt }}" hint-placeholder-val="{{ false }}"><span style="font-weight:500">Sent {{ m.att }}</span></sc-if>
+                    <sc-if value="{{ m.hasTxt }}" hint-placeholder-val="{{ true }}"><span style="white-space:pre-wrap">{{ m.txt }}</span></sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;border-top:1px solid #E3E6EA;padding-top:12px">
+              <input value="{{ cv.draft }}" onChange="{{ cv.onDraft }}" onKeyDown="{{ cv.onDraftKey }}" aria-label="{{ cv.placeholder }}" placeholder="{{ cv.placeholder }}" style="flex:1;min-width:0;height:46px;border:1px solid #E3E6EA;border-radius:999px;padding:0 18px;font-size:15px;color:#1F2328;background:#F4F6F8">
+              <button onClick="{{ cv.send }}" aria-label="Send" style="flex:none;width:46px;height:46px;border-radius:999px;border:none;background:#F4F6F8;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
+            </div>
+            <span style="font-size:12px;color:#6B737D">{{ cv.asstFirst }} is automated. Only you and {{ cv.firmName }} see this.</span>
+          </section>
+
+          <section aria-label="Your team" style="flex:0 0 300px;min-width:0;border:1px solid #E3E6EA;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-family:Outfit,sans-serif;font-weight:600;font-size:18px">Your team at {{ cv.firmName }}</span>
+              <span style="font-size:13px;color:#4A525C">The people working on your hive.</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <sc-for list="{{ cv.team }}" as="m" hint-placeholder-count="2"><span style="font-size:14px"><span style="font-weight:600">{{ m.name }}</span> · {{ m.title }}{{ m.onIt }}</span></sc-for>
+            </div>
+            <div style="border-top:1px solid #E3E6EA;padding-top:12px;display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:13px;color:#4A525C">Your questions</span>
+              <sc-if value="{{ cv.noQs }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#6B737D">None yet. Ask {{ cv.asstFirst }}, and questions about your matter go to your team.</span></sc-if>
+              <sc-for list="{{ cv.qs }}" as="q" hint-placeholder-count="1">
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;line-height:1.4">“{{ q.txt }}”</span><span style="font-size:12px;font-weight:600;color:{{ q.fg }}">{{ q.st }}</span></div>
+              </sc-for>
+            </div>
+            <div style="border-top:1px solid #E3E6EA;padding-top:12px;display:flex;flex-direction:column;gap:10px">
+              <span style="font-size:13px;color:#4A525C">Replies from your team</span>
+              <sc-if value="{{ cv.noTeamMsgs }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#6B737D">No replies yet.</span></sc-if>
+              <sc-for list="{{ cv.teamMsgs }}" as="m" hint-placeholder-count="1">
+                <div style="display:flex;flex-direction:column;gap:3px;padding:10px 12px;border-radius:12px;border:2px solid #1A56C4">
+                  <span style="font-size:12px;color:#4A525C">{{ m.label }}</span>
+                  <span style="font-size:14px;line-height:1.5;white-space:pre-wrap">{{ m.txt }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+        </div>
+      </div>
+    </sc-if>
   </div>
 </sc-if>
 
@@ -1094,6 +1485,33 @@ textarea:focus,input:focus{outline:none}
   </div>
 </sc-if>
 
+<sc-if value="{{ hasHandover }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(31,35,40,.32);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px" onClick="{{ ho.close }}">
+    <div role="dialog" aria-label="Hand over this hive" onClick="{{ ho.stop }}" style="width:min(460px,100%);background:#fff;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:0 16px 48px rgba(31,35,40,.2)">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <span style="font-family:Outfit,sans-serif;font-weight:600;font-size:22px">Hand over {{ ho.title }}</span>
+        <span style="font-size:14px;color:#4A525C">They see your note at the top of the board.</span>
+      </div>
+      <div role="radiogroup" aria-label="Hand over to" style="display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ ho.people }}" as="p" hint-placeholder-count="2">
+          <button role="radio" aria-checked="{{ p.on }}" onClick="{{ p.pick }}" style="min-height:52px;text-align:left;padding:10px 14px;border-radius:12px;border:{{ p.bd }};background:{{ p.bg }};cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <span style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:600;font-size:15px;color:#1F2328">{{ p.name }}</span><span style="font-size:13px;color:#4A525C">{{ p.title }}</span></span>
+            <span style="font-size:13px;color:#4A525C">{{ p.load }}</span>
+          </button>
+        </sc-for>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600">Note for them
+        <textarea value="{{ ho.note }}" onChange="{{ ho.onNote }}" rows="3" placeholder="Where it stands and what's next" style="border:1px solid #6B737D;border-radius:12px;padding:10px 12px;font-size:15px;font-weight:400;line-height:1.5;resize:none;color:#1F2328"></textarea>
+      </label>
+      <sc-if value="{{ ho.hasErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:14px;color:#B33A2E">{{ ho.err }}</span></sc-if>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button onClick="{{ ho.close }}" style="height:44px;padding:0 18px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:15px;cursor:pointer">Cancel</button>
+        <button onClick="{{ ho.save }}" style="height:44px;padding:0 22px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer">Hand over</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
 <sc-if value="{{ hasModal }}" hint-placeholder-val="{{ false }}">
   <div style="position:fixed;inset:0;background:rgba(31,35,40,.4);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px">
     <div style="background:#fff;border-radius:20px;width:min(600px,100%);box-shadow:0 24px 80px rgba(0,0,0,.2);display:flex;flex-direction:column">
@@ -1147,7 +1565,9 @@ class Component extends DCLogic {
   RING = 'conic-gradient(from 200deg, #3B7CF6, #EF5143, #F6B826, #2FA35A, #3B7CF6)';
   ACCTS = {
     'priya@example.com': { name: 'Priya Shah', role: 'individual', desc: 'Own paperwork: one hive' },
-    'dana@example.com': { name: 'Dana Rivera', role: 'professional', desc: 'Works with clients: three client hives' }
+    'dana@example.com': { name: 'Dana Rivera', role: 'professional', desc: 'Attorney, owns Rivera Law', firm: 'rivera', title: 'Attorney' },
+    'maria@example.com': { name: 'Maria Lopez', role: 'professional', desc: 'Paralegal at Rivera Law', firm: 'rivera', title: 'Paralegal' },
+    'leo@example.com': { name: 'Leo Grant', role: 'professional', desc: 'Paralegal at Rivera Law', firm: 'rivera', title: 'Paralegal' }
   };
 
   state = { ready: false, screen: 'landing', goalText: '', goalFocus: false, user: null, si: { step: 'email', email: '', err: '', role: null }, pending: null, menuOpen: false, homeQuery: '', homeFilter: 'all', nc: { name: '', email: '', about: '', err: '' }, invite: null, qText: '', qSaved: false, cv: null, pv: null, hives: null, live: {}, hiveId: null, tab: 'overview', drawer: null, viewer: null, cell: null, modal: null, note: '', toast: null, fmt: 'customer', exFilter: 'all', showRevs: false, dragOver: false, copied: false, createText: '', proposal: null };
@@ -1165,9 +1585,9 @@ class Component extends DCLogic {
     const mk = (id, scen, owner, title, extra) => ({ id, scen, owner, title, purpose: D.S[scen].purpose, last: D.S[scen].lastActivity, ...extra });
     const hives = [
       mk('h-mine', 'medicaid', 'priya@example.com', D.S.medicaid.hiveTitle, { pro: null }),
-      mk('h-medicaid', 'medicaid', 'dana@example.com', 'Ruth Ortiz', { client: { name: 'Ruth Ortiz', email: 'ruth.ortiz@example.com', status: 'joined' } }),
-      mk('h-iep', 'iep', 'dana@example.com', 'Maya Chen', { client: { name: 'Maya Chen', email: 'maya.chen@example.com', status: 'invited' } }),
-      mk('h-insurance', 'insurance', 'dana@example.com', 'Ken Park', { client: { name: 'Ken Park', email: '', status: 'none' } })
+      mk('h-medicaid', 'medicaid', 'dana@example.com', 'Ruth Ortiz', { firm: 'rivera', assignee: 'maria@example.com', stage: 'open', handover: { from: 'Dana', t: 'Today, 9:43 AM', note: 'Ruth sent the checking statements. Savings is still out, and she asked whether her savings affect qualifying. That one is for me.' }, client: { name: 'Ruth Ortiz', email: 'ruth.ortiz@example.com', status: 'joined' } }),
+      mk('h-iep', 'iep', 'dana@example.com', 'Maya Chen', { firm: 'rivera', assignee: null, stage: 'open', client: { name: 'Maya Chen', email: 'maya.chen@example.com', status: 'invited' } }),
+      mk('h-insurance', 'insurance', 'dana@example.com', 'Ken Park', { firm: 'rivera', assignee: 'leo@example.com', stage: 'open', client: { name: 'Ken Park', email: '', status: 'none' } })
     ];
     const live = {};
     hives.forEach(h => {
@@ -1185,7 +1605,7 @@ class Component extends DCLogic {
     ask('h-medicaid', 'medicaid', 'x6', 'sent', null, 'Ruth Ortiz');
     ask('h-iep', 'iep', 'y2', 'sent', null, 'Maya Chen');
     live['h-medicaid'].activity = [
-      { t: 'Nov 10', who: 'You', txt: 'invited Ruth Ortiz and asked for 2 items' },
+      { t: 'Nov 10', who: this.me(), txt: 'invited Ruth Ortiz and asked for 2 items' },
       { t: 'Nov 11', who: 'Ruth', txt: 'joined the hive' },
       { t: 'Nov 13', who: 'HiveForYou', txt: 'reminded Ruth about 2 items' },
       { t: 'Today, 9:42 AM', who: 'Ruth', txt: 'sent Checking 4421, April to June 2023.pdf' },
@@ -1193,7 +1613,7 @@ class Component extends DCLogic {
     ];
     live['h-medicaid'].requests.find(r => r.xid === 'x6').reminded = 'Nov 13';
     live['h-iep'].activity = [
-      { t: 'Yesterday, 4:15 PM', who: 'You', txt: 'invited Maya Chen and asked for 1 item' },
+      { t: 'Yesterday, 4:15 PM', who: this.me(), txt: 'invited Maya Chen and asked for 1 item' },
       { t: 'Today, 8:00 AM', who: 'HiveForYou', txt: 'Maya hasn’t opened the invitation yet' }
     ];
     const R = live['h-medicaid']; const x4 = R.requests.find(r => r.xid === 'x4'); const x6 = R.requests.find(r => r.xid === 'x6');
@@ -1210,9 +1630,11 @@ class Component extends DCLogic {
       m('Today, 9:44 AM', 'a', 'That’s a question for Dana, so I won’t answer it myself. I’ve passed it to her, and her reply will appear here.')
     ];
     R.cq = [{ id: this.nid('q'), t: 'Today, 9:44 AM', txt: 'Will the money in my savings stop me from qualifying?', status: 'open' }];
+    R.activity.push({ t: 'Today, 9:43 AM', who: 'Dana', txt: 'handed this hive to Maria' });
+    R.notes = [{ by: 'Dana', t: 'Today, 9:43 AM', txt: 'The savings question is mine; send it to me rather than answering.', item: null }];
     R.activity.splice(3, 0, { t: 'Today, 9:40 AM', who: 'HiveForYou', txt: 'told Ruth where to find the checking statements' });
     R.activity.push({ t: 'Today, 9:44 AM', who: 'HiveForYou', txt: 'passed a question from Ruth to you, unanswered' });
-    this.setState({ ready: true, hives, live, assistants: { 'dana@example.com': { name: 'Sarah Farrington' } } });
+    this.setState({ ready: true, hives, live, assistants: { 'dana@example.com': { name: 'Sarah Farrington' } }, firms: { rivera: { name: 'Rivera Law', owner: 'dana@example.com', members: [{ email: 'dana@example.com', name: 'Dana Rivera', title: 'Attorney', role: 'owner' }, { email: 'maria@example.com', name: 'Maria Lopez', title: 'Paralegal', role: 'member' }, { email: 'leo@example.com', name: 'Leo Grant', title: 'Paralegal', role: 'member' }] } } });
   }
 
   fresh(scen, loaded) {
@@ -1370,7 +1792,7 @@ class Component extends DCLogic {
     const status = st === 'open' ? '' : st === 'accepted' && x.acceptLabel ? x.acceptLabel : st === 'rejected' && x.rejectLabel ? x.rejectLabel : this.XS[st];
     return { title: x.title, why: x.why, kind: k[0], kBg: k[1], kFg: k[2], status, hasStatus: !!status, op: st === 'open' || st === 'requested' ? 1 : 0.72, chips: this.chips(scen, x.ev), onClick: () => this.setState({ drawer: { type: 'ex', id: x.id }, note: l.ex[x.id].note || x.question || '' }) };
   }
-  myHives() { const u = this.state.user; return (this.state.hives || []).filter(h => u && h.owner === u.email); }
+  myHives() { const u = this.state.user; return (this.state.hives || []).filter(h => u && (h.owner === u.email || (u.firm && h.firm === u.firm))); }
   firstName(n) { return (n || '').trim().split(/\s+/)[0] || ''; }
   validEmail(e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e || ''); }
   updHive(hid, fn) { this.setState(st => ({ hives: st.hives.map(h => h.id === hid ? fn({ ...h }) : h) })); }
@@ -1418,7 +1840,7 @@ class Component extends DCLogic {
   }
   siOpen() {
     const si = this.state.si; const a = this.ACCTS[si.email];
-    if (a) this.finishSignin({ email: si.email, name: a.name, role: a.role });
+    if (a) this.finishSignin({ email: si.email, name: a.name, role: a.role, firm: a.firm || null, title: a.title || '' });
     else this.setState({ si: { ...si, step: 'role', err: '' } });
   }
   finishSignin(u) {
@@ -1454,7 +1876,7 @@ class Component extends DCLogic {
     this.updLive(h.id, l => {
       if (l.requests.some(r => r.xid === xid && ['sent', 'received', 'na'].includes(r.status))) return;
       l.requests.push(this.mkReq(s, xid, 'sent')); l.ex[xid].status = 'requested'; l.ex[xid].history.push({ t: this.now(), txt: 'Asked ' + h.client.name });
-      l.activity.push({ t: this.now(), who: 'You', txt: 'asked ' + who + ' for “' + (s.exceptions.find(e => e.id === xid).request || '').replace(/\.$/, '') + '”' });
+      l.activity.push({ t: this.now(), who: this.me(), txt: 'asked ' + who + ' for “' + (s.exceptions.find(e => e.id === xid).request || '').replace(/\.$/, '') + '”' });
       if ((l.chat || []).length) this.say(l, 'a', this.firstName(this.state.user.name) + ' asked for one more item: ' + (s.exceptions.find(e => e.id === xid).request || '').replace(/\.$/, '') + '.');
     });
     this.toast('Asked ' + who + '. It is on their to-do now.');
@@ -1465,7 +1887,7 @@ class Component extends DCLogic {
     const h = this.hive(); const s = this.D().S[h.scen];
     if (iv.kind === 'client') {
       this.updHive(h.id, x => { x.client = { name, email, status: 'invited' }; return x; });
-      this.updLive(h.id, l => { l.activity.push({ t: this.now(), who: 'You', txt: 'invited ' + name }); });
+      this.updLive(h.id, l => { l.activity.push({ t: this.now(), who: this.me(), txt: 'invited ' + name }); });
       this.updLive(h.id, l => {
         if (iv.ask && !l.requests.some(r => r.xid === iv.ask)) { l.requests.push(this.mkReq(s, iv.ask, 'sent')); l.ex[iv.ask].status = 'requested'; l.ex[iv.ask].history.push({ t: this.now(), txt: 'Asked ' + name }); }
         if (!l.requests.some(r => r.status === 'sent')) l.requests.push(this.genReq());
@@ -1478,24 +1900,24 @@ class Component extends DCLogic {
   }
   acceptReq(rid) {
     const h = this.hive(); const r = this.state.live[h.id].requests.find(x => x.id === rid);
-    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'accepted'; l.activity.push({ t: this.now(), who: 'You', txt: 'accepted ' + r.file }); if ((l.chat || []).length) this.say(l, 'a', this.firstName(this.state.user.name) + ' reviewed “' + r.title + '” and accepted it.'); });
+    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'accepted'; l.activity.push({ t: this.now(), who: this.me(), txt: 'accepted ' + r.file }); if ((l.chat || []).length) this.say(l, 'a', this.firstName(this.state.user.name) + ' reviewed “' + r.title + '” and accepted it.'); });
     if (r.xid) this.setEx(r.xid, 'received', r.file);
     else this.toast('Accepted. It joins the Study at the next build.');
   }
   acceptNa(rid) {
     const h = this.hive(); const r = this.state.live[h.id].requests.find(x => x.id === rid);
-    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'closed'; l.activity.push({ t: this.now(), who: 'You', txt: 'accepted that “' + r.title + '” isn’t available' }); });
+    this.updLive(h.id, l => { l.requests.find(x => x.id === rid).status = 'closed'; l.activity.push({ t: this.now(), who: this.me(), txt: 'accepted that “' + r.title + '” isn’t available' }); });
     if (r.xid) this.setEx(r.xid, 'na', h.client.name + ': ' + r.reason);
     else this.toast('Noted.');
   }
   askAgain(rid) {
     const h = this.hive();
-    this.updLive(h.id, l => { const r = l.requests.find(x => x.id === rid); r.status = 'sent'; r.file = null; r.reason = ''; l.activity.push({ t: this.now(), who: 'You', txt: 'asked ' + this.firstName(h.client.name) + ' again for “' + r.title + '”' }); this.say(l, 'a', this.firstName(this.state.user.name) + ' asked again for “' + r.title + '”. Could you send it once more?'); });
+    this.updLive(h.id, l => { const r = l.requests.find(x => x.id === rid); r.status = 'sent'; r.file = null; r.reason = ''; l.activity.push({ t: this.now(), who: this.me(), txt: 'asked ' + this.firstName(h.client.name) + ' again for “' + r.title + '”' }); this.say(l, 'a', this.firstName(this.state.user.name) + ' asked again for “' + r.title + '”. Could you send it once more?'); });
     this.toast('Asked again. ' + this.firstName(h.client.name) + ' sees it on their to-do.');
   }
   remind(rid) {
     const h = this.hive(); const who = this.firstName(h.client.name);
-    this.updLive(h.id, l => { const r = rid && l.requests.find(x => x.id === rid); if (r) { r.reminded = this.now(); this.say(l, 'a', 'A reminder: “' + r.title + '” is still open. Reply here if you’re stuck.'); } l.activity.push({ t: this.now(), who: 'You', txt: 'reminded ' + who + (r ? ' about “' + r.title + '”' : '') }); });
+    this.updLive(h.id, l => { const r = rid && l.requests.find(x => x.id === rid); if (r) { r.reminded = this.now(); this.say(l, 'a', 'A reminder: “' + r.title + '” is still open. Reply here if you’re stuck.'); } l.activity.push({ t: this.now(), who: this.me(), txt: 'reminded ' + who + (r ? ' about “' + r.title + '”' : '') }); });
     this.toast('Reminder sent to ' + who + '. Prototype: nothing is sent.');
   }
   clientUpload(hid, rid, fname) {
@@ -1517,13 +1939,19 @@ class Component extends DCLogic {
       l.activity.push({ t: this.now(), who: first, txt: 'sent ' + file });
       l.activity.push({ t: this.now(), who: 'HiveForYou', txt: 'checked it: every page readable' });
       this.say(l, 'c', '', { att: file });
-      const nx = l.requests.find(q => q.status === 'sent'); const pf = this.firstName(this.state.user.name);
-      this.say(l, 'a', 'Thank you, ' + first + '. I checked it: every page is readable. ' + pf + ' will review it.' + (nx ? ' Next: ' + nx.title + '.' : ' That’s everything ' + pf + ' asked for. I’ll message you here if anything else is needed.'));
+      const nx = l.requests.find(q => q.status === 'sent'); const pf0 = this.teamFor(h); const pf = pf0.charAt(0).toUpperCase() + pf0.slice(1); const pfl = pf0;
+      this.say(l, 'a', 'Thank you, ' + first + '. I checked it: every page is readable. ' + pf + ' will review it.' + (nx ? ' Next: ' + nx.title + '.' : ' That’s everything ' + pfl + ' asked for. I’ll message you here if anything else is needed.'));
     });
     this.updHive(hid, x => { x.last = this.now(); return x; });
   }
 
-  asstFor(owner) { const a = (this.state.assistants || {})[owner]; return a && a.name ? a.name : 'HiveForYou'; }
+  teamFor(h) { return h && h.firm && (this.state.firms || {})[h.firm] ? 'your team' : this.firstName(this.state.user.name); }
+  me() { const u = this.state.user; return u ? this.firstName(u.name) : 'Dana'; }
+  firmOf(email) { const f = this.state.firms || {}; return Object.keys(f).find(k => f[k].members.some(m => m.email === email)) || null; }
+  member(email) { const f = this.state.firms || {}; for (const k of Object.keys(f)) { const m = f[k].members.find(x => x.email === email); if (m) return m; } return null; }
+  isAtt(email) { const m = this.member(email); return !!m && (m.role === 'owner' || /attorney/i.test(m.title)); }
+  attorneyOf(firm) { const f = (this.state.firms || {})[firm]; return f ? f.members.find(m => m.role === 'owner') : null; }
+  asstFor(owner) { const fm = this.firmOf(owner); const f = fm && this.state.firms[fm]; const key = f ? f.owner : owner; const a = (this.state.assistants || {})[key]; return a && a.name ? a.name : 'HiveForYou'; }
   say(l, from, txt, extra) { (l.chat = l.chat || []).push({ id: this.nid('m'), t: this.now(), from, txt, ...(extra || {}) }); }
   greet(hid) {
     const h = this.state.hives.find(x => x.id === hid); const first = this.firstName(h.client.name);
@@ -1537,7 +1965,7 @@ class Component extends DCLogic {
   }
   clientSay(hid, text, awaitRid) {
     const h = this.state.hives.find(x => x.id === hid); const first = this.firstName(h.client.name);
-    const proFirst = this.firstName(this.state.user.name);
+    const proFirst = this.teamFor(h);
     const txt = text.trim(); if (!txt) return;
     this.updLive(hid, l => {
       this.say(l, 'c', txt);
@@ -1567,11 +1995,28 @@ class Component extends DCLogic {
   proReply(hid, text) {
     const h = this.state.hives.find(x => x.id === hid); const first = this.firstName(h.client.name);
     this.updLive(hid, l => {
-      this.say(l, 'p', text.trim());
-      (l.cq || []).forEach(q => { if (q.status === 'open') { q.status = 'answered'; } });
-      l.activity.push({ t: this.now(), who: 'You', txt: 'replied to ' + first });
+      this.say(l, 'p', text.trim(), { by: this.state.user.name, title: this.state.user.title || '' });
+      (l.cq || []).forEach(q => { if (q.status === 'open' || q.status === 'attorney') { q.status = 'answered'; } });
+      l.activity.push({ t: this.now(), who: this.me(), txt: 'replied to ' + first });
     });
     this.toast('Reply sent to ' + first + '. Prototype: nothing is sent.');
+  }
+  sendToAtt(hid, qid) {
+    const h = this.state.hives.find(x => x.id === hid); const att = this.attorneyOf(h.firm);
+    this.updLive(hid, l => { const q = l.cq.find(x => x.id === qid); q.status = 'attorney'; q.sentBy = this.me(); l.activity.push({ t: this.now(), who: this.me(), txt: 'sent ' + this.firstName(h.client ? h.client.name : 'the client') + '’s question to ' + this.firstName(att.name) }); });
+    this.toast('Sent to ' + this.firstName(att.name) + '.');
+  }
+  setStage(hid, stage) {
+    const by = this.me();
+    this.updHive(hid, x => { x.stage = stage; if (stage === 'review') x.reviewBy = by; if (stage === 'closed') x.closedBy = by; return x; });
+    this.updLive(hid, l => { l.activity.push({ t: this.now(), who: by, txt: stage === 'review' ? 'marked the intake ready for attorney review' : stage === 'closed' ? 'closed the intake' : 'reopened the intake' }); });
+    this.toast(stage === 'review' ? 'Marked ready. ' + this.firstName((this.attorneyOf(this.state.hives.find(x => x.id === hid).firm) || { name: 'The attorney' }).name) + ' sees it under Needs you.' : stage === 'closed' ? 'Intake closed.' : 'Intake reopened.');
+  }
+  assign(hid, to, note) {
+    const h = this.state.hives.find(x => x.id === hid); const by = this.me(); const m = this.member(to);
+    this.updHive(hid, x => { x.assignee = to; x.handover = to === this.state.user.email ? null : { from: by, t: this.now(), note: (note || '').trim() }; return x; });
+    this.updLive(hid, l => { l.activity.push({ t: this.now(), who: by, txt: to === this.state.user.email ? 'took this hive' : 'handed this hive to ' + this.firstName(m.name) }); });
+    this.toast(to === this.state.user.email ? 'It’s yours. ' + h.title + ' is under Mine.' : 'Handed to ' + this.firstName(m.name) + '.');
   }
   btn(label, fn, kind, dis, reason) {
     const p = kind === 'primary', g = kind === 'good';
@@ -1587,6 +2032,8 @@ class Component extends DCLogic {
     v.isApp = st.screen === 'hive'; v.isClientView = st.screen === 'client'; v.isProView = st.screen === 'proview';
     const u = st.user;
     v.showAppHeader = !!u && (v.isHome || v.isNewClient || v.isApp);
+    const myFirm = u && u.firm && (st.firms || {})[u.firm];
+    v.hasFirmLine = !!myFirm; v.firmLine = myFirm ? (u.title || 'Team member') + ' · ' + myFirm.name : '';
     v.headBd = v.isApp ? '1px solid #E3E6EA' : '1px solid transparent';
     v.pillOrder = 0;
     v.headLogoVis = v.isHome && u && u.role !== 'professional' ? 'hidden' : 'visible';
@@ -1626,8 +2073,44 @@ class Component extends DCLogic {
     v.siFinish = () => {
       if (!si.role) { this.setState({ si: { ...si, err: 'Choose one to continue.' } }); return; }
       const local = si.email.split('@')[0].split(/[._-]/)[0] || 'there';
-      this.finishSignin({ email: si.email, name: local.charAt(0).toUpperCase() + local.slice(1), role: si.role });
+      const nu = { email: si.email, name: local.charAt(0).toUpperCase() + local.slice(1), role: si.role };
+      if (si.role === 'professional') { this.setState({ screen: 'firm', fs: { step: 1, name: '', rows: [{ email: '', title: 'Paralegal' }], asst: 'HiveForYou', err: '', user: nu } }); return; }
+      this.finishSignin(nu);
     };
+    // Firm setup: name, team, assistant
+    const fs = st.fs || { step: 1, rows: [] };
+    v.isFirm = st.screen === 'firm';
+    if (v.isFirm) {
+      const setFs = o => this.setState(s2 => ({ fs: { ...s2.fs, ...o } }));
+      const done = () => {
+        const id = this.nid('firm'); const team = fs.rows.filter(r => r.email.trim());
+        const members = [{ email: fs.user.email, name: fs.user.name, title: 'Attorney', role: 'owner' }].concat(team.map(r => ({ email: r.email.trim().toLowerCase(), name: r.email.split('@')[0].replace(/^./, c => c.toUpperCase()), title: r.title.trim() || 'Team member', role: 'member', invited: true })));
+        const an = fs.asst.trim() || 'HiveForYou';
+        this.setState(s2 => ({ firms: { ...s2.firms, [id]: { name: fs.name.trim(), owner: fs.user.email, members } }, assistants: { ...s2.assistants, [fs.user.email]: { name: an } }, fs: null }), () => {
+          this.finishSignin({ ...fs.user, firm: id, title: 'Attorney' });
+          if (team.length) this.toast('Invitations sent to ' + team.length + (team.length === 1 ? ' person' : ' people') + '. Prototype: nothing is sent.');
+        });
+      };
+      v.fs = {
+        stepText: 'Step ' + fs.step + ' of 3', bars: [1, 2, 3].map(i => ({ bg: i <= fs.step ? '#1A56C4' : '#E3E6EA' })),
+        isName: fs.step === 1, isTeam: fs.step === 2, isAsst: fs.step === 3,
+        name: fs.name || '', onName: e => setFs({ name: e.target.value, err: '' }),
+        rows: (fs.rows || []).map((r, i) => ({ email: r.email, title: r.title,
+          onEmail: e => setFs({ rows: fs.rows.map((x, j) => j === i ? { ...x, email: e.target.value } : x), err: '' }),
+          onTitle: e => setFs({ rows: fs.rows.map((x, j) => j === i ? { ...x, title: e.target.value } : x), err: '' }) })),
+        addRow: () => setFs({ rows: fs.rows.concat([{ email: '', title: 'Paralegal' }]) }),
+        asst: fs.asst || '', onAsst: e => setFs({ asst: e.target.value, err: '' }), asstPreview: (fs.asst || '').trim() || 'HiveForYou',
+        err: fs.err || '', hasErr: !!fs.err, canSkip: fs.step === 2, noSkip: fs.step !== 2,
+        nextLabel: fs.step === 3 ? 'Finish' : 'Next',
+        skip: () => setFs({ step: 3, rows: [{ email: '', title: 'Paralegal' }], err: '' }),
+        next: () => {
+          if (fs.step === 1) { if (!(fs.name || '').trim()) { setFs({ err: 'Enter your firm’s name.' }); return; } setFs({ step: 2, err: '' }); return; }
+          if (fs.step === 2) { const bad = fs.rows.find(r => r.email.trim() && !this.validEmail(r.email.trim().toLowerCase())); if (bad) { setFs({ err: 'Check the email “' + bad.email.trim() + '”.' }); return; } setFs({ step: 3, err: '' }); return; }
+          if ((fs.asst || '').trim().length > 40) { setFs({ err: 'Use 1 to 40 characters.' }); return; }
+          done();
+        }
+      };
+    }
 
     // Signed-in header
     if (u) { v.initials = u.initials; v.userName = u.name; v.userEmail = u.email; v.userRole = u.role === 'professional' ? 'Hives for clients' : 'Own paperwork'; }
@@ -1650,13 +2133,15 @@ class Component extends DCLogic {
       let rows = this.myHives().map((h, i) => ({ h, a: this.attn(h), i })).sort((x, y) => ORDER[x.a.level] - ORDER[y.a.level] || x.i - y.i);
       if (isPro) {
         const all = rows.slice();
-        const isClient = r => !!r.h.client;
+        const isClient = r => !!r.h.client || r.h.owner !== u.email;
         const fl = {
           needs: all.filter(r => isClient(r) && r.a.level === 'needs').length,
           waiting: all.filter(r => isClient(r) && r.a.waiting > 0).length,
           ready: all.filter(r => isClient(r) && r.a.level === 'ready').length,
           all: all.filter(isClient).length,
-          own: all.filter(r => !isClient(r)).length
+          own: all.filter(r => !isClient(r)).length,
+          mine: all.filter(r => isClient(r) && r.h.assignee === u.email && r.h.stage !== 'closed').length,
+          unassigned: all.filter(r => isClient(r) && r.h.firm && !r.h.assignee).length
         };
         const f = st.homeFilter || 'all';
         const q = st.homeQuery.trim().toLowerCase();
@@ -1664,14 +2149,17 @@ class Component extends DCLogic {
         if (f === 'needs') rows = rows.filter(r => r.a.level === 'needs');
         if (f === 'waiting') rows = rows.filter(r => r.a.waiting > 0);
         if (f === 'ready') rows = rows.filter(r => r.a.level === 'ready');
+        if (f === 'mine') rows = rows.filter(r => r.h.assignee === u.email && r.h.stage !== 'closed');
+        if (f === 'unassigned') rows = rows.filter(r => r.h.firm && !r.h.assignee);
         if (q) rows = all.filter(r => r.h.title.toLowerCase().includes(q));
         const RAIL = [['needs', 'Needs you', '#3B7CF6'], ['waiting', 'Waiting on client', '#B4B9C0'], ['ready', 'Ready', '#2FA35A'], ['all', 'All clients', null]];
         if (fl.own) RAIL.push(['own', 'My own matters', null]);
+        if (u.firm) RAIL.unshift(['mine', 'Mine', '#1A56C4'], ['unassigned', 'Unassigned', '#F6B826']);
         v.rail = RAIL.map(([k, label, dot]) => {
           const on = !q && f === k;
           return { label, count: fl[k] ? String(fl[k]) : '', cur: on ? 'page' : 'false', bg: on ? '#E8F0FE' : 'transparent', hov: on ? '#E8F0FE' : '#F4F6F8', fg: on ? '#1A56C4' : '#1F2328', fw: on ? '600' : '500', dot: dot || 'transparent', dotBd: dot ? 'none' : '2px solid #B4B9C0', pick: () => this.setState({ homeFilter: k, homeQuery: '' }) };
         });
-        v.railTitle = q ? 'Clients matching “' + st.homeQuery.trim() + '”' : ({ needs: 'Needs you', waiting: 'Waiting on client', ready: 'Ready', all: 'All clients', own: 'My own matters' })[f];
+        v.railTitle = q ? 'Clients matching “' + st.homeQuery.trim() + '”' : ({ needs: 'Needs you', waiting: 'Waiting on client', ready: 'Ready', all: 'All clients', own: 'My own matters', mine: 'Mine', unassigned: 'Unassigned' })[f];
         v.showGlance = !q && f === 'all' && fl.all > 0;
         const missingTotal = all.filter(isClient).reduce((n, r) => n + r.a.missing, 0);
         v.glance = [
@@ -1703,7 +2191,7 @@ class Component extends DCLogic {
         const k = intake(h);
         return {
           title: h.title,
-          kicker: isPro ? (h.client ? h.purpose + (h.client.status === 'invited' ? ' · invited' : h.client.status === 'joined' ? ' · client joined' : '') : 'Your own matter') : (h.pro && h.pro.status === 'taken' ? 'Shared with ' + h.pro.name : 'Your hive'),
+          kicker: isPro ? (h.client ? h.purpose + (h.client.status === 'invited' ? ' · invited' : h.client.status === 'joined' ? ' · client joined' : '') : h.owner !== u.email ? 'Shared by ' + ((this.ACCTS[h.owner] || {}).name || h.owner) : 'Your own matter') + (h.firm ? (h.stage === 'closed' ? ' · closed' : h.assignee ? ' · ' + (h.assignee === u.email ? 'you' : this.firstName((this.member(h.assignee) || { name: h.assignee }).name)) + ' on it' : ' · unassigned') : '') : (h.pro && h.pro.status === 'taken' ? 'Shared with ' + h.pro.name : 'Your hive'),
           sentence: a.sentence, counts: a.counts, last: h.last, open: () => this.openHive(h.id),
           progress: k.tot ? k.done + ' of ' + k.tot + ' in' : (a.started ? 'Nothing missing' : 'No documents yet'),
           segs: k.tot ? Array.from({ length: k.tot }, (_, i) => ({ bg: i < k.done ? '#2FA35A' : '#E3E6EA' })) : [{ bg: a.started ? '#2FA35A' : '#E3E6EA' }]
@@ -2010,11 +2498,20 @@ class Component extends DCLogic {
       v.bd.segs = checklist.map(c => c.step).sort((p, q) => segOrder[p] - segOrder[q]).map(sg => ({ bg: sg === 'done' ? '#2FA35A' : sg === 'check' ? '#3B7CF6' : '#E3E6EA' }));
 
       const needs = [];
-      (l.cq || []).filter(q => q.status === 'open').forEach(q => needs.push({ kind: 'Question from ' + ovWho, kfg: '#1A56C4', title: '“' + q.txt + '”', detail: this.firstName(this.asstFor(h.owner)) + ' didn’t answer it: questions about the matter are yours. Your reply appears in ' + ovWho + '’s conversation.', f1: () => this.setState({ convo: { hid: h.id, draft: '', err: '' } }), a1: 'Reply' }));
+      if (!l.cq) l.cq = [];
+      const meAtt = !!st.user && this.isAtt(st.user.email); const att = h.firm ? this.attorneyOf(h.firm) : null; const attFirst = att ? this.firstName(att.name) : '';
+      const threeOn = proSeat && !!h.client && !!h.firm && !!st.user && st.user.firm === h.firm;
+      const openConvo = () => threeOn ? this.setState({ paneTab: 'client', focus: null }, () => { const el = document.querySelector('.p-client textarea'); if (el) el.focus(); }) : this.setState({ convo: { hid: h.id, draft: '', err: '' } });
+      (l.cq || []).filter(q => q.status === 'open').forEach(q => needs.push({ kind: 'Question from ' + ovWho, kfg: '#1A56C4', title: '“' + q.txt + '”', detail: this.firstName(this.asstFor(h.owner)) + ' didn’t answer it: questions about the matter are for a person. Reply about documents and next steps, or send it to ' + (attFirst || 'the attorney') + '.', f1: openConvo, a1: 'Reply', ...(h.firm && !meAtt ? { f2: () => this.sendToAtt(h.id, q.id), a2: 'Send to ' + attFirst } : {}) }));
+      (l.cq || []).filter(q => q.status === 'attorney').forEach(q => needs.push(meAtt
+        ? { kind: 'Sent to you by ' + q.sentBy, kfg: '#1A56C4', title: '“' + q.txt + '”', detail: 'A question from ' + ovWho + '. Your reply appears in ' + ovWho + '’s conversation under your name.', f1: openConvo, a1: 'Reply' }
+        : { kind: 'With ' + attFirst, kfg: '#4A525C', title: '“' + q.txt + '”', detail: q.sentBy + ' sent it to ' + attFirst + '. The reply appears in ' + ovWho + '’s conversation.', f1: openConvo, a1: 'Open the conversation' }));
+      if (meAtt && h.stage === 'review') needs.unshift({ kind: 'Ready for your review', kfg: '#197040', title: h.title + '’s intake', detail: (h.reviewBy || 'The team') + ' marked it ready. Check the board and the Study, then close the intake.', f1: () => this.setStage(h.id, 'closed'), a1: 'Close intake' });
       ovReqs.filter(r => r.status === 'received').forEach(r => needs.push({ kind: 'Sent by ' + ovWho, kfg: '#1A56C4', title: r.title, detail: 'File: ' + r.file + '. ' + this.firstName(this.asstFor(h.owner)) + ' checked it: every page is readable.', f1: () => this.acceptReq(r.id), a1: 'Accept', f2: () => this.askAgain(r.id), a2: 'Ask again' }));
       ovReqs.filter(r => r.status === 'na').forEach(r => needs.push({ kind: 'Not available', kfg: '#B33A2E', title: r.title, detail: ovWho + ' says: “' + r.reason + '”', f1: () => this.acceptNa(r.id), a1: 'Accept', f2: () => this.askAgain(r.id), a2: 'Ask again' }));
       if (l.pending) needs.push({ kind: 'Study', kfg: '#7A5200', title: l.pending + (l.pending === 1 ? ' decision is' : ' decisions are') + ' not yet in the Study', detail: 'Accept to build revision ' + (l.rev + 1) + '. The source documents never change.', f1: () => this.acceptStudy(), a1: 'Accept into Study' });
       ovOpen.filter(x => x.kind !== 'missing').forEach(x => needs.push({ kind: this.KD[x.kind][0], kfg: this.KD[x.kind][2], title: x.title, detail: x.detail, chips: this.chips(scen, x.ev), f1: () => openDrawer('ex', x.id), a1: 'Review' }));
+      if (v.readyLines && v.readyLines[1] && v.readyLines[1].k === 'Need you') v.readyLines[1] = { k: 'Need you', v: String(needs.length) };
       v.bd.needs = needs.map((n, i) => ({ ...n, chips: n.chips || [], hasChips: !!(n.chips && n.chips.length), hasA2: !!n.a2, f2: n.f2 || noop, a2: n.a2 || '', b1bg: i === 0 ? '#1A56C4' : '#F4F6F8', b1fg: i === 0 ? '#fff' : '#1F2328' }));
       v.bd.hasNeeds = needs.length > 0;
       v.bd.showNext = needs.length === 0;
@@ -2030,12 +2527,12 @@ class Component extends DCLogic {
       v.bd.remindOnStr = l.remindersOn ? 'true' : 'false';
       v.bd.remindBg = l.remindersOn ? '#1A56C4' : '#B4B9C0';
       v.bd.remindKnob = l.remindersOn ? '23px' : '3px';
-      v.bd.toggleRemind = () => { const on = !l.remindersOn; this.updLive(h.id, ll => { ll.remindersOn = on; ll.activity.push({ t: this.now(), who: 'You', txt: on ? 'turned automatic reminders on' : 'turned automatic reminders off' }); }); };
+      v.bd.toggleRemind = () => { const on = !l.remindersOn; this.updLive(h.id, ll => { ll.remindersOn = on; ll.activity.push({ t: this.now(), who: this.me(), txt: on ? 'turned automatic reminders on' : 'turned automatic reminders off' }); }); };
 
       const an = this.asstFor(h.owner); const af = this.firstName(an); const named = an !== 'HiveForYou';
       const actor = w => w === 'HiveForYou' && proSeat && h.client && named ? af : w;
       const acts = (l.activity || []).slice().reverse().slice(0, 8);
-      v.bd.activity = acts.map(e => ({ t: e.t, who: actor(e.who), txt: e.txt, whoFg: e.who === 'HiveForYou' ? '#1A56C4' : '#1F2328' }));
+      v.bd.activity = acts.map(e => ({ t: e.t, who: e.who === this.me() ? 'You' : actor(e.who), txt: e.txt, whoFg: e.who === 'HiveForYou' ? '#1A56C4' : '#1F2328' }));
       const chat = l.chat || [];
       const whoOf = m => m.from === 'a' ? af : m.from === 'c' ? ovWho : 'You';
       const fgOf = m => m.from === 'a' ? '#1A56C4' : '#1F2328';
@@ -2061,7 +2558,7 @@ class Component extends DCLogic {
         v.hasConvo = true;
         v.cvo = {
           title: af + ' and ' + ovWho, sub: an + ' (automated) talks with ' + ovWho + ' for you.',
-          msgs: chat.map(m => ({ t: m.t, who: m.from === 'a' ? an + ' · automated' : m.from === 'c' ? h.client.name : 'You', whoFg: fgOf(m), txt: m.txt, hasTxt: !!m.txt, att: m.att || '', hasAtt: !!m.att })),
+          msgs: chat.map(m => ({ t: m.t, who: m.from === 'a' ? an + ' · automated' : m.from === 'c' ? h.client.name : (!m.by || m.by === st.user.name ? 'You' : m.by), whoFg: fgOf(m), txt: m.txt, hasTxt: !!m.txt, att: m.att || '', hasAtt: !!m.att })),
           replyLabel: 'Reply to ' + ovWho, draft: co.draft, err: co.err, hasErr: !!co.err,
           onDraft: e => this.setState({ convo: { ...co, draft: e.target.value, err: '' } }),
           note: ovWho + ' sees this from you, not from ' + af + '.',
@@ -2073,12 +2570,130 @@ class Component extends DCLogic {
 
       const allIn = l.loaded && checklist.length > 0 && doneN === checklist.length;
       v.bd.kicker = proSeat ? 'Intake for ' + h.title : 'Your hive';
+      const fmObj = h.firm && (st.firms || {})[h.firm];
+      v.bd.showTeam = proSeat && !!fmObj && !!st.user && st.user.firm === h.firm;
+      if (v.bd.showTeam) {
+        const meE = st.user.email; const onM = h.assignee ? this.member(h.assignee) : null;
+        v.bd.onIt = onM ? (h.assignee === meE ? 'You' : onM.name) + ' · ' + onM.title : 'Unassigned';
+        v.bd.canTake = h.assignee !== meE && h.stage !== 'closed';
+        v.bd.take = () => this.assign(h.id, meE, '');
+        v.bd.handOver = () => this.setState({ handover: { hid: h.id, to: null, note: '', err: '' } });
+        const meAtt2 = this.isAtt(meE);
+        v.bd.stageLine = h.stage === 'closed' ? 'Closed by ' + (h.closedBy || 'the attorney') : h.stage === 'review' ? 'Ready for attorney review' + (h.reviewBy ? ', marked by ' + h.reviewBy : '') : 'In progress';
+        v.bd.stageFg = h.stage === 'closed' ? '#197040' : h.stage === 'review' ? '#1A56C4' : '#1F2328';
+        const sa = h.stage === 'closed' ? (meAtt2 ? ['Reopen intake', 'open'] : null) : h.stage === 'review' ? (meAtt2 ? null : null) : meAtt2 ? ['Close intake', 'closed'] : ['Ready for attorney review', 'review'];
+        v.bd.hasStageAct = !!sa; v.bd.stageLabel = sa ? sa[0] : ''; v.bd.stageAct = sa ? () => this.setStage(h.id, sa[1]) : () => {};
+        v.bd.hasBanner = !!h.handover && h.assignee === meE && h.stage !== 'closed';
+        v.bd.bannerHead = h.handover ? h.handover.from + ' handed this hive to you · ' + h.handover.t.replace('Today, ', 'today at ') : '';
+        v.bd.bannerText = h.handover ? (h.handover.note || 'No note.') : '';
+      }
+      if (st.handover && st.handover.hid === h.id && fmObj) {
+        const ho = st.handover; const counts = e => (st.hives || []).filter(x => x.firm === h.firm && x.assignee === e && x.stage !== 'closed').length;
+        v.hasHandover = true;
+        v.ho = {
+          title: h.title,
+          people: fmObj.members.filter(m => !m.invited && m.email !== h.assignee).map(m => { const on = ho.to === m.email; return { name: m.email === st.user.email ? 'Me (' + m.name + ')' : m.name, title: m.title, load: counts(m.email) + (counts(m.email) === 1 ? ' hive' : ' hives'), on: on ? 'true' : 'false', bd: on ? '2px solid #1A56C4' : '1px solid #E3E6EA', bg: on ? '#E8F0FE' : '#fff', pick: () => this.setState({ handover: { ...ho, to: m.email, err: '' } }) }; }),
+          note: ho.note, onNote: e => this.setState({ handover: { ...ho, note: e.target.value } }),
+          err: ho.err, hasErr: !!ho.err,
+          close: () => this.setState({ handover: null }), stop: e => e.stopPropagation(),
+          save: () => { if (!ho.to) { this.setState({ handover: { ...ho, err: 'Choose who takes it.' } }); return; } this.assign(h.id, ho.to, ho.note); this.setState({ handover: null }); }
+        };
+      }
       v.bd.headline = needs.length ? needs.length + (needs.length === 1 ? ' thing needs you' : ' things need you')
         : v.bd.hasWaiting ? 'Waiting on ' + ovWho + ' for ' + waiting.length + (waiting.length === 1 ? ' item' : ' items')
         : !ovAtt.started ? 'Nothing is in yet'
         : allIn || (l.loaded && !checklist.length) ? 'Everything is in and checked'
         : !l.loaded ? 'Reading the documents'
         : checklist.length - doneN + ' still to come';
+      if (h.stage === 'closed') v.bd.headline = 'Intake closed';
+      const three = proSeat && !!h.client && !!h.firm && !!st.user && st.user.firm === h.firm;
+      v.isBoard3 = st.tab === 'overview' && three; v.isOverview = st.tab === 'overview' && !three;
+      if (three) {
+        const fm3 = st.firms[h.firm]; const an3 = this.asstFor(h.owner); const af3 = this.firstName(an3);
+        const ch3 = l.chat || []; const focus = st.focus && st.focus.hid === h.id ? st.focus.title : null;
+        const fileOf = {}; (l.requests || []).forEach(r => { if (r.file) fileOf[r.title] = r.file; });
+        const about = (m, title) => (m.txt && m.txt.includes(title)) || (fileOf[title] && m.att === fileOf[title]);
+        const who3 = m => m.from === 'a' ? af3 : m.from === 'c' ? ovWho : (!m.by || m.by === st.user.name ? 'You' : this.firstName(m.by));
+        const short = s => s.length > 70 ? s.slice(0, 67) + '…' : s;
+        const tab = st.paneTab || 'items';
+        v.b3 = {
+          tab, tabs: [['team', 'Team'], ['items', 'Items'], ['client', ovWho]].map(([k, lab]) => ({ label: lab, on: tab === k ? 'true' : 'false', bd: tab === k ? '#1A56C4' : 'transparent', fg: tab === k ? '#1A56C4' : '#4A525C', pick: () => this.setState({ paneTab: k }) })),
+          firmName: fm3.name, members: fm3.members.filter(m => !m.invited).map(m => ({ name: m.name, title: m.title })),
+          asstInitials: an3.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase(),
+          midLabel: af3 + '’s table', midSub: 'Automated. Keeps the list, asks ' + ovWho + ', checks every page. People decide.',
+          items: v.bd.checklist.map(k => {
+            const on = focus === k.title; const rel = ch3.filter(m => about(m, k.title)); const last = rel[rel.length - 1];
+            return { ...k, on: on ? 'true' : 'false', bg: on ? '#E8F0FE' : 'transparent', thread: last ? who3(last) + ': ' + short(last.att ? 'sent ' + last.att : last.txt) : 'No messages yet.', focus: () => this.setState({ focus: on ? null : { hid: h.id, title: k.title } }) };
+          }),
+          activity: v.bd.activity,
+          clientName: h.client.name, clientLine: (h.client.status === 'joined' ? 'Joined' : h.client.status === 'invited' ? 'Invited, not joined yet' : 'Not invited yet') + (v.bd.hasWaiting ? ' · waiting on ' + v.bd.waiting.length + (v.bd.waiting.length === 1 ? ' item' : ' items') : ''),
+          peek: peekC, peekLabel: 'See what ' + ovWho + ' sees',
+          hasFocus: !!focus, focusText: focus ? 'Thread for: ' + short(focus) : '', clearFocus: () => this.setState({ focus: null }),
+          logLabel: 'Conversation with ' + ovWho
+        };
+        const shown = focus ? ch3.filter(m => about(m, focus)) : ch3;
+        v.b3.msgs = shown.map(m => { const c = m.from === 'c', pp = m.from === 'p';
+          return { txt: m.txt, att: m.att || '', hasAtt: !!m.att, hasTxt: !!m.txt, align: pp ? 'flex-end' : 'flex-start',
+            label: (c ? h.client.name : pp ? (m.by || st.user.name) + (m.title ? ' · ' + m.title : '') : an3 + ' · automated') + ' · ' + m.t,
+            bg: c ? '#F4F6F8' : pp ? '#fff' : '#E8F0FE', fg: '#1F2328', bd: pp ? '2px solid #1A56C4' : 'none', radius: pp ? '14px 14px 4px 14px' : '4px 14px 14px 14px' }; });
+        v.b3.noMsgs = shown.length === 0; v.b3.noMsgsText = focus ? 'No messages about this item yet.' : 'No messages yet.';
+        const notes = (l.notes || []).filter(n => !focus || n.item === focus);
+        v.b3.notes = notes.slice().reverse().map(n => ({ by: n.by === this.me() ? 'You' : n.by, t: n.t, txt: n.txt, tag: n.item && !focus ? ' · on ' + short(n.item).slice(0, 40) : '' }));
+        v.b3.noNotes = notes.length === 0;
+        v.b3.notesHead = focus ? 'Team notes on this item' : 'Team notes';
+        v.b3.noteLabel = focus ? 'Note on this item' : 'Note for the team';
+        const nd = st.note3 && st.note3.hid === h.id ? st.note3 : { hid: h.id, txt: '', err: false };
+        v.b3.noteDraft = nd.txt; v.b3.notesHeadDummy = 0; v.b3.hasNoteErr = !!nd.err;
+        v.b3.onNote = e => this.setState({ note3: { hid: h.id, txt: e.target.value, err: false } });
+        v.b3.addNote = () => { if (!nd.txt.trim()) { this.setState({ note3: { ...nd, err: true } }); return; } this.updLive(h.id, ll => { (ll.notes = ll.notes || []).push({ by: this.me(), t: this.now(), txt: nd.txt.trim(), item: focus }); }); this.setState({ note3: null }); this.toast('Note saved. Only your team sees it.'); };
+        const rd = st.reply3 && st.reply3.hid === h.id ? st.reply3 : { hid: h.id, txt: '', err: false };
+        v.b3.replyLabel = 'Reply to ' + ovWho; v.b3.replyDraft = rd.txt; v.b3.hasReplyErr = !!rd.err;
+        v.b3.replyNote = ovWho + ' sees it from you, not from ' + af3 + '.';
+        v.b3.onReply = e => this.setState({ reply3: { hid: h.id, txt: e.target.value, err: false } });
+        v.b3.sendReply = () => { if (!rd.txt.trim()) { this.setState({ reply3: { ...rd, err: true } }); return; } this.proReply(h.id, rd.txt); this.setState({ reply3: null }); };
+        const PAL = [['#E8F0FE', '#1A56C4'], ['#E6F4EA', '#197040'], ['#FEF3D6', '#7A5200'], ['#FDEDEB', '#B33A2E']];
+        const ini = nm => nm.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        const colorOf = nm => { const ix = fm3.members.findIndex(m => this.firstName(m.name) === nm || m.name === nm); return PAL[(ix < 0 ? 0 : ix) % PAL.length]; };
+        v.b3.avatars = fm3.members.filter(m => !m.invited).map((m, ix) => ({ name: m.name + ' · ' + m.title, ini: ini(m.name), bg: PAL[ix % PAL.length][0], fg: PAL[ix % PAL.length][1] }));
+        const onM = h.assignee ? this.member(h.assignee) : null;
+        v.b3.on = onM ? { ini: ini(onM.name), bg: colorOf(onM.name)[0], fg: colorOf(onM.name)[1], name: h.assignee === st.user.email ? 'You' : onM.name, title: ' · ' + onM.title } : { ini: '–', bg: '#F1F3F5', fg: '#6B737D', name: 'Unassigned', title: '' };
+        v.b3.steps = (h.stage === 'closed' ? ['#2FA35A', '#2FA35A', '#2FA35A'] : h.stage === 'review' ? ['#2FA35A', '#3B7CF6', '#E3E6EA'] : ['#3B7CF6', '#E3E6EA', '#E3E6EA']).map(c => ({ bg: c }));
+        const WASH = { '#1A56C4': '#E8F0FE', '#B33A2E': '#FDEDEB', '#197040': '#E6F4EA', '#4A525C': '#F1F3F5', '#7A5200': '#FEF3D6' };
+        v.b3.needs = v.bd.needs.map(n => ({ ...n, pillBg: WASH[n.kfg] || '#F1F3F5' }));
+        v.b3.needN = String(v.bd.needs.length);
+        const nWait = v.bd.hasWaiting ? v.bd.waiting.length : 0; const nMiss = v.bd.checklist.filter(k => k.step === 'todo').length;
+        v.b3.stats = [[v.bd.needs.length, 'need you', '#E8F0FE', '#1A56C4'], [nWait, 'waiting', '#FEF3D6', '#7A5200'], [nMiss, 'missing', '#FDEDEB', '#B33A2E']].filter(x => x[0]).map(x => ({ label: x[0] + ' ' + x[1], bg: x[2], fg: x[3] }));
+        const PILL = { done: ['In', '#E6F4EA', '#197040'], check: ['Review', '#E8F0FE', '#1A56C4'], wait: ['Waiting', '#FEF3D6', '#7A5200'], todo: ['Missing', '#FDEDEB', '#B33A2E'] };
+        const HEXC = { done: ['#2FA35A', '#2FA35A', '#fff'], check: ['#E8F0FE', '#3B7CF6', 'transparent'], wait: ['#FEF3D6', '#F6B826', 'transparent'], todo: ['#fff', '#EF5143', 'transparent'] };
+        v.b3.items = v.b3.items.map(k => ({ ...k, pill: PILL[k.step][0], pillBg: PILL[k.step][1], pillFg: PILL[k.step][2], hexFill: HEXC[k.step][0], hexStroke: HEXC[k.step][1], checkStroke: HEXC[k.step][2] }));
+        const SEG = { done: '#2FA35A', check: '#3B7CF6', wait: '#F6B826', todo: 'rgba(239,81,67,.32)' }; const ORD = { done: 0, check: 1, wait: 2, todo: 3 };
+        const stepsSorted = v.bd.checklist.map(k => k.step).sort((a, c) => ORD[a] - ORD[c]);
+        v.b3.segs = stepsSorted.map(s => ({ bg: SEG[s] }));
+        const cnt = s => stepsSorted.filter(x => x === s).length;
+        v.b3.segLabel = cnt('done') + ' in, ' + cnt('check') + ' to review, ' + cnt('wait') + ' waiting, ' + cnt('todo') + ' missing';
+        const hm = /^(\d+)( .*)$/.exec(v.bd.headline);
+        v.b3.hNum = hm ? hm[1] : ''; v.b3.hRest = hm ? hm[2] : v.bd.headline; v.b3.hNumFg = '#1A56C4';
+        v.b3.ring = this.RING;
+        const HEXN = { '#1A56C4': '#3B7CF6', '#B33A2E': '#EF5143', '#197040': '#2FA35A', '#4A525C': '#B4B9C0', '#7A5200': '#F6B826' };
+        v.b3.needs = v.b3.needs.map(n => ({ ...n, hexC: HEXN[n.kfg] || '#3B7CF6' }));
+        const hOpen = !!(st.histOpen && st.histOpen === h.id);
+        v.b3.historyOpen = true; v.b3.historyOpenStr = hOpen ? 'true' : 'false'; v.b3.historyRot = hOpen ? '180deg' : '0deg';
+        const allActs = (l.activity || []).slice().reverse();
+        v.b3.historyN = String(allActs.length);
+        v.b3.activity = (hOpen ? allActs : allActs.slice(0, 3)).map(e => ({ t: e.t, who: e.who === this.me() ? 'You' : (e.who === 'HiveForYou' ? af3 : e.who), txt: e.txt, whoFg: e.who === 'HiveForYou' ? '#1A56C4' : '#1F2328' }));
+        v.b3.toggleHistory = () => this.setState({ histOpen: hOpen ? null : h.id });
+        v.b3.notes = v.b3.notes.map(n => { const c = colorOf(n.by === 'You' ? this.me() : n.by); return { ...n, ini: ini(n.by === 'You' ? st.user.name : ((this.member((fm3.members.find(m => this.firstName(m.name) === n.by) || {}).email) || { name: n.by }).name)), bg: c[0], fg: c[1] }; });
+        v.b3.notePh = focus ? 'Note on this item…' : 'Add a team note…';
+        v.b3.noteKey = e => { if (e.key === 'Enter') { e.preventDefault(); v.b3.addNote(); } };
+        v.b3.clientIni = ini(h.client.name);
+        v.b3.dot = h.client.status === 'joined' ? '#2FA35A' : h.client.status === 'invited' ? '#F6B826' : '#B4B9C0';
+        v.b3.replyPh = 'Reply to ' + ovWho + ' as ' + this.me() + '…';
+        v.b3.knob = v.bd.remindOnStr === 'true' ? '17px' : '3px';
+        v.b3.msgs = shown.map(m => { const c = m.from === 'c', pp = m.from === 'p';
+          return { txt: m.txt, att: m.att || '', hasAtt: !!m.att, hasTxt: !!m.txt, align: c ? 'flex-start' : 'flex-end',
+            label: (c ? ovWho : pp ? ((m.by && m.by !== st.user.name) ? this.firstName(m.by) : 'You') + (m.title ? ' · ' + m.title : '') : af3 + ' · automated') + ' · ' + m.t.replace('Today, ', ''),
+            bg: c ? '#F1F3F5' : pp ? '#1A56C4' : '#E8F0FE', fg: pp ? '#fff' : '#1F2328', radius: c ? '14px 14px 14px 4px' : '14px 14px 4px 14px' }; });
+      }
       if (v.bd.showNext && (allIn || (l.loaded && !checklist.length && !ovAtt.waiting))) {
         v.nx = { ...v.nx, title: 'Ready for your review', text: 'Every item is in and checked. The handoff summary shows where this hive stands, with each point linked to its page.', btn: 'Open the handoff summary', hasBtn: true, go: () => { this.setState({ tab: 'reports' }); this.toast('Prototype: the handoff summary arrives with the board build.'); }, hasAlt: false, chips: [], hasChips: false };
       }
@@ -2138,12 +2753,26 @@ class Component extends DCLogic {
       const an = this.asstFor(ch.owner); const af = this.firstName(an);
       const awaitR = cv.awaitRid ? reqs.find(r => r.id === cv.awaitRid && r.status === 'sent') : null;
       const sendDraft = () => { const d = (cv.draft || '').trim(); if (!d) return; this.clientSay(ch.id, d, awaitR ? awaitR.id : null); setCv({ draft: '', awaitRid: null }); };
+      const lay = st.cvLayout === 'laptop' ? 'laptop' : 'phone';
+      const fmC = ch.firm && st.firms ? st.firms[ch.firm] : null;
       v.cv = {
-        first: this.firstName(ch.client.name), pro: u.name, proFirst, backTo: proFirst + '’s view',
+        first: this.firstName(ch.client.name), pro: fmC ? this.attorneyOf(ch.firm).name + ' at ' + fmC.name : u.name, proFirst: fmC ? fmC.name : proFirst, backTo: proFirst + '’s view',
+        isPhone: lay === 'phone' || cv.step !== 'chat', isLaptop: lay === 'laptop' && cv.step === 'chat',
+        barW: lay === 'laptop' && cv.step === 'chat' ? '1240px' : '390px',
+        phoneOn: lay === 'phone' ? 'true' : 'false', laptopOn: lay === 'laptop' ? 'true' : 'false',
+        phoneBg: lay === 'phone' ? '#1F2328' : '#fff', phoneFg: lay === 'phone' ? '#fff' : '#1F2328',
+        laptopBg: lay === 'laptop' ? '#1F2328' : '#fff', laptopFg: lay === 'laptop' ? '#fff' : '#1F2328',
+        toPhone: () => this.setState({ cvLayout: 'phone' }), toLaptop: () => this.setState({ cvLayout: 'laptop' }),
+        firmName: fmC ? fmC.name : u.name,
+        items: reqs.map(r => { const m = r.status === 'sent' ? (cur && r.id === cur.id ? ['#3B7CF6', 'Now', '#1A56C4', '#E8F0FE'] : ['#EF5143', 'Still to send', '#B33A2E', '#fff']) : r.status === 'received' ? ['#F6B826', 'Sent. Your team will check it.', '#7A5200', '#FEF3D6'] : r.status === 'na' ? ['#B4B9C0', 'You don’t have it. Your team knows.', '#4A525C', '#F4F6F8'] : ['#2FA35A', 'Done', '#197040', '#2FA35A']; return { title: r.title, dot: m[0], st: m[1], fg: m[2], hexFill: m[3] }; }),
+        team: fmC ? fmC.members.filter(m => !m.invited).map(m => ({ name: m.name, title: m.title, onIt: ch.assignee === m.email ? ' · working on your hive' : '' })) : [{ name: u.name, title: 'Professional', onIt: '' }],
+        qs: (cl.cq || []).map(q => ({ txt: q.txt, st: q.status === 'answered' ? 'Answered' : q.status === 'attorney' ? 'With ' + (fmC ? this.attorneyOf(ch.firm).name : 'your professional') : 'Waiting for a reply', fg: q.status === 'answered' ? '#197040' : '#1A56C4' })),
+        ring: this.RING,
+        teamMsgs: (cl.chat || []).filter(m => m.from === 'p').map(m => ({ txt: m.txt, label: (m.by || u.name) + (m.title ? ' · ' + m.title : '') + ' · ' + m.t })),
         asstName: an, asstFirst: af, asstInitials: an.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase(),
         back: () => this.setState({ screen: 'hive', cv: null, tab: 'overview' }),
         isEmail: cv.step === 'email', isWelcome: cv.step === 'welcome', isChat: cv.step === 'chat',
-        countWord: word(open.length), subject: u.name + ' needs ' + word(open.length) + ' from you',
+        countWord: word(open.length), subject: (fmC ? fmC.name : u.name) + ' needs ' + word(open.length) + ' from you',
         openLink: () => { this.updHive(ch.id, x => { x.client = { ...x.client, status: 'joined' }; return x; }); this.updLive(ch.id, ll => { ll.activity.push({ t: this.now(), who: this.firstName(ch.client.name), txt: 'joined the hive' }); }); setCv({ step: 'welcome' }); },
         start: () => { this.greet(ch.id); setCv({ step: 'chat', draft: '' }); },
         bars: reqs.map(r => ({ bg: r.status !== 'sent' ? '#1A56C4' : cur && r.id === cur.id ? '#3B7CF6' : '#E3E6EA' })),
@@ -2152,12 +2781,12 @@ class Component extends DCLogic {
         hasCard: !!cur && !awaitR,
         photo: () => { if (cur) this.clientUpload(ch.id, cur.id, null); },
         onFile: e => { const f = e.target.files && e.target.files[0]; if (cur) this.clientUpload(ch.id, cur.id, f ? f.name : null); e.target.value = ''; },
-        noHave: () => { this.updLive(ch.id, ll => { this.say(ll, 'c', 'I don’t have ' + cur.title.charAt(0).toLowerCase() + cur.title.slice(1) + '.'); this.say(ll, 'a', 'That’s fine. In a few words, why not? For example, the account opened later. I’ll pass it on to ' + proFirst + '.'); }); setCv({ awaitRid: cur.id, draft: '' }); },
+        noHave: () => { this.updLive(ch.id, ll => { this.say(ll, 'c', 'I don’t have ' + cur.title.charAt(0).toLowerCase() + cur.title.slice(1) + '.'); this.say(ll, 'a', 'That’s fine. In a few words, why not? For example, the account opened later. I’ll pass it on to ' + this.teamFor(ch) + '.'); }); setCv({ awaitRid: cur.id, draft: '' }); },
         hasProblem: !!(cur && cur.problem), problem: cur && cur.problem ? cur.problem : '',
         msgs: (cl.chat || []).map(m => {
           const c = m.from === 'c', p = m.from === 'p';
           return { txt: m.txt, att: m.att || '', hasAtt: !!m.att, hasTxt: !!m.txt, align: c ? 'flex-end' : 'flex-start',
-            label: c ? m.t : (p ? u.name : an + ' · automated') + ' · ' + m.t,
+            label: c ? m.t : (p ? (m.by || u.name) + (m.title ? ' · ' + m.title : '') : an + ' · automated') + ' · ' + m.t,
             bg: c ? '#1A56C4' : p ? '#fff' : '#F4F6F8', fg: c ? '#fff' : '#1F2328', bd: p ? '2px solid #1A56C4' : 'none',
             radius: c ? '18px 18px 4px 18px' : '4px 18px 18px 18px' };
         }),
@@ -2165,6 +2794,8 @@ class Component extends DCLogic {
         onDraftKey: e => { if (e.key === 'Enter') { e.preventDefault(); sendDraft(); } }, send: sendDraft,
         placeholder: awaitR ? 'Tell ' + af + ' why' : 'Message ' + af
       };
+      v.cv.noQs = v.cv.qs.length === 0; v.cv.noTeamMsgs = v.cv.teamMsgs.length === 0;
+      v.cv.sarahMsgs = v.cv.msgs.filter((m, i) => (cl.chat || [])[i] && (cl.chat || [])[i].from !== 'p');
     }
 
     // What an invited professional sees
@@ -2185,7 +2816,7 @@ class Component extends DCLogic {
         asOf: 'as of ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
         shows, hasShows: shows.length > 0, missing, hasMissing: missing.length > 0, empty: !pl.loaded,
         undecided: pro.status === 'invited', taken: pro.status === 'taken', declined: pro.status === 'declined',
-        take: () => { this.updHive(ph.id, x => { x.pro = { ...x.pro, status: 'taken' }; return x; }); this.toast(ownerFirst + ' is told you took this hive.'); },
+        take: () => { const fm = this.firmOf(ph.pro.email); this.updHive(ph.id, x => { x.pro = { ...x.pro, status: 'taken' }; if (fm) { x.firm = fm; x.assignee = null; x.stage = 'open'; } return x; }); this.updLive(ph.id, ll => { ll.activity.push({ t: this.now(), who: this.firstName(ph.pro.name), txt: 'took this hive' + (fm ? ' for ' + this.state.firms[fm].name + '; it is in the team’s Unassigned list' : '') }); }); this.toast(ownerFirst + ' is told you took this hive.' + (fm ? ' It is in ' + this.state.firms[fm].name + '’s Unassigned list.' : '')); },
         decline: () => { this.updHive(ph.id, x => { x.pro = { ...x.pro, status: 'declined' }; return x; }); this.toast(ownerFirst + ' is told you declined.'); }
       };
     }
