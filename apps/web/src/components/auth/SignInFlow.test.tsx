@@ -13,11 +13,15 @@ import {
 } from "@/server/auth/auth-actions";
 import { authLinkErrorMessage } from "@/server/auth/messages";
 
+import { filledAuthButtons } from "./auth-test-helpers";
 import { SignInFlow } from "./SignInFlow";
 
 const TEST_EMAIL = "maya.rivera@example.test";
 const EMAIL_STEP_LEDE =
   "Use your email. New here? We'll set up your account. No password needed.";
+
+const CREATE_ACCOUNT_LEDE =
+  "Enter your email and we'll send you a code. No password needed.";
 
 const mockedRequest = vi.mocked(requestSignInCodeAction);
 const mockedVerify = vi.mocked(verifySignInCodeAction);
@@ -66,7 +70,19 @@ describe("SignInFlow", () => {
   it('shows "Create your account" when new=1', () => {
     render(<SignInFlow {...defaultFlowProps} createAccount />);
     expect(screen.getByRole("heading", { name: "Create your account" })).toBeTruthy();
-    expect(screen.getByText(EMAIL_STEP_LEDE)).toBeTruthy();
+    expect(screen.getByText(CREATE_ACCOUNT_LEDE)).toBeTruthy();
+    expect(screen.queryByText(EMAIL_STEP_LEDE)).toBeNull();
+  });
+
+  it("keeps exactly one filled button on the email and code steps", async () => {
+    const { unmount } = render(<SignInFlow {...defaultFlowProps} />);
+    expect(filledAuthButtons()).toHaveLength(1);
+    expect(filledAuthButtons()[0]?.textContent).toBe("Next");
+    unmount();
+
+    await goToCodeStep();
+    expect(filledAuthButtons()).toHaveLength(1);
+    expect(filledAuthButtons()[0]?.textContent).toBe("Sign in");
   });
 
   it("shows the same account-setup line when start=clients", () => {

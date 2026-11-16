@@ -19,6 +19,9 @@ const RESEND_SECONDS = 60;
 const EMAIL_STEP_LEDE =
   "Use your email. New here? We'll set up your account. No password needed.";
 
+const CREATE_ACCOUNT_LEDE =
+  "Enter your email and we'll send you a code. No password needed.";
+
 type SignInFlowProps = {
   nextPath: string;
   startClients: boolean;
@@ -144,7 +147,10 @@ export function SignInFlow({
             {bannerError}
           </p>
         ) : null}
-        <SignInHeading title={emailStepTitle} lede={EMAIL_STEP_LEDE} />
+        <SignInHeading
+          title={emailStepTitle}
+          lede={createAccount ? CREATE_ACCOUNT_LEDE : EMAIL_STEP_LEDE}
+        />
         <form action={requestAction} className="flex flex-col gap-4">
           <input type="hidden" name="next" value={safeNext} />
           <AuthFlowQueryFields startClients={startClients} createAccount={createAccount} />

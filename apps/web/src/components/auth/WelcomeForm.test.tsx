@@ -6,9 +6,10 @@ vi.mock("@/server/auth/auth-actions", () => ({
   setStartingViewAction: vi.fn(),
 }));
 
+import { filledAuthButtons } from "./auth-test-helpers";
 import { WelcomeForm } from "./WelcomeForm";
 
-afterEach(() => cleanup());
+afterEach(cleanup);
 
 describe("WelcomeForm", () => {
   it("shows both starting choices with prototype copy", () => {
@@ -21,6 +22,15 @@ describe("WelcomeForm", () => {
     expect(screen.getByRole("button", { name: /My own paperwork/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Hives for my clients/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
+    expect(filledAuthButtons()).toHaveLength(1);
+    expect(filledAuthButtons()[0]?.textContent).toBe("Continue");
+  });
+
+  it("includes the about aside with CSS hidden below 960px", () => {
+    render(<WelcomeForm nextPath="/hives" preselectClients={false} defaultFirstName="Dana" />);
+    const aside = screen.getByRole("complementary", { name: "About HiveForYou", hidden: true });
+    expect(aside.className).toMatch(/\bhidden\b/);
+    expect(aside.className).toContain("min-[960px]:flex");
   });
 
   it("preselects client hives when start=clients", () => {

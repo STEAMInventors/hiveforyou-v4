@@ -3,21 +3,37 @@ import type { InputHTMLAttributes, ReactNode } from "react";
 
 import { HiveBrandMark } from "@/components/HiveWordmark";
 
-export function SignInShell({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex min-h-dvh items-center justify-center bg-paper px-5 py-10 text-ink">
-      <div className="flex w-full max-w-[420px] flex-col gap-5">
-        <Link
-          href="/"
-          aria-label="HiveForYou home"
-          className="inline-flex min-h-11 min-w-11 shrink-0 items-center self-start rounded-control"
-        >
-          <HiveBrandMark variant="signIn" />
-        </Link>
-        {children}
-      </div>
+import { AuthSplitLayout } from "./AuthSplitLayout";
+
+export function SignInShell({
+  children,
+  splitPage = true,
+}: {
+  children: ReactNode;
+  splitPage?: boolean;
+}) {
+  const column = (
+    <div className="flex w-full max-w-[420px] flex-col gap-5">
+      <Link
+        href="/"
+        aria-label="HiveForYou home"
+        className="inline-flex min-h-11 min-w-11 shrink-0 items-center self-start rounded-control"
+      >
+        <HiveBrandMark variant="signIn" />
+      </Link>
+      {children}
     </div>
   );
+
+  if (!splitPage) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-paper px-5 py-10 text-ink">
+        {column}
+      </div>
+    );
+  }
+
+  return <AuthSplitLayout>{column}</AuthSplitLayout>;
 }
 
 export function SignInHeading({
