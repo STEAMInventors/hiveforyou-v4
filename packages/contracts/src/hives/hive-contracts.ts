@@ -6,7 +6,7 @@ import { isHiveKind } from "./hive-attention";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export type HiveMembershipRole = "owner" | "professional" | "client";
+export type HiveMembershipRole = "owner" | "professional" | "client" | "firm";
 
 export type Hive = {
   id: string;
@@ -23,9 +23,15 @@ export type Hive = {
   ownerDisplayName?: string | null;
   clientShareStatus?: "invited" | "client_joined" | null;
   homeKicker?: string | null;
+  firmId?: string | null;
+  assigneeUserId?: string | null;
+  assigneeDisplayName?: string | null;
+  stage?: "open" | "review" | "closed";
   /** Set while permanent deletion is in progress (My Hives retry card). */
   deletingAt?: string | null;
 };
+
+export type HiveStage = "open" | "review" | "closed";
 
 export type DeleteHiveResponse = {
   deleted: true;
@@ -156,7 +162,7 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
       : typeof record.membership_role === "string"
         ? record.membership_role.trim().toLowerCase()
         : "";
-  if (rawRole === "owner" || rawRole === "professional" || rawRole === "client") {
+  if (rawRole === "owner" || rawRole === "professional" || rawRole === "client" || rawRole === "firm") {
     membershipRole = rawRole;
   }
   const isOwner =
@@ -198,6 +204,39 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
   const clientShareStatus =
     clientShareRaw === "invited" || clientShareRaw === "client_joined" ? clientShareRaw : undefined;
 
+  const rawFirmId =
+    typeof record.firmId === "string"
+      ? record.firmId.trim()
+      : typeof record.firm_id === "string"
+        ? record.firm_id.trim()
+        : null;
+  const firmId = rawFirmId && isValidUuid(rawFirmId) ? rawFirmId : rawFirmId === null ? null : undefined;
+
+  const rawAssignee =
+    typeof record.assigneeUserId === "string"
+      ? record.assigneeUserId.trim()
+      : typeof record.assignee_user_id === "string"
+        ? record.assignee_user_id.trim()
+        : null;
+  const assigneeUserId =
+    rawAssignee && isValidUuid(rawAssignee)
+      ? rawAssignee
+      : rawAssignee === null
+        ? null
+        : undefined;
+
+  const assigneeDisplayName =
+    typeof record.assigneeDisplayName === "string"
+      ? record.assigneeDisplayName.trim() || null
+      : typeof record.assignee_display_name === "string"
+        ? record.assignee_display_name.trim() || null
+        : undefined;
+
+  const stageRaw =
+    typeof record.stage === "string" ? record.stage.trim().toLowerCase() : "";
+  const stage =
+    stageRaw === "open" || stageRaw === "review" || stageRaw === "closed" ? stageRaw : undefined;
+
   return {
     id,
     hiveId,
@@ -212,6 +251,10 @@ export function normalizeHiveRecord(raw: unknown): Hive | null {
     ...(ownerDisplayName !== undefined ? { ownerDisplayName } : {}),
     ...(clientShareStatus ? { clientShareStatus } : {}),
     ...(homeKicker !== undefined ? { homeKicker } : {}),
+    ...(firmId !== undefined ? { firmId } : {}),
+    ...(assigneeUserId !== undefined ? { assigneeUserId } : {}),
+    ...(assigneeDisplayName !== undefined ? { assigneeDisplayName } : {}),
+    ...(stage ? { stage } : {}),
     ...(deletingAt !== undefined ? { deletingAt } : {}),
   };
 }

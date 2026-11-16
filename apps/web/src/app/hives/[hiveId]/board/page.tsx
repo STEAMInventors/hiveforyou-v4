@@ -1,6 +1,7 @@
 import { HiveBoardPanel } from "@/components/hives/HiveBoardPanel";
 import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
 import { requestCorrelationId } from "@/server/auth/action-support";
+import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { hiveWorkspaceStartingView } from "@/server/hives/hive-workspace-props";
@@ -40,6 +41,8 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
     loaded.overview.preparation.eligibility.documents.length +
     loaded.overview.preparation.eligibility.excluded.length;
 
+  const firm = hive.firmId ? await loadFirm(auth.client) : null;
+
   return (
     <HiveWorkspaceLayout
       hiveId={hive.id}
@@ -60,6 +63,7 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
         board={loaded.board}
         documentLabels={documentLabels}
         initialPreparation={loaded.overview.preparation}
+        firm={firm}
       />
     </HiveWorkspaceLayout>
   );

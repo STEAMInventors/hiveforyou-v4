@@ -6,6 +6,7 @@ export * from "./errors/public-error-response";
 export * from "./errors/validate-correlation-id";
 export * from "./errors/failure-diagnostic";
 export * from "./hives/hive-contracts";
+export * from "./hives/firm-contracts";
 export * from "./hives/hive-invitations";
 export * from "./hives/hive-attention";
 export * from "./hives/hive-board";

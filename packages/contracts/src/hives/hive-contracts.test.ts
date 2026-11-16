@@ -134,6 +134,8 @@ describe("normalizeHiveRecord & isValidUuid", () => {
       description: null,
       kind: "own",
       clientRequestId: VALID_UUID,
+      firmId: null,
+      assigneeUserId: null,
       createdAt: "2026-10-26T21:00:00Z",
       updatedAt: "2026-10-26T21:00:00Z",
     });

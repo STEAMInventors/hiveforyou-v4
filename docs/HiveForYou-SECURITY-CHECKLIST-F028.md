@@ -22,3 +22,15 @@ Proof for each RLS and membership row is `supabase/tests/database/hive_membershi
 | A failed invitation send does not leave an open invite | web `POST .../invitations` revokes the row it just created and returns "We couldn't send the invitation. Try again." Send again on an open invitation revokes it, then creates and sends a new one | `apps/web/src/app/api/v1/hives/[hiveId]/invitations/route.test.ts` and `apps/web/src/components/hives/HiveBoardPeople.test.tsx` |
 
 `hive.hive_invitations` has row level security enabled and forced in `20261115130000_hive_membership_rls.sql` and no SELECT policy. Invitation reads and writes go through the SECURITY DEFINER RPCs. The check still selects `hive.hive_invitations` directly as the client.
+
+## FL-11 firm membership
+
+Proof: `supabase/tests/database/firm_membership_check.sql` (paste into the Supabase SQL editor; expect `ALL CHECKS PASSED`, then `ROLLBACK`).
+
+| Control | Code | Proof |
+| --- | --- | --- |
+| Firm tables: authenticated `SELECT` only (RLS limits rows) | `20261115200000_firms_and_assignment.sql` grants `SELECT` on `hive.firms`, `hive.hive_handovers`, `hive.team_notes`; column-level `SELECT` on `hive.firm_members` excludes `token_hash` | Owner and member read firm rows; direct `SELECT token_hash` fails; invited-row `token_hash` filter fails |
+| Firm writes via SECURITY DEFINER RPCs only | No `INSERT`/`UPDATE`/`DELETE` table grants; handover and team-note insert policies removed | Member direct `INSERT` on `hive.team_notes` fails |
+| Firm invitation tokens not readable from the table | `token_hash` omitted from the `authenticated` column grant; `lookup_firm_invitation` / `accept_firm_invitation` RPCs | Check blocks direct `token_hash` reads and asserts lookup JSON has no `token_hash` |
+| Firm staff hive access | `hive.is_firm_staff`, `list_hives` union, `get_hive` via `hive.is_hive_member` | Member sees firm client hive, assigns, adds team note; stranger denied |
+| Firm invites owner-only | `invite_firm_member` owner role gate | Member `invite_firm_member` fails in check |
