@@ -1,6 +1,16 @@
 -- QF-1a / FL-11: one-call-per-RPC smoke for every app/edge participant role.
 -- Requires migrations through 20261115210000_list_hives_union_all.sql.
 -- Paste into Supabase SQL editor (one transaction). Expect: ALL CHECKS PASSED, then ROLLBACK.
+--
+-- Role decisions (aligned with product decisions, not strict owner-only defaults):
+-- D13: Hive members (owner, assigned firm member, client, active professional) may call
+--      get_study_tab_view_definer; strangers may not.
+-- D14: Assigned paralegal (firm member on the hive) may create_intent_request, generate_hive_report,
+--      recover_expired_workflow_leases, start_document_reads, and start_study_preparation.
+-- Open creation: any authenticated user may create_hive (their own hive); create_firm when not
+--      already in a firm (client, pro). list_firm / lookups are own-firm or token-holder scoped.
+-- get_hive_by_client_request_id and get_pipeline_throughput are safe for broader roles (see calls).
+-- set_assistant_name: firm owner/attorney only. get_source_upload_by_client_request: hive owner only.
 -- APP_RPC_COVERAGE_BEGIN
 -- - accept_firm_invitation
 -- - accept_invitation
@@ -137,6 +147,9 @@ BEGIN
          OR SQLERRM LIKE 'report_run_not_found'
          OR SQLERRM LIKE 'document_read_not_found'
          OR SQLERRM LIKE 'study_not_accepted%'
+         OR SQLERRM LIKE 'no_eligible_documents%'
+         OR SQLERRM LIKE 'documents_not_read%'
+         OR SQLERRM LIKE 'firm_invitation_invalid%'
          OR SQLERRM = 'apply_vault_transaction payload must be an object' THEN
         NULL;
       ELSE
@@ -608,20 +621,20 @@ BEGIN
   -- rpc: create_firm
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
   PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
   PERFORM pg_temp.smoke_expect_ok(v_firm_two_creator, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
 
   -- rpc: create_hive
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));
 
   -- rpc: create_intent_request
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.create_intent_request(%L, 'more intent', gen_random_uuid())$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.create_intent_request(%L, 'more intent', gen_random_uuid())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.create_intent_request(%L, 'more intent', gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.create_intent_request(%L, 'more intent', gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.create_intent_request(%L, 'more intent', gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.create_intent_request(%L, 'more intent', gen_random_uuid())$fmt$, v_hive));
@@ -642,7 +655,7 @@ BEGIN
 
   -- rpc: generate_hive_report
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.generate_hive_report(%L, %L, 'CUSTOMER', gen_random_uuid(), %L)$fmt$, v_hive, v_revision, v_correlation));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.generate_hive_report(%L, %L, 'CUSTOMER', gen_random_uuid(), %L)$fmt$, v_hive, v_revision, v_correlation));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.generate_hive_report(%L, %L, 'CUSTOMER', gen_random_uuid(), %L)$fmt$, v_hive, v_revision, v_correlation));
   PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.generate_hive_report(%L, %L, 'CUSTOMER', gen_random_uuid(), %L)$fmt$, v_hive, v_revision, v_correlation));
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.generate_hive_report(%L, %L, 'CUSTOMER', gen_random_uuid(), %L)$fmt$, v_hive, v_revision, v_correlation));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.generate_hive_report(%L, %L, 'CUSTOMER', gen_random_uuid(), %L)$fmt$, v_hive, v_revision, v_correlation));
@@ -694,7 +707,7 @@ BEGIN
   PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.get_hive_by_client_request_id(%L)$fmt$, v_client_req));
   PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.get_hive_by_client_request_id(%L)$fmt$, v_client_req));
   PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.get_hive_by_client_request_id(%L)$fmt$, v_client_req));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.get_hive_by_client_request_id(%L)$fmt$, v_client_req));
+  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.get_hive_by_client_request_id(%L)$fmt$, v_client_req));
 
   -- rpc: get_hive_report
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.get_hive_report(%L, %L)$fmt$, v_hive, v_report_id));
@@ -726,10 +739,10 @@ BEGIN
 
   -- rpc: get_pipeline_throughput
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.get_pipeline_throughput('extract')$fmt$));
 
   -- rpc: get_processing_run_queued_reads
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.get_processing_run_queued_reads(%L)$fmt$, v_run));
@@ -747,9 +760,9 @@ BEGIN
 
   -- rpc: get_source_upload_by_client_request
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.get_source_upload_by_client_request(%L, %L, %L)$fmt$, v_hive, v_client_req, v_owner));
-  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.get_source_upload_by_client_request(%L, %L, %L)$fmt$, v_hive, v_client_req, v_owner));
-  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.get_source_upload_by_client_request(%L, %L, %L)$fmt$, v_hive, v_client_req, v_owner));
-  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.get_source_upload_by_client_request(%L, %L, %L)$fmt$, v_hive, v_client_req, v_owner));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.get_source_upload_by_client_request(%L, %L, %L)$fmt$, v_hive, v_client_req, v_owner));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.get_source_upload_by_client_request(%L, %L, %L)$fmt$, v_hive, v_client_req, v_owner));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.get_source_upload_by_client_request(%L, %L, %L)$fmt$, v_hive, v_client_req, v_owner));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.get_source_upload_by_client_request(%L, %L, %L)$fmt$, v_hive, v_client_req, v_owner));
 
   -- rpc: get_study_preparation
@@ -781,10 +794,10 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.get_study_tab_view(%L)$fmt$, v_hive));
 
   -- rpc: get_study_tab_view_definer
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.get_study_tab_view_definer(%L)$fmt$, v_hive));
 
   -- rpc: get_upload_quota
@@ -818,9 +831,9 @@ BEGIN
   -- rpc: list_firm
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.list_firm()$fmt$));
   PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.list_firm()$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.list_firm()$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.list_firm()$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.list_firm()$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.list_firm()$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.list_firm()$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.list_firm()$fmt$));
 
   -- rpc: list_hive_people
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.list_hive_people(%L)$fmt$, v_hive));
@@ -846,16 +859,16 @@ BEGIN
   -- rpc: lookup_firm_invitation
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.lookup_firm_invitation(%L)$fmt$, v_firm_token));
   PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.lookup_firm_invitation(%L)$fmt$, v_firm_token));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.lookup_firm_invitation(%L)$fmt$, v_firm_token));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.lookup_firm_invitation(%L)$fmt$, v_firm_token));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.lookup_firm_invitation(%L)$fmt$, v_firm_token));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.lookup_firm_invitation(%L)$fmt$, v_firm_token));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.lookup_firm_invitation(%L)$fmt$, v_firm_token));
+  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.lookup_firm_invitation(%L)$fmt$, v_firm_token));
 
   -- rpc: lookup_invitation
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.lookup_invitation(%L)$fmt$, v_token_client));
   PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.lookup_invitation(%L)$fmt$, v_token_client));
   PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.lookup_invitation(%L)$fmt$, v_token_client));
   PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.lookup_invitation(%L)$fmt$, v_token_client));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.lookup_invitation(%L)$fmt$, v_token_client));
+  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.lookup_invitation(%L)$fmt$, v_token_client));
 
   -- rpc: patch_processing_run_workflow_state
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.patch_processing_run_workflow_state(%L, '{}'::jsonb)$fmt$, v_run));
@@ -928,11 +941,11 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.record_doc_extraction_attempt(%L, %L, 1, 'GAP', '{}'::jsonb)$fmt$, v_run, v_doc));
 
   -- rpc: record_extracting_document_success
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.record_extracting_document_success(%L, %L)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.record_extracting_document_success(%L, %L)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.record_extracting_document_success(%L, %L)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.record_extracting_document_success(%L, %L)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.record_extracting_document_success(%L, %L)$fmt$, v_run, v_doc));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.record_extracting_document_success(%L, '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.record_extracting_document_success(%L, '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.record_extracting_document_success(%L, '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.record_extracting_document_success(%L, '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.record_extracting_document_success(%L, '{}'::jsonb)$fmt$, v_run));
 
   -- rpc: record_pipeline_model_call
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.record_pipeline_model_call(%L, 'extract', '{}'::jsonb)$fmt$, v_run));
@@ -943,7 +956,7 @@ BEGIN
 
   -- rpc: recover_expired_workflow_leases
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.recover_expired_workflow_leases(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.recover_expired_workflow_leases(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.recover_expired_workflow_leases(%L)$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.recover_expired_workflow_leases(%L)$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.recover_expired_workflow_leases(%L)$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.recover_expired_workflow_leases(%L)$fmt$, v_hive));
@@ -1006,10 +1019,10 @@ BEGIN
 
   -- rpc: set_assistant_name
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.set_assistant_name('Asst Smoke')$fmt$));
-  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.set_assistant_name('Asst Smoke')$fmt$));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.set_assistant_name('Asst Smoke')$fmt$));
   PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.set_assistant_name('Asst Smoke')$fmt$));
   PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.set_assistant_name('Asst Smoke')$fmt$));
-  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.set_assistant_name('Asst Smoke')$fmt$));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.set_assistant_name('Asst Smoke')$fmt$));
 
   -- rpc: set_display_name
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.set_display_name('Renamed Smoke')$fmt$));
@@ -1041,14 +1054,14 @@ BEGIN
 
   -- rpc: start_document_reads
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.start_document_reads(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.start_document_reads(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.start_document_reads(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.start_document_reads(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.start_document_reads(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.start_document_reads(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
 
   -- rpc: start_study_preparation
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.start_study_preparation(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.start_study_preparation(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.start_study_preparation(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.start_study_preparation(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.start_study_preparation(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.start_study_preparation(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));

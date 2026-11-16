@@ -19,26 +19,41 @@ INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, clien
 VALUES ('99999999-0000-4000-8000-0000000000d1', 'bbbbbbbb-0000-4000-8000-0000000000d1',
         'aaaaaaaa-0000-4000-8000-0000000000d1', 'Synthetic failure lookup.', '99999999-0000-4000-8000-0000000000f1');
 
-SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
+INSERT INTO hive.processing_runs (
+  id, hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
+  authorized_source_document_ids, intent_request_ids, source_snapshot,
+  source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
+  coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement,
+  snapshot_frozen_at, stage_attempt, stage_outputs,
+  error_code, retryable, finished_at
+)
+VALUES (
   '33333333-3333-4333-8333-33333333333d',
   'bbbbbbbb-0000-4000-8000-0000000000d1',
   'aaaaaaaa-0000-4000-8000-0000000000d1',
+  'STUDY_PREPARATION',
   'dddddddd-0000-4000-8000-0000000000d1',
-  'eeeeeeee-0000-4000-8000-0000000000d1',
-  'FAILED',
   1,
+  'FAILED',
+  'eeeeeeee-0000-4000-8000-0000000000d1',
+  ARRAY[]::uuid[],
+  ARRAY['99999999-0000-4000-8000-0000000000d1'::uuid],
+  jsonb_build_object('documents', '[]'::jsonb, 'excluded', '[]'::jsonb, 'coverageComplete', true),
+  'sha256:' || repeat('a', 64),
+  'sha256:' || repeat('b', 64),
+  'sha256:' || repeat('c', 64),
+  true,
+  false,
+  'COMPLETE',
+  '[]'::jsonb,
+  'NOT_REQUIRED',
+  now(),
   1,
   '{}'::jsonb,
-  NULL,
-  NULL,
-  NULL,
-  now());
-
-UPDATE hive.processing_runs
-   SET error_code = 'MODEL_TIMEOUT',
-       retryable = true,
-       finished_at = now()
- WHERE id = '33333333-3333-4333-8333-33333333333d';
+  'MODEL_TIMEOUT',
+  true,
+  now()
+);
 
 SET LOCAL role authenticated;
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000d1","role":"authenticated"}';
