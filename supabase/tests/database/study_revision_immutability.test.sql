@@ -3,6 +3,8 @@
 -- Synthetic data only. Run locally with `supabase test db`; never against a live project.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+\ir pg_fixture_helpers.sql
+
 SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)
@@ -11,6 +13,8 @@ VALUES ('aaaaaaaa-0000-4000-8000-00000000cc01', 'immut-owner@example.test', 'aut
 INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
 VALUES ('bbbbbbbb-0000-4000-8000-00000000cc01', 'aaaaaaaa-0000-4000-8000-00000000cc01', 'Immutability chain Hive',
         'bbbbbbbb-0000-4000-8000-00000000ccf1');
+
+SELECT pg_temp.qf1a_ensure_owner_memberships();
 
 INSERT INTO hive.source_documents (
   id, case_id, owner_user_id, original_filename, mime_type, byte_size, sha256,

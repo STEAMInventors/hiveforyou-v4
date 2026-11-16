@@ -1,5 +1,5 @@
-# HiveForYou V4 — deploy Supabase Edge Functions (V4-002: v1-hives only).
-# Does not run SQL migrations or modify database schema.
+# HiveForYou V4 — deploy Supabase Edge Functions (changed functions only).
+# Does not run SQL migrations; see HiveForYou-deploy-migrations.yml.
 
 name: HiveForYou Deploy Edge Functions
 
@@ -11,80 +11,159 @@ on:
       - "supabase/functions/**"
       - "supabase/config.toml"
       - ".github/workflows/HiveForYou-deploy-edge-functions.yml"
+  pull_request:
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/HiveForYou-deploy-edge-functions.yml"
   workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target Supabase project
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
 
 permissions:
   contents: read
+  checks: read
+  actions: read
 
 concurrency:
-  group: hiveforyou-deploy-edge-functions
+  group: hiveforyou-deploy-edge-functions-${{ github.event_name == 'workflow_dispatch' && inputs.target || 'production' }}
   cancel-in-progress: false
 
 jobs:
-  deploy-v1-hives:
-    name: Deploy v1-hives
+  resolve-target:
+    name: Resolve project ref
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    outputs:
+      project_ref: ${{ steps.pick.outputs.project_ref }}
+      deploy: ${{ steps.pick.outputs.deploy }}
+      target: ${{ steps.pick.outputs.target }}
+    steps:
+      - name: Pick target project
+        id: pick
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            target="${{ inputs.target }}"
+          else
+            target="production"
+          fi
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          if [ "$target" = "staging" ]; then
+            ref="${{ secrets.SUPABASE_STAGING_PROJECT_ID }}"
+          else
+            ref="${{ secrets.SUPABASE_PROJECT_ID }}"
+          fi
+          if [ -z "${ref:-}" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "project_ref=" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Missing project::No project ref for target=$target."
+            exit 0
+          fi
+          echo "project_ref=$ref" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
 
+  gate-ci-on-main:
+    name: Require green database tests and app CI (main push)
+    needs: resolve-target
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.resolve-target.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify upstream workflows for this commit
+        uses: actions/github-script@v7
+        env:
+          SHA: ${{ github.sha }}
+        with:
+          script: |
+            const sha = process.env.SHA;
+            const required = [
+              'HiveForYou-database-tests.yml',
+              'HiveForYou-app-ci.yml',
+            ];
+            for (const name of required) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: name,
+                head_sha: sha,
+                status: 'completed',
+                per_page: 5,
+              });
+              if (runs.data.workflow_runs.length === 0) {
+                core.info(`"${name}" did not run for ${sha} (path filters); skipping gate.`);
+                continue;
+              }
+              const ok = runs.data.workflow_runs.some((r) => r.conclusion === 'success');
+              if (!ok) {
+                core.setFailed(`No successful run of "${name}" for commit ${sha}.`);
+              }
+            }
+
+  deploy-functions:
+    name: Deploy changed Edge Functions
+    needs: [resolve-target, gate-ci-on-main]
+    if: always() && needs.resolve-target.outputs.deploy == 'true' && (needs.gate-ci-on-main.result == 'success' || needs.gate-ci-on-main.result == 'skipped') && needs.resolve-target.outputs.project_ref != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_PROJECT_ID: ${{ needs.resolve-target.outputs.project_ref }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate secrets and JWT configuration
+      - name: Validate secrets and verify_jwt in config.toml
         shell: bash
         run: |
           set -euo pipefail
-
           if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
-            echo "::error title=Missing secret::Configure the SUPABASE_ACCESS_TOKEN repository secret (Supabase account access token)."
+            echo "::error title=Missing secret::SUPABASE_ACCESS_TOKEN is required."
             exit 1
           fi
-
-          if [ -z "${SUPABASE_PROJECT_ID:-}" ]; then
-            echo "::error title=Missing secret::Configure the SUPABASE_PROJECT_ID repository secret (V4 Supabase project reference id)."
-            exit 1
-          fi
-
           CONFIG="supabase/config.toml"
-          if [ ! -f "$CONFIG" ]; then
-            echo "::error title=Missing config::Expected $CONFIG at repository root."
-            exit 1
-          fi
-
-          if ! grep -q '^\[functions\.v1-hives\]' "$CONFIG"; then
-            echo "::error title=Invalid config::Missing [functions.v1-hives] in $CONFIG."
-            exit 1
-          fi
-
-          if ! awk '
-            /^\[functions\.v1-hives\]/ { in_section=1; next }
-            /^\[/ { if (in_section) exit }
-            in_section && /^verify_jwt = true/ { found=1; exit }
-            END { exit(found ? 0 : 1) }
-          ' "$CONFIG"; then
-            echo "::error title=JWT verification disabled or missing::v1-hives must set verify_jwt = true in $CONFIG. Do not deploy with --no-verify-jwt."
-            exit 1
-          fi
-
-          echo "Configuration check passed: v1-hives verify_jwt = true."
-
-          if [ ! -f "supabase/functions/v1-hives/index.ts" ]; then
-            echo "::error title=Missing function::Expected supabase/functions/v1-hives/index.ts."
-            exit 1
-          fi
+          for fn in v1-hives v1-source-documents; do
+            if ! awk -v fn="$fn" '
+              $0 == "[functions." fn "]" { in_section=1; next }
+              /^\[/ { if (in_section) exit }
+              in_section && /^verify_jwt = true/ { found=1; exit }
+              END { exit(found ? 0 : 1) }
+            ' "$CONFIG"; then
+              echo "::error title=JWT verification::$fn must set verify_jwt = true."
+              exit 1
+            fi
+          done
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v3
         with:
           version: latest
 
-      - name: Deploy v1-hives Edge Function
+      - name: Deploy functions changed on this commit
         shell: bash
         run: |
           set -euo pipefail
-          supabase functions deploy v1-hives --project-ref "$SUPABASE_PROJECT_ID"
-          echo "Deployed v1-hives to project ref (redacted)."
+          mapfile -t FUNCS < <(git diff-tree --no-commit-id --name-only -r HEAD | grep -E '^supabase/functions/' | cut -d/ -f3 | sort -u || true)
+          if [ "${#FUNCS[@]}" -eq 0 ]; then
+            FUNCS=(v1-hives v1-source-documents)
+          fi
+          for fn in "${FUNCS[@]}"; do
+            if [ ! -f "supabase/functions/$fn/index.ts" ]; then
+              continue
+            fi
+            echo "Deploying $fn to target ${{ needs.resolve-target.outputs.target }}"
+            supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_ID"
+          done

@@ -10,6 +10,14 @@ name: HiveForYou Deploy Migrations
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Supabase project target
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - staging
       run_mode:
         description: Report pending migrations, or apply unapplied migrations up to a target version.
         required: true
@@ -47,8 +55,9 @@ jobs:
 
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ github.event.inputs.target == 'staging' && secrets.SUPABASE_STAGING_PROJECT_ID || secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_DB_PASSWORD: ${{ github.event.inputs.target == 'staging' && secrets.SUPABASE_STAGING_DB_PASSWORD || secrets.SUPABASE_DB_PASSWORD }}
+      DEPLOY_TARGET: ${{ github.event.inputs.target }}
       RUN_MODE: ${{ github.event.inputs.run_mode }}
       APPLY_THROUGH: ${{ github.event.inputs.apply_through_version }}
       ACK_V4_003: ${{ github.event.inputs.acknowledge_v4_003_vault_schema }}
@@ -454,3 +463,33 @@ jobs:
           done
 
           echo "Verified: selected pending migrations are recorded; no migration newer than $APPLY_THROUGH was applied."
+
+      - name: Run check SQL on target (*_check.sql)
+        if: github.event.inputs.run_mode == 'apply' && steps.history.outputs.apply_needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST_DIR=supabase/tests/database
+          shopt -s nullglob
+          mapfile -t CHECKS < <(find "$TEST_DIR" -maxdepth 1 -name '*_check.sql' | sort)
+          shopt -u nullglob
+          if [ "${#CHECKS[@]}" -eq 0 ]; then
+            echo "::error title=No check files::No *_check.sql under $TEST_DIR."
+            exit 1
+          fi
+          DB_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
+          for f in "${CHECKS[@]}"; do
+            echo "## Running $f on target ${DEPLOY_TARGET}"
+            out="$RUNNER_TEMP/$(basename "$f").log"
+            if ! psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f" >"$out" 2>&1; then
+              cat "$out"
+              echo "::error title=Check SQL failed::$f on ${DEPLOY_TARGET}"
+              exit 1
+            fi
+            if ! grep -q 'ALL CHECKS PASSED' "$out"; then
+              cat "$out"
+              echo "::error title=Check SQL missing success::$f"
+              exit 1
+            fi
+          done
+          echo "Check SQL OK on ${DEPLOY_TARGET}: ${#CHECKS[@]} file(s)."

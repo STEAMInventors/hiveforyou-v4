@@ -1,6 +1,8 @@
 -- Study tab RPC: owner read, auth isolation, empty hive, facts + referenced documents (synthetic).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+\ir pg_fixture_helpers.sql
+
 SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)
@@ -12,6 +14,8 @@ INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
 VALUES
   ('bbbbbbbb-0000-4000-8000-0000000000c1', 'aaaaaaaa-0000-4000-8000-0000000000c1', 'Study tab hive', 'bbbbbbbb-0000-4000-8000-0000000000cf1'),
   ('bbbbbbbb-0000-4000-8000-0000000000c2', 'aaaaaaaa-0000-4000-8000-0000000000c1', 'No revision hive', 'bbbbbbbb-0000-4000-8000-0000000000cf2');
+
+SELECT pg_temp.qf1a_ensure_owner_memberships();
 
 INSERT INTO hive.source_documents (
   id, case_id, owner_user_id, original_filename, mime_type, byte_size, sha256,

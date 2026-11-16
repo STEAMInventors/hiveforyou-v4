@@ -1,6 +1,7 @@
 -- Permanent Hive deletion with V5 doc_extractions, canonical-study-1 revision, and study-view report.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+\ir pg_fixture_helpers.sql
 SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)
@@ -9,6 +10,8 @@ VALUES ('aaaaaaaa-0000-4000-8000-0000000000d1', 'del-owner@example.test', 'authe
 INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
 VALUES ('bbbbbbbb-0000-4000-8000-0000000000d1', 'aaaaaaaa-0000-4000-8000-0000000000d1', 'Deletion V5 Hive',
         'bbbbbbbb-0000-4000-8000-0000000000df');
+
+SELECT pg_temp.qf1a_ensure_owner_memberships();
 
 INSERT INTO hive.source_documents (
   id, case_id, owner_user_id, original_filename, mime_type, byte_size, sha256,
@@ -49,7 +52,7 @@ WITH ins AS (
     authorized_source_document_ids, intent_request_ids, source_snapshot,
     source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
     coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement,
-    snapshot_frozen_at, stage_attempt, stage_outputs
+    snapshot_frozen_at, stage_attempt, stage_outputs, finished_at
   )
   SELECT
     'bbbbbbbb-0000-4000-8000-0000000000d1', 'aaaaaaaa-0000-4000-8000-0000000000d1', 'STUDY_PREPARATION',
@@ -69,7 +72,7 @@ WITH ins AS (
     'sha256:' || repeat('2', 64),
     'sha256:' || repeat('3', 64),
     true, true, 'COMPLETE', '[]'::jsonb, 'NOT_REQUIRED',
-    now(), 1, jsonb_build_object('canonicalStudy', s.study)
+    now(), 1, jsonb_build_object('canonicalStudy', s.study), now()
   FROM t_study s
   RETURNING id
 )

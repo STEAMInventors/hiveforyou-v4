@@ -37,4 +37,4 @@ Proof: `supabase/tests/database/firm_membership_check.sql` (paste into the Supab
 | Client members cannot read team notes or handovers | `pol_team_notes__select` and `pol_hive_handovers__select` use `hive.is_firm_staff` | Client `team_notes` and `hive_handovers` counts are 0. `list_team_notes` fails |
 | Stage changes follow firm role | `set_hive_stage`: any staff may mark review; close and reopen need an attorney or owner | Member review succeeds. Member close and reopen fail. Owner close and reopen succeed |
 | Assignment stays inside the firm | `assign_hive` requires an active firm member | `assign_hive` to a non-member fails with `assignee_not_firm_member` |
-| Home row kickers name the assignee | `list_hives` `homeKicker` | Member row is `· you on it`. Owner row is `· Dana on it` and `· unassigned` |
+| Home row kickers name the assignee | `list_hives` `homeKicker` | Member row is `· you on it`. Owner row is `· Dana on it` and `· unassigned` (also `supabase/tests/database/rpc_smoke_check.sql` list_hives role rows) |

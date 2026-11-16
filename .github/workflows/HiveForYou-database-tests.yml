@@ -1,20 +1,18 @@
-# HiveForYou V4 — local Supabase database verification (pgTAP).
+# HiveForYou V4 — local Supabase database verification (pgTAP + paste checks).
 # Uses an isolated `supabase db start` stack only; never links to or reads production secrets.
-#
-# V4-004: apply the full migration chain, then run every pgTAP file under supabase/tests/database.
 
 name: HiveForYou Database Tests
 
 on:
   push:
-    branches:
-      - main
     paths:
       - ".github/workflows/HiveForYou-database-tests.yml"
+      - "scripts/assert-app-rpc-coverage.mjs"
       - "supabase/**"
   pull_request:
     paths:
       - ".github/workflows/HiveForYou-database-tests.yml"
+      - "scripts/assert-app-rpc-coverage.mjs"
       - "supabase/**"
   workflow_dispatch:
 
@@ -26,10 +24,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  study-preparation-pgtap:
-    name: Migrations + study preparation pgTAP
+  database-tests:
+    name: Migrations + pgTAP + check SQL
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     env:
       SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
@@ -38,89 +36,105 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node (RPC coverage script)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Assert app RPCs are listed for rpc_smoke_check.sql
+        run: node scripts/assert-app-rpc-coverage.mjs
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v3
         with:
           version: latest
 
-      - name: Discover local migration chain
-        shell: bash
-        run: |
-          set -euo pipefail
-          MIG_DIR=supabase/migrations
-          if [ ! -d "$MIG_DIR" ]; then
-            echo "::error title=Missing migrations::Expected directory $MIG_DIR."
-            exit 1
-          fi
-          shopt -s nullglob
-          sql_files=( "$MIG_DIR"/*.sql )
-          shopt -u nullglob
-          if [ "${#sql_files[@]}" -eq 0 ]; then
-            echo "::error title=No migrations::No .sql files in $MIG_DIR."
-            exit 1
-          fi
-          echo "## Local migration chain (sorted)"
-          for f in "${sql_files[@]}"; do
-            base="$(basename "$f")"
-            if ! [[ "$base" =~ ^([0-9]{14})_.+\.sql$ ]]; then
-              echo "::error title=Invalid migration filename::Expected {14-digit-timestamp}_name.sql; got $base."
-              exit 1
-            fi
-            echo "- $base"
-          done | sort
-
       - name: Start isolated local database
         shell: bash
         run: |
           set -euo pipefail
-          echo "## Starting local Supabase database (Docker)"
           supabase db start
 
       - name: Apply all migrations (db reset)
         shell: bash
         run: |
           set -euo pipefail
-          echo "## Applying migrations via supabase db reset --no-seed"
           if ! supabase db reset --no-seed; then
-            echo "::error title=Migration apply failed::supabase db reset reported errors. See log above."
+            echo "::error title=Migration apply failed::supabase db reset reported errors."
             exit 1
           fi
-          echo "## Local migration history after reset"
           supabase migration list --local
 
-      - name: Run pgTAP (document reads, study preparation, analysis workflow)
+      - name: Discover and run pgTAP (*.test.sql)
         shell: bash
         run: |
           set -euo pipefail
-          TEST_FILES=(
-            supabase/tests/database/document_reads.test.sql
-            supabase/tests/database/study_preparation.test.sql
-            supabase/tests/database/analysis_workflow.test.sql
-            supabase/tests/database/doc_extractions_v5_pipeline.test.sql
-            supabase/tests/database/v5_workflow_part_a.test.sql
-            supabase/tests/database/v5_report_study_view.test.sql
-            supabase/tests/database/rebuild_study.test.sql
-            supabase/tests/database/hive_deletion_v5.test.sql
-          )
-          for f in "${TEST_FILES[@]}"; do
-            if [ ! -f "$f" ]; then
-              echo "::error title=Missing test file::Expected $f."
-              exit 1
-            fi
+          TEST_DIR=supabase/tests/database
+          HELPER="$TEST_DIR/pg_fixture_helpers.sql"
+          shopt -s nullglob
+          mapfile -t FOUND < <(find "$TEST_DIR" -maxdepth 1 -name '*.test.sql' | sort)
+          shopt -u nullglob
+          if [ "${#FOUND[@]}" -eq 0 ]; then
+            echo "::error title=No pgTAP files::No *.test.sql under $TEST_DIR."
+            exit 1
+          fi
+          echo "Discovered ${#FOUND[@]} pgTAP file(s)."
+          MERGED=()
+          for f in "${FOUND[@]}"; do
+            tmp="$RUNNER_TEMP/pgtap-$(basename "$f")"
+            { cat "$HELPER"; echo; cat "$f"; } > "$tmp"
+            MERGED+=("$tmp")
           done
-          echo "## Running pgTAP: ${TEST_FILES[*]}"
           set +e
-          supabase test db "${TEST_FILES[@]}" 2>&1 | tee "$RUNNER_TEMP/pgtap.log"
+          supabase test db "${MERGED[@]}" 2>&1 | tee "$RUNNER_TEMP/pgtap.log"
           test_exit=${PIPESTATUS[0]}
           set -e
-          echo "## pgTAP summary"
-          grep -E '^(ok|not ok|# Looks like|All tests successful|Files=|Result:)' "$RUNNER_TEMP/pgtap.log" || true
           if [ "$test_exit" -ne 0 ]; then
-            echo "::error title=pgTAP failed::pgTAP did not pass (exit $test_exit). Failing assertions and migration errors are in the job log above."
+            echo "::error title=pgTAP failed::exit $test_exit"
             exit "$test_exit"
           fi
           if ! grep -q 'All tests successful' "$RUNNER_TEMP/pgtap.log"; then
-            echo "::error title=pgTAP incomplete::Expected 'All tests successful' in test output."
+            echo "::error title=pgTAP incomplete::Expected 'All tests successful'."
             exit 1
           fi
-          echo "Verified: all pgTAP files passed on commit ${GITHUB_SHA}."
+          echo "pgTAP OK: ${#FOUND[@]} file(s)."
+
+      - name: Discover and run check SQL (*_check.sql)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TEST_DIR=supabase/tests/database
+          shopt -s nullglob
+          mapfile -t CHECKS < <(find "$TEST_DIR" -maxdepth 1 -name '*_check.sql' | sort)
+          shopt -u nullglob
+          if [ "${#CHECKS[@]}" -eq 0 ]; then
+            echo "::error title=No check files::No *_check.sql under $TEST_DIR."
+            exit 1
+          fi
+          echo "Discovered ${#CHECKS[@]} check file(s)."
+          DB_URL="$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\r')"
+          if [ -z "$DB_URL" ]; then
+            echo "::error title=No DB_URL::Could not read DB_URL from supabase status."
+            exit 1
+          fi
+          ran=0
+          for f in "${CHECKS[@]}"; do
+            ran=$((ran + 1))
+            echo "## Running $f"
+            out="$RUNNER_TEMP/$(basename "$f").log"
+            if ! psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f" >"$out" 2>&1; then
+              cat "$out"
+              echo "::error title=Check SQL failed::$f"
+              exit 1
+            fi
+            if ! grep -q 'ALL CHECKS PASSED' "$out"; then
+              cat "$out"
+              echo "::error title=Check SQL missing success::$f did not print ALL CHECKS PASSED"
+              exit 1
+            fi
+          done
+          if [ "$ran" -ne "${#CHECKS[@]}" ]; then
+            echo "::error title=Check count mismatch::ran=$ran found=${#CHECKS[@]}"
+            exit 1
+          fi
+          echo "Check SQL OK: ${#CHECKS[@]} file(s)."

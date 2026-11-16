@@ -1,6 +1,7 @@
 -- patch_processing_run_workflow_state: the only writer of mutable workflow keys in stage_outputs.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+\ir pg_fixture_helpers.sql
 
 SELECT * FROM no_plan();
 
@@ -10,6 +11,8 @@ VALUES ('aaaaaaaa-0000-4000-8000-0000000000a1', 'owner-ws@example.test', 'authen
 INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
 VALUES ('bbbbbbbb-0000-4000-8000-0000000000a1', 'aaaaaaaa-0000-4000-8000-0000000000a1', 'Workflow State Hive',
         'bbbbbbbb-0000-4000-8000-0000000000a2');
+
+SELECT pg_temp.qf1a_ensure_owner_memberships();
 
 INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, client_request_id)
 VALUES ('99999999-0000-4000-8000-0000000000a1', 'bbbbbbbb-0000-4000-8000-0000000000a1',

@@ -2,6 +2,7 @@
 -- Run locally with `supabase test db`; never against a live project.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+\ir pg_fixture_helpers.sql
 
 SELECT plan(30);
 
@@ -20,6 +21,8 @@ VALUES (
   'Synthetic Hive',
   'bbbbbbbb-0000-4000-8000-0000000000ff'
 );
+
+SELECT pg_temp.qf1a_ensure_owner_memberships();
 
 INSERT INTO hive.source_documents (
   id, case_id, owner_user_id, original_filename, mime_type, byte_size, sha256,

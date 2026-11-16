@@ -1,6 +1,7 @@
 -- Lost workflow hand-offs: recover_expired_workflow_leases re-dispatches once without extra attempts.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+\ir pg_fixture_helpers.sql
 
 SELECT * FROM no_plan();
 
@@ -10,6 +11,8 @@ VALUES ('aaaaaaaa-0000-4000-8000-000000000001', 'owner@example.test', 'authentic
 INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
 VALUES ('bbbbbbbb-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000001', 'Handoff Hive',
         'bbbbbbbb-0000-4000-8000-0000000000f1');
+
+SELECT pg_temp.qf1a_ensure_owner_memberships();
 
 INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, client_request_id)
 VALUES ('99999999-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000001',

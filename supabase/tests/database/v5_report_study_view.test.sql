@@ -1,6 +1,7 @@
 -- V5-005b part B — canonical-study-1 report inputs (format, verified extractions) and hive.study-view/1 reports.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+\ir pg_fixture_helpers.sql
 SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)
@@ -9,6 +10,8 @@ VALUES ('aaaaaaaa-0000-4000-8000-0000000005b1', 'v5b-owner@example.test', 'authe
 INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
 VALUES ('bbbbbbbb-0000-4000-8000-0000000005b1', 'aaaaaaaa-0000-4000-8000-0000000005b1', 'V5 Part B Hive',
         'bbbbbbbb-0000-4000-8000-0000000005f1');
+
+SELECT pg_temp.qf1a_ensure_owner_memberships();
 
 INSERT INTO hive.source_documents (
   id, case_id, owner_user_id, original_filename, mime_type, byte_size, sha256,
@@ -172,7 +175,7 @@ SELECT is(
        'drops', jsonb_build_object('sentencesDropped', 0),
        'sources', jsonb_build_object('documents', '{}'::jsonb, 'facts', jsonb_build_object(
          'F-cccccccc-001', jsonb_build_object('sourceDocumentId', 'cccccccc-0000-4000-8000-0000000005b1',
-                                              'pageNumber', 1, 'quote', 'q'))))),
+                                              'pageNumber', 1, 'quote', 'q')))),
      'scenario_analysis', '{}'::jsonb,
      'writer_prompt_digest', 'sha256:' || repeat('f', 64),
      'model_alias', 'harvester',
