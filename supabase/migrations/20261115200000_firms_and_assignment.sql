@@ -313,24 +313,12 @@ ALTER TABLE hive.team_notes FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS pol_firms__select ON hive.firms;
 CREATE POLICY pol_firms__select ON hive.firms
   FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM hive.firm_members fm
-       WHERE fm.firm_id = id AND fm.user_id = auth.uid() AND fm.state = 'active'
-    )
-  );
+  USING (hive.firm_role(id) IS NOT NULL);
 
 DROP POLICY IF EXISTS pol_firm_members__select ON hive.firm_members;
 CREATE POLICY pol_firm_members__select ON hive.firm_members
   FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM hive.firm_members me
-       WHERE me.firm_id = firm_members.firm_id
-         AND me.user_id = auth.uid()
-         AND me.state = 'active'
-    )
-  );
+  USING (hive.firm_role(firm_id) IS NOT NULL);
 
 DROP POLICY IF EXISTS pol_hive_handovers__select ON hive.hive_handovers;
 DROP POLICY IF EXISTS pol_hive_handovers__insert ON hive.hive_handovers;
@@ -1521,6 +1509,10 @@ REVOKE ALL ON FUNCTION hive.is_firm_attorney_or_owner(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION hive.can_write_hive(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION hive.can_delete_hive(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION hive.write_firm_audit(uuid, uuid, text, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION hive.firm_role(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION hive.caller_active_firm_id() TO authenticated;
+GRANT EXECUTE ON FUNCTION hive.is_firm_staff(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION hive.is_firm_attorney_or_owner(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION hive.is_hive_member(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION hive.can_write_hive(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION hive.can_delete_hive(uuid) TO authenticated;

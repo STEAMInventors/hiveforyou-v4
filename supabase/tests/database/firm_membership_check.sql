@@ -92,6 +92,14 @@ BEGIN
     RAISE EXCEPTION 'accept_firm_invitation failed: %', v_json;
   END IF;
 
+  SELECT count(*)::integer INTO v_count FROM hive.firms WHERE id = v_firm;
+  IF v_count <> 1 THEN RAISE EXCEPTION 'member direct firms select failed'; END IF;
+
+  SELECT count(*)::integer INTO v_count
+    FROM hive.firm_members
+   WHERE firm_id = v_firm AND state = 'active';
+  IF v_count < 2 THEN RAISE EXCEPTION 'member direct firm_members select failed: count=%', v_count; END IF;
+
   RESET ROLE;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
@@ -263,6 +271,11 @@ BEGIN
   SELECT count(*)::integer INTO v_count FROM hive.firms;
   IF v_count <> 0 THEN
     RAISE EXCEPTION 'stranger firms select should see no rows';
+  END IF;
+
+  SELECT count(*)::integer INTO v_count FROM hive.firm_members;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'stranger firm_members select should see no rows';
   END IF;
 
   RESET ROLE;

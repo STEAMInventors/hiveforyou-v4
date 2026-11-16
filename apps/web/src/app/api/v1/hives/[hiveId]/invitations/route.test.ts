@@ -16,6 +16,10 @@ const CORRELATION_ID = "2eb8421a-b784-4bf8-ac2b-540299b61d13";
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 const INVITATION_ID = "44444444-4444-4444-8444-444444444444";
 
+// The route graph takes several seconds to import. Loading it inside a test
+// sits on Vitest's 5s limit, and a timed-out request then leaks into the next test.
+const { POST } = await import("./route");
+
 describe("POST /api/v1/hives/[hiveId]/invitations", () => {
   const rpcMock = vi.fn();
 
@@ -53,7 +57,6 @@ describe("POST /api/v1/hives/[hiveId]/invitations", () => {
         throw new Error("resend_failed https://app.example/invite/secret-token");
       });
 
-      const { POST } = await import("./route");
       const response = await POST(
         new NextRequest(`http://localhost/api/v1/hives/${HIVE_ID}/invitations`, {
           method: "POST",
@@ -89,7 +92,6 @@ describe("POST /api/v1/hives/[hiveId]/invitations", () => {
       });
       sendInvitationEmailMock.mockResolvedValue(undefined);
 
-      const { POST } = await import("./route");
       const response = await POST(
         new NextRequest(`http://localhost/api/v1/hives/${HIVE_ID}/invitations`, {
           method: "POST",
