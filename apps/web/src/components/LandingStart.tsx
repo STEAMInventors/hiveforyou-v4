@@ -11,7 +11,7 @@ import { useHiveComposer } from "@/components/hives/useCreateHive";
 import { saveGuestDraft, type GuestDraft } from "@/lib/guest-draft";
 import { CREATE_HIVE_AFTER_SIGN_UP_PATH } from "@/lib/hive-routes";
 
-const CLIENTS_SIGN_IN_PATH = "/sign-in?start=clients&next=%2Fhives";
+const CLIENTS_SIGN_IN_PATH = "/sign-in?start=clients&next=%2Fhives&new=1";
 
 export function LandingStart() {
   const router = useRouter();

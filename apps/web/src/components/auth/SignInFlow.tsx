@@ -16,16 +16,43 @@ const initialState: SignInActionState = { step: "email" };
 
 const RESEND_SECONDS = 60;
 
+const EMAIL_STEP_LEDE =
+  "Use your email. New here? We'll set up your account. No password needed.";
+
 type SignInFlowProps = {
   nextPath: string;
   startClients: boolean;
+  createAccount: boolean;
   linkError?: string | null;
   initialEmail?: string;
   lockEmail?: boolean;
 };
 
-export function SignInFlow({ nextPath, startClients, linkError, initialEmail, lockEmail }: SignInFlowProps) {
+function AuthFlowQueryFields({
+  startClients,
+  createAccount,
+}: {
+  startClients: boolean;
+  createAccount: boolean;
+}) {
+  return (
+    <>
+      {startClients ? <input type="hidden" name="start" value="clients" /> : null}
+      {createAccount ? <input type="hidden" name="new" value="1" /> : null}
+    </>
+  );
+}
+
+export function SignInFlow({
+  nextPath,
+  startClients,
+  createAccount,
+  linkError,
+  initialEmail,
+  lockEmail,
+}: SignInFlowProps) {
   const safeNext = safeNextPath(nextPath, "/hives");
+  const emailStepTitle = createAccount ? "Create your account" : "Sign in or create your account";
   const [requestState, requestAction, requestPending] = useActionState(
     requestSignInCodeAction,
     initialState,
@@ -72,6 +99,7 @@ export function SignInFlow({ nextPath, startClients, linkError, initialEmail, lo
         <form action={verifyAction} className="flex flex-col gap-4">
           <input type="hidden" name="email" value={email} />
           <input type="hidden" name="next" value={safeNext} />
+          <AuthFlowQueryFields startClients={startClients} createAccount={createAccount} />
           <SignInField
             id={codeId}
             label="Sign-in code"
@@ -99,6 +127,7 @@ export function SignInFlow({ nextPath, startClients, linkError, initialEmail, lo
         <form action={requestAction} className="m-0">
           <input type="hidden" name="email" value={email} />
           <input type="hidden" name="next" value={safeNext} />
+          <AuthFlowQueryFields startClients={startClients} createAccount={createAccount} />
           <button
             type="submit"
             className={QUIET_LINK_CLASS}
@@ -115,14 +144,10 @@ export function SignInFlow({ nextPath, startClients, linkError, initialEmail, lo
             {bannerError}
           </p>
         ) : null}
-        <SignInHeading title="Sign in" lede="to continue to HiveForYou" />
-        {startClients ? (
-          <p className="m-0 text-[15px] leading-[1.5] text-ink-muted">
-            New here? Use your email. Signing in and creating an account are the same step.
-          </p>
-        ) : null}
+        <SignInHeading title={emailStepTitle} lede={EMAIL_STEP_LEDE} />
         <form action={requestAction} className="flex flex-col gap-4">
           <input type="hidden" name="next" value={safeNext} />
+          <AuthFlowQueryFields startClients={startClients} createAccount={createAccount} />
           <SignInField
             id={emailId}
             label="Email"
@@ -135,12 +160,9 @@ export function SignInFlow({ nextPath, startClients, linkError, initialEmail, lo
             onChange={lockEmail ? undefined : (event) => setEmail(event.target.value)}
             error={emailError}
           />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm text-ink-muted">No password. We email you a 6-digit code.</span>
-            <button type="submit" disabled={requestPending} className={PRIMARY_BUTTON_CLASS}>
-              {requestPending ? "Sending…" : "Next"}
-            </button>
-          </div>
+          <button type="submit" disabled={requestPending} className={PRIMARY_BUTTON_CLASS}>
+            {requestPending ? "Sending…" : "Next"}
+          </button>
         </form>
       </>
     );

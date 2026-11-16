@@ -65,9 +65,13 @@ export function WelcomeForm({ nextPath, preselectClients, defaultFirstName }: We
 
   return (
     <SignInShell>
+      <h1 className="m-0 font-brand text-[32px] font-semibold leading-[1.15] text-ink">
+        Welcome to HiveForYou
+      </h1>
       <SignInHeading
         title="What brings you here?"
         lede="This sets where you start. You can switch any time."
+        titleLevel={2}
       />
       <div className="flex flex-col gap-1.5">
         <label htmlFor="welcome-first-name" className="text-sm font-medium text-ink">

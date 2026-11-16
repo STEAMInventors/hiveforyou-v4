@@ -20,12 +20,21 @@ export function SignInShell({ children }: { children: ReactNode }) {
   );
 }
 
-export function SignInHeading({ title, lede }: { title: string; lede: string }) {
+export function SignInHeading({
+  title,
+  lede,
+  titleLevel = 1,
+}: {
+  title: string;
+  lede: string;
+  titleLevel?: 1 | 2;
+}) {
+  const TitleTag = titleLevel === 2 ? "h2" : "h1";
   return (
     <div className="flex flex-col gap-1.5">
-      <h1 className="m-0 font-brand text-[32px] font-semibold leading-[1.15] text-ink">
+      <TitleTag className="m-0 font-brand text-[32px] font-semibold leading-[1.15] text-ink">
         {title}
-      </h1>
+      </TitleTag>
       <p className="m-0 text-base leading-[1.55] text-ink-muted">{lede}</p>
     </div>
   );

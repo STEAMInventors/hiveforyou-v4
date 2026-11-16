@@ -7,13 +7,14 @@ import { fetchMyProfile } from "@/lib/auth/profile";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type PageProps = {
-  searchParams: Promise<{ next?: string; start?: string; error?: string; email?: string }>;
+  searchParams: Promise<{ next?: string; start?: string; new?: string; error?: string; email?: string }>;
 };
 
 export default async function SignInPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const next = safeNextPath(params.next, "/hives");
   const startClients = params.start === "clients";
+  const createAccount = params.new === "1";
   const linkError = authLinkErrorMessage(params.error);
 
   try {
@@ -39,6 +40,7 @@ export default async function SignInPage({ searchParams }: PageProps) {
     <SignInFlow
       nextPath={next}
       startClients={startClients}
+      createAccount={createAccount}
       linkError={linkError}
       initialEmail={inviteEmail}
       lockEmail={Boolean(inviteEmail)}

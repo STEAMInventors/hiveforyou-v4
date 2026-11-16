@@ -16,6 +16,8 @@ import { authLinkErrorMessage } from "@/server/auth/messages";
 import { SignInFlow } from "./SignInFlow";
 
 const TEST_EMAIL = "maya.rivera@example.test";
+const EMAIL_STEP_LEDE =
+  "Use your email. New here? We'll set up your account. No password needed.";
 
 const mockedRequest = vi.mocked(requestSignInCodeAction);
 const mockedVerify = vi.mocked(verifySignInCodeAction);
@@ -26,43 +28,61 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function goToCodeStep(next = "/hives") {
+const defaultFlowProps = {
+  nextPath: "/hives",
+  startClients: false,
+  createAccount: false,
+};
+
+async function goToCodeStep(
+  next = "/hives",
+  extra: Partial<{ startClients: boolean; createAccount: boolean }> = {},
+) {
   mockedRequest.mockResolvedValue({ step: "code", email: TEST_EMAIL, next });
-  render(<SignInFlow nextPath={next} startClients={false} />);
+  render(<SignInFlow {...defaultFlowProps} nextPath={next} {...extra} />);
   const form = screen.getByLabelText("Email").closest("form")!;
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: TEST_EMAIL } });
   fireEvent.submit(form);
-    await waitFor(() => expect(screen.getByLabelText("Sign-in code")).toBeTruthy());
+  await waitFor(() => expect(screen.getByLabelText("Sign-in code")).toBeTruthy());
   await waitFor(() =>
     expect(screen.getByText(/We sent a 6-digit code to/)).toBeTruthy(),
   );
 }
 
+function hiddenValue(form: HTMLFormElement, name: string): string | undefined {
+  return form.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.value;
+}
+
 describe("SignInFlow", () => {
-  it("shows the email step with prototype copy", () => {
-    render(<SignInFlow nextPath="/hives" startClients={false} />);
+  it("shows the email step with sign-in or create copy on every visit", () => {
+    render(<SignInFlow {...defaultFlowProps} />);
     expect(screen.getByTestId("hive-mark")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
-    expect(screen.getByText("to continue to HiveForYou")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Sign in or create your account" })).toBeTruthy();
+    expect(screen.getByText(EMAIL_STEP_LEDE)).toBeTruthy();
     expect(screen.getByLabelText("Email")).toBeTruthy();
-    expect(screen.getByText("No password. We email you a 6-digit code.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Next" })).toBeTruthy();
   });
 
-  it("shows the new-here note when start=clients", () => {
-    render(<SignInFlow nextPath="/hives" startClients linkError={null} />);
+  it('shows "Create your account" when new=1', () => {
+    render(<SignInFlow {...defaultFlowProps} createAccount />);
+    expect(screen.getByRole("heading", { name: "Create your account" })).toBeTruthy();
+    expect(screen.getByText(EMAIL_STEP_LEDE)).toBeTruthy();
+  });
+
+  it("shows the same account-setup line when start=clients", () => {
+    render(<SignInFlow {...defaultFlowProps} startClients linkError={null} />);
+    expect(screen.getByText(EMAIL_STEP_LEDE)).toBeTruthy();
     expect(
-      screen.getByText(
+      screen.queryByText(
         "New here? Use your email. Signing in and creating an account are the same step.",
       ),
-    ).toBeTruthy();
+    ).toBeNull();
   });
 
   it("surfaces an expired link banner", () => {
     render(
       <SignInFlow
-        nextPath="/hives"
-        startClients={false}
+        {...defaultFlowProps}
         linkError="That link has already been used or has expired. Enter the code from the email, or send a new one."
       />,
     );
@@ -72,17 +92,19 @@ describe("SignInFlow", () => {
   it("maps otp_expired query copy to a role=alert banner on the email step", () => {
     const message = authLinkErrorMessage("otp_expired");
     expect(message).toBeTruthy();
-    render(<SignInFlow nextPath="/hives" startClients={false} linkError={message} />);
+    render(<SignInFlow {...defaultFlowProps} linkError={message} />);
     const banner = screen.getByRole("alert");
     expect(banner.textContent).toContain("already been used");
     expect(within(banner).queryByLabelText("Email")).toBeNull();
   });
 
-  it("keeps a safe next path in hidden fields on the email and code steps", async () => {
+  it("keeps next, start, and new in hidden fields on the email and code steps", async () => {
     const next = "/hives/abc";
-    render(<SignInFlow nextPath={next} startClients={false} />);
+    render(<SignInFlow nextPath={next} startClients createAccount />);
     const emailForm = screen.getByRole("button", { name: "Next" }).closest("form")!;
-    expect(emailForm.querySelector<HTMLInputElement>('input[name="next"]')?.value).toBe(next);
+    expect(hiddenValue(emailForm, "next")).toBe(next);
+    expect(hiddenValue(emailForm, "start")).toBe("clients");
+    expect(hiddenValue(emailForm, "new")).toBe("1");
 
     mockedRequest.mockResolvedValue({ step: "code", email: TEST_EMAIL, next });
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: TEST_EMAIL } });
@@ -90,22 +112,26 @@ describe("SignInFlow", () => {
     await waitFor(() => expect(screen.getByLabelText("Sign-in code")).toBeTruthy());
 
     const verifyForm = screen.getByRole("button", { name: "Sign in" }).closest("form")!;
-    expect(verifyForm.querySelector<HTMLInputElement>('input[name="next"]')?.value).toBe(next);
-    expect(verifyForm.querySelector<HTMLInputElement>('input[name="email"]')?.value).toBe(TEST_EMAIL);
+    expect(hiddenValue(verifyForm, "next")).toBe(next);
+    expect(hiddenValue(verifyForm, "email")).toBe(TEST_EMAIL);
+    expect(hiddenValue(verifyForm, "start")).toBe("clients");
+    expect(hiddenValue(verifyForm, "new")).toBe("1");
 
     const resendForm = screen.getByRole("button", { name: /Send a new code/ }).closest("form")!;
-    expect(resendForm.querySelector<HTMLInputElement>('input[name="next"]')?.value).toBe(next);
+    expect(hiddenValue(resendForm, "next")).toBe(next);
+    expect(hiddenValue(resendForm, "start")).toBe("clients");
+    expect(hiddenValue(resendForm, "new")).toBe("1");
   });
 
   it("falls back to /hives for unsafe next paths in hidden fields", () => {
-    render(<SignInFlow nextPath="https://evil.example" startClients={false} />);
+    render(<SignInFlow {...defaultFlowProps} nextPath="https://evil.example" />);
     const emailForm = screen.getByRole("button", { name: "Next" }).closest("form")!;
-    expect(emailForm.querySelector<HTMLInputElement>('input[name="next"]')?.value).toBe("/hives");
+    expect(hiddenValue(emailForm, "next")).toBe("/hives");
 
     cleanup();
-    render(<SignInFlow nextPath="//evil.example" startClients={false} />);
+    render(<SignInFlow {...defaultFlowProps} nextPath="//evil.example" />);
     const form = screen.getByRole("button", { name: "Next" }).closest("form")!;
-    expect(form.querySelector<HTMLInputElement>('input[name="next"]')?.value).toBe("/hives");
+    expect(hiddenValue(form, "next")).toBe("/hives");
   });
 
   describe("code step errors", () => {
@@ -140,9 +166,7 @@ describe("SignInFlow", () => {
         expect(screen.getByRole("heading", { name: "Check your email" })).toBeTruthy();
         expect(screen.getByText(new RegExp(TEST_EMAIL.replace(".", "\\.")))).toBeTruthy();
         const verifyForm = screen.getByRole("button", { name: "Sign in" }).closest("form")!;
-        expect(verifyForm.querySelector<HTMLInputElement>('input[name="email"]')?.value).toBe(
-          TEST_EMAIL,
-        );
+        expect(hiddenValue(verifyForm, "email")).toBe(TEST_EMAIL);
         const field = codeInput.closest("div")!;
         expect(within(field).getByRole("alert").textContent).toBe(error);
         expect(document.activeElement).toBe(codeInput);
@@ -154,7 +178,7 @@ describe("SignInFlow", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       mockedRequest.mockResolvedValue({ step: "code", email: TEST_EMAIL, next: "/hives" });
-      render(<SignInFlow nextPath="/hives" startClients={false} />);
+      render(<SignInFlow {...defaultFlowProps} />);
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: TEST_EMAIL } });
       fireEvent.submit(screen.getByLabelText("Email").closest("form")!);
       await waitFor(() => expect(screen.getByLabelText("Sign-in code")).toBeTruthy());
@@ -183,7 +207,7 @@ describe("SignInFlow", () => {
   it('returns to the email step with the address filled when choosing "Use a different email"', async () => {
     await goToCodeStep();
     fireEvent.click(screen.getByRole("button", { name: "Use a different email" }));
-    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Sign in or create your account" })).toBeTruthy();
     expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe(TEST_EMAIL);
   });
 });

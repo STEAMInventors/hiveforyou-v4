@@ -40,7 +40,7 @@ describe("LandingStart", () => {
     expect(push).toHaveBeenCalledWith(CREATE_HIVE_AFTER_SIGN_UP_PATH);
     expect(attachButtons[0]).toBeTruthy();
     expect(screen.getByRole("link", { name: "I work with clients" }).getAttribute("href")).toBe(
-      "/sign-in?start=clients&next=%2Fhives",
+      "/sign-in?start=clients&next=%2Fhives&new=1",
     );
   });
 

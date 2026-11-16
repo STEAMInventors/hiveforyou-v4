@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { safeNextPath } from "@/server/auth/redirects";
 
 type PageProps = {
-  searchParams: Promise<{ next?: string; start?: string; error?: string; info?: string }>;
+  searchParams: Promise<{ next?: string; start?: string; new?: string; error?: string; info?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: PageProps) {
@@ -12,6 +12,9 @@ export default async function LoginPage({ searchParams }: PageProps) {
   const destination = new URLSearchParams({ next });
   if (params.start) {
     destination.set("start", params.start);
+  }
+  if (params.new) {
+    destination.set("new", params.new);
   }
   if (params.error) {
     destination.set("error", params.error);

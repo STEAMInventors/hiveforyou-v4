@@ -13,5 +13,6 @@ export default async function RegisterPage({ searchParams }: PageProps) {
   if (params.start) {
     destination.set("start", params.start);
   }
+  destination.set("new", "1");
   redirect(`/sign-in?${destination.toString()}`);
 }

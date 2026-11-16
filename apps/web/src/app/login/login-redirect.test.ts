@@ -22,4 +22,15 @@ describe("/login redirect", () => {
       "REDIRECT:/sign-in?next=%2Fhives%2Fabc%2Fdocuments&start=clients&error=otp_expired",
     );
   });
+
+  it("preserves new on the sign-in route", async () => {
+    await expect(
+      LoginPage({
+        searchParams: Promise.resolve({
+          next: "/hives",
+          new: "1",
+        }),
+      }),
+    ).rejects.toThrow("REDIRECT:/sign-in?next=%2Fhives&new=1");
+  });
 });

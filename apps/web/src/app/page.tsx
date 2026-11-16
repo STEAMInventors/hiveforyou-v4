@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { LandingStart } from "@/components/LandingStart";
 import { HiveAppLogo } from "@/components/HiveWordmark";
-import { PILL_PRIMARY_BUTTON_CLASS } from "@/components/button-classes";
+import { PILL_PRIMARY_BUTTON_CLASS, QUIET_LINK_CLASS } from "@/components/button-classes";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 export default async function LandingPage() {
@@ -15,9 +15,12 @@ export default async function LandingPage() {
   return (
     <div className="flex min-h-dvh flex-col bg-paper text-ink">
       <header className="flex items-center justify-end px-[clamp(16px,3vw,28px)] py-4">
-        <nav aria-label="Account">
-          <Link href="/sign-in" className={PILL_PRIMARY_BUTTON_CLASS}>
+        <nav aria-label="Account" className="flex items-center gap-4">
+          <Link href="/sign-in" className={QUIET_LINK_CLASS}>
             Sign in
+          </Link>
+          <Link href="/sign-in?new=1" className={PILL_PRIMARY_BUTTON_CLASS}>
+            Get started
           </Link>
         </nav>
       </header>

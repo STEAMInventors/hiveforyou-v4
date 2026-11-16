@@ -15,6 +15,7 @@ describe("WelcomeForm", () => {
     render(<WelcomeForm nextPath="/hives" preselectClients={false} defaultFirstName="Dana" />);
     expect(screen.getByLabelText("Your first name")).toBeTruthy();
     expect(screen.getByTestId("hive-mark")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Welcome to HiveForYou" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "What brings you here?" })).toBeTruthy();
     expect(screen.getByText("This sets where you start. You can switch any time.")).toBeTruthy();
     expect(screen.getByRole("button", { name: /My own paperwork/ })).toBeTruthy();

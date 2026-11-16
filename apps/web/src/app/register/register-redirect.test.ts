@@ -14,6 +14,6 @@ describe("/register redirect", () => {
       RegisterPage({
         searchParams: Promise.resolve({ next: "/hives", start: "clients" }),
       }),
-    ).rejects.toThrow("REDIRECT:/sign-in?next=%2Fhives&start=clients");
+    ).rejects.toThrow("REDIRECT:/sign-in?next=%2Fhives&start=clients&new=1");
   });
 });

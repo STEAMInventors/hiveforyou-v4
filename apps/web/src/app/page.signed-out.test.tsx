@@ -19,15 +19,16 @@ import LandingPage from "./page";
 afterEach(cleanup);
 
 describe("signed-out landing", () => {
-  it("has one filled Sign in control and no other filled buttons", async () => {
+  it("has Sign in, Get started, and exactly one filled button", async () => {
     const ui = await LandingPage();
     render(ui);
     const filled = screen
       .getAllByRole("link")
       .filter((link) => link.className.includes("bg-cell-blue-deep"));
     expect(filled).toHaveLength(1);
-    expect(filled[0]!.textContent).toBe("Sign in");
-    expect(filled[0]!.getAttribute("href")).toBe("/sign-in");
+    expect(filled[0]!.textContent).toBe("Get started");
+    expect(filled[0]!.getAttribute("href")).toBe("/sign-in?new=1");
+    expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe("/sign-in");
     expect(screen.getByTestId("landing-start")).toBeTruthy();
   });
 
