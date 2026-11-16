@@ -34,3 +34,7 @@ Proof: `supabase/tests/database/firm_membership_check.sql` (paste into the Supab
 | Firm invitation tokens not readable from the table | `token_hash` omitted from the `authenticated` column grant; `lookup_firm_invitation` / `accept_firm_invitation` RPCs | Check blocks direct `token_hash` reads and asserts lookup JSON has no `token_hash` |
 | Firm staff hive access | `hive.is_firm_staff`, `list_hives` union, `get_hive` via `hive.is_hive_member` | Member sees firm client hive, assigns, adds team note; stranger denied |
 | Firm invites owner-only | `invite_firm_member` owner role gate | Member `invite_firm_member` fails in check |
+| Client members cannot read team notes or handovers | `pol_team_notes__select` and `pol_hive_handovers__select` use `hive.is_firm_staff` | Client `team_notes` and `hive_handovers` counts are 0. `list_team_notes` fails |
+| Stage changes follow firm role | `set_hive_stage`: any staff may mark review; close and reopen need an attorney or owner | Member review succeeds. Member close and reopen fail. Owner close and reopen succeed |
+| Assignment stays inside the firm | `assign_hive` requires an active firm member | `assign_hive` to a non-member fails with `assignee_not_firm_member` |
+| Home row kickers name the assignee | `list_hives` `homeKicker` | Member row is `· you on it`. Owner row is `· Dana on it` and `· unassigned` |

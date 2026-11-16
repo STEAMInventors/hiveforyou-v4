@@ -28,6 +28,13 @@ export type EdgeHivePayload = {
   createdAt: string;
   updatedAt: string;
   deletingAt: string | null;
+  firmId?: string | null;
+  assigneeUserId?: string | null;
+  assigneeDisplayName?: string | null;
+  stage?: "open" | "review" | "closed";
+  membershipRole?: "owner" | "professional" | "client" | "firm";
+  homeKicker?: string | null;
+  clientShareStatus?: "invited" | "client_joined" | null;
 };
 
 export type EdgeOperation =
@@ -379,6 +386,46 @@ function normalizeEdgeHive(raw: unknown): EdgeHivePayload | null {
         ? row.deletingAt
         : null;
 
+  const optionalUuid = (camel: string, snake: string): string | null | undefined => {
+    const raw = row[camel] !== undefined ? row[camel] : row[snake];
+    if (raw === undefined) return undefined;
+    if (raw === null) return null;
+    if (typeof raw !== "string") return undefined;
+    const trimmed = raw.trim();
+    return isValidUuid(trimmed) ? trimmed : undefined;
+  };
+  const optionalText = (camel: string, snake: string): string | null | undefined => {
+    const raw = row[camel] !== undefined ? row[camel] : row[snake];
+    if (raw === undefined) return undefined;
+    if (raw === null) return null;
+    if (typeof raw !== "string") return undefined;
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+  const firmId = optionalUuid("firmId", "firm_id");
+  const assigneeUserId = optionalUuid("assigneeUserId", "assignee_user_id");
+  const assigneeDisplayName = optionalText("assigneeDisplayName", "assignee_display_name");
+  const homeKicker = optionalText("homeKicker", "home_kicker");
+  const stageRaw = typeof row.stage === "string" ? row.stage.trim().toLowerCase() : "";
+  const stage = stageRaw === "open" || stageRaw === "review" || stageRaw === "closed" ? stageRaw : undefined;
+  const roleRaw =
+    typeof row.membershipRole === "string"
+      ? row.membershipRole.trim().toLowerCase()
+      : typeof row.membership_role === "string"
+        ? row.membership_role.trim().toLowerCase()
+        : "";
+  const membershipRole =
+    roleRaw === "owner" || roleRaw === "professional" || roleRaw === "client" || roleRaw === "firm"
+      ? roleRaw
+      : undefined;
+  const shareRaw =
+    typeof row.clientShareStatus === "string"
+      ? row.clientShareStatus.trim().toLowerCase()
+      : typeof row.client_share_status === "string"
+        ? row.client_share_status.trim().toLowerCase()
+        : "";
+  const clientShareStatus = shareRaw === "invited" || shareRaw === "client_joined" ? shareRaw : undefined;
+
   return {
     id,
     hiveId,
@@ -389,6 +436,13 @@ function normalizeEdgeHive(raw: unknown): EdgeHivePayload | null {
     createdAt,
     updatedAt,
     deletingAt,
+    ...(firmId !== undefined ? { firmId } : {}),
+    ...(assigneeUserId !== undefined ? { assigneeUserId } : {}),
+    ...(assigneeDisplayName !== undefined ? { assigneeDisplayName } : {}),
+    ...(stage ? { stage } : {}),
+    ...(membershipRole ? { membershipRole } : {}),
+    ...(homeKicker !== undefined ? { homeKicker } : {}),
+    ...(clientShareStatus ? { clientShareStatus } : {}),
   };
 }
 

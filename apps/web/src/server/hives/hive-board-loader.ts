@@ -18,9 +18,17 @@ import {
 
 import { loadHiveOverview, type HiveOverview } from "./hive-summary";
 
+export type HiveBoardUpload = {
+  sourceDocumentId: string;
+  fileName: string;
+  canonicalGapId: string | null;
+  canonicalGapTitle: string | null;
+};
+
 export type HiveBoardLoad = {
   overview: HiveOverview;
   board: HiveBoardModel;
+  uploads: readonly HiveBoardUpload[];
 };
 
 type IntentRow = {
@@ -201,5 +209,14 @@ export async function loadHiveBoard(
     new Date(),
   );
 
-  return { overview, board };
+  return {
+    overview,
+    board,
+    uploads: documents.map((document) => ({
+      sourceDocumentId: document.sourceDocumentId,
+      fileName: document.fileName,
+      canonicalGapId: document.canonicalGapId ?? null,
+      canonicalGapTitle: document.canonicalGapTitle ?? null,
+    })),
+  };
 }

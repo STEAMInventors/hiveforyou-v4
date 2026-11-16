@@ -103,6 +103,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
 
     const record = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
     const body = typeof record?.body === "string" ? record.body.trim() : "";
+    const itemRef = typeof record?.itemRef === "string" ? record.itemRef.trim().slice(0, 120) : "";
     if (body.length < 1 || body.length > NOTE_MAX) {
       throw createHiveError({
         errorCode: "INVALID_REQUEST",
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     const { data, error } = await auth.client.rpc("add_team_note", {
       p_hive_id: hiveId.trim().toLowerCase(),
       p_body: body,
-      p_item_ref: null,
+      p_item_ref: itemRef || null,
     });
     if (error) {
       throw createHiveError({

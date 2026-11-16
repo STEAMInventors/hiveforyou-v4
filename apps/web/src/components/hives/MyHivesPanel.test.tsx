@@ -214,6 +214,63 @@ describe("MyHivesPanel", () => {
     expect(screen.getByTestId("hives-greeting").textContent).not.toContain(",");
   });
 
+  it("puts Mine and Unassigned above Needs you when the viewer has a firm", () => {
+    const viewer = "11111111-1111-4111-8111-111111111111";
+    const mine = hive({
+      firmId: "33333333-3333-4333-8333-333333333333",
+      assigneeUserId: viewer,
+      stage: "open",
+      homeKicker: "Benefits · you on it",
+    });
+    const open = hive({
+      id: "660e8400-e29b-41d4-a716-446655440001",
+      name: "Ruth Ortiz",
+      clientRequestId: "22222222-2222-4222-8222-222222222222",
+      firmId: "33333333-3333-4333-8333-333333333333",
+      assigneeUserId: null,
+      stage: "open",
+      homeKicker: "Benefits · unassigned",
+    });
+    const closed = hive({
+      id: "770e8400-e29b-41d4-a716-446655440002",
+      name: "Closed matter",
+      clientRequestId: "33333333-3333-4333-8333-333333333333",
+      firmId: "33333333-3333-4333-8333-333333333333",
+      assigneeUserId: viewer,
+      stage: "closed",
+      homeKicker: "Benefits · closed",
+    });
+    render(
+      <ClientsHomeProvider enabled>
+        <MyHivesPanel
+          initialHives={[mine, open, closed]}
+          startingView="clients"
+          greetingFirstName="Maria"
+          showFirmRail
+          viewerUserId={viewer}
+          summaries={{
+            [mine.id]: summary(needsAttention),
+            [open.id]: summary(readyAttention),
+            [closed.id]: summary(readyAttention),
+          }}
+        />
+      </ClientsHomeProvider>,
+    );
+    const nav = screen.getByRole("navigation", { name: "Clients" });
+    const labels = within(nav).getAllByRole("button").map((button) => button.textContent ?? "");
+    const mineAt = labels.findIndex((label) => label.startsWith("Mine"));
+    const unassignedAt = labels.findIndex((label) => label.startsWith("Unassigned"));
+    const needsAt = labels.findIndex((label) => label.startsWith("Needs you"));
+    expect(mineAt).toBeGreaterThanOrEqual(0);
+    expect(unassignedAt).toBeGreaterThan(mineAt);
+    expect(needsAt).toBeGreaterThan(unassignedAt);
+    expect(within(nav).getByRole("button", { name: /^Mine/ }).textContent).toMatch(/1/);
+    expect(within(nav).getByRole("button", { name: /^Unassigned/ }).textContent).toMatch(/1/);
+    expect(screen.getByText("Benefits · you on it")).toBeTruthy();
+    expect(screen.getByText("Benefits · unassigned")).toBeTruthy();
+    expect(screen.getByText("Benefits · closed")).toBeTruthy();
+  });
+
   it("shows the own view without header search layout", () => {
     render(
       <ClientsHomeProvider enabled={false}>

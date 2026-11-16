@@ -41,6 +41,8 @@ type MyHivesPanelProps = {
   summaries?: Readonly<Record<string, HiveSummary>>;
   startingView: StartingView;
   greetingFirstName: string | null;
+  showFirmRail?: boolean;
+  viewerUserId?: string | null;
 };
 
 function hiveLastActivity(hive: Hive, summary: HiveSummary | undefined): string {
@@ -70,7 +72,7 @@ function rankSubset(
   return ranked.map((row) => byId.get(row.id)).filter((hive): hive is Hive => hive !== undefined);
 }
 
-function RailDot({ kind }: { kind: "cell" | "leaf" | "hollow" }) {
+function RailDot({ kind }: { kind: "cell" | "leaf" | "honey" | "hollow" }) {
   if (kind === "hollow") {
     return (
       <span
@@ -79,12 +81,8 @@ function RailDot({ kind }: { kind: "cell" | "leaf" | "hollow" }) {
       />
     );
   }
-  return (
-    <span
-      aria-hidden
-      className={`size-2.5 shrink-0 rounded-pill ${kind === "cell" ? "bg-cell-blue" : "bg-leaf"}`}
-    />
-  );
+  const color = kind === "cell" ? "bg-cell-blue" : kind === "honey" ? "bg-honey" : "bg-leaf";
+  return <span aria-hidden className={`size-2.5 shrink-0 rounded-pill ${color}`} />;
 }
 
 export function MyHivesPanel({
@@ -94,6 +92,8 @@ export function MyHivesPanel({
   summaries = {},
   startingView,
   greetingFirstName,
+  showFirmRail = false,
+  viewerUserId = null,
 }: MyHivesPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -205,17 +205,27 @@ export function MyHivesPanel({
   const railCounts = useMemo(() => {
     const needs = clientHives.filter((hive) => attentionLevel(hive.id, summaries) === "needs_you").length;
     const ready = clientHives.filter((hive) => attentionLevel(hive.id, summaries) === "ready").length;
+    const mine = clientHives.filter(
+      (hive) =>
+        Boolean(hive.firmId) &&
+        hive.stage !== "closed" &&
+        Boolean(viewerUserId) &&
+        hive.assigneeUserId?.toLowerCase() === viewerUserId?.toLowerCase(),
+    ).length;
+    const unassigned = clientHives.filter((hive) => Boolean(hive.firmId) && !hive.assigneeUserId).length;
     return {
       needs,
       ready,
       all: clientHives.length,
       own: ownHives.length,
+      mine,
+      unassigned,
       missingTotal: clientHives.reduce(
         (sum, hive) => sum + (summaries[hive.id]?.attention.counts.missing ?? 0),
         0,
       ),
     };
-  }, [clientHives, ownHives, summaries]);
+  }, [clientHives, ownHives, summaries, viewerUserId]);
 
   const displayedHives = useMemo(() => {
     const query = findQuery.trim().toLowerCase();
@@ -231,9 +241,19 @@ export function MyHivesPanel({
       subset = clientHives.filter((hive) => attentionLevel(hive.id, summaries) === "needs_you");
     } else if (view === "ready") {
       subset = clientHives.filter((hive) => attentionLevel(hive.id, summaries) === "ready");
+    } else if (view === "mine") {
+      subset = clientHives.filter(
+        (hive) =>
+          Boolean(hive.firmId) &&
+          hive.stage !== "closed" &&
+          Boolean(viewerUserId) &&
+          hive.assigneeUserId?.toLowerCase() === viewerUserId?.toLowerCase(),
+      );
+    } else if (view === "unassigned") {
+      subset = clientHives.filter((hive) => Boolean(hive.firmId) && !hive.assigneeUserId);
     }
     return rankSubset(subset, summaries);
-  }, [clientHives, findQuery, hives, ownHives, summaries, view]);
+  }, [clientHives, findQuery, hives, ownHives, summaries, view, viewerUserId]);
 
   if (startingView === "clients") {
     const title = clientsHomeViewTitle(view, findQuery);
@@ -246,12 +266,18 @@ export function MyHivesPanel({
       id: ClientsHomeView;
       label: string;
       count: number;
-      dot: "cell" | "leaf" | "hollow";
+      dot: "cell" | "leaf" | "honey" | "hollow";
     }[] = [
       { id: "needs", label: "Needs you", count: railCounts.needs, dot: "cell" },
       { id: "ready", label: "Ready", count: railCounts.ready, dot: "leaf" },
       { id: "all", label: "All clients", count: railCounts.all, dot: "hollow" },
     ];
+    if (showFirmRail) {
+      railItems.unshift(
+        { id: "mine", label: "Mine", count: railCounts.mine, dot: "cell" },
+        { id: "unassigned", label: "Unassigned", count: railCounts.unassigned, dot: "honey" },
+      );
+    }
     if (railCounts.own > 0) {
       railItems.push({ id: "own", label: "My own matters", count: railCounts.own, dot: "hollow" });
     }

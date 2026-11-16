@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import { PRIMARY_BUTTON_CLASS } from "@/components/button-classes";
+import { FirmSetupForm } from "@/components/firm/FirmSetupForm";
 import type { StartingView } from "@/lib/auth/profile";
 import { setStartingViewAction } from "@/server/auth/auth-actions";
 import type { SignInActionState } from "@/server/auth/auth-actions";
@@ -46,6 +47,21 @@ export function WelcomeForm({ nextPath, preselectClients, defaultFirstName }: We
   );
   const [chooseError, setChooseError] = useState(false);
   const [firstName, setFirstName] = useState(defaultFirstName);
+  const [firmSetup, setFirmSetup] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  if (firmSetup) {
+    return (
+      <SignInShell>
+        <FirmSetupForm onFinished={() => formRef.current?.requestSubmit()} />
+        <form ref={formRef} action={formAction} className="hidden">
+          <input type="hidden" name="next" value={safeNext} />
+          <input type="hidden" name="startingView" value="clients" />
+          <input type="hidden" name="displayName" value={firstName.trim()} />
+        </form>
+      </SignInShell>
+    );
+  }
 
   return (
     <SignInShell>
@@ -106,9 +122,15 @@ export function WelcomeForm({ nextPath, preselectClients, defaultFirstName }: We
           type="submit"
           disabled={pending}
           className={`${PRIMARY_BUTTON_CLASS} h-[52px] w-full text-base`}
-          onClick={() => {
+          onClick={(event) => {
             if (!selected) {
               setChooseError(true);
+              event.preventDefault();
+              return;
+            }
+            if (selected === "clients") {
+              event.preventDefault();
+              setFirmSetup(true);
             }
           }}
         >

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/auth/auth-actions", () => ({
@@ -27,6 +27,14 @@ describe("WelcomeForm", () => {
     expect(screen.getByRole("button", { name: /Hives for my clients/ }).getAttribute("aria-pressed")).toBe(
       "true",
     );
+  });
+
+  it("starts firm setup after Hives for my clients", () => {
+    render(<WelcomeForm nextPath="/hives" preselectClients={false} defaultFirstName="Maria" />);
+    fireEvent.click(screen.getByRole("button", { name: /Hives for my clients/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("heading", { name: "Name your firm" })).toBeTruthy();
+    expect(screen.getByText("Step 1 of 3")).toBeTruthy();
   });
 
   it("keeps a safe next destination in the continue form", () => {

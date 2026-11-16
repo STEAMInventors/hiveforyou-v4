@@ -25,6 +25,8 @@ type HiveWorkspaceLayoutProps = {
   summary: HiveSummary | null;
   /** Shown by the error boundary around the Study and Reports panes. */
   supportReference?: string | null;
+  /** Firm client board fills the width under the tabs. */
+  flushBoard?: boolean;
   children: ReactNode;
 };
 
@@ -104,6 +106,7 @@ export function HiveWorkspaceLayout({
   activeTab,
   summary,
   supportReference = null,
+  flushBoard = false,
   children,
 }: HiveWorkspaceLayoutProps) {
   const setWorkspace = useHiveHeaderWorkspace()?.setWorkspace;
@@ -132,7 +135,7 @@ export function HiveWorkspaceLayout({
         </div>
       </div>
 
-      <div className="mx-auto flex w-full max-w-hive flex-col gap-5 px-6 pb-16 pt-6">
+      <div className={flushBoard ? "flex w-full flex-1 flex-col" : "mx-auto flex w-full max-w-hive flex-col gap-5 px-6 pb-16 pt-6"}>
         {activeTab !== "documents" && activeTab !== "board" ? (
           <PaneErrorBoundary hiveId={hiveId} supportReference={supportReference}>
             {children}

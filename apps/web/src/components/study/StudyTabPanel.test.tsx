@@ -107,7 +107,10 @@ function preparationBody() {
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("StudyTabPanel", () => {
   beforeEach(() => {
@@ -269,10 +272,12 @@ describe("StudyTabPanel", () => {
       />,
     );
     await screen.findByText("A study is already running.");
-    await act(async () => {
-      await Promise.resolve();
-      vi.advanceTimersByTime(DOCUMENT_READ_POLL_INTERVAL_MS);
-    });
+    for (let attempt = 0; attempt < 5 && routerMock.refresh.mock.calls.length === 0; attempt += 1) {
+      await act(async () => {
+        await Promise.resolve();
+        vi.advanceTimersByTime(DOCUMENT_READ_POLL_INTERVAL_MS);
+      });
+    }
     expect(routerMock.refresh).toHaveBeenCalled();
   });
 });

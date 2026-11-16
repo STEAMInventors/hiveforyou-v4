@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { renderClientInviteEmail, renderProfessionalInviteEmail } from "./invitation-templates";
+import {
+  firmInviteSubject,
+  renderClientInviteEmail,
+  renderFirmInviteEmail,
+  renderProfessionalInviteEmail,
+} from "./invitation-templates";
 
 describe("invitation email templates", () => {
   it("does not include document filenames or body content", () => {
@@ -19,5 +24,14 @@ describe("invitation email templates", () => {
     });
     expect(pro.text).not.toMatch(/\.pdf|sheet-\d|total-/i);
     expect(pro.html).not.toMatch(/\.pdf|sheet-\d|total-/i);
+
+    const firm = renderFirmInviteEmail({
+      ownerName: "Maria",
+      firmName: "Rivera Law",
+      inviteUrl: "https://example.com/firm-invite/abc",
+    });
+    expect(firmInviteSubject("Maria", "Rivera Law")).toBe("Maria added you to Rivera Law on HiveForYou");
+    expect(firm.text).toContain("Maria added you to Rivera Law on HiveForYou");
+    expect(firm.text).not.toMatch(/\.pdf|pay stub/i);
   });
 });

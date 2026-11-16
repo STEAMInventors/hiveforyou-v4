@@ -1,6 +1,6 @@
 "use client";
 
-import type { GetStudyPreparationResponse, Hive, HiveBoardModel, ListFirmResponse } from "@hiveforyou/contracts";
+import type { GetStudyPreparationResponse, Hive, HiveBoardModel } from "@hiveforyou/contracts";
 import Link from "next/link";
 
 import { AnalyzeModal } from "@/components/hives/AnalyzeModal";
@@ -9,7 +9,6 @@ import { useStudyPreparation } from "@/components/hives/useStudyPreparation";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { SourceChips } from "@/components/study/SourceChip";
 
-import { HiveBoardFirmControls } from "@/components/hives/HiveBoardFirmControls";
 import { HiveBoardPeople } from "@/components/hives/HiveBoardPeople";
 
 type HiveBoardPanelProps = {
@@ -22,7 +21,6 @@ type HiveBoardPanelProps = {
   readonly board: HiveBoardModel;
   readonly documentLabels: Readonly<Record<string, string>>;
   readonly initialPreparation?: GetStudyPreparationResponse;
-  readonly firm?: ListFirmResponse | null;
 };
 
 const SEGMENT_CLASS: Record<"in" | "added_pending" | "not_in", string> = {
@@ -101,7 +99,6 @@ export function HiveBoardPanel({
   board,
   documentLabels,
   initialPreparation,
-  firm = null,
 }: HiveBoardPanelProps) {
   const analysis = useStudyPreparation(hiveId, { initialPreparation });
   const rebuildAvailabilityResolved = analysis.state?.studyRevision
@@ -260,7 +257,6 @@ export function HiveBoardPanel({
             ))}
           </ul>
           <HiveBoardPeople hive={hive} currentUserId={currentUserId} />
-          {firm ? <HiveBoardFirmControls hive={hive} currentUserId={currentUserId} firm={firm} /> : null}
           <div className="border-t border-line pt-4">
             <p className="m-0 text-caption text-graphite">What HiveForYou does here</p>
             <p className="m-0 mt-1 text-small leading-relaxed text-graphite">

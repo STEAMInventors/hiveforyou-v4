@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type KeyboardEvent, useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 
@@ -23,9 +24,10 @@ export type AccountMenuDetails = {
   displayName: string | null;
   email: string | null;
   startingView: StartingView | null;
+  firmLine?: string | null;
 };
 
-export function AccountMenu({ initials, displayName, email, startingView }: AccountMenuDetails) {
+export function AccountMenu({ initials, displayName, email, startingView, firmLine = null }: AccountMenuDetails) {
   const [open, setOpen] = useState(false);
   const [editNameOpen, setEditNameOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -146,6 +148,11 @@ export function AccountMenu({ initials, displayName, email, startingView }: Acco
             {email ? <span className="text-sm text-ink-muted">{email}</span> : null}
             {startingView ? (
               <span className="text-[13px] text-ink-subtle">{startingViewLabel(startingView)}</span>
+            ) : null}
+            {firmLine ? (
+              <Link href="/account/firm" role="menuitem" tabIndex={-1} className="text-[13px] text-graphite no-underline hover:underline">
+                {firmLine}
+              </Link>
             ) : null}
           </div>
           {startingView ? (

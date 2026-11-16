@@ -6,6 +6,7 @@ DECLARE
   v_owner uuid := 'f1100010-0000-4000-8000-000000000001';
   v_member uuid := 'f1100010-0000-4000-8000-000000000002';
   v_stranger uuid := 'f1100010-0000-4000-8000-000000000003';
+  v_client uuid := 'f1100010-0000-4000-8000-000000000004';
   v_hive uuid;
   v_firm uuid;
   v_client_req uuid := 'f1100020-0000-4000-8000-000000000001';
@@ -20,10 +21,13 @@ BEGIN
   VALUES
     (v_owner, 'f11-owner@example.test', 'authenticated', 'authenticated'),
     (v_member, 'f11-member@example.test', 'authenticated', 'authenticated'),
-    (v_stranger, 'f11-stranger@example.test', 'authenticated', 'authenticated');
+    (v_stranger, 'f11-stranger@example.test', 'authenticated', 'authenticated'),
+    (v_client, 'f11-client@example.test', 'authenticated', 'authenticated');
 
   INSERT INTO hive.user_profiles (user_id, display_name, starting_view, created_at, updated_at)
-  VALUES (v_owner, 'Firm Owner', 'client', now(), now())
+  VALUES
+    (v_owner, 'Firm Owner', 'client', now(), now()),
+    (v_member, 'Dana Cole', 'client', now(), now())
   ON CONFLICT (user_id) DO UPDATE SET display_name = EXCLUDED.display_name;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
@@ -120,6 +124,26 @@ BEGIN
    WHERE (row->>'id')::uuid = v_hive;
   IF v_count <> 1 THEN RAISE EXCEPTION 'member list_hives missing firm hive: count=%', v_count; END IF;
 
+  SELECT row->>'homeKicker' INTO v_dummy
+    FROM jsonb_array_elements(public.list_hives()::jsonb) AS row
+   WHERE (row->>'id')::uuid = v_hive;
+  IF position('· you on it' IN coalesce(v_dummy, '')) = 0 THEN
+    RAISE EXCEPTION 'member homeKicker missing you on it: %', v_dummy;
+  END IF;
+
+  v_json := public.set_hive_stage(v_hive, 'review');
+  IF (v_json->>'stage') <> 'review' THEN
+    RAISE EXCEPTION 'member review stage failed: %', v_json;
+  END IF;
+
+  BEGIN
+    PERFORM public.set_hive_stage(v_hive, 'closed');
+    RAISE EXCEPTION 'member close should fail';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
+  END;
+
   PERFORM public.add_team_note(v_hive, 'Called client; waiting on pay stubs.');
 
   BEGIN
@@ -138,6 +162,90 @@ BEGIN
       NULL;
     WHEN OTHERS THEN
       RAISE;
+  END;
+
+  RESET ROLE;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+
+  SELECT row->>'homeKicker' INTO v_dummy
+    FROM jsonb_array_elements(public.list_hives()::jsonb) AS row
+   WHERE (row->>'id')::uuid = v_hive;
+  IF position('· Dana on it' IN coalesce(v_dummy, '')) = 0 THEN
+    RAISE EXCEPTION 'owner homeKicker missing first name: %', v_dummy;
+  END IF;
+
+  v_json := public.set_hive_stage(v_hive, 'closed');
+  IF (v_json->>'stage') <> 'closed' THEN
+    RAISE EXCEPTION 'owner close stage failed: %', v_json;
+  END IF;
+
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_member::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+
+  BEGIN
+    PERFORM public.set_hive_stage(v_hive, 'open');
+    RAISE EXCEPTION 'member reopen should fail';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
+  END;
+
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+
+  v_json := public.set_hive_stage(v_hive, 'open');
+  IF (v_json->>'stage') <> 'open' THEN
+    RAISE EXCEPTION 'owner reopen failed: %', v_json;
+  END IF;
+
+  PERFORM public.assign_hive(v_hive, NULL, NULL);
+  SELECT row->>'homeKicker' INTO v_dummy
+    FROM jsonb_array_elements(public.list_hives()::jsonb) AS row
+   WHERE (row->>'id')::uuid = v_hive;
+  IF position('· unassigned' IN coalesce(v_dummy, '')) = 0 THEN
+    RAISE EXCEPTION 'owner homeKicker missing unassigned: %', v_dummy;
+  END IF;
+  PERFORM public.assign_hive(v_hive, v_member, NULL);
+
+  BEGIN
+    PERFORM public.assign_hive(v_hive, v_stranger, NULL);
+    RAISE EXCEPTION 'assign_hive non-staff should fail';
+  EXCEPTION
+    WHEN invalid_parameter_value THEN
+      IF SQLERRM NOT LIKE '%assignee_not_firm_member%' THEN
+        RAISE;
+      END IF;
+  END;
+
+  RESET ROLE;
+  INSERT INTO hive.hive_members (hive_id, user_id, role, state, invited_by)
+  VALUES (v_hive, v_client, 'client', 'active', v_owner);
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+
+  PERFORM public.get_hive(v_hive);
+
+  SELECT count(*)::integer INTO v_count FROM hive.team_notes WHERE hive_id = v_hive;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'client team_notes read should be refused: %', v_count;
+  END IF;
+
+  SELECT count(*)::integer INTO v_count FROM hive.hive_handovers WHERE hive_id = v_hive;
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'client hive_handovers read should be refused: %', v_count;
+  END IF;
+
+  BEGIN
+    PERFORM public.list_team_notes(v_hive);
+    RAISE EXCEPTION 'client list_team_notes should fail';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
   END;
 
   RESET ROLE;

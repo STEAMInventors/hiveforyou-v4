@@ -1,6 +1,9 @@
 import { HiveBoardPanel } from "@/components/hives/HiveBoardPanel";
+import { HiveBoardThreePane } from "@/components/hives/HiveBoardThreePane";
 import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
+import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { requestCorrelationId } from "@/server/auth/action-support";
+import { loadLatestHandover, loadOpenHiveCounts, loadTeamNotes } from "@/server/firm/load-firm-board";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
@@ -41,7 +44,15 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
     loaded.overview.preparation.eligibility.documents.length +
     loaded.overview.preparation.eligibility.excluded.length;
 
-  const firm = hive.firmId ? await loadFirm(auth.client) : null;
+  const threePane = showsFirmThreePane(hive);
+  const firm = threePane ? await loadFirm(auth.client) : null;
+  const [teamNotes, handover, openHiveCounts] = threePane
+    ? await Promise.all([
+        loadTeamNotes(auth.client, hive.id),
+        loadLatestHandover(auth.client, hive.id),
+        loadOpenHiveCounts(auth.client),
+      ])
+    : [[], null, {}] as const;
 
   return (
     <HiveWorkspaceLayout
@@ -52,19 +63,34 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
       startingView={startingView}
       activeTab="board"
       summary={loaded.overview.summary}
+      flushBoard={Boolean(threePane && firm?.firm)}
     >
-      <HiveBoardPanel
-        hive={hive}
-        currentUserId={auth.userId}
-        hiveId={hive.id}
-        hiveName={hive.name}
-        hiveDescription={hive.description ?? ""}
-        hasDocuments={documentCount > 0}
-        board={loaded.board}
-        documentLabels={documentLabels}
-        initialPreparation={loaded.overview.preparation}
-        firm={firm}
-      />
+      {threePane && firm?.firm ? (
+        <HiveBoardThreePane
+          hive={hive}
+          currentUserId={auth.userId}
+          board={loaded.board}
+          firm={firm}
+          teamNotes={teamNotes}
+          handover={handover}
+          uploads={loaded.uploads}
+          openHiveCounts={openHiveCounts}
+          documentLabels={documentLabels}
+          initialPreparation={loaded.overview.preparation}
+        />
+      ) : (
+        <HiveBoardPanel
+          hive={hive}
+          currentUserId={auth.userId}
+          hiveId={hive.id}
+          hiveName={hive.name}
+          hiveDescription={hive.description ?? ""}
+          hasDocuments={documentCount > 0}
+          board={loaded.board}
+          documentLabels={documentLabels}
+          initialPreparation={loaded.overview.preparation}
+        />
+      )}
     </HiveWorkspaceLayout>
   );
 }

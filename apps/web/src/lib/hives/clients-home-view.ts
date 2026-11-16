@@ -1,7 +1,7 @@
-export type ClientsHomeView = "all" | "needs" | "ready" | "own";
+export type ClientsHomeView = "all" | "needs" | "ready" | "own" | "mine" | "unassigned";
 
 export function parseClientsHomeView(value: string | undefined): ClientsHomeView {
-  if (value === "needs" || value === "ready" || value === "own") {
+  if (value === "needs" || value === "ready" || value === "own" || value === "mine" || value === "unassigned") {
     return value;
   }
   return "all";
@@ -19,6 +19,10 @@ export function clientsHomeViewTitle(view: ClientsHomeView, searchQuery: string)
       return "Ready";
     case "own":
       return "My own matters";
+    case "mine":
+      return "Mine";
+    case "unassigned":
+      return "Unassigned";
     default:
       return "All clients";
   }

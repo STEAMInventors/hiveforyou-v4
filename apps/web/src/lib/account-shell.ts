@@ -1,15 +1,21 @@
 import { accountInitials } from "@/lib/account-initials";
 import type { AccountMenuDetails } from "@/components/account-menu";
 import { fetchMyProfile } from "@/lib/auth/profile";
+import { loadFirm } from "@/server/firm/load-firm";
 import type { AuthenticatedSession } from "@/server/supabase/server-client";
 
 export async function accountMenuDetails(session: Extract<AuthenticatedSession, { ok: true }>): Promise<AccountMenuDetails> {
-  const { profile } = await fetchMyProfile(session.client);
+  const [{ profile }, firm] = await Promise.all([fetchMyProfile(session.client), loadFirm(session.client)]);
+  const self = firm?.members.find(
+    (member) => member.userId && session.userId && member.userId.toLowerCase() === session.userId.toLowerCase(),
+  );
+  const firmLine = firm?.firm && self?.title ? `${self.title} · ${firm.firm.name}` : null;
 
   return {
     initials: session.email ? accountInitials(session.email) : null,
     displayName: profile?.displayName ?? null,
     email: session.email ?? null,
     startingView: profile?.startingView ?? null,
+    firmLine,
   };
 }

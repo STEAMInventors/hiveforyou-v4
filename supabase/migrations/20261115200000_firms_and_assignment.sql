@@ -1332,7 +1332,7 @@ BEGIN
             CASE WHEN h.stage = 'closed' THEN ' · closed'
                  WHEN h.assignee_user_id IS NULL THEN ' · unassigned'
                  WHEN h.assignee_user_id = v_uid THEN ' · you on it'
-                 ELSE ' · ' || coalesce(ap.display_name, 'assigned') || ' on it'
+                 ELSE ' · ' || split_part(btrim(coalesce(nullif(ap.display_name, ''), 'someone')), ' ', 1) || ' on it'
             END
           ELSE '' END,
         'sortKey', (h.deleting_at IS NOT NULL)::text || h.created_at::text || h.id::text
@@ -1371,7 +1371,7 @@ BEGIN
           || CASE WHEN h.stage = 'closed' THEN ' · closed'
                   WHEN h.assignee_user_id IS NULL THEN ' · unassigned'
                   WHEN h.assignee_user_id = v_uid THEN ' · you on it'
-                  ELSE ' · ' || coalesce(ap.display_name, 'assigned') || ' on it' END,
+                  ELSE ' · ' || split_part(btrim(coalesce(nullif(ap.display_name, ''), 'someone')), ' ', 1) || ' on it' END,
         'sortKey', (h.deleting_at IS NOT NULL)::text || h.created_at::text || h.id::text
       ) AS row
         FROM hive.hives h
@@ -1528,7 +1528,51 @@ GRANT EXECUTE ON FUNCTION hive.can_delete_hive(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION public.create_firm(text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_firm(text, text) TO authenticated;
 REVOKE ALL ON FUNCTION public.lookup_firm_invitation(text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.lookup_firm_invitation(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.lookup_firm_invitation(text) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.revoke_firm_invitation(p_firm_member_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = hive, public, pg_temp
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_firm_id uuid;
+  v_row hive.firm_members%ROWTYPE;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'auth_required' USING ERRCODE = '42501';
+  END IF;
+  IF p_firm_member_id IS NULL THEN
+    RAISE EXCEPTION 'invalid_request' USING ERRCODE = '22023';
+  END IF;
+  SELECT fm.firm_id INTO v_firm_id
+    FROM hive.firm_members fm
+   WHERE fm.user_id = v_uid AND fm.state = 'active' AND fm.role = 'owner'
+   LIMIT 1;
+  IF v_firm_id IS NULL THEN
+    RAISE EXCEPTION 'access_denied' USING ERRCODE = '42501';
+  END IF;
+  SELECT * INTO v_row
+    FROM hive.firm_members
+   WHERE id = p_firm_member_id AND firm_id = v_firm_id AND state = 'invited'
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'firm_invitation_invalid' USING ERRCODE = 'P0002';
+  END IF;
+  UPDATE hive.firm_members
+     SET state = 'removed', token_hash = NULL, expires_at = NULL, updated_at = now()
+   WHERE id = v_row.id;
+  PERFORM hive.write_firm_audit(
+    v_uid, NULL, 'firm_invitation_revoked',
+    jsonb_build_object('firmMemberId', v_row.id)
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.revoke_firm_invitation(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.revoke_firm_invitation(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION public.invite_firm_member(text, text, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.invite_firm_member(text, text, text, text) TO authenticated;
 REVOKE ALL ON FUNCTION public.accept_firm_invitation(text) FROM PUBLIC;

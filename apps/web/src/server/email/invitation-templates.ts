@@ -77,3 +77,25 @@ export function renderProfessionalInviteEmail(input: ProfessionalInviteTemplateI
 export function invitationRoleLabel(role: InvitationEmailRole): "client" | "professional" {
   return role;
 }
+
+export type FirmInviteTemplateInput = {
+  ownerName: string;
+  firmName: string;
+  inviteUrl: string;
+};
+
+export function firmInviteSubject(ownerName: string, firmName: string): string {
+  return `${ownerName} added you to ${firmName} on HiveForYou`;
+}
+
+export function renderFirmInviteEmail(input: FirmInviteTemplateInput): { text: string; html: string } {
+  const line = firmInviteSubject(input.ownerName, input.firmName);
+  const text = [line, "", "You can sign in with this email. No password.", input.inviteUrl].join("\n");
+  const html = `<!doctype html><html><body style="font-family:system-ui,sans-serif;color:#1a1a1a">
+<img src="${LOGO_URL}" alt="HiveForYou" width="40" height="40" />
+<p style="font-size:16px;line-height:1.5">${line}</p>
+<p style="font-size:15px;line-height:1.55">You can sign in with this email. No password.</p>
+<p><a href="${input.inviteUrl}" style="color:#1A56C4">Open HiveForYou</a></p>
+</body></html>`;
+  return { text, html };
+}

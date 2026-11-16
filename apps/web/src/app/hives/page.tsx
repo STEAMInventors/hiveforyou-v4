@@ -6,6 +6,7 @@ import { fetchMyProfile } from "@/lib/auth/profile";
 import { CREATE_HIVE_PARAM } from "@/lib/hive-routes";
 import { isHiveDeletionPending } from "@/lib/hives/hive-deletion-state";
 import { requestCorrelationId } from "@/server/auth/action-support";
+import { loadFirm } from "@/server/firm/load-firm";
 import { listHivesViaEdge } from "@/server/hives/hive-edge-gateway";
 import { type HiveSummary, loadHiveOverview } from "@/server/hives/hive-summary";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
@@ -61,6 +62,7 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
   );
 
   const greetingFirstName = profile.displayName?.trim().split(/\s+/)[0] ?? null;
+  const firm = profile.startingView === "clients" ? await loadFirm(auth.client) : null;
 
   return (
     <MyHivesPanel
@@ -70,6 +72,8 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
       openCreateOnLoad={params[CREATE_HIVE_PARAM] === "1"}
       startingView={profile.startingView}
       greetingFirstName={greetingFirstName}
+      showFirmRail={Boolean(firm?.firm)}
+      viewerUserId={auth.userId}
     />
   );
 }
