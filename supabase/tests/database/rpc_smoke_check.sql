@@ -95,6 +95,13 @@ CREATE TEMP TABLE smoke_unexpected_success (
   rpc_sql text NOT NULL
 ) ON COMMIT DROP;
 
+CREATE TEMP TABLE smoke_unexpected_error (
+  user_id uuid NOT NULL,
+  rpc_sql text NOT NULL,
+  sqlstate text NOT NULL,
+  sqlerrm text NOT NULL
+) ON COMMIT DROP;
+
 CREATE OR REPLACE FUNCTION pg_temp.smoke_set_role(p_user uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -132,7 +139,10 @@ BEGIN
          OR SQLERRM = 'apply_vault_transaction payload must be an object' THEN
         NULL;
       ELSE
-        RAISE;
+        RESET ROLE;
+        INSERT INTO smoke_unexpected_error (user_id, rpc_sql, sqlstate, sqlerrm)
+        VALUES (p_user, p_sql, SQLSTATE, SQLERRM);
+        RETURN;
       END IF;
   END;
   RESET ROLE;
@@ -217,6 +227,9 @@ DECLARE
   v_json json;
   v_count integer;
   v_row jsonb;
+  v_success text;
+  v_errors text;
+  v_msg text;
 BEGIN
   RESET ROLE;
 
@@ -1078,28 +1091,61 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
 
-  IF EXISTS (SELECT 1 FROM smoke_unexpected_success) THEN
-    RAISE EXCEPTION E'smoke_expect_refusal unexpected successes:\n%',
-      (
-        SELECT string_agg(entry, E'\n' ORDER BY entry)
-        FROM (
-          SELECT format(
-            '(%s, %s)',
-            CASE u.user_id
-              WHEN v_owner THEN 'owner'
-              WHEN v_member THEN 'member'
-              WHEN v_client THEN 'client'
-              WHEN v_pro THEN 'pro'
-              WHEN v_stranger THEN 'stranger'
-              WHEN v_stranger_firm THEN 'stranger_firm'
-              WHEN v_firm_two_creator THEN 'firm_two_creator'
-              ELSE u.user_id::text
-            END,
-            coalesce(substring(u.rpc_sql from 'public\.([a-z0-9_]+)'), left(u.rpc_sql, 120))
-          ) AS entry
-          FROM smoke_unexpected_success u
-        ) listed
-      );
+  IF EXISTS (SELECT 1 FROM smoke_unexpected_success)
+     OR EXISTS (SELECT 1 FROM smoke_unexpected_error) THEN
+    v_msg := '';
+    SELECT string_agg(entry, E'\n' ORDER BY entry)
+      INTO v_success
+      FROM (
+        SELECT format(
+          '(%s, %s)',
+          CASE u.user_id
+            WHEN v_owner THEN 'owner'
+            WHEN v_member THEN 'member'
+            WHEN v_client THEN 'client'
+            WHEN v_pro THEN 'pro'
+            WHEN v_stranger THEN 'stranger'
+            WHEN v_stranger_firm THEN 'stranger_firm'
+            WHEN v_firm_two_creator THEN 'firm_two_creator'
+            ELSE u.user_id::text
+          END,
+          coalesce(substring(u.rpc_sql from 'public\.([a-z0-9_]+)'), left(u.rpc_sql, 120))
+        ) AS entry
+        FROM smoke_unexpected_success u
+      ) listed;
+
+    SELECT string_agg(entry, E'\n' ORDER BY entry)
+      INTO v_errors
+      FROM (
+        SELECT format(
+          '(%s, %s, %s, %s)',
+          CASE u.user_id
+            WHEN v_owner THEN 'owner'
+            WHEN v_member THEN 'member'
+            WHEN v_client THEN 'client'
+            WHEN v_pro THEN 'pro'
+            WHEN v_stranger THEN 'stranger'
+            WHEN v_stranger_firm THEN 'stranger_firm'
+            WHEN v_firm_two_creator THEN 'firm_two_creator'
+            ELSE u.user_id::text
+          END,
+          coalesce(substring(u.rpc_sql from 'public\.([a-z0-9_]+)'), left(u.rpc_sql, 120)),
+          u.sqlstate,
+          u.sqlerrm
+        ) AS entry
+        FROM smoke_unexpected_error u
+      ) listed;
+
+    IF v_success IS NOT NULL THEN
+      v_msg := v_msg || E'smoke_expect_refusal unexpected successes:\n' || v_success;
+    END IF;
+    IF v_errors IS NOT NULL THEN
+      IF v_msg <> '' THEN
+        v_msg := v_msg || E'\n\n';
+      END IF;
+      v_msg := v_msg || E'smoke_expect_ok unexpected errors:\n' || v_errors;
+    END IF;
+    RAISE EXCEPTION '%', v_msg;
   END IF;
 
   RAISE NOTICE 'ALL CHECKS PASSED';
