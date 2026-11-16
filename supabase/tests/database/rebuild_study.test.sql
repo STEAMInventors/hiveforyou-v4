@@ -223,7 +223,9 @@ SELECT is(
   'a refused rebuild does not insert a document read');
 
 RESET role;
-UPDATE hive.source_documents SET deleted_at = now() WHERE id = 'cccccccc-0000-4000-8000-0000000000c2';
+UPDATE hive.source_documents
+   SET lifecycle_status = 'SOFT_DELETED', deleted_at = now()
+ WHERE id = 'cccccccc-0000-4000-8000-0000000000c2';
 SET LOCAL role authenticated;
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000a1","role":"authenticated"}';
 

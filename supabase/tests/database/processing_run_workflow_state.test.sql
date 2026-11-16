@@ -17,27 +17,18 @@ INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, clien
 VALUES ('99999999-0000-4000-8000-0000000000a1', 'bbbbbbbb-0000-4000-8000-0000000000a1',
         'aaaaaaaa-0000-4000-8000-0000000000a1', 'Review the documents.', '99999999-0000-4000-8000-0000000000a2');
 
-INSERT INTO hive.processing_runs (
-  id, hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
-  authorized_source_document_ids, intent_request_ids, stage_attempt,
-  stage_outputs, lease_expires_at, next_dispatch_at
-)
-VALUES (
+SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
   '44444444-4444-4444-8444-4444444444a1',
   'bbbbbbbb-0000-4000-8000-0000000000a1',
   'aaaaaaaa-0000-4000-8000-0000000000a1',
-  'STUDY_PREPARATION',
   'dddddddd-0000-4000-8000-0000000000a1',
-  1,
-  'CANONICALIZING',
   'eeeeeeee-0000-4000-8000-0000000000a1',
-  ARRAY[]::uuid[],
-  ARRAY['99999999-0000-4000-8000-0000000000a1'::uuid],
+  'CANONICALIZING',
+  1,
   1,
   '{"extractZeroProgressHandoffs": {"count": 1}}'::jsonb,
   now() + interval '200 seconds',
-  NULL
-);
+  NULL);
 
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 SET LOCAL role service_role;

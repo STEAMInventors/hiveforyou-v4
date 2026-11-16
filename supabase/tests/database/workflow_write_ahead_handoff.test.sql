@@ -17,28 +17,20 @@ INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, clien
 VALUES ('99999999-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000001',
         'aaaaaaaa-0000-4000-8000-000000000001', 'Review the documents.', '99999999-0000-4000-8000-0000000000f2');
 
-INSERT INTO hive.processing_runs (
-  id, hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
-  authorized_source_document_ids, intent_request_ids, stage_attempt,
-  lease_expires_at, next_dispatch_at, workflow_last_handoff_at, updated_at
-)
-VALUES (
+SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
   '33333333-3333-4333-8333-333333333333',
   'bbbbbbbb-0000-4000-8000-000000000001',
   'aaaaaaaa-0000-4000-8000-000000000001',
-  'STUDY_PREPARATION',
   'dddddddd-0000-4000-8000-000000000002',
-  1,
-  'EXTRACTING',
   'eeeeeeee-0000-4000-8000-000000000002',
-  ARRAY[]::uuid[],
-  ARRAY['99999999-0000-4000-8000-000000000002'::uuid],
+  'EXTRACTING',
+  1,
   3,
+  '{}'::jsonb,
   NULL,
   NULL,
   now() - interval '6 minutes',
-  now()
-);
+  now());
 
 SET LOCAL role authenticated;
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';

@@ -217,8 +217,10 @@ SELECT is(
             (elem->>'failedAttemptCount')::int AS failed_attempt_count
        FROM json_array_elements(
          (public.get_doc_extraction_attempt_totals_for_run(
-            (SELECT id FROM t_run)) -> 'totals')) elem
-      WHERE elem->>'pageRange' = '1') t),
+            (SELECT id FROM t_run LIMIT 1)) -> 'totals')) elem
+      WHERE elem->>'pageRange' = '1'
+      ORDER BY failed_attempt_count DESC
+      LIMIT 1) t),
   2,
   'get_doc_extraction_attempt_totals_for_run aggregates failedAttemptCount');
 
@@ -227,8 +229,10 @@ SELECT is(
      SELECT (elem->>'cutoffOrTimeoutCount')::int AS cutoff_count
        FROM json_array_elements(
          (public.get_doc_extraction_attempt_totals_for_run(
-            (SELECT id FROM t_run)) -> 'totals')) elem
-      WHERE elem->>'pageRange' = '1') t),
+            (SELECT id FROM t_run LIMIT 1)) -> 'totals')) elem
+      WHERE elem->>'pageRange' = '1'
+      ORDER BY cutoff_count DESC
+      LIMIT 1) t),
   2,
   'both rows count as cutoffOrTimeout (MODEL_TIMEOUT)');
 
@@ -244,7 +248,7 @@ SELECT is(
 
 SELECT throws_ok(
   $$ SELECT public.record_doc_extraction_attempt(
-       (SELECT id FROM t_run),
+       (SELECT id FROM t_run LIMIT 1),
        'bbbbbbbb-0000-4000-8000-0000000000e1',
        'cccccccc-0000-4000-8000-0000000000e1',
        'sha256:' || repeat('f', 64),

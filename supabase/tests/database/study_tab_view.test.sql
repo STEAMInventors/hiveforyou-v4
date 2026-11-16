@@ -11,8 +11,8 @@ VALUES
 
 INSERT INTO hive.hives (id, owner_user_id, name, client_request_id)
 VALUES
-  ('bbbbbbbb-0000-4000-8000-0000000000c1', 'aaaaaaaa-0000-4000-8000-0000000000c1', 'Study tab hive', 'bbbbbbbb-0000-4000-8000-0000000000cf1'),
-  ('bbbbbbbb-0000-4000-8000-0000000000c2', 'aaaaaaaa-0000-4000-8000-0000000000c1', 'No revision hive', 'bbbbbbbb-0000-4000-8000-0000000000cf2');
+  ('bbbbbbbb-0000-4000-8000-0000000000c1', 'aaaaaaaa-0000-4000-8000-0000000000c1', 'Study tab hive', 'bbbbbbbb-0000-4000-8000-0000000000f1'),
+  ('bbbbbbbb-0000-4000-8000-0000000000c2', 'aaaaaaaa-0000-4000-8000-0000000000c1', 'No revision hive', 'bbbbbbbb-0000-4000-8000-0000000000f2');
 
 SELECT pg_temp.qf1a_ensure_owner_memberships();
 
@@ -30,7 +30,7 @@ INSERT INTO hive.intent_requests (id, hive_id, owner_user_id, intent_text, clien
 VALUES (
   '99999999-0000-4000-8000-0000000000c1', 'bbbbbbbb-0000-4000-8000-0000000000c1',
   'aaaaaaaa-0000-4000-8000-0000000000c1',
-  'Check whether the schedule mentions the missing exhibit.', '99999999-0000-4000-8000-0000000000cf1'
+  'Check whether the schedule mentions the missing exhibit.', '99999999-0000-4000-8000-0000000000f1'
 );
 
 -- Pages + digest (same pattern as v5_workflow_part_a.test.sql)

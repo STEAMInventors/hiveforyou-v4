@@ -123,9 +123,23 @@ jobs:
             exit 0
           fi
           echo "Discovered ${#CHECKS[@]} check file(s)."
-          DB_URL="$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\r')"
+          DB_URL_RAW="$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\r')"
+          DB_URL="${DB_URL_RAW#\"}"
+          DB_URL="${DB_URL%\"}"
           if [ -z "$DB_URL" ]; then
             echo "::error title=No DB_URL::Could not read DB_URL from supabase status."
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$DB_URL" =~ @([^:/?#]+) ]]; then
+            echo "psql target host: ${BASH_REMATCH[1]}"
+          else
+            echo "::error title=Invalid DB_URL::Could not parse host from DB_URL."
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! psql "$DB_URL" -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null 2>&1; then
+            echo "::error title=psql connect failed::Could not connect with DB_URL from supabase status."
             echo "failed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi

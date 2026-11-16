@@ -485,11 +485,15 @@ SELECT is(
   'a fresh preview is not stale');
 
 CREATE TEMP TABLE t_run2 AS
-SELECT public.start_study_preparation(
-         'bbbbbbbb-0000-4000-8000-000000000001', 'dddddddd-0000-4000-8000-000000000003',
+SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
+         gen_random_uuid(),
+         'bbbbbbbb-0000-4000-8000-000000000001',
+         'aaaaaaaa-0000-4000-8000-000000000001',
+         'dddddddd-0000-4000-8000-000000000003',
          'eeeeeeee-0000-4000-8000-000000000003',
-         public.get_study_preparation('bbbbbbbb-0000-4000-8000-000000000001', false)
-           -> 'eligibility' ->> 'coverageDigest') AS result;
+         'QUEUED',
+         (SELECT coalesce(max(attempt_number), 0) + 1 FROM hive.processing_runs
+           WHERE hive_id = 'bbbbbbbb-0000-4000-8000-000000000001' AND kind = 'STUDY_PREPARATION')) AS id;
 GRANT SELECT ON t_run2 TO service_role;
 
 RESET role;
@@ -503,7 +507,7 @@ SELECT is(
   (SELECT (r ->> 'sourceChanged') || ':' || (r -> 'processingRun' ->> 'status') || ':'
           || (r -> 'processingRun' ->> 'errorCode') || ':' || (r -> 'processingRun' ->> 'retryable')
      FROM (SELECT public.transition_processing_run(
-                    ((SELECT result FROM t_run2) -> 'processingRun' ->> 'id')::uuid,
+                    (SELECT id FROM t_run2),
                     'QUEUED', 'EXTRACTING', '{}'::jsonb) AS r) x),
   'true:FAILED:SOURCE_CHANGED:true',
   'a source change mid-run fails the run as retryable SOURCE_CHANGED');

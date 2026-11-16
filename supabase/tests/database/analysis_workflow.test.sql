@@ -1042,11 +1042,9 @@ SELECT is(public.dispatch_due_work(), 0, 'without the worker URL and token nothi
 
 RESET role;
 SELECT ok(
-  CASE
-    WHEN NOT EXISTS (SELECT 1 FROM pg_catalog.pg_extension WHERE extname = 'pg_cron') THEN true
-    ELSE NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'hive-dispatch-due-work')
-  END,
-  'Analyze does not depend on a pg_cron dispatcher');
+  pg_temp.qf1a_no_hive_dispatch_cron_job(),
+  'Analyze does not depend on pg_cron hive-dispatch-due-work (workflow stays correct without a scheduled dispatcher)'
+);
 
 SELECT * FROM finish();
 ROLLBACK;
