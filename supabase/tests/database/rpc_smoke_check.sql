@@ -393,7 +393,7 @@ BEGIN
     ARRAY[v_doc], ARRAY[v_intent],
     jsonb_build_object('documents', '[]'::jsonb, 'excluded', '[]'::jsonb, 'coverageComplete', true),
     'sha256:' || repeat('1', 64), 'sha256:' || repeat('2', 64), 'sha256:' || repeat('3', 64),
-    true, true, 'COMPLETE', '[]'::jsonb, 'NOT_REQUIRED',
+    true, true, 'COMPLETE', '[]'::jsonb, 'OWNER',
     now(), 1, jsonb_build_object('canonicalStudy', v_study)
   );
 

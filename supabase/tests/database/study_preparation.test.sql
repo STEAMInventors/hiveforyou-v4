@@ -175,6 +175,10 @@ SELECT public.start_study_preparation(
          public.get_study_preparation('bbbbbbbb-0000-4000-8000-000000000001', false)
            -> 'eligibility' ->> 'coverageDigest') AS result;
 
+CREATE TEMP TABLE t_workflow_run AS
+SELECT (result -> 'processingRun' ->> 'id')::uuid AS id FROM t_run;
+GRANT SELECT ON t_workflow_run TO service_role, authenticated;
+
 SELECT is(
   (SELECT (result ->> 'created') || ':' || (result -> 'processingRun' ->> 'status') FROM t_run),
   'true:QUEUED',
@@ -209,7 +213,7 @@ SELECT is(
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'QUEUED', 'UNDERSTANDING_REQUEST', '{}'::jsonb) $$,
+       (SELECT id FROM t_workflow_run), 'QUEUED', 'UNDERSTANDING_REQUEST', '{}'::jsonb) $$,
   '42501',
   NULL,
   'owners cannot advance the run themselves');
@@ -256,39 +260,39 @@ SELECT throws_ok(
 -- ---------------------------------------------------------------------------
 -- Server advances the run; each stage requires the previous validated output
 -- ---------------------------------------------------------------------------
-RESET role;
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 SET LOCAL role service_role;
-SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'QUEUED', 'SAVING', '{}'::jsonb) $$,
+       (SELECT id FROM t_workflow_run), 'QUEUED', 'SAVING', '{}'::jsonb) $$,
   'P0001',
   'processing_run_transition_invalid',
   'illegal transitions are rejected');
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'QUEUED', 'UNDERSTANDING_REQUEST', '{}'::jsonb)
+     (SELECT id FROM t_workflow_run), 'QUEUED', 'UNDERSTANDING_REQUEST', '{}'::jsonb)
      ->> 'applied')::boolean,
   true,
   'QUEUED advances to UNDERSTANDING_REQUEST');
 
 SELECT is(
   (SELECT json_array_length(r -> 'intents') || ':' || (r ->> 'snapshotCurrent')
-     FROM (SELECT public.get_study_preparation_inputs((SELECT id FROM hive.processing_runs LIMIT 1)) AS r) x),
+     FROM (SELECT public.get_study_preparation_inputs((SELECT id FROM t_workflow_run)) AS r) x),
   '1:true',
   'the worker receives the frozen intent and a current snapshot');
 
 SELECT is(
-  (public.get_study_preparation_inputs((SELECT id FROM hive.processing_runs LIMIT 1)) -> 'intents' -> 0
+  (public.get_study_preparation_inputs((SELECT id FROM t_workflow_run)) -> 'intents' -> 0
      ->> 'audience'),
   'Our household accountant',
   'the worker receives the audience saved with the intent');
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
+       (SELECT id FROM t_workflow_run), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
        '{}'::jsonb) $$,
   'P0001',
   'stage_output_missing',
@@ -296,7 +300,7 @@ SELECT throws_ok(
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
+       (SELECT id FROM t_workflow_run), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
        '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-analysis/1"}},
          "stage_metric":{"stage":"UNDERSTANDING_REQUEST","errorCode":"the user wants to know"}}'::jsonb) $$,
   '22023',
@@ -305,7 +309,7 @@ SELECT throws_ok(
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
+     (SELECT id FROM t_workflow_run), 'UNDERSTANDING_REQUEST', 'IDENTIFYING_DOMAIN',
      '{"stage_outputs":{"intentDecomposition":{"schema":"hive.intent-analysis/1"}},
        "stage_metric":{"stage":"UNDERSTANDING_REQUEST","outcome":"SUCCEEDED","promptId":"hive.intent-analysis/1",
                        "modelAliasRequested":"sorter","resolvedModel":"gpt-4o-mini-2024-07-18",
@@ -317,7 +321,7 @@ SELECT is(
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'IDENTIFYING_DOMAIN', 'PLANNING_INVESTIGATION',
+       (SELECT id FROM t_workflow_run), 'IDENTIFYING_DOMAIN', 'PLANNING_INVESTIGATION',
        '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},
                           "sampleCoverage":{"sampledPageCount":2},
                           "intentIntelligence":{"schema":"hive.intent-intelligence/1"}}}'::jsonb) $$,
@@ -327,7 +331,7 @@ SELECT throws_ok(
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'IDENTIFYING_DOMAIN', 'DEVELOPING_QUESTIONS',
+     (SELECT id FROM t_workflow_run), 'IDENTIFYING_DOMAIN', 'DEVELOPING_QUESTIONS',
      '{"stage_outputs":{"domainProposal":{"schema":"hive.domain-proposal/1"},
                         "sampleCoverage":{"sampledPageCount":2}}}'::jsonb) ->> 'applied')::boolean,
   true,
@@ -335,7 +339,7 @@ SELECT is(
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'DEVELOPING_QUESTIONS', 'PLANNING_INVESTIGATION',
+       (SELECT id FROM t_workflow_run), 'DEVELOPING_QUESTIONS', 'PLANNING_INVESTIGATION',
        '{}'::jsonb) $$,
   'P0001',
   'stage_output_missing',
@@ -343,7 +347,7 @@ SELECT throws_ok(
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'DEVELOPING_QUESTIONS', 'PLANNING_INVESTIGATION',
+     (SELECT id FROM t_workflow_run), 'DEVELOPING_QUESTIONS', 'PLANNING_INVESTIGATION',
      '{"stage_outputs":{"intentIntelligence":{"schema":"hive.intent-intelligence/1"}},
        "stage_metric":{"stage":"DEVELOPING_QUESTIONS","outcome":"SUCCEEDED",
                        "promptId":"hive-intent-intelligence/1","modelAliasRequested":"sorter",
@@ -354,7 +358,7 @@ SELECT is(
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'PLANNING_INVESTIGATION', 'BUILDING_PROMPT',
+       (SELECT id FROM t_workflow_run), 'PLANNING_INVESTIGATION', 'BUILDING_PROMPT',
        '{"stage_outputs":{"domainProposal":{"schema":"replaced"},
                           "investigationPlan":{"schema":"hive.investigation-plan/1"}}}'::jsonb) $$,
   'P0001',
@@ -363,7 +367,7 @@ SELECT throws_ok(
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'PLANNING_INVESTIGATION', 'BUILDING_PROMPT',
+     (SELECT id FROM t_workflow_run), 'PLANNING_INVESTIGATION', 'BUILDING_PROMPT',
      '{"stage_outputs":{"investigationPlan":{"schema":"hive.investigation-plan/1"}}}'::jsonb)
      ->> 'applied')::boolean,
   true,
@@ -371,14 +375,14 @@ SELECT is(
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'BUILDING_PROMPT', 'SAVING', '{}'::jsonb)
+     (SELECT id FROM t_workflow_run), 'BUILDING_PROMPT', 'SAVING', '{}'::jsonb)
      ->> 'applied')::boolean,
   true,
   'BUILDING_PROMPT advances to SAVING');
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'SAVING', 'INVESTIGATING',
+       (SELECT id FROM t_workflow_run), 'SAVING', 'INVESTIGATING',
        jsonb_build_object('prompt_digest',
          'sha256:' || encode(sha256(convert_to('Synthetic prompt', 'UTF8')), 'hex'))) $$,
   'P0001',
@@ -387,7 +391,7 @@ SELECT throws_ok(
 
 SELECT throws_ok(
   $$ SELECT public.save_study_prompt_preview(
-       (SELECT id FROM hive.processing_runs LIMIT 1),
+       (SELECT id FROM t_workflow_run),
        jsonb_build_object(
          'prompt_id', 'hive-study-preview/1', 'prompt_version', '1',
          'prompt_template_digest', 'sha256:' || repeat('1', 64),
@@ -400,7 +404,7 @@ SELECT throws_ok(
 
 SELECT is(
   (public.save_study_prompt_preview(
-     (SELECT id FROM hive.processing_runs LIMIT 1),
+     (SELECT id FROM t_workflow_run),
      jsonb_build_object(
        'prompt_id', 'hive-study-preview/1', 'prompt_version', '1',
        'prompt_template_digest', 'sha256:' || repeat('1', 64),
@@ -412,14 +416,14 @@ SELECT is(
   'the saved preview carries the frozen source snapshot from the run');
 
 SELECT is(
-  (public.read_study_prompt_preview((SELECT id FROM hive.processing_runs LIMIT 1))
+  (public.read_study_prompt_preview((SELECT id FROM t_workflow_run))
      -> 'preview' -> 'intentIntelligence' ->> 'schema'),
   'hive.intent-intelligence/1',
   'the saved preview carries the specialist questions from the run');
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'SAVING', 'INVESTIGATING',
+     (SELECT id FROM t_workflow_run), 'SAVING', 'INVESTIGATING',
      jsonb_build_object('prompt_digest',
        'sha256:' || encode(sha256(convert_to('Synthetic prompt', 'UTF8')), 'hex')))
      -> 'processingRun' ->> 'status'),
@@ -428,14 +432,14 @@ SELECT is(
 
 SELECT throws_ok(
   $$ SELECT public.transition_processing_run(
-       (SELECT id FROM hive.processing_runs LIMIT 1), 'INVESTIGATING', 'SUCCEEDED', '{}'::jsonb) $$,
+       (SELECT id FROM t_workflow_run), 'INVESTIGATING', 'SUCCEEDED', '{}'::jsonb) $$,
   'P0001',
   'processing_run_transition_invalid',
   'a run cannot succeed without accepting a study revision');
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'INVESTIGATING', 'VERIFYING_EVIDENCE',
+     (SELECT id FROM t_workflow_run), 'INVESTIGATING', 'VERIFYING_EVIDENCE',
      '{"stage_outputs":{"studyInvestigation":{"schema":"hive.study-investigation/1","answers":[]}}}'::jsonb)
      -> 'processingRun' ->> 'status'),
   'VERIFYING_EVIDENCE',
@@ -443,14 +447,14 @@ SELECT is(
 
 SELECT is(
   (public.transition_processing_run(
-     (SELECT id FROM hive.processing_runs LIMIT 1), 'VERIFYING_EVIDENCE', 'ACCEPTING_STUDY', '{}'::jsonb)
+     (SELECT id FROM t_workflow_run), 'VERIFYING_EVIDENCE', 'ACCEPTING_STUDY', '{}'::jsonb)
      -> 'processingRun' ->> 'status'),
   'ACCEPTING_STUDY',
   'verified evidence advances to accepting the study');
 
 SELECT is(
   (public.accept_study_revision(
-     (SELECT id FROM hive.processing_runs LIMIT 1),
+     (SELECT id FROM t_workflow_run),
      jsonb_build_object(
        'investigation', jsonb_build_object('schema', 'hive.study-investigation/1', 'answers', '[]'::jsonb),
        'verification', jsonb_build_object('schema', 'hive.study-verification/1', 'counts', '{}'::jsonb),
@@ -533,17 +537,21 @@ SELECT is(
   (SELECT result -> 'processingRun' ->> 'id' FROM t_run),
   'the last successful preview stays readable after a failed run');
 
--- A lapsed lease becomes a retryable interruption.
+-- A lapsed lease becomes a retryable interruption (EXTRACTING is covered by expire_stale_processing_runs).
+RESET ROLE;
 CREATE TEMP TABLE t_run3 AS
-SELECT public.start_study_preparation(
-         'bbbbbbbb-0000-4000-8000-000000000001', 'dddddddd-0000-4000-8000-000000000004',
+SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
+         gen_random_uuid(),
+         'bbbbbbbb-0000-4000-8000-000000000001',
+         'aaaaaaaa-0000-4000-8000-000000000001',
+         'dddddddd-0000-4000-8000-000000000004',
          'eeeeeeee-0000-4000-8000-000000000004',
-         public.get_study_preparation('bbbbbbbb-0000-4000-8000-000000000001', false)
-           -> 'eligibility' ->> 'coverageDigest') AS result;
-
-RESET role;
-UPDATE hive.processing_runs SET lease_expires_at = now() - interval '16 minutes'
- WHERE id = ((SELECT result FROM t_run3) -> 'processingRun' ->> 'id')::uuid;
+         'EXTRACTING',
+         (SELECT coalesce(max(attempt_number), 0) + 1 FROM hive.processing_runs
+           WHERE hive_id = 'bbbbbbbb-0000-4000-8000-000000000001' AND kind = 'STUDY_PREPARATION'),
+         1,
+         '{}'::jsonb,
+         now() - interval '16 minutes') AS run_id;
 
 SET LOCAL role authenticated;
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';

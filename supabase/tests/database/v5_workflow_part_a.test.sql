@@ -110,6 +110,9 @@ WITH ins AS (
 )
 SELECT id FROM ins;
 
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL role service_role;
+
 -- Successful EXTRACTING -> EXTRACTING handoff resets stage_attempt to 1.
 SELECT public.transition_processing_run(
   (SELECT id FROM t_run), 'EXTRACTING', 'EXTRACTING',

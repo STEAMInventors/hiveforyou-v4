@@ -116,6 +116,9 @@ WITH ins AS (
 )
 SELECT id FROM ins;
 
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL role service_role;
+
 SELECT public.transition_processing_run((SELECT id FROM t_run), 'EXTRACTING', 'CANONICALIZING',
   jsonb_build_object('stage_outputs', jsonb_build_object(
     'canonicalStudy', jsonb_build_object(
