@@ -143,11 +143,13 @@ CREATE OR REPLACE FUNCTION pg_temp.smoke_expect_refusal(p_user uuid, p_sql text)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  v_succeeded boolean := false;
 BEGIN
   PERFORM pg_temp.smoke_set_role(p_user);
   BEGIN
     EXECUTE p_sql;
-    INSERT INTO smoke_unexpected_success (user_id, rpc_sql) VALUES (p_user, p_sql);
+    v_succeeded := true;
   EXCEPTION
     WHEN insufficient_privilege THEN
       NULL;
@@ -166,6 +168,9 @@ BEGIN
       END IF;
   END;
   RESET ROLE;
+  IF v_succeeded THEN
+    INSERT INTO smoke_unexpected_success (user_id, rpc_sql) VALUES (p_user, p_sql);
+  END IF;
 END;
 $$;
 
@@ -179,8 +184,10 @@ DECLARE
   v_stranger_firm uuid := 'f1100010-0000-4000-8000-000000000006';
   v_firm_two_creator uuid := 'f1100010-0000-4000-8000-000000000007';
   v_hive uuid;
+  v_hive_deletion uuid;
   v_firm uuid;
   v_client_req uuid := 'f1100020-0000-4000-8000-000000000001';
+  v_client_req_deletion uuid := 'f1100020-0000-4000-8000-000000000002';
   v_firm_token text := repeat('c', 64);
   v_token_client text := repeat('a', 64);
   v_token_pro text := repeat('b', 64);
@@ -472,6 +479,15 @@ BEGIN
   )
   ON CONFLICT DO NOTHING;
 
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  v_json := public.create_hive('Smoke deletion hive', 'Deletion only', v_client_req_deletion, 'client');
+  v_hive_deletion := (v_json->'hive'->>'id')::uuid;
+  IF v_hive_deletion IS NULL THEN
+    RAISE EXCEPTION 'create_hive (deletion fixture) failed: %', v_json;
+  END IF;
+  RESET ROLE;
+
   -- QF-1a: call every RPC once per role (list_hives covered above).
 
   -- rpc: accept_firm_invitation
@@ -544,12 +560,12 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.begin_doc_extraction_attempt(%L, %L, 1)$fmt$, v_run, v_doc));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.begin_doc_extraction_attempt(%L, %L, 1)$fmt$, v_run, v_doc));
 
-  -- rpc: begin_hive_deletion
-  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive));
+  -- rpc: begin_hive_deletion (v_hive_deletion only — must not mark main smoke hive deleting)
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive_deletion));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive_deletion));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive_deletion));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive_deletion));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive_deletion));
 
   -- rpc: claim_processing_run
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.claim_processing_run(%L)$fmt$, v_run));
@@ -566,11 +582,11 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.claim_report_run(%L)$fmt$, v_report_run));
 
   -- rpc: complete_hive_deletion
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive_deletion));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive_deletion));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive_deletion));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive_deletion));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.complete_hive_deletion(%L)$fmt$, v_hive_deletion));
 
   -- rpc: create_firm
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
