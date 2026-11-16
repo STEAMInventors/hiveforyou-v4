@@ -15,7 +15,8 @@
     "extract": "vite-node --config apps/web/vitest.config.ts scripts/run-extract.ts --",
     "canonicalize": "vite-node --config apps/web/vitest.config.ts scripts/run-canonicalize.ts --",
     "write": "vite-node --config apps/web/vitest.config.ts scripts/run-write.ts --",
-    "export-run": "vite-node --config apps/web/vitest.config.ts scripts/export-run.ts --"
+    "export-run": "vite-node --config apps/web/vitest.config.ts scripts/export-run.ts --",
+    "test:db-pgtap": "node scripts/run-pgtap-database.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

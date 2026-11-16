@@ -33,7 +33,7 @@ SELECT throws_ok(
 SET LOCAL role authenticated;
 SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
 
-SELECT is(public.get_my_profile(), NULL, 'owner without profile returns null');
+SELECT is(public.get_my_profile() IS NULL, true, 'owner without profile returns null');
 
 SELECT lives_ok(
   $$SELECT public.set_starting_view('own')$$,

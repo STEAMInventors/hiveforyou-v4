@@ -1,6 +1,13 @@
 BEGIN;
 
-SELECT plan(8);
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+
+SELECT plan(5);
+
+INSERT INTO auth.users (id, email, aud, role)
+VALUES
+  ('aaaaaaaa-0000-4000-8000-000000000001', 'owner@example.test', 'authenticated', 'authenticated'),
+  ('bbbbbbbb-0000-4000-8000-000000000002', 'other@example.test', 'authenticated', 'authenticated');
 
 SELECT throws_ok(
   $$SELECT public.set_hive_kind('550e8400-e29b-41d4-a716-446655440000', 'own')$$,
@@ -9,7 +16,8 @@ SELECT throws_ok(
   'anonymous set_hive_kind is refused'
 );
 
-SELECT tests.authenticate_as('aaaaaaaa-0000-4000-8000-000000000001');
+SET LOCAL role authenticated;
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
 
 SELECT lives_ok(
   $$SELECT public.create_hive('Client A', 'About', '11111111-1111-4111-8111-111111111111', 'client')$$,
@@ -30,7 +38,7 @@ SELECT lives_ok(
   'owner can move hive to client'
 );
 
-SELECT tests.authenticate_as('bbbbbbbb-0000-4000-8000-000000000002');
+SET LOCAL "request.jwt.claims" TO '{"sub":"bbbbbbbb-0000-4000-8000-000000000002","role":"authenticated"}';
 
 SELECT throws_ok(
   $$SELECT public.set_hive_kind(

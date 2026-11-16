@@ -66,6 +66,7 @@ jobs:
           supabase migration list --local
 
       - name: Discover and run pgTAP (*.test.sql)
+        id: pgtap
         shell: bash
         run: |
           set -euo pipefail
@@ -76,7 +77,8 @@ jobs:
           shopt -u nullglob
           if [ "${#FOUND[@]}" -eq 0 ]; then
             echo "::error title=No pgTAP files::No *.test.sql under $TEST_DIR."
-            exit 1
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "Discovered ${#FOUND[@]} pgTAP file(s)."
           MERGED=()
@@ -89,17 +91,25 @@ jobs:
           supabase test db "${MERGED[@]}" 2>&1 | tee "$RUNNER_TEMP/pgtap.log"
           test_exit=${PIPESTATUS[0]}
           set -e
+          pgtap_failed=false
           if [ "$test_exit" -ne 0 ]; then
             echo "::error title=pgTAP failed::exit $test_exit"
-            exit "$test_exit"
-          fi
-          if ! grep -q 'All tests successful' "$RUNNER_TEMP/pgtap.log"; then
+            pgtap_failed=true
+          elif ! grep -q 'All tests successful' "$RUNNER_TEMP/pgtap.log"; then
             echo "::error title=pgTAP incomplete::Expected 'All tests successful'."
-            exit 1
+            pgtap_failed=true
+          else
+            echo "pgTAP OK: ${#FOUND[@]} file(s)."
           fi
-          echo "pgTAP OK: ${#FOUND[@]} file(s)."
+          if [ "$pgtap_failed" = true ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Discover and run check SQL (*_check.sql)
+        id: check_sql
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
@@ -109,14 +119,17 @@ jobs:
           shopt -u nullglob
           if [ "${#CHECKS[@]}" -eq 0 ]; then
             echo "::error title=No check files::No *_check.sql under $TEST_DIR."
-            exit 1
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "Discovered ${#CHECKS[@]} check file(s)."
           DB_URL="$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '\r')"
           if [ -z "$DB_URL" ]; then
             echo "::error title=No DB_URL::Could not read DB_URL from supabase status."
-            exit 1
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          checks_failed=false
           ran=0
           for f in "${CHECKS[@]}"; do
             ran=$((ran + 1))
@@ -125,16 +138,33 @@ jobs:
             if ! psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f" >"$out" 2>&1; then
               cat "$out"
               echo "::error title=Check SQL failed::$f"
-              exit 1
-            fi
-            if ! grep -q 'ALL CHECKS PASSED' "$out"; then
+              checks_failed=true
+            elif ! grep -q 'ALL CHECKS PASSED' "$out"; then
               cat "$out"
               echo "::error title=Check SQL missing success::$f did not print ALL CHECKS PASSED"
-              exit 1
+              checks_failed=true
             fi
           done
           if [ "$ran" -ne "${#CHECKS[@]}" ]; then
             echo "::error title=Check count mismatch::ran=$ran found=${#CHECKS[@]}"
+            checks_failed=true
+          elif [ "$checks_failed" = false ]; then
+            echo "Check SQL OK: ${#CHECKS[@]} file(s)."
+          fi
+          if [ "$checks_failed" = true ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail job if pgTAP or check SQL failed
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pgtap_failed="${{ steps.pgtap.outputs.failed }}"
+          check_failed="${{ steps.check_sql.outputs.failed }}"
+          if [ "$pgtap_failed" = "true" ] || [ "$check_failed" = "true" ]; then
+            echo "::error title=Database verification failed::pgTAP failed=${pgtap_failed:-unknown}, check SQL failed=${check_failed:-unknown}"
             exit 1
           fi
-          echo "Check SQL OK: ${#CHECKS[@]} file(s)."

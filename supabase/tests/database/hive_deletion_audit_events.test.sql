@@ -3,7 +3,6 @@
 -- Run locally with `supabase test db`; never against a live project.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-\ir pg_fixture_helpers.sql
 
 SELECT * FROM no_plan();
 

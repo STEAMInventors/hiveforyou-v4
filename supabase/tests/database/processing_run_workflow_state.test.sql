@@ -1,7 +1,6 @@
 -- patch_processing_run_workflow_state: the only writer of mutable workflow keys in stage_outputs.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-\ir pg_fixture_helpers.sql
 
 SELECT * FROM no_plan();
 

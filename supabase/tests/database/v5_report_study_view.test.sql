@@ -1,7 +1,6 @@
 -- V5-005b part B — canonical-study-1 report inputs (format, verified extractions) and hive.study-view/1 reports.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-\ir pg_fixture_helpers.sql
 SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)

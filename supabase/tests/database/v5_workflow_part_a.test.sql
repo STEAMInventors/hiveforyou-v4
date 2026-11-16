@@ -1,7 +1,6 @@
 -- V5-005b part A — stage_attempt reset per document, accept canonical-study-1, acknowledge -> EXTRACTING.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-\ir pg_fixture_helpers.sql
 SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)

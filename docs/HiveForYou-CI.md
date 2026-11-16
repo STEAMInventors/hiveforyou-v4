@@ -30,13 +30,13 @@ Docker is required for database tests (`supabase db start`). This environment do
 supabase db start
 supabase db reset --no-seed
 
-# Single pgTAP file (include helpers)
+# All pgTAP files (same merge as CI: pg_fixture_helpers.sql + each *.test.sql)
+node scripts/run-pgtap-database.mjs
+
+# Single pgTAP file (manual merge)
 psql "$DB_URL" -v ON_ERROR_STOP=1 \
   -f supabase/tests/database/pg_fixture_helpers.sql \
   -f supabase/tests/database/document_reads.test.sql
-
-# Or use Supabase test runner with merged helpers (same as CI)
-# supabase test db $( ... merge pg_fixture_helpers.sql with each *.test.sql ... )
 
 # Paste checks (expect ALL CHECKS PASSED, then ROLLBACK in file)
 psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/database/hive_membership_check.sql

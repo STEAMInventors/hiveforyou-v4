@@ -1,7 +1,6 @@
 -- Permanent Hive deletion with V5 doc_extractions, canonical-study-1 revision, and study-view report.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-\ir pg_fixture_helpers.sql
 SELECT * FROM no_plan();
 
 INSERT INTO auth.users (id, email, aud, role)

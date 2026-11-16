@@ -1,7 +1,6 @@
 -- Write-ahead hand-off and stall recovery (workflow_last_handoff_at, 5 minute grace).
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-\ir pg_fixture_helpers.sql
 
 SELECT * FROM no_plan();
 

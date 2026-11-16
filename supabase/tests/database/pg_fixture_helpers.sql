@@ -1,4 +1,4 @@
--- QF-1a: shared pgTAP fixture helpers (loaded via \ir from each *.test.sql, or prepended in CI).
+-- QF-1a: shared pgTAP fixture helpers (prepended to each *.test.sql in CI and scripts/run-pgtap-database.mjs).
 -- FL-5: direct hive.hives inserts must also create the owner hive_members row like public.create_hive.
 
 CREATE OR REPLACE FUNCTION pg_temp.qf1a_seed_user(p_user_id uuid, p_email text)
