@@ -386,14 +386,31 @@ BEGIN
     id, hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
     authorized_source_document_ids, intent_request_ids, source_snapshot,
     source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
-    coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement,
+    coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement, coverage_acknowledged_at,
     snapshot_frozen_at, stage_attempt, stage_outputs
   ) VALUES (
     v_run, v_hive, v_owner, 'STUDY_PREPARATION', gen_random_uuid(), 1, 'ACCEPTING_STUDY', v_correlation,
     ARRAY[v_doc], ARRAY[v_intent],
-    jsonb_build_object('documents', '[]'::jsonb, 'excluded', '[]'::jsonb, 'coverageComplete', true),
+    jsonb_build_object(
+      'documents', '[]'::jsonb,
+      'excluded', jsonb_build_array(jsonb_build_object(
+        'sourceDocumentId', v_doc::text,
+        'fileName', 'smoke.pdf',
+        'reason', 'READ_FAILED'
+      )),
+      'coverageComplete', false
+    ),
     'sha256:' || repeat('1', 64), 'sha256:' || repeat('2', 64), 'sha256:' || repeat('3', 64),
-    true, true, 'COMPLETE', '[]'::jsonb, 'OWNER',
+    false, true, 'MATERIAL_GAPS',
+    jsonb_build_array(jsonb_build_object(
+      'key', 'EXCLUDED:' || v_doc::text || ':READ_FAILED',
+      'sourceDocumentId', v_doc::text,
+      'fileName', 'smoke.pdf',
+      'reason', 'READ_FAILED',
+      'pageNumbers', '[]'::jsonb,
+      'material', true
+    )),
+    'OWNER', now(),
     now(), 1, jsonb_build_object('canonicalStudy', v_study)
   );
 

@@ -115,6 +115,7 @@ WITH ins AS (
   RETURNING id
 )
 SELECT id FROM ins;
+GRANT SELECT ON t_run TO authenticated, service_role;
 
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 SET LOCAL role service_role;
