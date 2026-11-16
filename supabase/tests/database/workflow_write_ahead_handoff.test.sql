@@ -41,12 +41,16 @@ SELECT is(
   'stalled EXTRACTING run with stage_attempt 3 still re-dispatches when zero-progress cap not reached'
 );
 
+RESET role;
 UPDATE hive.processing_runs
    SET stage_outputs = jsonb_build_object('extractZeroProgressHandoffs', jsonb_build_object('count', 3)),
        next_dispatch_at = NULL,
        lease_expires_at = NULL,
        workflow_last_handoff_at = now() - interval '6 minutes'
  WHERE id = '33333333-3333-4333-8333-333333333333';
+
+SET LOCAL role authenticated;
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","role":"authenticated"}';
 
 SELECT public.recover_expired_workflow_leases('bbbbbbbb-0000-4000-8000-000000000001');
 
@@ -61,9 +65,11 @@ SET LOCAL role service_role;
 SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 
 SELECT ok(
-  hive.is_valid_failure_diagnostic(
-    (SELECT failure_diagnostic FROM hive.processing_runs WHERE id = '33333333-3333-4333-8333-333333333333')
-  ),
+  (SELECT failure_diagnostic IS NOT NULL
+     AND failure_diagnostic ->> 'contractVersion' = 'failure-diagnostic@1'
+     AND failure_diagnostic ->> 'diagnosticReason' = 'stalled_no_handoff'
+     FROM hive.processing_runs
+    WHERE id = '33333333-3333-4333-8333-333333333333'),
   'stalled failure carries failure_diagnostic'
 );
 

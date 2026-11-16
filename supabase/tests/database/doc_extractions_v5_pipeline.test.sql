@@ -129,7 +129,22 @@ SELECT throws_ok(
   'CANONICALIZING cannot return to EXTRACTING');
 
 SELECT is(
-  (public.transition_processing_run((SELECT id FROM t_run), 'CANONICALIZING', 'ACCEPTING_STUDY', '{}'::jsonb)
+  (public.transition_processing_run((SELECT id FROM t_run), 'CANONICALIZING', 'ACCEPTING_STUDY',
+     jsonb_build_object('stage_outputs', jsonb_build_object(
+       'canonicalStudy', jsonb_build_object(
+         'schema', 'hive.canonical-study/1',
+         'documents', jsonb_build_array(jsonb_build_object(
+           'sourceDocumentId', 'cccccccc-0000-4000-8000-0000000000e1',
+           'role', 'ANCHOR', 'typeInPlainWords', 'statement', 'date', null, 'version', null, 'chainPosition', null
+         )),
+         'spineSource', 'ANCHOR',
+         'spine', '[]'::jsonb,
+         'outsideSpine', '[]'::jsonb,
+         'conflicts', '[]'::jsonb,
+         'timeline', '[]'::jsonb,
+         'gaps', '[]'::jsonb,
+         'domainLabel', 'unknown'
+       ))))
      ->> 'applied')::boolean,
   true,
   'CANONICALIZING may advance to ACCEPTING_STUDY');

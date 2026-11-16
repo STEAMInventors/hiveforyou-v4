@@ -45,6 +45,7 @@ CREATE OR REPLACE FUNCTION pg_temp.qf1a_insert_frozen_study_preparation_run(
 )
 RETURNS uuid
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = hive, public, pg_temp
 AS $$
 DECLARE

@@ -274,7 +274,7 @@ BEGIN
   IF (v_json->>'hiveId')::uuid IS DISTINCT FROM v_hive THEN
     RAISE EXCEPTION 'welcome context hive mismatch';
   END IF;
-  IF v_json ? 'requestedItemCount' THEN
+  IF v_json::jsonb ? 'requestedItemCount' THEN
     RAISE EXCEPTION 'welcome context must not include requestedItemCount';
   END IF;
 

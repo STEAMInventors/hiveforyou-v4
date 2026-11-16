@@ -184,14 +184,23 @@ SELECT is(
 
 SELECT is((SELECT title FROM hive.reports WHERE report_run_id = 'adadadad-0000-4000-8000-0000000005b1'), 'Overview',
   'the explicit title is used when the view has none');
+
+RESET role;
+SET LOCAL role authenticated;
+SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000005b1","role":"authenticated"}';
+
 SELECT is(
-  (SELECT hive.report_json(p)::jsonb -> 'studyViewSources' -> 'facts' -> 'F-cccccccc-001' ->> 'pageNumber'
-     FROM hive.reports p WHERE p.report_run_id = 'adadadad-0000-4000-8000-0000000005b1'),
+  (public.get_hive_report(
+     'bbbbbbbb-0000-4000-8000-0000000005b1',
+     (SELECT id FROM hive.reports WHERE report_run_id = 'adadadad-0000-4000-8000-0000000005b1')
+   ) -> 'report' -> 'studyViewSources' -> 'facts' -> 'F-cccccccc-001' ->> 'pageNumber'),
   '1',
-  'report_json returns the study-view citation index');
+  'get_hive_report returns the study-view citation index');
 SELECT ok(
-  (SELECT hive.report_json(p)::jsonb -> 'scenarioAnalysis' = 'null'::jsonb
-     FROM hive.reports p WHERE p.report_run_id = 'adadadad-0000-4000-8000-0000000005b1'),
+  (public.get_hive_report(
+     'bbbbbbbb-0000-4000-8000-0000000005b1',
+     (SELECT id FROM hive.reports WHERE report_run_id = 'adadadad-0000-4000-8000-0000000005b1')
+   ) -> 'report' -> 'scenarioAnalysis') IS NULL,
   'study-view reports have no scenario analysis');
 
 -- The legacy shape is still enforced: an unknown view schema is rejected.

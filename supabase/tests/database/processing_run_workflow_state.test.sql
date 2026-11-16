@@ -23,7 +23,7 @@ SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
   'aaaaaaaa-0000-4000-8000-0000000000a1',
   'dddddddd-0000-4000-8000-0000000000a1',
   'eeeeeeee-0000-4000-8000-0000000000a1',
-  'CANONICALIZING',
+  'EXTRACTING',
   1,
   1,
   '{"extractZeroProgressHandoffs": {"count": 1}}'::jsonb,
@@ -39,6 +39,11 @@ SELECT is(
   'true',
   'domainPack can be recorded while EXTRACTING'
 );
+
+UPDATE hive.processing_runs
+   SET status = 'CANONICALIZING',
+       stage_attempt = 1
+ WHERE id = '44444444-4444-4444-8444-4444444444a1';
 
 SELECT is(
   (public.patch_processing_run_workflow_state('44444444-4444-4444-8444-4444444444a1', 'CANONICALIZING',

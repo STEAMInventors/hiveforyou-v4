@@ -33,6 +33,7 @@ SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
   now());
 
 SET LOCAL role service_role;
+SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 
 SELECT is(
   (public.sweep_workflow_recovery(10) ->> 'dispatchCount')::int,

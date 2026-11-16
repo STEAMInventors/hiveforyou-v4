@@ -246,21 +246,10 @@ SELECT public.put_doc_extraction(
 
 RESET role;
 
--- ---------------------------------------------------------------------------
--- Invoker helpers: authenticated must EXECUTE every function invoked along
--- public.get_study_tab_view (otherwise superuser-only pgTAP passes while production fails for the owner).
--- ---------------------------------------------------------------------------
+-- FL-5 (20261115140000): public.get_study_tab_view is SECURITY DEFINER; members call the RPC only.
 SELECT ok(
   has_function_privilege('authenticated', 'public.get_study_tab_view(uuid)', 'EXECUTE'),
   'authenticated may EXECUTE public.get_study_tab_view'
-);
-SELECT ok(
-  has_function_privilege('authenticated', 'hive.build_study_tab_view(uuid, uuid)', 'EXECUTE'),
-  'authenticated may EXECUTE hive.build_study_tab_view'
-);
-SELECT ok(
-  has_function_privilege('authenticated', 'hive.canonical_study_cited_fact_ids(jsonb)', 'EXECUTE'),
-  'authenticated may EXECUTE hive.canonical_study_cited_fact_ids'
 );
 
 -- ---------------------------------------------------------------------------

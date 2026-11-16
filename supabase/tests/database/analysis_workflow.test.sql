@@ -350,6 +350,12 @@ SELECT is(
   '1',
   'a new stage starts at attempt one');
 
+SELECT throws_ok(
+  $$ SELECT public.accept_study_revision((SELECT id FROM t_id), '{}'::jsonb) $$,
+  'P0001',
+  'processing_run_transition_invalid',
+  'a study revision is accepted only from ACCEPTING_STUDY');
+
 SELECT public.transition_processing_run((SELECT id FROM t_id), 'CANONICALIZING', 'ACCEPTING_STUDY', '{}'::jsonb);
 
 SELECT is(
@@ -357,12 +363,6 @@ SELECT is(
      FROM (SELECT public.get_study_source_pages((SELECT id FROM t_id)) AS r) x),
   '2:cccccccc-0000-4000-8000-00000000000b:true',
   'the Study receives only the frozen, authorized pages');
-
-SELECT throws_ok(
-  $$ SELECT public.accept_study_revision((SELECT id FROM t_id), '{}'::jsonb) $$,
-  'P0001',
-  'processing_run_transition_invalid',
-  'a study revision is accepted only from ACCEPTING_STUDY');
 
 SELECT throws_ok(
   $$ SELECT public.accept_study_revision((SELECT id FROM t_id), jsonb_build_object(
