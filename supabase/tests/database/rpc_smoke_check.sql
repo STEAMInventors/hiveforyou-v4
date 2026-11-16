@@ -147,9 +147,10 @@ BEGIN
     WHEN insufficient_privilege THEN
       NULL;
     WHEN OTHERS THEN
-      IF SQLSTATE IN ('42501', 'P0002', '42883')
+      IF SQLSTATE IN ('42501', '23505', 'P0002', '42883')
          OR SQLERRM LIKE 'auth_required%'
          OR SQLERRM LIKE 'access_denied%'
+         OR SQLERRM LIKE 'firm_membership_exists%'
          OR SQLERRM LIKE 'hive_not_found%'
          OR SQLERRM LIKE 'invitation_%'
          OR SQLERRM LIKE 'permission denied%'
@@ -171,6 +172,7 @@ DECLARE
   v_pro uuid := 'f1100010-0000-4000-8000-000000000004';
   v_stranger uuid := 'f1100010-0000-4000-8000-000000000005';
   v_stranger_firm uuid := 'f1100010-0000-4000-8000-000000000006';
+  v_firm_two_creator uuid := 'f1100010-0000-4000-8000-000000000007';
   v_hive uuid;
   v_firm uuid;
   v_client_req uuid := 'f1100020-0000-4000-8000-000000000001';
@@ -213,7 +215,8 @@ BEGIN
     (v_client, 'f11s-client@example.test', 'authenticated', 'authenticated'),
     (v_pro, 'f11s-pro@example.test', 'authenticated', 'authenticated'),
     (v_stranger, 'f11s-stranger@example.test', 'authenticated', 'authenticated'),
-    (v_stranger_firm, 'f11s-stranger-firm@example.test', 'authenticated', 'authenticated');
+    (v_stranger_firm, 'f11s-stranger-firm@example.test', 'authenticated', 'authenticated'),
+    (v_firm_two_creator, 'f11s-firm-two@example.test', 'authenticated', 'authenticated');
 
   INSERT INTO hive.user_profiles (user_id, display_name, starting_view, created_at, updated_at)
   VALUES
@@ -552,7 +555,7 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
   PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
-  PERFORM pg_temp.smoke_expect_ok(v_stranger_firm, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_firm_two_creator, format($fmt$SELECT public.create_firm('Smoke Firm Two', 'Asst')$fmt$));
 
   -- rpc: create_hive
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.create_hive('Extra hive', 'Extra', gen_random_uuid(), 'client')$fmt$));

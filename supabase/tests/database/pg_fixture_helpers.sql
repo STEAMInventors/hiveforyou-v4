@@ -54,18 +54,28 @@ DECLARE
   v_gaps jsonb;
   v_coverage_status text;
   v_acknowledgement text;
+  v_acknowledged_at timestamptz;
 BEGIN
   v_intents := hive.compute_study_intent_snapshot(p_hive_id);
   v_sources := hive.compute_study_source_snapshot(p_hive_id);
   v_gaps := hive.classify_coverage_gaps(v_sources);
   v_coverage_status := hive.coverage_status_for(v_gaps);
-  v_acknowledgement := CASE WHEN v_coverage_status = 'MATERIAL_GAPS' THEN 'PENDING' ELSE 'NOT_REQUIRED' END;
+  IF v_coverage_status <> 'MATERIAL_GAPS' THEN
+    v_acknowledgement := 'NOT_REQUIRED';
+    v_acknowledged_at := NULL;
+  ELSE
+    v_acknowledgement := 'PRIOR';
+    SELECT max(a.acknowledged_at) INTO v_acknowledged_at
+      FROM hive.coverage_acknowledgements a
+      JOIN jsonb_array_elements(v_gaps) g ON g ->> 'key' = a.gap_key
+     WHERE a.hive_id = p_hive_id;
+  END IF;
 
   INSERT INTO hive.processing_runs (
     id, hive_id, owner_user_id, kind, request_id, attempt_number, status, correlation_id,
     authorized_source_document_ids, intent_request_ids, source_snapshot,
     source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
-    coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement,
+    coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement, coverage_acknowledged_at,
     snapshot_frozen_at, stage_attempt, stage_outputs,
     lease_expires_at, next_dispatch_at, workflow_last_handoff_at, updated_at
   )
@@ -93,6 +103,7 @@ BEGIN
     v_coverage_status,
     v_gaps,
     v_acknowledgement,
+    v_acknowledged_at,
     now(),
     p_stage_attempt,
     p_stage_outputs,

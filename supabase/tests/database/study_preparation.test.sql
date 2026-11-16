@@ -484,6 +484,7 @@ SELECT is(
   false,
   'a fresh preview is not stale');
 
+RESET ROLE;
 CREATE TEMP TABLE t_run2 AS
 SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
          gen_random_uuid(),
@@ -496,7 +497,7 @@ SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
            WHERE hive_id = 'bbbbbbbb-0000-4000-8000-000000000001' AND kind = 'STUDY_PREPARATION')) AS id;
 GRANT SELECT ON t_run2 TO service_role;
 
-RESET role;
+RESET ROLE;
 UPDATE hive.source_documents SET read_status = 'FAILED'
  WHERE id = 'cccccccc-0000-4000-8000-00000000000a';
 

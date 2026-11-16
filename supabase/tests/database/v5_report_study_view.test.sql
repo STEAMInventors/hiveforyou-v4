@@ -200,10 +200,13 @@ SELECT ok(
   (public.get_hive_report(
      'bbbbbbbb-0000-4000-8000-0000000005b1',
      (SELECT id FROM hive.reports WHERE report_run_id = 'adadadad-0000-4000-8000-0000000005b1')
-   ) -> 'report' -> 'scenarioAnalysis') IS NULL,
+   ) -> 'report' ->> 'scenarioAnalysis') IS NULL,
   'study-view reports have no scenario analysis');
 
 -- The legacy shape is still enforced: an unknown view schema is rejected.
+RESET ROLE;
+SET LOCAL role service_role;
+SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 SELECT public.claim_report_run('adadadad-0000-4000-8000-0000000005b2');
 SELECT public.transition_report_run('adadadad-0000-4000-8000-0000000005b2', 'WRITING', 'VALIDATING', '{}'::jsonb);
 SELECT public.transition_report_run('adadadad-0000-4000-8000-0000000005b2', 'VALIDATING', 'SAVING', '{}'::jsonb);

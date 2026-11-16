@@ -40,10 +40,13 @@ SELECT is(
   'domainPack can be recorded while EXTRACTING'
 );
 
+RESET ROLE;
 UPDATE hive.processing_runs
    SET status = 'CANONICALIZING',
        stage_attempt = 1
  WHERE id = '44444444-4444-4444-8444-4444444444a1';
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL role service_role;
 
 SELECT is(
   (public.patch_processing_run_workflow_state('44444444-4444-4444-8444-4444444444a1', 'CANONICALIZING',

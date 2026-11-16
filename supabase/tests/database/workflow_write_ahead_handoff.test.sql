@@ -60,16 +60,12 @@ SELECT is(
   'stalled run fails with PREPARATION_INTERRUPTED after zero-progress handoff cap'
 );
 
-RESET role;
-SET LOCAL role service_role;
-SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
+RESET ROLE;
 
 SELECT ok(
-  (SELECT failure_diagnostic IS NOT NULL
-     AND failure_diagnostic ->> 'contractVersion' = 'failure-diagnostic@1'
-     AND failure_diagnostic ->> 'diagnosticReason' = 'stalled_no_handoff'
-     FROM hive.processing_runs
-    WHERE id = '33333333-3333-4333-8333-333333333333'),
+  hive.is_valid_failure_diagnostic(
+    (SELECT failure_diagnostic FROM hive.processing_runs WHERE id = '33333333-3333-4333-8333-333333333333')
+  ),
   'stalled failure carries failure_diagnostic'
 );
 

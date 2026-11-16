@@ -59,6 +59,8 @@ SELECT public.put_document_pages(
          p.page_count, p.page_count, p.pages)
   FROM t_pages p;
 
+RESET ROLE;
+
 INSERT INTO hive.document_reads (
   hive_id, owner_user_id, source_document_id, request_id, attempt_number, status, correlation_id,
   read_fingerprint, page_set_digest, total_physical_pages, verified_page_count, finished_at
@@ -234,6 +236,8 @@ SELECT jsonb_build_object(
        ) AS body;
 GRANT SELECT ON t_extraction TO service_role;
 
+SET LOCAL role service_role;
+SET LOCAL "request.jwt.claims" TO '{"role":"service_role"}';
 SELECT public.put_doc_extraction(
          'bbbbbbbb-0000-4000-8000-0000000000c1',
          'cccccccc-0000-4000-8000-0000000000c1',

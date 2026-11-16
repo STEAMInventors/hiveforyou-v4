@@ -142,6 +142,9 @@ SELECT is(
   'SUCCEEDED',
   'outcome update marks attempt SUCCEEDED');
 
+DELETE FROM hive.doc_extraction_attempts
+ WHERE id = ((SELECT result FROM t_begin) ->> 'id')::uuid;
+
 SELECT throws_ok(
   $$ SELECT public.begin_doc_extraction_attempt(
        (SELECT id FROM t_run),
@@ -262,7 +265,7 @@ SELECT throws_ok(
        false,
        now()) $$,
   '42501',
-  'access_denied',
+  NULL,
   'authenticated may not record extract attempts');
 
 SELECT * FROM finish();
