@@ -26,8 +26,8 @@ BEGIN
 
   INSERT INTO hive.user_profiles (user_id, display_name, starting_view, created_at, updated_at)
   VALUES
-    (v_owner, 'Firm Owner', 'client', now(), now()),
-    (v_member, 'Dana Cole', 'client', now(), now())
+    (v_owner, 'Firm Owner', 'clients', now(), now()),
+    (v_member, 'Dana Cole', 'clients', now(), now())
   ON CONFLICT (user_id) DO UPDATE SET display_name = EXCLUDED.display_name;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
