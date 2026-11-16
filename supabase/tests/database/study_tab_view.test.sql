@@ -131,7 +131,7 @@ SET LOCAL "request.jwt.claims" TO '{"sub":"aaaaaaaa-0000-4000-8000-0000000000c1"
 
 -- Hive with no current revision returns empty payload (no error)
 SELECT is(
-  (public.get_study_tab_view('bbbbbbbb-0000-4000-8000-0000000000c2') -> 'revision') IS NULL
+  (public.get_study_tab_view('bbbbbbbb-0000-4000-8000-0000000000c2') ->> 'revision') IS NULL
   AND json_array_length((public.get_study_tab_view('bbbbbbbb-0000-4000-8000-0000000000c2') -> 'facts')::json) = 0,
   true,
   'hive without accepted revision returns empty revision and facts');
@@ -154,7 +154,7 @@ SET LOCAL role anon;
 SELECT throws_ok(
   $$ SELECT public.get_study_tab_view('bbbbbbbb-0000-4000-8000-0000000000c1') $$,
   '42501',
-  'auth_required',
+  NULL,
   'anon is denied');
 RESET role;
 

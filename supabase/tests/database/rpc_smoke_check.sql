@@ -90,6 +90,11 @@
 -- APP_RPC_COVERAGE_END
 BEGIN;
 
+CREATE TEMP TABLE smoke_unexpected_success (
+  user_id uuid NOT NULL,
+  rpc_sql text NOT NULL
+) ON COMMIT DROP;
+
 CREATE OR REPLACE FUNCTION pg_temp.smoke_set_role(p_user uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -142,7 +147,7 @@ BEGIN
   PERFORM pg_temp.smoke_set_role(p_user);
   BEGIN
     EXECUTE p_sql;
-    RAISE EXCEPTION 'smoke_expect_refusal: unexpected success for %', left(p_sql, 80);
+    INSERT INTO smoke_unexpected_success (user_id, rpc_sql) VALUES (p_user, p_sql);
   EXCEPTION
     WHEN insufficient_privilege THEN
       NULL;
@@ -1057,6 +1062,29 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
 
+  IF EXISTS (SELECT 1 FROM smoke_unexpected_success) THEN
+    RAISE EXCEPTION E'smoke_expect_refusal unexpected successes:\n%',
+      (
+        SELECT string_agg(entry, E'\n' ORDER BY entry)
+        FROM (
+          SELECT format(
+            '(%s, %s)',
+            CASE u.user_id
+              WHEN v_owner THEN 'owner'
+              WHEN v_member THEN 'member'
+              WHEN v_client THEN 'client'
+              WHEN v_pro THEN 'pro'
+              WHEN v_stranger THEN 'stranger'
+              WHEN v_stranger_firm THEN 'stranger_firm'
+              WHEN v_firm_two_creator THEN 'firm_two_creator'
+              ELSE u.user_id::text
+            END,
+            coalesce(substring(u.rpc_sql from 'public\.([a-z0-9_]+)'), left(u.rpc_sql, 120))
+          ) AS entry
+          FROM smoke_unexpected_success u
+        ) listed
+      );
+  END IF;
 
   RAISE NOTICE 'ALL CHECKS PASSED';
 END;
