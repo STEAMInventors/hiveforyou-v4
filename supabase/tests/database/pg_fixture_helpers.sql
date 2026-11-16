@@ -77,7 +77,7 @@ BEGIN
     source_snapshot_digest, intent_snapshot_digest, coverage_digest, coverage_complete,
     coverage_acknowledged, coverage_status, coverage_gaps, coverage_acknowledgement, coverage_acknowledged_at,
     snapshot_frozen_at, stage_attempt, stage_outputs,
-    lease_expires_at, next_dispatch_at, workflow_last_handoff_at, updated_at
+    lease_expires_at, next_dispatch_at, workflow_last_handoff_at, updated_at, finished_at
   )
   VALUES (
     p_id,
@@ -110,7 +110,11 @@ BEGIN
     p_lease_expires_at,
     p_next_dispatch_at,
     p_workflow_last_handoff_at,
-    coalesce(p_updated_at, now())
+    coalesce(p_updated_at, now()),
+  CASE
+      WHEN p_status IN ('SUCCEEDED', 'NEEDS_CLARIFICATION', 'FAILED') THEN coalesce(p_updated_at, now())
+      ELSE NULL
+    END
   );
 
   RETURN p_id;

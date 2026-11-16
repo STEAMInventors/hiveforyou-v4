@@ -36,7 +36,8 @@ SELECT pg_temp.qf1a_insert_frozen_study_preparation_run(
 
 UPDATE hive.processing_runs
    SET error_code = 'MODEL_TIMEOUT',
-       retryable = true
+       retryable = true,
+       finished_at = now()
  WHERE id = '33333333-3333-4333-8333-33333333333d';
 
 SET LOCAL role authenticated;

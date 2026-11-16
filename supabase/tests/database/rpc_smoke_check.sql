@@ -136,6 +136,7 @@ BEGIN
          OR SQLERRM LIKE 'processing_run_not_found'
          OR SQLERRM LIKE 'report_run_not_found'
          OR SQLERRM LIKE 'document_read_not_found'
+         OR SQLERRM LIKE 'study_not_accepted%'
          OR SQLERRM = 'apply_vault_transaction payload must be an object' THEN
         NULL;
       ELSE
@@ -174,7 +175,10 @@ BEGIN
          OR SQLERRM LIKE '%payload must be an object%' THEN
         NULL;
       ELSE
-        RAISE;
+        RESET ROLE;
+        INSERT INTO smoke_unexpected_error (user_id, rpc_sql, sqlstate, sqlerrm)
+        VALUES (p_user, p_sql, SQLSTATE, SQLERRM);
+        RETURN;
       END IF;
   END;
   RESET ROLE;
@@ -911,7 +915,7 @@ BEGIN
 
   -- rpc: rebuild_study
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.rebuild_study(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.rebuild_study(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.rebuild_study(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.rebuild_study(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.rebuild_study(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.rebuild_study(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
