@@ -498,11 +498,11 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.acknowledge_study_coverage(%L, %L, 'sha256:' || repeat('3', 64))$fmt$, v_hive, v_run));
 
   -- rpc: add_team_note
-  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid())$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid())$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid())$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid())$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid()::text)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid()::text)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid()::text)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid()::text)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid()::text)$fmt$, v_hive));
 
   -- rpc: apply_vault_transaction
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.apply_vault_transaction('{}'::jsonb)$fmt$));
