@@ -30,26 +30,48 @@ textarea:focus,input:focus{outline:none}
   }
 </style>
 <style>
-  .hfy-3p { display: grid; grid-template-columns: 272px minmax(0, 1fr) 384px; height: calc(100vh - 117px); min-height: 560px; }
+  .hfy-3p { display: grid; grid-template-columns: minmax(0, 1fr) 384px; height: calc(100vh - 73px); min-height: 560px; }
   .hfy-col { overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
   .p-team { border-right: 1px solid #E3E6EA; }
   .p-client { border-left: 1px solid #E3E6EA; overflow: hidden !important; }
   .hfy-log { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
   .hfy-card { background: #fff; border: 1px solid #E9ECEF; border-radius: 14px; padding: 12px 14px; }
-  .hfy-eyebrow { font-size: 12px; font-weight: 600; color: #6B737D; }
-  .hfy-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
-  .hfy-chipbtn { height: 34px; padding: 0 12px; border-radius: 999px; border: none; background: #F1F3F5; color: #1F2328; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .hfy-eyebrow { font-size: 12.5px; font-weight: 600; color: #6B737D; }
+  .hfy-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .hfy-chipbtn { height: 34px; padding: 0 12px; border-radius: 999px; border: none; background: #F1F3F5; color: #1F2328; font-size: 14px; font-weight: 500; cursor: pointer; }
   .hfy-chipbtn:hover { filter: brightness(0.96); }
   .hfy-iconbtn { flex: none; width: 36px; height: 36px; border-radius: 999px; border: none; background: #F4F6F8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
   .hfy-composer { display: flex; align-items: center; gap: 6px; padding: 3px 3px 3px 14px; border-radius: 14px; background: #fff; border: 1px solid #E3E6EA; }
-  .hfy-need { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid #E9ECEF; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.05); }
+  .hfy-need { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-top: 1px solid #E9ECEF; }
   .hfy-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; margin: 0 -10px; border-radius: 10px; }
   .hfy-item:hover { background: #F7F8FA; }
   .hfy-clamp1 { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hfy-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .hfy-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: calc(100vh - 73px); }
+  .hfy-hrail { position: sticky; top: 73px; align-self: start; height: calc(100vh - 73px); overflow-y: auto; background: #F8F9FA; border-right: 1px solid #E3E6EA; padding: 14px 12px 20px; display: flex; flex-direction: column; gap: 2px; }
+  .hfy-hmain { min-width: 0; }
+  .hfy-back { align-self: flex-start; min-height: 36px; border: none; background: none; padding: 0 6px; color: #4A525C; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .hfy-back:hover { color: #1F2328; }
+  .hfy-rcard { background: #fff; border: 1px solid #E3E6EA; border-radius: 14px; padding: 12px; margin: 6px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+  .hfy-link { border: none; background: none; padding: 0; min-height: 28px; color: #1A56C4; font-size: 12.5px; font-weight: 500; cursor: pointer; }
+  .hfy-link:hover { text-decoration: underline; }
+  .hfy-rgroup { font-size: 12.5px; font-weight: 600; color: #6B737D; padding: 14px 10px 4px; }
+  .hfy-ritem { width: 100%; min-height: 40px; border: none; border-radius: 10px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; text-align: left; cursor: pointer; background: transparent; color: #1F2328; }
+  .hfy-ritem:hover { background: #EEF0F3; }
+  .hfy-ritem[aria-current=page] { background: #E8F0FE; color: #1A56C4; font-weight: 600; }
+  .hfy-rcount { font-size: 12px; font-weight: 600; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
+  .hfy-stages { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; }
+  .hfy-stages li { flex: 1; border-top: 4px solid #E3E6EA; padding-top: 6px; font-size: 12.5px; }
+  @media (max-width: 899px) {
+    .hfy-shell { grid-template-columns: minmax(0, 1fr); }
+    .hfy-hrail { position: static; height: auto; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding: 10px 12px; border-right: none; border-bottom: 1px solid #E3E6EA; align-items: center; }
+    .hfy-hrail .hfy-rcard, .hfy-hrail .hfy-rgroup { display: none; }
+    .hfy-ritem { width: auto; flex: none; white-space: nowrap; min-height: 44px; border-radius: 999px; background: #fff; border: 1px solid #E3E6EA; }
+    .hfy-back { flex: none; }
+  }
   @media (min-width: 1100px) { .hfy-3tabs { display: none !important; } }
   @media (max-width: 1099px) {
-    .hfy-3p { grid-template-columns: 1fr; height: auto; }
+    .hfy-3p { grid-template-columns: minmax(0, 1fr); height: auto; }
     .hfy-col { overflow: visible; }
     .p-team, .p-client { border: none; }
     .hfy-log { max-height: 60vh; }
@@ -243,13 +265,6 @@ textarea:focus,input:focus{outline:none}
   <header style="position:sticky;top:0;z-index:20;background:#fff;border-bottom:{{ headBd }}">
     <div style="position:relative;display:flex;align-items:center;gap:12px 20px;flex-wrap:wrap;padding:12px clamp(16px,3vw,28px)">
       <button onClick="{{ goHome }}" aria-label="Home" style="border:none;background:none;padding:0;cursor:pointer;display:flex;flex:none;min-height:44px;align-items:center;visibility:{{ headLogoVis }}"><img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:28px;width:auto"></button>
-      <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
-        <div style="flex:1 1 360px;max-width:680px;min-width:0;order:{{ pillOrder }};display:flex;align-items:center;gap:8px;min-height:48px;padding:0 4px 0 6px;border:1px solid #E3E6EA;border-radius:999px;box-shadow:0 1px 6px rgba(31,35,40,.10)">
-          <span style="flex:none;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 12px;border-radius:999px;background:#F4F6F8;font-size:14px;font-weight:600">{{ hiveTitle }}</span>
-          <input value="{{ qText }}" onChange="{{ onQ }}" onKeyDown="{{ onQKey }}" aria-label="Add a question for the next study build" placeholder="Add a question for the next study build" style="flex:1;min-width:0;height:40px;border:none;background:transparent;font-size:15px;color:#1F2328">
-          <button onClick="{{ addQuestion }}" style="flex:none;height:40px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap" style-hover="background:#E3E6EA">Add question</button>
-        </div>
-      </sc-if>
       <sc-if value="{{ homeProHeader }}" hint-placeholder-val="{{ false }}">
         <div style="flex:1 1 360px;max-width:680px;min-width:0;display:flex;align-items:center;gap:12px;min-height:48px;padding:0 18px;border-radius:999px;background:#F4F6F8">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A525C" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
@@ -269,16 +284,6 @@ textarea:focus,input:focus{outline:none}
         </div>
       </sc-if>
     </div>
-    <sc-if value="{{ hasQSaved }}" hint-placeholder-val="{{ false }}">
-      <div role="status" style="padding:0 clamp(16px,3vw,28px) 10px;font-size:13.5px;color:#197040">Saved. Your next study build uses this question.</div>
-    </sc-if>
-    <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
-      <nav aria-label="Hive sections" style="display:flex;gap:4px;flex-wrap:wrap;padding:0 clamp(16px,3vw,28px)">
-        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
-          <button onClick="{{ t.onClick }}" style="height:44px;padding:0 14px;border:none;background:none;border-bottom:3px solid {{ t.bd }};color:{{ t.fg }};font-weight:500;font-size:15px;cursor:pointer;display:flex;align-items:center;gap:8px" style-hover="color:#1F2328">{{ t.label }}<span style="font-size:12px;color:#6B737D">{{ t.count }}</span></button>
-        </sc-for>
-      </nav>
-    </sc-if>
   </header>
 </sc-if>
 
@@ -406,6 +411,48 @@ textarea:focus,input:focus{outline:none}
   </main>
 </sc-if>
 
+<sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+<div class="hfy-shell">
+  <nav class="hfy-hrail" aria-label="Hive sections">
+    <button onClick="{{ goHome }}" class="hfy-back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>{{ backLabel }}</button>
+    <div class="hfy-rcard">
+      <span style="font-family:Outfit,sans-serif;font-weight:600;font-size:16px;line-height:1.25">{{ hiveTitle }}</span>
+      <span style="font-size:12.5px;color:#4A525C;line-height:1.4">{{ railSub }}</span>
+      <sc-if value="{{ bd.showTeam }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size:12.5px;color:#4A525C;padding-top:6px;border-top:1px solid #F1F3F5;display:flex;align-items:center;gap:6px;flex-wrap:wrap">On it: <span style="font-weight:600;color:#1F2328">{{ bd.onIt }}</span>
+          <sc-if value="{{ bd.canTake }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.take }}" class="hfy-link">Take it</button></sc-if>
+          <sc-if value="{{ bd.cantTake }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.handOver }}" class="hfy-link">Hand over</button></sc-if></span>
+        <sc-if value="{{ isBoard3Hive }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size:12.5px;color:#4A525C;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-weight:600;color:#1F2328">{{ b3.asstName }}</span> · automated
+          <sc-if value="{{ bd.notRenaming }}" hint-placeholder-val="{{ true }}"><button onClick="{{ bd.startRename }}" class="hfy-link">Rename</button></sc-if></span>
+      <sc-if value="{{ bd.renaming }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <label style="flex:1 1 100%;display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600">Assistant’s name
+            <input value="{{ bd.renameVal }}" onChange="{{ bd.onRename }}" style="height:38px;border:1px solid #6B737D;border-radius:10px;padding:0 10px;font-size:14px;font-weight:400;color:#1F2328">
+          </label>
+          <button onClick="{{ bd.saveRename }}" class="hfy-chipbtn" style="color:#1A56C4;background:#E8F0FE">Save</button>
+          <button onClick="{{ bd.cancelRename }}" class="hfy-chipbtn">Cancel</button>
+          <sc-if value="{{ bd.hasRenameErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="flex-basis:100%;font-size:12.5px;color:#B33A2E">{{ bd.renameErr }}</span></sc-if>
+        </div>
+      </sc-if>
+
+        </sc-if>
+        <sc-if value="{{ bd.hasBanner }}" hint-placeholder-val="{{ false }}">
+          <div role="status" style="padding:8px 10px;border-radius:10px;background:#E8F0FE;display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:12.5px;font-weight:600;color:#1A56C4">{{ bd.bannerHead }}</span>
+            <span style="font-size:12.5px;line-height:1.4;color:#1F2328">{{ bd.bannerText }}</span>
+          </div>
+        </sc-if>
+      </sc-if>
+    </div>
+    <sc-for list="{{ railGroups }}" as="g" hint-placeholder-count="3">
+      <sc-if value="{{ g.hasLabel }}" hint-placeholder-val="{{ false }}"><div class="hfy-rgroup">{{ g.label }}</div></sc-if>
+      <sc-for list="{{ g.items }}" as="r" hint-placeholder-count="3">
+        <button onClick="{{ r.go }}" aria-current="{{ r.cur }}" class="hfy-ritem">{{ r.label }}<sc-if value="{{ r.hasCount }}" hint-placeholder-val="{{ false }}"><span class="hfy-rcount" style="background:{{ r.cbg }};color:{{ r.cfg }}">{{ r.count }}</span></sc-if></button>
+      </sc-for>
+    </sc-for>
+  </nav>
+  <div class="hfy-hmain">
 <sc-if value="{{ isBoard3 }}" hint-placeholder-val="{{ false }}">
 <main style="display:block">
   <div class="hfy-3tabs" role="tablist" aria-label="Board panes" style="display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid #E3E6EA">
@@ -415,95 +462,26 @@ textarea:focus,input:focus{outline:none}
   </div>
   <div class="hfy-3p" data-tab="{{ b3.tab }}">
 
-    <section class="p-team hfy-col" aria-label="Your team" style="background:#F4F6F8">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="display:flex;flex-direction:column;gap:1px"><span style="font-weight:600;font-size:15px">{{ b3.firmName }}</span><span style="display:flex;align-items:center;gap:4px;font-size:12px;color:#6B737D"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Team only</span></span>
-        <span style="display:flex"><sc-for list="{{ b3.avatars }}" as="a" hint-placeholder-count="3"><span title="{{ a.name }}" style="width:28px;height:28px;margin-left:-6px;border-radius:999px;border:2px solid #F4F6F8;background:{{ a.bg }};color:{{ a.fg }};font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ a.ini }}</span></sc-for></span>
-      </div>
-
-      <div class="hfy-card" style="display:flex;flex-direction:column;gap:10px">
-        <span class="hfy-eyebrow">On this hive</span>
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="flex:none;width:34px;height:34px;border-radius:999px;background:{{ b3.on.bg }};color:{{ b3.on.fg }};font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ b3.on.ini }}</span>
-          <span style="font-size:14px;min-width:0"><span style="font-weight:600">{{ b3.on.name }}</span><span style="color:#6B737D">{{ b3.on.title }}</span></span>
-        </div>
-        <div style="display:flex;gap:6px">
-          <sc-if value="{{ bd.canTake }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.take }}" class="hfy-chipbtn">Take it</button></sc-if>
-          <button onClick="{{ bd.handOver }}" class="hfy-chipbtn">Hand over</button>
-        </div>
-        <sc-if value="{{ bd.hasBanner }}" hint-placeholder-val="{{ false }}">
-          <div role="status" style="padding:10px 12px;border-radius:10px;background:#E8F0FE;display:flex;flex-direction:column;gap:3px">
-            <span style="font-size:12px;font-weight:600;color:#1A56C4">{{ bd.bannerHead }}</span>
-            <span style="font-size:13px;line-height:1.45;color:#1F2328">{{ bd.bannerText }}</span>
-          </div>
-        </sc-if>
-      </div>
-
-      <div class="hfy-card" style="display:flex;flex-direction:column;gap:10px">
-        <span class="hfy-eyebrow">Intake</span>
-        <div role="img" aria-label="{{ bd.stageLine }}" style="display:flex;align-items:center;gap:6px">
-          <sc-for list="{{ b3.steps }}" as="s" hint-placeholder-count="3"><span style="flex:1;height:4px;border-radius:999px;background:{{ s.bg }}"></span></sc-for>
-        </div>
-        <span style="font-size:13px;font-weight:600;color:{{ bd.stageFg }}">{{ bd.stageLine }}</span>
-        <sc-if value="{{ bd.hasStageAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.stageAct }}" class="hfy-chipbtn" style="align-self:flex-start;color:#1A56C4;background:#E8F0FE">{{ bd.stageLabel }}</button></sc-if>
-      </div>
-
-      <div style="display:flex;flex-direction:column;gap:8px;flex:1">
-        <span class="hfy-eyebrow" style="padding:0 2px">{{ b3.notesHead }}</span>
-        <sc-if value="{{ b3.noNotes }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#6B737D;padding:0 2px">No notes yet.</span></sc-if>
-        <sc-for list="{{ b3.notes }}" as="n" hint-placeholder-count="2">
-          <div style="display:flex;gap:8px;align-items:flex-start">
-            <span style="flex:none;width:24px;height:24px;border-radius:999px;background:{{ n.bg }};color:{{ n.fg }};font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ n.ini }}</span>
-            <span style="display:flex;flex-direction:column;gap:1px;min-width:0"><span style="font-size:11.5px;color:#6B737D"><span style="font-weight:600;color:#1F2328">{{ n.by }}</span> · {{ n.t }}{{ n.tag }}</span><span style="font-size:13px;line-height:1.45">{{ n.txt }}</span></span>
-          </div>
-        </sc-for>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <div class="hfy-composer">
-          <input value="{{ b3.noteDraft }}" onChange="{{ b3.onNote }}" onKeyDown="{{ b3.noteKey }}" aria-label="{{ b3.noteLabel }}" placeholder="{{ b3.notePh }}" style="flex:1;min-width:0;border:none;background:transparent;font-size:13px;color:#1F2328;height:36px">
-          <button onClick="{{ b3.addNote }}" aria-label="Add note" class="hfy-iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
-        </div>
-        <sc-if value="{{ b3.hasNoteErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:12px;color:#B33A2E">Write a note first.</span></sc-if>
-      </div>
-    </section>
-
     <section class="p-items hfy-col" aria-label="{{ b3.midLabel }}" style="background:#fff">
       <div style="display:flex;flex-direction:column;gap:8px">
-        <span style="font-size:12px;color:#6B737D">{{ bd.kicker }}</span>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:24px;line-height:1.2"><span style="color:{{ b3.hNumFg }}">{{ b3.hNum }}</span>{{ b3.hRest }}</h1>
-          <span style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ b3.stats }}" as="s" hint-placeholder-count="3"><span class="hfy-pill" style="background:{{ s.bg }};color:{{ s.fg }}">{{ s.label }}</span></sc-for></span>
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px;line-height:1.2"><span style="color:{{ b3.hNumFg }}">{{ b3.hNum }}</span>{{ b3.hRest }}</h1>
+          <sc-if value="{{ bd.hasStageAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.stageAct }}" class="hfy-chipbtn" style="color:#1A56C4;background:#E8F0FE">{{ bd.stageLabel }}</button></sc-if>
         </div>
-        <sc-if value="{{ bd.hasProgress }}" hint-placeholder-val="{{ true }}"><div role="img" aria-label="{{ b3.segLabel }}" style="display:flex;gap:4px"><sc-for list="{{ b3.segs }}" as="g" hint-placeholder-count="5"><span style="flex:1;height:6px;border-radius:999px;background:{{ g.bg }}"></span></sc-for></div></sc-if>
+        <ol class="hfy-stages" aria-label="Intake stage: {{ bd.stageLine }}"><sc-for list="{{ b3.stages }}" as="g" hint-placeholder-count="3"><li style="border-top-color:{{ g.bd }};color:{{ g.fg }};font-weight:{{ g.fw }}">{{ g.label }}</li></sc-for></ol>
       </div>
-
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#F4F6F8">
-        <span aria-hidden="true" style="flex:none;width:34px;height:34px;border-radius:999px;background:{{ b3.ring }};padding:2px;display:flex"><span style="flex:1;border-radius:999px;background:#fff;color:#1A56C4;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center">{{ b3.asstInitials }}</span></span>
-        <span style="flex:1;min-width:0;font-size:13px;color:#4A525C"><span style="font-weight:600;color:#1F2328">{{ b3.midLabel }}</span> · automated. Asks, checks every page. People decide.</span>
-        <sc-if value="{{ bd.notRenaming }}" hint-placeholder-val="{{ true }}"><button onClick="{{ bd.startRename }}" style="flex:none;min-height:32px;border:none;background:none;padding:0;color:#1A56C4;font-size:13px;font-weight:500;cursor:pointer">Rename</button></sc-if>
-      </div>
-      <sc-if value="{{ bd.renaming }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-          <label style="flex:1 1 200px;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600">Assistant’s name
-            <input value="{{ bd.renameVal }}" onChange="{{ bd.onRename }}" style="height:38px;border:1px solid #6B737D;border-radius:10px;padding:0 10px;font-size:14px;font-weight:400;color:#1F2328">
-          </label>
-          <button onClick="{{ bd.saveRename }}" class="hfy-chipbtn" style="color:#1A56C4;background:#E8F0FE">Save</button>
-          <button onClick="{{ bd.cancelRename }}" class="hfy-chipbtn">Cancel</button>
-          <sc-if value="{{ bd.hasRenameErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="flex-basis:100%;font-size:12px;color:#B33A2E">{{ bd.renameErr }}</span></sc-if>
-        </div>
-      </sc-if>
 
       <sc-if value="{{ bd.hasNeeds }}" hint-placeholder-val="{{ true }}">
-        <div style="display:flex;flex-direction:column;gap:8px">
-          <h2 style="margin:0;font-size:13px;font-weight:600;color:#1A56C4;display:flex;align-items:center;gap:6px">Needs you <span class="hfy-pill" style="background:#1A56C4;color:#fff">{{ b3.needN }}</span></h2>
+        <div style="display:flex;flex-direction:column">
+          <h2 style="margin:0 0 4px;font-size:16px;font-weight:600;display:flex;align-items:center;gap:6px">Needs you <span class="hfy-pill" style="background:#E8F0FE;color:#1A56C4">{{ b3.needN }}</span></h2>
           <sc-for list="{{ b3.needs }}" as="n" hint-placeholder-count="2">
             <div class="hfy-need">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <sc-if value="{{ n.hasKind }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
                 <span class="hfy-pill" style="background:{{ n.pillBg }};color:{{ n.kfg }};gap:5px"><svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,1.8 21.2,7 21.2,17 12,22.2 2.8,17 2.8,7" fill="{{ n.hexC }}"></polygon></svg>{{ n.kind }}</span>
-              </div>
-              <span class="hfy-clamp1" style="font-size:14.5px;font-weight:600;line-height:1.4">{{ n.title }}</span>
-              <span class="hfy-clamp2" style="font-size:13px;line-height:1.45;color:#4A525C">{{ n.detail }}</span>
-              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:4px;flex-wrap:wrap"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="padding:2px 6px;border-radius:6px;border:1px solid #7A5200;background:#FEF3D6;color:#1F2328;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer">{{ c.label }}</button></sc-for></div></sc-if>
+              </div></sc-if>
+              <span class="hfy-clamp1" style="font-size:14px;font-weight:600;line-height:1.4">{{ n.title }}</span>
+              <span class="hfy-clamp1" title="{{ n.detail }}" style="font-size:14px;line-height:1.45;color:#4A525C">{{ n.detail }}</span>
+              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:4px;flex-wrap:wrap"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="padding:2px 6px;border-radius:6px;border:1px solid #7A5200;background:#FEF3D6;color:#1F2328;font-family:'JetBrains Mono',monospace;font-size:12.5px;cursor:pointer">{{ c.label }}</button></sc-for></div></sc-if>
               <div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:2px">
                 <button onClick="{{ n.f1 }}" class="hfy-chipbtn" style="background:{{ n.b1bg }};color:{{ n.b1fg }};font-weight:600">{{ n.a1 }}</button>
                 <sc-if value="{{ n.hasA2 }}" hint-placeholder-val="{{ false }}"><button onClick="{{ n.f2 }}" class="hfy-chipbtn">{{ n.a2 }}</button></sc-if>
@@ -515,15 +493,15 @@ textarea:focus,input:focus{outline:none}
 
       <div style="display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:6px">
-          <h2 style="margin:0;font-size:13px;font-weight:600">Items</h2>
-          <span style="font-size:12px;color:#6B737D">{{ bd.progressText }}</span>
+          <h2 style="margin:0;font-size:16px;font-weight:600">Items</h2>
+          <span style="font-size:12.5px;color:#6B737D">{{ bd.progressText }}</span>
         </div>
         <sc-for list="{{ b3.items }}" as="k" hint-placeholder-count="4">
           <div class="hfy-item" style="background:{{ k.bg }}">
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><polygon points="12,1.8 21.2,7 21.2,17 12,22.2 2.8,17 2.8,7" fill="{{ k.hexFill }}" stroke="{{ k.hexStroke }}" stroke-width="2" stroke-linejoin="round"></polygon><path d="M8 12.2l2.6 2.6L16 9.6" fill="none" stroke="{{ k.checkStroke }}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             <button onClick="{{ k.focus }}" aria-pressed="{{ k.on }}" style="flex:1;min-width:0;border:none;background:none;padding:0;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;color:#1F2328">
               <span class="hfy-clamp1" style="font-size:14px;line-height:1.4">{{ k.title }}</span>
-              <span class="hfy-clamp1" style="font-size:12px;color:#6B737D">{{ k.thread }}</span>
+              <span class="hfy-clamp1" style="font-size:12.5px;color:#6B737D">{{ k.thread }}</span>
             </button>
             <span class="hfy-pill" style="flex:none;background:{{ k.pillBg }};color:{{ k.pillFg }}">{{ k.pill }}</span>
             <sc-if value="{{ k.hasAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ k.act }}" class="hfy-chipbtn" style="flex:none">{{ k.actLabel }}</button></sc-if>
@@ -531,53 +509,41 @@ textarea:focus,input:focus{outline:none}
         </sc-for>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <button onClick="{{ b3.toggleHistory }}" aria-expanded="{{ b3.historyOpenStr }}" style="align-self:flex-start;min-height:36px;border:none;background:none;padding:0;font-size:13px;font-weight:600;color:#4A525C;cursor:pointer;display:flex;align-items:center;gap:6px">History · {{ b3.historyN }}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" style="transform:rotate({{ b3.historyRot }})"><path d="M6 9l6 6 6-6"></path></svg></button>
-        <sc-if value="{{ b3.historyOpen }}" hint-placeholder-val="{{ false }}">
-          <sc-for list="{{ b3.activity }}" as="e" hint-placeholder-count="4">
-            <div style="display:flex;gap:10px;padding:4px 0;font-size:13px;line-height:1.45">
-              <span style="flex:none;width:96px;font-size:12px;color:#6B737D">{{ e.t }}</span>
-              <span><span style="font-weight:600;color:{{ e.whoFg }}">{{ e.who }}</span> {{ e.txt }}</span>
-            </div>
-          </sc-for>
-        </sc-if>
-      </div>
     </section>
 
     <section class="p-client hfy-col" aria-label="{{ b3.clientName }}" style="background:#fff;padding:0;gap:0">
       <div style="display:flex;align-items:center;gap:10px;padding:16px 18px 12px;border-bottom:1px solid #E3E6EA">
-        <span style="flex:none;width:36px;height:36px;border-radius:999px;background:#F4F6F8;color:#1F2328;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ b3.clientIni }}</span>
-        <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-weight:600;font-size:15px">{{ b3.clientName }}</span><span style="font-size:12px;color:#6B737D;display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:{{ b3.dot }}"></span>{{ b3.clientLine }}</span></span>
+        <span style="flex:none;width:36px;height:36px;border-radius:999px;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ b3.clientIni }}</span>
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-weight:600;font-size:14px">{{ b3.clientName }}</span><span style="font-size:12.5px;color:#6B737D;display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:999px;background:{{ b3.dot }}"></span>{{ b3.clientLine }}</span></span>
         <button onClick="{{ b3.peek }}" aria-label="{{ b3.peekLabel }}" title="{{ b3.peekLabel }}" class="hfy-iconbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
       </div>
       <sc-if value="{{ bd.hasWaiting }}" hint-placeholder-val="{{ false }}">
-        <div style="padding:10px 18px;border-bottom:1px solid #E3E6EA;display:flex;flex-direction:column;gap:8px;background:#FEF3D6">
+        <div style="padding:8px 18px;border-bottom:1px solid #E3E6EA;display:flex;flex-direction:column;gap:2px">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-            <span style="font-size:12px;font-weight:600;color:#7A5200;display:flex;align-items:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><polygon points="12,1.8 21.2,7 21.2,17 12,22.2 2.8,17 2.8,7" fill="#F6B826"></polygon></svg>{{ bd.waitHead }}</span>
-            <sc-if value="{{ bd.showReminders }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#6B737D">Auto-remind<button onClick="{{ bd.toggleRemind }}" role="switch" aria-checked="{{ bd.remindOnStr }}" aria-label="Automatic reminders" style="flex:none;width:36px;height:22px;border-radius:999px;border:none;background:{{ bd.remindBg }};position:relative;cursor:pointer"><span style="position:absolute;top:3px;left:{{ b3.knob }};width:16px;height:16px;border-radius:999px;background:#fff"></span></button></span></sc-if>
+            <span style="font-size:12.5px;font-weight:600;color:#7A5200;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:999px;background:#F6B826"></span>{{ bd.waitHead }}</span>
+            <sc-if value="{{ bd.showReminders }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.toggleRemind }}" role="switch" aria-checked="{{ bd.remindOnStr }}" class="hfy-link" style="color:#4A525C;font-weight:400">{{ b3.remindLabel }}</button></sc-if>
           </div>
           <sc-for list="{{ bd.waiting }}" as="w" hint-placeholder-count="1">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-              <span class="hfy-clamp1" style="font-size:13px;min-width:0">{{ w.title }}</span>
-              <button onClick="{{ w.remind }}" class="hfy-chipbtn" style="flex:none;background:#fff;border:1px solid #E3E6EA">Remind now</button>
+              <span class="hfy-clamp1" style="font-size:12.5px;min-width:0;color:#4A525C">{{ w.title }}</span>
+              <button onClick="{{ w.remind }}" class="hfy-link" style="flex:none">Remind now</button>
             </div>
           </sc-for>
-          <span style="font-size:11.5px;color:#6B737D">{{ bd.waitNote }}</span>
         </div>
       </sc-if>
       <sc-if value="{{ b3.hasFocus }}" hint-placeholder-val="{{ false }}">
-        <div style="margin:10px 18px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 6px 6px 12px;border-radius:999px;background:#E8F0FE;font-size:12px;color:#1A56C4">
+        <div style="margin:10px 18px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 6px 6px 12px;border-radius:999px;background:#E8F0FE;font-size:12.5px;color:#1A56C4">
           <span class="hfy-clamp1" style="min-width:0">{{ b3.focusText }}</span>
-          <button onClick="{{ b3.clearFocus }}" style="flex:none;min-height:28px;padding:0 10px;border:none;border-radius:999px;background:#fff;color:#1A56C4;font-size:12px;font-weight:600;cursor:pointer">Show all</button>
+          <button onClick="{{ b3.clearFocus }}" style="flex:none;min-height:28px;padding:0 10px;border:none;border-radius:999px;background:#fff;color:#1A56C4;font-size:12.5px;font-weight:600;cursor:pointer">Show all</button>
         </div>
       </sc-if>
       <div role="log" aria-label="{{ b3.logLabel }}" class="hfy-log" style="flex-direction:column-reverse">
         <div style="display:flex;flex-direction:column;gap:10px">
-        <sc-if value="{{ b3.noMsgs }}" hint-placeholder-val="{{ false }}"><span style="font-size:13px;color:#6B737D;text-align:center;padding:24px 0">{{ b3.noMsgsText }}</span></sc-if>
+        <sc-if value="{{ b3.noMsgs }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#6B737D;text-align:center;padding:24px 0">{{ b3.noMsgsText }}</span></sc-if>
         <sc-for list="{{ b3.msgs }}" as="m" hint-placeholder-count="4">
           <div style="display:flex;flex-direction:column;align-items:{{ m.align }};gap:2px">
-            <span style="font-size:11px;color:#6B737D;padding:0 6px">{{ m.label }}</span>
-            <div style="max-width:86%;padding:8px 12px;border-radius:{{ m.radius }};background:{{ m.bg }};color:{{ m.fg }};font-size:13.5px;line-height:1.45">
+            <span style="font-size:12.5px;color:#6B737D;padding:0 6px">{{ m.label }}</span>
+            <div style="max-width:86%;padding:8px 12px;border-radius:{{ m.radius }};background:{{ m.bg }};color:{{ m.fg }};font-size:14px;line-height:1.45">
               <sc-if value="{{ m.hasAtt }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;font-weight:500"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path></svg>{{ m.att }}</span></sc-if>
               <sc-if value="{{ m.hasTxt }}" hint-placeholder-val="{{ true }}"><span style="white-space:pre-wrap">{{ m.txt }}</span></sc-if>
             </div>
@@ -587,11 +553,11 @@ textarea:focus,input:focus{outline:none}
       </div>
       <div style="padding:10px 14px 14px;border-top:1px solid #E3E6EA;display:flex;flex-direction:column;gap:4px">
         <div class="hfy-composer" style="align-items:flex-end;background:#F4F6F8">
-          <textarea value="{{ b3.replyDraft }}" onChange="{{ b3.onReply }}" aria-label="{{ b3.replyLabel }}" rows="2" placeholder="{{ b3.replyPh }}" style="flex:1;min-width:0;border:none;background:transparent;font-size:13.5px;line-height:1.45;resize:none;color:#1F2328;padding:8px 0"></textarea>
+          <textarea value="{{ b3.replyDraft }}" onChange="{{ b3.onReply }}" aria-label="{{ b3.replyLabel }}" rows="2" placeholder="{{ b3.replyPh }}" style="flex:1;min-width:0;border:none;background:transparent;font-size:14px;line-height:1.45;resize:none;color:#1F2328;padding:8px 0"></textarea>
           <button onClick="{{ b3.sendReply }}" aria-label="Send reply" class="hfy-iconbtn" style="background:#fff"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button>
         </div>
-        <sc-if value="{{ b3.hasReplyErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:12px;color:#B33A2E">Write a reply first.</span></sc-if>
-        <span style="font-size:11px;color:#6B737D;padding:0 4px">{{ b3.replyNote }}</span>
+        <sc-if value="{{ b3.hasReplyErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:12.5px;color:#B33A2E">Write a reply first.</span></sc-if>
+        <span style="font-size:12.5px;color:#6B737D;padding:0 4px">{{ b3.replyNote }}</span>
       </div>
     </section>
   </div>
@@ -599,18 +565,18 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1160px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-wrap:wrap;gap:40px 48px;align-items:flex-start">
+  <main style="max-width:1160px;margin:0;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-wrap:wrap;gap:40px 48px;align-items:flex-start">
     <section style="flex:999 1 480px;min-width:0;max-width:700px;display:flex;flex-direction:column;gap:30px">
 
       <sc-if value="{{ bd.hasBanner }}" hint-placeholder-val="{{ false }}">
         <div role="status" style="padding:14px 16px;border-radius:14px;background:#E8F0FE;display:flex;flex-direction:column;gap:4px">
           <span style="font-size:14px;font-weight:600;color:#1A56C4">{{ bd.bannerHead }}</span>
-          <span style="font-size:15px;line-height:1.5;color:#1F2328">{{ bd.bannerText }}</span>
+          <span style="font-size:14px;line-height:1.5;color:#1F2328">{{ bd.bannerText }}</span>
         </div>
       </sc-if>
       <div style="display:flex;flex-direction:column;gap:10px">
         <span style="font-size:14px;color:#4A525C">{{ bd.kicker }}</span>
-        <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px;line-height:1.15">{{ bd.headline }}</h1>
+        <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px;line-height:1.15">{{ bd.headline }}</h1>
         <sc-if value="{{ bd.hasProgress }}" hint-placeholder-val="{{ true }}">
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <div role="img" aria-label="{{ bd.progressText }}" style="flex:1 1 220px;max-width:360px;display:flex;gap:4px"><sc-for list="{{ bd.segs }}" as="g" hint-placeholder-count="6"><span style="flex:1;height:6px;border-radius:999px;background:{{ g.bg }}"></span></sc-for></div>
@@ -622,24 +588,24 @@ textarea:focus,input:focus{outline:none}
       <sc-if value="{{ bd.showNext }}" hint-placeholder-val="{{ false }}">
         <div style="border:1px solid #E3E6EA;border-radius:16px;padding:24px;box-shadow:0 1px 6px rgba(31,35,40,.08);display:flex;flex-direction:column;gap:12px">
           <span style="font-size:14px;font-weight:600;color:#1A56C4">Next for you</span>
-          <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:24px;line-height:1.2">{{ nx.title }}</h2>
+          <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px;line-height:1.2">{{ nx.title }}</h2>
           <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">{{ nx.text }}</p>
           <div style="display:flex;gap:12px;flex-wrap:wrap">
-            <sc-if value="{{ nx.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nx.go }}" style="height:48px;padding:0 26px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:15px;cursor:pointer" style-hover="background:#164AA8">{{ nx.btn }}</button></sc-if>
-            <sc-if value="{{ nx.hasAlt }}" hint-placeholder-val="{{ false }}"><button onClick="{{ nx.alt }}" style="height:48px;padding:0 22px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#E3E6EA">{{ nx.altLabel }}</button></sc-if>
+            <sc-if value="{{ nx.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nx.go }}" style="height:48px;padding:0 26px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nx.btn }}</button></sc-if>
+            <sc-if value="{{ nx.hasAlt }}" hint-placeholder-val="{{ false }}"><button onClick="{{ nx.alt }}" style="height:48px;padding:0 22px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#E3E6EA">{{ nx.altLabel }}</button></sc-if>
           </div>
         </div>
       </sc-if>
 
       <sc-if value="{{ bd.hasNeeds }}" hint-placeholder-val="{{ true }}">
         <div style="display:flex;flex-direction:column;gap:4px">
-          <h2 style="margin:0 0 6px;font-size:18px;font-weight:600;color:#1A56C4">Needs you</h2>
+          <h2 style="margin:0 0 6px;font-size:16px;font-weight:600;color:#1A56C4">Needs you</h2>
           <sc-for list="{{ bd.needs }}" as="n" hint-placeholder-count="3">
             <div style="display:flex;flex-direction:column;gap:6px;padding:14px 0;border-top:1px solid #E3E6EA">
-              <span style="font-size:13px;font-weight:600;color:{{ n.kfg }}">{{ n.kind }}</span>
-              <span style="font-size:17px;font-weight:500;line-height:1.35">{{ n.title }}</span>
-              <span style="font-size:15px;line-height:1.5;color:#4A525C">{{ n.detail }}</span>
-              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></sc-if>
+              <sc-if value="{{ n.hasKind }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;font-weight:600;color:{{ n.kfg }}">{{ n.kind }}</span></sc-if>
+              <span style="font-size:16px;font-weight:500;line-height:1.35">{{ n.title }}</span>
+              <span style="font-size:14px;line-height:1.5;color:#4A525C">{{ n.detail }}</span>
+              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></sc-if>
               <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:2px">
                 <button onClick="{{ n.f1 }}" style="height:40px;padding:0 18px;border-radius:999px;border:none;background:{{ n.b1bg }};color:{{ n.b1fg }};font-size:14px;font-weight:600;cursor:pointer">{{ n.a1 }}</button>
                 <sc-if value="{{ n.hasA2 }}" hint-placeholder-val="{{ false }}"><button onClick="{{ n.f2 }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ n.a2 }}</button></sc-if>
@@ -651,7 +617,7 @@ textarea:focus,input:focus{outline:none}
 
       <sc-if value="{{ bd.hasWaiting }}" hint-placeholder-val="{{ false }}">
         <div style="display:flex;flex-direction:column;gap:4px">
-          <h2 style="margin:0;font-size:18px;font-weight:600">{{ bd.waitHead }}</h2>
+          <h2 style="margin:0;font-size:16px;font-weight:600">{{ bd.waitHead }}</h2>
           <span style="font-size:14px;color:#4A525C;padding-bottom:6px">{{ bd.waitNote }}</span>
           <sc-for list="{{ bd.waiting }}" as="w" hint-placeholder-count="2">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:12px 0;border-top:1px solid #E3E6EA">
@@ -664,12 +630,12 @@ textarea:focus,input:focus{outline:none}
 
       <sc-if value="{{ bd.hasConvo }}" hint-placeholder-val="{{ false }}">
         <div style="display:flex;flex-direction:column;gap:4px">
-          <h2 style="margin:0;font-size:18px;font-weight:600">{{ bd.convoHead }}</h2>
+          <h2 style="margin:0;font-size:16px;font-weight:600">{{ bd.convoHead }}</h2>
           <span style="font-size:14px;color:#4A525C;padding-bottom:6px">{{ bd.convoNote }}</span>
           <sc-for list="{{ bd.convoLast }}" as="m" hint-placeholder-count="3">
             <div style="display:flex;gap:12px;padding:8px 0;border-top:1px solid #E3E6EA">
-              <span style="flex:none;width:118px;font-size:13px;color:#6B737D;padding-top:2px">{{ m.t }}</span>
-              <span style="font-size:15px;line-height:1.5;min-width:0"><span style="font-weight:600;color:{{ m.whoFg }}">{{ m.who }}</span> {{ m.txt }}</span>
+              <span style="flex:none;width:118px;font-size:14px;color:#6B737D;padding-top:2px">{{ m.t }}</span>
+              <span style="font-size:14px;line-height:1.5;min-width:0"><span style="font-weight:600;color:{{ m.whoFg }}">{{ m.who }}</span> {{ m.txt }}</span>
             </div>
           </sc-for>
           <button onClick="{{ bd.openConvo }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:6px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Open the conversation</button>
@@ -677,12 +643,12 @@ textarea:focus,input:focus{outline:none}
       </sc-if>
 
       <div style="display:flex;flex-direction:column;gap:4px">
-        <h2 style="margin:0;font-size:18px;font-weight:600">What this hive needs</h2>
+        <h2 style="margin:0;font-size:16px;font-weight:600">What this hive needs</h2>
         <span style="font-size:14px;color:#4A525C;padding-bottom:6px">{{ bd.checkNote }}</span>
         <sc-if value="{{ bd.noChecklist }}" hint-placeholder-val="{{ false }}"><p style="margin:0;padding:12px 0;border-top:1px solid #E3E6EA;color:#4A525C">{{ bd.noChecklistText }}</p></sc-if>
         <sc-for list="{{ bd.checklist }}" as="k" hint-placeholder-count="5">
           <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid #E3E6EA">
-            <span aria-hidden="true" style="flex:none;width:22px;height:22px;margin-top:1px;border-radius:999px;background:{{ k.dotBg }};border:2px solid {{ k.dot }};display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;box-sizing:border-box">{{ k.mark }}</span>
+            <span aria-hidden="true" style="flex:none;width:22px;height:22px;margin-top:1px;border-radius:999px;background:{{ k.dotBg }};border:2px solid {{ k.dot }};display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;box-sizing:border-box">{{ k.mark }}</span>
             <span style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0">
               <button onClick="{{ k.open }}" style="align-self:flex-start;border:none;background:none;padding:0;text-align:left;font-size:16px;color:#1F2328;cursor:pointer;line-height:1.4" style-hover="color:#1A56C4">{{ k.title }}</button>
               <span style="font-size:14px;color:{{ k.fg }};font-weight:500">{{ k.st }}</span>
@@ -692,29 +658,15 @@ textarea:focus,input:focus{outline:none}
         </sc-for>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <h2 style="margin:0 0 6px;font-size:18px;font-weight:600">What happened</h2>
-        <sc-if value="{{ bd.noActivity }}" hint-placeholder-val="{{ false }}"><p style="margin:0;color:#4A525C">Nothing yet.</p></sc-if>
-        <sc-for list="{{ bd.activity }}" as="e" hint-placeholder-count="4">
-          <div style="display:flex;gap:12px;padding:8px 0">
-            <span style="flex:none;width:118px;font-size:13px;color:#6B737D;padding-top:2px">{{ e.t }}</span>
-            <span style="font-size:15px;line-height:1.5"><span style="font-weight:600;color:{{ e.whoFg }}">{{ e.who }}</span> {{ e.txt }}</span>
-          </div>
-        </sc-for>
-      </div>
     </section>
 
     <aside style="flex:1 1 280px;max-width:360px;border:1px solid #E3E6EA;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px">
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:22px">{{ hiveTitle }}</h2>
-        <span style="font-size:14px;color:#4A525C;line-height:1.5">{{ hivePurpose }}</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;font-size:15px">
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:14px">
         <sc-for list="{{ readyLines }}" as="r" hint-placeholder-count="5"><span style="display:flex;justify-content:space-between;gap:12px"><span style="color:#4A525C">{{ r.k }}</span><span style="font-weight:600;text-align:right">{{ r.v }}</span></span></sc-for>
       </div>
       <sc-if value="{{ bd.showTeam }}" hint-placeholder-val="{{ false }}">
         <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
-          <span style="font-size:13px;color:#4A525C">On this hive</span>
+          <span style="font-size:14px;color:#4A525C">On this hive</span>
           <span style="font-weight:600">{{ bd.onIt }}</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
             <sc-if value="{{ bd.canTake }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.take }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:600;cursor:pointer" style-hover="background:#E3E6EA">Take it</button></sc-if>
@@ -722,32 +674,32 @@ textarea:focus,input:focus{outline:none}
           </div>
         </div>
         <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
-          <span style="font-size:13px;color:#4A525C">Intake</span>
+          <span style="font-size:14px;color:#4A525C">Intake</span>
           <span style="font-weight:600;color:{{ bd.stageFg }}">{{ bd.stageLine }}</span>
           <sc-if value="{{ bd.hasStageAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.stageAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:999px;border:1px solid #1A56C4;background:#fff;color:#1A56C4;font-size:14px;font-weight:600;cursor:pointer">{{ bd.stageLabel }}</button></sc-if>
         </div>
       </sc-if>
       <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
-        <span style="font-size:13px;color:#4A525C">{{ partyLabel }}</span>
+        <span style="font-size:14px;color:#4A525C">{{ partyLabel }}</span>
         <span style="font-weight:600">{{ partyLine }}</span>
         <sc-if value="{{ hasPartyAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ partyAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ partyActLabel }}</button></sc-if>
-        <sc-if value="{{ hasPeek }}" hint-placeholder-val="{{ false }}"><button onClick="{{ peek }}" style="align-self:flex-start;min-height:40px;border:none;background:none;padding:0;color:#1A56C4;font-size:15px;font-weight:500;cursor:pointer">{{ peekLabel }}</button></sc-if>
+        <sc-if value="{{ hasPeek }}" hint-placeholder-val="{{ false }}"><button onClick="{{ peek }}" style="align-self:flex-start;min-height:40px;border:none;background:none;padding:0;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer">{{ peekLabel }}</button></sc-if>
       </div>
       <sc-if value="{{ bd.showAsst }}" hint-placeholder-val="{{ false }}">
         <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
-          <span style="font-size:13px;color:#4A525C">Intake assistant</span>
+          <span style="font-size:14px;color:#4A525C">Intake assistant</span>
           <sc-if value="{{ bd.notRenaming }}" hint-placeholder-val="{{ true }}">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
               <span style="font-weight:600">{{ bd.asstName }} <span style="font-weight:400;color:#4A525C">· automated</span></span>
               <button onClick="{{ bd.startRename }}" style="flex:none;min-height:40px;border:none;background:none;padding:0;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer">Rename</button>
             </div>
-            <span style="font-size:13px;color:#6B737D;line-height:1.5">The name your clients see. It always says it is automated.</span>
+            <span style="font-size:14px;color:#6B737D;line-height:1.5">The name your clients see. It always says it is automated.</span>
           </sc-if>
           <sc-if value="{{ bd.renaming }}" hint-placeholder-val="{{ false }}">
             <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600">Assistant’s name
-              <input value="{{ bd.renameVal }}" onChange="{{ bd.onRename }}" style="height:44px;border:1px solid #6B737D;border-radius:10px;padding:0 12px;font-size:15px;font-weight:400;color:#1F2328">
+              <input value="{{ bd.renameVal }}" onChange="{{ bd.onRename }}" style="height:44px;border:1px solid #6B737D;border-radius:10px;padding:0 12px;font-size:14px;font-weight:400;color:#1F2328">
             </label>
-            <sc-if value="{{ bd.hasRenameErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:13px;color:#B33A2E">{{ bd.renameErr }}</span></sc-if>
+            <sc-if value="{{ bd.hasRenameErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:14px;color:#B33A2E">{{ bd.renameErr }}</span></sc-if>
             <div style="display:flex;gap:8px">
               <button onClick="{{ bd.saveRename }}" style="height:40px;padding:0 16px;border-radius:999px;border:1px solid #1A56C4;background:#fff;color:#1A56C4;font-size:14px;font-weight:600;cursor:pointer">Save</button>
               <button onClick="{{ bd.cancelRename }}" style="height:40px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;cursor:pointer">Cancel</button>
@@ -757,20 +709,407 @@ textarea:focus,input:focus{outline:none}
       </sc-if>
       <sc-if value="{{ bd.showReminders }}" hint-placeholder-val="{{ false }}">
         <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:8px">
-          <span style="font-size:13px;color:#4A525C">Automatic reminders</span>
+          <span style="font-size:14px;color:#4A525C">Automatic reminders</span>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-            <span style="font-size:15px">{{ bd.remindLine }}</span>
+            <span style="font-size:14px">{{ bd.remindLine }}</span>
             <button onClick="{{ bd.toggleRemind }}" role="switch" aria-checked="{{ bd.remindOnStr }}" aria-label="Automatic reminders" style="flex:none;width:48px;height:28px;border-radius:999px;border:none;background:{{ bd.remindBg }};position:relative;cursor:pointer"><span style="position:absolute;top:3px;left:{{ bd.remindKnob }};width:22px;height:22px;border-radius:999px;background:#fff"></span></button>
           </div>
-          <span style="font-size:13px;color:#6B737D;line-height:1.5">Counts and a link only. Reminders never include what is in the documents.</span>
+          <span style="font-size:14px;color:#6B737D;line-height:1.5">Counts and a link only. Reminders never include what is in the documents.</span>
         </div>
       </sc-if>
       <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:4px">
-        <span style="font-size:13px;color:#4A525C">{{ bd.doesHead }}</span>
+        <span style="font-size:14px;color:#4A525C">{{ bd.doesHead }}</span>
         <span style="font-size:14px;line-height:1.55;color:#4A525C">{{ bd.doesText }}</span>
       </div>
     </aside>
   </main>
+</sc-if>
+
+<sc-if value="{{ isDocs }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:1240px;margin:0;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:24px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">Documents</h1><p style="margin:6px 0 0;font-size:14px;color:#4A525C">{{ docSummary }}</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="file" multiple="multiple" id="hv-file" onChange="{{ onFiles }}" style="display:none">
+        <label for="hv-file" tabindex="0" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#F4F6F8">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>Add files</label>
+        <sc-if value="{{ notLoaded }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ loadSample }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#164AA8">Load synthetic sample documents</button>
+        </sc-if>
+      </div>
+    </div>
+
+    <div onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="border:1.5px dashed {{ dropBd }};background:{{ dropBg }};border-radius:20px;padding:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:240px">
+        <div style="font-size:14px;font-weight:500">Upload whatever you have — old, partial or out of order is fine.</div>
+        <div style="font-size:14px;color:#6B737D">Drop files here. In this prototype, files you add stay in your browser and aren’t read.</div>
+      </div>
+    </div>
+
+    <sc-if value="{{ isProcessing }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:16px;background:#E8F0FE;border-radius:12px;padding:14px 18px;color:#1A56C4;font-size:14px;flex-wrap:wrap">
+        <span style="font-weight:500">Reading your documents. This usually takes about three minutes.</span>
+        <span>{{ procText }}</span>
+        <span style="color:#4A525C">Simulated and sped up for this prototype.</span>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasDocRows }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:860px">
+          <thead><tr style="background:#F4F6F8;text-align:left;color:#4A525C;font-size:12.5px">
+            <th style="padding:12px 16px;font-weight:500">File</th><th style="padding:12px 16px;font-weight:500">Identified as</th><th style="padding:12px 16px;font-weight:500">Period</th><th style="padding:12px 16px;font-weight:500">Pages</th><th style="padding:12px 16px;font-weight:500">Read</th><th style="padding:12px 16px;font-weight:500">Status</th><th style="padding:12px 16px;font-weight:500">Notes</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ docRows }}" as="d" hint-placeholder-count="6">
+              <tr onClick="{{ d.onClick }}" style="border-top:1px solid #E3E6EA;cursor:pointer;opacity:{{ d.op }}" style-hover="background:#FAFBFC">
+                <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg><span style="font-weight:500">{{ d.file }}</span></div></td>
+                <td style="padding:12px 16px;color:#4A525C">{{ d.type }}</td>
+                <td style="padding:12px 16px;color:#4A525C;white-space:nowrap">{{ d.period }}</td>
+                <td style="padding:12px 16px;color:#4A525C">{{ d.pages }}</td>
+                <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:8px"><div style="width:56px;height:4px;border-radius:999px;background:#E3E6EA;overflow:hidden"><div style="height:100%;width:{{ d.covW }};background:#2FA35A"></div></div><span style="font-size:12.5px;color:#4A525C">{{ d.cov }}</span></div></td>
+                <td style="padding:12px 16px"><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ d.sBg }};color:{{ d.sFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">{{ d.status }}</span></td>
+                <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ d.flags }}" as="f" hint-placeholder-count="0"><span style="height:22px;padding:0 8px;border-radius:7px;background:{{ f.bg }};color:{{ f.fg }};font-size:12.5px;display:inline-flex;align-items:center;white-space:nowrap">{{ f.t }}</span></sc-for></div></td>
+              </tr>
+            </sc-for>
+            <sc-for list="{{ uploads }}" as="u" hint-placeholder-count="0">
+              <tr style="border-top:1px solid #E3E6EA">
+                <td style="padding:12px 16px;font-weight:500">{{ u.name }}</td>
+                <td style="padding:12px 16px;color:#6B737D" colspan="4">{{ u.size }}</td>
+                <td style="padding:12px 16px"><span style="height:24px;padding:0 10px;border-radius:999px;background:#F4F6F8;color:#4A525C;font-size:12.5px;display:inline-flex;align-items:center;white-space:nowrap">Not read</span></td>
+                <td style="padding:12px 16px;font-size:12.5px;color:#6B737D">This prototype doesn’t process real files.</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hasMatrix }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <div><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">{{ mx.title }}</h2><div style="font-size:14px;color:#4A525C;margin-top:4px">{{ mx.sub }}. Select a cell to see the documents behind it.</div></div>
+        <div style="overflow:auto">
+          <div style="display:grid;grid-template-columns:{{ mx.grid }};gap:6px;min-width:620px">
+            <div style="font-size:12.5px;color:#6B737D;padding:8px 0">{{ mx.rowHead }}</div>
+            <sc-for list="{{ mx.cols }}" as="c" hint-placeholder-count="5"><div style="font-size:12.5px;color:#6B737D;padding:8px 10px">{{ c.t }}</div></sc-for>
+            <sc-for list="{{ mx.cells }}" as="c" hint-placeholder-count="12">
+              <sc-if value="{{ c.isHead }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;font-weight:500;display:flex;align-items:center">{{ c.t }}</div></sc-if>
+              <sc-if value="{{ c.isCell }}" hint-placeholder-val="{{ true }}"><button onClick="{{ c.onClick }}" style="height:48px;border-radius:12px;border:2px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }};font-size:14px;font-weight:500;text-align:left;padding:0 12px;cursor:pointer" style-hover="filter:brightness(0.97)">{{ c.t }}</button></sc-if>
+            </sc-for>
+          </div>
+        </div>
+        <sc-if value="{{ hasCell }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#F4F6F8;border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-weight:600">{{ cell.title }}</span><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ cell.bg }};color:{{ cell.fg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center">{{ cell.state }}</span></div>
+            <div style="font-size:14px;line-height:1.55;color:#1F2328">{{ cell.note }}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <span style="font-size:12.5px;color:#6B737D">{{ cell.docLabel }}</span>
+              <sc-for list="{{ cell.docs }}" as="d" hint-placeholder-count="1"><button onClick="{{ d.onClick }}" style="height:28px;padding:0 10px;border-radius:7px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">{{ d.file }}</button></sc-for>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ cell.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+            <sc-if value="{{ cell.hasEx }}" hint-placeholder-val="{{ false }}"><div><button onClick="{{ cell.openEx }}" style="height:36px;padding:0 14px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">Open the related issue</button></div></sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isStudy }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:1240px;margin:0;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:20px">
+    <sc-if value="{{ studyEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px dashed #C9CED5;border-radius:20px;padding:56px 32px;display:flex;flex-direction:column;gap:14px;align-items:flex-start">
+        <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">Your Study builds once documents are read</div>
+        <div style="color:#4A525C;font-size:14px;line-height:1.55;max-width:560px">Goal: {{ goal }}</div>
+        <button onClick="{{ toDocs }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">Go to Documents</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{ studyFull }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">{{ studyHead }}</h1><p style="margin:0;font-size:14px;color:#4A525C">{{ studySub }}</p></div>
+      <sc-if value="{{ isFacts }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width:680px;min-width:0;display:flex;align-items:center;gap:8px;min-height:48px;padding:0 4px 0 6px;border:1px solid #E3E6EA;border-radius:999px;background:#fff">
+                    <input value="{{ qText }}" onChange="{{ onQ }}" onKeyDown="{{ onQKey }}" aria-label="Add a question for the next study build" placeholder="Add a question for the next study build" style="flex:1;min-width:0;height:40px;border:none;background:transparent;font-size:14px;color:#1F2328">
+          <button onClick="{{ addQuestion }}" style="flex:none;height:40px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap" style-hover="background:#E3E6EA">Add question</button>
+        </div>
+      </sc-if>
+    <sc-if value="{{ hasQSaved }}" hint-placeholder-val="{{ false }}">
+      <div role="status" style="padding:0;font-size:14px;color:#197040">Saved. Your next study build uses this question.</div>
+    </sc-if>
+      <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
+      <section style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <div style="padding:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:14px;font-weight:600;color:#4A525C">What we’re working toward</div>
+            <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500;line-height:1.15;text-wrap:balance">{{ goal }}</div>
+            <div style="font-size:14px;color:#4A525C">Deliverable: {{ deliverable }}</div>
+          </div>
+        </div>
+        <div style="border-top:1px solid #E3E6EA;background:#F4F6F8;padding:16px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <span style="font-size:14px;font-weight:600;color:#4A525C">Next</span>
+          <span style="font-size:14px;flex:1;min-width:240px">{{ nba.text }}</span>
+          <sc-if value="{{ nba.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nba.onClick }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nba.btn }}</button></sc-if>
+        </div>
+      </section>
+
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:14px;padding:0 4px">
+        <span style="font-weight:500">Accepted Study: {{ revLabel }}</span>
+        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}">
+          <span style="color:#7A5200;background:#FEF3D6;border-radius:999px;padding:3px 10px;font-size:14px">{{ pendingLabel }}</span>
+          <button onClick="{{ acceptStudy }}" style="height:32px;padding:0 12px;border-radius:12px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E8F0FE">{{ acceptLabel }}</button>
+        </sc-if>
+        <button onClick="{{ toggleRevs }}" style="border:none;background:none;color:#4A525C;font-size:14px;cursor:pointer;text-decoration:underline">{{ revsToggle }}</button>
+      </div>
+      <sc-if value="{{ showRevs }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px solid #E3E6EA;border-radius:20px;padding:20px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:14px;font-weight:600;color:#4A525C">Study revisions</div>
+            <sc-for list="{{ revs }}" as="r" hint-placeholder-count="3"><div style="display:flex;gap:12px;font-size:14px"><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#6B737D;width:48px;padding-top:2px">rev {{ r.rev }}</span><span style="color:#6B737D;width:56px">{{ r.date }}</span><span>{{ r.note }}</span></div></sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:14px;font-weight:600;color:#4A525C">Decisions and notes</div>
+            <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="0"><div style="display:flex;gap:12px;font-size:14px;line-height:1.45"><span style="color:#6B737D;white-space:nowrap">{{ d.t }}</span><span>{{ d.txt }}</span><span style="color:{{ d.fg }};font-size:12.5px;white-space:nowrap">{{ d.state }}</span></div></sc-for>
+            <sc-if value="{{ noDecisions }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;color:#6B737D">No decisions yet. Your decisions are recorded here and only change the Study when you accept them.</div></sc-if>
+          </div>
+        </div>
+      </sc-if>
+      </sc-if>
+
+      <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start">
+
+        <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
+        <section style="order:{{ ord.plan }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+          <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:1px solid #E3E6EA">
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">Steps</h2>
+            <span style="font-size:14px;color:#4A525C">{{ planDone }}</span>
+          </div>
+          <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="6">
+            <button onClick="{{ t.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:{{ t.rowBg }};padding:16px 24px;cursor:pointer;display:grid;grid-template-columns:108px minmax(0,1fr);gap:14px;color:#1F2328" style-hover="background:#FAFBFC">
+              <span style="height:24px;padding:0 10px;border-radius:999px;background:{{ t.bBg }};color:{{ t.bFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-self:start;white-space:nowrap">{{ t.badge }}</span>
+              <span style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                <span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-weight:500;font-size:14px">{{ t.title }}</span><span style="font-size:12.5px;color:#6B737D">{{ t.by }}</span></span>
+                <span style="font-size:14px;color:#4A525C;line-height:1.45">{{ t.line }}</span>
+                <sc-if value="{{ t.hasDeps }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#6B737D">{{ t.deps }}</span></sc-if>
+              </span>
+            </button>
+          </sc-for>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ isExc }}" hint-placeholder-val="{{ false }}">
+        <section style="order:{{ ord.exceptions }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+          <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #E3E6EA">
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">Items</h2>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              <sc-for list="{{ exFilters }}" as="f" hint-placeholder-count="4"><button onClick="{{ f.onClick }}" style="height:28px;padding:0 10px;border-radius:999px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};font-size:12.5px;cursor:pointer">{{ f.label }}</button></sc-for>
+            </div>
+          </div>
+          <sc-for list="{{ exRows }}" as="x" hint-placeholder-count="5">
+            <div onClick="{{ x.onClick }}" style="border-bottom:1px solid #E3E6EA;padding:16px 24px;cursor:pointer;display:flex;flex-direction:column;gap:8px;opacity:{{ x.op }}" style-hover="background:#FAFBFC">
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <span style="height:22px;padding:0 8px;border-radius:999px;background:{{ x.kBg }};color:{{ x.kFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center">{{ x.kind }}</span>
+                <span style="font-weight:500;font-size:14px;flex:1;min-width:200px">{{ x.title }}</span>
+                <sc-if value="{{ x.hasStatus }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#197040;display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>{{ x.status }}</span></sc-if>
+              </div>
+              <div style="font-size:14px;color:#4A525C;line-height:1.45">{{ x.why }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ x.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ exNone }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;font-size:14px;color:#6B737D">Nothing in this view.</div></sc-if>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ isFacts }}" hint-placeholder-val="{{ false }}">
+        <section style="order:{{ ord.compare }};grid-column:1 / -1;border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+          <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">{{ cmp.title }}</h2><div style="font-size:14px;color:#4A525C;margin-top:4px">{{ cmp.sub }}</div></div>
+          <div style="overflow:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:760px">
+              <thead><tr style="text-align:left;color:#4A525C;font-size:12.5px;background:#F4F6F8"><sc-for list="{{ cmp.headers }}" as="h" hint-placeholder-count="6"><th style="padding:10px 16px;font-weight:500">{{ h.t }}</th></sc-for></tr></thead>
+              <tbody>
+                <sc-for list="{{ cmp.rows }}" as="r" hint-placeholder-count="4">
+                  <tr onClick="{{ r.onClick }}" style="border-top:1px solid #E3E6EA;cursor:{{ r.cur }};font-weight:{{ r.fw }}" style-hover="background:#FAFBFC">
+                    <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4"><td style="padding:12px 16px">{{ c.t }}</td></sc-for>
+                    <td style="padding:12px 16px"><span style="padding:3px 10px;border-radius:999px;background:{{ r.rBg }};color:{{ r.rFg }};font-size:12.5px;font-weight:500;white-space:nowrap">{{ r.result }}</span></td>
+                    <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ isFacts }}" hint-placeholder-val="{{ false }}">
+        <section style="order:{{ ord.understand }};grid-column:1 / -1;border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:20px">
+          <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">What Hive understands</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="3">
+              <div style="background:#F4F6F8;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:14px;color:#4A525C">{{ m.label }}</div>
+                <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500;line-height:1.1">{{ m.value }}</div>
+                <div style="font-size:12.5px;color:#6B737D">{{ m.sub }}</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ m.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px 32px">
+            <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:2px solid {{ g.bd }}">
+                <div style="font-size:14px;font-weight:600;color:{{ g.fg }}">{{ g.title }}</div>
+                <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="2">
+                  <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;line-height:1.5;max-width:64ch">{{ i.text }}</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ i.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ isTimeline }}" hint-placeholder-val="{{ false }}">
+        <section style="order:{{ ord.timeline }};border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:4px">
+          <h2 style="margin:0 0 12px;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">Timeline</h2>
+          <sc-for list="{{ timeline }}" as="e" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:112px 14px minmax(0,1fr);gap:12px;align-items:start">
+              <div style="font-size:14px;color:#4A525C;padding-top:1px">{{ e.date }}</div>
+              <div style="display:flex;flex-direction:column;align-items:center;align-self:stretch"><span style="width:10px;height:10px;border-radius:50%;border:2px solid #3B7CF6;background:#fff;margin-top:4px"></span><span style="flex:1;width:2px;background:#E3E6EA"></span></div>
+              <div style="display:flex;flex-direction:column;gap:6px;padding-bottom:16px"><div style="font-size:14px">{{ e.text }}</div><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ e.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></div>
+            </div>
+          </sc-for>
+        </section>
+        </sc-if>
+
+        <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
+        <section style="order:{{ ord.ops }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+          <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA;display:flex;justify-content:space-between;gap:12px;align-items:baseline"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">Completed operations</h2><span style="font-size:12.5px;color:#6B737D">Simulated in this prototype</span></div>
+          <sc-for list="{{ ops }}" as="o" hint-placeholder-count="5">
+            <button onClick="{{ o.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:#fff;padding:14px 24px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;color:#1F2328" style-hover="background:#FAFBFC">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2FA35A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M20 6 9 17l-5-5"></path></svg>
+              <span style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:500;font-size:14px">{{ o.title }}</span><span style="font-size:14px;color:#4A525C;line-height:1.45">{{ o.output }}</span></span>
+            </button>
+          </sc-for>
+        </section>
+        </sc-if>
+      </div>
+    </sc-if>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:1320px;margin:0;padding:28px clamp(16px,3vw,32px) 64px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px;align-items:start">
+    <aside style="display:flex;flex-direction:column;gap:16px;max-width:380px">
+      <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">Reports</h1>
+      <div style="border:1px solid #E3E6EA;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:14px;font-weight:600;color:#4A525C">Work product</div>
+        <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500;line-height:1.3">{{ deliverable }}</div>
+        <button onClick="{{ generate }}" disabled="{{ genDisabled }}" style="height:44px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer;text-align:left;opacity:{{ genOp }}" style-hover="background:#164AA8">Generate from accepted Study</button>
+        <sc-if value="{{ hasGenReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#7A5200;line-height:1.45">{{ genReason }}</div></sc-if>
+        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}"><button onClick="{{ acceptStudy }}" style="height:36px;padding:0 12px;border-radius:12px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer;text-align:left" style-hover="background:#E8F0FE">{{ acceptLabel }}</button></sc-if>
+      </div>
+      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <div style="padding:14px 20px;font-size:14px;font-weight:600;color:#4A525C;border-bottom:1px solid #E3E6EA">Report history</div>
+        <sc-for list="{{ repList }}" as="r" hint-placeholder-count="1">
+          <button onClick="{{ r.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;border-left:3px solid {{ r.bd }};background:{{ r.bg }};padding:12px 20px;cursor:pointer;display:flex;flex-direction:column;gap:4px;color:#1F2328" style-hover="background:#FAFBFC">
+            <span style="display:flex;gap:8px;align-items:center"><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">v{{ r.v }}</span><span style="padding:2px 8px;border-radius:999px;background:{{ r.sBg }};color:{{ r.sFg }};font-size:12.5px;font-weight:500">{{ r.state }}</span></span>
+            <span style="font-size:12.5px;color:#6B737D">{{ r.meta }}</span>
+          </button>
+        </sc-for>
+        <sc-if value="{{ noReports }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 20px;font-size:14px;color:#6B737D">No reports yet.</div></sc-if>
+      </div>
+    </aside>
+
+    <section style="grid-column:span 2;min-width:0;display:flex;flex-direction:column;gap:16px">
+      <sc-if value="{{ hasRep }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:inline-flex;padding:3px;border-radius:12px;background:#F4F6F8;gap:2px">
+              <sc-for list="{{ fmtOpts }}" as="f" hint-placeholder-count="2"><button onClick="{{ f.onClick }}" style="height:32px;padding:0 14px;border-radius:10px;border:none;background:{{ f.bg }};color:{{ f.fg }};font-size:14px;font-weight:500;cursor:pointer;box-shadow:{{ f.sh }}">{{ f.label }}</button></sc-for>
+            </div>
+            <span style="font-size:12.5px;color:#6B737D">Changes this report’s layout only. It doesn’t share your hive with anyone.</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12.5px;color:#6B737D">PDF export isn’t simulated</span>
+            <button disabled="disabled" style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;opacity:.45;cursor:not-allowed">Download PDF</button>
+            <button onClick="{{ markReviewed }}" disabled="{{ revDisabled }}" style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #2FA35A;background:#fff;color:#197040;font-size:14px;font-weight:500;cursor:pointer;opacity:{{ revOp }}" style-hover="background:#E6F4EA">Mark as reviewed</button>
+          </div>
+        </div>
+        <sc-if value="{{ hasRevReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#4A525C;text-align:right">{{ revReason }}</div></sc-if>
+
+        <article style="background:#fff;border:1px solid #E3E6EA;border-radius:20px;box-shadow:0 12px 40px rgba(31,35,40,.06);padding:clamp(24px,4vw,48px);display:flex;flex-direction:column;gap:28px">
+          <header style="display:flex;flex-direction:column;gap:12px;border-bottom:2px solid #1F2328;padding-bottom:20px">
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;color:#4A525C"><span>{{ rep.kicker }}</span><span style="padding:2px 10px;border-radius:999px;background:{{ rep.sBg }};color:{{ rep.sFg }};font-weight:500;font-size:12.5px">{{ rep.state }}</span></div>
+            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:clamp(26px,3vw,34px);line-height:1.15">{{ rep.title }}</h2>
+            <div style="font-size:14px;color:#4A525C">{{ rep.hive }}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;background:#F4F6F8;border-radius:12px;padding:14px 16px;font-size:14px">
+              <sc-for list="{{ rep.scope }}" as="s" hint-placeholder-count="4"><div><div style="color:#6B737D;font-size:12.5px">{{ s.k }}</div><div style="font-weight:500;margin-top:2px">{{ s.v }}</div></div></sc-for>
+            </div>
+            <sc-if value="{{ rep.hasOpen }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#B33A2E;background:#FDEDEB;border-radius:12px;padding:10px 14px;line-height:1.5">{{ rep.openText }}</div></sc-if>
+          </header>
+          <sc-for list="{{ rep.sections }}" as="sec" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:12px;align-items:baseline"><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#6B737D">{{ sec.n }}</span><h3 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">{{ sec.title }}</h3></div>
+              <div style="font-size:14px;color:#4A525C;line-height:1.5">{{ sec.lead }}</div>
+              <div style="overflow:auto;border:1px solid #E3E6EA;border-radius:12px">
+                <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:560px">
+                  <thead><tr style="background:#F4F6F8;text-align:left;color:#4A525C;font-size:12.5px"><sc-for list="{{ sec.headers }}" as="h" hint-placeholder-count="3"><th style="padding:9px 12px;font-weight:500">{{ h.t }}</th></sc-for></tr></thead>
+                  <tbody><sc-for list="{{ sec.rows }}" as="r" hint-placeholder-count="3"><tr style="border-top:1px solid #E3E6EA;vertical-align:top">
+                    <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="3"><td style="padding:9px 12px;line-height:1.45">{{ c.t }}</td></sc-for>
+                    <td style="padding:9px 12px"><div style="display:flex;flex-wrap:wrap;gap:4px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:22px;padding:0 7px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></td>
+                  </tr></sc-for></tbody>
+                </table>
+              </div>
+            </div>
+          </sc-for>
+          <footer style="display:flex;align-items:center;gap:8px;border-top:1px solid #E3E6EA;padding-top:16px;font-size:12.5px;color:#6B737D"><img src="assets/hiveforyou-mark.svg" alt="" style="width:16px;height:16px">Prepared with HiveForYou · synthetic sample data</footer>
+        </article>
+      </sc-if>
+      <sc-if value="{{ noRepView }}" hint-placeholder-val="{{ false }}">
+        <div style="border:1px dashed #C9CED5;border-radius:20px;padding:56px 32px;color:#4A525C;font-size:14px;line-height:1.55">{{ noRepText }}</div>
+      </sc-if>
+    </section>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isNotes }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:760px;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">Team notes</h1><p style="margin:0;font-size:14px;color:#4A525C">Only people at {{ b3.firmName }} see these. Never shown to {{ b3.clientName }}.</p></div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <span class="hfy-eyebrow" style="padding:0 2px">{{ b3.notesHead }}</span>
+        <sc-if value="{{ b3.noNotes }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#6B737D;padding:0 2px">No notes yet.</span></sc-if>
+        <sc-for list="{{ b3.notes }}" as="n" hint-placeholder-count="2">
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <span style="flex:none;width:24px;height:24px;border-radius:999px;background:{{ n.bg }};color:{{ n.fg }};font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ n.ini }}</span>
+            <span style="display:flex;flex-direction:column;gap:1px;min-width:0"><span style="font-size:12.5px;color:#6B737D"><span style="font-weight:600;color:#1F2328">{{ n.by }}</span> · {{ n.t }}{{ n.tag }}</span><span style="font-size:14px;line-height:1.45">{{ n.txt }}</span></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div class="hfy-composer">
+          <input value="{{ b3.noteDraft }}" onChange="{{ b3.onNote }}" onKeyDown="{{ b3.noteKey }}" aria-label="{{ b3.noteLabel }}" placeholder="{{ b3.notePh }}" style="flex:1;min-width:0;border:none;background:transparent;font-size:14px;color:#1F2328;height:36px">
+          <button onClick="{{ b3.addNote }}" aria-label="Add note" class="hfy-iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+        </div>
+        <sc-if value="{{ b3.hasNoteErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:12.5px;color:#B33A2E">Write a note first.</span></sc-if>
+      </div>
+  </main>
+</sc-if>
+
+<sc-if value="{{ isActivity }}" hint-placeholder-val="{{ false }}">
+  <main style="max-width:860px;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">What happened</h1><p style="margin:0;font-size:14px;color:#4A525C">Every action on this hive, newest first, with who did it.</p></div>
+    <sc-if value="{{ noActAll }}" hint-placeholder-val="{{ false }}"><p style="margin:0;color:#4A525C">Nothing yet.</p></sc-if>
+    <div style="display:flex;flex-direction:column">
+      <sc-for list="{{ actAll }}" as="e" hint-placeholder-count="6">
+        <div style="display:flex;gap:16px;padding:12px 0;border-top:1px solid #E3E6EA">
+          <span style="flex:none;width:130px;font-size:14px;color:#6B737D;padding-top:2px">{{ e.t }}</span>
+          <span style="font-size:14px;line-height:1.5"><span style="font-weight:600;color:{{ e.whoFg }}">{{ e.who }}</span> {{ e.txt }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+</sc-if>
+  </div>
+</div>
 </sc-if>
 
 <sc-if value="{{ isClientView }}" hint-placeholder-val="{{ false }}">
@@ -1028,335 +1367,6 @@ textarea:focus,input:focus{outline:none}
   </div>
 </sc-if>
 
-<sc-if value="{{ isDocs }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1240px;margin:0 auto;padding:32px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:24px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
-      <div><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px">Documents</h1><p style="margin:6px 0 0;font-size:15px;color:#4A525C">{{ docSummary }}</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input type="file" multiple="multiple" id="hv-file" onChange="{{ onFiles }}" style="display:none">
-        <label for="hv-file" tabindex="0" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#F4F6F8">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>Add files</label>
-        <sc-if value="{{ notLoaded }}" hint-placeholder-val="{{ false }}">
-          <button onClick="{{ loadSample }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#164AA8">Load synthetic sample documents</button>
-        </sc-if>
-      </div>
-    </div>
-
-    <div onDragOver="{{ onDragOver }}" onDragLeave="{{ onDragLeave }}" onDrop="{{ onDrop }}" style="border:1.5px dashed {{ dropBd }};background:{{ dropBg }};border-radius:20px;padding:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>
-      <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:240px">
-        <div style="font-size:15px;font-weight:500">Upload whatever you have — old, partial or out of order is fine.</div>
-        <div style="font-size:13px;color:#6B737D">Drop files here. In this prototype, files you add stay in your browser and aren’t read.</div>
-      </div>
-    </div>
-
-    <sc-if value="{{ isProcessing }}" hint-placeholder-val="{{ false }}">
-      <div style="display:flex;align-items:center;gap:16px;background:#E8F0FE;border-radius:12px;padding:14px 18px;color:#1A56C4;font-size:14px;flex-wrap:wrap">
-        <span style="font-weight:500">Reading your documents. This usually takes about three minutes.</span>
-        <span>{{ procText }}</span>
-        <span style="color:#4A525C">Simulated and sped up for this prototype.</span>
-      </div>
-    </sc-if>
-
-    <sc-if value="{{ hasDocRows }}" hint-placeholder-val="{{ false }}">
-      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:860px">
-          <thead><tr style="background:#F4F6F8;text-align:left;color:#4A525C;font-size:12.5px">
-            <th style="padding:12px 16px;font-weight:500">File</th><th style="padding:12px 16px;font-weight:500">Identified as</th><th style="padding:12px 16px;font-weight:500">Period</th><th style="padding:12px 16px;font-weight:500">Pages</th><th style="padding:12px 16px;font-weight:500">Read</th><th style="padding:12px 16px;font-weight:500">Status</th><th style="padding:12px 16px;font-weight:500">Notes</th>
-          </tr></thead>
-          <tbody>
-            <sc-for list="{{ docRows }}" as="d" hint-placeholder-count="6">
-              <tr onClick="{{ d.onClick }}" style="border-top:1px solid #E3E6EA;cursor:pointer;opacity:{{ d.op }}" style-hover="background:#FAFBFC">
-                <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg><span style="font-weight:500">{{ d.file }}</span></div></td>
-                <td style="padding:12px 16px;color:#4A525C">{{ d.type }}</td>
-                <td style="padding:12px 16px;color:#4A525C;white-space:nowrap">{{ d.period }}</td>
-                <td style="padding:12px 16px;color:#4A525C">{{ d.pages }}</td>
-                <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:8px"><div style="width:56px;height:4px;border-radius:999px;background:#E3E6EA;overflow:hidden"><div style="height:100%;width:{{ d.covW }};background:#2FA35A"></div></div><span style="font-size:12.5px;color:#4A525C">{{ d.cov }}</span></div></td>
-                <td style="padding:12px 16px"><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ d.sBg }};color:{{ d.sFg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">{{ d.status }}</span></td>
-                <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ d.flags }}" as="f" hint-placeholder-count="0"><span style="height:22px;padding:0 8px;border-radius:7px;background:{{ f.bg }};color:{{ f.fg }};font-size:12px;display:inline-flex;align-items:center;white-space:nowrap">{{ f.t }}</span></sc-for></div></td>
-              </tr>
-            </sc-for>
-            <sc-for list="{{ uploads }}" as="u" hint-placeholder-count="0">
-              <tr style="border-top:1px solid #E3E6EA">
-                <td style="padding:12px 16px;font-weight:500">{{ u.name }}</td>
-                <td style="padding:12px 16px;color:#6B737D" colspan="4">{{ u.size }}</td>
-                <td style="padding:12px 16px"><span style="height:24px;padding:0 10px;border-radius:999px;background:#F4F6F8;color:#4A525C;font-size:12px;display:inline-flex;align-items:center;white-space:nowrap">Not read</span></td>
-                <td style="padding:12px 16px;font-size:12.5px;color:#6B737D">This prototype doesn’t process real files.</td>
-              </tr>
-            </sc-for>
-          </tbody>
-        </table>
-      </div>
-    </sc-if>
-
-    <sc-if value="{{ hasMatrix }}" hint-placeholder-val="{{ false }}">
-      <div style="border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px">
-        <div><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">{{ mx.title }}</h2><div style="font-size:14px;color:#4A525C;margin-top:4px">{{ mx.sub }}. Select a cell to see the documents behind it.</div></div>
-        <div style="overflow:auto">
-          <div style="display:grid;grid-template-columns:{{ mx.grid }};gap:6px;min-width:620px">
-            <div style="font-size:12.5px;color:#6B737D;padding:8px 0">{{ mx.rowHead }}</div>
-            <sc-for list="{{ mx.cols }}" as="c" hint-placeholder-count="5"><div style="font-size:12.5px;color:#6B737D;padding:8px 10px">{{ c.t }}</div></sc-for>
-            <sc-for list="{{ mx.cells }}" as="c" hint-placeholder-count="12">
-              <sc-if value="{{ c.isHead }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;font-weight:500;display:flex;align-items:center">{{ c.t }}</div></sc-if>
-              <sc-if value="{{ c.isCell }}" hint-placeholder-val="{{ true }}"><button onClick="{{ c.onClick }}" style="height:48px;border-radius:12px;border:2px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }};font-size:13px;font-weight:500;text-align:left;padding:0 12px;cursor:pointer" style-hover="filter:brightness(0.97)">{{ c.t }}</button></sc-if>
-            </sc-for>
-          </div>
-        </div>
-        <sc-if value="{{ hasCell }}" hint-placeholder-val="{{ false }}">
-          <div style="background:#F4F6F8;border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-weight:600">{{ cell.title }}</span><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ cell.bg }};color:{{ cell.fg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center">{{ cell.state }}</span></div>
-            <div style="font-size:14px;line-height:1.55;color:#1F2328">{{ cell.note }}</div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-              <span style="font-size:12.5px;color:#6B737D">{{ cell.docLabel }}</span>
-              <sc-for list="{{ cell.docs }}" as="d" hint-placeholder-count="1"><button onClick="{{ d.onClick }}" style="height:28px;padding:0 10px;border-radius:7px;border:1px solid #E3E6EA;background:#fff;font-size:13px;cursor:pointer" style-hover="border-color:#3B7CF6">{{ d.file }}</button></sc-for>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ cell.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
-            <sc-if value="{{ cell.hasEx }}" hint-placeholder-val="{{ false }}"><div><button onClick="{{ cell.openEx }}" style="height:36px;padding:0 14px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">Open the related issue</button></div></sc-if>
-          </div>
-        </sc-if>
-      </div>
-    </sc-if>
-  </main>
-</sc-if>
-
-<sc-if value="{{ isStudy }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1240px;margin:0 auto;padding:32px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:20px">
-    <sc-if value="{{ studyEmpty }}" hint-placeholder-val="{{ false }}">
-      <div style="border:1px dashed #C9CED5;border-radius:20px;padding:56px 32px;display:flex;flex-direction:column;gap:14px;align-items:flex-start">
-        <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">Your Study builds once documents are read</div>
-        <div style="color:#4A525C;font-size:15px;line-height:1.55;max-width:560px">Goal: {{ goal }}</div>
-        <button onClick="{{ toDocs }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer" style-hover="background:#164AA8">Go to Documents</button>
-      </div>
-    </sc-if>
-    <sc-if value="{{ studyFull }}" hint-placeholder-val="{{ true }}">
-      <section style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
-        <div style="padding:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div style="font-size:13px;font-weight:600;color:#4A525C">What we’re working toward</div>
-            <div style="font-family:Outfit,sans-serif;font-size:30px;font-weight:500;line-height:1.15;text-wrap:balance">{{ goal }}</div>
-            <div style="font-size:15px;color:#4A525C">Deliverable: {{ deliverable }}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:12px;justify-content:flex-end">
-            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="font-weight:500">Review readiness</span><span style="color:#4A525C">{{ readyLabel }}</span></div>
-            <div style="height:8px;border-radius:999px;background:#F4F6F8;overflow:hidden"><div style="height:100%;width:{{ readyW }};background:#2FA35A;transition:width .4s"></div></div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px">
-              <sc-for list="{{ bar }}" as="b" hint-placeholder-count="4"><button onClick="{{ b.onClick }}" style="height:30px;padding:0 12px;border-radius:999px;border:1px solid {{ b.bd }};background:{{ b.bg }};color:{{ b.fg }};font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:{{ b.dot }}"></span>{{ b.label }}</button></sc-for>
-            </div>
-            <div style="font-size:12.5px;color:#6B737D">Ready for your review means every item has a decision or a request. It isn’t a legal, agency or insurer determination.</div>
-          </div>
-        </div>
-        <div style="border-top:1px solid #E3E6EA;background:#F4F6F8;padding:16px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-          <span style="font-size:13px;font-weight:600;color:#4A525C">Next</span>
-          <span style="font-size:15px;flex:1;min-width:240px">{{ nba.text }}</span>
-          <sc-if value="{{ nba.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nba.onClick }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nba.btn }}</button></sc-if>
-        </div>
-      </section>
-
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:14px;padding:0 4px">
-        <span style="font-weight:500">Accepted Study: {{ revLabel }}</span>
-        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}">
-          <span style="color:#7A5200;background:#FEF3D6;border-radius:999px;padding:3px 10px;font-size:13px">{{ pendingLabel }}</span>
-          <button onClick="{{ acceptStudy }}" style="height:32px;padding:0 12px;border-radius:12px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:#E8F0FE">{{ acceptLabel }}</button>
-        </sc-if>
-        <button onClick="{{ toggleRevs }}" style="border:none;background:none;color:#4A525C;font-size:13px;cursor:pointer;text-decoration:underline">{{ revsToggle }}</button>
-      </div>
-      <sc-if value="{{ showRevs }}" hint-placeholder-val="{{ false }}">
-        <div style="border:1px solid #E3E6EA;border-radius:20px;padding:20px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px">
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div style="font-size:13px;font-weight:600;color:#4A525C">Study revisions</div>
-            <sc-for list="{{ revs }}" as="r" hint-placeholder-count="3"><div style="display:flex;gap:12px;font-size:14px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B737D;width:48px;padding-top:2px">rev {{ r.rev }}</span><span style="color:#6B737D;width:56px">{{ r.date }}</span><span>{{ r.note }}</span></div></sc-for>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div style="font-size:13px;font-weight:600;color:#4A525C">Decisions and notes</div>
-            <sc-for list="{{ decisions }}" as="d" hint-placeholder-count="0"><div style="display:flex;gap:12px;font-size:13.5px;line-height:1.45"><span style="color:#6B737D;white-space:nowrap">{{ d.t }}</span><span>{{ d.txt }}</span><span style="color:{{ d.fg }};font-size:12px;white-space:nowrap">{{ d.state }}</span></div></sc-for>
-            <sc-if value="{{ noDecisions }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;color:#6B737D">No decisions yet. Your decisions are recorded here and only change the Study when you accept them.</div></sc-if>
-          </div>
-        </div>
-      </sc-if>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:20px;align-items:start">
-
-        <section style="order:{{ ord.plan }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
-          <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:1px solid #E3E6EA">
-            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Work plan</h2>
-            <span style="font-size:13px;color:#4A525C">{{ planDone }}</span>
-          </div>
-          <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="6">
-            <button onClick="{{ t.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:{{ t.rowBg }};padding:16px 24px;cursor:pointer;display:grid;grid-template-columns:108px minmax(0,1fr);gap:14px;color:#1F2328" style-hover="background:#FAFBFC">
-              <span style="height:24px;padding:0 10px;border-radius:999px;background:{{ t.bBg }};color:{{ t.bFg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center;justify-self:start;white-space:nowrap">{{ t.badge }}</span>
-              <span style="display:flex;flex-direction:column;gap:4px;min-width:0">
-                <span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-weight:500;font-size:15px">{{ t.title }}</span><span style="font-size:12px;color:#6B737D">{{ t.by }}</span></span>
-                <span style="font-size:13.5px;color:#4A525C;line-height:1.45">{{ t.line }}</span>
-                <sc-if value="{{ t.hasDeps }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#6B737D">{{ t.deps }}</span></sc-if>
-              </span>
-            </button>
-          </sc-for>
-        </section>
-
-        <section style="order:{{ ord.exceptions }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
-          <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #E3E6EA">
-            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Exceptions and missing information</h2>
-            <div style="display:flex;gap:4px;flex-wrap:wrap">
-              <sc-for list="{{ exFilters }}" as="f" hint-placeholder-count="4"><button onClick="{{ f.onClick }}" style="height:28px;padding:0 10px;border-radius:999px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};font-size:12.5px;cursor:pointer">{{ f.label }}</button></sc-for>
-            </div>
-          </div>
-          <sc-for list="{{ exRows }}" as="x" hint-placeholder-count="5">
-            <div onClick="{{ x.onClick }}" style="border-bottom:1px solid #E3E6EA;padding:16px 24px;cursor:pointer;display:flex;flex-direction:column;gap:8px;opacity:{{ x.op }}" style-hover="background:#FAFBFC">
-              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                <span style="height:22px;padding:0 8px;border-radius:999px;background:{{ x.kBg }};color:{{ x.kFg }};font-size:12px;font-weight:500;display:inline-flex;align-items:center">{{ x.kind }}</span>
-                <span style="font-weight:500;font-size:15px;flex:1;min-width:200px">{{ x.title }}</span>
-                <sc-if value="{{ x.hasStatus }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#197040;display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>{{ x.status }}</span></sc-if>
-              </div>
-              <div style="font-size:13.5px;color:#4A525C;line-height:1.45">{{ x.why }}</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ x.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
-            </div>
-          </sc-for>
-          <sc-if value="{{ exNone }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;font-size:14px;color:#6B737D">Nothing in this view.</div></sc-if>
-        </section>
-
-        <section style="order:{{ ord.compare }};grid-column:1 / -1;border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
-          <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">{{ cmp.title }}</h2><div style="font-size:14px;color:#4A525C;margin-top:4px">{{ cmp.sub }}</div></div>
-          <div style="overflow:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:760px">
-              <thead><tr style="text-align:left;color:#4A525C;font-size:12.5px;background:#F4F6F8"><sc-for list="{{ cmp.headers }}" as="h" hint-placeholder-count="6"><th style="padding:10px 16px;font-weight:500">{{ h.t }}</th></sc-for></tr></thead>
-              <tbody>
-                <sc-for list="{{ cmp.rows }}" as="r" hint-placeholder-count="4">
-                  <tr onClick="{{ r.onClick }}" style="border-top:1px solid #E3E6EA;cursor:{{ r.cur }};font-weight:{{ r.fw }}" style-hover="background:#FAFBFC">
-                    <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4"><td style="padding:12px 16px">{{ c.t }}</td></sc-for>
-                    <td style="padding:12px 16px"><span style="padding:3px 10px;border-radius:999px;background:{{ r.rBg }};color:{{ r.rFg }};font-size:12.5px;font-weight:500;white-space:nowrap">{{ r.result }}</span></td>
-                    <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></td>
-                  </tr>
-                </sc-for>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section style="order:{{ ord.understand }};grid-column:1 / -1;border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:20px">
-          <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">What Hive understands</h2>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-            <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="3">
-              <div style="background:#F4F6F8;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px">
-                <div style="font-size:13px;color:#4A525C">{{ m.label }}</div>
-                <div style="font-family:Outfit,sans-serif;font-size:30px;font-weight:500;line-height:1.1">{{ m.value }}</div>
-                <div style="font-size:12.5px;color:#6B737D">{{ m.sub }}</div>
-                <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ m.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
-              </div>
-            </sc-for>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px 32px">
-            <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
-              <div style="display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:2px solid {{ g.bd }}">
-                <div style="font-size:13px;font-weight:600;color:{{ g.fg }}">{{ g.title }}</div>
-                <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="2">
-                  <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:14.5px;line-height:1.5;max-width:64ch">{{ i.text }}</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ i.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
-                  </div>
-                </sc-for>
-              </div>
-            </sc-for>
-          </div>
-        </section>
-
-        <section style="order:{{ ord.timeline }};border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:4px">
-          <h2 style="margin:0 0 12px;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Timeline</h2>
-          <sc-for list="{{ timeline }}" as="e" hint-placeholder-count="5">
-            <div style="display:grid;grid-template-columns:112px 14px minmax(0,1fr);gap:12px;align-items:start">
-              <div style="font-size:13px;color:#4A525C;padding-top:1px">{{ e.date }}</div>
-              <div style="display:flex;flex-direction:column;align-items:center;align-self:stretch"><span style="width:10px;height:10px;border-radius:50%;border:2px solid #3B7CF6;background:#fff;margin-top:4px"></span><span style="flex:1;width:2px;background:#E3E6EA"></span></div>
-              <div style="display:flex;flex-direction:column;gap:6px;padding-bottom:16px"><div style="font-size:14.5px">{{ e.text }}</div><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ e.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></div>
-            </div>
-          </sc-for>
-        </section>
-
-        <section style="order:{{ ord.ops }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
-          <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA;display:flex;justify-content:space-between;gap:12px;align-items:baseline"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:21px">Completed operations</h2><span style="font-size:12.5px;color:#6B737D">Simulated in this prototype</span></div>
-          <sc-for list="{{ ops }}" as="o" hint-placeholder-count="5">
-            <button onClick="{{ o.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:#fff;padding:14px 24px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;color:#1F2328" style-hover="background:#FAFBFC">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2FA35A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><path d="M20 6 9 17l-5-5"></path></svg>
-              <span style="display:flex;flex-direction:column;gap:3px"><span style="font-weight:500;font-size:14.5px">{{ o.title }}</span><span style="font-size:13.5px;color:#4A525C;line-height:1.45">{{ o.output }}</span></span>
-            </button>
-          </sc-for>
-        </section>
-      </div>
-    </sc-if>
-  </main>
-</sc-if>
-
-<sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1320px;margin:0 auto;padding:32px clamp(16px,3vw,32px) 64px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px;align-items:start">
-    <aside style="display:flex;flex-direction:column;gap:16px;max-width:380px">
-      <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:30px">Reports</h1>
-      <div style="border:1px solid #E3E6EA;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px">
-        <div style="font-size:13px;font-weight:600;color:#4A525C">Work product</div>
-        <div style="font-family:Outfit,sans-serif;font-size:19px;font-weight:500;line-height:1.3">{{ deliverable }}</div>
-        <button onClick="{{ generate }}" disabled="{{ genDisabled }}" style="height:44px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:15px;cursor:pointer;text-align:left;opacity:{{ genOp }}" style-hover="background:#164AA8">Generate from accepted Study</button>
-        <sc-if value="{{ hasGenReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:#7A5200;line-height:1.45">{{ genReason }}</div></sc-if>
-        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}"><button onClick="{{ acceptStudy }}" style="height:36px;padding:0 12px;border-radius:12px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:13px;font-weight:500;cursor:pointer;text-align:left" style-hover="background:#E8F0FE">{{ acceptLabel }}</button></sc-if>
-      </div>
-      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
-        <div style="padding:14px 20px;font-size:13px;font-weight:600;color:#4A525C;border-bottom:1px solid #E3E6EA">Report history</div>
-        <sc-for list="{{ repList }}" as="r" hint-placeholder-count="1">
-          <button onClick="{{ r.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;border-left:3px solid {{ r.bd }};background:{{ r.bg }};padding:12px 20px;cursor:pointer;display:flex;flex-direction:column;gap:4px;color:#1F2328" style-hover="background:#FAFBFC">
-            <span style="display:flex;gap:8px;align-items:center"><span style="font-family:'JetBrains Mono',monospace;font-size:12px">v{{ r.v }}</span><span style="padding:2px 8px;border-radius:999px;background:{{ r.sBg }};color:{{ r.sFg }};font-size:12px;font-weight:500">{{ r.state }}</span></span>
-            <span style="font-size:12.5px;color:#6B737D">{{ r.meta }}</span>
-          </button>
-        </sc-for>
-        <sc-if value="{{ noReports }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 20px;font-size:14px;color:#6B737D">No reports yet.</div></sc-if>
-      </div>
-    </aside>
-
-    <section style="grid-column:span 2;min-width:0;display:flex;flex-direction:column;gap:16px">
-      <sc-if value="{{ hasRep }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <div style="display:inline-flex;padding:3px;border-radius:12px;background:#F4F6F8;gap:2px">
-              <sc-for list="{{ fmtOpts }}" as="f" hint-placeholder-count="2"><button onClick="{{ f.onClick }}" style="height:32px;padding:0 14px;border-radius:10px;border:none;background:{{ f.bg }};color:{{ f.fg }};font-size:13.5px;font-weight:500;cursor:pointer;box-shadow:{{ f.sh }}">{{ f.label }}</button></sc-for>
-            </div>
-            <span style="font-size:12px;color:#6B737D">Changes this report’s layout only. It doesn’t share your hive with anyone.</span>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:12.5px;color:#6B737D">PDF export isn’t simulated</span>
-            <button disabled="disabled" style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;opacity:.45;cursor:not-allowed">Download PDF</button>
-            <button onClick="{{ markReviewed }}" disabled="{{ revDisabled }}" style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #2FA35A;background:#fff;color:#197040;font-size:14px;font-weight:500;cursor:pointer;opacity:{{ revOp }}" style-hover="background:#E6F4EA">Mark as reviewed</button>
-          </div>
-        </div>
-        <sc-if value="{{ hasRevReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:#4A525C;text-align:right">{{ revReason }}</div></sc-if>
-
-        <article style="background:#fff;border:1px solid #E3E6EA;border-radius:20px;box-shadow:0 12px 40px rgba(31,35,40,.06);padding:clamp(24px,4vw,48px);display:flex;flex-direction:column;gap:28px">
-          <header style="display:flex;flex-direction:column;gap:12px;border-bottom:2px solid #1F2328;padding-bottom:20px">
-            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:#4A525C"><span>{{ rep.kicker }}</span><span style="padding:2px 10px;border-radius:999px;background:{{ rep.sBg }};color:{{ rep.sFg }};font-weight:500;font-size:12px">{{ rep.state }}</span></div>
-            <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:clamp(26px,3vw,34px);line-height:1.15">{{ rep.title }}</h2>
-            <div style="font-size:15px;color:#4A525C">{{ rep.hive }}</div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;background:#F4F6F8;border-radius:12px;padding:14px 16px;font-size:13px">
-              <sc-for list="{{ rep.scope }}" as="s" hint-placeholder-count="4"><div><div style="color:#6B737D;font-size:12px">{{ s.k }}</div><div style="font-weight:500;margin-top:2px">{{ s.v }}</div></div></sc-for>
-            </div>
-            <sc-if value="{{ rep.hasOpen }}" hint-placeholder-val="{{ false }}"><div style="font-size:13.5px;color:#B33A2E;background:#FDEDEB;border-radius:12px;padding:10px 14px;line-height:1.5">{{ rep.openText }}</div></sc-if>
-          </header>
-          <sc-for list="{{ rep.sections }}" as="sec" hint-placeholder-count="4">
-            <div style="display:flex;flex-direction:column;gap:10px">
-              <div style="display:flex;gap:12px;align-items:baseline"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B737D">{{ sec.n }}</span><h3 style="margin:0;font-family:Outfit,sans-serif;font-weight:500;font-size:19px">{{ sec.title }}</h3></div>
-              <div style="font-size:14px;color:#4A525C;line-height:1.5">{{ sec.lead }}</div>
-              <div style="overflow:auto;border:1px solid #E3E6EA;border-radius:12px">
-                <table style="width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px">
-                  <thead><tr style="background:#F4F6F8;text-align:left;color:#4A525C;font-size:12px"><sc-for list="{{ sec.headers }}" as="h" hint-placeholder-count="3"><th style="padding:9px 12px;font-weight:500">{{ h.t }}</th></sc-for></tr></thead>
-                  <tbody><sc-for list="{{ sec.rows }}" as="r" hint-placeholder-count="3"><tr style="border-top:1px solid #E3E6EA;vertical-align:top">
-                    <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="3"><td style="padding:9px 12px;line-height:1.45">{{ c.t }}</td></sc-for>
-                    <td style="padding:9px 12px"><div style="display:flex;flex-wrap:wrap;gap:4px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:22px;padding:0 7px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 11.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></td>
-                  </tr></sc-for></tbody>
-                </table>
-              </div>
-            </div>
-          </sc-for>
-          <footer style="display:flex;align-items:center;gap:8px;border-top:1px solid #E3E6EA;padding-top:16px;font-size:12.5px;color:#6B737D"><img src="assets/hiveforyou-mark.svg" alt="" style="width:16px;height:16px">Prepared with HiveForYou · synthetic sample data</footer>
-        </article>
-      </sc-if>
-      <sc-if value="{{ noRepView }}" hint-placeholder-val="{{ false }}">
-        <div style="border:1px dashed #C9CED5;border-radius:20px;padding:56px 32px;color:#4A525C;font-size:15px;line-height:1.55">{{ noRepText }}</div>
-      </sc-if>
-    </section>
-  </main>
-</sc-if>
 
 <sc-if value="{{ hasDrawer }}" hint-placeholder-val="{{ false }}">
   <div onClick="{{ closeDrawer }}" style="position:fixed;inset:0;background:rgba(31,35,40,.18);z-index:40"></div>
@@ -2256,8 +2266,9 @@ class Component extends DCLogic {
       const vis = this.visEx(s, l);
       v.hiveTitle = h.title; v.goal = goal; v.deliverable = deliverable;
       const openN = vis.filter(x => l.ex[x.id].status === 'open').length;
-      v.tabs = [['overview', 'Hive board', ''], ['documents', 'Documents', l.loaded ? String(s.docs.length + l.uploads.length) : (l.uploads.length ? String(l.uploads.length) : '')], ['study', 'Study', l.loaded && openN ? openN + ' open' : ''], ['reports', 'Reports', l.reports.length ? String(l.reports.length) : '']].map(([k, label, count]) => ({ label, count, bd: st.tab === k ? '#3B7CF6' : 'transparent', fg: st.tab === k ? '#1F2328' : '#4A525C', onClick: () => this.setState({ tab: k, drawer: null }) }));
-      v.isDocs = st.tab === 'documents'; v.isStudy = st.tab === 'study'; v.isReports = st.tab === 'reports';
+      v.tabs = [['overview', 'Hive board', ''], ['documents', 'Documents', l.loaded ? String(s.docs.length + l.uploads.length) : (l.uploads.length ? String(l.uploads.length) : '')], ['study', 'Study', l.loaded && openN ? openN + ' open' : ''], ['reports', 'Reports', l.reports.length ? String(l.reports.length) : '']].map(([k, label, count]) => ({ key: k, label, count, bd: st.tab === k ? '#3B7CF6' : 'transparent', fg: st.tab === k ? '#1F2328' : '#4A525C', onClick: () => this.setState({ tab: k, drawer: null }) }));
+      const sub = st.tab === 'study' ? 'exceptions' : st.tab; v.isDocs = sub === 'documents'; v.isStudy = ['facts', 'timeline', 'exceptions', 'plan'].includes(sub); v.isFacts = sub === 'facts'; v.isTimeline = sub === 'timeline'; v.isExc = sub === 'exceptions'; v.isPlan = sub === 'plan';
+      v.studyHead = { facts: 'Facts', timeline: 'Timeline', exceptions: 'Missing and conflicts', plan: 'Work plan' }[sub] || ''; v.studySub = { facts: 'What the documents say, each tied to its page.', timeline: 'Dated events from the documents, in order.', exceptions: 'What the records don’t include, and where they disagree.', plan: 'What HiveForYou is checking, step by step, and what comes next.' }[sub] || ''; v.isReports = st.tab === 'reports';
       v.hasPending = l.pending > 0;
       v.pendingLabel = l.pending + (l.pending === 1 ? ' decision' : ' decisions') + ' not yet in the Study';
       v.acceptLabel = 'Accept into Study (rev ' + (l.rev + 1) + ')';
@@ -2553,7 +2564,7 @@ class Component extends DCLogic {
       if (l.pending) needs.push({ kind: 'Study', kfg: '#7A5200', title: l.pending + (l.pending === 1 ? ' decision is' : ' decisions are') + ' not yet in the Study', detail: 'Accept to build revision ' + (l.rev + 1) + '. The source documents never change.', f1: () => this.acceptStudy(), a1: 'Accept into Study' });
       ovOpen.filter(x => x.kind !== 'missing').forEach(x => needs.push({ kind: this.KD[x.kind][0], kfg: this.KD[x.kind][2], title: x.title, detail: x.detail, chips: this.chips(scen, x.ev), f1: () => openDrawer('ex', x.id), a1: 'Review' }));
       if (v.readyLines && v.readyLines[1] && v.readyLines[1].k === 'Need you') v.readyLines[1] = { k: 'Need you', v: String(needs.length) };
-      v.bd.needs = needs.map((n, i) => ({ ...n, chips: n.chips || [], hasChips: !!(n.chips && n.chips.length), hasA2: !!n.a2, f2: n.f2 || noop, a2: n.a2 || '', b1bg: i === 0 ? '#1A56C4' : '#F4F6F8', b1fg: i === 0 ? '#fff' : '#1F2328' }));
+      v.bd.needs = needs.map((n, i) => ({ ...n, hasKind: n.kind !== 'Needs you', chips: n.chips || [], hasChips: !!(n.chips && n.chips.length), hasA2: !!n.a2, f2: n.f2 || noop, a2: n.a2 || '', b1bg: i === 0 ? '#1A56C4' : '#F4F6F8', b1fg: i === 0 ? '#fff' : '#1F2328' }));
       v.bd.hasNeeds = needs.length > 0;
       v.bd.showNext = needs.length === 0;
 
@@ -2649,6 +2660,21 @@ class Component extends DCLogic {
       if (h.stage === 'closed') v.bd.headline = 'Intake closed';
       const three = proSeat && !!h.client && !!h.firm && !!st.user && st.user.firm === h.firm;
       v.isBoard3 = st.tab === 'overview' && three; v.isOverview = st.tab === 'overview' && !three;
+      v.isNotes = st.tab === 'notes' && three; v.isBoard3Hive = three; if (v.bd.showTeam) v.bd.cantTake = !v.bd.canTake; v.isActivity = st.tab === 'activity';
+      if (st.tab === 'notes' && !three) v.isOverview = true;
+      v.backLabel = proSeat ? 'All clients' : 'Your hives';
+      v.railSub = h.purpose || goal;
+      const allActs0 = (l.activity || []).slice().reverse();
+      v.actAll = allActs0.map(e => ({ t: e.t, who: e.who === this.me() ? 'You' : actor(e.who), txt: e.txt, whoFg: e.who === 'HiveForYou' ? '#1A56C4' : '#1F2328' }));
+      v.noActAll = allActs0.length === 0;
+      const tabCount = k => (v.tabs.find(t => t.key === k) || {}).count || '';
+      const BLUE = ['#E8F0FE', '#1A56C4'], GREY = ['#EEF0F3', '#4A525C'];
+      const ri = (k, label, count, tone) => ({ label, go: () => this.setState({ tab: k, drawer: null, focus: null }), cur: (st.tab === 'study' ? 'exceptions' : st.tab) === k ? 'page' : 'false', count: String(count || ''), hasCount: !!count, cbg: (tone || GREY)[0], cfg: (tone || GREY)[1] });
+      const nNotes = (l.notes || []).length;
+      v.railGroups = [
+        { label: '', hasLabel: false, items: [ri('overview', 'Hive board', v.bd.needs.length, BLUE), ri('documents', 'Documents', tabCount('documents')), ri('facts', 'Facts', ''), ri('exceptions', 'Missing and conflicts', ''), ri('reports', 'Reports', tabCount('reports'))] },
+        { label: 'More', hasLabel: true, items: [ri('timeline', 'Timeline', '')].concat(three ? [ri('notes', 'Team notes', nNotes)] : []).concat([ri('activity', 'What happened', ''), ri('plan', 'Work plan', '')]) }
+      ];
       if (three) {
         const fm3 = st.firms[h.firm]; const an3 = this.asstFor(h.owner); const af3 = this.firstName(an3);
         const ch3 = l.chat || []; const focus = st.focus && st.focus.hid === h.id ? st.focus.title : null;
@@ -2656,9 +2682,9 @@ class Component extends DCLogic {
         const about = (m, title) => (m.txt && m.txt.includes(title)) || (fileOf[title] && m.att === fileOf[title]);
         const who3 = m => m.from === 'a' ? af3 : m.from === 'c' ? ovWho : (!m.by || m.by === st.user.name ? 'You' : this.firstName(m.by));
         const short = s => s.length > 70 ? s.slice(0, 67) + '…' : s;
-        const tab = st.paneTab || 'items';
+        const tab = st.paneTab && st.paneTab !== 'team' ? st.paneTab : 'items';
         v.b3 = {
-          tab, tabs: [['team', 'Team'], ['items', 'Items'], ['client', ovWho]].map(([k, lab]) => ({ label: lab, on: tab === k ? 'true' : 'false', bd: tab === k ? '#1A56C4' : 'transparent', fg: tab === k ? '#1A56C4' : '#4A525C', pick: () => this.setState({ paneTab: k }) })),
+          tab, tabs: [['items', 'Items'], ['client', ovWho]].map(([k, lab]) => ({ label: lab, on: tab === k ? 'true' : 'false', bd: tab === k ? '#1A56C4' : 'transparent', fg: tab === k ? '#1A56C4' : '#4A525C', pick: () => this.setState({ paneTab: k }) })),
           firmName: fm3.name, members: fm3.members.filter(m => !m.invited).map(m => ({ name: m.name, title: m.title })),
           asstInitials: an3.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase(),
           midLabel: af3 + '’s table', midSub: 'Automated. Keeps the list, asks ' + ovWho + ', checks every page. People decide.',
@@ -2698,9 +2724,11 @@ class Component extends DCLogic {
         v.b3.avatars = fm3.members.filter(m => !m.invited).map((m, ix) => ({ name: m.name + ' · ' + m.title, ini: ini(m.name), bg: PAL[ix % PAL.length][0], fg: PAL[ix % PAL.length][1] }));
         const onM = h.assignee ? this.member(h.assignee) : null;
         v.b3.on = onM ? { ini: ini(onM.name), bg: colorOf(onM.name)[0], fg: colorOf(onM.name)[1], name: h.assignee === st.user.email ? 'You' : onM.name, title: ' · ' + onM.title } : { ini: '–', bg: '#F1F3F5', fg: '#6B737D', name: 'Unassigned', title: '' };
+        { const tot = v.bd.checklist.length; const inN = v.bd.checklist.filter(k => k.step === 'done').length; const sg = h.stage || 'open'; const ix = sg === 'closed' ? 3 : sg === 'review' ? 1 : 0;
+          v.b3.stages = [tot ? 'Collecting · ' + inN + ' of ' + tot + ' in' : 'Collecting', 'Attorney review', 'Closed'].map((lab, i) => ({ label: lab, bd: i < ix ? '#2FA35A' : i === ix ? '#3B7CF6' : '#E3E6EA', fg: i <= ix ? '#1F2328' : '#6B737D', fw: i === ix ? '600' : '400' })); }
         v.b3.steps = (h.stage === 'closed' ? ['#2FA35A', '#2FA35A', '#2FA35A'] : h.stage === 'review' ? ['#2FA35A', '#3B7CF6', '#E3E6EA'] : ['#3B7CF6', '#E3E6EA', '#E3E6EA']).map(c => ({ bg: c }));
         const WASH = { '#1A56C4': '#E8F0FE', '#B33A2E': '#FDEDEB', '#197040': '#E6F4EA', '#4A525C': '#F1F3F5', '#7A5200': '#FEF3D6' };
-        v.b3.needs = v.bd.needs.map(n => ({ ...n, pillBg: WASH[n.kfg] || '#F1F3F5' }));
+        v.b3.needs = v.bd.needs.map(n => ({ ...n, hasKind: n.kind !== 'Needs you', pillBg: WASH[n.kfg] || '#F1F3F5' }));
         v.b3.needN = String(v.bd.needs.length);
         const nWait = v.bd.hasWaiting ? v.bd.waiting.length : 0; const nMiss = v.bd.checklist.filter(k => k.step === 'todo').length;
         v.b3.stats = [[v.bd.needs.length, 'need you', '#E8F0FE', '#1A56C4'], [nWait, 'waiting', '#FEF3D6', '#7A5200'], [nMiss, 'missing', '#FDEDEB', '#B33A2E']].filter(x => x[0]).map(x => ({ label: x[0] + ' ' + x[1], bg: x[2], fg: x[3] }));
@@ -2726,7 +2754,7 @@ class Component extends DCLogic {
         v.b3.notes = v.b3.notes.map(n => { const c = colorOf(n.by === 'You' ? this.me() : n.by); return { ...n, ini: ini(n.by === 'You' ? st.user.name : ((this.member((fm3.members.find(m => this.firstName(m.name) === n.by) || {}).email) || { name: n.by }).name)), bg: c[0], fg: c[1] }; });
         v.b3.notePh = focus ? 'Note on this item…' : 'Add a team note…';
         v.b3.noteKey = e => { if (e.key === 'Enter') { e.preventDefault(); v.b3.addNote(); } };
-        v.b3.clientIni = ini(h.client.name);
+        v.b3.clientIni = ini(h.client.name); v.b3.asstName = an3; v.b3.remindLabel = l.remindersOn ? 'Auto-remind on' : 'Auto-remind off';
         v.b3.dot = h.client.status === 'joined' ? '#2FA35A' : h.client.status === 'invited' ? '#F6B826' : '#B4B9C0';
         v.b3.replyPh = 'Reply to ' + ovWho + ' as ' + this.me() + '…';
         v.b3.knob = v.bd.remindOnStr === 'true' ? '17px' : '3px';
