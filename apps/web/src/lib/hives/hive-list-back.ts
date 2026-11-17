@@ -11,9 +11,9 @@ export type HiveListBackLink = {
 export function hiveListBackLink(startingView: StartingView, hiveKind: HiveKind): HiveListBackLink {
   if (startingView === "clients") {
     if (hiveKind === "client") {
-      return { label: "All clients", href: `${MY_HIVES_PATH}?view=all` };
+      return { label: "All clients", href: `${MY_HIVES_PATH}?queue=all` };
     }
-    return { label: "My own matters", href: `${MY_HIVES_PATH}?view=own` };
+    return { label: "My own matters", href: `${MY_HIVES_PATH}?queue=own` };
   }
   return { label: "Your hives", href: MY_HIVES_PATH };
 }
