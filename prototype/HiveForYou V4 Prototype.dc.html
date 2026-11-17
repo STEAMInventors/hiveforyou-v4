@@ -35,11 +35,13 @@ textarea:focus,input:focus{outline:none}
   .p-team { border-right: 1px solid #E3E6EA; }
   .p-client { border-left: 1px solid #E3E6EA; overflow: hidden !important; }
   .hfy-log { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-  .hfy-card { background: #fff; border: 1px solid #E9ECEF; border-radius: 14px; padding: 12px 14px; }
+  .hfy-card { background: #fff; border: 1px solid #E6E9ED; border-radius: 14px; padding: 16px 18px; }
   .hfy-eyebrow { font-size: 12.5px; font-weight: 600; color: #6B737D; }
-  .hfy-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-  .hfy-chipbtn { height: 34px; padding: 0 12px; border-radius: 999px; border: none; background: #F1F3F5; color: #1F2328; font-size: 14px; font-weight: 500; cursor: pointer; }
-  .hfy-chipbtn:hover { filter: brightness(0.96); }
+  .hfy-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 !important; background: transparent !important; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .hfy-pill::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+  .hfy-pill svg { display: none; }
+  .hfy-chipbtn { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #DDE1E6; background: #fff; color: #1F2328; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .hfy-chipbtn:hover { background: #F4F6F8; }
   .hfy-iconbtn { flex: none; width: 36px; height: 36px; border-radius: 999px; border: none; background: #F4F6F8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
   .hfy-composer { display: flex; align-items: center; gap: 6px; padding: 3px 3px 3px 14px; border-radius: 14px; background: #fff; border: 1px solid #E3E6EA; }
   .hfy-need { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-top: 1px solid #E9ECEF; }
@@ -48,17 +50,35 @@ textarea:focus,input:focus{outline:none}
   .hfy-clamp1 { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hfy-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .hfy-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: calc(100vh - 73px); }
-  .hfy-hrail { position: sticky; top: 73px; align-self: start; height: calc(100vh - 73px); overflow-y: auto; background: #F8F9FA; border-right: 1px solid #E3E6EA; padding: 14px 12px 20px; display: flex; flex-direction: column; gap: 2px; }
-  .hfy-hmain { min-width: 0; }
+  .hfy-hrail { position: sticky; top: 73px; align-self: start; height: calc(100vh - 73px); overflow-y: auto; background: #fff; border-right: 1px solid #E3E6EA; padding: 14px 12px 20px; display: flex; flex-direction: column; gap: 2px; }
+  .hfy-hmain { min-width: 0; background: #F7F8FA; }
+  .hfy-ico { flex: none; width: 18px; height: 18px; background: currentColor; opacity: .8; }
+  .hfy-ico[data-i=overview] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ico[data-i=documents] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 3h9l4 4v14H6zM14 3v5h5'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 3h9l4 4v14H6zM14 3v5h5'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ico[data-i=facts] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM20 20l-4-4'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM20 20l-4-4'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ico[data-i=exceptions] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 8v5M12 16v.5'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 8v5M12 16v.5'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ico[data-i=reports] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 20V11M12 20V4M19 20v-6'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 20V11M12 20V4M19 20v-6'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ico[data-i=timeline] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 18l6-6 4 4 6-8'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 18l6-6 4 4 6-8'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ico[data-i=notes] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 4h14v11l-5 5H5zM14 20v-5h5'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 4h14v11l-5 5H5zM14 20v-5h5'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ico[data-i=activity] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 7v5l3 2'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 7v5l3 2'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ico[data-i=plan] { -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 6h11M9 12h11M9 18h11M4 6h.5M4 12h.5M4 18h.5'/></svg>") center / 18px 18px no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 6h11M9 12h11M9 18h11M4 6h.5M4 12h.5M4 18h.5'/></svg>") center / 18px 18px no-repeat; }
+  .hfy-ritxt { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .hfy-crumb { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #6B737D; min-width: 0; }
+  .hfy-crumb button { border: none; background: none; padding: 0; min-height: 36px; color: #6B737D; font-size: 14px; cursor: pointer; }
+  .hfy-crumb button:hover { color: #1F2328; }
+  .hfy-count { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: #E8F0FE; color: #1A56C4; }
   .hfy-back { align-self: flex-start; min-height: 36px; border: none; background: none; padding: 0 6px; color: #4A525C; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; }
   .hfy-back:hover { color: #1F2328; }
-  .hfy-rcard { background: #fff; border: 1px solid #E3E6EA; border-radius: 14px; padding: 12px; margin: 6px 0 12px; display: flex; flex-direction: column; gap: 6px; }
+  .hfy-rcard { background: #fff; border: 1px solid #E3E6EA; border-radius: 12px; padding: 12px; margin: 4px 0 8px; display: flex; flex-direction: column; gap: 6px; }
   .hfy-link { border: none; background: none; padding: 0; min-height: 28px; color: #1A56C4; font-size: 12.5px; font-weight: 500; cursor: pointer; }
   .hfy-link:hover { text-decoration: underline; }
-  .hfy-rgroup { font-size: 12.5px; font-weight: 600; color: #6B737D; padding: 14px 10px 4px; }
+  .hfy-rgroup { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #6B737D; padding: 16px 10px 6px; }
   .hfy-ritem { width: 100%; min-height: 40px; border: none; border-radius: 10px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; text-align: left; cursor: pointer; background: transparent; color: #1F2328; }
   .hfy-ritem:hover { background: #EEF0F3; }
-  .hfy-ritem[aria-current=page] { background: #E8F0FE; color: #1A56C4; font-weight: 600; }
+  .hfy-ritem[aria-current=page] { background: #EEF3FD; color: #1A56C4; font-weight: 600; }
+  .hfy-ritem[aria-current=page] .hfy-ico { opacity: 1; }
+  @media (min-width: 900px) { .hfy-back { display: none !important; } }
+  @media (max-width: 899px) { .hfy-crumb { display: none !important; } .hfy-apphead { background: #fff !important; } .hfy-apphead button[aria-label=Home] { width: auto !important; } }
   .hfy-rcount { font-size: 12px; font-weight: 600; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
   .hfy-stages { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; }
   .hfy-stages li { flex: 1; border-top: 4px solid #E3E6EA; padding-top: 6px; font-size: 12.5px; }
@@ -262,9 +282,12 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ showAppHeader }}" hint-placeholder-val="{{ false }}">
-  <header style="position:sticky;top:0;z-index:20;background:#fff;border-bottom:{{ headBd }}">
+  <header class="hfy-apphead" style="position:sticky;top:0;z-index:20;background:{{ headBg }};border-bottom:{{ headBd }}">
     <div style="position:relative;display:flex;align-items:center;gap:12px 20px;flex-wrap:wrap;padding:12px clamp(16px,3vw,28px)">
-      <button onClick="{{ goHome }}" aria-label="Home" style="border:none;background:none;padding:0;cursor:pointer;display:flex;flex:none;min-height:44px;align-items:center;visibility:{{ headLogoVis }}"><img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:28px;width:auto"></button>
+      <button onClick="{{ goHome }}" aria-label="Home" style="border:none;background:none;padding:0;cursor:pointer;display:flex;flex:none;width:{{ logoW }};min-height:44px;align-items:center;visibility:{{ headLogoVis }}"><img src="assets/hiveforyou-logo.svg" alt="HiveForYou" style="height:28px;width:auto"></button>
+      <sc-if value="{{ isApp }}" hint-placeholder-val="{{ false }}">
+        <nav class="hfy-crumb" aria-label="Breadcrumb"><button onClick="{{ goHome }}">{{ backLabel }}</button><span aria-hidden="true">/</span><span style="color:#1F2328;font-weight:500;white-space:nowrap">{{ hiveTitle }}</span><span aria-hidden="true">/</span><span style="white-space:nowrap">{{ pageName }}</span></nav>
+      </sc-if>
       <sc-if value="{{ homeProHeader }}" hint-placeholder-val="{{ false }}">
         <div style="flex:1 1 360px;max-width:680px;min-width:0;display:flex;align-items:center;gap:12px;min-height:48px;padding:0 18px;border-radius:999px;background:#F4F6F8">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A525C" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
@@ -416,7 +439,7 @@ textarea:focus,input:focus{outline:none}
   <nav class="hfy-hrail" aria-label="Hive sections">
     <button onClick="{{ goHome }}" class="hfy-back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>{{ backLabel }}</button>
     <div class="hfy-rcard">
-      <span style="font-family:Outfit,sans-serif;font-weight:600;font-size:16px;line-height:1.25">{{ hiveTitle }}</span>
+      <span style="display:flex;align-items:center;gap:10px"><span style="flex:none;width:34px;height:34px;border-radius:9px;background:#E8F0FE;color:#1A56C4;font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ railIni }}</span><span style="font-weight:600;font-size:14px;line-height:1.3">{{ hiveTitle }}</span></span>
       <span style="font-size:12.5px;color:#4A525C;line-height:1.4">{{ railSub }}</span>
       <sc-if value="{{ bd.showTeam }}" hint-placeholder-val="{{ false }}">
         <span style="font-size:12.5px;color:#4A525C;padding-top:6px;border-top:1px solid #F1F3F5;display:flex;align-items:center;gap:6px;flex-wrap:wrap">On it: <span style="font-weight:600;color:#1F2328">{{ bd.onIt }}</span>
@@ -448,7 +471,7 @@ textarea:focus,input:focus{outline:none}
     <sc-for list="{{ railGroups }}" as="g" hint-placeholder-count="3">
       <sc-if value="{{ g.hasLabel }}" hint-placeholder-val="{{ false }}"><div class="hfy-rgroup">{{ g.label }}</div></sc-if>
       <sc-for list="{{ g.items }}" as="r" hint-placeholder-count="3">
-        <button onClick="{{ r.go }}" aria-current="{{ r.cur }}" class="hfy-ritem">{{ r.label }}<sc-if value="{{ r.hasCount }}" hint-placeholder-val="{{ false }}"><span class="hfy-rcount" style="background:{{ r.cbg }};color:{{ r.cfg }}">{{ r.count }}</span></sc-if></button>
+        <button onClick="{{ r.go }}" aria-current="{{ r.cur }}" class="hfy-ritem"><span class="hfy-ritxt"><span class="hfy-ico" data-i="{{ r.key }}" aria-hidden="true"></span>{{ r.label }}</span><sc-if value="{{ r.hasCount }}" hint-placeholder-val="{{ false }}"><span class="hfy-rcount" style="background:{{ r.cbg }};color:{{ r.cfg }}">{{ r.count }}</span></sc-if></button>
       </sc-for>
     </sc-for>
   </nav>
@@ -457,12 +480,12 @@ textarea:focus,input:focus{outline:none}
 <main style="display:block">
   <div class="hfy-3tabs" role="tablist" aria-label="Board panes" style="display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid #E3E6EA">
     <sc-for list="{{ b3.tabs }}" as="t" hint-placeholder-count="3">
-      <button role="tab" aria-selected="{{ t.on }}" onClick="{{ t.pick }}" style="min-height:44px;padding:0 14px;border:none;background:none;border-bottom:2px solid {{ t.bd }};color:{{ t.fg }};font-size:14px;font-weight:600;cursor:pointer">{{ t.label }}</button>
+      <button role="tab" aria-selected="{{ t.on }}" onClick="{{ t.pick }}" style="min-height:40px;padding:0 14px;border:none;background:none;border-bottom:2px solid {{ t.bd }};color:{{ t.fg }};font-size:14px;font-weight:600;cursor:pointer">{{ t.label }}</button>
     </sc-for>
   </div>
   <div class="hfy-3p" data-tab="{{ b3.tab }}">
 
-    <section class="p-items hfy-col" aria-label="{{ b3.midLabel }}" style="background:#fff">
+    <section class="p-items hfy-col" aria-label="{{ b3.midLabel }}" style="background:#F7F8FA;padding:20px 22px">
       <div style="display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px;line-height:1.2"><span style="color:{{ b3.hNumFg }}">{{ b3.hNum }}</span>{{ b3.hRest }}</h1>
@@ -472,8 +495,8 @@ textarea:focus,input:focus{outline:none}
       </div>
 
       <sc-if value="{{ bd.hasNeeds }}" hint-placeholder-val="{{ true }}">
-        <div style="display:flex;flex-direction:column">
-          <h2 style="margin:0 0 4px;font-size:16px;font-weight:600;display:flex;align-items:center;gap:6px">Needs you <span class="hfy-pill" style="background:#E8F0FE;color:#1A56C4">{{ b3.needN }}</span></h2>
+        <div class="hfy-card" style="display:flex;flex-direction:column;padding-bottom:4px">
+          <h2 style="margin:0 0 4px;font-size:16px;font-weight:600;display:flex;align-items:center;gap:6px">Needs you <span class="hfy-count">{{ b3.needN }}</span></h2>
           <sc-for list="{{ b3.needs }}" as="n" hint-placeholder-count="2">
             <div class="hfy-need">
               <sc-if value="{{ n.hasKind }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -481,7 +504,7 @@ textarea:focus,input:focus{outline:none}
               </div></sc-if>
               <span class="hfy-clamp1" style="font-size:14px;font-weight:600;line-height:1.4">{{ n.title }}</span>
               <span class="hfy-clamp1" title="{{ n.detail }}" style="font-size:14px;line-height:1.45;color:#4A525C">{{ n.detail }}</span>
-              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:4px;flex-wrap:wrap"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="padding:2px 6px;border-radius:6px;border:1px solid #7A5200;background:#FEF3D6;color:#1F2328;font-family:'JetBrains Mono',monospace;font-size:12.5px;cursor:pointer">{{ c.label }}</button></sc-for></div></sc-if>
+              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:4px;flex-wrap:wrap"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div></sc-if>
               <div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:2px">
                 <button onClick="{{ n.f1 }}" class="hfy-chipbtn" style="background:{{ n.b1bg }};color:{{ n.b1fg }};font-weight:600">{{ n.a1 }}</button>
                 <sc-if value="{{ n.hasA2 }}" hint-placeholder-val="{{ false }}"><button onClick="{{ n.f2 }}" class="hfy-chipbtn">{{ n.a2 }}</button></sc-if>
@@ -491,7 +514,7 @@ textarea:focus,input:focus{outline:none}
         </div>
       </sc-if>
 
-      <div style="display:flex;flex-direction:column">
+      <div class="hfy-card" style="display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:6px">
           <h2 style="margin:0;font-size:16px;font-weight:600">Items</h2>
           <span style="font-size:12.5px;color:#6B737D">{{ bd.progressText }}</span>
@@ -534,7 +557,7 @@ textarea:focus,input:focus{outline:none}
       <sc-if value="{{ b3.hasFocus }}" hint-placeholder-val="{{ false }}">
         <div style="margin:10px 18px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 6px 6px 12px;border-radius:999px;background:#E8F0FE;font-size:12.5px;color:#1A56C4">
           <span class="hfy-clamp1" style="min-width:0">{{ b3.focusText }}</span>
-          <button onClick="{{ b3.clearFocus }}" style="flex:none;min-height:28px;padding:0 10px;border:none;border-radius:999px;background:#fff;color:#1A56C4;font-size:12.5px;font-weight:600;cursor:pointer">Show all</button>
+          <button onClick="{{ b3.clearFocus }}" style="flex:none;min-height:28px;padding:0 10px;border:none;border-radius:8px;background:#fff;color:#1A56C4;font-size:12.5px;font-weight:600;cursor:pointer">Show all</button>
         </div>
       </sc-if>
       <div role="log" aria-label="{{ b3.logLabel }}" class="hfy-log" style="flex-direction:column-reverse">
@@ -565,7 +588,7 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1160px;margin:0;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-wrap:wrap;gap:40px 48px;align-items:flex-start">
+  <main style="max-width:1160px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-wrap:wrap;gap:40px 48px;align-items:flex-start">
     <section style="flex:999 1 480px;min-width:0;max-width:700px;display:flex;flex-direction:column;gap:30px">
 
       <sc-if value="{{ bd.hasBanner }}" hint-placeholder-val="{{ false }}">
@@ -586,13 +609,13 @@ textarea:focus,input:focus{outline:none}
       </div>
 
       <sc-if value="{{ bd.showNext }}" hint-placeholder-val="{{ false }}">
-        <div style="border:1px solid #E3E6EA;border-radius:16px;padding:24px;box-shadow:0 1px 6px rgba(31,35,40,.08);display:flex;flex-direction:column;gap:12px">
+        <div style="border:1px solid #E6E9ED;border-radius:14px;background:#fff;padding:24px;box-shadow:0 1px 6px rgba(31,35,40,.08);display:flex;flex-direction:column;gap:12px">
           <span style="font-size:14px;font-weight:600;color:#1A56C4">Next for you</span>
           <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px;line-height:1.2">{{ nx.title }}</h2>
           <p style="margin:0;color:#4A525C;font-size:16px;line-height:1.55">{{ nx.text }}</p>
           <div style="display:flex;gap:12px;flex-wrap:wrap">
-            <sc-if value="{{ nx.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nx.go }}" style="height:48px;padding:0 26px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nx.btn }}</button></sc-if>
-            <sc-if value="{{ nx.hasAlt }}" hint-placeholder-val="{{ false }}"><button onClick="{{ nx.alt }}" style="height:48px;padding:0 22px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#E3E6EA">{{ nx.altLabel }}</button></sc-if>
+            <sc-if value="{{ nx.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nx.go }}" style="height:40px;padding:0 26px;border-radius:8px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nx.btn }}</button></sc-if>
+            <sc-if value="{{ nx.hasAlt }}" hint-placeholder-val="{{ false }}"><button onClick="{{ nx.alt }}" style="height:40px;padding:0 22px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#F4F6F8">{{ nx.altLabel }}</button></sc-if>
           </div>
         </div>
       </sc-if>
@@ -605,10 +628,10 @@ textarea:focus,input:focus{outline:none}
               <sc-if value="{{ n.hasKind }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;font-weight:600;color:{{ n.kfg }}">{{ n.kind }}</span></sc-if>
               <span style="font-size:16px;font-weight:500;line-height:1.35">{{ n.title }}</span>
               <span style="font-size:14px;line-height:1.5;color:#4A525C">{{ n.detail }}</span>
-              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></sc-if>
+              <sc-if value="{{ n.hasChips }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ n.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div></sc-if>
               <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:2px">
-                <button onClick="{{ n.f1 }}" style="height:40px;padding:0 18px;border-radius:999px;border:none;background:{{ n.b1bg }};color:{{ n.b1fg }};font-size:14px;font-weight:600;cursor:pointer">{{ n.a1 }}</button>
-                <sc-if value="{{ n.hasA2 }}" hint-placeholder-val="{{ false }}"><button onClick="{{ n.f2 }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ n.a2 }}</button></sc-if>
+                <button onClick="{{ n.f1 }}" style="height:40px;padding:0 18px;border-radius:8px;border:none;background:{{ n.b1bg }};color:{{ n.b1fg }};font-size:14px;font-weight:600;cursor:pointer">{{ n.a1 }}</button>
+                <sc-if value="{{ n.hasA2 }}" hint-placeholder-val="{{ false }}"><button onClick="{{ n.f2 }}" style="height:40px;padding:0 16px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#F4F6F8">{{ n.a2 }}</button></sc-if>
               </div>
             </div>
           </sc-for>
@@ -622,7 +645,7 @@ textarea:focus,input:focus{outline:none}
           <sc-for list="{{ bd.waiting }}" as="w" hint-placeholder-count="2">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:12px 0;border-top:1px solid #E3E6EA">
               <span style="display:flex;flex-direction:column;gap:2px;flex:1 1 260px;min-width:0"><span style="font-size:16px">{{ w.title }}</span><span style="font-size:14px;color:#4A525C">{{ w.when }}</span></span>
-              <button onClick="{{ w.remind }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Remind now</button>
+              <button onClick="{{ w.remind }}" style="height:40px;padding:0 16px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#F4F6F8">Remind now</button>
             </div>
           </sc-for>
         </div>
@@ -638,7 +661,7 @@ textarea:focus,input:focus{outline:none}
               <span style="font-size:14px;line-height:1.5;min-width:0"><span style="font-weight:600;color:{{ m.whoFg }}">{{ m.who }}</span> {{ m.txt }}</span>
             </div>
           </sc-for>
-          <button onClick="{{ bd.openConvo }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:6px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Open the conversation</button>
+          <button onClick="{{ bd.openConvo }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:6px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#F4F6F8">Open the conversation</button>
         </div>
       </sc-if>
 
@@ -653,14 +676,14 @@ textarea:focus,input:focus{outline:none}
               <button onClick="{{ k.open }}" style="align-self:flex-start;border:none;background:none;padding:0;text-align:left;font-size:16px;color:#1F2328;cursor:pointer;line-height:1.4" style-hover="color:#1A56C4">{{ k.title }}</button>
               <span style="font-size:14px;color:{{ k.fg }};font-weight:500">{{ k.st }}</span>
             </span>
-            <sc-if value="{{ k.hasAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ k.act }}" style="flex:none;height:36px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ k.actLabel }}</button></sc-if>
+            <sc-if value="{{ k.hasAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ k.act }}" style="flex:none;height:36px;padding:0 14px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#F4F6F8">{{ k.actLabel }}</button></sc-if>
           </div>
         </sc-for>
       </div>
 
     </section>
 
-    <aside style="flex:1 1 280px;max-width:360px;border:1px solid #E3E6EA;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px">
+    <aside style="flex:1 1 280px;max-width:360px;border:1px solid #E6E9ED;border-radius:14px;background:#fff;padding:24px;display:flex;flex-direction:column;gap:16px">
       <div style="display:flex;flex-direction:column;gap:8px;font-size:14px">
         <sc-for list="{{ readyLines }}" as="r" hint-placeholder-count="5"><span style="display:flex;justify-content:space-between;gap:12px"><span style="color:#4A525C">{{ r.k }}</span><span style="font-weight:600;text-align:right">{{ r.v }}</span></span></sc-for>
       </div>
@@ -669,20 +692,20 @@ textarea:focus,input:focus{outline:none}
           <span style="font-size:14px;color:#4A525C">On this hive</span>
           <span style="font-weight:600">{{ bd.onIt }}</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-            <sc-if value="{{ bd.canTake }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.take }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:600;cursor:pointer" style-hover="background:#E3E6EA">Take it</button></sc-if>
-            <button onClick="{{ bd.handOver }}" style="height:40px;padding:0 16px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">Hand over</button>
+            <sc-if value="{{ bd.canTake }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.take }}" style="height:40px;padding:0 16px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;font-weight:600;cursor:pointer" style-hover="background:#F4F6F8">Take it</button></sc-if>
+            <button onClick="{{ bd.handOver }}" style="height:40px;padding:0 16px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#F4F6F8">Hand over</button>
           </div>
         </div>
         <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
           <span style="font-size:14px;color:#4A525C">Intake</span>
           <span style="font-weight:600;color:{{ bd.stageFg }}">{{ bd.stageLine }}</span>
-          <sc-if value="{{ bd.hasStageAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.stageAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:999px;border:1px solid #1A56C4;background:#fff;color:#1A56C4;font-size:14px;font-weight:600;cursor:pointer">{{ bd.stageLabel }}</button></sc-if>
+          <sc-if value="{{ bd.hasStageAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ bd.stageAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:8px;border:1px solid #1A56C4;background:#fff;color:#1A56C4;font-size:14px;font-weight:600;cursor:pointer">{{ bd.stageLabel }}</button></sc-if>
         </div>
       </sc-if>
       <div style="border-top:1px solid #E3E6EA;padding-top:16px;display:flex;flex-direction:column;gap:6px">
         <span style="font-size:14px;color:#4A525C">{{ partyLabel }}</span>
         <span style="font-weight:600">{{ partyLine }}</span>
-        <sc-if value="{{ hasPartyAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ partyAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E3E6EA">{{ partyActLabel }}</button></sc-if>
+        <sc-if value="{{ hasPartyAct }}" hint-placeholder-val="{{ false }}"><button onClick="{{ partyAct }}" style="align-self:flex-start;height:40px;padding:0 16px;margin-top:4px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#F4F6F8">{{ partyActLabel }}</button></sc-if>
         <sc-if value="{{ hasPeek }}" hint-placeholder-val="{{ false }}"><button onClick="{{ peek }}" style="align-self:flex-start;min-height:40px;border:none;background:none;padding:0;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer">{{ peekLabel }}</button></sc-if>
       </div>
       <sc-if value="{{ bd.showAsst }}" hint-placeholder-val="{{ false }}">
@@ -701,8 +724,8 @@ textarea:focus,input:focus{outline:none}
             </label>
             <sc-if value="{{ bd.hasRenameErr }}" hint-placeholder-val="{{ false }}"><span role="alert" style="font-size:14px;color:#B33A2E">{{ bd.renameErr }}</span></sc-if>
             <div style="display:flex;gap:8px">
-              <button onClick="{{ bd.saveRename }}" style="height:40px;padding:0 16px;border-radius:999px;border:1px solid #1A56C4;background:#fff;color:#1A56C4;font-size:14px;font-weight:600;cursor:pointer">Save</button>
-              <button onClick="{{ bd.cancelRename }}" style="height:40px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;cursor:pointer">Cancel</button>
+              <button onClick="{{ bd.saveRename }}" style="height:40px;padding:0 16px;border-radius:8px;border:1px solid #1A56C4;background:#fff;color:#1A56C4;font-size:14px;font-weight:600;cursor:pointer">Save</button>
+              <button onClick="{{ bd.cancelRename }}" style="height:40px;padding:0 14px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;cursor:pointer">Cancel</button>
             </div>
           </sc-if>
         </div>
@@ -712,7 +735,7 @@ textarea:focus,input:focus{outline:none}
           <span style="font-size:14px;color:#4A525C">Automatic reminders</span>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
             <span style="font-size:14px">{{ bd.remindLine }}</span>
-            <button onClick="{{ bd.toggleRemind }}" role="switch" aria-checked="{{ bd.remindOnStr }}" aria-label="Automatic reminders" style="flex:none;width:48px;height:28px;border-radius:999px;border:none;background:{{ bd.remindBg }};position:relative;cursor:pointer"><span style="position:absolute;top:3px;left:{{ bd.remindKnob }};width:22px;height:22px;border-radius:999px;background:#fff"></span></button>
+            <button onClick="{{ bd.toggleRemind }}" role="switch" aria-checked="{{ bd.remindOnStr }}" aria-label="Automatic reminders" style="flex:none;width:48px;height:28px;border-radius:8px;border:none;background:{{ bd.remindBg }};position:relative;cursor:pointer"><span style="position:absolute;top:3px;left:{{ bd.remindKnob }};width:22px;height:22px;border-radius:999px;background:#fff"></span></button>
           </div>
           <span style="font-size:14px;color:#6B737D;line-height:1.5">Counts and a link only. Reminders never include what is in the documents.</span>
         </div>
@@ -726,15 +749,15 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isDocs }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1240px;margin:0;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:24px">
+  <main style="max-width:1240px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:24px">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
       <div><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">Documents</h1><p style="margin:6px 0 0;font-size:14px;color:#4A525C">{{ docSummary }}</p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="file" multiple="multiple" id="hv-file" onChange="{{ onFiles }}" style="display:none">
-        <label for="hv-file" tabindex="0" style="height:40px;padding:0 16px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#F4F6F8">
+        <label for="hv-file" tabindex="0" style="height:40px;padding:0 16px;border-radius:8px;border:1px solid #E3E6EA;background:#fff;font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px" style-hover="background:#F4F6F8">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>Add files</label>
         <sc-if value="{{ notLoaded }}" hint-placeholder-val="{{ false }}">
-          <button onClick="{{ loadSample }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#164AA8">Load synthetic sample documents</button>
+          <button onClick="{{ loadSample }}" style="height:40px;padding:0 16px;border-radius:8px;border:none;background:#1A56C4;color:#fff;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#164AA8">Load synthetic sample documents</button>
         </sc-if>
       </div>
     </div>
@@ -756,20 +779,20 @@ textarea:focus,input:focus{outline:none}
     </sc-if>
 
     <sc-if value="{{ hasDocRows }}" hint-placeholder-val="{{ false }}">
-      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:auto">
+      <div style="border:1px solid #E6E9ED;border-radius:14px;background:#fff;overflow:auto">
         <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:860px">
           <thead><tr style="background:#F4F6F8;text-align:left;color:#4A525C;font-size:12.5px">
-            <th style="padding:12px 16px;font-weight:500">File</th><th style="padding:12px 16px;font-weight:500">Identified as</th><th style="padding:12px 16px;font-weight:500">Period</th><th style="padding:12px 16px;font-weight:500">Pages</th><th style="padding:12px 16px;font-weight:500">Read</th><th style="padding:12px 16px;font-weight:500">Status</th><th style="padding:12px 16px;font-weight:500">Notes</th>
+            <th style="padding:12px 16px;font-weight:500">File</th><th style="padding:12px 16px;font-weight:500;width:200px">Identified as</th><th style="padding:12px 16px;font-weight:500">Period</th><th style="padding:12px 16px;font-weight:500">Pages</th><th style="padding:12px 16px;font-weight:500">Read</th><th style="padding:12px 16px;font-weight:500">Status</th><th style="padding:12px 16px;font-weight:500">Notes</th>
           </tr></thead>
           <tbody>
             <sc-for list="{{ docRows }}" as="d" hint-placeholder-count="6">
               <tr onClick="{{ d.onClick }}" style="border-top:1px solid #E3E6EA;cursor:pointer;opacity:{{ d.op }}" style-hover="background:#FAFBFC">
                 <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B737D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg><span style="font-weight:500">{{ d.file }}</span></div></td>
-                <td style="padding:12px 16px;color:#4A525C">{{ d.type }}</td>
+                <td style="padding:12px 16px;color:#4A525C;min-width:190px">{{ d.type }}</td>
                 <td style="padding:12px 16px;color:#4A525C;white-space:nowrap">{{ d.period }}</td>
                 <td style="padding:12px 16px;color:#4A525C">{{ d.pages }}</td>
                 <td style="padding:12px 16px"><div style="display:flex;align-items:center;gap:8px"><div style="width:56px;height:4px;border-radius:999px;background:#E3E6EA;overflow:hidden"><div style="height:100%;width:{{ d.covW }};background:#2FA35A"></div></div><span style="font-size:12.5px;color:#4A525C">{{ d.cov }}</span></div></td>
-                <td style="padding:12px 16px"><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ d.sBg }};color:{{ d.sFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">{{ d.status }}</span></td>
+                <td style="padding:12px 16px"><span class="hfy-pill" style="height:24px;padding:0 10px;border-radius:999px;background:{{ d.sBg }};color:{{ d.sFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;white-space:nowrap">{{ d.status }}</span></td>
                 <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ d.flags }}" as="f" hint-placeholder-count="0"><span style="height:22px;padding:0 8px;border-radius:7px;background:{{ f.bg }};color:{{ f.fg }};font-size:12.5px;display:inline-flex;align-items:center;white-space:nowrap">{{ f.t }}</span></sc-for></div></td>
               </tr>
             </sc-for>
@@ -787,7 +810,7 @@ textarea:focus,input:focus{outline:none}
     </sc-if>
 
     <sc-if value="{{ hasMatrix }}" hint-placeholder-val="{{ false }}">
-      <div style="border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:16px">
+      <div style="border:1px solid #E6E9ED;border-radius:14px;background:#fff;padding:24px;display:flex;flex-direction:column;gap:16px">
         <div><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">{{ mx.title }}</h2><div style="font-size:14px;color:#4A525C;margin-top:4px">{{ mx.sub }}. Select a cell to see the documents behind it.</div></div>
         <div style="overflow:auto">
           <div style="display:grid;grid-template-columns:{{ mx.grid }};gap:6px;min-width:620px">
@@ -795,20 +818,20 @@ textarea:focus,input:focus{outline:none}
             <sc-for list="{{ mx.cols }}" as="c" hint-placeholder-count="5"><div style="font-size:12.5px;color:#6B737D;padding:8px 10px">{{ c.t }}</div></sc-for>
             <sc-for list="{{ mx.cells }}" as="c" hint-placeholder-count="12">
               <sc-if value="{{ c.isHead }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;font-weight:500;display:flex;align-items:center">{{ c.t }}</div></sc-if>
-              <sc-if value="{{ c.isCell }}" hint-placeholder-val="{{ true }}"><button onClick="{{ c.onClick }}" style="height:48px;border-radius:12px;border:2px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }};font-size:14px;font-weight:500;text-align:left;padding:0 12px;cursor:pointer" style-hover="filter:brightness(0.97)">{{ c.t }}</button></sc-if>
+              <sc-if value="{{ c.isCell }}" hint-placeholder-val="{{ true }}"><button onClick="{{ c.onClick }}" style="height:40px;border-radius:8px;border:2px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }};font-size:14px;font-weight:500;text-align:left;padding:0 12px;cursor:pointer" style-hover="filter:brightness(0.97)">{{ c.t }}</button></sc-if>
             </sc-for>
           </div>
         </div>
         <sc-if value="{{ hasCell }}" hint-placeholder-val="{{ false }}">
           <div style="background:#F4F6F8;border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-weight:600">{{ cell.title }}</span><span style="height:24px;padding:0 10px;border-radius:999px;background:{{ cell.bg }};color:{{ cell.fg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center">{{ cell.state }}</span></div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-weight:600">{{ cell.title }}</span><span class="hfy-pill" style="height:24px;padding:0 10px;border-radius:999px;background:{{ cell.bg }};color:{{ cell.fg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center">{{ cell.state }}</span></div>
             <div style="font-size:14px;line-height:1.55;color:#1F2328">{{ cell.note }}</div>
             <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
               <span style="font-size:12.5px;color:#6B737D">{{ cell.docLabel }}</span>
               <sc-for list="{{ cell.docs }}" as="d" hint-placeholder-count="1"><button onClick="{{ d.onClick }}" style="height:28px;padding:0 10px;border-radius:7px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">{{ d.file }}</button></sc-for>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ cell.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
-            <sc-if value="{{ cell.hasEx }}" hint-placeholder-val="{{ false }}"><div><button onClick="{{ cell.openEx }}" style="height:36px;padding:0 14px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">Open the related issue</button></div></sc-if>
+            <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ cell.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div>
+            <sc-if value="{{ cell.hasEx }}" hint-placeholder-val="{{ false }}"><div><button onClick="{{ cell.openEx }}" style="height:36px;padding:0 14px;border-radius:8px;border:1px solid #E3E6EA;background:#fff;font-size:14px;cursor:pointer" style-hover="border-color:#3B7CF6">Open the related issue</button></div></sc-if>
           </div>
         </sc-if>
       </div>
@@ -817,12 +840,12 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isStudy }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1240px;margin:0;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:20px">
+  <main style="max-width:1240px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:20px">
     <sc-if value="{{ studyEmpty }}" hint-placeholder-val="{{ false }}">
       <div style="border:1px dashed #C9CED5;border-radius:20px;padding:56px 32px;display:flex;flex-direction:column;gap:14px;align-items:flex-start">
         <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500">Your Study builds once documents are read</div>
         <div style="color:#4A525C;font-size:14px;line-height:1.55;max-width:560px">Goal: {{ goal }}</div>
-        <button onClick="{{ toDocs }}" style="height:44px;padding:0 18px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">Go to Documents</button>
+        <button onClick="{{ toDocs }}" style="height:40px;padding:0 18px;border-radius:8px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">Go to Documents</button>
       </div>
     </sc-if>
     <sc-if value="{{ studyFull }}" hint-placeholder-val="{{ true }}">
@@ -830,14 +853,14 @@ textarea:focus,input:focus{outline:none}
       <sc-if value="{{ isFacts }}" hint-placeholder-val="{{ false }}">
         <div style="max-width:680px;min-width:0;display:flex;align-items:center;gap:8px;min-height:48px;padding:0 4px 0 6px;border:1px solid #E3E6EA;border-radius:999px;background:#fff">
                     <input value="{{ qText }}" onChange="{{ onQ }}" onKeyDown="{{ onQKey }}" aria-label="Add a question for the next study build" placeholder="Add a question for the next study build" style="flex:1;min-width:0;height:40px;border:none;background:transparent;font-size:14px;color:#1F2328">
-          <button onClick="{{ addQuestion }}" style="flex:none;height:40px;padding:0 14px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap" style-hover="background:#E3E6EA">Add question</button>
+          <button onClick="{{ addQuestion }}" style="flex:none;height:40px;padding:0 14px;border-radius:8px;background:#fff;border:1px solid #DDE1E6;color:#1F2328;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap" style-hover="background:#F4F6F8">Add question</button>
         </div>
       </sc-if>
     <sc-if value="{{ hasQSaved }}" hint-placeholder-val="{{ false }}">
       <div role="status" style="padding:0;font-size:14px;color:#197040">Saved. Your next study build uses this question.</div>
     </sc-if>
       <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
-      <section style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+      <section style="border:1px solid #E6E9ED;border-radius:14px;background:#fff;overflow:hidden">
         <div style="padding:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
           <div style="display:flex;flex-direction:column;gap:10px">
             <div style="font-size:14px;font-weight:600;color:#4A525C">What we’re working toward</div>
@@ -848,7 +871,7 @@ textarea:focus,input:focus{outline:none}
         <div style="border-top:1px solid #E3E6EA;background:#F4F6F8;padding:16px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
           <span style="font-size:14px;font-weight:600;color:#4A525C">Next</span>
           <span style="font-size:14px;flex:1;min-width:240px">{{ nba.text }}</span>
-          <sc-if value="{{ nba.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nba.onClick }}" style="height:40px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nba.btn }}</button></sc-if>
+          <sc-if value="{{ nba.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nba.onClick }}" style="height:40px;padding:0 16px;border-radius:8px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nba.btn }}</button></sc-if>
         </div>
       </section>
 
@@ -856,12 +879,12 @@ textarea:focus,input:focus{outline:none}
         <span style="font-weight:500">Accepted Study: {{ revLabel }}</span>
         <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}">
           <span style="color:#7A5200;background:#FEF3D6;border-radius:999px;padding:3px 10px;font-size:14px">{{ pendingLabel }}</span>
-          <button onClick="{{ acceptStudy }}" style="height:32px;padding:0 12px;border-radius:12px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E8F0FE">{{ acceptLabel }}</button>
+          <button onClick="{{ acceptStudy }}" style="height:32px;padding:0 12px;border-radius:8px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:#E8F0FE">{{ acceptLabel }}</button>
         </sc-if>
         <button onClick="{{ toggleRevs }}" style="border:none;background:none;color:#4A525C;font-size:14px;cursor:pointer;text-decoration:underline">{{ revsToggle }}</button>
       </div>
       <sc-if value="{{ showRevs }}" hint-placeholder-val="{{ false }}">
-        <div style="border:1px solid #E3E6EA;border-radius:20px;padding:20px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px">
+        <div style="border:1px solid #E6E9ED;border-radius:14px;background:#fff;padding:20px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px">
           <div style="display:flex;flex-direction:column;gap:10px">
             <div style="font-size:14px;font-weight:600;color:#4A525C">Study revisions</div>
             <sc-for list="{{ revs }}" as="r" hint-placeholder-count="3"><div style="display:flex;gap:12px;font-size:14px"><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#6B737D;width:48px;padding-top:2px">rev {{ r.rev }}</span><span style="color:#6B737D;width:56px">{{ r.date }}</span><span>{{ r.note }}</span></div></sc-for>
@@ -878,14 +901,14 @@ textarea:focus,input:focus{outline:none}
       <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start">
 
         <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
-        <section style="order:{{ ord.plan }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <section style="order:{{ ord.plan }};border:1px solid #E6E9ED;border-radius:14px;background:#fff;overflow:hidden">
           <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:1px solid #E3E6EA">
             <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">Steps</h2>
             <span style="font-size:14px;color:#4A525C">{{ planDone }}</span>
           </div>
           <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="6">
             <button onClick="{{ t.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:{{ t.rowBg }};padding:16px 24px;cursor:pointer;display:grid;grid-template-columns:108px minmax(0,1fr);gap:14px;color:#1F2328" style-hover="background:#FAFBFC">
-              <span style="height:24px;padding:0 10px;border-radius:999px;background:{{ t.bBg }};color:{{ t.bFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-self:start;white-space:nowrap">{{ t.badge }}</span>
+              <span class="hfy-pill" style="height:24px;padding:0 10px;border-radius:999px;background:{{ t.bBg }};color:{{ t.bFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;justify-self:start;white-space:nowrap">{{ t.badge }}</span>
               <span style="display:flex;flex-direction:column;gap:4px;min-width:0">
                 <span style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><span style="font-weight:500;font-size:14px">{{ t.title }}</span><span style="font-size:12.5px;color:#6B737D">{{ t.by }}</span></span>
                 <span style="font-size:14px;color:#4A525C;line-height:1.45">{{ t.line }}</span>
@@ -897,22 +920,22 @@ textarea:focus,input:focus{outline:none}
         </sc-if>
 
         <sc-if value="{{ isExc }}" hint-placeholder-val="{{ false }}">
-        <section style="order:{{ ord.exceptions }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <section style="order:{{ ord.exceptions }};border:1px solid #E6E9ED;border-radius:14px;background:#fff;overflow:hidden">
           <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #E3E6EA">
             <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">Items</h2>
             <div style="display:flex;gap:4px;flex-wrap:wrap">
-              <sc-for list="{{ exFilters }}" as="f" hint-placeholder-count="4"><button onClick="{{ f.onClick }}" style="height:28px;padding:0 10px;border-radius:999px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};font-size:12.5px;cursor:pointer">{{ f.label }}</button></sc-for>
+              <sc-for list="{{ exFilters }}" as="f" hint-placeholder-count="4"><button onClick="{{ f.onClick }}" style="height:28px;padding:0 10px;border-radius:8px;border:1px solid {{ f.bd }};background:{{ f.bg }};color:{{ f.fg }};font-size:12.5px;cursor:pointer">{{ f.label }}</button></sc-for>
             </div>
           </div>
           <sc-for list="{{ exRows }}" as="x" hint-placeholder-count="5">
             <div onClick="{{ x.onClick }}" style="border-bottom:1px solid #E3E6EA;padding:16px 24px;cursor:pointer;display:flex;flex-direction:column;gap:8px;opacity:{{ x.op }}" style-hover="background:#FAFBFC">
               <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                <span style="height:22px;padding:0 8px;border-radius:999px;background:{{ x.kBg }};color:{{ x.kFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center">{{ x.kind }}</span>
+                <span class="hfy-pill" style="height:22px;padding:0 8px;border-radius:999px;background:{{ x.kBg }};color:{{ x.kFg }};font-size:12.5px;font-weight:500;display:inline-flex;align-items:center">{{ x.kind }}</span>
                 <span style="font-weight:500;font-size:14px;flex:1;min-width:200px">{{ x.title }}</span>
                 <sc-if value="{{ x.hasStatus }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;color:#197040;display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>{{ x.status }}</span></sc-if>
               </div>
               <div style="font-size:14px;color:#4A525C;line-height:1.45">{{ x.why }}</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ x.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ x.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div>
             </div>
           </sc-for>
           <sc-if value="{{ exNone }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;font-size:14px;color:#6B737D">Nothing in this view.</div></sc-if>
@@ -920,7 +943,7 @@ textarea:focus,input:focus{outline:none}
         </sc-if>
 
         <sc-if value="{{ isFacts }}" hint-placeholder-val="{{ false }}">
-        <section style="order:{{ ord.compare }};grid-column:1 / -1;border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <section style="order:{{ ord.compare }};grid-column:1 / -1;border:1px solid #E6E9ED;border-radius:14px;background:#fff;overflow:hidden">
           <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">{{ cmp.title }}</h2><div style="font-size:14px;color:#4A525C;margin-top:4px">{{ cmp.sub }}</div></div>
           <div style="overflow:auto">
             <table style="width:100%;border-collapse:collapse;font-size:14px;min-width:760px">
@@ -929,8 +952,8 @@ textarea:focus,input:focus{outline:none}
                 <sc-for list="{{ cmp.rows }}" as="r" hint-placeholder-count="4">
                   <tr onClick="{{ r.onClick }}" style="border-top:1px solid #E3E6EA;cursor:{{ r.cur }};font-weight:{{ r.fw }}" style-hover="background:#FAFBFC">
                     <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4"><td style="padding:12px 16px">{{ c.t }}</td></sc-for>
-                    <td style="padding:12px 16px"><span style="padding:3px 10px;border-radius:999px;background:{{ r.rBg }};color:{{ r.rFg }};font-size:12.5px;font-weight:500;white-space:nowrap">{{ r.result }}</span></td>
-                    <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></td>
+                    <td style="padding:12px 16px"><span class="hfy-pill" style="padding:3px 10px;border-radius:999px;background:{{ r.rBg }};color:{{ r.rFg }};font-size:12.5px;font-weight:500;white-space:nowrap">{{ r.result }}</span></td>
+                    <td style="padding:12px 16px"><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div></td>
                   </tr>
                 </sc-for>
               </tbody>
@@ -940,7 +963,7 @@ textarea:focus,input:focus{outline:none}
         </sc-if>
 
         <sc-if value="{{ isFacts }}" hint-placeholder-val="{{ false }}">
-        <section style="order:{{ ord.understand }};grid-column:1 / -1;border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:20px">
+        <section style="order:{{ ord.understand }};grid-column:1 / -1;border:1px solid #E6E9ED;border-radius:14px;background:#fff;padding:24px;display:flex;flex-direction:column;gap:20px">
           <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">What Hive understands</h2>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
             <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="3">
@@ -948,7 +971,7 @@ textarea:focus,input:focus{outline:none}
                 <div style="font-size:14px;color:#4A525C">{{ m.label }}</div>
                 <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500;line-height:1.1">{{ m.value }}</div>
                 <div style="font-size:12.5px;color:#6B737D">{{ m.sub }}</div>
-                <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ m.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ m.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div>
               </div>
             </sc-for>
           </div>
@@ -958,7 +981,7 @@ textarea:focus,input:focus{outline:none}
                 <div style="font-size:14px;font-weight:600;color:{{ g.fg }}">{{ g.title }}</div>
                 <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="2">
                   <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;line-height:1.5;max-width:64ch">{{ i.text }}</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ i.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ i.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div>
                   </div>
                 </sc-for>
               </div>
@@ -968,20 +991,20 @@ textarea:focus,input:focus{outline:none}
         </sc-if>
 
         <sc-if value="{{ isTimeline }}" hint-placeholder-val="{{ false }}">
-        <section style="order:{{ ord.timeline }};border:1px solid #E3E6EA;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:4px">
+        <section style="order:{{ ord.timeline }};border:1px solid #E6E9ED;border-radius:14px;background:#fff;padding:24px;display:flex;flex-direction:column;gap:4px">
           <h2 style="margin:0 0 12px;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">Timeline</h2>
           <sc-for list="{{ timeline }}" as="e" hint-placeholder-count="5">
             <div style="display:grid;grid-template-columns:112px 14px minmax(0,1fr);gap:12px;align-items:start">
               <div style="font-size:14px;color:#4A525C;padding-top:1px">{{ e.date }}</div>
               <div style="display:flex;flex-direction:column;align-items:center;align-self:stretch"><span style="width:10px;height:10px;border-radius:50%;border:2px solid #3B7CF6;background:#fff;margin-top:4px"></span><span style="flex:1;width:2px;background:#E3E6EA"></span></div>
-              <div style="display:flex;flex-direction:column;gap:6px;padding-bottom:16px"><div style="font-size:14px">{{ e.text }}</div><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ e.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:24px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></div>
+              <div style="display:flex;flex-direction:column;gap:6px;padding-bottom:16px"><div style="font-size:14px">{{ e.text }}</div><div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ e.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div></div>
             </div>
           </sc-for>
         </section>
         </sc-if>
 
         <sc-if value="{{ isPlan }}" hint-placeholder-val="{{ false }}">
-        <section style="order:{{ ord.ops }};border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+        <section style="order:{{ ord.ops }};border:1px solid #E6E9ED;border-radius:14px;background:#fff;overflow:hidden">
           <div style="padding:20px 24px;border-bottom:1px solid #E3E6EA;display:flex;justify-content:space-between;gap:12px;align-items:baseline"><h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:16px">Completed operations</h2><span style="font-size:12.5px;color:#6B737D">Simulated in this prototype</span></div>
           <sc-for list="{{ ops }}" as="o" hint-placeholder-count="5">
             <button onClick="{{ o.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;background:#fff;padding:14px 24px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;color:#1F2328" style-hover="background:#FAFBFC">
@@ -997,21 +1020,21 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isReports }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:1320px;margin:0;padding:28px clamp(16px,3vw,32px) 64px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px;align-items:start">
+  <main style="max-width:1320px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px;align-items:start">
     <aside style="display:flex;flex-direction:column;gap:16px;max-width:380px">
       <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">Reports</h1>
-      <div style="border:1px solid #E3E6EA;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div style="border:1px solid #E6E9ED;border-radius:14px;background:#fff;padding:20px;display:flex;flex-direction:column;gap:12px">
         <div style="font-size:14px;font-weight:600;color:#4A525C">Work product</div>
         <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500;line-height:1.3">{{ deliverable }}</div>
-        <button onClick="{{ generate }}" disabled="{{ genDisabled }}" style="height:44px;padding:0 16px;border-radius:12px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer;text-align:left;opacity:{{ genOp }}" style-hover="background:#164AA8">Generate from accepted Study</button>
+        <button onClick="{{ generate }}" disabled="{{ genDisabled }}" style="height:40px;padding:0 16px;border-radius:8px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer;text-align:left;opacity:{{ genOp }}" style-hover="background:#164AA8">Generate from accepted Study</button>
         <sc-if value="{{ hasGenReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#7A5200;line-height:1.45">{{ genReason }}</div></sc-if>
-        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}"><button onClick="{{ acceptStudy }}" style="height:36px;padding:0 12px;border-radius:12px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer;text-align:left" style-hover="background:#E8F0FE">{{ acceptLabel }}</button></sc-if>
+        <sc-if value="{{ hasPending }}" hint-placeholder-val="{{ false }}"><button onClick="{{ acceptStudy }}" style="height:36px;padding:0 12px;border-radius:8px;border:1px solid #3B7CF6;background:#fff;color:#1A56C4;font-size:14px;font-weight:500;cursor:pointer;text-align:left" style-hover="background:#E8F0FE">{{ acceptLabel }}</button></sc-if>
       </div>
-      <div style="border:1px solid #E3E6EA;border-radius:20px;overflow:hidden">
+      <div style="border:1px solid #E6E9ED;border-radius:14px;background:#fff;overflow:hidden">
         <div style="padding:14px 20px;font-size:14px;font-weight:600;color:#4A525C;border-bottom:1px solid #E3E6EA">Report history</div>
         <sc-for list="{{ repList }}" as="r" hint-placeholder-count="1">
           <button onClick="{{ r.onClick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid #E3E6EA;border-left:3px solid {{ r.bd }};background:{{ r.bg }};padding:12px 20px;cursor:pointer;display:flex;flex-direction:column;gap:4px;color:#1F2328" style-hover="background:#FAFBFC">
-            <span style="display:flex;gap:8px;align-items:center"><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">v{{ r.v }}</span><span style="padding:2px 8px;border-radius:999px;background:{{ r.sBg }};color:{{ r.sFg }};font-size:12.5px;font-weight:500">{{ r.state }}</span></span>
+            <span style="display:flex;gap:8px;align-items:center"><span style="font-family:'JetBrains Mono',monospace;font-size:12.5px">v{{ r.v }}</span><span class="hfy-pill" style="padding:2px 8px;border-radius:999px;background:{{ r.sBg }};color:{{ r.sFg }};font-size:12.5px;font-weight:500">{{ r.state }}</span></span>
             <span style="font-size:12.5px;color:#6B737D">{{ r.meta }}</span>
           </button>
         </sc-for>
@@ -1030,15 +1053,15 @@ textarea:focus,input:focus{outline:none}
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span style="font-size:12.5px;color:#6B737D">PDF export isn’t simulated</span>
-            <button disabled="disabled" style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #E3E6EA;background:#fff;font-size:14px;opacity:.45;cursor:not-allowed">Download PDF</button>
-            <button onClick="{{ markReviewed }}" disabled="{{ revDisabled }}" style="height:40px;padding:0 14px;border-radius:12px;border:1px solid #2FA35A;background:#fff;color:#197040;font-size:14px;font-weight:500;cursor:pointer;opacity:{{ revOp }}" style-hover="background:#E6F4EA">Mark as reviewed</button>
+            <button disabled="disabled" style="height:40px;padding:0 14px;border-radius:8px;border:1px solid #E3E6EA;background:#fff;font-size:14px;opacity:.45;cursor:not-allowed">Download PDF</button>
+            <button onClick="{{ markReviewed }}" disabled="{{ revDisabled }}" style="height:40px;padding:0 14px;border-radius:8px;border:1px solid #2FA35A;background:#fff;color:#197040;font-size:14px;font-weight:500;cursor:pointer;opacity:{{ revOp }}" style-hover="background:#E6F4EA">Mark as reviewed</button>
           </div>
         </div>
         <sc-if value="{{ hasRevReason }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#4A525C;text-align:right">{{ revReason }}</div></sc-if>
 
-        <article style="background:#fff;border:1px solid #E3E6EA;border-radius:20px;box-shadow:0 12px 40px rgba(31,35,40,.06);padding:clamp(24px,4vw,48px);display:flex;flex-direction:column;gap:28px">
+        <article style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;background:#fff;box-shadow:0 12px 40px rgba(31,35,40,.06);padding:clamp(24px,4vw,48px);display:flex;flex-direction:column;gap:28px">
           <header style="display:flex;flex-direction:column;gap:12px;border-bottom:2px solid #1F2328;padding-bottom:20px">
-            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;color:#4A525C"><span>{{ rep.kicker }}</span><span style="padding:2px 10px;border-radius:999px;background:{{ rep.sBg }};color:{{ rep.sFg }};font-weight:500;font-size:12.5px">{{ rep.state }}</span></div>
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;color:#4A525C"><span>{{ rep.kicker }}</span><span class="hfy-pill" style="padding:2px 10px;border-radius:999px;background:{{ rep.sBg }};color:{{ rep.sFg }};font-weight:500;font-size:12.5px">{{ rep.state }}</span></div>
             <h2 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:clamp(26px,3vw,34px);line-height:1.15">{{ rep.title }}</h2>
             <div style="font-size:14px;color:#4A525C">{{ rep.hive }}</div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;background:#F4F6F8;border-radius:12px;padding:14px 16px;font-size:14px">
@@ -1055,7 +1078,7 @@ textarea:focus,input:focus{outline:none}
                   <thead><tr style="background:#F4F6F8;text-align:left;color:#4A525C;font-size:12.5px"><sc-for list="{{ sec.headers }}" as="h" hint-placeholder-count="3"><th style="padding:9px 12px;font-weight:500">{{ h.t }}</th></sc-for></tr></thead>
                   <tbody><sc-for list="{{ sec.rows }}" as="r" hint-placeholder-count="3"><tr style="border-top:1px solid #E3E6EA;vertical-align:top">
                     <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="3"><td style="padding:9px 12px;line-height:1.45">{{ c.t }}</td></sc-for>
-                    <td style="padding:9px 12px"><div style="display:flex;flex-wrap:wrap;gap:4px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:22px;padding:0 7px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></td>
+                    <td style="padding:9px 12px"><div style="display:flex;flex-wrap:wrap;gap:4px"><sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div></td>
                   </tr></sc-for></tbody>
                 </table>
               </div>
@@ -1072,7 +1095,7 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isNotes }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:760px;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:18px">
+  <main style="max-width:760px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:18px">
     <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">Team notes</h1><p style="margin:0;font-size:14px;color:#4A525C">Only people at {{ b3.firmName }} see these. Never shown to {{ b3.clientName }}.</p></div>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <span class="hfy-eyebrow" style="padding:0 2px">{{ b3.notesHead }}</span>
@@ -1095,7 +1118,7 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isActivity }}" hint-placeholder-val="{{ false }}">
-  <main style="max-width:860px;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:18px">
+  <main style="max-width:860px;margin:0 auto;padding:28px clamp(16px,3vw,32px) 64px;display:flex;flex-direction:column;gap:18px">
     <div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px">What happened</h1><p style="margin:0;font-size:14px;color:#4A525C">Every action on this hive, newest first, with who did it.</p></div>
     <sc-if value="{{ noActAll }}" hint-placeholder-val="{{ false }}"><p style="margin:0;color:#4A525C">Nothing yet.</p></sc-if>
     <div style="display:flex;flex-direction:column">
@@ -1334,7 +1357,7 @@ textarea:focus,input:focus{outline:none}
               <div style="display:flex;flex-direction:column;gap:6px">
                 <h2 style="margin:0;font-size:20px;font-weight:500;color:#1A56C4">{{ f.title }}</h2>
                 <p style="margin:0;line-height:1.55">{{ f.detail }}</p>
-                <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ f.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:26px;padding:0 8px;border-radius:7px;background:#FFF6DC;border:1px solid #1F2328;color:#1F2328;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ f.chips }}" as="c" hint-placeholder-count="1"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div>
               </div>
             </sc-for>
           </sc-if>
@@ -1384,7 +1407,7 @@ textarea:focus,input:focus{outline:none}
       </sc-for>
       <sc-if value="{{ dr.hasChips }}" hint-placeholder-val="{{ false }}">
         <div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:12.5px;font-weight:600;color:#4A525C">{{ dr.chipsLabel }}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ dr.chips }}" as="c" hint-placeholder-count="2"><button onClick="{{ c.open }}" style="height:26px;padding:0 9px;border-radius:7px;background:#FFF6DC;border:1px solid #F3DFA2;color:#7A5200;font:500 12px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#FEEDB8">{{ c.label }}</button></sc-for></div></div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ dr.chips }}" as="c" hint-placeholder-count="2"><button onClick="{{ c.open }}" style="height:22px;padding:0 6px;border-radius:6px;border:none;background:#F1F5FD;color:#1A56C4;font:500 12.5px 'JetBrains Mono',ui-monospace,monospace;cursor:pointer;white-space:nowrap" style-hover="background:#E3ECFC">{{ c.label }}</button></sc-for></div></div>
       </sc-if>
       <sc-if value="{{ dr.hasCalc }}" hint-placeholder-val="{{ false }}">
         <div style="border:1px solid #E3E6EA;border-radius:12px;overflow:hidden">
@@ -2090,6 +2113,7 @@ class Component extends DCLogic {
     v.headLogoVis = v.isHome && u && u.role !== 'professional' ? 'hidden' : 'visible';
     v.homeProHeader = v.isHome && !!u && u.role === 'professional';
     v.headBd = v.isApp || v.homeProHeader ? '1px solid #E3E6EA' : '1px solid transparent';
+    v.headBg = v.isApp ? 'linear-gradient(to right, #fff 235px, #E3E6EA 235px, #E3E6EA 236px, #fff 236px)' : '#fff'; v.logoW = v.isApp ? 'calc(236px - clamp(16px,3vw,28px) - 20px)' : 'auto';
     const goHome = () => this.setState({ screen: u ? 'home' : 'landing', drawer: null, viewer: null, menuOpen: false, qSaved: false, cv: null, pv: null });
     v.goHome = goHome; v.goHives = goHome;
     v.goLanding = () => this.setState({ screen: 'landing', drawer: null });
@@ -2564,7 +2588,7 @@ class Component extends DCLogic {
       if (l.pending) needs.push({ kind: 'Study', kfg: '#7A5200', title: l.pending + (l.pending === 1 ? ' decision is' : ' decisions are') + ' not yet in the Study', detail: 'Accept to build revision ' + (l.rev + 1) + '. The source documents never change.', f1: () => this.acceptStudy(), a1: 'Accept into Study' });
       ovOpen.filter(x => x.kind !== 'missing').forEach(x => needs.push({ kind: this.KD[x.kind][0], kfg: this.KD[x.kind][2], title: x.title, detail: x.detail, chips: this.chips(scen, x.ev), f1: () => openDrawer('ex', x.id), a1: 'Review' }));
       if (v.readyLines && v.readyLines[1] && v.readyLines[1].k === 'Need you') v.readyLines[1] = { k: 'Need you', v: String(needs.length) };
-      v.bd.needs = needs.map((n, i) => ({ ...n, hasKind: n.kind !== 'Needs you', chips: n.chips || [], hasChips: !!(n.chips && n.chips.length), hasA2: !!n.a2, f2: n.f2 || noop, a2: n.a2 || '', b1bg: i === 0 ? '#1A56C4' : '#F4F6F8', b1fg: i === 0 ? '#fff' : '#1F2328' }));
+      v.bd.needs = needs.map((n, i) => ({ ...n, hasKind: n.kind !== 'Needs you', chips: n.chips || [], hasChips: !!(n.chips && n.chips.length), hasA2: !!n.a2, f2: n.f2 || noop, a2: n.a2 || '', b1bg: i === 0 ? '#1A56C4' : '#fff', b1fg: i === 0 ? '#fff' : '#1F2328' }));
       v.bd.hasNeeds = needs.length > 0;
       v.bd.showNext = needs.length === 0;
 
@@ -2663,16 +2687,18 @@ class Component extends DCLogic {
       v.isNotes = st.tab === 'notes' && three; v.isBoard3Hive = three; if (v.bd.showTeam) v.bd.cantTake = !v.bd.canTake; v.isActivity = st.tab === 'activity';
       if (st.tab === 'notes' && !three) v.isOverview = true;
       v.backLabel = proSeat ? 'All clients' : 'Your hives';
+      v.railIni = h.title.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+      v.pageName = { overview: 'Hive board', documents: 'Documents', notes: 'Team notes', facts: 'Facts', timeline: 'Timeline', exceptions: 'Missing and conflicts', study: 'Missing and conflicts', plan: 'Work plan', reports: 'Reports', activity: 'What happened' }[st.tab] || '';
       v.railSub = h.purpose || goal;
       const allActs0 = (l.activity || []).slice().reverse();
       v.actAll = allActs0.map(e => ({ t: e.t, who: e.who === this.me() ? 'You' : actor(e.who), txt: e.txt, whoFg: e.who === 'HiveForYou' ? '#1A56C4' : '#1F2328' }));
       v.noActAll = allActs0.length === 0;
       const tabCount = k => (v.tabs.find(t => t.key === k) || {}).count || '';
       const BLUE = ['#E8F0FE', '#1A56C4'], GREY = ['#EEF0F3', '#4A525C'];
-      const ri = (k, label, count, tone) => ({ label, go: () => this.setState({ tab: k, drawer: null, focus: null }), cur: (st.tab === 'study' ? 'exceptions' : st.tab) === k ? 'page' : 'false', count: String(count || ''), hasCount: !!count, cbg: (tone || GREY)[0], cfg: (tone || GREY)[1] });
+      const ri = (k, label, count, tone) => ({ key: k, label, go: () => this.setState({ tab: k, drawer: null, focus: null }), cur: (st.tab === 'study' ? 'exceptions' : st.tab) === k ? 'page' : 'false', count: String(count || ''), hasCount: !!count, cbg: (tone || GREY)[0], cfg: (tone || GREY)[1] });
       const nNotes = (l.notes || []).length;
       v.railGroups = [
-        { label: '', hasLabel: false, items: [ri('overview', 'Hive board', v.bd.needs.length, BLUE), ri('documents', 'Documents', tabCount('documents')), ri('facts', 'Facts', ''), ri('exceptions', 'Missing and conflicts', ''), ri('reports', 'Reports', tabCount('reports'))] },
+        { label: 'Hive', hasLabel: true, items: [ri('overview', 'Hive board', v.bd.needs.length, BLUE), ri('documents', 'Documents', tabCount('documents')), ri('facts', 'Facts', ''), ri('exceptions', 'Missing and conflicts', ''), ri('reports', 'Reports', tabCount('reports'))] },
         { label: 'More', hasLabel: true, items: [ri('timeline', 'Timeline', '')].concat(three ? [ri('notes', 'Team notes', nNotes)] : []).concat([ri('activity', 'What happened', ''), ri('plan', 'Work plan', '')]) }
       ];
       if (three) {
