@@ -2,7 +2,6 @@ import { HiveBoardPanel } from "@/components/hives/HiveBoardPanel";
 import { HiveBoardThreePane } from "@/components/hives/HiveBoardThreePane";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { requestCorrelationId } from "@/server/auth/action-support";
-import { loadLatestHandover, loadOpenHiveCounts, loadTeamNotes } from "@/server/firm/load-firm-board";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
@@ -43,13 +42,6 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
 
   const threePane = showsFirmThreePane(hive);
   const firm = threePane ? await loadFirm(auth.client) : null;
-  const [teamNotes, handover, openHiveCounts] = threePane
-    ? await Promise.all([
-        loadTeamNotes(auth.client, hive.id),
-        loadLatestHandover(auth.client, hive.id),
-        loadOpenHiveCounts(auth.client),
-      ])
-    : [[], null, {}] as const;
 
   return threePane && firm?.firm ? (
     <HiveBoardThreePane
@@ -57,10 +49,8 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
       currentUserId={auth.userId}
       board={loaded.board}
       firm={firm}
-      teamNotes={teamNotes}
-      handover={handover}
+      pollCorrelationId={correlationId}
       uploads={loaded.uploads}
-      openHiveCounts={openHiveCounts}
       documentLabels={documentLabels}
       initialPreparation={loaded.overview.preparation}
     />
@@ -75,6 +65,7 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
       board={loaded.board}
       documentLabels={documentLabels}
       initialPreparation={loaded.overview.preparation}
+      workspaceMode
     />
   );
 }

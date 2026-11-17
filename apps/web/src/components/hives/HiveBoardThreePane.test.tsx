@@ -4,7 +4,6 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
-
 import { HiveBoardPanel } from "./HiveBoardPanel";
 import { HiveBoardThreePane } from "./HiveBoardThreePane";
 
@@ -15,18 +14,17 @@ vi.mock("@/components/hives/useStudyPreparation", () => ({
     starting: false,
     active: false,
     rebuild: vi.fn(),
+    state: null,
   }),
 }));
 
 const HIVE_ID = "550e8400-e29b-41d4-a716-446655440000";
 const MARIA = "11111111-1111-4111-8111-111111111111";
-const DANA = "22222222-2222-4222-8222-222222222222";
 
 const firm: ListFirmResponse = {
   firm: { firmId: "33333333-3333-4333-8333-333333333333", name: "Rivera Law", assistantName: "Sarah", callerRole: "owner" },
   members: [
     { userId: MARIA, email: "maria@example.com", role: "owner", title: "Attorney", state: "active", joined: true, displayName: "Maria Alvarez" },
-    { userId: DANA, email: "dana@example.com", role: "member", title: "Paralegal", state: "active", joined: true, displayName: "Dana Cole" },
   ],
   pendingInvitations: [],
 };
@@ -38,11 +36,19 @@ const board: HiveBoardModel = {
   needs: [
     {
       kind: "conflict",
-      kindLabel: "Changed",
+      kindLabel: "Needs you",
       title: "Dates disagree",
       detail: "One record says May.",
       sourceChips: [],
-      action: { kind: "link", label: "Review", href: "/hives/x/study" },
+      action: { kind: "link", label: "Review", href: "/hives/x/missing" },
+    },
+    {
+      kind: "conflict",
+      kindLabel: "Changed",
+      title: "Another point",
+      detail: "Detail.",
+      sourceChips: [],
+      action: { kind: "link", label: "Open", href: "/hives/x/missing" },
     },
   ],
   next: null,
@@ -50,12 +56,7 @@ const board: HiveBoardModel = {
     { gapId: "X1", title: "Pay stubs", status: "not_in", statusText: "Not in yet.", action: { kind: "link", label: "Add it", href: "/docs" } },
     { gapId: "X2", title: "Lease", status: "in", statusText: "In.", action: { kind: "link", label: "Add it", href: "/docs" } },
   ],
-  activity: [
-    { at: "2026-11-01T00:00:00.000Z", atLabel: "Nov 1", actor: "You", text: "added a file" },
-    { at: "2026-11-02T00:00:00.000Z", atLabel: "Nov 2", actor: "HiveForYou", text: "read a page" },
-    { at: "2026-11-03T00:00:00.000Z", atLabel: "Nov 3", actor: "You", text: "saved the intent" },
-    { at: "2026-11-04T00:00:00.000Z", atLabel: "Nov 4", actor: "HiveForYou", text: "built the study" },
-  ],
+  activity: [],
   readiness: [],
   checklistNote: "1 of 2 in",
 };
@@ -71,9 +72,10 @@ function hive(overrides: Partial<Hive> = {}): Hive {
     createdAt: "2026-11-01T00:00:00.000Z",
     updatedAt: "2026-11-02T00:00:00.000Z",
     firmId: firm.firm?.firmId,
-    assigneeUserId: DANA,
-    assigneeDisplayName: "Dana Cole",
+    assigneeUserId: MARIA,
+    assigneeDisplayName: "Maria Alvarez",
     stage: "open",
+    clientShareStatus: "invited",
     membershipRole: "firm",
     isOwner: false,
     ...overrides,
@@ -87,38 +89,16 @@ function renderPane(overrides: Partial<Hive> = {}) {
       currentUserId={MARIA}
       board={board}
       firm={firm}
-      teamNotes={[
-        {
-          teamNoteId: "n1",
-          authorUserId: MARIA,
-          authorDisplayName: "Maria Alvarez",
-          body: "On stubs",
-          itemRef: "X1",
-          createdAt: "2026-11-02T00:00:00.000Z",
-        },
-        {
-          teamNoteId: "n2",
-          authorUserId: DANA,
-          authorDisplayName: "Dana Cole",
-          body: "General note",
-          itemRef: null,
-          createdAt: "2026-11-01T00:00:00.000Z",
-        },
-      ]}
-      handover={{ fromDisplayName: "Dana Cole", note: "Please review the dates.", createdAt: "2026-11-02T00:00:00.000Z" }}
-      uploads={[
-        { sourceDocumentId: "d1", fileName: "stubs.pdf", canonicalGapId: "X1", canonicalGapTitle: "Pay stubs" },
-        { sourceDocumentId: "d2", fileName: "lease.pdf", canonicalGapId: "X2", canonicalGapTitle: "Lease" },
-      ]}
-      openHiveCounts={{ [MARIA]: 2, [DANA]: 4 }}
+      uploads={[{ sourceDocumentId: "d1", fileName: "stubs.pdf", canonicalGapId: "X1", canonicalGapTitle: "Pay stubs" }]}
       documentLabels={{}}
     />,
   );
 }
 
-function filledActions(): HTMLElement[] {
-  return [...screen.queryAllByRole("link"), ...screen.queryAllByRole("button")].filter((element) =>
-    element.className.includes("bg-cell-blue-deep"),
+function primaryActions(): HTMLElement[] {
+  const mark = "bg-cell-blue-deep";
+  return [...screen.queryAllByRole("button"), ...screen.queryAllByRole("link")].filter((element) =>
+    element.className.includes(mark),
   );
 }
 
@@ -129,66 +109,35 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }),
-  );
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ hive: {} }) }));
 });
 
 describe("HiveBoardThreePane", () => {
-  it("renders three panes for firm staff and keeps the old board for an own hive", () => {
-    expect(showsFirmThreePane(hive())).toBe(true);
-    expect(showsFirmThreePane(hive({ kind: "own", firmId: null, membershipRole: "owner" }))).toBe(false);
-    expect(showsFirmThreePane(hive({ membershipRole: "client" }))).toBe(false);
-
+  it("renders two columns without the team pane", () => {
     renderPane();
-    expect(screen.getByRole("region", { name: "Your team" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: /Sarah.s table/ })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Ruth Ortiz" })).toBeTruthy();
-    expect(screen.getByText("Team only")).toBeTruthy();
-    expect(screen.getByText("Intake for Ruth Ortiz")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "See what Ruth sees" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Invite Ruth" })).toBeTruthy();
-    cleanup();
-
-    render(
-      <HiveBoardPanel
-        hive={hive({ kind: "own", firmId: null, membershipRole: "owner", name: "Home renovation" })}
-        currentUserId={MARIA}
-        hiveId={HIVE_ID}
-        hiveName="Home renovation"
-        hiveDescription=""
-        hasDocuments
-        board={{ ...board, kicker: "Your hive", headline: "Everything is in and checked", needs: [] }}
-        documentLabels={{}}
-      />,
-    );
-    expect(screen.getByTestId("hive-board-main")).toBeTruthy();
-    expect(screen.queryByTestId("hive-board-three-pane")).toBeNull();
-    expect(screen.queryByTestId("hive-board-firm-controls")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Your team" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Hive board" })).toBeTruthy();
+    expect(screen.getByTestId("hive-board-client-pane")).toBeTruthy();
+    expect(screen.getByTestId("hive-board-stage-strip")).toBeTruthy();
+    expect(screen.getByText("Collecting · 1 of 2 in")).toBeTruthy();
   });
 
-  it("filters notes and uploads to the selected item and keeps one filled button", () => {
+  it("hides plain Needs you kind label and keeps one WORKSPACE_PRIMARY", () => {
     renderPane();
-    expect(filledActions()).toHaveLength(1);
-    expect(filledActions()[0]?.textContent).toBe("Review");
-    expect(screen.getByText("General note")).toBeTruthy();
-    expect(screen.getByText("lease.pdf")).toBeTruthy();
-    expect(screen.getByText("built the study")).toBeTruthy();
-    expect(screen.queryByText("added a file")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: /Pay stubs/ }));
-    expect(screen.getByText("On stubs")).toBeTruthy();
-    expect(screen.queryByText("General note")).toBeNull();
-    expect(screen.getByText("stubs.pdf")).toBeTruthy();
-    expect(screen.queryByText("lease.pdf")).toBeNull();
-    expect(filledActions()).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole("button", { name: /History/ }));
-    expect(screen.getByText("added a file")).toBeTruthy();
+    const needsCard = screen.getByTestId("hive-board-needs-card");
+    expect(within(needsCard).queryByText("Needs you", { selector: "[data-state]" })).toBeNull();
+    expect(within(needsCard).getByText("Changed")).toBeTruthy();
+    expect(primaryActions()).toHaveLength(1);
   });
 
-  it("opens on Items and shows Team, Items, and the client below 1100px", () => {
+  it("shows client waiting line and auto-remind switch on wide layout", () => {
+    renderPane();
+    expect(screen.getByRole("switch")).toBeTruthy();
+    expect(screen.getByText(/Waiting on Ruth/)).toBeTruthy();
+    expect(screen.getByText("Remind now")).toBeTruthy();
+  });
+
+  it("shows Items and client tabs below 1100px without Team", () => {
     window.matchMedia = ((query: string) => ({
       matches: query.includes("1099"),
       media: query,
@@ -201,25 +150,27 @@ describe("HiveBoardThreePane", () => {
     renderPane();
     const tabs = screen.getByRole("tablist", { name: "Board panes" });
     expect(within(tabs).getByRole("tab", { name: "Items" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.queryByRole("region", { name: "Your team" })).toBeNull();
-    expect(screen.getByRole("region", { name: /Sarah.s table/ })).toBeTruthy();
-
-    fireEvent.click(within(tabs).getByRole("tab", { name: "Team" }));
-    expect(screen.getByRole("region", { name: "Your team" })).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Sarah’s table" })).toBeNull();
-
+    expect(within(tabs).queryByRole("tab", { name: "Team" })).toBeNull();
     fireEvent.click(within(tabs).getByRole("tab", { name: "Ruth" }));
-    expect(screen.getByRole("region", { name: "Ruth Ortiz" })).toBeTruthy();
+    expect(screen.getByTestId("hive-board-client-pane")).toBeTruthy();
   });
 
-  it("requires a person before handing a hive over", () => {
-    renderPane();
-    fireEvent.click(screen.getByRole("button", { name: "Hand over" }));
-    const dialog = screen.getByRole("dialog", { name: "Hand over this hive" });
-    expect(within(dialog).getByText("Attorney")).toBeTruthy();
-    expect(within(dialog).getByText("2 hives")).toBeTruthy();
-    expect(within(dialog).queryByText("Paralegal")).toBeNull();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Hand over" }));
-    expect(within(dialog).getByRole("alert").textContent).toBe("Choose who takes it.");
+  it("individual board in workspace mode omits repeated hive title", () => {
+    expect(showsFirmThreePane(hive({ kind: "own", firmId: null, membershipRole: "owner" }))).toBe(false);
+    render(
+      <HiveBoardPanel
+        hive={hive({ kind: "own", firmId: null, membershipRole: "owner", name: "Home renovation" })}
+        currentUserId={MARIA}
+        hiveId={HIVE_ID}
+        hiveName="Home renovation"
+        hiveDescription="Kitchen"
+        hasDocuments
+        board={{ ...board, kicker: "Your hive", headline: "Everything is in and checked", needs: [] }}
+        documentLabels={{}}
+        workspaceMode
+      />,
+    );
+    expect(screen.getByTestId("hive-board-workspace")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Home renovation" })).toBeNull();
   });
 });

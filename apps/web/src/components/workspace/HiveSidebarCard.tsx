@@ -1,13 +1,13 @@
 "use client";
 
 import type { Hive } from "@hiveforyou/contracts";
-import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
 import { TEXT_LINK_CLASS } from "@/components/button-classes";
 import type { ListFirmResponse } from "@hiveforyou/contracts";
 import { hiveBadgeInitials } from "@/lib/hives/hive-badge-initials";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
+import { useWorkspaceAction } from "@/components/workspace/useWorkspaceAction";
 
 type HiveSidebarCardProps = {
   hive: Hive;
@@ -26,10 +26,9 @@ export function HiveSidebarCard({
   assigneeTitle,
   assistantName,
 }: HiveSidebarCardProps) {
-  const router = useRouter();
   const renameId = useId();
-  const [busy, setBusy] = useState(false);
-  const [inlineError, setInlineError] = useState<{ message: string; reference: string | null } | null>(null);
+  const path = `/hives/${hive.id}/board`;
+  const action = useWorkspaceAction(path);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(assistantName);
   const firmClient = showsFirmThreePane(hive) && firm?.firm;
@@ -44,33 +43,6 @@ export function HiveSidebarCard({
     stage !== "closed" &&
     currentUserId &&
     hive.assigneeUserId?.toLowerCase() === currentUserId.toLowerCase();
-
-  async function postJson(url: string, body: unknown, idempotencyKey: string): Promise<{ ok: boolean; reference: string | null }> {
-    setBusy(true);
-    setInlineError(null);
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Idempotency-Key": idempotencyKey,
-        },
-        body: JSON.stringify(body),
-      });
-      const payload = (await response.json().catch(() => null)) as { correlationId?: string; safeMessage?: string } | null;
-      if (!response.ok) {
-        setInlineError({
-          message: typeof payload?.safeMessage === "string" ? payload.safeMessage : "Something went wrong.",
-          reference: typeof payload?.correlationId === "string" ? payload.correlationId.slice(0, 8) : null,
-        });
-        return { ok: false, reference: payload?.correlationId ?? null };
-      }
-      router.refresh();
-      return { ok: true, reference: null };
-    } finally {
-      setBusy(false);
-    }
-  }
 
   const purpose = hive.description?.trim() ?? "";
 
@@ -103,20 +75,36 @@ export function HiveSidebarCard({
               <button
                 type="button"
                 className={`${TEXT_LINK_CLASS} border-0 bg-transparent p-0 font-semibold disabled:opacity-45`}
-                disabled={busy}
-                onClick={() => void postJson(`/api/v1/hives/${hive.id}/assignment`, { assigneeUserId: currentUserId, clientRequestId: crypto.randomUUID() }, crypto.randomUUID())}
+                disabled={action.pending}
+                onClick={() => {
+                  const key = crypto.randomUUID();
+                  void action.run({
+                    url: `/api/v1/hives/${hive.id}/assignment`,
+                    body: { assigneeUserId: currentUserId, clientRequestId: key },
+                    idempotencyKey: key,
+                    failureMessage: "Could not take this hive.",
+                  });
+                }}
               >
-                {busy ? "Saving…" : "Take it"}
+                {action.pending ? "Saving…" : "Take it"}
               </button>
             ) : null}
             {canHandOver ? (
               <button
                 type="button"
                 className={`${TEXT_LINK_CLASS} border-0 bg-transparent p-0 font-semibold disabled:opacity-45`}
-                disabled={busy}
-                onClick={() => void postJson(`/api/v1/hives/${hive.id}/assignment`, { assigneeUserId: null, clientRequestId: crypto.randomUUID() }, crypto.randomUUID())}
+                disabled={action.pending}
+                onClick={() => {
+                  const key = crypto.randomUUID();
+                  void action.run({
+                    url: `/api/v1/hives/${hive.id}/assignment`,
+                    body: { assigneeUserId: null, clientRequestId: key },
+                    idempotencyKey: key,
+                    failureMessage: "Could not hand over this hive.",
+                  });
+                }}
               >
-                {busy ? "Saving…" : "Hand over"}
+                {action.pending ? "Saving…" : "Hand over"}
               </button>
             ) : null}
           </p>
@@ -136,14 +124,20 @@ export function HiveSidebarCard({
                 <button
                   type="button"
                   className={TEXT_LINK_CLASS}
-                  disabled={busy}
+                  disabled={action.pending}
                   onClick={async () => {
                     const name = renameValue.trim();
-                    const ok = await postJson("/api/v1/firm/assistant", { assistantName: name, clientRequestId: crypto.randomUUID() }, crypto.randomUUID());
-                    if (ok.ok) setRenaming(false);
+                    const key = crypto.randomUUID();
+                    const ok = await action.run({
+                      url: "/api/v1/firm/assistant",
+                      body: { assistantName: name, clientRequestId: key },
+                      idempotencyKey: key,
+                      failureMessage: "Could not rename the assistant.",
+                    });
+                    if (ok) setRenaming(false);
                   }}
                 >
-                  {busy ? "Saving…" : "Save"}
+                  {action.pending ? "Saving…" : "Save"}
                 </button>
               </span>
             ) : (
@@ -155,10 +149,10 @@ export function HiveSidebarCard({
         </>
       ) : null}
 
-      {inlineError ? (
+      {action.inlineError ? (
         <p role="alert" className="m-0 text-caption text-coral-deep">
-          {inlineError.message}
-          {inlineError.reference ? ` Reference ${inlineError.reference}.` : ""}
+          {action.inlineError.message}
+          {action.inlineError.reference ? ` Reference ${action.inlineError.reference}.` : ""}
         </p>
       ) : null}
     </div>

@@ -4,10 +4,15 @@ import type { GetStudyPreparationResponse, Hive, HiveBoardModel } from "@hivefor
 import Link from "next/link";
 
 import { AnalyzeModal } from "@/components/hives/AnalyzeModal";
+import { HiveBoardChecklistCard } from "@/components/hives/HiveBoardChecklistCard";
+import { HiveBoardNeedRows } from "@/components/hives/HiveBoardNeedRows";
+import { splitBoardHeadline } from "@/components/hives/hive-board-stage";
 import { PRIMARY_BUTTON_CLASS, QUIET_BUTTON_CLASS } from "@/components/button-classes";
 import { useStudyPreparation } from "@/components/hives/useStudyPreparation";
+import { PaneErrorBoundary } from "@/components/pane-error-boundary";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { SourceChips } from "@/components/study/SourceChip";
+import { Card } from "@/components/workspace/Card";
 
 import { HiveBoardPeople } from "@/components/hives/HiveBoardPeople";
 
@@ -21,6 +26,7 @@ type HiveBoardPanelProps = {
   readonly board: HiveBoardModel;
   readonly documentLabels: Readonly<Record<string, string>>;
   readonly initialPreparation?: GetStudyPreparationResponse;
+  readonly workspaceMode?: boolean;
 };
 
 const SEGMENT_CLASS: Record<"in" | "added_pending" | "not_in", string> = {
@@ -99,6 +105,7 @@ export function HiveBoardPanel({
   board,
   documentLabels,
   initialPreparation,
+  workspaceMode = false,
 }: HiveBoardPanelProps) {
   const analysis = useStudyPreparation(hiveId, { initialPreparation });
   const rebuildAvailabilityResolved = analysis.state?.studyRevision
@@ -114,6 +121,57 @@ export function HiveBoardPanel({
 
   const labelMap = new Map(Object.entries(documentLabels).map(([id, label]) => [id.toLowerCase(), label]));
   const showFilledNeeds = board.needs.length > 0;
+  const headlineParts = splitBoardHeadline(board.headline);
+
+  if (workspaceMode) {
+    return (
+      <div className="flex flex-col gap-6 bg-canvas p-4 min-[900px]:flex-row min-[900px]:p-6" data-testid="hive-board-workspace">
+        <div className="flex min-w-0 flex-1 flex-col gap-4" data-testid="hive-board-main">
+          <h1 className="m-0 font-brand text-section font-semibold leading-tight text-ink">
+            {headlineParts.num ? <span className="text-cell-blue-deep">{headlineParts.num}</span> : null}
+            {headlineParts.rest}
+          </h1>
+          <PaneErrorBoundary hiveId={hiveId} supportReference={null}>
+            <HiveBoardNeedRows hiveId={hiveId} board={board} documentLabels={documentLabels} analysis={analysis} />
+          </PaneErrorBoundary>
+          <PaneErrorBoundary hiveId={hiveId} supportReference={null}>
+            <HiveBoardChecklistCard board={board} />
+          </PaneErrorBoundary>
+        </div>
+        <aside className="flex w-full flex-col gap-4 min-[900px]:max-w-[340px]" data-testid="hive-board-aside">
+          <Card title="At a glance">
+            <ul className="m-0 flex list-none flex-col gap-2 p-0 text-small">
+              {board.readiness.map((line) => (
+                <li key={line.label} className="flex items-start justify-between gap-3">
+                  <span className="text-graphite">{line.label}</span>
+                  <span className="text-end font-semibold text-ink">{line.value}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+          <HiveBoardPeople hive={hive} currentUserId={currentUserId} />
+          {hiveDescription ? <p className="m-0 text-small text-graphite">{hiveDescription}</p> : null}
+        </aside>
+        <AnalyzeModal
+          hiveId={hiveId}
+          mode={analysis.modalMode}
+          action={analysis.action}
+          run={analysis.run}
+          studyRevision={analysis.state?.studyRevision ?? null}
+          reportRuns={analysis.reportRuns}
+          eligibility={analysis.state?.eligibility ?? null}
+          pollState={analysis.pollState}
+          starting={analysis.starting}
+          startError={analysis.startError}
+          returnFocusRef={analysis.returnFocusRef}
+          onClose={analysis.closeModal}
+          onConfirm={analysis.confirmCoverage}
+          onAcknowledge={() => void analysis.acknowledge()}
+          onRetry={analysis.retry}
+        />
+      </div>
+    );
+  }
 
   return (
     <EvidenceViewerProvider
