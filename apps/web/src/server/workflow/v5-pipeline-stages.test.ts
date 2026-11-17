@@ -43,9 +43,12 @@ import {
   loadDocumentPages,
   runExtractingWorkerPool,
   savedRangeKeysByDocument,
+  selectAndPersistDomainPack,
   type ExtractOneRangeResult,
   type ExtractWorkItem,
 } from "./v5-pipeline-stages";
+import * as packLoader from "@/server/pipeline/pack-loader";
+import * as contracts from "@hiveforyou/contracts";
 import { missingExtractWorkItems, pageRangeStorageKey } from "@/server/pipeline/extract-runner";
 
 const throughput = defaultPipelineThroughput("extract");
@@ -966,5 +969,84 @@ describe("completeExtractedDocumentIds", () => {
       extractProgress: { extractGapRetryCompleted: { [DOC_1.toLowerCase()]: true } },
     });
     expect([...afterRetry]).toEqual([DOC_1.toLowerCase()]);
+  });
+});
+
+describe("selectAndPersistDomainPack", () => {
+  it("skips discovery when hive chosen pack is present and persists that selection", async () => {
+    const loadPackByIdSpy = vi.spyOn(packLoader, "loadPackById").mockReturnValue(null);
+    const loadPackEntriesSpy = vi.spyOn(packLoader, "loadPackEntries");
+    const selectDomainPackSpy = vi.spyOn(contracts, "selectDomainPack");
+
+    const patchCalls: Record<string, unknown>[] = [];
+    const client = {
+      rpc: vi.fn(async (fn: string, args?: Record<string, unknown>) => {
+        if (fn === "get_hive_chosen_pack") {
+          return { data: { packId: "sample-pack", packVersion: 1 }, error: null };
+        }
+        if (fn === "patch_processing_run_workflow_state") {
+          patchCalls.push(args ?? {});
+          return { data: { applied: true }, error: null };
+        }
+        throw new Error(fn);
+      }),
+    };
+
+    const result = await selectAndPersistDomainPack({
+      client,
+      runId: RUN_ID,
+      requestText: "fixture request",
+      extractions: [],
+      hiveId: HIVE_ID,
+    });
+
+    expect(selectDomainPackSpy).not.toHaveBeenCalled();
+    expect(loadPackEntriesSpy).not.toHaveBeenCalled();
+    expect(loadPackByIdSpy).toHaveBeenCalledWith("sample-pack", 1);
+    expect(result.selection).toEqual({ id: "sample-pack", version: 1, score: 0 });
+    expect(patchCalls).toHaveLength(1);
+    expect(patchCalls[0]?.p_patch).toEqual({
+      domainPack: { id: "sample-pack", version: 1, score: 0 },
+    });
+
+    loadPackByIdSpy.mockRestore();
+    loadPackEntriesSpy.mockRestore();
+    selectDomainPackSpy.mockRestore();
+  });
+
+  it("discovers and persists when hive chosen pack is absent", async () => {
+    const fakePack = { meta: { pack: "discovered-pack", version: 2 } } as ReturnType<typeof packLoader.loadPackById>;
+    const loadPackEntriesSpy = vi.spyOn(packLoader, "loadPackEntries").mockReturnValue({
+      entries: [{ id: "discovered-pack", pack: fakePack }],
+    });
+    const selectDomainPackSpy = vi.spyOn(contracts, "selectDomainPack").mockReturnValue({
+      id: "discovered-pack",
+      version: 2,
+      score: 0.42,
+      pack: fakePack,
+    });
+
+    const client = {
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_hive_chosen_pack") return { data: null, error: null };
+        if (fn === "patch_processing_run_workflow_state") return { data: { applied: true }, error: null };
+        throw new Error(fn);
+      }),
+    };
+
+    const result = await selectAndPersistDomainPack({
+      client,
+      runId: RUN_ID,
+      requestText: "fixture request",
+      extractions: [],
+      hiveId: HIVE_ID,
+    });
+
+    expect(loadPackEntriesSpy).toHaveBeenCalled();
+    expect(selectDomainPackSpy).toHaveBeenCalled();
+    expect(result.selection).toEqual({ id: "discovered-pack", version: 2, score: 0.42 });
+
+    loadPackEntriesSpy.mockRestore();
+    selectDomainPackSpy.mockRestore();
   });
 });

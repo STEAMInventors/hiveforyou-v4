@@ -384,6 +384,23 @@ export async function persistDomainPackWorkflowState(
   });
 }
 
+async function loadHiveChosenPack(
+  client: RpcClient,
+  hiveId: string,
+): Promise<{ id: string; version: number } | null> {
+  const { data, error } = await client.rpc("get_hive_chosen_pack", { p_hive_id: hiveId });
+  if (error || data == null || typeof data !== "object") {
+    return null;
+  }
+  const row = data as Record<string, unknown>;
+  const packId = typeof row.packId === "string" ? row.packId.trim() : "";
+  const packVersion = typeof row.packVersion === "number" ? row.packVersion : null;
+  if (packId === "" || packVersion == null || packVersion < 1) {
+    return null;
+  }
+  return { id: packId, version: packVersion };
+}
+
 function logDomainPackLoadIssue(input: {
   correlationId?: string;
   hiveId?: string;
@@ -432,6 +449,29 @@ export async function selectAndPersistDomainPack(input: {
   }
   if (input.existing && "skipped" in input.existing) {
     return { pack: null, selection: input.existing };
+  }
+  if (input.hiveId) {
+    const chosen = await loadHiveChosenPack(input.client, input.hiveId);
+    if (chosen) {
+      const pack = loadPackById(chosen.id, chosen.version);
+      const selection = { id: chosen.id, version: chosen.version, score: 0 };
+      if (pack == null) {
+        logPinnedPackNotFound({
+          correlationId: input.correlationId,
+          hiveId: input.hiveId,
+          processingRunId: input.runId,
+          packId: chosen.id,
+          packVersion: chosen.version,
+          stage: "ANALYZE",
+        });
+      }
+      await persistDomainPackWorkflowState(input.client, input.runId, selection, {
+        expectedStatus: "CANONICALIZING",
+        correlationId: input.correlationId,
+        hiveId: input.hiveId,
+      });
+      return { pack, selection };
+    }
   }
   const index = loadPackEntries();
   if (index.skipped) {
