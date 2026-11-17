@@ -33,6 +33,7 @@ type StudyTabPanelProps = {
   initialPreparation?: GetStudyPreparationResponse;
   canonicalStudy?: CanonicalStudy | null;
   referencedDocuments?: readonly StudyViewReferencedDocument[];
+  workspaceSurface?: "facts" | "missing" | "timeline";
 };
 
 /**
@@ -50,6 +51,7 @@ export function StudyTabPanel({
   initialPreparation,
   canonicalStudy = null,
   referencedDocuments = [],
+  workspaceSurface,
 }: StudyTabPanelProps) {
   const router = useRouter();
   const analysis = useStudyPreparation(hiveId, { initialPreparation });
@@ -147,6 +149,7 @@ export function StudyTabPanel({
         coverageGaps={coverageGaps}
         documentPages={documentPages}
         revisionActions={revisionActions}
+        workspaceSurface={workspaceSurface}
       />
       <AnalyzeModal
         hiveId={hiveId}

@@ -1,11 +1,10 @@
 import { DocumentsPanel } from "@/components/hives/DocumentsPanel";
-import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
+import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { studyDocumentMeta } from "@/components/study/study-summary";
 import { type HiveOverview, loadHiveOverview } from "@/server/hives/hive-summary";
 import { createLiveHiveVaultUploadAdapterDeps } from "@/server/source-documents/hive-vault-upload-adapter";
 import { listHiveSourceDocumentsWithV3Vault } from "@/server/source-documents/hive-vault-upload-adapter";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
-import { hiveWorkspaceStartingView } from "@/server/hives/hive-workspace-props";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 type DocumentsPageProps = {
@@ -23,7 +22,6 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
   let overview: HiveOverview | null = null;
 
   const auth = await requireAuthenticatedUser();
-  const startingView = auth.ok ? await hiveWorkspaceStartingView(auth) : "own";
   if (auth.ok) {
     const correlationId = crypto.randomUUID();
     try {
@@ -44,15 +42,8 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
   }
 
   return (
-    <HiveWorkspaceLayout
-      hiveId={hive.id}
-      hiveName={hive.name}
-      hiveDescription={hive.description ?? ""}
-      hiveKind={hive.kind}
-      startingView={startingView}
-      activeTab="documents"
-      summary={overview?.summary ?? null}
-    >
+    <>
+      <HivePageHead title="Documents" subtitle="What is in this hive, what each file is, and what still needs to be read." />
       <DocumentsPanel
         hiveId={hive.id}
         initialDocuments={initialDocuments}
@@ -67,6 +58,6 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
         canonicalStudy={overview?.canonicalStudy ?? null}
         referencedDocuments={overview?.referencedDocuments ?? []}
       />
-    </HiveWorkspaceLayout>
+    </>
   );
 }

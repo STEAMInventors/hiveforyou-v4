@@ -1,3 +1,8 @@
+"use client";
+
+import { StatusDot } from "@/components/workspace/StatusDot";
+import { useWorkspaceChrome } from "@/components/workspace/workspace-context";
+
 export const DISPLAY_STATES = ["needs", "missing", "changed", "checked"] as const;
 export type DisplayState = (typeof DISPLAY_STATES)[number];
 
@@ -46,6 +51,10 @@ const BADGE_CLASS = "inline-flex shrink-0 items-center whitespace-nowrap rounded
 
 /** `neutral` is for work in progress, which has no brand state. */
 export function StatusBadge({ state, label }: { state: DisplayState | "neutral"; label?: string }) {
+  const workspace = useWorkspaceChrome();
+  if (workspace && state !== "neutral") {
+    return <StatusDot state={state} label={label} />;
+  }
   return (
     <span
       className={`${BADGE_CLASS} ${state === "neutral" ? "border border-line bg-mist text-graphite" : STATE_CLASS[state]}`}

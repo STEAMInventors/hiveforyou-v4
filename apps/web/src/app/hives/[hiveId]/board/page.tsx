@@ -1,13 +1,11 @@
 import { HiveBoardPanel } from "@/components/hives/HiveBoardPanel";
 import { HiveBoardThreePane } from "@/components/hives/HiveBoardThreePane";
-import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadLatestHandover, loadOpenHiveCounts, loadTeamNotes } from "@/server/firm/load-firm-board";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
-import { hiveWorkspaceStartingView } from "@/server/hives/hive-workspace-props";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 type BoardPageProps = {
@@ -23,7 +21,6 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
   }
 
   const correlationId = await requestCorrelationId();
-  const startingView = await hiveWorkspaceStartingView(auth);
   const loaded = await loadHiveBoard(auth.client, {
     hive,
     correlationId,
@@ -31,13 +28,13 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
   });
 
   const documentLabels = Object.fromEntries(
-  [
-    ...loaded.overview.preparation.eligibility.documents,
-    ...loaded.overview.preparation.eligibility.excluded.map((item) => ({
-      sourceDocumentId: item.sourceDocumentId,
-      fileName: item.fileName,
-    })),
-  ].map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]),
+    [
+      ...loaded.overview.preparation.eligibility.documents,
+      ...loaded.overview.preparation.eligibility.excluded.map((item) => ({
+        sourceDocumentId: item.sourceDocumentId,
+        fileName: item.fileName,
+      })),
+    ].map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]),
   );
 
   const documentCount =
@@ -54,43 +51,30 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
       ])
     : [[], null, {}] as const;
 
-  return (
-    <HiveWorkspaceLayout
+  return threePane && firm?.firm ? (
+    <HiveBoardThreePane
+      hive={hive}
+      currentUserId={auth.userId}
+      board={loaded.board}
+      firm={firm}
+      teamNotes={teamNotes}
+      handover={handover}
+      uploads={loaded.uploads}
+      openHiveCounts={openHiveCounts}
+      documentLabels={documentLabels}
+      initialPreparation={loaded.overview.preparation}
+    />
+  ) : (
+    <HiveBoardPanel
+      hive={hive}
+      currentUserId={auth.userId}
       hiveId={hive.id}
       hiveName={hive.name}
       hiveDescription={hive.description ?? ""}
-      hiveKind={hive.kind}
-      startingView={startingView}
-      activeTab="board"
-      summary={loaded.overview.summary}
-      flushBoard={Boolean(threePane && firm?.firm)}
-    >
-      {threePane && firm?.firm ? (
-        <HiveBoardThreePane
-          hive={hive}
-          currentUserId={auth.userId}
-          board={loaded.board}
-          firm={firm}
-          teamNotes={teamNotes}
-          handover={handover}
-          uploads={loaded.uploads}
-          openHiveCounts={openHiveCounts}
-          documentLabels={documentLabels}
-          initialPreparation={loaded.overview.preparation}
-        />
-      ) : (
-        <HiveBoardPanel
-          hive={hive}
-          currentUserId={auth.userId}
-          hiveId={hive.id}
-          hiveName={hive.name}
-          hiveDescription={hive.description ?? ""}
-          hasDocuments={documentCount > 0}
-          board={loaded.board}
-          documentLabels={documentLabels}
-          initialPreparation={loaded.overview.preparation}
-        />
-      )}
-    </HiveWorkspaceLayout>
+      hasDocuments={documentCount > 0}
+      board={loaded.board}
+      documentLabels={documentLabels}
+      initialPreparation={loaded.overview.preparation}
+    />
   );
 }

@@ -8,7 +8,7 @@
   --honey:#F6B826; --honey-deep:#7A5200; --honey-wash:#FFF6DC;
   --leaf:#2FA35A; --leaf-deep:#197040;
   --ink:#1F2328; --graphite:#4A525C; --quiet:#6B737D;
-  --line:#E3E6EA; --mist:#F4F6F8; --paper:#FFFFFF;
+  --line:#E3E6EA; --mist:#F4F6F8; --paper:#FFFFFF; --canvas:#F7F8FA;
   --needs-bg:#E8F0FE; --needs-fg:var(--cell-blue-deep);
   --changed-bg:#FEF3D6; --changed-fg:var(--honey-deep);
   --missing-bg:#FDEDEB; --missing-fg:var(--coral-deep);
@@ -17,7 +17,7 @@
   --font-ui:"DM Sans","Helvetica Neue",Arial,sans-serif;
   --font-quote:"Source Serif 4",Georgia,serif;
   --font-ref:"JetBrains Mono",ui-monospace,monospace;
-  --r-chip:7px; --r-control:12px; --r-card:20px; --r-pill:999px;
+  --r-chip:6px; --r-control:8px; --r-card:14px; --r-pill:999px;
 }
 
 /* Theme aliases used by Tailwind; every brand colour resolves to a token above. */
@@ -41,6 +41,7 @@
   --color-leaf-deep: var(--leaf-deep);
   --color-leaf-wash: var(--checked-bg);
   --color-paper: var(--paper);
+  --color-canvas: var(--canvas);
   --color-mist: var(--mist);
   --color-surface-hover: #fafbfc;
   --color-ink: var(--ink);

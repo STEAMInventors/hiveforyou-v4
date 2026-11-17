@@ -34,12 +34,10 @@ describe("PaneErrorBoundary", () => {
       </PaneErrorBoundary>,
     );
     const alert = screen.getByRole("alert");
-    expect(alert.textContent).toContain("We couldn't show this. Try again, or rebuild the study.");
-    expect(alert.textContent).toContain("Support reference: req-123");
+    expect(alert.textContent).toContain("This section couldn't load. Your saved Study is unchanged.");
+    expect(screen.getByTestId("pane-error").textContent).toContain("req-123");
     expect(alert.textContent).not.toContain("Cannot read properties");
-    expect(screen.getByRole("link", { name: "Rebuild the study from Documents" }).getAttribute("href")).toBe(
-      `/hives/${HIVE_ID}/documents`,
-    );
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 
   it("never logs the error message, which can carry document text", () => {

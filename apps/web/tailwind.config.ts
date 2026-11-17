@@ -36,6 +36,7 @@ const config: Config = {
         missing: { bg: "var(--missing-bg)", fg: "var(--missing-fg)" },
         checked: { bg: "var(--checked-bg)", fg: "var(--checked-fg)" },
         paper: "var(--color-paper)",
+        canvas: "var(--color-canvas)",
         mist: "var(--color-mist)",
         "surface-hover": "var(--color-surface-hover)",
         ink: {

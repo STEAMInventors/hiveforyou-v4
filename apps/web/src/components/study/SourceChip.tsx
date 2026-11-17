@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceChrome } from "@/components/workspace/workspace-context";
+
 import { useEvidenceViewer } from "./EvidenceViewer";
 import { HiveMark } from "./HiveMark";
 
@@ -36,8 +38,11 @@ export function dedupeChipRefs(refs: readonly ChipRef[]): ChipRef[] {
   }));
 }
 
-const CHIP_CLASS =
+const HONEY_CHIP_CLASS =
   "inline-flex min-h-6 items-center gap-1 whitespace-nowrap rounded-chip border border-honey-chip-border bg-honey-wash px-[6px] py-[1px] align-baseline font-mono text-[12px] leading-none text-honey-deep hover:bg-honey-chip-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cell-blue max-sm:min-h-[44px] max-sm:px-2.5 max-sm:py-1";
+
+const WORKSPACE_CHIP_CLASS =
+  "inline-flex h-[22px] items-center gap-1 whitespace-nowrap rounded-chip border-0 bg-cell-blue-wash px-[6px] align-baseline font-mono text-caption leading-none text-cell-blue-deep hover:bg-cell-blue-tint focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cell-blue max-sm:min-h-11";
 
 export function useDocumentLabel(sourceDocumentId: string): string {
   return useEvidenceViewer().labelFor(sourceDocumentId);
@@ -47,14 +52,16 @@ export function useChipShortLabel(sourceDocumentId: string): string {
   return useEvidenceViewer().chipLabelFor(sourceDocumentId);
 }
 
-export function SourceChip({ chip }: { chip: ChipRef }) {
+export function SourceChip({ chip, honeyStyle = false }: { chip: ChipRef; honeyStyle?: boolean }) {
   const viewer = useEvidenceViewer();
+  const workspace = useWorkspaceChrome();
   const chipLabel = viewer.chipLabelFor(chip.sourceDocumentId);
   const fullLabel = viewer.labelFor(chip.sourceDocumentId);
+  const chipClass = honeyStyle ? HONEY_CHIP_CLASS : workspace ? WORKSPACE_CHIP_CLASS : HONEY_CHIP_CLASS;
   return (
     <button
       type="button"
-      className={CHIP_CLASS}
+      className={chipClass}
       aria-label={`Open ${fullLabel}, page ${chip.pageNumber}`}
       data-testid="source-chip"
       onClick={(event) => viewer.open(chip, event.currentTarget)}

@@ -19,6 +19,7 @@ type StudyViewProps = {
   coverageGaps?: readonly CoverageGap[];
   documentPages?: Readonly<Record<string, number>>;
   revisionActions?: ReactNode;
+  workspaceSurface?: "facts" | "missing" | "timeline";
 };
 
 const NOTICE_CLASS = "flex flex-col gap-3 rounded-card border border-line bg-paper p-5 sm:p-7";
@@ -37,6 +38,7 @@ export function StudyView({
   coverageGaps,
   documentPages,
   revisionActions,
+  workspaceSurface,
 }: StudyViewProps) {
   if (revisionFormat !== "canonical-study-1") {
     return (
@@ -76,6 +78,7 @@ export function StudyView({
       documentPages={documentPages}
       revisionActions={revisionActions}
       showStateBar={false}
+      workspaceSurface={workspaceSurface}
     />
   );
 }

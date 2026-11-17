@@ -1,11 +1,11 @@
 import type { GetHiveReportsResponse, ReportAudience } from "@hiveforyou/contracts";
 
-import { HiveWorkspaceLayout } from "@/components/hive-workspace-layout";
 import { ReportsPanel } from "@/components/reports/ReportsPanel";
+import { HivePageHead } from "@/components/workspace/HivePageHead";
+import { WorkspaceError } from "@/components/workspace/WorkspaceError";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { documentPageCounts, loadHiveOverview, type HiveSummary } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
-import { hiveWorkspaceStartingView } from "@/server/hives/hive-workspace-props";
 import { createServerSupabaseClient, requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 type ReportsPageProps = {
@@ -56,21 +56,11 @@ export default async function ReportsPage({ params, searchParams }: ReportsPageP
   const { audience } = await searchParams;
   const hive = await loadOwnedHiveOrNotFound(hiveId, `/hives/${hiveId}/reports`);
   const correlationId = await requestCorrelationId();
-  const auth = await requireAuthenticatedUser();
-  const startingView = auth.ok ? await hiveWorkspaceStartingView(auth) : "own";
   const load = await loadReports(hive.id, correlationId);
 
   return (
-    <HiveWorkspaceLayout
-      hiveId={hive.id}
-      hiveName={hive.name}
-      hiveDescription={hive.description ?? ""}
-      hiveKind={hive.kind}
-      startingView={startingView}
-      activeTab="reports"
-      summary={load.ok ? load.summary : null}
-      supportReference={correlationId}
-    >
+    <>
+      <HivePageHead title="Reports" subtitle="Customer and professional reports from the accepted study." />
       {load.ok ? (
         <ReportsPanel
           hiveId={hive.id}
@@ -81,12 +71,8 @@ export default async function ReportsPage({ params, searchParams }: ReportsPageP
           referencedDocuments={load.referencedDocuments}
         />
       ) : (
-        <section role="alert" className="flex flex-col gap-2 rounded-card border border-line bg-paper p-7">
-          <h2 className="m-0 font-brand text-section font-semibold text-ink">Reports unavailable</h2>
-          <p className="m-0 text-body text-graphite">{load.message}</p>
-          <p className="m-0 font-mono text-[12px] text-quiet">Support reference: {correlationId}</p>
-        </section>
+        <WorkspaceError message={load.message} correlationId={correlationId} />
       )}
-    </HiveWorkspaceLayout>
+    </>
   );
 }
