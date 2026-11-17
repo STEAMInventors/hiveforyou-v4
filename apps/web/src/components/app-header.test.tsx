@@ -89,12 +89,23 @@ describe("AppHeader", () => {
     expect(screen.getByLabelText("Find a client")).toBeTruthy();
   });
 
-  it("shows the in-hive question pill without a magnifier", () => {
-    pathname = `/hives/${HIVE_ID}/study`;
-    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} account={account} />);
-    expect(screen.getByTestId("hive-header-ask-pill")).toBeTruthy();
-    expect(screen.getByLabelText("Add a question for the next study build")).toBeTruthy();
-    expect(document.querySelector("svg circle")).toBeNull();
+  it("shows the workspace breadcrumb on desktop when a hive section is active", () => {
+    pathname = `/hives/${HIVE_ID}/facts`;
+    render(
+      <AppHeader
+        workspace={{
+          hiveId: HIVE_ID,
+          hiveName: "Widget batch review",
+          section: "facts",
+          startingView: "clients",
+          hiveKind: "client",
+        }}
+        account={account}
+      />,
+    );
+    expect(screen.getByTestId("workspace-breadcrumb")).toBeTruthy();
+    expect(screen.getByText("Facts")).toBeTruthy();
+    expect(screen.queryByTestId("hive-header-ask-pill")).toBeNull();
   });
 
   it("opens an accessible account menu from the keyboard and returns focus on Escape", () => {

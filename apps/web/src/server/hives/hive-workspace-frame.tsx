@@ -1,0 +1,82 @@
+import type { Hive, ListFirmResponse } from "@hiveforyou/contracts";
+import type { ReactNode } from "react";
+
+import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
+import { sidebarCounts } from "@/components/workspace/sidebar-counts";
+import { showsFirmThreePane } from "@/lib/hives/firm-board";
+import type { StartingView } from "@/lib/auth/profile";
+import { loadFirm } from "@/server/firm/load-firm";
+import { loadTeamNotes } from "@/server/firm/load-firm-board";
+import { loadHiveOverview, type HiveSummary } from "@/server/hives/hive-summary";
+import type { AuthenticatedSession } from "@/server/supabase/server-client";
+
+export async function HiveWorkspaceFrame({
+  hive,
+  auth,
+  startingView,
+  correlationId,
+  children,
+}: {
+  hive: Hive;
+  auth: Extract<AuthenticatedSession, { ok: true }>;
+  startingView: StartingView;
+  correlationId: string;
+  children: ReactNode;
+}) {
+  let summary: HiveSummary | null = null;
+  let summaryFailedCorrelationId: string | null = null;
+  let reportCount: number | null = null;
+  let teamNotesCount: number | null = null;
+  let firm: ListFirmResponse | null = null;
+  let assigneeLabel: string | null = null;
+  let assigneeTitle: string | null = null;
+  let assistantName = "HiveForYou";
+
+  try {
+    const overview = await loadHiveOverview(auth.client, { hiveId: hive.id, correlationId });
+    summary = overview.summary;
+    reportCount = overview.reports?.latest?.length ?? null;
+  } catch {
+    summaryFailedCorrelationId = correlationId;
+  }
+
+  if (showsFirmThreePane(hive)) {
+    const loadedFirm = await loadFirm(auth.client);
+    firm = loadedFirm;
+    const notes = await loadTeamNotes(auth.client, hive.id).catch(() => []);
+    teamNotesCount = notes.length;
+    if (loadedFirm) {
+      const assistant = loadedFirm.firm?.assistantName?.trim();
+      if (assistant) assistantName = assistant;
+      const members = loadedFirm.members.filter((m) => m.joined && m.state === "active" && m.userId);
+      const assignee = members.find(
+        (m) => m.userId && hive.assigneeUserId && m.userId.toLowerCase() === hive.assigneeUserId.toLowerCase(),
+      );
+      if (assignee) {
+        assigneeLabel =
+          auth.userId && assignee.userId?.toLowerCase() === auth.userId.toLowerCase()
+            ? "You"
+            : assignee.displayName?.trim() || assignee.title;
+        assigneeTitle = assignee.title;
+      }
+    }
+  }
+
+  const counts = sidebarCounts(summary, { reportCount, teamNotesCount });
+
+  return (
+    <WorkspaceShell
+      hive={hive}
+      startingView={startingView}
+      summaryFailedCorrelationId={summaryFailedCorrelationId}
+      counts={counts}
+      firm={firm}
+      currentUserId={auth.userId}
+      assigneeLabel={assigneeLabel}
+      assigneeTitle={assigneeTitle}
+      assistantName={assistantName}
+    >
+      {children}
+    </WorkspaceShell>
+  );
+}

@@ -77,11 +77,34 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       p_note: note ?? null,
     });
     if (error) {
+      const message = error.message?.toLowerCase() ?? "";
+      if (message.includes("hive_stage_closed")) {
+        throw createHiveError({
+          errorCode: "ACCESS_DENIED",
+          category: "SECURITY",
+          stage: "SHELL",
+          retryable: false,
+          safeMessage: "This hive is closed. Hand over isn't available.",
+          correlationId,
+          diagnosticReason: "hive_stage_closed",
+        });
+      }
+      if (message.includes("assignee_not_firm_member")) {
+        throw createHiveError({
+          errorCode: "INVALID_REQUEST",
+          category: "VALIDATION",
+          stage: "SHELL",
+          retryable: false,
+          safeMessage: "That person isn't on your firm's team any more.",
+          correlationId,
+          diagnosticReason: "assignee_not_firm_member",
+        });
+      }
       throw createHiveError({
         errorCode: "ACCESS_DENIED",
         category: "SECURITY",
         stage: "SHELL",
-        retryable: false,
+        retryable: true,
         safeMessage: "Could not update the assignee.",
         correlationId,
         diagnosticReason: error.message?.slice(0, 80) ?? "assign_hive_failed",

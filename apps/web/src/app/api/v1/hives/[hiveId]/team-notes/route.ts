@@ -1,4 +1,6 @@
 import { createHiveError, isValidUuid } from "@hiveforyou/contracts";
+
+const IDEMPOTENCY_HEADER = "idempotency-key";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -116,10 +118,19 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       });
     }
 
+    const idempotencyRaw = request.headers.get(IDEMPOTENCY_HEADER)?.trim().toLowerCase() ?? "";
+    const clientRequestId =
+      idempotencyRaw && isValidUuid(idempotencyRaw)
+        ? idempotencyRaw
+        : typeof record?.clientRequestId === "string" && isValidUuid(record.clientRequestId.trim())
+          ? record.clientRequestId.trim().toLowerCase()
+          : null;
+
     const { data, error } = await auth.client.rpc("add_team_note", {
       p_hive_id: hiveId.trim().toLowerCase(),
       p_body: body,
       p_item_ref: itemRef || null,
+      p_client_request_id: clientRequestId,
     });
     if (error) {
       throw createHiveError({

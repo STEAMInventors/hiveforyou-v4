@@ -43,6 +43,10 @@ export type ListHivesResponse = {
 
 export type GetHiveResponse = {
   hive: Hive;
+  /** Opaque stamp for client polling; changes when hive-visible data changes. */
+  version?: string;
+  /** When true, clients may poll more frequently (active reads). */
+  fastPoll?: boolean;
 };
 
 export type CreateHiveRequest = {

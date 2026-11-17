@@ -17,6 +17,7 @@ import { type ReactNode, useCallback, useEffect, useId, useMemo, useState } from
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 
 import { ComparisonCard } from "./ComparisonCard";
+import { MissingStudyItems } from "./MissingStudyItems";
 import { HiveMark } from "./HiveMark";
 import { DocumentsTable } from "./DocumentsTable";
 import { EstablishTable } from "./EstablishTable";
@@ -62,6 +63,8 @@ type StudyReportProps = {
   revisionActions?: ReactNode;
   /** Off when the page header already shows this study's state bar. */
   showStateBar?: boolean;
+  /** D18 split study pages; hides the in-report title and "On this page" rail. */
+  workspaceSurface?: "facts" | "missing" | "timeline";
   /** Accepted canonical study for merging document type labels into chips when a stored view omits them. */
   canonicalStudy?: CanonicalStudy | null;
 };
@@ -120,6 +123,7 @@ export function StudyReport({
   revisionActions,
   showStateBar = true,
   canonicalStudy = null,
+  workspaceSurface,
 }: StudyReportProps) {
   const customer = header.kind === "report" && header.audience === "CUSTOMER";
   const isReport = header.kind === "report";
@@ -350,6 +354,10 @@ export function StudyReport({
       </section>
     ) : null;
 
+  const showFacts = !workspaceSurface || workspaceSurface === "facts";
+  const showMissing = !workspaceSurface || workspaceSurface === "missing";
+  const showTimeline = !workspaceSurface || workspaceSurface === "timeline";
+
   return (
     <EvidenceViewerProvider
       hiveId={hiveId}
@@ -360,6 +368,7 @@ export function StudyReport({
     >
       <div className="flex flex-wrap items-start gap-6" data-testid="study-view" data-audience={isReport ? header.audience : "STUDY"}>
         <div className={`flex min-w-0 flex-[999_1_640px] flex-col ${pageGap}`}>
+          {!workspaceSurface ? (
           <header className={`${CARD} gap-4`} data-testid="report-header">
             {controls ? <div className="flex flex-wrap items-center justify-between gap-3">{controls}</div> : null}
             <div className="flex flex-col gap-1.5">
@@ -396,8 +405,11 @@ export function StudyReport({
             ) : null}
             {status}
           </header>
+          ) : revisionActions ? (
+            <div className="flex justify-end">{revisionActions}</div>
+          ) : null}
 
-          <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} />
+          {showFacts ? <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} /> : null}
 
           {!isReport && model.personaCoverageCard.length > 0 ? (
             <section className={`${CARD} ${cardGap}`} data-testid="persona-coverage-card">
@@ -430,7 +442,7 @@ export function StudyReport({
             </section>
           ) : null}
 
-          {glanceRows.length > 0 ? (
+          {showFacts && glanceRows.length > 0 ? (
             <section id={SECTION_IDS.glance} tabIndex={-1} aria-labelledby={`${SECTION_IDS.glance}-h`} className={`${CARD} ${cardGap}`}>
               <h3 id={`${SECTION_IDS.glance}-h`} className={SECTION_HEADING}>
                 At a glance
@@ -446,7 +458,7 @@ export function StudyReport({
             </section>
           ) : null}
 
-          {packSections ? (
+          {showFacts && packSections ? (
             <PackReportSections
               sections={packSections}
               customer={customer}
@@ -457,7 +469,7 @@ export function StudyReport({
             />
           ) : null}
 
-          {!packSections
+          {showFacts && !packSections
             ? narrative.map((section, sectionIndex) => (
             <section
               key={`narrative-${sectionIndex + 1}`}
@@ -485,7 +497,7 @@ export function StudyReport({
           ))
             : null}
 
-          {!packSections && model.conflicts.length > 0 ? (
+          {showMissing && !packSections && model.conflicts.length > 0 && workspaceSurface !== "missing" ? (
             <section id={SECTION_IDS.disagree} tabIndex={-1} aria-labelledby={`${SECTION_IDS.disagree}-h`} className={`flex flex-col ${cardGap}`}>
               <h3 id={`${SECTION_IDS.disagree}-h`} className={`${SECTION_HEADING} px-1`}>
                 Where the documents disagree
@@ -496,9 +508,18 @@ export function StudyReport({
             </section>
           ) : null}
 
-          {!packSections && !customer ? establishCard : null}
+          {showFacts && !packSections && !customer ? establishCard : null}
 
-          {!packSections && hasAskSection ? (
+          {showMissing && !packSections && workspaceSurface === "missing" ? (
+            <MissingStudyItems
+              conflicts={model.conflicts}
+              missing={model.missing}
+              documentRequestList={requestList}
+              documentDate={model.documentDate}
+            />
+          ) : null}
+
+          {showMissing && !packSections && workspaceSurface !== "missing" && hasAskSection ? (
             <section id={SECTION_IDS.missing} tabIndex={-1} aria-labelledby={`${SECTION_IDS.missing}-h`} className={`${CARD} ${cardGap}`}>
               <h3 id={`${SECTION_IDS.missing}-h`} className={SECTION_HEADING}>
                 Missing documents
@@ -510,7 +531,7 @@ export function StudyReport({
             </section>
           ) : null}
 
-          {!packSections && customer ? (
+          {showFacts && !packSections && customer ? (
             establishCard || timelineCard || documentsCard ? (
               <>
                 <button
@@ -530,17 +551,17 @@ export function StudyReport({
                 </div>
               </>
             ) : null
-          ) : !packSections ? (
+          ) : !packSections && !customer ? (
             <>
-              {timelineCard}
-              {documentsCard}
+              {showTimeline ? timelineCard : null}
+              {showFacts ? documentsCard : null}
             </>
           ) : null}
 
-          <ReportFooter />
+          {!workspaceSurface ? <ReportFooter /> : null}
         </div>
 
-        {toc.length > 1 ? (
+        {!workspaceSurface && toc.length > 1 ? (
           <aside className="flex-[1_1_240px] md:sticky md:top-[88px]" aria-label="On this page">
             <nav className={`${CARD} gap-3`}>
               <h2 className="m-0 text-caption font-semibold text-quiet">On this page</h2>

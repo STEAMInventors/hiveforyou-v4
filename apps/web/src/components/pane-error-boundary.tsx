@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Component, type ErrorInfo, type ReactNode, Suspense } from "react";
 
-import { QUIET_LINK_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
-import { HiveMark } from "@/components/study/HiveMark";
-import { hiveDocumentsPath } from "@/lib/hive-routes";
+import { Card } from "@/components/workspace/Card";
+import { WorkspaceError } from "@/components/workspace/WorkspaceError";
 
 type BoundaryProps = {
   hiveId: string;
@@ -34,29 +32,19 @@ class Boundary extends Component<BoundaryProps, BoundaryState> {
     if (!error) return this.props.children;
     const reference = this.props.supportReference ?? error.digest ?? null;
     return (
-      <section role="alert" className="flex flex-col gap-3 rounded-card border border-line bg-paper p-5 sm:p-7" data-testid="pane-error">
-        <h2 className="m-0 inline-flex items-center gap-2 font-brand text-section font-semibold text-ink">
-          <HiveMark className="h-5 w-5 shrink-0" />
-          Something went wrong here
-        </h2>
-        <p className="m-0 max-w-prose text-body text-graphite">We couldn&apos;t show this. Try again, or rebuild the study.</p>
-        <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="button"
-            className={SECONDARY_BUTTON_CLASS}
-            onClick={() => {
+      <div data-testid="pane-error">
+        <Card>
+          <WorkspaceError
+            message="This section couldn't load. Your saved Study is unchanged."
+            correlationId={reference}
+            retryable
+            onRetry={() => {
               this.setState({ error: null });
               this.props.onRetry();
             }}
-          >
-            Try again
-          </button>
-          <Link href={hiveDocumentsPath(this.props.hiveId)} className={QUIET_LINK_CLASS}>
-            Rebuild the study from Documents
-          </Link>
-        </div>
-        {reference ? <p className="m-0 font-mono text-[12px] text-quiet">Support reference: {reference}</p> : null}
-      </section>
+          />
+        </Card>
+      </div>
     );
   }
 }

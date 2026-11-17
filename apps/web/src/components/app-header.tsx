@@ -5,14 +5,19 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
 import { AccountMenu, type AccountMenuDetails } from "@/components/account-menu";
-import { HiveWorkspaceAsk } from "@/components/hive-ask-input";
 import { HiveAppLogo } from "@/components/HiveWordmark";
+import { hiveListBackLink } from "@/lib/hives/hive-list-back";
 import { useClientsHomeSearch } from "@/lib/hives/clients-home-context";
-import { MY_HIVES_PATH } from "@/lib/hive-routes";
+import { HIVE_SECTION_LABELS, MY_HIVES_PATH, type HiveWorkspaceSection } from "@/lib/hive-routes";
+import type { StartingView } from "@/lib/auth/profile";
+import type { HiveKind } from "@hiveforyou/contracts";
 
 export type HiveHeaderWorkspace = {
   hiveId: string;
   hiveName: string;
+  hiveKind?: HiveKind;
+  section?: HiveWorkspaceSection;
+  startingView?: StartingView;
 };
 
 type HiveHeaderContextValue = {
@@ -80,21 +85,51 @@ export function AppHeader({
     onHiveList && account.startingView === "clients" && clientsHome?.enabled;
   const hideListLogo = onHiveList && account.startingView !== "clients";
 
+  const breadcrumb =
+    inHive && workspace?.section && workspace.startingView && workspace.hiveKind
+      ? hiveListBackLink(workspace.startingView, workspace.hiveKind)
+      : null;
+
   return (
     <header
-      className="sticky top-0 z-40 border-b border-line bg-paper px-[clamp(16px,3vw,28px)] py-3"
+      className="sticky top-0 z-40 border-b border-line bg-paper px-[clamp(16px,3vw,28px)] py-3 [--app-header-height:57px]"
       data-testid="app-header"
     >
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <Link
-          href={MY_HIVES_PATH}
-          aria-label="HiveForYou, my hives"
-          className={`inline-flex min-h-11 shrink-0 items-center rounded-control text-ink no-underline ${
-            hideListLogo ? "invisible" : ""
+        <div
+          className={`flex min-h-11 shrink-0 flex-col justify-center min-[900px]:w-[236px] min-[900px]:border-b min-[900px]:border-line min-[900px]:pb-3 ${
+            inHive ? "max-[899px]:w-auto" : ""
           }`}
         >
-          <HiveAppLogo display="lockup" size="header" />
-        </Link>
+          <Link
+            href={MY_HIVES_PATH}
+            aria-label="HiveForYou, my hives"
+            className={`inline-flex min-h-11 items-center rounded-control text-ink no-underline ${
+              hideListLogo ? "invisible" : ""
+            }`}
+          >
+            <HiveAppLogo display="lockup" size="header" />
+          </Link>
+          {inHive && workspace?.section && breadcrumb ? (
+            <nav
+              aria-label="Breadcrumb"
+              className="mt-1 hidden min-w-0 text-caption text-graphite min-[900px]:block"
+              data-testid="workspace-breadcrumb"
+            >
+              <ol className="m-0 flex list-none flex-wrap items-center gap-1 p-0">
+                <li>
+                  <Link href={breadcrumb.href} className="text-cell-blue-deep no-underline hover:underline">
+                    {breadcrumb.label}
+                  </Link>
+                </li>
+                <li aria-hidden>/</li>
+                <li className="truncate font-medium text-ink">{workspace.hiveName}</li>
+                <li aria-hidden>/</li>
+                <li className="truncate">{HIVE_SECTION_LABELS[workspace.section]}</li>
+              </ol>
+            </nav>
+          ) : null}
+        </div>
 
         {clientsListHeader && clientsHome ? (
           <div
@@ -111,10 +146,6 @@ export function AppHeader({
               className="min-h-11 w-full border-0 bg-transparent text-base text-ink outline-none"
             />
           </div>
-        ) : null}
-
-        {inHive && workspace ? (
-          <HiveWorkspaceAsk hiveId={workspace.hiveId} hiveName={workspace.hiveName} />
         ) : null}
 
         <div className="order-2 hidden min-h-11 min-w-0 flex-1 min-[600px]:block" aria-hidden />

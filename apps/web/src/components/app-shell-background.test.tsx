@@ -20,10 +20,10 @@ describe("white page background", () => {
   });
 
   it("does not use a mist page band on hive workspace or new client screens", () => {
-    const workspace = readFileSync(path.join(__dirname, "hive-workspace-layout.tsx"), "utf8");
+    const workspace = readFileSync(path.join(__dirname, "workspace/WorkspaceShell.tsx"), "utf8");
     const landing = readFileSync(path.join(__dirname, "../app/page.tsx"), "utf8");
     const newClient = readFileSync(path.join(__dirname, "hives/NewClientHiveForm.tsx"), "utf8");
-    expect(workspace).toContain("bg-paper");
+    expect(workspace).toContain("bg-canvas");
     expect(workspace).not.toMatch(/flex flex-1 flex-col bg-mist/);
     expect(landing).toContain("bg-paper");
     expect(newClient).not.toContain("bg-mist");

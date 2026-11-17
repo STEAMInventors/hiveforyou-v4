@@ -21,6 +21,29 @@ describe("buildStructuredLogRecord", () => {
     expect(record).not.toHaveProperty("documentText");
   });
 
+  it("does not log note or document text from a thrown error", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const trap = new Error("failed to save note: client said bring pay stubs");
+
+    emitStructuredEvent({
+      eventName: "team_note.failed",
+      severity: "ERROR",
+      timestamp: "2026-11-17T21:00:00Z",
+      component: "shell",
+      operation: "addTeamNote",
+      correlationId: "2eb8421a-b784-4bf8-ac2b-540299b61d13",
+      diagnosticReason: "unexpected_exception",
+      cause: trap,
+      details: { documentText: "full OCR page 3", noteBody: "pay stubs mention $4,200" },
+    });
+
+    const line = String(logSpy.mock.calls[0]?.[0]);
+    expect(line).not.toContain("pay stubs");
+    expect(line).not.toContain("OCR");
+    expect(line).not.toContain("4,200");
+    logSpy.mockRestore();
+  });
+
   it("allows diagnosticField without logging request text", () => {
     const record = buildStructuredLogRecord({
       eventName: "analysis.failed",
