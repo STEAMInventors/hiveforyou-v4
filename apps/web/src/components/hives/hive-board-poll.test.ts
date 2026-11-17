@@ -16,3 +16,5 @@ describe("boardPollIntervalMs", () => {
     expect(boardPollIntervalMs(false)).toBe(20000);
   });
 });
+
+/** Integration coverage for HiveBoardThreePane lives in hive-board-polling.test.tsx. */

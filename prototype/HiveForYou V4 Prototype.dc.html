@@ -684,6 +684,18 @@ textarea:focus,input:focus{outline:none}
     </section>
 
     <aside style="flex:1 1 280px;max-width:360px;border:1px solid #E6E9ED;border-radius:14px;background:#fff;padding:24px;display:flex;flex-direction:column;gap:16px">
+      <sc-if value="{{ bd.showWorkGoal }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:14px;font-weight:600;color:#4A525C">What we&rsquo;re working toward</div>
+          <div style="font-family:Outfit,sans-serif;font-size:21px;font-weight:500;line-height:1.15;text-wrap:balance">{{ goal }}</div>
+          <div style="font-size:14px;color:#4A525C">Deliverable: {{ deliverable }}</div>
+        </div>
+        <div style="border-top:1px solid #E3E6EA;padding-top:12px;display:flex;flex-direction:column;gap:8px">
+          <span style="font-size:14px;font-weight:600;color:#4A525C">Next</span>
+          <span style="font-size:14px;line-height:1.45;color:#4A525C">{{ nba.text }}</span>
+          <sc-if value="{{ nba.hasBtn }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nba.onClick }}" style="align-self:flex-start;height:40px;padding:0 16px;border-radius:8px;border:none;background:#1A56C4;color:#fff;font-weight:500;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ nba.btn }}</button></sc-if>
+        </div>
+      </sc-if>
       <div style="display:flex;flex-direction:column;gap:8px;font-size:14px">
         <sc-for list="{{ readyLines }}" as="r" hint-placeholder-count="5"><span style="display:flex;justify-content:space-between;gap:12px"><span style="color:#4A525C">{{ r.k }}</span><span style="font-weight:600;text-align:right">{{ r.v }}</span></span></sc-for>
       </div>
@@ -2291,8 +2303,8 @@ class Component extends DCLogic {
       v.hiveTitle = h.title; v.goal = goal; v.deliverable = deliverable;
       const openN = vis.filter(x => l.ex[x.id].status === 'open').length;
       v.tabs = [['overview', 'Hive board', ''], ['documents', 'Documents', l.loaded ? String(s.docs.length + l.uploads.length) : (l.uploads.length ? String(l.uploads.length) : '')], ['study', 'Study', l.loaded && openN ? openN + ' open' : ''], ['reports', 'Reports', l.reports.length ? String(l.reports.length) : '']].map(([k, label, count]) => ({ key: k, label, count, bd: st.tab === k ? '#3B7CF6' : 'transparent', fg: st.tab === k ? '#1F2328' : '#4A525C', onClick: () => this.setState({ tab: k, drawer: null }) }));
-      const sub = st.tab === 'study' ? 'exceptions' : st.tab; v.isDocs = sub === 'documents'; v.isStudy = ['facts', 'timeline', 'exceptions', 'plan'].includes(sub); v.isFacts = sub === 'facts'; v.isTimeline = sub === 'timeline'; v.isExc = sub === 'exceptions'; v.isPlan = sub === 'plan';
-      v.studyHead = { facts: 'Facts', timeline: 'Timeline', exceptions: 'Missing and conflicts', plan: 'Work plan' }[sub] || ''; v.studySub = { facts: 'What the documents say, each tied to its page.', timeline: 'Dated events from the documents, in order.', exceptions: 'What the records don’t include, and where they disagree.', plan: 'What HiveForYou is checking, step by step, and what comes next.' }[sub] || ''; v.isReports = st.tab === 'reports';
+      const sub = st.tab === 'study' ? 'exceptions' : st.tab; v.isDocs = sub === 'documents'; v.isStudy = ['facts', 'timeline', 'exceptions'].includes(sub); v.isFacts = sub === 'facts'; v.isTimeline = sub === 'timeline'; v.isExc = sub === 'exceptions'; v.isPlan = false;
+      v.studyHead = { facts: 'Facts', timeline: 'Timeline', exceptions: 'Missing and conflicts' }[sub] || ''; v.studySub = { facts: 'What the documents say, each tied to its page.', timeline: 'Dated events from the documents, in order.', exceptions: 'What the records don’t include, and where they disagree.' }[sub] || ''; v.isReports = st.tab === 'reports';
       v.hasPending = l.pending > 0;
       v.pendingLabel = l.pending + (l.pending === 1 ? ' decision' : ' decisions') + ' not yet in the Study';
       v.acceptLabel = 'Accept into Study (rev ' + (l.rev + 1) + ')';
@@ -2474,6 +2486,7 @@ class Component extends DCLogic {
       // Overview: built by code from the hive's data, no model call
       v.isOverview = st.tab === 'overview';
       const ovAtt = this.attn(h); const proSeat = !!st.user && st.user.role === 'professional';
+      v.bd.showWorkGoal = !proSeat && l.loaded;
       const ovWho = h.client ? this.firstName(h.client.name) : '';
       const toTab = t => () => this.setState({ tab: t, drawer: null });
       const peekC = () => this.setState({ screen: 'client', cv: { hid: h.id, step: h.client && h.client.status === 'invited' ? 'email' : 'chat', draft: '' } });
@@ -2688,7 +2701,7 @@ class Component extends DCLogic {
       if (st.tab === 'notes' && !three) v.isOverview = true;
       v.backLabel = proSeat ? 'All clients' : 'Your hives';
       v.railIni = h.title.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-      v.pageName = { overview: 'Hive board', documents: 'Documents', notes: 'Team notes', facts: 'Facts', timeline: 'Timeline', exceptions: 'Missing and conflicts', study: 'Missing and conflicts', plan: 'Work plan', reports: 'Reports', activity: 'What happened' }[st.tab] || '';
+      v.pageName = { overview: 'Hive board', documents: 'Documents', notes: 'Team notes', facts: 'Facts', timeline: 'Timeline', exceptions: 'Missing and conflicts', study: 'Missing and conflicts', reports: 'Reports', activity: 'What happened' }[st.tab] || '';
       v.railSub = h.purpose || goal;
       const allActs0 = (l.activity || []).slice().reverse();
       v.actAll = allActs0.map(e => ({ t: e.t, who: e.who === this.me() ? 'You' : actor(e.who), txt: e.txt, whoFg: e.who === 'HiveForYou' ? '#1A56C4' : '#1F2328' }));
@@ -2699,7 +2712,7 @@ class Component extends DCLogic {
       const nNotes = (l.notes || []).length;
       v.railGroups = [
         { label: 'Hive', hasLabel: true, items: [ri('overview', 'Hive board', v.bd.needs.length, BLUE), ri('documents', 'Documents', tabCount('documents')), ri('facts', 'Facts', ''), ri('exceptions', 'Missing and conflicts', ''), ri('reports', 'Reports', tabCount('reports'))] },
-        { label: 'More', hasLabel: true, items: [ri('timeline', 'Timeline', '')].concat(three ? [ri('notes', 'Team notes', nNotes)] : []).concat([ri('activity', 'What happened', ''), ri('plan', 'Work plan', '')]) }
+        { label: 'More', hasLabel: true, items: [ri('timeline', 'Timeline', '')].concat(three ? [ri('notes', 'Team notes', nNotes)] : []).concat([ri('activity', 'What happened', '')]) }
       ];
       if (three) {
         const fm3 = st.firms[h.firm]; const an3 = this.asstFor(h.owner); const af3 = this.firstName(an3);

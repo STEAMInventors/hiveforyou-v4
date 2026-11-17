@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { PaneErrorBoundary } from "@/components/pane-error-boundary";
 import { StudyView } from "@/components/study/StudyView";
@@ -36,16 +37,18 @@ export default async function MissingPage({ params }: { params: Promise<{ hiveId
         </Card>
       ) : (
         <PaneErrorBoundary hiveId={hive.id} supportReference={correlationId}>
-          <StudyView
-            hiveId={hive.id}
-            revisionFormat={revision.format}
-            view={built.view}
-            sources={built.sources}
-            revisionNumber={revision.revisionNumber}
-            coverageGaps={revision.coverageGaps}
-            documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
-            workspaceSurface="missing"
-          />
+          <Suspense fallback={null}>
+            <StudyView
+              hiveId={hive.id}
+              revisionFormat={revision.format}
+              view={built.view}
+              sources={built.sources}
+              revisionNumber={revision.revisionNumber}
+              coverageGaps={revision.coverageGaps}
+              documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
+              workspaceSurface="missing"
+            />
+          </Suspense>
         </PaneErrorBoundary>
       )}
     </>

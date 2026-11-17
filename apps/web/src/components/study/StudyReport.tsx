@@ -17,6 +17,7 @@ import { type ReactNode, useCallback, useEffect, useId, useMemo, useState } from
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 
 import { ComparisonCard } from "./ComparisonCard";
+import { MissingStudyItems } from "./MissingStudyItems";
 import { HiveMark } from "./HiveMark";
 import { DocumentsTable } from "./DocumentsTable";
 import { EstablishTable } from "./EstablishTable";
@@ -496,7 +497,7 @@ export function StudyReport({
           ))
             : null}
 
-          {showMissing && !packSections && model.conflicts.length > 0 ? (
+          {showMissing && !packSections && model.conflicts.length > 0 && workspaceSurface !== "missing" ? (
             <section id={SECTION_IDS.disagree} tabIndex={-1} aria-labelledby={`${SECTION_IDS.disagree}-h`} className={`flex flex-col ${cardGap}`}>
               <h3 id={`${SECTION_IDS.disagree}-h`} className={`${SECTION_HEADING} px-1`}>
                 Where the documents disagree
@@ -509,7 +510,16 @@ export function StudyReport({
 
           {showFacts && !packSections && !customer ? establishCard : null}
 
-          {showMissing && !packSections && hasAskSection ? (
+          {showMissing && !packSections && workspaceSurface === "missing" ? (
+            <MissingStudyItems
+              conflicts={model.conflicts}
+              missing={model.missing}
+              documentRequestList={requestList}
+              documentDate={model.documentDate}
+            />
+          ) : null}
+
+          {showMissing && !packSections && workspaceSurface !== "missing" && hasAskSection ? (
             <section id={SECTION_IDS.missing} tabIndex={-1} aria-labelledby={`${SECTION_IDS.missing}-h`} className={`${CARD} ${cardGap}`}>
               <h3 id={`${SECTION_IDS.missing}-h`} className={SECTION_HEADING}>
                 Missing documents
