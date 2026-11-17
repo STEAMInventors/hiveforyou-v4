@@ -7,6 +7,7 @@ DECLARE
   v_owner uuid := 'f06a0001-0000-4000-8000-000000000001';
   v_member uuid := 'f06a0001-0000-4000-8000-000000000002';
   v_client uuid := 'f06a0001-0000-4000-8000-000000000003';
+  v_pro uuid := 'f06a0001-0000-4000-8000-000000000005';
   v_stranger uuid := 'f06a0001-0000-4000-8000-000000000004';
   v_firm uuid;
   v_hive uuid;
@@ -15,6 +16,7 @@ DECLARE
   v_own_req uuid := 'f06a0002-0000-4000-8000-000000000002';
   v_firm_token text := repeat('c', 64);
   v_token_client text := repeat('a', 64);
+  v_token_pro text := repeat('b', 64);
   v_doc uuid := 'f06a0003-0000-4000-8000-000000000001';
   v_client_doc uuid := 'f06a0003-0000-4000-8000-000000000002';
   v_other_doc uuid := 'f06a0003-0000-4000-8000-000000000003';
@@ -32,6 +34,7 @@ BEGIN
     (v_owner, 'f06a-owner@example.test', 'authenticated', 'authenticated'),
     (v_member, 'f06a-member@example.test', 'authenticated', 'authenticated'),
     (v_client, 'f06a-client@example.test', 'authenticated', 'authenticated'),
+    (v_pro, 'f06a-pro@example.test', 'authenticated', 'authenticated'),
     (v_stranger, 'f06a-stranger@example.test', 'authenticated', 'authenticated');
 
   INSERT INTO hive.user_profiles (user_id, display_name, starting_view, created_at, updated_at)
@@ -57,11 +60,18 @@ BEGIN
   v_json := public.create_hive('Firm client hive', 'R. Lee', v_client_req, 'client');
   v_hive := (v_json->'hive'->>'id')::uuid;
   v_json := public.create_invitation(v_hive, 'f06a-client@example.test', 'client', v_token_client);
+  PERFORM public.create_invitation(v_hive, 'f06a-pro@example.test', 'professional', v_token_pro);
   RESET ROLE;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text, 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
   PERFORM public.accept_invitation(v_token_client);
+  RESET ROLE;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_pro::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  PERFORM public.accept_invitation(v_token_pro);
+  UPDATE hive.hive_members SET state = 'active' WHERE hive_id = v_hive AND user_id = v_pro;
   RESET ROLE;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
@@ -151,6 +161,16 @@ BEGIN
   PERFORM public.attach_document_to_request(v_request_id, v_client_doc);
 
   BEGIN
+    PERFORM public.attach_document_to_request(v_request_id, v_doc);
+    RAISE EXCEPTION 'client attach owner upload should fail';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM NOT LIKE '%access_denied%' AND SQLSTATE <> '42501' THEN
+        RAISE;
+      END IF;
+  END;
+
+  BEGIN
     PERFORM public.attach_document_to_request(v_request_id, v_client_doc);
     RAISE EXCEPTION 'duplicate attach same request should fail';
   EXCEPTION
@@ -176,11 +196,11 @@ BEGIN
   END;
 
   BEGIN
-    PERFORM public.attach_document_to_request(v_request_id_b, v_client_doc);
-    RAISE EXCEPTION 'attach doc on other request should fail';
+    PERFORM public.attach_document_to_request(v_request_id_b, v_other_doc);
+    RAISE EXCEPTION 'attach to NOT_NEEDED should fail (other doc)';
   EXCEPTION
     WHEN OTHERS THEN
-      IF SQLERRM NOT LIKE '%document_already_on_other_request%' AND SQLERRM NOT LIKE '%22023%' THEN
+      IF SQLERRM NOT LIKE '%request_not_needed%' AND SQLERRM NOT LIKE '%22023%' THEN
         RAISE;
       END IF;
   END;
@@ -213,13 +233,18 @@ BEGIN
   IF v_json->>'stateNote' IS DISTINCT FROM 'Please send a clearer scan.' THEN
     RAISE EXCEPTION 'ASK_AGAIN note missing for staff resolve: %', v_json;
   END IF;
+  v_json := public.staff_resolve_request(v_request_id, 'ACCEPT', NULL);
+  IF v_json->>'stateNote' IS NOT NULL THEN
+    RAISE EXCEPTION 'ACCEPT should clear state_note: %', v_json;
+  END IF;
   RESET ROLE;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text, 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
   v_json := public.list_requests(v_hive);
-  IF v_json->'requests'->0->>'stateNote' IS DISTINCT FROM 'Please send a clearer scan.' THEN
-    RAISE EXCEPTION 'ASK_AGAIN note not visible to member: %', v_json;
+  v_json := public.list_requests(v_hive);
+  IF v_json->'requests'->0->>'stateNote' IS NOT NULL THEN
+    RAISE EXCEPTION 'ACCEPT should clear state_note in list: %', v_json->'requests'->0;
   END IF;
 
   SELECT count(*)::integer INTO v_count
@@ -267,6 +292,24 @@ BEGIN
   IF (v_json->>'canUpload')::boolean IS NOT TRUE THEN
     RAISE EXCEPTION 'member upload context: %', v_json;
   END IF;
+  RESET ROLE;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_pro::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  v_json := public.get_upload_context(v_hive);
+  IF (v_json->>'canUpload')::boolean IS NOT FALSE THEN
+    RAISE EXCEPTION 'professional upload context should deny upload: %', v_json;
+  END IF;
+  BEGIN
+    PERFORM public.get_upload_quota_for_hive(v_hive);
+    RAISE EXCEPTION 'professional quota should fail';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM NOT LIKE '%access_denied%' AND SQLSTATE <> '42501' THEN
+        RAISE;
+      END IF;
+  END;
+  PERFORM public.list_requests(v_hive);
   RESET ROLE;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text, 'role', 'authenticated')::text, true);
@@ -367,6 +410,27 @@ BEGIN
     RAISE EXCEPTION 'list_requests should surface latest check: %', v_json->'requests'->0->'latestCheck';
   END IF;
   RESET ROLE;
+
+  IF EXISTS (
+    SELECT 1
+      FROM information_schema.columns c
+     WHERE c.table_schema = 'hive'
+       AND c.table_name = 'requests'
+       AND c.column_name = 'created_by'
+       AND c.is_nullable <> 'YES'
+  ) THEN
+    RAISE EXCEPTION 'hive.requests.created_by must be nullable';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM information_schema.columns c
+     WHERE c.table_schema = 'hive'
+       AND c.table_name = 'request_documents'
+       AND c.column_name = 'added_by'
+       AND c.is_nullable <> 'YES'
+  ) THEN
+    RAISE EXCEPTION 'hive.request_documents.added_by must be nullable';
+  END IF;
 
   RAISE NOTICE 'ALL CHECKS PASSED';
 END;

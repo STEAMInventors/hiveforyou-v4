@@ -485,6 +485,8 @@ function fakeDatabase(
           error: null,
         };
       }
+      case "get_hive_chosen_pack":
+        return { data: null, error: null };
       case "accept_study_revision":
         accepted = args.p_revision as Record<string, unknown>;
         status = "SUCCEEDED";

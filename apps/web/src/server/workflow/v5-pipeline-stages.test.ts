@@ -1049,4 +1049,34 @@ describe("selectAndPersistDomainPack", () => {
     loadPackEntriesSpy.mockRestore();
     selectDomainPackSpy.mockRestore();
   });
+
+  it("throws retryable persistence error when chosen pack lookup fails", async () => {
+    const loadPackEntriesSpy = vi.spyOn(packLoader, "loadPackEntries");
+
+    const client = {
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === "get_hive_chosen_pack") {
+          return { data: null, error: { message: "rpc unavailable" } };
+        }
+        throw new Error(fn);
+      }),
+    };
+
+    await expect(
+      selectAndPersistDomainPack({
+        client,
+        runId: RUN_ID,
+        requestText: "fixture request",
+        extractions: [],
+        hiveId: HIVE_ID,
+        correlationId: "corr-chosen-pack",
+      }),
+    ).rejects.toMatchObject({
+      errorCode: "PERSISTENCE_FAILED",
+      retryable: true,
+      diagnosticReason: "chosen_pack_lookup_failed",
+    });
+    expect(loadPackEntriesSpy).not.toHaveBeenCalled();
+    loadPackEntriesSpy.mockRestore();
+  });
 });

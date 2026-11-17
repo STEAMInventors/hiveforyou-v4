@@ -250,6 +250,10 @@ DECLARE
   v_success text;
   v_errors text;
   v_msg text;
+  v_smoke_digest text := 'sha256:' || repeat('f', 64);
+  v_smoke_prompt_digest text := 'sha256:' || repeat('e', 64);
+  v_smoke_unverified text[] := ARRAY['hive.persist_intake_result'];
+  v_unverified_name text;
 BEGIN
   RESET ROLE;
 
@@ -573,25 +577,35 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.assign_hive(%L, %L, NULL)$fmt$, v_hive, v_member));
 
   -- rpc: backfill_processing_run_estimate
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.backfill_processing_run_estimate(%L)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.backfill_processing_run_estimate(%L)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.backfill_processing_run_estimate(%L)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.backfill_processing_run_estimate(%L)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.backfill_processing_run_estimate(%L)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.backfill_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.backfill_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.backfill_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.backfill_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.backfill_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_run));
 
   -- rpc: backfill_report_run_estimate
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.backfill_report_run_estimate(%L)$fmt$, v_report_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.backfill_report_run_estimate(%L)$fmt$, v_report_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.backfill_report_run_estimate(%L)$fmt$, v_report_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.backfill_report_run_estimate(%L)$fmt$, v_report_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.backfill_report_run_estimate(%L)$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.backfill_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.backfill_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.backfill_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.backfill_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.backfill_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-backfill')$fmt$, v_report_run));
 
   -- rpc: begin_doc_extraction_attempt
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.begin_doc_extraction_attempt(%L, %L, 1)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.begin_doc_extraction_attempt(%L, %L, 1)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.begin_doc_extraction_attempt(%L, %L, 1)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.begin_doc_extraction_attempt(%L, %L, 1)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.begin_doc_extraction_attempt(%L, %L, 1)$fmt$, v_run, v_doc));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format(
+    $fmt$SELECT public.begin_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format(
+    $fmt$SELECT public.begin_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format(
+    $fmt$SELECT public.begin_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format(
+    $fmt$SELECT public.begin_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format(
+    $fmt$SELECT public.begin_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
 
   -- rpc: begin_hive_deletion (v_hive_deletion only — must not mark main smoke hive deleting)
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.begin_hive_deletion(%L)$fmt$, v_hive_deletion));
@@ -650,11 +664,11 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.create_invitation(%L, 'extra@example.test', 'client', repeat('e', 64))$fmt$, v_hive));
 
   -- rpc: fail_stale_in_flight_doc_extraction_attempts
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L::uuid, now(), 'smoke_stale')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L::uuid, now(), 'smoke_stale')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L::uuid, now(), 'smoke_stale')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L::uuid, now(), 'smoke_stale')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.fail_stale_in_flight_doc_extraction_attempts(%L::uuid, now(), 'smoke_stale')$fmt$, v_run));
 
   -- rpc: generate_hive_report
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.generate_hive_report(%L, %L, 'CUSTOMER', gen_random_uuid(), %L)$fmt$, v_hive, v_revision, v_correlation));
@@ -811,18 +825,18 @@ BEGIN
   PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.get_upload_quota()$fmt$));
 
   -- rpc: invite_firm_member
-  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.invite_firm_member('extra@example.test', 'X', 'member', repeat('d', 64))$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.invite_firm_member('extra@example.test', 'X', 'member', repeat('d', 64))$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.invite_firm_member('extra@example.test', 'X', 'member', repeat('d', 64))$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.invite_firm_member('extra@example.test', 'X', 'member', repeat('d', 64))$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.invite_firm_member('extra@example.test', 'X', 'member', repeat('d', 64))$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.invite_firm_member('extra-owner@example.test', 'X', 'member', repeat('d', 64))$fmt$));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.invite_firm_member('extra-member@example.test', 'X', 'member', repeat('d', 64))$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.invite_firm_member('extra-client@example.test', 'X', 'member', repeat('d', 64))$fmt$));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.invite_firm_member('extra-pro@example.test', 'X', 'member', repeat('e', 64))$fmt$));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.invite_firm_member('extra-stranger@example.test', 'X', 'member', repeat('f', 64))$fmt$));
 
   -- rpc: list_document_pages
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.list_document_pages(%L)$fmt$, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.list_document_pages(%L)$fmt$, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.list_document_pages(%L)$fmt$, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.list_document_pages(%L)$fmt$, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.list_document_pages(%L)$fmt$, v_doc));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.list_document_pages(%L::uuid, %L::uuid, 'smoke-fp', %L)$fmt$, v_hive, v_doc, v_smoke_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.list_document_pages(%L::uuid, %L::uuid, 'smoke-fp', %L)$fmt$, v_hive, v_doc, v_smoke_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.list_document_pages(%L::uuid, %L::uuid, 'smoke-fp', %L)$fmt$, v_hive, v_doc, v_smoke_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.list_document_pages(%L::uuid, %L::uuid, 'smoke-fp', %L)$fmt$, v_hive, v_doc, v_smoke_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.list_document_pages(%L::uuid, %L::uuid, 'smoke-fp', %L)$fmt$, v_hive, v_doc, v_smoke_digest));
 
   -- rpc: list_document_reads
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.list_document_reads(%L)$fmt$, v_hive));
@@ -874,53 +888,76 @@ BEGIN
   PERFORM pg_temp.smoke_expect_ok(v_stranger, format($fmt$SELECT public.lookup_invitation(%L)$fmt$, v_token_client));
 
   -- rpc: patch_processing_run_workflow_state
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.patch_processing_run_workflow_state(%L, '{}'::jsonb)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.patch_processing_run_workflow_state(%L, '{}'::jsonb)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.patch_processing_run_workflow_state(%L, '{}'::jsonb)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.patch_processing_run_workflow_state(%L, '{}'::jsonb)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.patch_processing_run_workflow_state(%L, '{}'::jsonb)$fmt$, v_run));
-
-  -- rpc: persist_intake_result
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT hive.persist_intake_result('{}'::jsonb)$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT hive.persist_intake_result('{}'::jsonb)$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT hive.persist_intake_result('{}'::jsonb)$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT hive.persist_intake_result('{}'::jsonb)$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT hive.persist_intake_result('{}'::jsonb)$fmt$));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.patch_processing_run_workflow_state(%L::uuid, 'ACCEPTING_STUDY', '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.patch_processing_run_workflow_state(%L::uuid, 'ACCEPTING_STUDY', '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.patch_processing_run_workflow_state(%L::uuid, 'ACCEPTING_STUDY', '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.patch_processing_run_workflow_state(%L::uuid, 'ACCEPTING_STUDY', '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.patch_processing_run_workflow_state(%L::uuid, 'ACCEPTING_STUDY', '{}'::jsonb)$fmt$, v_run));
 
   -- rpc: persist_processing_run_estimate
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.persist_processing_run_estimate(%L, '{}'::jsonb)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.persist_processing_run_estimate(%L, '{}'::jsonb)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.persist_processing_run_estimate(%L, '{}'::jsonb)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.persist_processing_run_estimate(%L, '{}'::jsonb)$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.persist_processing_run_estimate(%L, '{}'::jsonb)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.persist_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.persist_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.persist_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.persist_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.persist_processing_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_run));
 
   -- rpc: persist_report_run_estimate
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.persist_report_run_estimate(%L, '{}'::jsonb)$fmt$, v_report_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.persist_report_run_estimate(%L, '{}'::jsonb)$fmt$, v_report_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.persist_report_run_estimate(%L, '{}'::jsonb)$fmt$, v_report_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.persist_report_run_estimate(%L, '{}'::jsonb)$fmt$, v_report_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.persist_report_run_estimate(%L, '{}'::jsonb)$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.persist_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.persist_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.persist_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.persist_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_report_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.persist_report_run_estimate(%L::uuid, now() + interval '1 hour', 'smoke-estimate')$fmt$, v_report_run));
 
   -- rpc: put_doc_extraction
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.put_doc_extraction(%L, %L, '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.put_doc_extraction(%L, %L, '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.put_doc_extraction(%L, %L, '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.put_doc_extraction(%L, %L, '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.put_doc_extraction(%L, %L, '{}'::jsonb)$fmt$, v_run, v_doc));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format(
+    $fmt$SELECT public.put_doc_extraction(%L::uuid, %L::uuid, %L, 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format(
+    $fmt$SELECT public.put_doc_extraction(%L::uuid, %L::uuid, %L, 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format(
+    $fmt$SELECT public.put_doc_extraction(%L::uuid, %L::uuid, %L, 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format(
+    $fmt$SELECT public.put_doc_extraction(%L::uuid, %L::uuid, %L, 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format(
+    $fmt$SELECT public.put_doc_extraction(%L::uuid, %L::uuid, %L, 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
 
   -- rpc: put_doc_extraction_range
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.put_doc_extraction_range(%L, %L, 1, 1, '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.put_doc_extraction_range(%L, %L, 1, 1, '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.put_doc_extraction_range(%L, %L, 1, 1, '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.put_doc_extraction_range(%L, %L, 1, 1, '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.put_doc_extraction_range(%L, %L, 1, 1, '{}'::jsonb)$fmt$, v_run, v_doc));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format(
+    $fmt$SELECT public.put_doc_extraction_range(%L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format(
+    $fmt$SELECT public.put_doc_extraction_range(%L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format(
+    $fmt$SELECT public.put_doc_extraction_range(%L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format(
+    $fmt$SELECT public.put_doc_extraction_range(%L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format(
+    $fmt$SELECT public.put_doc_extraction_range(%L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'sorter', '{}'::jsonb, '{}'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
 
   -- rpc: put_document_pages
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.put_document_pages(%L, '[]'::jsonb)$fmt$, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.put_document_pages(%L, '[]'::jsonb)$fmt$, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.put_document_pages(%L, '[]'::jsonb)$fmt$, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.put_document_pages(%L, '[]'::jsonb)$fmt$, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.put_document_pages(%L, '[]'::jsonb)$fmt$, v_doc));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format(
+    $fmt$SELECT public.put_document_pages(%L::uuid, %L::uuid, %L, 'smoke-fp', %L, 'SUCCEEDED', 1, 1, '[]'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format(
+    $fmt$SELECT public.put_document_pages(%L::uuid, %L::uuid, %L, 'smoke-fp', %L, 'SUCCEEDED', 1, 1, '[]'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format(
+    $fmt$SELECT public.put_document_pages(%L::uuid, %L::uuid, %L, 'smoke-fp', %L, 'SUCCEEDED', 1, 1, '[]'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format(
+    $fmt$SELECT public.put_document_pages(%L::uuid, %L::uuid, %L, 'smoke-fp', %L, 'SUCCEEDED', 1, 1, '[]'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format(
+    $fmt$SELECT public.put_document_pages(%L::uuid, %L::uuid, %L, 'smoke-fp', %L, 'SUCCEEDED', 1, 1, '[]'::jsonb)$fmt$,
+    v_hive, v_doc, v_smoke_digest, v_smoke_digest));
 
   -- rpc: read_study_prompt_preview
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.read_study_prompt_preview(%L)$fmt$, v_run));
@@ -937,11 +974,21 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.rebuild_study(%L, gen_random_uuid(), gen_random_uuid())$fmt$, v_hive));
 
   -- rpc: record_doc_extraction_attempt
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.record_doc_extraction_attempt(%L, %L, 1, 'GAP', '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.record_doc_extraction_attempt(%L, %L, 1, 'GAP', '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.record_doc_extraction_attempt(%L, %L, 1, 'GAP', '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.record_doc_extraction_attempt(%L, %L, 1, 'GAP', '{}'::jsonb)$fmt$, v_run, v_doc));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.record_doc_extraction_attempt(%L, %L, 1, 'GAP', '{}'::jsonb)$fmt$, v_run, v_doc));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format(
+    $fmt$SELECT public.record_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'MODEL_TIMEOUT', 'smoke', 504, 1, false, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format(
+    $fmt$SELECT public.record_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'MODEL_TIMEOUT', 'smoke', 504, 1, false, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format(
+    $fmt$SELECT public.record_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'MODEL_TIMEOUT', 'smoke', 504, 1, false, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format(
+    $fmt$SELECT public.record_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'MODEL_TIMEOUT', 'smoke', 504, 1, false, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format(
+    $fmt$SELECT public.record_doc_extraction_attempt(%L::uuid, %L::uuid, %L::uuid, %L, '1', 'hive-extract/1', %L, 'MODEL_TIMEOUT', 'smoke', 504, 1, false, now())$fmt$,
+    v_run, v_hive, v_doc, v_smoke_digest, v_smoke_prompt_digest));
 
   -- rpc: record_extracting_document_success
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.record_extracting_document_success(%L, '{}'::jsonb)$fmt$, v_run));
@@ -979,11 +1026,11 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.remove_member(%L, %L)$fmt$, v_hive, v_client));
 
   -- rpc: reserve_processing_run_handoff
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.reserve_processing_run_handoff(%L, gen_random_uuid())$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.reserve_processing_run_handoff(%L, gen_random_uuid())$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.reserve_processing_run_handoff(%L, gen_random_uuid())$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.reserve_processing_run_handoff(%L, gen_random_uuid())$fmt$, v_run));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.reserve_processing_run_handoff(%L, gen_random_uuid())$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.reserve_processing_run_handoff(%L::uuid, 300)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.reserve_processing_run_handoff(%L::uuid, 300)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.reserve_processing_run_handoff(%L::uuid, 300)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.reserve_processing_run_handoff(%L::uuid, 300)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.reserve_processing_run_handoff(%L::uuid, 300)$fmt$, v_run));
 
   -- rpc: retry_processing_run_stage
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.retry_processing_run_stage(%L, 'FAILED', '{}'::jsonb)$fmt$, v_run));
@@ -1084,7 +1131,7 @@ BEGIN
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.list_requests(%L)$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.list_requests(%L)$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.list_requests(%L)$fmt$, v_hive));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.list_requests(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.list_requests(%L)$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.list_requests(%L)$fmt$, v_hive));
 
   -- rpc: record_request_check
@@ -1186,11 +1233,21 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.try_advance_extracting_to_canonicalizing(%L)$fmt$, v_run));
 
   -- rpc: update_doc_extraction_attempt_outcome
-  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
-  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), 'SUCCEEDED', '{}'::jsonb)$fmt$));
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format(
+    $fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), %L::uuid, 'succeeded', NULL, NULL, NULL, NULL, false)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format(
+    $fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), %L::uuid, 'succeeded', NULL, NULL, NULL, NULL, false)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format(
+    $fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), %L::uuid, 'succeeded', NULL, NULL, NULL, NULL, false)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format(
+    $fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), %L::uuid, 'succeeded', NULL, NULL, NULL, NULL, false)$fmt$, v_run));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format(
+    $fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), %L::uuid, 'succeeded', NULL, NULL, NULL, NULL, false)$fmt$, v_run));
+
+  FOREACH v_unverified_name IN ARRAY v_smoke_unverified
+  LOOP
+    RAISE NOTICE 'UNVERIFIED: %', v_unverified_name;
+  END LOOP;
 
   IF EXISTS (SELECT 1 FROM smoke_unexpected_success)
      OR EXISTS (SELECT 1 FROM smoke_unexpected_error) THEN

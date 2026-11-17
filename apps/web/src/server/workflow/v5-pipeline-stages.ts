@@ -387,9 +387,30 @@ export async function persistDomainPackWorkflowState(
 async function loadHiveChosenPack(
   client: RpcClient,
   hiveId: string,
+  context: { runId: string; correlationId?: string },
 ): Promise<{ id: string; version: number } | null> {
   const { data, error } = await client.rpc("get_hive_chosen_pack", { p_hive_id: hiveId });
-  if (error || data == null || typeof data !== "object") {
+  if (error) {
+    logDomainPackLoadIssue({
+      correlationId: context.correlationId,
+      hiveId,
+      runId: context.runId,
+      diagnosticReason: "chosen_pack_lookup_failed",
+      diagnosticField: error.message ?? "rpc_failed",
+    });
+    throw createHiveError({
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
+      stage: "ANALYZE",
+      retryable: true,
+      safeMessage: "Analysis stopped before it finished. You can try again.",
+      correlationId: context.correlationId ?? context.runId,
+      operationId: context.runId,
+      diagnosticReason: "chosen_pack_lookup_failed",
+      diagnosticField: error.message ?? "rpc_failed",
+    });
+  }
+  if (data == null || typeof data !== "object") {
     return null;
   }
   const row = data as Record<string, unknown>;
@@ -451,7 +472,10 @@ export async function selectAndPersistDomainPack(input: {
     return { pack: null, selection: input.existing };
   }
   if (input.hiveId) {
-    const chosen = await loadHiveChosenPack(input.client, input.hiveId);
+    const chosen = await loadHiveChosenPack(input.client, input.hiveId, {
+      runId: input.runId,
+      correlationId: input.correlationId,
+    });
     if (chosen) {
       const pack = loadPackById(chosen.id, chosen.version);
       const selection = { id: chosen.id, version: chosen.version, score: 0 };

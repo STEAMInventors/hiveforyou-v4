@@ -44,6 +44,7 @@ AS $$
             WHERE m.hive_id = h.id
               AND m.user_id = auth.uid()
               AND m.state = 'active'
+              AND m.role = 'client'
          )
        )
   );
@@ -386,7 +387,7 @@ CREATE TABLE hive.requests (
   state text NOT NULL,
   state_note text,
   accepted_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
-  created_by uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  created_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT ck_requests__source CHECK (source IN ('pack', 'staff')),
@@ -407,7 +408,7 @@ CREATE INDEX idx_requests__hive_position ON hive.requests (hive_id, position);
 CREATE TABLE hive.request_documents (
   request_id uuid NOT NULL REFERENCES hive.requests (id) ON DELETE CASCADE,
   source_document_id uuid NOT NULL REFERENCES hive.source_documents (id) ON DELETE CASCADE,
-  added_by uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  added_by uuid REFERENCES auth.users (id) ON DELETE SET NULL,
   added_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT pk_request_documents PRIMARY KEY (request_id, source_document_id)
 );
@@ -769,6 +770,10 @@ BEGIN
     RAISE EXCEPTION 'document_not_found' USING ERRCODE = 'P0002';
   END IF;
 
+  IF NOT hive.can_write_hive(v_req.hive_id) AND v_doc.uploaded_by_user_id IS DISTINCT FROM v_uid THEN
+    RAISE EXCEPTION 'access_denied' USING ERRCODE = '42501';
+  END IF;
+
   IF v_req.state = 'NOT_NEEDED' THEN
     RAISE EXCEPTION 'request_not_needed' USING ERRCODE = '22023';
   END IF;
@@ -931,7 +936,11 @@ BEGIN
   UPDATE hive.requests
   SET
     state = v_to,
-    state_note = CASE WHEN p_action = 'ASK_AGAIN' THEN v_note ELSE state_note END,
+    state_note = CASE
+      WHEN p_action = 'ASK_AGAIN' THEN v_note
+      WHEN p_action IN ('ACCEPT', 'NOT_NEEDED') THEN NULL
+      ELSE state_note
+    END,
     accepted_by = CASE WHEN p_action = 'ACCEPT' THEN v_uid ELSE accepted_by END,
     updated_at = now()
   WHERE id = p_request_id;
