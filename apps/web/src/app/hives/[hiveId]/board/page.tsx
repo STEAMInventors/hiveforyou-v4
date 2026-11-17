@@ -2,7 +2,9 @@ import { HiveBoardPanel } from "@/components/hives/HiveBoardPanel";
 import { HiveBoardThreePane } from "@/components/hives/HiveBoardThreePane";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { requestCorrelationId } from "@/server/auth/action-support";
+import { loadLatestHandover } from "@/server/firm/load-firm-board";
 import { loadFirm } from "@/server/firm/load-firm";
+import { loadHivePollSnapshot } from "@/server/hives/hive-poll-snapshot";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
@@ -42,6 +44,8 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
 
   const threePane = showsFirmThreePane(hive);
   const firm = threePane ? await loadFirm(auth.client) : null;
+  const poll = threePane ? await loadHivePollSnapshot(auth.client, hive, correlationId) : null;
+  const handover = threePane ? await loadLatestHandover(auth.client, hive.id) : null;
 
   return threePane && firm?.firm ? (
     <HiveBoardThreePane
@@ -50,6 +54,9 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
       board={loaded.board}
       firm={firm}
       pollCorrelationId={correlationId}
+      initialPollVersion={poll?.version ?? null}
+      initialFastPoll={poll?.fastPoll ?? false}
+      handover={handover}
       uploads={loaded.uploads}
       documentLabels={documentLabels}
       initialPreparation={loaded.overview.preparation}

@@ -3,11 +3,10 @@
 import type { Hive, HiveBoardModel } from "@hiveforyou/contracts";
 import { useMemo, useState } from "react";
 
-import { TEXT_LINK_CLASS, WORKSPACE_SECONDARY } from "@/components/button-classes";
+import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { hiveBadgeInitials } from "@/lib/hives/hive-badge-initials";
 import { personFirstName } from "@/lib/hives/firm-board";
 import type { HiveBoardUpload } from "@/server/hives/hive-board-loader";
-import { useWorkspaceAction } from "@/components/workspace/useWorkspaceAction";
 
 type HiveBoardClientPaneProps = {
   hive: Hive;
@@ -35,10 +34,7 @@ export function HiveBoardClientPane({
     [board.checklist],
   );
   const hasWaiting = invited && waitingItems.length > 0;
-  const [autoRemind, setAutoRemind] = useState(true);
   const [replyDraft, setReplyDraft] = useState("");
-  const remindAction = useWorkspaceAction(`/hives/${hive.id}/board`);
-  const autoRemindAction = useWorkspaceAction(`/hives/${hive.id}/board`);
 
   return (
     <aside
@@ -75,68 +71,19 @@ export function HiveBoardClientPane({
 
       {hasWaiting ? (
         <div className="flex flex-col gap-2 border-b border-line px-[18px] py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="m-0 text-small text-ink">
-              <span aria-hidden className="text-cell-blue-deep">
-                ●
-              </span>{" "}
-              Waiting on {clientFirst}
-            </p>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autoRemind}
-              className="border-0 bg-transparent p-0 text-caption font-semibold text-cell-blue-deep"
-              disabled={autoRemindAction.pending}
-              onClick={() => {
-                const next = !autoRemind;
-                void autoRemindAction
-                  .run({
-                    url: `/api/v1/hives/${hive.id}/reminders`,
-                    body: { enabled: next, clientRequestId: crypto.randomUUID() },
-                  })
-                  .then((ok) => {
-                    if (ok) setAutoRemind(next);
-                  });
-              }}
-            >
-              {autoRemind ? "Auto-remind on" : "Auto-remind off"}
-            </button>
-          </div>
-          {autoRemindAction.inlineError ? (
-            <p role="alert" className="m-0 text-caption text-coral-deep">
-              {autoRemindAction.inlineError.message}
-              {autoRemindAction.inlineError.reference
-                ? ` Reference ${autoRemindAction.inlineError.reference}.`
-                : ""}
-            </p>
-          ) : null}
+          <p className="m-0 text-small text-ink">
+            <span aria-hidden className="text-cell-blue-deep">
+              ●
+            </span>{" "}
+            Waiting on {clientFirst}
+          </p>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {waitingItems.map((item) => (
-              <li key={item.gapId} className="flex items-center justify-between gap-2 text-small">
-                <span className="truncate text-ink">{item.title}</span>
-                <button
-                  type="button"
-                  className={`${TEXT_LINK_CLASS} shrink-0 border-0 bg-transparent p-0`}
-                  disabled={remindAction.pending}
-                  onClick={() =>
-                    void remindAction.run({
-                      url: `/api/v1/hives/${hive.id}/remind`,
-                      body: { gapId: item.gapId, clientRequestId: crypto.randomUUID() },
-                    })
-                  }
-                >
-                  Remind now
-                </button>
+              <li key={item.gapId} className="text-small text-ink">
+                {item.title}
               </li>
             ))}
           </ul>
-          {remindAction.inlineError ? (
-            <p role="alert" className="m-0 text-caption text-coral-deep">
-              {remindAction.inlineError.message}
-              {remindAction.inlineError.reference ? ` Reference ${remindAction.inlineError.reference}.` : ""}
-            </p>
-          ) : null}
         </div>
       ) : null}
 

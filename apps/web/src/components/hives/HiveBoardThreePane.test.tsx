@@ -130,11 +130,12 @@ describe("HiveBoardThreePane", () => {
     expect(primaryActions()).toHaveLength(1);
   });
 
-  it("shows client waiting line and auto-remind switch on wide layout", () => {
+  it("shows client waiting line without reminder controls", () => {
     renderPane();
-    expect(screen.getByRole("switch")).toBeTruthy();
+    expect(screen.queryByRole("switch")).toBeNull();
     expect(screen.getByText(/Waiting on Ruth/)).toBeTruthy();
-    expect(screen.getByText("Remind now")).toBeTruthy();
+    expect(screen.queryByText("Remind now")).toBeNull();
+    expect(screen.queryByText(/Auto-remind/)).toBeNull();
   });
 
   it("shows Items and client tabs below 1100px without Team", () => {

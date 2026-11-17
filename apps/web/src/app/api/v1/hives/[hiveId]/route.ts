@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { deleteHiveViaEdge, getHiveViaEdge } from "@/server/hives/hive-edge-gateway";
+import { loadHivePollSnapshot } from "@/server/hives/hive-poll-snapshot";
 import { CORRELATION_HEADER } from "@/server/observability/correlation";
 import { withApiRoute } from "@/server/observability/with-api-route";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
@@ -43,7 +44,8 @@ export async function GET(
     }
 
     const body = await getHiveViaEdge(auth.client, hiveId, correlationId);
-    return NextResponse.json(body, {
+    const poll = await loadHivePollSnapshot(auth.client, body.hive, correlationId);
+    return NextResponse.json({ ...body, version: poll.version, fastPoll: poll.fastPoll }, {
       status: 200,
       headers: { [CORRELATION_HEADER]: correlationId },
     });

@@ -1,11 +1,11 @@
 "use client";
 
 import type { Hive } from "@hiveforyou/contracts";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { WORKSPACE_PRIMARY } from "@/components/button-classes";
 import { Card } from "@/components/workspace/Card";
+import { useWorkspaceAction } from "@/components/workspace/useWorkspaceAction";
 import type { FirmTeamNote } from "@/server/firm/load-firm-board";
 
 export function HiveTeamNotesPanel({
@@ -17,37 +17,19 @@ export function HiveTeamNotesPanel({
   clientName: string;
   notes: readonly FirmTeamNote[];
 }) {
-  const router = useRouter();
+  const path = `/hives/${hive.id}/notes`;
+  const action = useWorkspaceAction(path);
   const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function save() {
     const body = draft.trim();
-    if (!body || busy) return;
-    setBusy(true);
-    setError(null);
-    const key = crypto.randomUUID();
-    try {
-      const response = await fetch(`/api/v1/hives/${hive.id}/team-notes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
-        body: JSON.stringify({ body, clientRequestId: key }),
-      });
-      const payload = (await response.json().catch(() => null)) as { safeMessage?: string; correlationId?: string } | null;
-      if (!response.ok) {
-        setError(
-          `${typeof payload?.safeMessage === "string" ? payload.safeMessage : "Could not save the note."}${
-            payload?.correlationId ? ` Reference ${payload.correlationId.slice(0, 8)}.` : ""
-          }`,
-        );
-        return;
-      }
-      setDraft("");
-      router.refresh();
-    } finally {
-      setBusy(false);
-    }
+    if (!body || action.pending) return;
+    const result = await action.run({
+      url: `/api/v1/hives/${hive.id}/team-notes`,
+      body: { body, itemRef: null },
+      failureMessage: "Could not save the note.",
+    });
+    if (result) setDraft("");
   }
 
   return (
@@ -79,13 +61,34 @@ export function HiveTeamNotesPanel({
           rows={4}
           className="w-full rounded-control border border-line px-3 py-2 text-small"
         />
-        {error ? (
+        {action.inlineError ? (
           <p role="alert" className="m-0 mt-2 text-caption text-coral-deep">
-            {error}
+            {action.inlineError.message}
+            {action.inlineError.reference ? ` Reference ${action.inlineError.reference}.` : ""}
+            {action.inlineError.retryable ? (
+              <button
+                type="button"
+                className="ml-1 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
+                onClick={() =>
+                  void action.retrySameKey({
+                    url: `/api/v1/hives/${hive.id}/team-notes`,
+                    body: { body: draft.trim(), itemRef: null },
+                    failureMessage: "Could not save the note.",
+                  })
+                }
+              >
+                Try again
+              </button>
+            ) : null}
           </p>
         ) : null}
-        <button type="button" className={`${WORKSPACE_PRIMARY} mt-3`} disabled={busy || !draft.trim()} onClick={() => void save()}>
-          {busy ? "Saving…" : "Save note"}
+        <button
+          type="button"
+          className={`${WORKSPACE_PRIMARY} mt-3`}
+          disabled={action.pending || !draft.trim()}
+          onClick={() => void save()}
+        >
+          {action.pending ? "Saving…" : "Save note"}
         </button>
       </Card>
     </div>

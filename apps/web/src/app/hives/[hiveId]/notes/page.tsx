@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { HiveTeamNotesPanel } from "@/components/hives/HiveTeamNotesPanel";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
@@ -16,7 +16,9 @@ export default async function NotesPage({ params }: { params: Promise<{ hiveId: 
     notFound();
   }
   const auth = await requireAuthenticatedUser();
-  if (!auth.ok) return null;
+  if (!auth.ok) {
+    redirect(`/sign-in?next=${encodeURIComponent(`/hives/${hiveId}/notes`)}`);
+  }
   const firm = await loadFirm(auth.client);
   const notes = await loadTeamNotes(auth.client, hive.id);
   const firmName = firm?.firm?.name ?? "your firm";

@@ -1,12 +1,13 @@
 "use client";
 
 import type { Hive } from "@hiveforyou/contracts";
-import { useId, useState } from "react";
+import type { ListFirmResponse } from "@hiveforyou/contracts";
+import { useId, useRef, useState } from "react";
 
 import { TEXT_LINK_CLASS } from "@/components/button-classes";
-import type { ListFirmResponse } from "@hiveforyou/contracts";
 import { hiveBadgeInitials } from "@/lib/hives/hive-badge-initials";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
+import { HandOverDialog } from "@/components/workspace/HandOverDialog";
 import { useWorkspaceAction } from "@/components/workspace/useWorkspaceAction";
 
 type HiveSidebarCardProps = {
@@ -29,8 +30,10 @@ export function HiveSidebarCard({
   const renameId = useId();
   const path = `/hives/${hive.id}/board`;
   const action = useWorkspaceAction(path);
+  const handOverTriggerRef = useRef<HTMLButtonElement>(null);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(assistantName);
+  const [handOverOpen, setHandOverOpen] = useState(false);
   const firmClient = showsFirmThreePane(hive) && firm?.firm;
   const stage = hive.stage ?? "open";
   const canTake =
@@ -77,11 +80,9 @@ export function HiveSidebarCard({
                 className={`${TEXT_LINK_CLASS} border-0 bg-transparent p-0 font-semibold disabled:opacity-45`}
                 disabled={action.pending}
                 onClick={() => {
-                  const key = crypto.randomUUID();
                   void action.run({
                     url: `/api/v1/hives/${hive.id}/assignment`,
-                    body: { assigneeUserId: currentUserId, clientRequestId: key },
-                    idempotencyKey: key,
+                    body: { assigneeUserId: currentUserId },
                     failureMessage: "Could not take this hive.",
                   });
                 }}
@@ -89,22 +90,15 @@ export function HiveSidebarCard({
                 {action.pending ? "Saving…" : "Take it"}
               </button>
             ) : null}
-            {canHandOver ? (
+            {canHandOver && firm ? (
               <button
+                ref={handOverTriggerRef}
                 type="button"
                 className={`${TEXT_LINK_CLASS} border-0 bg-transparent p-0 font-semibold disabled:opacity-45`}
                 disabled={action.pending}
-                onClick={() => {
-                  const key = crypto.randomUUID();
-                  void action.run({
-                    url: `/api/v1/hives/${hive.id}/assignment`,
-                    body: { assigneeUserId: null, clientRequestId: key },
-                    idempotencyKey: key,
-                    failureMessage: "Could not hand over this hive.",
-                  });
-                }}
+                onClick={() => setHandOverOpen(true)}
               >
-                {action.pending ? "Saving…" : "Hand over"}
+                Hand over
               </button>
             ) : null}
           </p>
@@ -127,11 +121,9 @@ export function HiveSidebarCard({
                   disabled={action.pending}
                   onClick={async () => {
                     const name = renameValue.trim();
-                    const key = crypto.randomUUID();
                     const ok = await action.run({
                       url: "/api/v1/firm/assistant",
-                      body: { assistantName: name, clientRequestId: key },
-                      idempotencyKey: key,
+                      body: { assistantName: name },
                       failureMessage: "Could not rename the assistant.",
                     });
                     if (ok) setRenaming(false);
@@ -153,7 +145,31 @@ export function HiveSidebarCard({
         <p role="alert" className="m-0 text-caption text-coral-deep">
           {action.inlineError.message}
           {action.inlineError.reference ? ` Reference ${action.inlineError.reference}.` : ""}
+          {action.inlineError.retryable ? (
+            <button
+              type="button"
+              className="ml-1 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
+              onClick={() => void action.retrySameKey({
+                url: `/api/v1/hives/${hive.id}/assignment`,
+                body: { assigneeUserId: currentUserId },
+                failureMessage: "Could not take this hive.",
+              })}
+            >
+              Try again
+            </button>
+          ) : null}
         </p>
+      ) : null}
+
+      {firm && currentUserId ? (
+        <HandOverDialog
+          open={handOverOpen}
+          hive={hive}
+          firm={firm}
+          currentUserId={currentUserId}
+          returnFocusRef={handOverTriggerRef}
+          onClose={() => setHandOverOpen(false)}
+        />
       ) : null}
     </div>
   );

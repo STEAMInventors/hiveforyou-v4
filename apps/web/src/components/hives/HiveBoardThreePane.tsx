@@ -1,8 +1,9 @@
 "use client";
 
-import type { GetStudyPreparationResponse, Hive, HiveBoardModel, ListFirmResponse } from "@hiveforyou/contracts";
+import type { GetStudyPreparationResponse, GetHiveResponse, Hive, HiveBoardModel, ListFirmResponse } from "@hiveforyou/contracts";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type HTMLAttributes, type ReactNode, useEffect, useState } from "react";
+import { type HTMLAttributes, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { PRIMARY_BUTTON_CLASS, QUIET_BUTTON_CLASS, WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { HiveBoardPanel } from "@/components/hives/HiveBoardPanel";
@@ -10,9 +11,11 @@ import { HiveBoardChecklistCard } from "@/components/hives/HiveBoardChecklistCar
 import { HiveBoardClientPane } from "@/components/hives/HiveBoardClientPane";
 import { HiveBoardNeedRows } from "@/components/hives/HiveBoardNeedRows";
 import {
-  BOARD_POLL_INTERVAL_MS,
+  boardPollIntervalMs,
   boardPollStateFromFailures,
 } from "@/components/hives/hive-board-poll";
+import { HiveHandoverBanner } from "@/components/workspace/HiveHandoverBanner";
+import type { FirmHandoverCard } from "@/server/firm/load-firm-board";
 import { hiveBoardStageAction, hiveBoardStageSegments, splitBoardHeadline } from "@/components/hives/hive-board-stage";
 import { useStudyPreparation } from "@/components/hives/useStudyPreparation";
 import { PaneErrorBoundary } from "@/components/pane-error-boundary";
@@ -31,6 +34,9 @@ type HiveBoardThreePaneProps = {
   documentLabels: Readonly<Record<string, string>>;
   initialPreparation?: GetStudyPreparationResponse;
   pollCorrelationId?: string | null;
+  initialPollVersion?: string | null;
+  initialFastPoll?: boolean;
+  handover?: FirmHandoverCard | null;
 };
 
 function readNarrow(): boolean {
@@ -47,6 +53,9 @@ export function HiveBoardThreePane({
   documentLabels,
   initialPreparation,
   pollCorrelationId = null,
+  initialPollVersion = null,
+  initialFastPoll = false,
+  handover = null,
 }: HiveBoardThreePaneProps) {
   const router = useRouter();
   const analysis = useStudyPreparation(hive.id, { initialPreparation });
@@ -59,7 +68,16 @@ export function HiveBoardThreePane({
   const [inviteError, setInviteError] = useState<string | null>(null);
   const inviteAction = useWorkspaceAction(`/hives/${hive.id}/board`);
   const [pollFailures, setPollFailures] = useState(0);
-  const pollState = boardPollStateFromFailures(pollFailures);
+  const [pollUnavailable, setPollUnavailable] = useState(false);
+  const pollState = pollUnavailable ? "unavailable" : boardPollStateFromFailures(pollFailures);
+  const lastVersionRef = useRef(initialPollVersion);
+  const fastPollRef = useRef(initialFastPoll);
+  const visibleRef = useRef(typeof document !== "undefined" ? document.visibilityState === "visible" : true);
+
+  useEffect(() => {
+    lastVersionRef.current = initialPollVersion;
+    fastPollRef.current = initialFastPoll;
+  }, [initialPollVersion, initialFastPoll]);
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
@@ -71,24 +89,76 @@ export function HiveBoardThreePane({
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(async () => {
+    let timer: number | null = null;
+
+    const schedule = () => {
+      if (timer !== null) window.clearInterval(timer);
+      timer = window.setInterval(() => void pollOnce(), boardPollIntervalMs(fastPollRef.current));
+    };
+
+    const pollOnce = async () => {
+      if (!visibleRef.current) return;
       try {
         const response = await fetch(`/api/v1/hives/${encodeURIComponent(hive.id)}`, {
           credentials: "same-origin",
           headers: { "Cache-Control": "no-cache" },
         });
+        if (response.status === 401 && typeof window !== "undefined") {
+          const next = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+          window.location.href = `/sign-in?next=${next}`;
+          return;
+        }
+        if (response.status === 404) {
+          setPollUnavailable(true);
+          setPollFailures(0);
+          return;
+        }
         if (!response.ok) {
           setPollFailures((count) => count + 1);
           return;
         }
+        const payload = (await response.json()) as GetHiveResponse;
+        if (typeof payload.fastPoll === "boolean") {
+          const wasFast = fastPollRef.current;
+          fastPollRef.current = payload.fastPoll;
+          if (wasFast !== payload.fastPoll) schedule();
+        }
+        const version = typeof payload.version === "string" ? payload.version : null;
+        if (version && version !== lastVersionRef.current) {
+          lastVersionRef.current = version;
+          router.refresh();
+        }
         setPollFailures(0);
-        router.refresh();
+        setPollUnavailable(false);
       } catch {
         setPollFailures((count) => count + 1);
       }
-    }, BOARD_POLL_INTERVAL_MS);
-    return () => window.clearInterval(timer);
+    };
+
+    const onVisibility = () => {
+      visibleRef.current = document.visibilityState === "visible";
+      if (visibleRef.current) {
+        void pollOnce();
+        schedule();
+      } else if (timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    schedule();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      if (timer !== null) window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [hive.id, router]);
+
+  const showHandoverBanner =
+    handover &&
+    currentUserId &&
+    hive.assigneeUserId?.toLowerCase() === currentUserId.toLowerCase() &&
+    hive.stage !== "closed";
 
   const callerIsAttorney = firm.firm?.callerRole === "owner" || firm.firm?.callerRole === "attorney";
   const clientName = hive.name.trim() || "Client";
@@ -100,6 +170,17 @@ export function HiveBoardThreePane({
   const stageSegments = hiveBoardStageSegments(hive, progressIn, progressTotal);
   const stageAction = hiveBoardStageAction(hive, callerIsAttorney);
   const showPane = (id: PaneId) => !narrow || pane === id;
+
+  if (pollState === "unavailable") {
+    return (
+      <div className="flex flex-col gap-4 px-4 py-10 min-[900px]:px-6">
+        <p className="m-0 text-body text-ink">This hive is no longer available to you.</p>
+        <Link href="/hives" className="text-small font-semibold text-cell-blue-deep no-underline">
+          Back to your hives
+        </Link>
+      </div>
+    );
+  }
 
   if (preview) {
     return (
@@ -128,6 +209,7 @@ export function HiveBoardThreePane({
 
   return (
     <div data-testid="hive-board-three-pane" className="flex min-h-0 flex-1 flex-col">
+      {showHandoverBanner && handover ? <HiveHandoverBanner handover={handover} visible /> : null}
       {pollState === "reconnecting" ? (
         <p role="status" className="m-0 border-b border-line bg-honey-wash px-4 py-2 text-caption text-ink">
           Reconnecting… Your work is saved.
