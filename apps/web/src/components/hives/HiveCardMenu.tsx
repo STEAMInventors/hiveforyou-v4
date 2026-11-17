@@ -22,12 +22,14 @@ export function HiveCardMenu({
   hiveKind,
   onDeleteHive,
   onKindChanged,
+  triggerClassName = "",
 }: {
   hiveId: string;
   hiveName: string;
   hiveKind: "own" | "client";
   onDeleteHive: () => void;
   onKindChanged: () => void | Promise<void>;
+  triggerClassName?: string;
 }) {
   const menuId = useId();
   const [open, setOpen] = useState(false);
@@ -97,7 +99,10 @@ export function HiveCardMenu({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         aria-label={`Options for ${hiveName}`}
-        className="flex h-11 w-11 items-center justify-center rounded-control text-ink-subtle transition-colors hover:bg-mist hover:text-ink"
+        className={
+          triggerClassName ||
+          "flex h-11 w-11 items-center justify-center rounded-control text-ink-subtle transition-colors hover:bg-mist hover:text-ink"
+        }
         onClick={() => setOpen((value) => !value)}
       >
         <MoreIcon />

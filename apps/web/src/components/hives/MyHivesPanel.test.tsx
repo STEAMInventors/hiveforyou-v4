@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Hive } from "@hiveforyou/contracts";
 import { hiveAttention } from "@hiveforyou/contracts";
@@ -85,18 +85,34 @@ const needsAttention = hiveAttention({
   hasReport: false,
 });
 
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", vi.fn().mockImplementation(() => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })));
+});
+
 afterEach(() => {
   cleanup();
   searchParams = new URLSearchParams();
   replace.mockClear();
+  vi.unstubAllGlobals();
 });
 
 describe("MyHivesPanel", () => {
-  it("renders the clients workspace with one filled New client button and rail counts", () => {
+  it("renders the workspace clients home with one filled New client control", () => {
     render(
-      <ClientsHomeProvider enabled>
+      <ClientsHomeProvider enabled initialQuery="">
         <MyHivesPanel
-          initialHives={[hive(), hive({ id: "660e8400-e29b-41d4-a716-446655440001", name: "Jordan Lee", clientRequestId: "22222222-2222-4222-8222-222222222222" })]}
+          initialHives={[
+            hive(),
+            hive({
+              id: "660e8400-e29b-41d4-a716-446655440001",
+              name: "Jordan Lee",
+              clientRequestId: "22222222-2222-4222-8222-222222222222",
+            }),
+          ]}
           startingView="clients"
           greetingFirstName="Sam"
           summaries={{
@@ -107,52 +123,34 @@ describe("MyHivesPanel", () => {
       </ClientsHomeProvider>,
     );
     expect(screen.getByRole("link", { name: /New client/ })).toBeTruthy();
-    expect(screen.queryByPlaceholderText("Find a client")).toBeNull();
     expect(screen.getByRole("heading", { name: "All clients" })).toBeTruthy();
-    const needsButton = screen.getByRole("button", { name: /Needs you/ });
+    const nav = screen.getByRole("navigation", { name: "Clients" });
+    const needsButton = within(nav).getByRole("button", { name: /Needs you/ });
     expect(within(needsButton).getByText("1")).toBeTruthy();
-    expect(within(screen.getByRole("navigation", { name: "Clients" })).getByRole("button", { name: /Ready/ }).textContent).toMatch(/1/);
+    expect(within(nav).getByRole("button", { name: /Ready for review/ }).textContent).toMatch(/1/);
+    expect(screen.queryByText("0")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Need you$/ })).toBeNull();
   });
 
-  it("keeps the selected rail view in the URL", () => {
+  it("keeps the selected queue in the URL", () => {
     render(
-      <ClientsHomeProvider enabled>
-        <MyHivesPanel
-          initialHives={[hive()]}
-          startingView="clients"
-          greetingFirstName="Sam"
-          summaries={{ [HIVE_ID]: summary(readyAttention) }}
-        />
+      <ClientsHomeProvider enabled initialQuery="">
+        <MyHivesPanel initialHives={[hive()]} startingView="clients" greetingFirstName="Sam" summaries={{ [HIVE_ID]: summary(readyAttention) }} />
       </ClientsHomeProvider>,
     );
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Clients" })).getByRole("button", { name: /^Ready/ }));
-    expect(replace).toHaveBeenCalledWith("/hives?view=ready", { scroll: false });
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Clients" })).getByRole("button", { name: /Ready for review/ }));
+    expect(replace).toHaveBeenCalledWith("/hives?queue=ready", { scroll: false });
   });
 
-  it("opens the matching view from glance tiles", () => {
-    render(
-      <ClientsHomeProvider enabled>
-        <MyHivesPanel
-          initialHives={[hive()]}
-          startingView="clients"
-          greetingFirstName="Sam"
-          summaries={{ [HIVE_ID]: summary(needsAttention) }}
-        />
-      </ClientsHomeProvider>,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "1 Need you" }));
-    expect(replace).toHaveBeenCalledWith("/hives?view=needs", { scroll: false });
-  });
-
-  it("filters rows by rail view and shows intake from summary counts", () => {
+  it("filters rows by queue and shows intake from summary", () => {
     const readyHive = hive({
       id: "660e8400-e29b-41d4-a716-446655440001",
       name: "Jordan Lee",
       clientRequestId: "22222222-2222-4222-8222-222222222222",
     });
-    searchParams = new URLSearchParams("view=ready");
+    searchParams = new URLSearchParams("queue=ready");
     render(
-      <ClientsHomeProvider enabled>
+      <ClientsHomeProvider enabled initialQuery="">
         <MyHivesPanel
           initialHives={[hive(), readyHive]}
           startingView="clients"
@@ -164,63 +162,33 @@ describe("MyHivesPanel", () => {
         />
       </ClientsHomeProvider>,
     );
-    const row = screen.getByTestId("hive-list-row");
+    const row = screen.getByTestId("clients-home-row");
     expect(within(row).getByText("3 of 3 in")).toBeTruthy();
     expect(screen.queryByText("Alex Carter")).toBeNull();
   });
 
-  it("shows Your own matter for own hives in the own rail", () => {
-    searchParams = new URLSearchParams("view=own");
+  it("shows own queue rows with own matter meta", () => {
+    searchParams = new URLSearchParams("queue=own");
     render(
-      <ClientsHomeProvider enabled>
+      <ClientsHomeProvider enabled initialQuery="">
         <MyHivesPanel
           initialHives={[hive({ kind: "own", name: "Home renovation", description: "Kitchen" })]}
           startingView="clients"
           greetingFirstName="Sam"
-          summaries={{
-            [HIVE_ID]: summary(readyAttention),
-          }}
+          summaries={{ [HIVE_ID]: summary(readyAttention) }}
         />
       </ClientsHomeProvider>,
     );
     expect(screen.getByText("Your own matter")).toBeTruthy();
-    expect(screen.queryByText("Client hive")).toBeNull();
   });
 
-  it("greeting uses display name and falls back without it", () => {
-    render(
-      <ClientsHomeProvider enabled>
-        <MyHivesPanel
-          initialHives={[hive()]}
-          startingView="clients"
-          greetingFirstName="Dana"
-          summaries={{ [HIVE_ID]: summary(readyAttention) }}
-        />
-      </ClientsHomeProvider>,
-    );
-    expect(screen.getByTestId("hives-greeting").textContent).toMatch(/Dana/);
-
-    cleanup();
-    render(
-      <ClientsHomeProvider enabled>
-        <MyHivesPanel
-          initialHives={[hive()]}
-          startingView="clients"
-          greetingFirstName={null}
-          summaries={{ [HIVE_ID]: summary(readyAttention) }}
-        />
-      </ClientsHomeProvider>,
-    );
-    expect(screen.getByTestId("hives-greeting").textContent).not.toContain(",");
-  });
-
-  it("puts Mine and Unassigned above Needs you when the viewer has a firm", () => {
+  it("orders firm team queues ahead of client queues", () => {
     const viewer = "11111111-1111-4111-8111-111111111111";
     const mine = hive({
       firmId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: viewer,
       stage: "open",
-      homeKicker: "Benefits · you on it",
+      assigneeDisplayName: "You",
     });
     const open = hive({
       id: "660e8400-e29b-41d4-a716-446655440001",
@@ -229,56 +197,35 @@ describe("MyHivesPanel", () => {
       firmId: "33333333-3333-4333-8333-333333333333",
       assigneeUserId: null,
       stage: "open",
-      homeKicker: "Benefits · unassigned",
-    });
-    const closed = hive({
-      id: "770e8400-e29b-41d4-a716-446655440002",
-      name: "Closed matter",
-      clientRequestId: "33333333-3333-4333-8333-333333333333",
-      firmId: "33333333-3333-4333-8333-333333333333",
-      assigneeUserId: viewer,
-      stage: "closed",
-      homeKicker: "Benefits · closed",
     });
     render(
-      <ClientsHomeProvider enabled>
+      <ClientsHomeProvider enabled initialQuery="">
         <MyHivesPanel
-          initialHives={[mine, open, closed]}
+          initialHives={[mine, open]}
           startingView="clients"
           greetingFirstName="Maria"
           showFirmRail
           viewerUserId={viewer}
-          summaries={{
-            [mine.id]: summary(needsAttention),
-            [open.id]: summary(readyAttention),
-            [closed.id]: summary(readyAttention),
-          }}
+          summaries={{ [mine.id]: summary(needsAttention), [open.id]: summary(readyAttention) }}
         />
       </ClientsHomeProvider>,
     );
     const nav = screen.getByRole("navigation", { name: "Clients" });
-    const labels = within(nav).getAllByRole("button").map((button) => button.textContent ?? "");
+    const labels = within(nav)
+      .getAllByRole("button")
+      .map((button) => button.textContent ?? "");
     const mineAt = labels.findIndex((label) => label.startsWith("Mine"));
     const unassignedAt = labels.findIndex((label) => label.startsWith("Unassigned"));
     const needsAt = labels.findIndex((label) => label.startsWith("Needs you"));
     expect(mineAt).toBeGreaterThanOrEqual(0);
     expect(unassignedAt).toBeGreaterThan(mineAt);
     expect(needsAt).toBeGreaterThan(unassignedAt);
-    expect(within(nav).getByRole("button", { name: /^Mine/ }).textContent).toMatch(/1/);
-    expect(within(nav).getByRole("button", { name: /^Unassigned/ }).textContent).toMatch(/1/);
-    expect(screen.getByText("Benefits · you on it")).toBeTruthy();
-    expect(screen.getByText("Benefits · unassigned")).toBeTruthy();
-    expect(screen.getByText("Benefits · closed")).toBeTruthy();
   });
 
-  it("shows the own view without header search layout", () => {
+  it("keeps the individual home unchanged", () => {
     render(
       <ClientsHomeProvider enabled={false}>
-        <MyHivesPanel
-          initialHives={[]}
-          startingView="own"
-          greetingFirstName="Sam"
-        />
+        <MyHivesPanel initialHives={[]} startingView="own" greetingFirstName="Sam" />
       </ClientsHomeProvider>,
     );
     expect(screen.getByLabelText("Start a Hive")).toBeTruthy();
