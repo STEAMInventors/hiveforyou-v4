@@ -16,6 +16,7 @@ export * from "./hives/checklist-tailor";
 export * from "./hives/practice-areas";
 export * from "./hives/pack-holder-labels";
 export * from "./hives/hive-board-requests";
+export * from "./hives/hive-conversation";
 export * from "./source-documents/source-document-contracts";
 export * from "./source-documents/document-read-status-contracts";
 export * from "./study-preparation/study-preparation-contracts";

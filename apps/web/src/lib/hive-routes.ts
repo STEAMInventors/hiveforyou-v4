@@ -42,6 +42,13 @@ export function hiveDocumentsPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/documents`;
 }
 
+/** The "What we asked for" card on Documents. */
+export const CHECKLIST_ANCHOR_ID = "requested";
+
+export function hiveRequestedItemsPath(hiveId: string): string {
+  return `${hiveDocumentsPath(hiveId)}#${CHECKLIST_ANCHOR_ID}`;
+}
+
 /** Legacy study URL. The study page sends people to Findings. */
 export function hiveStudyPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/study`;

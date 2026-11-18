@@ -1,0 +1,89 @@
+// @vitest-environment jsdom
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { loadHiveBoardMock, conversationProps } = vi.hoisted(() => ({
+  loadHiveBoardMock: vi.fn(),
+  conversationProps: [] as Record<string, unknown>[],
+}));
+
+const HIVE_ID = "11111111-1111-4111-8111-111111111111";
+let hive: Record<string, unknown> = {};
+
+vi.mock("@/server/hives/load-owned-hive", () => ({ loadOwnedHiveOrNotFound: async () => hive }));
+vi.mock("@/server/supabase/server-client", () => ({
+  requireAuthenticatedUser: async () => ({ ok: true, userId: "u", client: {} }),
+}));
+vi.mock("@/server/auth/action-support", () => ({ requestCorrelationId: async () => "corr" }));
+vi.mock("@/server/firm/load-firm-board", () => ({ loadLatestHandover: async () => null }));
+vi.mock("@/server/hives/hive-board-loader", () => ({ loadHiveBoard: (...args: unknown[]) => loadHiveBoardMock(...args) }));
+vi.mock("@/server/hives/hive-conversation", () => ({
+  loadHiveConversation: async () => ({
+    ok: true,
+    page: { messages: [], participantRoleLabels: [], participantCount: 1, viewerLastReadAt: null, nextCursor: null },
+  }),
+}));
+vi.mock("@/components/hives/HiveConversation", () => ({
+  HiveConversation: (props: Record<string, unknown>) => {
+    conversationProps.push(props);
+    return <div data-testid="conversation-stub" />;
+  },
+}));
+
+import HiveBoardPage from "./page";
+
+const firmClientHive = {
+  id: HIVE_ID,
+  name: "Ruth Ortiz",
+  kind: "client",
+  firmId: "33333333-3333-4333-8333-333333333333",
+  membershipRole: "firm",
+};
+
+afterEach(() => cleanup());
+
+describe("Hive board page", () => {
+  beforeEach(() => {
+    conversationProps.length = 0;
+    loadHiveBoardMock.mockReset();
+    loadHiveBoardMock.mockResolvedValue({
+      board: { progress: { in: 1, total: 3 }, checklist: [{ gapId: "g" }], headline: "Old headline", checklistNote: "" },
+    });
+  });
+
+  it("shows only the title, the Still to come line and the conversation", async () => {
+    hive = firmClientHive;
+    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    const head = screen.getByTestId("hive-page-head");
+    expect(head.textContent).toBe("Hive board");
+    expect(screen.getByTestId("hive-still-to-come").textContent).toBe("Still to come · 1 of 3 in · See items →");
+    expect(screen.getByTestId("conversation-stub")).toBeTruthy();
+    expect(screen.queryByText("Old headline")).toBeNull();
+    expect(screen.queryByText("To review")).toBeNull();
+    expect(screen.queryByText("Items")).toBeNull();
+    expect(screen.queryByTestId("hive-board-three-pane")).toBeNull();
+    expect(conversationProps[0]).toMatchObject({ staffView: true, clientName: "Ruth Ortiz", viewerIsClient: false });
+  });
+
+  it("gives clients and individual hives no staff view", async () => {
+    hive = { ...firmClientHive, membershipRole: "client" };
+    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    expect(conversationProps[0]).toMatchObject({ staffView: false, viewerIsClient: true });
+    cleanup();
+    hive = { id: HIVE_ID, name: "My own hive", kind: "own", membershipRole: "owner" };
+    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    expect(conversationProps[1]).toMatchObject({ staffView: false, clientName: null, viewerIsClient: false });
+  });
+
+  it("hides the Still to come line without a checklist or when the board fails", async () => {
+    hive = firmClientHive;
+    loadHiveBoardMock.mockResolvedValue({ board: { progress: null, checklist: [] } });
+    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    expect(screen.queryByTestId("hive-still-to-come")).toBeNull();
+    cleanup();
+    loadHiveBoardMock.mockRejectedValue(new Error("down"));
+    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    expect(screen.queryByTestId("hive-still-to-come")).toBeNull();
+    expect(screen.getByTestId("conversation-stub")).toBeTruthy();
+  });
+});

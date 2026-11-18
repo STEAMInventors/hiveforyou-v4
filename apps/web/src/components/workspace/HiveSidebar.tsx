@@ -162,6 +162,8 @@ export function HiveSidebar({
 
   const countFor = (section: HiveWorkspaceSection): number | null => {
     switch (section) {
+      case "board":
+        return counts.unreadMessages;
       case "documents":
         return counts.documents;
       case "findings":
@@ -176,6 +178,7 @@ export function HiveSidebar({
   };
 
   const countLabelFor = (section: HiveWorkspaceSection): string | undefined => {
+    if (section === "board") return "unread messages";
     if (section === "findings") return "to review";
     if (section === "documents") return "documents";
     if (section === "reports") return "reports";

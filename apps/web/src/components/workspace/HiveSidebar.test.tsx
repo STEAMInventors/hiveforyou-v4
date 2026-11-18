@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 import { hiveFindingsPath, hiveSectionFromPathname, type FindingsTab } from "@/lib/hive-routes";
 
 import { HiveSidebar } from "./HiveSidebar";
-import { findingsToReviewCount } from "./sidebar-counts";
+import { findingsToReviewCount, sidebarCounts } from "./sidebar-counts";
 import type { HiveSummary } from "@/server/hives/hive-summary";
 
 const hive: Hive = {
@@ -43,7 +43,7 @@ function renderRail(overrides: Partial<ComponentProps<typeof HiveSidebar>> = {})
       hive={hive}
       startingView="clients"
       active="board"
-      counts={{ toReviewCount: 2, documents: 3, reports: 1, teamNotes: 4 }}
+      counts={{ toReviewCount: 2, documents: 3, reports: 1, teamNotes: 4, unreadMessages: null }}
       firm={firm}
       currentUserId="user"
       assigneeLabel="You"
@@ -74,7 +74,7 @@ describe("HiveSidebar", () => {
     cleanup();
     renderRail({
       hive: { ...hive, membershipRole: "client" },
-      counts: { toReviewCount: 1, documents: 1, reports: null, teamNotes: null },
+      counts: { toReviewCount: 1, documents: 1, reports: null, teamNotes: null, unreadMessages: null },
     });
     expect(screen.queryByRole("link", { name: /Team notes/ })).toBeNull();
     cleanup();
@@ -85,7 +85,7 @@ describe("HiveSidebar", () => {
       assigneeLabel: null,
       assigneeTitle: null,
       assistantName: "HiveForYou",
-      counts: { toReviewCount: 1, documents: 1, reports: null, teamNotes: null },
+      counts: { toReviewCount: 1, documents: 1, reports: null, teamNotes: null, unreadMessages: null },
     });
     expect(screen.queryByRole("link", { name: /Team notes/ })).toBeNull();
   });
@@ -98,11 +98,29 @@ describe("HiveSidebar", () => {
     }
     renderRail({
       active: "findings",
-      counts: { toReviewCount: null, documents: null, reports: null, teamNotes: null },
+      counts: { toReviewCount: null, documents: null, reports: null, teamNotes: null, unreadMessages: null },
     });
     const findings = screen.getByRole("link", { name: "Findings" });
     expect(findings.getAttribute("aria-current")).toBe("page");
     expect(screen.queryByLabelText(/to review/)).toBeNull();
+  });
+
+  it("puts the unread message count on Hive board, hidden when there is none", () => {
+    renderRail({ counts: { toReviewCount: null, documents: null, reports: null, teamNotes: null, unreadMessages: 3 } });
+    const board = screen.getByRole("link", { name: /Hive board/ });
+    expect(board.textContent).toBe("Hive board3");
+    expect(screen.getByLabelText("3 unread messages")).toBeTruthy();
+    cleanup();
+    renderRail({ counts: { toReviewCount: null, documents: null, reports: null, teamNotes: null, unreadMessages: null } });
+    expect(screen.getByRole("link", { name: "Hive board" }).textContent).toBe("Hive board");
+    expect(screen.queryByLabelText(/unread messages/)).toBeNull();
+  });
+
+  it("keeps the uppercase group label as the only uppercase text in the rail", () => {
+    const { container } = renderRail();
+    const uppercase = Array.from(container.querySelectorAll<HTMLElement>("[class*='uppercase']"));
+    expect(uppercase.map((el) => el.textContent)).toEqual(["Your hive"]);
+    expect(uppercase[0]!.className).toContain("text-[11px]");
   });
 
   it("shows the study footer on the desktop rail", () => {
@@ -129,6 +147,14 @@ describe("HiveSidebar", () => {
     renderRail({ compact: true });
     expect(screen.getByTestId("hive-sidebar-compact")).toBeTruthy();
     expect(screen.queryByTestId("study-rail-footer")).toBeNull();
+  });
+});
+
+describe("sidebarCounts", () => {
+  it("carries unread messages even when the summary failed, and never shows zero", () => {
+    expect(sidebarCounts(null, { reportCount: null, teamNotesCount: null, unreadMessageCount: 2 }).unreadMessages).toBe(2);
+    expect(sidebarCounts(null, { reportCount: null, teamNotesCount: null, unreadMessageCount: 0 }).unreadMessages).toBeNull();
+    expect(sidebarCounts(null, { reportCount: null, teamNotesCount: null, unreadMessageCount: null }).unreadMessages).toBeNull();
   });
 });
 

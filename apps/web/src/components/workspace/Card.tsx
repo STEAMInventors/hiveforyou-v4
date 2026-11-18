@@ -7,13 +7,16 @@ type CardProps = {
   children: ReactNode;
   className?: string;
   testId?: string;
+  /** In-page link target, e.g. `#requested`. */
+  id?: string;
 };
 
-export function Card({ title, subtitle, headerRight, children, className = "", testId }: CardProps) {
+export function Card({ title, subtitle, headerRight, children, className = "", testId, id }: CardProps) {
   const hasHeader = title || subtitle || headerRight;
   return (
     <section
-      className={`flex flex-col rounded-card border border-line bg-paper px-[18px] py-4 ${className}`.trim()}
+      id={id}
+      className={`flex flex-col rounded-card border border-line bg-paper px-[18px] py-4 ${id ? "scroll-mt-6" : ""} ${className}`.trim()}
       data-testid={testId}
     >
       {hasHeader ? (

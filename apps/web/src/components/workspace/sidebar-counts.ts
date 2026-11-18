@@ -5,6 +5,8 @@ export type HiveSidebarCounts = {
   documents: number | null;
   reports: number | null;
   teamNotes: number | null;
+  /** Hive board: messages from others the viewer has not read. */
+  unreadMessages: number | null;
 };
 
 /** Badge count for Findings. Hidden when nothing is waiting, so the rail does not show a zero. */
@@ -14,22 +16,24 @@ export function findingsToReviewCount(summary: HiveSummary | null): number | nul
   return total > 0 ? total : null;
 }
 
+function positiveOrNull(count: number | null | undefined): number | null {
+  return typeof count === "number" && count > 0 ? count : null;
+}
+
 export function sidebarCounts(
   summary: HiveSummary | null,
-  options: { reportCount: number | null; teamNotesCount: number | null },
+  options: { reportCount: number | null; teamNotesCount: number | null; unreadMessageCount?: number | null },
 ): HiveSidebarCounts {
+  const unreadMessages = positiveOrNull(options.unreadMessageCount);
   if (!summary) {
-    return { toReviewCount: null, documents: null, reports: null, teamNotes: null };
+    return { toReviewCount: null, documents: null, reports: null, teamNotes: null, unreadMessages };
   }
-  const documents = summary.documentCount > 0 ? summary.documentCount : null;
-  const reports = options.reportCount !== null && options.reportCount > 0 ? options.reportCount : null;
-  const teamNotes =
-    options.teamNotesCount !== null && options.teamNotesCount > 0 ? options.teamNotesCount : null;
   return {
     toReviewCount: findingsToReviewCount(summary),
-    documents,
-    reports,
-    teamNotes,
+    documents: positiveOrNull(summary.documentCount),
+    reports: positiveOrNull(options.reportCount),
+    teamNotes: positiveOrNull(options.teamNotesCount),
+    unreadMessages,
   };
 }
 

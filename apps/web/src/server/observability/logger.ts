@@ -89,6 +89,7 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "weak_password",
   "same_password",
   "rate_limited",
+  "notice_email_failed",
   "fetch_failed",
   "link_expired",
   "link_reused",
