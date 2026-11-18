@@ -89,6 +89,7 @@ textarea:focus,input:focus{outline:none}
     .hfy-ritem { width: auto; flex: none; white-space: nowrap; min-height: 44px; border-radius: 999px; background: #fff; border: 1px solid #E3E6EA; }
     .hfy-back { flex: none; }
   }
+  @media (max-width: 899px) { .hfy-nc-grid { grid-template-columns: minmax(0, 1fr) !important; } .hfy-nc-left { position: static !important; } }
   @media (min-width: 1100px) { .hfy-3tabs { display: none !important; } }
   @media (max-width: 1099px) {
     .hfy-3p { grid-template-columns: minmax(0, 1fr); height: auto; }
@@ -410,27 +411,95 @@ textarea:focus,input:focus{outline:none}
 </sc-if>
 
 <sc-if value="{{ isNewClient }}" hint-placeholder-val="{{ false }}">
-  <main style="width:100%;max-width:520px;margin:0 auto;padding:clamp(32px,8vh,80px) 20px 64px;display:flex;flex-direction:column;gap:20px">
-    <div style="display:flex;flex-direction:column;gap:6px;text-align:center">
-      <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:34px;line-height:1.15">Who is the client?</h1>
-      <p style="margin:0;color:#4A525C;font-size:16px">Their hive holds everything for this one matter.</p>
+  <main class="hfy-nc" style="background:#F7F8FA;min-height:calc(100vh - 73px);padding:24px clamp(16px,3vw,32px) 64px">
+    <div style="max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span aria-hidden="true" style="flex:none;width:44px;height:44px;border-radius:12px;background:#E8F0FE;color:#1A56C4;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11a4 4 0 1 0 0-8a4 4 0 1 0 0 8zM3 21v-1a6 6 0 0 1 9-5.2M19 14v6M16 17h6"></path></svg></span>
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+          <button onClick="{{ goHome }}" class="hfy-link" style="align-self:flex-start;min-height:20px;font-size:12.5px;color:#4A525C">All clients /</button>
+          <h1 style="margin:0;font-family:Outfit,sans-serif;font-weight:600;font-size:21px;line-height:1.2">New client</h1>
+        </div>
+      </div>
+
+      <div class="hfy-nc-grid" style="display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:20px;align-items:start">
+        <section class="hfy-nc-left" style="position:sticky;top:93px;background:#fff;border:1px solid #E6E9ED;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:2px"><h2 style="margin:0;font-size:16px;font-weight:600">Who is the client?</h2><span style="font-size:12.5px;color:#6B737D">Their hive holds everything for this one matter.</span></div>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600">Client’s name
+            <input value="{{ nc.name }}" onChange="{{ onNcName }}" autocomplete="off" style="height:40px;border:1px solid #C9CED4;border-radius:8px;padding:0 12px;font-size:14px;font-weight:400;color:#1F2328;background:#fff;width:100%;box-sizing:border-box" style-focus="border-color:#3B7CF6">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600"><span>Client’s email <span style="font-weight:400;color:#6B737D;font-size:12.5px">· needed only to invite them</span></span>
+            <input type="email" value="{{ nc.email }}" onChange="{{ onNcEmail }}" autocomplete="off" style="height:40px;border:1px solid #C9CED4;border-radius:8px;padding:0 12px;font-size:14px;font-weight:400;color:#1F2328;background:#fff;width:100%;box-sizing:border-box" style-focus="border-color:#3B7CF6">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600">Matter type
+            <select value="{{ nc.matter }}" onChange="{{ onNcMatter }}" style="height:40px;border:1px solid #C9CED4;border-radius:8px;padding:0 12px;font-size:14px;font-weight:400;color:#1F2328;background:#fff;width:100%;box-sizing:border-box">
+              <sc-for list="{{ ncMatters }}" as="m" hint-placeholder-count="4"><option value="{{ m.id }}">{{ m.label }}</option></sc-for>
+            </select>
+          </label>
+          <sc-if value="{{ ncHasPack }}" hint-placeholder-val="{{ true }}">
+          <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600"><span>What do you know so far? <span style="font-weight:400;color:#6B737D;font-size:12.5px">· optional</span></span>
+            <textarea value="{{ nc.about }}" onChange="{{ onNcAbout }}" rows="4" placeholder="Single, wages from one employer, car loan, a credit card lawsuit, no business." style="border:1px solid #C9CED4;border-radius:8px;padding:10px 12px;font:inherit;font-size:14px;font-weight:400;color:#1F2328;resize:vertical;min-height:96px" style-focus="border-color:#3B7CF6"></textarea>
+            <span style="font-weight:400;color:#6B737D;font-size:12.5px;line-height:1.45">HiveForYou uses this to choose what to ask {{ ncWho }} for. Only your team sees it.</span>
+          </label>
+          <button onClick="{{ ncSuggest }}" class="hfy-chipbtn" style="align-self:flex-start;height:40px;display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A56C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"></path></svg>{{ ncSuggestLabel }}</button>
+          </sc-if>
+        </section>
+
+        <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+          <sc-if value="{{ ncHasPack }}" hint-placeholder-val="{{ true }}">
+          <section style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;overflow:hidden">
+            <div style="padding:18px 20px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px solid #EEF0F3">
+              <div style="display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto">
+                <h2 style="margin:0;font-size:16px;font-weight:600">{{ ncListTitle }}</h2>
+                <span style="font-size:12.5px;color:#4A525C">{{ ncListSub }}</span>
+              </div>
+              <div style="display:flex;gap:16px;flex:none">
+                <span style="display:flex;flex-direction:column;align-items:flex-end"><span style="font-family:Outfit,sans-serif;font-size:21px;font-weight:600;color:#1A56C4;line-height:1">{{ ncOn }}</span><span style="font-size:12.5px;color:#6B737D">to ask for</span></span>
+                <sc-if value="{{ ncHasOff }}" hint-placeholder-val="{{ false }}"><span style="display:flex;flex-direction:column;align-items:flex-end"><span style="font-family:Outfit,sans-serif;font-size:21px;font-weight:600;color:#6B737D;line-height:1">{{ ncOff }}</span><span style="font-size:12.5px;color:#6B737D">left out</span></span></sc-if>
+              </div>
+            </div>
+            <div style="padding:4px 20px 8px">
+              <sc-for list="{{ ncMine }}" as="i" hint-placeholder-count="6">
+                <label style="display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid #F1F3F5;cursor:pointer">
+                  <input type="checkbox" checked="{{ i.on }}" onChange="{{ i.toggle }}" style="flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:#1A56C4">
+                  <span style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                    <span style="font-size:14px;color:{{ i.fg }}">{{ i.t }}</span>
+                    <sc-if value="{{ i.hasWhy }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:{{ i.tagBg }};color:{{ i.tagFg }}">{{ i.tag }}</span><span style="font-size:12.5px;color:#4A525C">{{ i.why }}</span></span></sc-if>
+                  </span>
+                </label>
+              </sc-for>
+              <sc-if value="{{ ncHasOthers }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6B737D;padding:16px 0 4px">Usually from someone else</div>
+                <sc-for list="{{ ncOthers }}" as="i" hint-placeholder-count="2">
+                  <label style="display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid #F1F3F5;cursor:pointer">
+                    <input type="checkbox" checked="{{ i.on }}" onChange="{{ i.toggle }}" style="flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:#1A56C4">
+                    <span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:14px">{{ i.t }}</span><span style="font-size:12.5px;color:#6B737D">Usually from {{ i.from }}</span></span>
+                  </label>
+                </sc-for>
+              </sc-if>
+              <div style="display:flex;gap:8px;align-items:center;padding:14px 0 8px">
+                <input value="{{ nc.newItem }}" onChange="{{ onNcNewItem }}" placeholder="Add an item, for example Lease for a storage unit" aria-label="Add an item" style="height:40px;border:1px solid #C9CED4;border-radius:8px;padding:0 12px;font-size:14px;font-weight:400;color:#1F2328;background:#fff;width:100%;box-sizing:border-box;flex:1 1 auto;width:auto">
+                <button onClick="{{ ncAddItem }}" class="hfy-chipbtn" style="height:40px;flex:none">Add</button>
+              </div>
+            </div>
+          </section>
+          </sc-if>
+          <sc-if value="{{ ncNoPack }}" hint-placeholder-val="{{ false }}">
+            <section style="background:#fff;border:1px solid #E6E9ED;border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:6px">
+              <h2 style="margin:0;font-size:16px;font-weight:600">No checklist</h2>
+              <span style="font-size:14px;color:#4A525C;line-height:1.5">{{ ncWhoCap }} can send whatever they have. HiveForYou reads every page and tells you what’s missing as documents arrive.</span>
+            </section>
+          </sc-if>
+
+          <sc-if value="{{ ncErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;color:#B33A2E">{{ nc.err }}</div></sc-if>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button onClick="{{ ncInvite }}" style="height:40px;padding:0 18px;border-radius:8px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:14px;cursor:pointer" style-hover="background:#164AA8">{{ ncInviteLabel }}</button>
+            <button onClick="{{ ncDocs }}" class="hfy-chipbtn" style="height:40px">I have their documents</button>
+            <button onClick="{{ goHome }}" class="hfy-link" style="font-size:14px;color:#4A525C;padding:0 6px">Cancel</button>
+          </div>
+          <p style="margin:0;font-size:12.5px;color:#6B737D;line-height:1.5">{{ ncWhoCap }} gets an email with a sign-in code and the number of items. Nothing from the documents or your note is ever in an email. Prototype: nothing is sent, and suggestions are simulated.</p>
+        </div>
+      </div>
     </div>
-    <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Client’s name
-      <input value="{{ nc.name }}" onChange="{{ onNcName }}" autocomplete="off" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
-    </label>
-    <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">Client’s email <span style="font-weight:400;color:#6B737D">Needed only to invite them</span>
-      <input type="email" value="{{ nc.email }}" onChange="{{ onNcEmail }}" autocomplete="off" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
-    </label>
-    <label style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500">What is it about?
-      <input value="{{ nc.about }}" onChange="{{ onNcAbout }}" placeholder="A few words, for example a benefits application" autocomplete="off" style="height:48px;border:1px solid #6B737D;border-radius:12px;padding:0 14px;font-size:16px;font-weight:400;color:#1F2328" style-focus="border-color:#3B7CF6">
-    </label>
-    <sc-if value="{{ ncErr }}" hint-placeholder-val="{{ false }}"><div role="alert" style="font-size:14px;color:#B33A2E">{{ nc.err }}</div></sc-if>
-    <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">
-      <button onClick="{{ ncInvite }}" style="height:52px;border-radius:999px;border:none;background:#1A56C4;color:#fff;font-weight:600;font-size:16px;cursor:pointer" style-hover="background:#164AA8">Invite them to upload</button>
-      <button onClick="{{ ncDocs }}" style="height:52px;border-radius:999px;border:none;background:#F4F6F8;color:#1F2328;font-weight:500;font-size:16px;cursor:pointer" style-hover="background:#E3E6EA">I have their documents</button>
-      <button onClick="{{ goHome }}" style="align-self:center;min-height:44px;border:none;background:none;color:#4A525C;font-size:15px;cursor:pointer">Cancel</button>
-    </div>
-    <p style="margin:0;font-size:13.5px;color:#6B737D;text-align:center;line-height:1.5">An invitation emails your client a sign-in link. No password. In this prototype nothing is sent.</p>
   </main>
 </sc-if>
 
@@ -1922,6 +1991,38 @@ class Component extends DCLogic {
     const hv = { id, scen: sc, owner: u.email, title, purpose: t || 'Started ' + this.now().replace('Today, ', 'today at '), last: this.now(), goal: D.S[sc].goal, deliverable: D.S[sc].deliverable, pro: null };
     this.setState(st => ({ hives: [hv].concat(st.hives), live: { ...st.live, [id]: this.fresh(sc, false) }, hiveId: id, screen: 'hive', tab: 'documents', goalText: '', qText: '', qSaved: false, drawer: null }));
   }
+  PACKS() {
+    const R = (t, when, why) => ({ t, when: when || null, why: why || '' });
+    return [
+      { id: 'bk7', label: 'Bankruptcy intake (Chapter 7)', items: [
+        R('Credit counseling certificate (within 180 days of filing)'), R('Credit report (one bureau)'), R('Your list of creditors'), R('Statements or letters for each debt'),
+        R('Loan and security documents', 'loan', 'has a secured loan (car, home)|a secured loan'), R('Lawsuit, judgment or garnishment papers', 'lawsuit', 'is being sued or garnished|a lawsuit or garnishment'),
+        R('Federal income tax returns (last two years)'), R('Pay stubs (60 days before filing)', 'wages', 'is paid by an employer|wages'), R('Photo ID'), R('Social Security card'),
+        R('Business formation or ownership record', 'business', 'owns a business|business'), R('Business profit and loss and balance sheet', 'business', 'owns a business|business'), R('Business bank statement near the filing date', 'business', 'owns a business|business'), R('Current lease or contracts', 'lease', 'has a lease or ongoing contract|a lease or contract') ] },
+      { id: 'ch13', label: 'Chapter 13 plan confirmation', items: [R('Recent federal tax return(s)'), R('Pay stubs for the period before filing', 'wages', 'is paid by an employer|wages'), R('Credit counseling certificate'), { t: 'Mortgage payment history or arrears breakdown', from: 'the lender' }, { t: 'Proofs of claim', from: 'the court record' }] },
+      { id: 'iep', label: 'Initial IEP review', items: [R('Report cards, state test results, attendance'), R('Private evaluations', 'priv', 'has had a private evaluation|a private evaluation'), R('Signed consent to evaluate'), { t: 'Prior written notice', from: 'the district' }, { t: 'Procedural safeguards notice', from: 'the district' }, { t: 'Classroom observation', from: 'the school' }] },
+      { id: 'other', label: 'Something else (no checklist)', items: [] }
+    ];
+  }
+  ncTailor(nc) {
+    const p = this.PACKS().find(x => x.id === (nc.matter || 'bk7')); if (!p) return [];
+    const txt = (nc.about || '').toLowerCase(); const has = re => re.test(txt);
+    const sig = { business: has(/business|self.?employed|llc|owns a (shop|store|company)|contractor/), loan: has(/car|auto|truck|mortgage|loan|secured/), lawsuit: has(/lawsuit|sued|judgment|garnish/), wages: has(/wage|employer|job|salary|paid by/) && !has(/unemployed|no income|retired/), lease: has(/lease|rent|contract/), priv: has(/private eval|neuropsych|outside eval/) };
+    const no = { business: has(/no business/), wages: has(/unemployed|no income|retired/) };
+    const words = { business: (txt.match(/business|self.?employed|llc|contractor/) || [''])[0], loan: (txt.match(/car loan|auto loan|mortgage|car|loan/) || [''])[0], lawsuit: (txt.match(/credit card lawsuit|lawsuit|garnishment|judgment|sued/) || [''])[0], wages: (txt.match(/wages[^,.;]*|employer|job/) || [''])[0], lease: (txt.match(/lease|rent|contract/) || [''])[0], priv: (txt.match(/private eval\w*|neuropsych\w*/) || [''])[0] };
+    const told = !!txt.trim();
+    const out = p.items.map(x => {
+      if (x.from) return { ...x, on: false };
+      if (!x.when) return { ...x, on: true, src: 'pack' };
+      const [cond, topic] = x.why.split('|');
+      if (!told) return { ...x, on: false, src: 'cond', why: 'Only if the client ' + cond + '.' };
+      if (sig[x.when] && !no[x.when]) return { ...x, on: true, src: 'note', why: 'You mentioned “' + words[x.when].trim() + '”.' };
+      return { ...x, on: false, src: 'off', why: no[x.when] ? 'You said there is no ' + topic + '.' : 'Nothing about ' + topic + ' in what you know so far.' };
+    });
+    if (told && has(/two jobs|second job|second employer|2 jobs/)) out.push({ t: 'Pay stubs from the second employer', on: true, src: 'added', why: 'You mentioned a second job.' });
+    if (told && has(/divorc/)) out.push({ t: 'Divorce decree and any support order', on: true, src: 'added', why: 'You mentioned a divorce.' });
+    return out;
+  }
   createClient(mode) {
     const nc = this.state.nc; const name = nc.name.trim(); const email = nc.email.trim().toLowerCase();
     if (!name) { this.setState({ nc: { ...nc, err: 'Enter the client’s name.' } }); return; }
@@ -2245,7 +2346,7 @@ class Component extends DCLogic {
         ];
         v.homeQuery = st.homeQuery;
         v.onHomeQuery = e => this.setState({ homeQuery: e.target.value });
-        v.newClient = () => this.setState({ screen: 'newclient', menuOpen: false, nc: { name: q && !rows.length ? st.homeQuery.trim() : '', email: '', about: '', err: '' } });
+        v.newClient = () => this.setState({ screen: 'newclient', menuOpen: false, nc: { name: q && !rows.length ? st.homeQuery.trim() : '', email: '', about: '', err: '', matter: 'bk7', newItem: '', tailored: false, items: this.ncTailor({ matter: 'bk7', about: '' }) } });
         v.homeCount = rows.length + (rows.length === 1 ? ' client' : ' clients') + (rows.length > 1 ? ', the ones that need you first' : '');
         v.noRows = rows.length === 0;
         v.noClientsAtAll = fl.all === 0 && !q;
@@ -2276,6 +2377,28 @@ class Component extends DCLogic {
 
     // New client
     v.nc = st.nc; v.ncErr = !!st.nc.err;
+    { const PK = this.PACKS(); const nc = st.nc; const mt = nc.matter || 'bk7'; const pk = PK.find(p => p.id === mt);
+      v.ncMatters = PK.map(p => ({ id: p.id, label: p.label })); v.ncHasPack = !!(pk && pk.items.length); v.ncNoPack = !v.ncHasPack;
+      const items = nc.items || []; const fn = (nc.name || '').trim().split(/\s+/)[0];
+      v.ncWho = fn || 'your client'; v.ncWhoCap = fn || 'Your client';
+      const TAG = { pack: ['Usually needed', '#F1F3F5', '#4A525C'], note: ['From your note', '#E8F0FE', '#1A56C4'], added: ['Added by HiveForYou', '#E6F4EA', '#1E7B3A'], cond: ['Depends', '#FEF3D6', '#7A5200'], off: ['Left out', '#F1F3F5', '#6B737D'], custom: ['Added by you', '#E8F0FE', '#1A56C4'] };
+      const tg = idx => () => this.setState(s2 => { const it = s2.nc.items.slice(); it[idx] = { ...it[idx], on: !it[idx].on }; return { nc: { ...s2.nc, items: it } }; });
+      const dec = (it, i) => { const k = TAG[it.src] || TAG.pack; return { ...it, toggle: tg(i), tag: k[0], tagBg: k[1], tagFg: k[2], hasWhy: !!(it.src && it.src !== 'pack'), why: it.why || '', fg: it.on ? '#1F2328' : '#6B737D' }; };
+      const all = items.map(dec);
+      const order = { note: 0, added: 1, custom: 2, pack: 3, cond: 4, off: 5 };
+      v.ncMine = all.filter(it => !it.from).sort((x, y) => (x.on === y.on ? 0 : x.on ? -1 : 1) || (order[x.src] || 3) - (order[y.src] || 3));
+      v.ncOthers = all.filter(it => it.from);
+      v.ncHasOthers = v.ncOthers.length > 0;
+      v.ncOn = items.filter(it => it.on).length; v.ncOff = items.filter(it => !it.on && !it.from).length; v.ncHasOff = v.ncOff > 0;
+      v.ncListTitle = fn ? 'What to ask ' + fn + ' for' : 'What to ask your client for';
+      v.ncListSub = nc.tailored ? 'Tailored by HiveForYou from your note and the ' + pk.label + ' pack. Change anything.' : 'The ' + (pk ? pk.label : '') + ' pack’s list. Tell HiveForYou what you know to tailor it.';
+      v.ncSuggestLabel = nc.tailored ? 'Suggest again' : 'Tailor the checklist';
+      v.ncSuggest = () => this.setState(s2 => { const custom = (s2.nc.items || []).filter(x => x.src === 'custom'); return { nc: { ...s2.nc, tailored: !!(s2.nc.about || '').trim(), items: this.ncTailor(s2.nc).concat(custom) } }; });
+      v.ncInviteLabel = fn ? 'Invite ' + fn + ' to upload' : 'Invite them to upload';
+      v.onNcMatter = e => { const id = e.target.value; this.setState(s2 => { const custom = (s2.nc.items || []).filter(x => x.src === 'custom'); const n2 = { ...s2.nc, matter: id }; return { nc: { ...n2, tailored: false, items: this.ncTailor({ ...n2, about: '' }).concat(custom) } }; }); };
+      v.onNcNewItem = e => { const val = e.target.value; this.setState(s2 => ({ nc: { ...s2.nc, newItem: val } })); };
+      v.ncAddItem = () => { const t = (st.nc.newItem || '').trim(); if (!t) return; if ((st.nc.items || []).some(x => x.t.toLowerCase() === t.toLowerCase())) { this.setState(s2 => ({ nc: { ...s2.nc, err: '“' + t + '” is already on the list.' } })); return; } this.setState(s2 => ({ nc: { ...s2.nc, newItem: '', err: '', items: (s2.nc.items || []).concat([{ t, on: true, src: 'custom', why: 'You added this.' }]) } })); };
+    }
     v.onNcName = e => this.setState({ nc: { ...st.nc, name: e.target.value, err: '' } });
     v.onNcEmail = e => this.setState({ nc: { ...st.nc, email: e.target.value, err: '' } });
     v.onNcAbout = e => this.setState({ nc: { ...st.nc, about: e.target.value, err: '' } });
