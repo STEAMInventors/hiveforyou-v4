@@ -20,16 +20,16 @@ status: draft - checklist for review, not legal advice; verify against local rul
 9. Dates: petition date, plan and amended plan dates, objection dates, confirmation hearing.
 
 ## Documents usually needed
-| Document | Holder | When |
-|---|---|---|
-| Recent federal tax return(s) | ASKER_OR_CLIENT | before confirmation |
-| Pay stubs / payment advices for the period before filing | ASKER_OR_CLIENT | before confirmation |
-| Amended Schedule I/J when income or expenses change | COUNSEL | when an income objection is open |
-| Mortgage payment history / arrears breakdown | THIRD_PARTY (lender) | when arrears are disputed |
-| Proofs of claim | COURT_RECORD | claims register |
-| Credit counseling certificate | ASKER_OR_CLIENT | with the petition |
-| Means test form (current monthly income) | COUNSEL | with the petition |
-| Order on confirmation | COURT_RECORD | after the hearing (later) |
+| Document | Holder | When | Applies when |
+|---|---|---|---|
+| Recent federal tax return(s) | ASKER_OR_CLIENT | before confirmation | |
+| Pay stubs / payment advices for the period before filing | ASKER_OR_CLIENT | before confirmation | is paid by an employer |
+| Amended Schedule I/J when income or expenses change | COUNSEL | when an income objection is open | |
+| Mortgage payment history / arrears breakdown | THIRD_PARTY (lender) | when arrears are disputed | |
+| Proofs of claim | COURT_RECORD | claims register | |
+| Credit counseling certificate | ASKER_OR_CLIENT | with the petition | |
+| Means test form (current monthly income) | COUNSEL | with the petition | |
+| Order on confirmation | COURT_RECORD | after the hearing (later) | |
 
 ## Terms a non-specialist may misread
 - Arrearage: past-due amount being cured, not the full loan balance.

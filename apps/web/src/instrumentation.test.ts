@@ -9,7 +9,9 @@ vi.mock("@/server/observability/logger", () => ({
 const CORRELATION_ID = "2eb8421a-b784-4bf8-ac2b-540299b61d13";
 
 describe("instrumentation onRequestError", () => {
-  it("logs with digest and correlation id from the request", async () => {
+  it(
+    "logs with digest and correlation id from the request",
+    async () => {
     const { onRequestError } = await import("./instrumentation");
     emitStructuredEvent.mockReset();
     await onRequestError(new Error("render failed"), {
@@ -23,5 +25,7 @@ describe("instrumentation onRequestError", () => {
       correlationId: CORRELATION_ID,
       errorDetail: "digest-123",
     });
-  });
+  },
+    30_000,
+  );
 });

@@ -144,23 +144,23 @@ Code does the arithmetic from cited values. Ops: DAYS_BETWEEN(start, end), DIFFE
 | C6 | Total listed debt by party | SUM_BY | value = balance; group = party | case |
 
 ## Documents usually needed
-| Document | Holder | When | Settles |
-|---|---|---|---|
-| Credit counseling certificate (within 180 days of filing) | ASKER_OR_CLIENT | before filing | T1 |
-| Credit report (one bureau) | ASKER_OR_CLIENT | before filing | R1, R3 |
-| Client's list of creditors | ASKER_OR_CLIENT | before filing | R1, R2 |
-| Statements or letters for each debt | ASKER_OR_CLIENT | before filing | R2, R8 |
-| Loan and security documents | ASKER_OR_CLIENT | before filing | R6 |
-| Lawsuit, judgment or garnishment papers | ASKER_OR_CLIENT | before filing | T2 |
-| Federal income tax returns (last two years) | ASKER_OR_CLIENT | before filing | I1 |
-| Pay stubs (60 days before filing) | ASKER_OR_CLIENT | before filing | I2 |
-| Photo ID | ASKER_OR_CLIENT | before filing | I4 |
-| Social Security card | ASKER_OR_CLIENT | before filing | I4 |
-| Business formation or ownership record | ASKER_OR_CLIENT | before filing | B1 |
-| Business balance sheet, profit and loss, cash-flow statement, business tax return | ASKER_OR_CLIENT | before filing | B2 |
-| Business bank statement near the filing date | ASKER_OR_CLIENT | before filing | B3 |
-| Current lease or contracts | ASKER_OR_CLIENT | before filing | R7 |
-| Bank statement on the filing date | ASKER_OR_CLIENT | after filing (later) | B3 |
+| Document | Holder | When | Applies when | Settles |
+|---|---|---|---|---|
+| Credit counseling certificate (within 180 days of filing) | ASKER_OR_CLIENT | before filing | | T1 |
+| Credit report (one bureau) | ASKER_OR_CLIENT | before filing | | R1, R3 |
+| Client's list of creditors | ASKER_OR_CLIENT | before filing | | R1, R2 |
+| Statements or letters for each debt | ASKER_OR_CLIENT | before filing | | R2, R8 |
+| Loan and security documents | ASKER_OR_CLIENT | before filing | has a secured loan such as a car or home | R6 |
+| Lawsuit, judgment or garnishment papers | ASKER_OR_CLIENT | before filing | is being sued or has wages garnished | T2 |
+| Federal income tax returns (last two years) | ASKER_OR_CLIENT | before filing | | I1 |
+| Pay stubs (60 days before filing) | ASKER_OR_CLIENT | before filing | is paid by an employer | I2 |
+| Photo ID | ASKER_OR_CLIENT | before filing | | I4 |
+| Social Security card | ASKER_OR_CLIENT | before filing | | I4 |
+| Business formation or ownership record | ASKER_OR_CLIENT | before filing | owns or owned a business | B1 |
+| Business balance sheet, profit and loss, cash-flow statement, business tax return | ASKER_OR_CLIENT | before filing | owns or owned a business | B2 |
+| Business bank statement near the filing date | ASKER_OR_CLIENT | before filing | owns or owned a business | B3 |
+| Current lease or contracts | ASKER_OR_CLIENT | before filing | has a lease or an ongoing contract | R7 |
+| Bank statement on the filing date | ASKER_OR_CLIENT | after filing (later) | | B3 |
 
 ## Terms
 | Term | Plain meaning |

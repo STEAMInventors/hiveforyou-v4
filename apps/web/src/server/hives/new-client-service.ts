@@ -17,7 +17,6 @@ import { sendInvitationEmail } from "@/server/hives/send-invitation-email";
 import { loadPackEntries } from "@/server/pipeline/pack-loader";
 
 export type NewClientFlowItem = {
-  key: string;
   title: string;
   custom: boolean;
 };
@@ -25,14 +24,14 @@ export type NewClientFlowItem = {
 export type NewClientFlowInput = {
   name: string;
   email?: string;
-  note?: string;
+  professionalText?: string;
   packId: string | null;
   items: NewClientFlowItem[];
   mode: "invite" | "documents";
   clientRequestId: string;
 };
 
-export type NewClientFlowStep = "hive" | "checklist" | "invitation";
+export type NewClientFlowStep = "hive" | "checklist" | "invitation" | "team_note";
 
 export type NewClientFlowSuccess = {
   ok: true;
@@ -50,9 +49,9 @@ export type NewClientFlowPartial = {
   error: PublicErrorDetails;
 };
 
-function isAccessDenied(message: string): boolean {
+function isAuthDeniedMessage(message: string): boolean {
   const lowered = message.toLowerCase();
-  return lowered.includes("access_denied") || lowered.includes("auth_required") || lowered.includes("firm");
+  return lowered.includes("access_denied") || lowered.includes("auth_required");
 }
 
 function parseHiveRow(data: unknown): Hive | null {
@@ -68,13 +67,14 @@ async function ensureFirmStaff(client: SupabaseClient, correlationId: string): P
   const { data, error } = await client.rpc("list_firm");
   if (error) {
     throw createHiveError({
-      errorCode: "ACCESS_DENIED",
-      category: "SECURITY",
+      errorCode: "PERSISTENCE_FAILED",
+      category: "PERSISTENCE",
       stage: "SHELL",
-      retryable: false,
-      safeMessage: "Only firm staff can start a client hive this way.",
+      retryable: true,
+      safeMessage: "Could not verify your firm. Try again.",
       correlationId,
       diagnosticReason: "list_firm_failed",
+      cause: error,
     });
   }
   const firm = normalizeListFirmResponse(data);
@@ -97,27 +97,82 @@ function resolvePack(packId: string) {
   return entries.find((entry) => entry.id === packId)?.pack ?? null;
 }
 
-function buildStartChecklistPayload(
+type RpcChecklistItem = { key: string; title: string; detail: string | null; position: number };
+
+export function buildStartChecklistPayload(
   packId: string,
   items: NewClientFlowItem[],
-): { packVersion: number; rpcItems: { key: string; title: string; detail: string | null; position: number }[] } {
+  correlationId: string,
+): { packVersion: number; rpcItems: RpcChecklistItem[]; customsForAdd: NewClientFlowItem[] } {
   const pack = resolvePack(packId);
   if (!pack) {
-    throw new Error("pack_not_found");
+    throw createHiveError({
+      errorCode: "INVALID_REQUEST",
+      category: "VALIDATION",
+      stage: "SHELL",
+      retryable: false,
+      safeMessage: "That matter type is not available.",
+      correlationId,
+      diagnosticReason: "unknown_pack",
+    });
   }
-  const version = pack.meta.version;
   const packRows = new Map(packChecklistItems(pack).map((row) => [row.key, row]));
-  const ticked = items.filter((item) => !item.custom);
-  const rpcItems = ticked.map((item, index) => {
-    const packRow = packRows.get(item.key);
-    return {
-      key: item.key,
-      title: item.title,
-      detail: packRow?.detail ?? null,
+  const packItems: RpcChecklistItem[] = [];
+  const customsForAdd: NewClientFlowItem[] = [];
+
+  for (const item of items) {
+    const title = item.title.replace(/\s+/g, " ").trim();
+    if (title === "") continue;
+    const derivedKey = normalizeGapTitle(title);
+    if (item.custom) {
+      customsForAdd.push({ title, custom: true });
+      continue;
+    }
+    const packRow = packRows.get(derivedKey);
+    if (!packRow || packRow.title.toLowerCase() !== title.toLowerCase()) {
+      throw createHiveError({
+        errorCode: "INVALID_REQUEST",
+        category: "VALIDATION",
+        stage: "SHELL",
+        retryable: false,
+        safeMessage: "That checklist item is not in this matter pack.",
+        correlationId,
+        diagnosticReason: "unknown_pack_item",
+      });
+    }
+    packItems.push({
+      key: derivedKey,
+      title: packRow.title,
+      detail: packRow.detail,
+      position: packItems.length + 1,
+    });
+  }
+
+  if (packItems.length === 0 && customsForAdd.length > 0) {
+    const rpcItems = customsForAdd.map((item, index) => ({
+      key: normalizeGapTitle(item.title),
+      title: item.title.trim(),
+      detail: null,
       position: index + 1,
-    };
+    }));
+    return { packVersion: pack.meta.version, rpcItems, customsForAdd: [] };
+  }
+
+  return { packVersion: pack.meta.version, rpcItems: packItems, customsForAdd };
+}
+
+async function saveProfessionalTeamNote(
+  client: SupabaseClient,
+  hiveId: string,
+  body: string,
+  clientRequestId: string,
+): Promise<void> {
+  const { error } = await client.rpc("add_team_note", {
+    p_hive_id: hiveId,
+    p_body: body,
+    p_client_request_id: clientRequestId,
   });
-  return { packVersion: version, rpcItems };
+  if (error) throw error;
 }
 
 async function addCustomItems(
@@ -202,13 +257,14 @@ export async function runNewClientFlow(
   let hiveId = "";
   let hiveName = flow.name.trim();
   let activeStep: NewClientFlowStep = "hive";
+  let packTitleForConflict: string | null = null;
 
   try {
     const { firmName } = await ensureFirmStaff(client, context.correlationId);
 
     const { data: hiveData, error: hiveError } = await client.rpc("create_hive", {
       p_name: flow.name.trim(),
-      p_description: flow.note?.trim() ? flow.note.trim() : null,
+      p_description: null,
       p_client_request_id: flow.clientRequestId,
       p_kind: "client",
     });
@@ -216,11 +272,13 @@ export async function runNewClientFlow(
     if (hiveError) {
       const message = String(hiveError.message ?? "");
       throw createHiveError({
-        errorCode: isAccessDenied(message) ? "ACCESS_DENIED" : "PERSISTENCE_FAILED",
-        category: isAccessDenied(message) ? "SECURITY" : "PERSISTENCE",
+        errorCode: isAuthDeniedMessage(message) ? "ACCESS_DENIED" : "PERSISTENCE_FAILED",
+        category: isAuthDeniedMessage(message) ? "SECURITY" : "PERSISTENCE",
         stage: "SHELL",
-        retryable: !isAccessDenied(message),
-        safeMessage: isAccessDenied(message) ? "Only firm staff can start a client hive this way." : "Could not create this hive. Try again.",
+        retryable: !isAuthDeniedMessage(message),
+        safeMessage: isAuthDeniedMessage(message)
+          ? "Only firm staff can start a client hive this way."
+          : "Could not create this hive. Try again.",
         correlationId: context.correlationId,
         diagnosticReason: "create_hive_failed",
         cause: hiveError,
@@ -243,6 +301,13 @@ export async function runNewClientFlow(
     hiveName = hive.name;
     completed.push("hive");
 
+    const professionalText = flow.professionalText?.replace(/\s+/g, " ").trim();
+    if (professionalText && firmName) {
+      activeStep = "team_note";
+      await saveProfessionalTeamNote(client, hiveId, professionalText, flow.clientRequestId);
+      completed.push("team_note");
+    }
+
     const ticked = flow.items;
     const requestedItemCount = ticked.length;
 
@@ -260,7 +325,12 @@ export async function runNewClientFlow(
           diagnosticReason: "unknown_pack",
         });
       }
-      const { packVersion, rpcItems } = buildStartChecklistPayload(flow.packId, ticked);
+      packTitleForConflict = chosen.meta.title;
+      const { packVersion, rpcItems, customsForAdd } = buildStartChecklistPayload(
+        flow.packId,
+        ticked,
+        context.correlationId,
+      );
       if (rpcItems.length > 0) {
         const { error: checklistError } = await client.rpc("start_checklist", {
           p_hive_id: hiveId,
@@ -270,16 +340,22 @@ export async function runNewClientFlow(
         });
         if (checklistError) {
           const message = String(checklistError.message ?? "");
-          if (!message.toLowerCase().includes("pack_conflict")) {
-            throw checklistError;
+          if (message.toLowerCase().includes("pack_conflict")) {
+            throw createHiveError({
+              errorCode: "INVALID_REQUEST",
+              category: "VALIDATION",
+              stage: "SHELL",
+              retryable: false,
+              safeMessage: `This hive already has a checklist for ${packTitleForConflict}.`,
+              correlationId: context.correlationId,
+              diagnosticReason: "pack_conflict",
+              cause: checklistError,
+            });
           }
+          throw checklistError;
         }
       }
-      await addCustomItems(
-        client,
-        hiveId,
-        ticked.filter((item) => item.custom).map((item) => ({ ...item, key: normalizeGapTitle(item.title) })),
-      );
+      await addCustomItems(client, hiveId, customsForAdd);
       completed.push("checklist");
     }
 

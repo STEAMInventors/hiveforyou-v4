@@ -27,6 +27,7 @@ export type PackChecklistItem = {
   key: string;
   title: string;
   detail: string | null;
+  appliesWhen: string | null;
   position: number;
 };
 
@@ -165,6 +166,7 @@ export function packChecklistItems(pack: Pack): PackChecklistItem[] {
       key: normalizeGapTitle(title),
       title,
       detail: row.when.replace(/\s+/g, " ").trim() || null,
+      appliesWhen: row.appliesWhen,
       position,
     });
   }

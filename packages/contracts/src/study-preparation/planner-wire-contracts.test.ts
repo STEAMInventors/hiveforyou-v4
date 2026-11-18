@@ -22,7 +22,15 @@ describe("planner tasks", () => {
     expect(STUDY_AGENT_TURN_TASKS).toEqual(["study", "writer"]);
     expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "study", "writer"]);
     expect(PLANNER_TASK_PROMPT_IDS.intelligence).toBe("hive-intent-intelligence/1");
-    expect(PLANNER_COMPLETION_TASKS).toEqual(["intent", "domain", "intelligence", "extract", "canonicalize", "write"]);
+    expect(PLANNER_COMPLETION_TASKS).toEqual([
+      "intent",
+      "domain",
+      "intelligence",
+      "extract",
+      "canonicalize",
+      "write",
+      "checklist_tailor",
+    ]);
     expect(PLANNER_MAX_OUTPUT_TOKENS).toEqual({
       intent: 4000,
       domain: 4000,
@@ -30,6 +38,7 @@ describe("planner tasks", () => {
       extract: 16000,
       canonicalize: 16000,
       write: 8000,
+      checklist_tailor: 4000,
     });
   });
 

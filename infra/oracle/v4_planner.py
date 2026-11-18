@@ -55,6 +55,7 @@ TASK_PROMPT_IDS: dict[str, str] = {
     "extract": "hive-extract/1",
     "canonicalize": "hive-canonicalize/1",
     "write": "hive-write/1",
+    "checklist_tailor": "checklist-tailor/1",
 }
 PIPELINE_PROMPT_IDS_V2: dict[str, str] = {
     "canonicalize": "hive-canonicalize/2",
@@ -71,6 +72,7 @@ DEFAULT_MODEL_ALIAS = "sorter"
 # Per-task model override; preparation tasks not listed use PLANNER_LITELLM_ALIAS.
 TASK_MODEL_ALIASES: dict[str, str] = {
     "intelligence": "sorter",
+    "checklist_tailor": "sorter",
 }
 # Study and Writer need deep-analysis models: each must be configured explicitly (D-041) and never
 # falls back to the classification alias. Unset fails closed with MODEL_UNAVAILABLE.
@@ -91,6 +93,7 @@ TASK_MAX_OUTPUT_TOKENS: dict[str, int] = {
     "extract": 16000,
     "canonicalize": 16000,
     "write": 8000,
+    "checklist_tailor": 4000,
 }
 MAX_OUTPUT_TOKENS = max(TASK_MAX_OUTPUT_TOKENS.values())
 TASK_MAX_REQUEST_BYTES: dict[str, int] = {
@@ -101,6 +104,7 @@ TASK_MAX_REQUEST_BYTES: dict[str, int] = {
     "extract": 1536 * 1024,
     "canonicalize": 2048 * 1024,
     "write": 1024 * 1024,
+    "checklist_tailor": 256 * 1024,
 }
 MAX_REQUEST_BYTES = max(TASK_MAX_REQUEST_BYTES.values())
 TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {

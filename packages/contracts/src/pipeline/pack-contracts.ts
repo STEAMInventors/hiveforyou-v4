@@ -116,6 +116,7 @@ export type PackDocumentExpectation = {
   holder: string;
   holderType: GapHolderType | null;
   when: string;
+  appliesWhen: string | null;
   gapKind: CanonicalGapKind;
   settlesCheckIds: string[];
 };
@@ -624,16 +625,19 @@ export function parsePackMarkdown(markdown: string): PackParse {
     const holderCol = columnIndex(table.headers, "holder");
     const whenCol = columnIndex(table.headers, "when");
     const settlesCol = columnIndex(table.headers, "settles");
+    const appliesWhenCol = columnIndex(table.headers, "applies when");
     for (const row of table.rows) {
       const document = cell(row, docCol);
       if (document === "") continue;
       const holder = cell(row, holderCol);
       const when = cell(row, whenCol);
+      const appliesRaw = appliesWhenCol >= 0 ? cell(row, appliesWhenCol).replace(/\s+/g, " ").trim() : "";
       documentsUsuallyNeeded.push({
         document,
         holder,
         holderType: extractHolderType(holder),
         when,
+        appliesWhen: appliesRaw !== "" ? appliesRaw : null,
         gapKind: classifyDocumentWhen(when),
         settlesCheckIds: settlesCol >= 0 ? parseSettles(cell(row, settlesCol)) : [],
       });

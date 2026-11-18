@@ -1,8 +1,8 @@
 import type { GapHolderType } from "../pipeline/canonical-gap-holders";
 import { normalizeGapHolderType } from "../pipeline/canonical-gap-holders";
-import { holderTypeLabel } from "../pipeline/missing-documents";
 import { normalizeGapTitle } from "../pipeline/gap-fill";
 import type { Pack } from "../pipeline/pack-contracts";
+import { newClientPackHolderLabel } from "./pack-holder-labels";
 
 export const SOMETHING_ELSE_PACK_ID = "";
 export const MAX_STARTING_CHECKLIST_ROWS = 40;
@@ -17,6 +17,7 @@ export type NewClientPackOption = {
 export type NewClientChecklistRow = {
   readonly key: string;
   readonly title: string;
+  readonly appliesWhen: string | null;
   readonly sourceLabel: string | null;
   readonly group: "client" | "other";
   readonly defaultTicked: boolean;
@@ -62,10 +63,12 @@ export function buildNewClientChecklistRows(pack: Pack): NewClientChecklistRow[]
     const isClient = holderType === "ASKER_OR_CLIENT" || holderType === null;
     const isOther = holderType === "THIRD_PARTY" || holderType === "COURT_RECORD";
     if (!isClient && !isOther) continue;
+    const holderLabel = isOther ? newClientPackHolderLabel(holderType!, doc.holder) : null;
     rows.push({
       key,
       title,
-      sourceLabel: isOther ? holderTypeLabel(holderType!, doc.holder, { customer: false }) : null,
+      appliesWhen: doc.appliesWhen,
+      sourceLabel: holderLabel ? `Usually from ${holderLabel}` : null,
       group: isClient ? "client" : "other",
       defaultTicked: isClient,
       custom: false,
