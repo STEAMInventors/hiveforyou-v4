@@ -87,7 +87,7 @@ export function hiveAttention(input: HiveAttentionInput): HiveAttentionResult {
   if (input.openConflicts > 0) {
     return {
       level: "needs_you",
-      sentence: `${plural(input.openConflicts, "conflict needs", "conflicts need")} you.`,
+      sentence: `${plural(input.openConflicts, "conflict", "conflicts")} for your review.`,
       counts,
     };
   }
@@ -96,7 +96,7 @@ export function hiveAttention(input: HiveAttentionInput): HiveAttentionResult {
   if (needsYouItems > 0) {
     return {
       level: "needs_you",
-      sentence: `${plural(needsYouItems, "item needs", "items need")} you.`,
+      sentence: `${plural(needsYouItems, "item", "items")} for your review.`,
       counts,
     };
   }

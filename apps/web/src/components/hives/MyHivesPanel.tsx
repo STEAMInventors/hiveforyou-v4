@@ -218,8 +218,8 @@ export function MyHivesPanel({
     const noRows = displayedHives.length === 0 && !listError;
     const countLine =
       displayedHives.length === 1
-        ? "1 client, the ones that need you first"
-        : `${displayedHives.length} clients, the ones that need you first`;
+        ? "1 client, the ones with something to review first"
+        : `${displayedHives.length} clients, the ones with something to review first`;
     const searchTrimmed = findQuery.trim();
 
     const sidebar = (

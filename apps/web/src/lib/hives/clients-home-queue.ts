@@ -122,7 +122,7 @@ export function clientsHomeQueueTitle(queue: ClientsHomeQueue, searchQuery: stri
   }
   switch (queue) {
     case "needs":
-      return "Needs you";
+      return "For your review";
     case "ready":
       return "Ready for review";
     case "own":

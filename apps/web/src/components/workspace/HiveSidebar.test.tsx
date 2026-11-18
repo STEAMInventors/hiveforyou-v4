@@ -42,6 +42,7 @@ describe("HiveSidebar", () => {
       />,
     );
     expect(screen.getByRole("link", { name: /Team notes/ })).toBeTruthy();
+    expect(screen.getByLabelText("2 items for your review")).toBeTruthy();
   });
 
   it("hides Team notes for individual client hives", () => {

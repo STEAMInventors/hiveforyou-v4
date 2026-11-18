@@ -31,12 +31,12 @@ const firm: ListFirmResponse = {
 
 const board: HiveBoardModel = {
   kicker: "Intake for Ruth Ortiz",
-  headline: "2 things need you",
+  headline: "2 items for your review",
   progress: { in: 1, total: 2, segments: ["in", "not_in"] },
   needs: [
     {
       kind: "conflict",
-      kindLabel: "Needs you",
+      kindLabel: "To review",
       title: "Dates disagree",
       detail: "One record says May.",
       sourceChips: [],
@@ -122,10 +122,11 @@ describe("HiveBoardThreePane", () => {
     expect(screen.getByText("Collecting · 1 of 2 in")).toBeTruthy();
   });
 
-  it("hides plain Needs you kind label and keeps one WORKSPACE_PRIMARY", () => {
+  it("hides the plain review kind label and keeps one WORKSPACE_PRIMARY", () => {
     renderPane();
     const needsCard = screen.getByTestId("hive-board-needs-card");
-    expect(within(needsCard).queryByText("Needs you", { selector: "[data-state]" })).toBeNull();
+    expect(within(needsCard).getByRole("heading", { name: "For your review" })).toBeTruthy();
+    expect(within(needsCard).queryByText("To review", { selector: "[data-state]" })).toBeNull();
     expect(within(needsCard).getByText("Changed")).toBeTruthy();
     expect(primaryActions()).toHaveLength(1);
   });

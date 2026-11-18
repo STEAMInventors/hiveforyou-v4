@@ -58,7 +58,7 @@ function baseInput(overrides: Partial<HiveBoardInput> = {}): HiveBoardInput {
 }
 
 describe("buildHiveBoard headlines", () => {
-  it("uses need-you headlines when needs exist", () => {
+  it("uses review headlines when needs exist", () => {
     const board = buildHiveBoard(
       baseInput({
         unreadableDocuments: [{ fileName: "scan.pdf" }],
@@ -73,9 +73,10 @@ describe("buildHiveBoard headlines", () => {
       }),
       "2026-11-15",
     );
-    expect(board.headline).toBe("2 things need you");
+    expect(board.headline).toBe("2 items for your review");
+    expect(board.readiness.find((line) => line.label === "To review")?.value).toBe("2");
     expect(buildHiveBoard(baseInput({ unreadableDocuments: [{ fileName: "a.pdf" }] }), "2026-11-15").headline).toBe(
-      "1 thing needs you",
+      "1 item for your review",
     );
   });
 
@@ -218,6 +219,7 @@ describe("buildHiveBoard next", () => {
     ).next;
     expect(ready?.action?.kind).toBe("generate_report");
     const done = buildHiveBoard(baseInput(), "2026-11-15").next;
+    expect(done?.title).toBe("Nothing to review");
     expect(done?.action?.label).toBe("Open the latest report");
   });
 });

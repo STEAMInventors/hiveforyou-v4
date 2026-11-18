@@ -28,7 +28,7 @@ const USER = "11111111-1111-4111-8111-111111111111";
 
 const board: HiveBoardModel = {
   kicker: "Intake",
-  headline: "1 thing needs you",
+  headline: "1 item for your review",
   progress: { in: 1, total: 1, segments: ["in"] },
   needs: [],
   next: null,

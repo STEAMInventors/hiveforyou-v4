@@ -29,7 +29,7 @@ const CHOICES: Choice[] = [
   {
     view: "clients",
     title: "Hives for my clients",
-    description: "One hive per client. You see which client needs you today.",
+    description: "One hive per client. You see which clients have something for you to review.",
   },
 ];
 

@@ -206,14 +206,16 @@ export function HiveBoardPanel({
           {board.needs.length > 0 ? (
             <section className="flex flex-col gap-1" aria-labelledby="hive-board-needs-heading">
               <h3 id="hive-board-needs-heading" className="m-0 mb-1 text-[18px] font-semibold text-cell-blue-deep">
-                Needs you
+                For your review
               </h3>
               {board.needs.map((need, index) => (
                 <div
                   key={`${need.kind}-${need.title}-${index}`}
                   className="flex flex-col gap-1.5 border-t border-line py-3.5 first:border-t-0"
                 >
-                  <span className="text-caption font-semibold text-cell-blue-deep">{need.kindLabel}</span>
+                  {need.kindLabel.trim().toLowerCase() !== "to review" ? (
+                    <span className="text-caption font-semibold text-cell-blue-deep">{need.kindLabel}</span>
+                  ) : null}
                   <p className="m-0 text-[17px] font-medium leading-snug text-ink">{need.title}</p>
                   <p className="m-0 text-body text-graphite">{need.detail}</p>
                   {need.sourceChips.length > 0 ? (

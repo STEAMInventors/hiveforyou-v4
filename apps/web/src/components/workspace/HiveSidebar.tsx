@@ -129,7 +129,7 @@ export function HiveSidebar({
   };
 
   const countLabelFor = (section: HiveWorkspaceSection): string | undefined => {
-    if (section === "board") return "items need you";
+    if (section === "board") return "items for your review";
     if (section === "documents") return "documents";
     if (section === "reports") return "reports";
     if (section === "notes") return "team notes";

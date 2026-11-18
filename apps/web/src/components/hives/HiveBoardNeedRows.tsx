@@ -74,15 +74,23 @@ export function HiveBoardNeedRows({
 
   if (board.needs.length === 0 && !board.next?.action) return null;
 
-  const title = board.needs.length > 0 ? `Needs you ${board.needs.length}` : "Next for you";
+  const title = board.needs.length > 0 ? "For your review" : "Next for you";
 
   return (
     <EvidenceViewerProvider hiveId={hiveId} labels={labelMap} pageCountFor={() => 1} citationContexts={new Map()}>
-      <Card title={title} testId="hive-board-needs-card">
+      <Card
+        title={title}
+        testId="hive-board-needs-card"
+        headerRight={
+          board.needs.length > 0 ? (
+            <span className="text-caption font-semibold text-graphite">{board.needs.length}</span>
+          ) : null
+        }
+      >
         {board.needs.length > 0 ? (
           <ul className="m-0 flex list-none flex-col p-0">
             {board.needs.map((need, index) => {
-              const showKind = need.kindLabel.trim().toLowerCase() !== "needs you";
+              const showKind = need.kindLabel.trim().toLowerCase() !== "to review";
               return (
                 <li
                   key={`${need.kind}-${need.title}-${index}`}

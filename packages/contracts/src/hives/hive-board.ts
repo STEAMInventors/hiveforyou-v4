@@ -291,7 +291,7 @@ export function hiveBoardOpenChecklistCount(input: HiveBoardChecklistCountInput)
 
 function buildHeadline(needs: readonly HiveBoardNeedItem[], input: HiveBoardInput, checklist: readonly HiveBoardChecklistItem[]): string {
   if (needs.length > 0) {
-    return needs.length === 1 ? "1 thing needs you" : `${needs.length} things need you`;
+    return needs.length === 1 ? "1 item for your review" : `${needs.length} items for your review`;
   }
   if (input.documentCount === 0) return "Nothing is in yet";
   if (input.readingInProgress) return "Reading the documents";
@@ -341,7 +341,7 @@ function buildNext(
   }
 
   return {
-    title: "Everything is in and checked",
+    title: "Nothing to review",
     detail: input.latestReportAudience
       ? `Open the latest ${audienceLabel(input.latestReportAudience)} report.`
       : "Open the latest report.",
@@ -406,7 +406,7 @@ function buildReadiness(
       label: "Documents",
       value: `${input.documentsReadCount} read, ${input.documentsNotInStudyCount} new`,
     },
-    { label: "Need you", value: String(needs.length) },
+    { label: "To review", value: String(needs.length) },
     { label: "Missing", value: String(missingOpen) },
     { label: "Study", value: studyValue },
     { label: "Latest report", value: latestReport },
