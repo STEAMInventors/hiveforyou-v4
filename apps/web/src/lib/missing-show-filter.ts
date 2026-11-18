@@ -1,4 +1,4 @@
-import type { DisplayState } from "@/components/study/StatusBadge";
+import type { DisplayState } from "@/components/study/status-state";
 
 export const MISSING_SHOW_FILTERS = ["all", "needs", "changed", "missing"] as const;
 export type MissingShowFilter = (typeof MISSING_SHOW_FILTERS)[number];

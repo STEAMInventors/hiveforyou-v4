@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { AppShell } from "@/components/app-header";
 import { accountMenuDetails } from "@/lib/account-shell";
-import { ClientsHomeLayoutBridge } from "@/lib/hives/ClientsHomeLayoutBridge";
+import { ClientsHomeLayoutBridge } from "@/lib/hives/clients-home-context";
 import { ClientsHomeProvider } from "@/lib/hives/clients-home-context";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 

@@ -1,6 +1,5 @@
 "use client";
 
-import type { StudyViewRow } from "@hiveforyou/contracts";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useId, useMemo, type ReactNode } from "react";
 
@@ -14,7 +13,9 @@ import {
   type MissingShowFilter,
 } from "@/lib/missing-show-filter";
 
-import { type DisplayState, statusToState } from "./StatusBadge";
+import type { DisplayState } from "./status-state";
+
+export { missingItemStateForConflict, missingItemStateForRequest } from "./missing-item-state";
 
 export type MissingItemRow = {
   readonly id: string;
@@ -25,22 +26,6 @@ export type MissingItemRow = {
 const SEGMENT_ACTIVE = "border-ink bg-ink text-paper";
 const SEGMENT_IDLE =
   "border-line bg-paper text-graphite hover:border-line-strong hover:text-ink";
-
-function conflictItemState(row: StudyViewRow): DisplayState {
-  return (
-    statusToState(row.status, {
-      updated: row.values.some((value) => value.relation === "updating"),
-    }) ?? "needs"
-  );
-}
-
-export function missingItemStateForConflict(row: StudyViewRow): DisplayState {
-  return conflictItemState(row);
-}
-
-export function missingItemStateForRequest(kind: "now" | "later"): DisplayState {
-  return kind === "later" ? "missing" : "needs";
-}
 
 type MissingItemsCardProps = {
   readonly items: readonly MissingItemRow[];

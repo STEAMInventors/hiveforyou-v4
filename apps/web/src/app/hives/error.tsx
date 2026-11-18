@@ -1,7 +1,10 @@
 "use client";
 
-import { ClientsHomeSidebar } from "@/components/hives/ClientsHomeSidebar";
+import Link from "next/link";
+
+import { TEXT_LINK_CLASS } from "@/components/button-classes";
 import { WorkspaceError } from "@/components/workspace/WorkspaceError";
+import { routeErrorReferences } from "@/lib/route-error-reference";
 
 export default function HivesError({
   error,
@@ -10,29 +13,20 @@ export default function HivesError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const emptyCounts = { needs: 0, ready: 0, all: 0, own: 0, mine: 0, unassigned: 0 };
+  const { correlationId, errorDigest } = routeErrorReferences(error);
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-canvas min-[900px]:grid min-[900px]:grid-cols-[236px_minmax(0,1fr)]">
-      <div className="hidden min-[900px]:block min-[900px]:border-r min-[900px]:border-line">
-        <ClientsHomeSidebar
-          queue="all"
-          counts={emptyCounts}
-          showFirmRail={false}
-          hasOwnHives={false}
-          searchActive={false}
-          compact={false}
-          onSelectQueue={() => undefined}
-        />
-      </div>
-      <div className="mx-auto flex w-full max-w-workspace flex-1 flex-col px-4 py-6 min-[900px]:px-8">
-        <WorkspaceError
-          message="Your clients could not load. Your account and other hives are unchanged."
-          correlationId={error.digest ?? null}
-          retryable
-          onRetry={reset}
-        />
-      </div>
-    </div>
+    <main className="mx-auto flex min-h-[60vh] w-full max-w-lg flex-col items-center justify-center gap-4 px-4 py-12">
+      <WorkspaceError
+        message="Your clients could not load. Your account and other hives are unchanged."
+        correlationId={correlationId}
+        errorDigest={errorDigest}
+        retryable
+        onRetry={reset}
+      />
+      <Link href="/hives" className={TEXT_LINK_CLASS}>
+        Back to your hives
+      </Link>
+    </main>
   );
 }

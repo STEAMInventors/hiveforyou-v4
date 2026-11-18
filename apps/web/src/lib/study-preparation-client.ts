@@ -11,7 +11,7 @@ import {
   type StartStudyPreparationResponse,
 } from "@hiveforyou/contracts";
 
-import { CORRELATION_HEADER_NAME, HiveClientError, parseApiJson } from "./hives-client";
+import { CORRELATION_HEADER_NAME, HiveClientError, parseApiJson } from "./hive-api-client";
 
 function studyPreparationPath(hiveId: string): string {
   return `/api/v1/hives/${encodeURIComponent(hiveId)}/study-preparation`;

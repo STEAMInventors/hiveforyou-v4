@@ -9,12 +9,14 @@ import { WorkspaceError } from "./WorkspaceError";
 export function HiveRouteError({
   message,
   correlationId,
+  errorDigest,
   retryable,
   reset,
   layoutLevel = false,
 }: {
   message: string;
   correlationId?: string | null;
+  errorDigest?: string | null;
   retryable?: boolean;
   reset?: () => void;
   layoutLevel?: boolean;
@@ -25,6 +27,7 @@ export function HiveRouteError({
         <WorkspaceError
           message={message}
           correlationId={correlationId}
+          errorDigest={errorDigest}
           retryable={retryable}
           onRetry={reset}
         />
@@ -37,7 +40,13 @@ export function HiveRouteError({
 
   return (
     <div className="p-4 min-[900px]:p-6">
-      <WorkspaceError message={message} correlationId={correlationId} retryable={retryable} onRetry={reset} />
+      <WorkspaceError
+        message={message}
+        correlationId={correlationId}
+        errorDigest={errorDigest}
+        retryable={retryable}
+        onRetry={reset}
+      />
     </div>
   );
 }

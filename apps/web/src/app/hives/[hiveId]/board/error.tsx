@@ -1,6 +1,7 @@
 "use client";
 
 import { HiveRouteError } from "@/components/workspace/HiveRouteError";
+import { routeErrorReferences } from "@/lib/route-error-reference";
 
 export default function BoardError({
   error,
@@ -9,10 +10,12 @@ export default function BoardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { correlationId, errorDigest } = routeErrorReferences(error);
   return (
     <HiveRouteError
       message="The hive board could not load."
-      correlationId={error.digest ?? null}
+      correlationId={correlationId}
+      errorDigest={errorDigest}
       retryable
       reset={reset}
     />

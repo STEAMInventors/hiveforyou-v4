@@ -20,8 +20,8 @@ import {
 } from "@hiveforyou/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { StateCounts } from "@/components/study/StateBar";
-import type { DisplayState } from "@/components/study/StatusBadge";
+import type { StateCounts } from "@/components/study/state-counts";
+import type { DisplayState } from "@/components/study/status-state";
 import { studyDocumentRequestCount, studyStateCounts, studyStateTargets } from "@/components/study/study-summary";
 import { getHiveReports } from "@/server/reports/reports";
 import { loadPackById, logPinnedPackNotFound } from "@/server/pipeline/pack-loader";

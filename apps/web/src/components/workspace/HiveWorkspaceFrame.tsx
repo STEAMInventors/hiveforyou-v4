@@ -1,14 +1,15 @@
 import type { Hive, ListFirmResponse } from "@hiveforyou/contracts";
 import type { ReactNode } from "react";
 
-import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
-import { sidebarCounts } from "@/components/workspace/sidebar-counts";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import type { StartingView } from "@/lib/auth/profile";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadTeamNotes } from "@/server/firm/load-firm-board";
 import { loadHiveOverview, type HiveSummary } from "@/server/hives/hive-summary";
 import type { AuthenticatedSession } from "@/server/supabase/server-client";
+
+import { sidebarCounts } from "./sidebar-counts";
+import { WorkspaceShell } from "./WorkspaceShell";
 
 export async function HiveWorkspaceFrame({
   hive,

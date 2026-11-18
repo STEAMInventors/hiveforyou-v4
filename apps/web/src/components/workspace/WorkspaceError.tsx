@@ -9,6 +9,7 @@ import { Card } from "./Card";
 export type WorkspaceErrorProps = {
   message: string;
   correlationId?: string | null;
+  errorDigest?: string | null;
   retryable?: boolean;
   onRetry?: () => void;
 };
@@ -20,6 +21,7 @@ function referenceSnippet(correlationId: string): string {
 export function WorkspaceError({
   message,
   correlationId = null,
+  errorDigest = null,
   retryable = false,
   onRetry,
 }: WorkspaceErrorProps) {
@@ -53,6 +55,10 @@ export function WorkspaceError({
               {copied ? "Copied" : "Copy"}
             </button>
           ) : null}
+        </p>
+      ) : errorDigest ? (
+        <p className="m-0 mt-3 text-caption text-graphite">
+          Error code <span className="font-mono text-ink">{errorDigest}</span>
         </p>
       ) : null}
       {retryable && onRetry ? (

@@ -24,5 +24,13 @@ describe("WorkspaceError", () => {
     expect(screen.getByText("We could not load this section.")).toBeTruthy();
     expect(screen.queryByText(/stack|sql|select /i)).toBeNull();
     expect(screen.getByText("abcd1234")).toBeTruthy();
+    expect(screen.getByText(/Reference/)).toBeTruthy();
+  });
+
+  it("shows Error code when only a Next digest is available", () => {
+    render(<WorkspaceError message="We could not load this section." errorDigest="digest-123" />);
+    expect(screen.getByText(/Error code/)).toBeTruthy();
+    expect(screen.getByText("digest-123")).toBeTruthy();
+    expect(screen.queryByText(/Reference/)).toBeNull();
   });
 });

@@ -2,7 +2,8 @@ import type { CoverageGap, StudyView, StudyViewBlockName, StudyViewRow } from "@
 import { askNowDocumentRequestCount, DOCUMENT_REQUEST_LIST_COMPONENT, partitionDocumentRequests } from "@hiveforyou/contracts";
 
 import { shortDocumentLabels } from "./document-labels";
-import { countStates, type StateCounts } from "./StateBar";
+import { countStates, type StateCounts } from "./state-counts";
+import type { DisplayState } from "./status-state";
 
 export const STUDY_SECTION_IDS = {
   glance: "at-a-glance",
@@ -37,7 +38,7 @@ export function studyStateCounts(view: StudyView, coverageGaps: readonly Coverag
 }
 
 /** The section each state-bar pill opens. */
-export function studyStateTargets(view: StudyView): Record<import("./StatusBadge").DisplayState, string> {
+export function studyStateTargets(view: StudyView): Record<DisplayState, string> {
   const hasConflicts = blockRows(view, "conflicts").length > 0;
   return {
     needs: hasConflicts ? STUDY_SECTION_IDS.disagree : STUDY_SECTION_IDS.establish,

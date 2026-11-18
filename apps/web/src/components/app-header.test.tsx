@@ -103,9 +103,34 @@ describe("AppHeader", () => {
         account={account}
       />,
     );
-    expect(screen.getByTestId("workspace-breadcrumb")).toBeTruthy();
+    const header = screen.getByTestId("app-header");
+    const logoColumn = screen.getByTestId("header-logo-column");
+    const breadcrumb = screen.getByTestId("workspace-breadcrumb");
+    expect(logoColumn.contains(breadcrumb)).toBe(false);
+    expect(header.firstElementChild?.contains(logoColumn)).toBe(true);
+    expect(header.firstElementChild?.contains(breadcrumb)).toBe(true);
+    expect(breadcrumb.className).toContain("min-[900px]:flex");
     expect(screen.getByText("Facts")).toBeTruthy();
     expect(screen.queryByTestId("hive-header-ask-pill")).toBeNull();
+  });
+
+  it("truncates long hive names in the breadcrumb and exposes the full name", () => {
+    const longName = "Southern District widget manufacturing and supply cooperative review";
+    pathname = `/hives/${HIVE_ID}/board`;
+    render(
+      <AppHeader
+        workspace={{
+          hiveId: HIVE_ID,
+          hiveName: longName,
+          section: "board",
+          startingView: "own",
+          hiveKind: "own",
+        }}
+        account={{ ...account, startingView: "own" }}
+      />,
+    );
+    const hiveCrumb = screen.getByTitle(longName);
+    expect(hiveCrumb.className).toContain("truncate");
   });
 
   it("opens an accessible account menu from the keyboard and returns focus on Escape", () => {

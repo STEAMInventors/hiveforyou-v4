@@ -1,5 +1,4 @@
-import type { DisplayState } from "@/components/study/StatusBadge";
-import { STATE_LABEL } from "@/components/study/StatusBadge";
+import { STATE_LABEL, type DisplayState } from "@/components/study/status-state";
 
 const DOT_CLASS: Record<DisplayState, string> = {
   needs: "text-cell-blue-deep",
