@@ -90,11 +90,15 @@ describe("HiveSidebar", () => {
     expect(screen.queryByRole("link", { name: /Team notes/ })).toBeNull();
   });
 
-  it("marks Findings current for every findings tab and hides a zero count", () => {
-    const tabs: FindingsTab[] = ["known", "gaps", "timeline", "review"];
-    for (const tab of tabs) {
-      const path = hiveFindingsPath(hive.id, tab).split("?")[0] ?? "";
-      expect(hiveSectionFromPathname(path, hive.id)).toBe("findings");
+  it("marks Findings current for every findings address and hides a zero count", () => {
+    const paths = [
+      hiveFindingsPath(hive.id),
+      hiveFindingsPath(hive.id, "gaps"),
+      hiveFindingsPath(hive.id, "timeline"),
+    ];
+    for (const path of paths) {
+      const base = path.split("#")[0] ?? "";
+      expect(hiveSectionFromPathname(base, hive.id)).toBe("findings");
     }
     renderRail({
       active: "findings",
@@ -129,7 +133,9 @@ describe("HiveSidebar", () => {
     const accepted = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(
       new Date("2026-11-17T12:00:00.000Z"),
     );
-    expect(footer.textContent).toContain("Study v3");
+    expect(footer.textContent).toContain("Study revision");
+    expect(footer.textContent).toContain("v3");
+    expect(footer.textContent).toContain("Every finding links to its source page.");
     expect(footer.textContent).toContain(`Accepted ${accepted}`);
   });
 

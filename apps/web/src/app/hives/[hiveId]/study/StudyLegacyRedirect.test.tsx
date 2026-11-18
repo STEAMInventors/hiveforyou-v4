@@ -28,7 +28,9 @@ describe("StudyLegacyRedirect", () => {
   it("redirects a disagree hash to gaps and keeps other query params", async () => {
     window.location.hash = "#disagree";
     render(<StudyLegacyRedirect hiveId={HIVE_ID} queryString="ref=1" />);
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(`${hiveFindingsPath(HIVE_ID, "gaps")}&ref=1`));
+    await waitFor(() =>
+      expect(replaceMock).toHaveBeenCalledWith(`/hives/${HIVE_ID}/findings?ref=1#open-items`),
+    );
   });
 
   it("redirects other hashes to findings", async () => {

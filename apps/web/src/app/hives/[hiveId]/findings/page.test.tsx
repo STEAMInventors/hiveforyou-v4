@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const loadOwnedHiveOrNotFoundMock = vi.fn();
 const loadHiveOverviewMock = vi.fn();
 const emitMock = vi.fn();
+const loadPackByIdMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
@@ -14,6 +15,9 @@ vi.mock("next/navigation", () => ({
     throw new Error("NOT_FOUND");
   },
   redirect: (url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  },
+  permanentRedirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`);
   },
 }));
@@ -36,26 +40,15 @@ vi.mock("@/server/observability/logger", () => ({
 
 vi.mock("@/server/hives/hive-summary", () => ({
   loadHiveOverview: (...args: unknown[]) => loadHiveOverviewMock(...args),
-  documentPageCounts: (preparation: {
-    eligibility: { documents: { sourceDocumentId: string; totalPhysicalPages: number }[] };
-  }) =>
-    Object.fromEntries(
-      preparation.eligibility.documents.map((document) => [document.sourceDocumentId, document.totalPhysicalPages]),
-    ),
+  documentPageCounts: () => ({}),
 }));
 
-vi.mock("@/components/study/StudyView", () => ({
-  StudyView: ({ workspaceSurface }: { workspaceSurface?: string }) => (
-    <div data-testid="study-surface">{workspaceSurface}</div>
-  ),
+vi.mock("@/server/pipeline/pack-loader", () => ({
+  loadPackById: (...args: unknown[]) => loadPackByIdMock(...args),
 }));
 
-vi.mock("@/components/pane-error-boundary", () => ({
-  PaneErrorBoundary: ({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) => (
-    <div data-testid="pane-boundary" data-has-fallback={fallback == null ? "no" : "yes"}>
-      {children}
-    </div>
-  ),
+vi.mock("@/components/findings/FindingsPageView", () => ({
+  FindingsPageView: () => <div data-testid="findings-page-view" />,
 }));
 
 import FindingsPage from "./page";
@@ -76,19 +69,24 @@ function loadedOverview() {
   return {
     preparation: {
       studyRevision: { format: "canonical-study-1", revisionNumber: 4, coverageGaps: [] },
-      eligibility: {
-        documents: [
-          { sourceDocumentId: "a", totalPhysicalPages: 2 },
-          { sourceDocumentId: "b", totalPhysicalPages: 1 },
-        ],
-        excluded: [{ sourceDocumentId: "c" }],
-      },
+      eligibility: { documents: [], excluded: [] },
     },
     studyTab: {
-      view: { blocks: [{ rows: [{ id: "1" }, { id: "2" }] }, { rows: [{ id: "3" }] }] },
+      view: { blocks: [{ name: "spine_table", rows: [] }], spineSource: null },
       sources: null,
     },
-    summary: { study: { counts: { needs: 2, changed: 1, missing: 0, checked: 3 } } },
+    canonicalStudy: {
+      schema: "hive.canonical-study/1",
+      documents: [],
+      spine: [],
+      outsideSpine: [],
+      conflicts: [],
+      timeline: [],
+      gaps: [],
+      domainLabel: "test",
+      spineSource: null,
+    },
+    summary: { study: { counts: { needs: 2, changed: 1, missing: 0, checked: 3 }, toReviewCount: 3 } },
   };
 }
 
@@ -96,6 +94,7 @@ beforeEach(() => {
   loadOwnedHiveOrNotFoundMock.mockReset();
   loadHiveOverviewMock.mockReset();
   emitMock.mockReset();
+  loadPackByIdMock.mockReturnValue(null);
   loadOwnedHiveOrNotFoundMock.mockResolvedValue(hive);
 });
 
@@ -103,15 +102,24 @@ afterEach(() => {
   cleanup();
 });
 
-async function renderPage(tab?: string) {
+async function renderPage(searchParams: Record<string, string> = {}) {
   const element = await FindingsPage({
     params: Promise.resolve({ hiveId: HIVE_ID }),
-    searchParams: Promise.resolve(tab === undefined ? {} : { tab }),
+    searchParams: Promise.resolve(searchParams),
   });
   return render(element);
 }
 
 describe("Findings page", () => {
+  it("redirects legacy tab query strings to anchors", async () => {
+    await expect(
+      FindingsPage({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({ tab: "timeline", keep: "1" }),
+      }),
+    ).rejects.toThrow(/REDIRECT:.*#timeline/);
+  });
+
   it("shows an error with the correlation id when loading fails", async () => {
     loadHiveOverviewMock.mockRejectedValue({
       safeMessage: "Safe failure.",
@@ -121,20 +129,7 @@ describe("Findings page", () => {
     await renderPage();
     expect(screen.getByRole("alert").textContent).toContain("Safe failure.");
     expect(screen.getByText("2eb8421a")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
-    expect(emitMock).toHaveBeenCalledWith(expect.objectContaining({ correlationId: "2eb8421a-b784-4bf8-ac2b-540299b61d13" }));
-    expect(screen.queryByTestId("study-surface")).toBeNull();
-  });
-
-  it("hides Try again when the failure is not retryable", async () => {
-    loadHiveOverviewMock.mockRejectedValue({
-      safeMessage: "Safe failure.",
-      retryable: false,
-      errorCode: "INTERNAL_ERROR",
-    });
-    await renderPage();
-    expect(screen.getByRole("alert").textContent).toContain("Safe failure.");
-    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.queryByTestId("findings-page-view")).toBeNull();
   });
 
   it("shows the empty study card when nothing has been accepted", async () => {
@@ -142,50 +137,17 @@ describe("Findings page", () => {
       preparation: { studyRevision: null, eligibility: { documents: [], excluded: [] } },
       studyTab: null,
       summary: { study: null },
+      canonicalStudy: null,
     });
     await renderPage();
     expect(screen.getByText("Your Study builds once documents are read")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Go to Documents" }).getAttribute("href")).toBe(`/hives/${HIVE_ID}/documents`);
-    expect(screen.queryByTestId("findings-summary")).toBeNull();
-    expect(screen.queryByTestId("study-surface")).toBeNull();
+    expect(screen.queryByTestId("findings-page-view")).toBeNull();
   });
 
-  it("shows the summary and the known surface when a study view loaded", async () => {
+  it("renders the single-page findings view when a study is available", async () => {
     loadHiveOverviewMock.mockResolvedValue(loadedOverview());
     await renderPage();
-    expect(screen.getByTestId("findings-documents-read").textContent).toContain("2 of 3");
-    expect(screen.getByTestId("findings-item-count").textContent).toContain("3");
-    expect(screen.getByTestId("findings-to-review").textContent).toContain("3");
-    expect(screen.getByTestId("findings-to-review").querySelector("[data-state='changed']")).toBeTruthy();
-    expect(screen.getByTestId("study-surface").textContent).toBe("facts");
-    const known = screen.getByRole("link", { name: "What we know" });
-    expect(known.getAttribute("aria-current")).toBe("page");
-    expect(known.getAttribute("href")).toBe(`/hives/${HIVE_ID}/findings`);
-    expect(screen.getByRole("link", { name: "Gaps and conflicts" }).getAttribute("aria-current")).toBeNull();
-    expect(screen.getByTestId("pane-boundary").getAttribute("data-has-fallback")).toBe("yes");
-    expect(loadOwnedHiveOrNotFoundMock).toHaveBeenCalledWith(HIVE_ID, `/hives/${HIVE_ID}/findings`);
-  });
-
-  it.each([
-    ["gaps", "missing"],
-    ["timeline", "timeline"],
-    ["review", "review"],
-  ] as const)("renders the %s tab on the %s surface", async (tab, surface) => {
-    loadHiveOverviewMock.mockResolvedValue(loadedOverview());
-    await renderPage(tab);
-    expect(screen.getByTestId("study-surface").textContent).toBe(surface);
-    const labels = { gaps: "Gaps and conflicts", timeline: "Timeline", review: "To review" } as const;
-    const active = screen.getByRole("link", { name: labels[tab] });
-    expect(active.getAttribute("aria-current")).toBe("page");
-    expect(active.getAttribute("href")).toBe(`/hives/${HIVE_ID}/findings?tab=${tab}`);
-    expect(loadOwnedHiveOrNotFoundMock).toHaveBeenCalledWith(HIVE_ID, `/hives/${HIVE_ID}/findings?tab=${tab}`);
-  });
-
-  it("treats an unknown tab as What we know", async () => {
-    loadHiveOverviewMock.mockResolvedValue(loadedOverview());
-    await renderPage("nope");
-    expect(screen.getByTestId("study-surface").textContent).toBe("facts");
-    expect(screen.getByRole("link", { name: "What we know" }).getAttribute("aria-current")).toBe("page");
-    expect(loadOwnedHiveOrNotFoundMock).toHaveBeenCalledWith(HIVE_ID, `/hives/${HIVE_ID}/findings`);
+    expect(screen.getByTestId("findings-page-view")).toBeTruthy();
+    expect(screen.getByText("Explore what the documents show, the timeline, and items to review.")).toBeTruthy();
   });
 });

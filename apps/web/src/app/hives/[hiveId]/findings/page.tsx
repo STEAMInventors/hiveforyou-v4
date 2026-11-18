@@ -1,43 +1,25 @@
 import Link from "next/link";
 
+import { FindingsPageView } from "@/components/findings/FindingsPageView";
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
-import { PaneErrorBoundary } from "@/components/pane-error-boundary";
-import type { StudyWorkspaceSurface } from "@/components/study/study-surface";
-import { StudyView } from "@/components/study/StudyView";
-import { Card } from "@/components/workspace/Card";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
-import { StatusDot } from "@/components/workspace/StatusDot";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
-import { WorkspacePageSkeleton } from "@/components/workspace/WorkspacePageSkeleton";
 import {
-  FINDINGS_TAB_LABELS,
-  hiveDocumentsPath,
-  hiveFindingsPath,
-  parseFindingsTab,
-  type FindingsTab,
-} from "@/lib/hive-routes";
+  buildFindingsGlanceMetrics,
+  buildFindingsOpenItems,
+  buildFindingsTopics,
+  findingsOpenItemCount,
+} from "@hiveforyou/contracts";
+import { hiveDocumentsPath, hiveFindingsPath, hiveFindingsRedirectPath, parseFindingsTab, preservedQuery } from "@/lib/hive-routes";
 import { requestCorrelationId } from "@/server/auth/action-support";
-import {
-  documentsReadCount,
-  documentsReadLabel,
-  findingsItemCount,
-  findingsToReviewCount,
-} from "@/server/hives/findings-summary";
-import { documentPageCounts, loadHiveOverview, type HiveOverview } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
+import { documentPageCounts, loadHiveOverview } from "@/server/hives/hive-summary";
+import { loadPackById } from "@/server/pipeline/pack-loader";
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { createServerSupabaseClient } from "@/server/supabase/server-client";
+import { permanentRedirect } from "next/navigation";
 
-const TAB_SURFACE: Record<FindingsTab, StudyWorkspaceSurface> = {
-  known: "facts",
-  gaps: "missing",
-  timeline: "timeline",
-  review: "review",
-};
-
-const TABS: readonly FindingsTab[] = ["known", "gaps", "timeline", "review"];
-
-const PAGE_SUBTITLE = "What the documents show, what's missing, and what to review.";
+const PAGE_SUBTITLE = "Explore what the documents show, the timeline, and items to review.";
 
 function loadFailure(error: unknown): { message: string; retryable: boolean; errorCode: string } {
   const record =
@@ -64,11 +46,16 @@ export default async function FindingsPage({
 }) {
   const { hiveId } = await params;
   const query = searchParams ? await searchParams : {};
-  const tab = parseFindingsTab(query.tab);
-  const hive = await loadOwnedHiveOrNotFound(hiveId, hiveFindingsPath(hiveId, tab));
+  const legacyTab = parseFindingsTab(query.tab);
+  if (query.tab) {
+    permanentRedirect(
+      hiveFindingsRedirectPath(hiveId, { tab: legacyTab, queryString: preservedQuery(query, { tab: null }) }),
+    );
+  }
+  const hive = await loadOwnedHiveOrNotFound(hiveId, hiveFindingsPath(hiveId));
   const correlationId = await requestCorrelationId();
 
-  let overview: HiveOverview;
+  let overview: Awaited<ReturnType<typeof loadHiveOverview>>;
   try {
     const client = await createServerSupabaseClient();
     overview = await loadHiveOverview(client, { hiveId: hive.id, correlationId, includePreview: true });
@@ -100,70 +87,47 @@ export default async function FindingsPage({
     return (
       <>
         <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
-        <Card title="Your Study builds once documents are read">
-          <Link href={hiveDocumentsPath(hive.id)} className={WORKSPACE_SECONDARY}>
+        <div className="rounded-[14px] border border-line bg-paper p-[22px]">
+          <h2 className="m-0 font-brand text-section font-semibold text-ink">Your Study builds once documents are read</h2>
+          <Link href={hiveDocumentsPath(hive.id)} className={`${WORKSPACE_SECONDARY} mt-4`}>
             Go to Documents
           </Link>
-        </Card>
+        </div>
       </>
     );
   }
 
-  const read = documentsReadCount(overview.preparation);
-  const items = findingsItemCount(built.view);
-  const review = findingsToReviewCount(overview.summary.study?.counts);
+  const pack =
+    overview.canonicalStudy?.packRef != null
+      ? loadPackById(overview.canonicalStudy.packRef.id, overview.canonicalStudy.packRef.version)
+      : null;
+  const openItems = buildFindingsOpenItems(built.view, overview.canonicalStudy);
+  const topicBundle = buildFindingsTopics({
+    view: built.view,
+    canonicalStudy: overview.canonicalStudy,
+    pack,
+    openItems,
+  });
 
   return (
     <>
       <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-[900px]:grid-cols-3" data-testid="findings-summary">
-        <Card testId="findings-documents-read">
-          <p className="m-0 text-caption text-graphite">Documents read</p>
-          <p className="m-0 mt-1 font-brand text-section font-semibold text-ink">{documentsReadLabel(read)}</p>
-        </Card>
-        <Card testId="findings-item-count">
-          <p className="m-0 text-caption text-graphite">Findings</p>
-          <p className="m-0 mt-1 font-brand text-section font-semibold text-ink">{items}</p>
-        </Card>
-        <Card testId="findings-to-review">
-          <p className="m-0 text-caption text-graphite">To review</p>
-          <div className="m-0 mt-1 font-brand text-section font-semibold text-ink">
-            {review > 0 ? <StatusDot state="changed" label={String(review)} /> : <span className="text-graphite">0</span>}
-          </div>
-        </Card>
-      </div>
-      <nav aria-label="Findings sections" className="overflow-x-auto" data-testid="findings-tabs">
-        <ul className="m-0 flex w-max min-w-full flex-nowrap gap-4 border-b border-line p-0">
-          {TABS.map((item) => {
-            const current = item === tab;
-            return (
-              <li key={item} className="list-none">
-                <Link
-                  href={hiveFindingsPath(hive.id, item)}
-                  aria-current={current ? "page" : undefined}
-                  className={`inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-1 text-small font-medium no-underline ${
-                    current ? "border-cell-blue-deep text-cell-blue-deep" : "border-transparent text-graphite hover:text-ink"
-                  }`}
-                >
-                  {FINDINGS_TAB_LABELS[item]}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-      <PaneErrorBoundary hiveId={hive.id} supportReference={correlationId} fallback={<WorkspacePageSkeleton variant="study" />}>
-        <StudyView
-          hiveId={hive.id}
-          revisionFormat={revision.format}
-          view={built.view}
-          sources={built.sources}
-          revisionNumber={revision.revisionNumber}
-          coverageGaps={revision.coverageGaps}
-          documentPages={documentPageCounts(overview.preparation)}
-          workspaceSurface={TAB_SURFACE[tab]}
-        />
-      </PaneErrorBoundary>
+      <FindingsPageView
+        hiveId={hive.id}
+        revisionNumber={revision.revisionNumber}
+        view={built.view}
+        sources={built.sources}
+        canonicalStudy={overview.canonicalStudy}
+        pack={pack}
+        topics={topicBundle.topics}
+        otherOpenItems={topicBundle.otherOpenItems}
+        glanceMetrics={buildFindingsGlanceMetrics(built.view, pack)}
+        openItemCount={findingsOpenItemCount(openItems)}
+        allOpenItemIds={openItems.map((item) => item.id)}
+        coverageGaps={revision.coverageGaps}
+        documentPages={documentPageCounts(overview.preparation)}
+        preparation={overview.preparation}
+      />
     </>
   );
 }

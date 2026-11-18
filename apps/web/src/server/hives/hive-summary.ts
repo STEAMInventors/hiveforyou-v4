@@ -1,6 +1,8 @@
 import {
   assignCanonicalGapHolderTypes,
+  buildFindingsOpenItems,
   buildStudyTabViewFromRpc,
+  findingsOpenItemCount,
   type CanonicalStudy,
   type GapUploadLink,
   type GetHiveReportsResponse,
@@ -43,6 +45,8 @@ export type HiveSummary = {
     /** Null until a study view exists for this revision. */
     counts: StateCounts | null;
     targets: Record<DisplayState, string> | null;
+    /** Open Findings items; matches the Findings page and rail badge. */
+    toReviewCount: number | null;
   } | null;
 };
 
@@ -178,6 +182,8 @@ export function summarizeHive(
   const studyCounts = countsView ? studyStateCounts(countsView, revision?.coverageGaps ?? []) : null;
   const alignedCounts =
     studyCounts && boardOpenMissing !== null ? { ...studyCounts, missing: boardOpenMissing } : studyCounts;
+  const toReviewCount =
+    countsView && canonicalStudy ? findingsOpenItemCount(buildFindingsOpenItems(countsView, canonicalStudy)) : null;
   return {
     documentCount: attentionInput.documentCount,
     attention: hiveAttention(attentionInput),
@@ -188,6 +194,7 @@ export function summarizeHive(
           acceptedAt: revision.createdAt,
           counts: alignedCounts,
           targets: countsView ? studyStateTargets(countsView) : null,
+          toReviewCount,
         }
       : null,
   };

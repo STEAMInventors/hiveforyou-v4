@@ -325,7 +325,7 @@ describe("DocumentsPanel — Analyze", () => {
     }));
     server.readDocuments = server.documents.length;
     render(<DocumentsPanel hiveId={HIVE_ID} initialDocuments={server.documents} documentMeta={meta} />);
-    const rows = await screen.findAllByTestId("document-row");
+    const rows = await screen.findAllByTestId("source-library-row");
     for (const row of rows) {
       const label = row.querySelector(".font-brand")?.textContent ?? "";
       expect(label).not.toMatch(/^Document \d+$/);

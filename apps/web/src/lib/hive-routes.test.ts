@@ -41,9 +41,9 @@ describe("hive section paths and labels", () => {
   it("writes the known findings tab without a query", () => {
     expect(hiveFindingsPath(HIVE)).toBe(`/hives/${HIVE}/findings`);
     expect(hiveFindingsPath(HIVE, "known")).toBe(`/hives/${HIVE}/findings`);
-    expect(hiveFindingsPath(HIVE, "gaps")).toBe(`/hives/${HIVE}/findings?tab=gaps`);
-    expect(hiveFindingsPath(HIVE, "timeline")).toBe(`/hives/${HIVE}/findings?tab=timeline`);
-    expect(hiveFindingsPath(HIVE, "review")).toBe(`/hives/${HIVE}/findings?tab=review`);
+    expect(hiveFindingsPath(HIVE, "gaps")).toBe(`/hives/${HIVE}/findings#open-items`);
+    expect(hiveFindingsPath(HIVE, "timeline")).toBe(`/hives/${HIVE}/findings#timeline`);
+    expect(hiveFindingsPath(HIVE, "review")).toBe(`/hives/${HIVE}/findings#open-items`);
     expect(FINDINGS_TAB_LABELS).toEqual({
       known: "What we know",
       gaps: "Gaps and conflicts",

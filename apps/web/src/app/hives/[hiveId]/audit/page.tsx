@@ -1,9 +1,13 @@
-import { HiveActivityPanel } from "@/components/hives/HiveActivityPanel";
+import { AuditTrailPageView } from "@/components/audit/AuditTrailPageView";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
+import { buildAuditTrailEntries, valuesToSourceRefs } from "@hiveforyou/contracts";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
+import { documentPageCounts, loadHiveOverview } from "@/server/hives/hive-summary";
+import { loadStudyRevisionHistory } from "@/server/hives/load-study-revision-history";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
+import { loadPackById } from "@/server/pipeline/pack-loader";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 export default async function AuditPage({ params }: { params: Promise<{ hiveId: string }> }) {
@@ -16,10 +20,59 @@ export default async function AuditPage({ params }: { params: Promise<{ hiveId: 
   const firm = await loadFirm(auth.client);
   const assistantName = firm?.firm?.assistantName?.trim() || "HiveForYou";
 
+  const overview = loaded.overview;
+  const pack =
+    overview.canonicalStudy?.packRef != null
+      ? loadPackById(overview.canonicalStudy.packRef.id, overview.canonicalStudy.packRef.version)
+      : null;
+
+  const studyTab = overview.studyTab;
+  const firstPageChips =
+    studyTab?.view && studyTab.sources
+      ? (overview.canonicalStudy?.documents ?? [])
+          .slice(0, 8)
+          .flatMap((doc) =>
+            valuesToSourceRefs(
+              [
+                {
+                  factId: `page-${doc.sourceDocumentId}`,
+                  valueAsWritten: doc.typeInPlainWords,
+                  sourceRef: { sourceDocumentId: doc.sourceDocumentId, pageNumber: 1, quote: "" },
+                },
+              ],
+              studyTab.sources,
+            ),
+          )
+      : [];
+
+  const totalPages = Object.values(documentPageCounts(overview.preparation)).reduce((sum, value) => sum + value, 0);
+  const readPages = Object.values(documentPageCounts(overview.preparation)).reduce((sum, value) => sum + value, 0);
+
+  const entries =
+    overview.studyTab?.view && overview.canonicalStudy
+      ? buildAuditTrailEntries({
+          view: overview.studyTab.view,
+          sources: overview.studyTab.sources,
+          canonicalStudy: overview.canonicalStudy,
+          pack,
+          documentTotal:
+            overview.preparation.eligibility.documents.length + overview.preparation.eligibility.excluded.length,
+          pagesRead: overview.preparation.eligibility.documents.length > 0 ? readPages : 0,
+          pagesTotal: totalPages || overview.preparation.eligibility.documents.length,
+          unreadableLabels: overview.preparation.eligibility.excluded
+            .filter((item) => item.reason === "UNREADABLE" || item.reason === "READ_FAILED")
+            .map((item) => `${item.fileName} · p.unreadable`),
+          duplicatePairs: [],
+          documentFirstPageChips: firstPageChips,
+        })
+      : [];
+
+  const revisions = await loadStudyRevisionHistory(auth.client, hive.id);
+
   return (
     <>
-      <HivePageHead title="Audit trail" subtitle="What was read, checked and decided, in order." />
-      <HiveActivityPanel board={loaded.board} assistantName={assistantName} />
+      <HivePageHead title="Audit trail" subtitle="How HiveForYou reached its findings: each check, its method and result." />
+      <AuditTrailPageView entries={entries} revisions={revisions} board={loaded.board} assistantName={assistantName} />
     </>
   );
 }

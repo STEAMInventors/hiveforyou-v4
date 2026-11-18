@@ -43,6 +43,8 @@ type EvidenceViewerProviderProps = {
   chipLabels?: ReadonlyMap<string, string>;
   pageCountFor?: (sourceDocumentId: string) => number | undefined;
   citationContexts?: ReadonlyMap<string, readonly { context: CitationContext; siblings: readonly SiblingPageTarget[] }[]>;
+  /** Pages read / unreadable lines keyed by source document id (lowercase ok). */
+  readCoverageLines?: ReadonlyMap<string, string>;
   children: ReactNode;
 };
 
@@ -56,6 +58,7 @@ export function EvidenceViewerProvider({
   chipLabels,
   pageCountFor = () => undefined,
   citationContexts = new Map(),
+  readCoverageLines = new Map(),
   children,
 }: EvidenceViewerProviderProps) {
   const [state, setState] = useState<{
@@ -307,6 +310,13 @@ export function EvidenceViewerProvider({
                     <p id={subtitleId} className="m-0 text-small text-quiet">
                       Page {pageNumber} of {totalPages}
                     </p>
+                    {readCoverageLines.get(chip.sourceDocumentId) ||
+                    readCoverageLines.get(chip.sourceDocumentId.toLowerCase()) ? (
+                      <p className="m-0 text-[12px] text-graphite" data-testid="evidence-read-coverage">
+                        {readCoverageLines.get(chip.sourceDocumentId) ??
+                          readCoverageLines.get(chip.sourceDocumentId.toLowerCase())}
+                      </p>
+                    ) : null}
                   </div>
                   <button
                     ref={closeRef}

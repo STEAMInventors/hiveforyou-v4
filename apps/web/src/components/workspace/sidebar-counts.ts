@@ -11,9 +11,14 @@ export type HiveSidebarCounts = {
 
 /** Badge count for Findings. Hidden when nothing is waiting, so the rail does not show a zero. */
 export function findingsToReviewCount(summary: HiveSummary | null): number | null {
-  if (!summary?.study?.counts) return null;
-  const total = summary.study.counts.needs + summary.study.counts.changed;
-  return total > 0 ? total : null;
+  if (!summary?.study) return null;
+  const resolved =
+    typeof summary.study.toReviewCount === "number"
+      ? summary.study.toReviewCount
+      : summary.study.counts
+        ? summary.study.counts.needs + summary.study.counts.changed
+        : 0;
+  return resolved > 0 ? resolved : null;
 }
 
 function positiveOrNull(count: number | null | undefined): number | null {
