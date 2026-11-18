@@ -4,6 +4,7 @@ import type { HiveBoardModel } from "@hiveforyou/contracts";
 import Link from "next/link";
 
 import { WORKSPACE_PRIMARY, WORKSPACE_SECONDARY } from "@/components/button-classes";
+import { STATE_LABEL } from "@/components/study/status-state";
 import { StatusDot } from "@/components/workspace/StatusDot";
 import { Card } from "@/components/workspace/Card";
 import { SourceChips } from "@/components/study/SourceChip";
@@ -74,7 +75,7 @@ export function HiveBoardNeedRows({
 
   if (board.needs.length === 0 && !board.next?.action) return null;
 
-  const title = board.needs.length > 0 ? `Needs you ${board.needs.length}` : "Next for you";
+  const title = board.needs.length > 0 ? `${STATE_LABEL.needs} ${board.needs.length}` : "Next for you";
 
   return (
     <EvidenceViewerProvider hiveId={hiveId} labels={labelMap} pageCountFor={() => 1} citationContexts={new Map()}>
@@ -82,7 +83,7 @@ export function HiveBoardNeedRows({
         {board.needs.length > 0 ? (
           <ul className="m-0 flex list-none flex-col p-0">
             {board.needs.map((need, index) => {
-              const showKind = need.kindLabel.trim().toLowerCase() !== "needs you";
+              const showKind = need.kindLabel.trim().toLowerCase() !== STATE_LABEL.needs.toLowerCase();
               return (
                 <li
                   key={`${need.kind}-${need.title}-${index}`}

@@ -20,6 +20,7 @@ import { STUDY_TAB_REBUILD_HINT, rebuildHint } from "@/components/hives/study-pr
 import { useStudyPreparation } from "@/components/hives/useStudyPreparation";
 
 import { HiveMissingDocumentsChrome } from "./HiveMissingDocumentsChrome";
+import type { StudyWorkspaceSurface } from "./study-surface";
 import { StudyView } from "./StudyView";
 
 type StudyTabPanelProps = {
@@ -33,7 +34,7 @@ type StudyTabPanelProps = {
   initialPreparation?: GetStudyPreparationResponse;
   canonicalStudy?: CanonicalStudy | null;
   referencedDocuments?: readonly StudyViewReferencedDocument[];
-  workspaceSurface?: "facts" | "missing" | "timeline";
+  workspaceSurface?: StudyWorkspaceSurface;
 };
 
 /**

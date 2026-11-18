@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { CANONICAL_STUDY_SCHEMA, buildStudyView, buildStudyViewSources } from "@hiveforyou/contracts";
+import { CANONICAL_STUDY_SCHEMA, STUDY_VIEW_SCHEMA, buildStudyView, buildStudyViewSources, type StudyView as StudyViewData } from "@hiveforyou/contracts";
 
 import { bankruptcyC13Fixture, bankruptcyC13Revision4Fixture, bankruptcyC13StudyOnlyFixture } from "./fixtures/bankruptcy-c13";
 import { legacyCanonicalGapsFixture } from "./fixtures/legacy-canonical-gaps";
@@ -446,6 +446,59 @@ describe("study summary", () => {
       missing: 2,
       checked: 3,
     });
+  });
+
+  it("shows only needs and changed items on the review surface, and an empty line when none remain", () => {
+    const value = {
+      factId: "f1",
+      valueAsWritten: "12",
+      sourceRef: { sourceDocumentId: "doc-1", pageNumber: 1, quote: "12" },
+    };
+    const view: StudyViewData = {
+      schema: STUDY_VIEW_SCHEMA,
+      sections: [],
+      blocks: [
+        {
+          name: "spine_table",
+          rows: [
+            { id: "need", label: "Open question", status: "CONFLICTED", values: [value] },
+            { id: "changed", label: "Updated figure", status: "SUPERSEDED", values: [value] },
+            { id: "checked", label: "Settled fact", status: "SUPPORTED", values: [value] },
+          ],
+        },
+        {
+          name: "conflicts",
+          rows: [{ id: "conflict", statement: "Two amounts differ", status: "CONFLICTED", values: [] }],
+        },
+      ],
+      components: [],
+    };
+    render(
+      <StudyView hiveId={HIVE_ID} revisionFormat="canonical-study-1" view={view} sources={null} workspaceSurface="review" />,
+    );
+    expect(screen.getByText("Open question")).toBeTruthy();
+    expect(screen.getByText("Updated figure")).toBeTruthy();
+    expect(screen.getByText("Two amounts differ")).toBeTruthy();
+    expect(screen.queryByText("Settled fact")).toBeNull();
+
+    cleanup();
+    render(
+      <StudyView
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={{
+          ...view,
+          blocks: [
+            { name: "spine_table", rows: [{ id: "checked", label: "Settled fact", status: "SUPPORTED", values: [value] }] },
+            { name: "conflicts", rows: [] },
+          ],
+        }}
+        sources={null}
+        workspaceSurface="review"
+      />,
+    );
+    expect(screen.getByText("Nothing to review right now.")).toBeTruthy();
+    expect(screen.queryByText("Settled fact")).toBeNull();
   });
 
   it("labels documents the way the report does", () => {

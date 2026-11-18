@@ -3,7 +3,7 @@ export type DisplayState = (typeof DISPLAY_STATES)[number];
 
 /** Short labels for inline row badges; summary chips use {@link statePillText} instead. */
 export const STATE_LABEL: Record<DisplayState, string> = {
-  needs: "Needs you",
+  needs: "To review",
   missing: "Missing",
   changed: "Changed",
   checked: "Checked",

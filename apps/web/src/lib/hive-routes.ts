@@ -8,26 +8,27 @@ export const MY_HIVES_CREATE_PATH = `${MY_HIVES_PATH}?${CREATE_HIVE_PARAM}=1`;
 
 export const CREATE_HIVE_AFTER_SIGN_UP_PATH = `/sign-in?next=${encodeURIComponent(MY_HIVES_CREATE_PATH)}`;
 
-export type HiveWorkspaceSection =
-  | "board"
-  | "documents"
-  | "facts"
-  | "missing"
-  | "timeline"
-  | "reports"
-  | "activity"
-  | "notes";
+export type HiveWorkspaceSection = "board" | "documents" | "findings" | "reports" | "audit" | "notes";
 
 export const HIVE_SECTION_LABELS: Record<HiveWorkspaceSection, string> = {
   board: "Hive board",
   documents: "Documents",
-  facts: "Facts",
-  missing: "Missing and conflicts",
-  timeline: "Timeline",
+  findings: "Findings",
   reports: "Reports",
-  activity: "What happened",
+  audit: "Audit trail",
   notes: "Team notes",
 };
+
+export type FindingsTab = "known" | "gaps" | "timeline" | "review";
+
+export const FINDINGS_TAB_LABELS: Record<FindingsTab, string> = {
+  known: "What we know",
+  gaps: "Gaps and conflicts",
+  timeline: "Timeline",
+  review: "To review",
+};
+
+const FINDINGS_TABS: ReadonlySet<string> = new Set(["known", "gaps", "timeline", "review"]);
 
 export function hivePath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}`;
@@ -41,25 +42,20 @@ export function hiveDocumentsPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/documents`;
 }
 
-/** Legacy study URL; prefer {@link hiveFactsPath}. */
+/** Legacy study URL. The study page sends people to Findings. */
 export function hiveStudyPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/study`;
 }
 
-export function hiveFactsPath(hiveId: string): string {
-  return `${MY_HIVES_PATH}/${hiveId}/facts`;
+/** `known` is the default and is written without `?tab`. */
+export function hiveFindingsPath(hiveId: string, tab?: FindingsTab): string {
+  const base = `${MY_HIVES_PATH}/${hiveId}/findings`;
+  if (!tab || tab === "known") return base;
+  return `${base}?tab=${tab}`;
 }
 
-export function hiveMissingPath(hiveId: string): string {
-  return `${MY_HIVES_PATH}/${hiveId}/missing`;
-}
-
-export function hiveTimelinePath(hiveId: string): string {
-  return `${MY_HIVES_PATH}/${hiveId}/timeline`;
-}
-
-export function hiveActivityPath(hiveId: string): string {
-  return `${MY_HIVES_PATH}/${hiveId}/activity`;
+export function hiveAuditPath(hiveId: string): string {
+  return `${MY_HIVES_PATH}/${hiveId}/audit`;
 }
 
 export function hiveNotesPath(hiveId: string): string {
@@ -70,22 +66,25 @@ export function hiveReportsPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/reports`;
 }
 
+export function parseFindingsTab(value: string | string[] | undefined): FindingsTab {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const key = raw?.trim().toLowerCase() ?? "";
+  if (FINDINGS_TABS.has(key)) return key as FindingsTab;
+  return "known";
+}
+
 export function hiveSectionPath(hiveId: string, section: HiveWorkspaceSection): string {
   switch (section) {
     case "board":
       return hiveBoardPath(hiveId);
     case "documents":
       return hiveDocumentsPath(hiveId);
-    case "facts":
-      return hiveFactsPath(hiveId);
-    case "missing":
-      return hiveMissingPath(hiveId);
-    case "timeline":
-      return hiveTimelinePath(hiveId);
+    case "findings":
+      return hiveFindingsPath(hiveId);
     case "reports":
       return hiveReportsPath(hiveId);
-    case "activity":
-      return hiveActivityPath(hiveId);
+    case "audit":
+      return hiveAuditPath(hiveId);
     case "notes":
       return hiveNotesPath(hiveId);
     default: {
@@ -99,26 +98,53 @@ export function hiveSectionFromPathname(pathname: string, hiveId: string): HiveW
   const base = `/hives/${hiveId}`;
   if (pathname === `${base}/board` || pathname === base) return "board";
   if (pathname.startsWith(`${base}/documents`)) return "documents";
-  if (pathname.startsWith(`${base}/facts`)) return "facts";
-  if (pathname.startsWith(`${base}/missing`)) return "missing";
-  if (pathname.startsWith(`${base}/timeline`)) return "timeline";
+  if (
+    pathname.startsWith(`${base}/findings`) ||
+    pathname.startsWith(`${base}/facts`) ||
+    pathname.startsWith(`${base}/missing`) ||
+    pathname.startsWith(`${base}/timeline`) ||
+    pathname.startsWith(`${base}/study`)
+  ) {
+    return "findings";
+  }
   if (pathname.startsWith(`${base}/reports`)) return "reports";
-  if (pathname.startsWith(`${base}/activity`)) return "activity";
+  if (pathname.startsWith(`${base}/audit`) || pathname.startsWith(`${base}/activity`)) return "audit";
   if (pathname.startsWith(`${base}/notes`)) return "notes";
-  if (pathname.startsWith(`${base}/study`)) return "facts";
   return null;
 }
 
-/** Maps legacy `/study` hash anchors to the split study routes (D18.9). */
+/** Maps legacy `/study` hash anchors onto Findings tabs. */
 export function mapStudyLegacyHash(hiveId: string, hash: string): string {
   const key = hash.replace(/^#/, "").trim().toLowerCase();
   if (key === "missing" || key === "disagree" || key === "where-documents-disagree" || key === "missing-documents") {
-    return hiveMissingPath(hiveId);
+    return hiveFindingsPath(hiveId, "gaps");
   }
   if (key === "timeline") {
-    return hiveTimelinePath(hiveId);
+    return hiveFindingsPath(hiveId, "timeline");
   }
-  return hiveFactsPath(hiveId);
+  return hiveFindingsPath(hiveId);
+}
+
+/**
+ * Query string for a legacy redirect. `overrides` replace a key (`null` drops it)
+ * after the incoming params are copied, so other params stay.
+ */
+export function preservedQuery(
+  searchParams: Record<string, string | string[] | undefined>,
+  overrides: Record<string, string | null> = {},
+): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value === undefined) continue;
+    const values = Array.isArray(value) ? value : [value];
+    for (const entry of values) search.append(key, entry);
+  }
+  for (const [key, value] of Object.entries(overrides)) {
+    search.delete(key);
+    if (value !== null) search.set(key, value);
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
 }
 
 /** Opens the original file at a physical page for the owner (D-011). */

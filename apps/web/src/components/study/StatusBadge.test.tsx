@@ -38,6 +38,6 @@ describe("statusToState", () => {
 describe("StatusBadge", () => {
   it("always carries its text, never an internal status word", () => {
     const { container } = render(<StatusBadge state="needs" />);
-    expect(container.textContent).toBe("Needs you");
+    expect(container.textContent).toBe("To review");
   });
 });

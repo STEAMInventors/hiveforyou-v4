@@ -90,13 +90,13 @@ describe("AppHeader", () => {
   });
 
   it("shows the workspace breadcrumb on desktop when a hive section is active", () => {
-    pathname = `/hives/${HIVE_ID}/facts`;
+    pathname = `/hives/${HIVE_ID}/findings`;
     render(
       <AppHeader
         workspace={{
           hiveId: HIVE_ID,
           hiveName: "Widget batch review",
-          section: "facts",
+          section: "findings",
           startingView: "clients",
           hiveKind: "client",
         }}
@@ -110,7 +110,7 @@ describe("AppHeader", () => {
     expect(header.firstElementChild?.contains(logoColumn)).toBe(true);
     expect(header.firstElementChild?.contains(breadcrumb)).toBe(true);
     expect(breadcrumb.className).toContain("min-[900px]:flex");
-    expect(screen.getByText("Facts")).toBeTruthy();
+    expect(screen.getByText("Findings")).toBeTruthy();
     expect(screen.queryByTestId("hive-header-ask-pill")).toBeNull();
   });
 

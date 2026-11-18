@@ -76,6 +76,12 @@ export async function HiveWorkspaceFrame({
       assigneeLabel={assigneeLabel}
       assigneeTitle={assigneeTitle}
       assistantName={assistantName}
+      studyRevision={
+        summary?.study
+          ? { revisionNumber: summary.study.revisionNumber, acceptedAt: summary.study.acceptedAt }
+          : null
+      }
+      summaryLoaded={summaryFailedCorrelationId == null}
     >
       {children}
     </WorkspaceShell>

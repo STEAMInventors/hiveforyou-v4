@@ -14,6 +14,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { PRIMARY_BUTTON_CLASS, QUIET_LINK_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import type { DisplayState } from "@/components/study/StatusBadge";
 import { StatusBadge } from "@/components/study/StatusBadge";
+import { STATE_LABEL } from "@/components/study/status-state";
 import type { StudyDocumentMeta } from "@/components/study/study-summary";
 import { formatDocumentDate } from "@/components/study/Timeline";
 import { hiveReportsPath, hiveStudyPath, sourcePagePath } from "@/lib/hive-routes";
@@ -75,7 +76,7 @@ type RowStatus = { state: DisplayState | "neutral"; label: string; detail: strin
 export function documentRowStatus(document: SourceDocument, reading: boolean): RowStatus {
   if (document.status === "REJECTED") return { state: "missing", label: "Not accepted", detail: rejectionMessage(document) };
   if (document.status === "PENDING") {
-    return { state: "needs", label: "Needs you", detail: "The upload didn't finish. Add this file again." };
+    return { state: "needs", label: STATE_LABEL.needs, detail: "The upload didn't finish. Add this file again." };
   }
   switch (document.readStatus) {
     case "PENDING":
@@ -86,7 +87,7 @@ export function documentRowStatus(document: SourceDocument, reading: boolean): R
       return { state: "checked", label: "Checked", detail: READ_STATUS_DETAIL.SUCCEEDED };
     case "PARTIAL":
     case "FAILED":
-      return { state: "needs", label: "Needs you", detail: READ_STATUS_DETAIL[document.readStatus] };
+      return { state: "needs", label: STATE_LABEL.needs, detail: READ_STATUS_DETAIL[document.readStatus] };
     case "UNREADABLE":
       return { state: "missing", label: "Missing", detail: READ_STATUS_DETAIL.UNREADABLE };
   }

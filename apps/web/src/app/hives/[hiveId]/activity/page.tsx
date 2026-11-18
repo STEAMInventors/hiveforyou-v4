@@ -1,25 +1,15 @@
-import { HiveActivityPanel } from "@/components/hives/HiveActivityPanel";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
-import { loadHiveBoard } from "@/server/hives/hive-board-loader";
-import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
-import { loadFirm } from "@/server/firm/load-firm";
-import { requestCorrelationId } from "@/server/auth/action-support";
-import { requireAuthenticatedUser } from "@/server/supabase/server-client";
+import { permanentRedirect } from "next/navigation";
 
-export default async function ActivityPage({ params }: { params: Promise<{ hiveId: string }> }) {
+import { hiveAuditPath, preservedQuery } from "@/lib/hive-routes";
+
+export default async function ActivityRedirectPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ hiveId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { hiveId } = await params;
-  const hive = await loadOwnedHiveOrNotFound(hiveId, `/hives/${hiveId}/activity`);
-  const auth = await requireAuthenticatedUser();
-  if (!auth.ok) return null;
-  const correlationId = await requestCorrelationId();
-  const loaded = await loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId });
-  const firm = await loadFirm(auth.client);
-  const assistantName = firm?.firm?.assistantName?.trim() || "HiveForYou";
-
-  return (
-    <>
-      <HivePageHead title="What happened" />
-      <HiveActivityPanel board={loaded.board} assistantName={assistantName} />
-    </>
-  );
+  const query = searchParams ? await searchParams : {};
+  permanentRedirect(`${hiveAuditPath(hiveId)}${preservedQuery(query)}`);
 }
