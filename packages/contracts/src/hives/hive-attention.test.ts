@@ -54,10 +54,10 @@ describe("hiveAttention", () => {
   });
 
   it("reports conflicts and grouped needs", () => {
-    expect(hiveAttention({ ...base, openConflicts: 1 }).sentence).toBe("1 conflict needs you.");
-    expect(hiveAttention({ ...base, openNeeds: 2 }).sentence).toBe("2 items need you.");
+    expect(hiveAttention({ ...base, openConflicts: 1 }).sentence).toBe("1 conflict to review.");
+    expect(hiveAttention({ ...base, openNeeds: 2 }).sentence).toBe("2 items to review.");
     expect(hiveAttention({ ...base, openNeeds: 1, openChanged: 2 }).sentence).toBe(
-      "3 items need you.",
+      "3 items to review.",
     );
   });
 

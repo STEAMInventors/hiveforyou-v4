@@ -33,7 +33,7 @@ vi.mock("@/server/auth/action-support", () => ({
 
 vi.mock("@/server/hives/hive-board-loader", () => ({
   loadHiveBoard: vi.fn(async () => ({
-    board: { kicker: "", headline: "0 things need you", needs: [], checklist: [], activity: [], readiness: [], progress: null, next: null, checklistNote: "" },
+    board: { kicker: "", headline: "Everything is in and checked", needs: [], checklist: [], activity: [], readiness: [], progress: null, next: null, checklistNote: "" },
     uploads: [],
     overview: {
       preparation: {

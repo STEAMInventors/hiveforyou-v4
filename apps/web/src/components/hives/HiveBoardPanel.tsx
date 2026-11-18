@@ -10,6 +10,7 @@ import { splitBoardHeadline } from "@/components/hives/hive-board-stage";
 import { PRIMARY_BUTTON_CLASS, QUIET_BUTTON_CLASS } from "@/components/button-classes";
 import { useStudyPreparation } from "@/components/hives/useStudyPreparation";
 import { PaneErrorBoundary } from "@/components/pane-error-boundary";
+import { STATE_LABEL } from "@/components/study/status-state";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { SourceChips } from "@/components/study/SourceChip";
 import { Card } from "@/components/workspace/Card";
@@ -206,7 +207,7 @@ export function HiveBoardPanel({
           {board.needs.length > 0 ? (
             <section className="flex flex-col gap-1" aria-labelledby="hive-board-needs-heading">
               <h3 id="hive-board-needs-heading" className="m-0 mb-1 text-[18px] font-semibold text-cell-blue-deep">
-                Needs you
+                {STATE_LABEL.needs}
               </h3>
               {board.needs.map((need, index) => (
                 <div

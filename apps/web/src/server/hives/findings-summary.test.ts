@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { documentsReadCount, documentsReadLabel, findingsItemCount, findingsToReviewCount } from "./findings-summary";
 
-function preparation(duplicateCount?: number): GetStudyPreparationResponse {
+function preparation(): GetStudyPreparationResponse {
   return {
     eligibility: {
       documents: [
@@ -11,22 +11,15 @@ function preparation(duplicateCount?: number): GetStudyPreparationResponse {
         { sourceDocumentId: "b", totalPhysicalPages: 4 },
       ],
       excluded: [{ sourceDocumentId: "c" }],
-      ...(duplicateCount === undefined ? {} : { duplicateCount }),
     },
   } as GetStudyPreparationResponse;
 }
 
 describe("findings summary numbers", () => {
-  it("counts documents read and omits a duplicate count that is not in the data", () => {
+  it("counts documents read", () => {
     const count = documentsReadCount(preparation());
-    expect(count).toEqual({ read: 2, total: 3, duplicateCount: null });
+    expect(count).toEqual({ read: 2, total: 3 });
     expect(documentsReadLabel(count)).toBe("2 of 3");
-  });
-
-  it("appends a duplicate count only when the preparation already has one", () => {
-    const count = documentsReadCount(preparation(1));
-    expect(count.duplicateCount).toBe(1);
-    expect(documentsReadLabel(count)).toBe("2 of 3 · 1 duplicate");
   });
 
   it("counts study-view rows and items to review", () => {
