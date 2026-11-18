@@ -5,15 +5,36 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/server/auth/auth-actions", () => ({
   setStartingViewAction: vi.fn(),
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/components/workspace/useWorkspaceAction", () => ({
+  useWorkspaceAction: () => ({
+    pending: false,
+    inlineError: null,
+    run: vi.fn().mockResolvedValue({ ok: true }),
+    retrySameKey: vi.fn(),
+    clearError: vi.fn(),
+  }),
+}));
 
 import { filledAuthButtons } from "./auth-test-helpers";
 import { WelcomeForm } from "./WelcomeForm";
+
+const practiceAreaOptions = [
+  { packId: "pack-alpha", label: "Intake pack A", description: "Documents gathered before filing." },
+];
 
 afterEach(cleanup);
 
 describe("WelcomeForm", () => {
   it("shows both starting choices with prototype copy", () => {
-    render(<WelcomeForm nextPath="/hives" preselectClients={false} defaultFirstName="Dana" />);
+    render(
+      <WelcomeForm
+        nextPath="/hives"
+        preselectClients={false}
+        defaultFirstName="Dana"
+        practiceAreaOptions={practiceAreaOptions}
+      />,
+    );
     expect(screen.getByLabelText("Your first name")).toBeTruthy();
     expect(screen.getByTestId("hive-mark")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Welcome to HiveForYou" })).toBeTruthy();
@@ -27,29 +48,47 @@ describe("WelcomeForm", () => {
   });
 
   it("includes the about aside with CSS hidden below 960px", () => {
-    render(<WelcomeForm nextPath="/hives" preselectClients={false} defaultFirstName="Dana" />);
+    render(
+      <WelcomeForm
+        nextPath="/hives"
+        preselectClients={false}
+        defaultFirstName="Dana"
+        practiceAreaOptions={practiceAreaOptions}
+      />,
+    );
     const aside = screen.getByRole("complementary", { name: "About HiveForYou", hidden: true });
     expect(aside.className).toMatch(/\bhidden\b/);
     expect(aside.className).toContain("min-[960px]:flex");
   });
 
   it("preselects client hives when start=clients", () => {
-    render(<WelcomeForm nextPath="/hives" preselectClients defaultFirstName="" />);
+    render(
+      <WelcomeForm nextPath="/hives" preselectClients defaultFirstName="" practiceAreaOptions={practiceAreaOptions} />,
+    );
     expect(screen.getByRole("button", { name: /Hives for my clients/ }).getAttribute("aria-pressed")).toBe(
       "true",
     );
   });
 
   it("starts firm setup after Hives for my clients", () => {
-    render(<WelcomeForm nextPath="/hives" preselectClients={false} defaultFirstName="Maria" />);
+    render(
+      <WelcomeForm
+        nextPath="/hives"
+        preselectClients={false}
+        defaultFirstName="Maria"
+        practiceAreaOptions={practiceAreaOptions}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: /Hives for my clients/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByRole("heading", { name: "Name your firm" })).toBeTruthy();
-    expect(screen.getByText("Step 1 of 3")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Set up your practice" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
   });
 
   it("keeps a safe next destination in the continue form", () => {
-    render(<WelcomeForm nextPath="/hives/x" preselectClients={false} defaultFirstName="" />);
+    render(
+      <WelcomeForm nextPath="/hives/x" preselectClients={false} defaultFirstName="" practiceAreaOptions={practiceAreaOptions} />,
+    );
     const nextInput = screen.getByRole("button", { name: "Continue" }).closest("form")!
       .querySelector<HTMLInputElement>('input[name="next"]');
     expect(nextInput?.value).toBe("/hives/x");

@@ -58,7 +58,7 @@ function baseInput(overrides: Partial<HiveBoardInput> = {}): HiveBoardInput {
 }
 
 describe("buildHiveBoard headlines", () => {
-  it("uses need-you headlines when needs exist", () => {
+  it("uses review headlines when needs exist", () => {
     const board = buildHiveBoard(
       baseInput({
         unreadableDocuments: [{ fileName: "scan.pdf" }],
@@ -218,6 +218,7 @@ describe("buildHiveBoard next", () => {
     ).next;
     expect(ready?.action?.kind).toBe("generate_report");
     const done = buildHiveBoard(baseInput(), "2026-11-15").next;
+    expect(done?.title).toBe("Nothing to review");
     expect(done?.action?.label).toBe("Open the latest report");
   });
 });

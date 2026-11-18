@@ -129,7 +129,7 @@ describe("MyHivesPanel", () => {
     expect(within(needsButton).getByText("1")).toBeTruthy();
     expect(within(nav).getByRole("button", { name: /Ready for review/ }).textContent).toMatch(/1/);
     expect(screen.queryByText("0")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Need you$/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /need you/i })).toBeNull();
   });
 
   it("keeps the selected queue in the URL", () => {

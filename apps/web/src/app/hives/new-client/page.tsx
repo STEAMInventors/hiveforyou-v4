@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { NewClientHiveForm } from "@/components/hives/NewClientHiveForm";
 import { fetchMyProfile } from "@/lib/auth/profile";
+import { loadFirm } from "@/server/firm/load-firm";
 import { loadPackEntries } from "@/server/pipeline/pack-loader";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
@@ -26,6 +27,9 @@ export default async function NewClientHivePage({ searchParams }: NewClientPageP
 
   const { entries } = loadPackEntries();
   const packOptions = packOptionsFromEntries(entries);
+  const firm = await loadFirm(auth.client);
+  const firmPracticeAreas = firm?.firm?.practiceAreas ?? null;
+
   const packCatalog = packOptions.map((option) => {
     const entry = entries.find((row) => row.id === option.id);
     return {
@@ -34,5 +38,11 @@ export default async function NewClientHivePage({ searchParams }: NewClientPageP
     };
   });
 
-  return <NewClientHiveForm packCatalog={packCatalog} initialName={initialName} />;
+  return (
+    <NewClientHiveForm
+      packCatalog={packCatalog}
+      initialName={initialName}
+      firmPracticeAreas={firmPracticeAreas}
+    />
+  );
 }

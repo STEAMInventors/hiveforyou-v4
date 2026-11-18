@@ -72,7 +72,7 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
       openCreateOnLoad={params[CREATE_HIVE_PARAM] === "1"}
       startingView={profile.startingView}
       greetingFirstName={greetingFirstName}
-      showFirmRail={Boolean(firm?.firm)}
+      showFirmRail={(firm?.members.filter((member) => member.joined).length ?? 0) > 1}
       viewerUserId={auth.userId}
     />
   );

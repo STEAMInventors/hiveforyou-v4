@@ -44,7 +44,7 @@ describe("StateBar", () => {
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["#a", "#c", "#d"]);
   });
 
-  it("uses the plural for more than one item that needs you, and hands navigation to the page", () => {
+  it("uses the plural for more than one issue, and hands navigation to the page", () => {
     const onNavigate = vi.fn();
     render(<StateBar counts={{ needs: 2, changed: 1, missing: 0, checked: 0 }} targets={targets} onNavigate={onNavigate} />);
     fireEvent.click(screen.getByText("2 issues to resolve"));

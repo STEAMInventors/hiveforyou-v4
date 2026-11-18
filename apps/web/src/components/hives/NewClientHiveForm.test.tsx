@@ -66,8 +66,17 @@ describe("NewClientHiveForm", () => {
   });
 
   it("hides the checklist when Something else is chosen", () => {
-    render(<NewClientHiveForm packCatalog={packCatalog} />);
-    fireEvent.change(screen.getByLabelText(/Matter type/i), { target: { value: "" } });
+    const wideCatalog = [
+      ...packCatalog,
+      {
+        id: "other-pack",
+        version: 1,
+        title: "Other pack",
+        rows: [{ key: "id", title: "ID", sourceLabel: null, group: "client" as const, defaultTicked: true, custom: false }],
+      },
+    ];
+    render(<NewClientHiveForm packCatalog={wideCatalog} firmPracticeAreas={["widget-review", "other-pack"]} />);
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
     expect(screen.queryByText(/What to ask/i)).toBeNull();
     expect(screen.getByText("No checklist")).toBeTruthy();
   });

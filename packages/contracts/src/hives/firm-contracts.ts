@@ -36,6 +36,7 @@ export type FirmSummary = {
   firmId: string;
   name: string;
   assistantName?: string | null;
+  practiceAreas?: string[];
   callerRole?: FirmMemberRole;
 };
 
@@ -118,7 +119,23 @@ function normalizeFirmSummary(raw: unknown): FirmSummary | null {
       : record.assistantName === null
         ? null
         : undefined;
-  return { firmId, name, ...(assistantName !== undefined ? { assistantName } : {}), ...(callerRole ? { callerRole } : {}) };
+  const practiceAreas = normalizeStringArray(record.practiceAreas);
+  return {
+    firmId,
+    name,
+    ...(assistantName !== undefined ? { assistantName } : {}),
+    ...(practiceAreas !== undefined ? { practiceAreas } : {}),
+    ...(callerRole ? { callerRole } : {}),
+  };
+}
+
+function normalizeStringArray(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const values = raw
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return values;
 }
 
 function normalizeFirmMemberRows(raw: unknown): FirmMemberRow[] | null {

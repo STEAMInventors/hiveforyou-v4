@@ -86,7 +86,7 @@ export function clientListIntakeDisplay(
 export function attentionStatusDots(counts: HiveAttentionCounts): { state: "needs" | "changed" | "missing" | "checked"; label: string }[] {
   const rows: { state: "needs" | "changed" | "missing" | "checked"; label: string }[] = [];
   if (counts.needs && counts.needs > 0) {
-    rows.push({ state: "needs", label: `${counts.needs} need you` });
+    rows.push({ state: "needs", label: `${counts.needs} to review` });
   }
   if (counts.changed && counts.changed > 0) {
     rows.push({ state: "changed", label: `${counts.changed} changed` });

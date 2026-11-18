@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 
 import { PRIMARY_BUTTON_CLASS } from "@/components/button-classes";
 import { FirmSetupForm } from "@/components/firm/FirmSetupForm";
+import type { PracticeAreaSetupOption } from "@/server/firm/practice-area-options";
 import type { StartingView } from "@/lib/auth/profile";
 import { setStartingViewAction } from "@/server/auth/auth-actions";
 import type { SignInActionState } from "@/server/auth/auth-actions";
@@ -37,9 +38,15 @@ type WelcomeFormProps = {
   nextPath: string;
   preselectClients: boolean;
   defaultFirstName: string;
+  practiceAreaOptions: PracticeAreaSetupOption[];
 };
 
-export function WelcomeForm({ nextPath, preselectClients, defaultFirstName }: WelcomeFormProps) {
+export function WelcomeForm({
+  nextPath,
+  preselectClients,
+  defaultFirstName,
+  practiceAreaOptions,
+}: WelcomeFormProps) {
   const safeNext = safeNextPath(nextPath, "/hives");
   const [state, formAction, pending] = useActionState(setStartingViewAction, initialState);
   const [selected, setSelected] = useState<StartingView | null>(
@@ -53,7 +60,14 @@ export function WelcomeForm({ nextPath, preselectClients, defaultFirstName }: We
   if (firmSetup) {
     return (
       <SignInShell>
-        <FirmSetupForm onFinished={() => formRef.current?.requestSubmit()} />
+        <FirmSetupForm
+          defaultFirstName={firstName.trim()}
+          practiceAreaOptions={practiceAreaOptions}
+          onFinished={(nextFirst) => {
+            setFirstName(nextFirst);
+            formRef.current?.requestSubmit();
+          }}
+        />
         <form ref={formRef} action={formAction} className="hidden">
           <input type="hidden" name="next" value={safeNext} />
           <input type="hidden" name="startingView" value="clients" />

@@ -10,6 +10,7 @@ import {
   type NewClientChecklistSelection,
   type NewClientPackOption,
   type TailoredChecklistItem,
+  matterTypesForFirm,
   clientFirstName,
   invitePrimaryLabel,
   orderTailoredItems,
@@ -138,9 +139,11 @@ function SparkleIcon() {
 export function NewClientHiveForm({
   packCatalog,
   initialName,
+  firmPracticeAreas = null,
 }: {
   packCatalog: PackCatalogEntry[];
   initialName?: string;
+  firmPracticeAreas?: string[] | null;
 }) {
   const router = useRouter();
   const nameId = useId();
@@ -149,7 +152,20 @@ export function NewClientHiveForm({
   const matterId = useId();
   const addItemId = useId();
 
-  const defaultPackId = packCatalog[0]?.id ?? SOMETHING_ELSE_PACK_ID;
+  const checklistPacks = useMemo(
+    () => packCatalog.filter((pack) => pack.id !== SOMETHING_ELSE_PACK_ID && pack.rows.length > 0),
+    [packCatalog],
+  );
+  const [showAllMatterTypes, setShowAllMatterTypes] = useState(false);
+  const visibleChecklistPacks = useMemo(
+    () => matterTypesForFirm(checklistPacks, firmPracticeAreas, showAllMatterTypes),
+    [checklistPacks, firmPracticeAreas, showAllMatterTypes],
+  );
+  const defaultPackId = visibleChecklistPacks[0]?.id ?? packCatalog[0]?.id ?? SOMETHING_ELSE_PACK_ID;
+  const canShowAllMatterTypes =
+    !showAllMatterTypes &&
+    Boolean(firmPracticeAreas?.length) &&
+    visibleChecklistPacks.length < checklistPacks.length;
 
   const [name, setName] = useState(initialName?.trim() ?? "");
   const [email, setEmail] = useState("");
@@ -221,6 +237,12 @@ export function NewClientHiveForm({
     },
     [packCatalog],
   );
+
+  useEffect(() => {
+    if (packId === SOMETHING_ELSE_PACK_ID) return;
+    if (visibleChecklistPacks.some((pack) => pack.id === packId)) return;
+    onPackChange(visibleChecklistPacks[0]?.id ?? SOMETHING_ELSE_PACK_ID);
+  }, [packId, visibleChecklistPacks, onPackChange]);
 
   const toggleItem = (key: string) => {
     setItems((current) => current.map((row) => (row.key === key ? { ...row, ticked: !row.ticked } : row)));
@@ -492,22 +514,37 @@ export function NewClientHiveForm({
               ) : null}
             </label>
 
-            <label htmlFor={matterId} className="mt-4 flex flex-col gap-1.5 text-small font-medium text-ink">
-              Matter type
-              <select
-                id={matterId}
-                value={packId}
-                onChange={(event) => onPackChange(event.target.value)}
-                className="min-h-10 rounded-control border border-line-strong bg-paper px-3 text-[16px] font-normal text-ink"
-              >
-                {packCatalog.map((pack) => (
-                  <option key={pack.id} value={pack.id}>
-                    {pack.title}
-                  </option>
-                ))}
-                <option value={SOMETHING_ELSE_PACK_ID}>{SOMETHING_ELSE_LABEL}</option>
-              </select>
-            </label>
+            <div className="mt-4 flex flex-col gap-1.5 text-small font-medium text-ink">
+              <span className="flex items-center justify-between gap-2">
+                Matter type
+                {canShowAllMatterTypes ? (
+                  <button
+                    type="button"
+                    className="min-h-5 border-0 bg-transparent p-0 text-caption font-medium text-cell-blue-deep"
+                    onClick={() => setShowAllMatterTypes(true)}
+                  >
+                    Show all matter types
+                  </button>
+                ) : null}
+              </span>
+              {visibleChecklistPacks.length === 1 && !showAllMatterTypes ? (
+                <span className="text-[16px] font-normal text-ink">{visibleChecklistPacks[0]?.title}</span>
+              ) : (
+                <select
+                  id={matterId}
+                  value={packId}
+                  onChange={(event) => onPackChange(event.target.value)}
+                  className="min-h-10 rounded-control border border-line-strong bg-paper px-3 text-[16px] font-normal text-ink"
+                >
+                  {visibleChecklistPacks.map((pack) => (
+                    <option key={pack.id} value={pack.id}>
+                      {pack.title}
+                    </option>
+                  ))}
+                  <option value={SOMETHING_ELSE_PACK_ID}>{SOMETHING_ELSE_LABEL}</option>
+                </select>
+              )}
+            </div>
 
             {showChecklist ? (
               <>

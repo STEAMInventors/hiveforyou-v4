@@ -21,11 +21,11 @@ describe("AccountMenu", () => {
         displayName="Maria Alvarez"
         email="maria@example.com"
         startingView="clients"
-        firmLine="Attorney · Rivera Law"
+        firmLine="Firm settings"
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Account" }));
-    const link = screen.getByRole("menuitem", { name: "Attorney · Rivera Law" });
+    const link = screen.getByRole("menuitem", { name: "Firm settings" });
     expect(link.getAttribute("href")).toBe("/account/firm");
   });
 });

@@ -1,213 +1,270 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useRef, useState } from "react";
 
-import { PRIMARY_BUTTON_CLASS, QUIET_BUTTON_CLASS } from "@/components/button-classes";
-
-type Teammate = { email: string; title: string };
+import { PRIMARY_BUTTON_CLASS } from "@/components/button-classes";
+import { useWorkspaceAction } from "@/components/workspace/useWorkspaceAction";
+import type { PracticeAreaSetupOption } from "@/server/firm/practice-area-options";
 
 type FirmSetupFormProps = {
-  onFinished: () => void;
+  defaultFirstName: string;
+  practiceAreaOptions?: PracticeAreaSetupOption[];
+  onFinished: (firstName: string) => void;
 };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export function FirmSetupForm({ onFinished }: FirmSetupFormProps) {
-  const [step, setStep] = useState(1);
+export function FirmSetupForm({
+  defaultFirstName,
+  practiceAreaOptions = [],
+  onFinished,
+}: FirmSetupFormProps) {
+  const [firstName, setFirstName] = useState(defaultFirstName);
   const [name, setName] = useState("");
-  const [rows, setRows] = useState<Teammate[]>([{ email: "", title: "Paralegal" }]);
-  const [assistant, setAssistant] = useState("HiveForYou");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+  const [askOpen, setAskOpen] = useState(false);
+  const [requestText, setRequestText] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const firmAction = useWorkspaceAction("/welcome");
+  const requestAction = useWorkspaceAction("/welcome");
+  const firmKeyRef = useRef<string>(crypto.randomUUID());
+  const requestKeyRef = useRef<string>(crypto.randomUUID());
 
-  const preview = assistant.trim() || "HiveForYou";
+  const firmPreview = name.trim() || "Rivera Law";
+  const pending = firmAction.pending || requestAction.pending;
 
-  const next = () => {
-    if (step === 1) {
-      if (!name.trim()) {
-        setError("Enter your firm’s name.");
-        return;
-      }
-      setError(null);
-      setStep(2);
-      return;
-    }
-    if (step === 2) {
-      const bad = rows.find((row) => row.email.trim() && !EMAIL_RE.test(row.email.trim().toLowerCase()));
-      if (bad) {
-        setError(`Check the email “${bad.email.trim()}”.`);
-        return;
-      }
-      setError(null);
-      setStep(3);
-      return;
-    }
-    if (assistant.trim().length > 40) {
-      setError("Use 1 to 40 characters.");
-      return;
-    }
-    void finish();
+  const toggleArea = (packId: string) => {
+    setSelectedAreas((current) =>
+      current.includes(packId) ? current.filter((id) => id !== packId) : [...current, packId],
+    );
+    setValidationError(null);
   };
 
-  async function finish() {
-    setBusy(true);
-    setError(null);
-    try {
-      const created = await fetch("/api/v1/firm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), assistantName: preview }),
-      });
-      if (!created.ok) {
-        setError("Could not create the firm. Try again.");
-        return;
-      }
-      for (const row of rows) {
-        const email = row.email.trim().toLowerCase();
-        if (!email) continue;
-        const invited = await fetch("/api/v1/firm/invitations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, title: row.title.trim() || "Team member", role: "member" }),
-        });
-        if (!invited.ok) {
-          setError("The firm is saved. An invitation could not be sent. Try again from your firm page.");
-          return;
-        }
-      }
-      onFinished();
-    } finally {
-      setBusy(false);
+  const validate = (): boolean => {
+    if (!firstName.trim()) {
+      setValidationError("Enter your first name.");
+      return false;
     }
+    if (!name.trim()) {
+      setValidationError("Enter your firm or practice name.");
+      return false;
+    }
+    const request = requestText.trim();
+    if (selectedAreas.length === 0 && !request) {
+      setValidationError('Choose what you handle, or tell us in "Don’t see what you handle?".');
+      return false;
+    }
+    return true;
+  };
+
+  async function start() {
+    if (pending || !validate()) return;
+    setValidationError(null);
+    firmAction.clearError();
+    requestAction.clearError();
+
+    const created = await firmAction.run({
+      url: "/api/v1/firm",
+      body: { name: name.trim(), practiceAreas: selectedAreas },
+      idempotencyKey: firmKeyRef.current,
+      failureMessage: "Could not save your practice. Try again.",
+      refreshOnSuccess: false,
+    });
+    if (created === null) return;
+
+    const request = requestText.trim();
+    if (request) {
+      const submitted = await requestAction.run({
+        url: "/api/v1/firm/practice-area-requests",
+        body: { body: request },
+        idempotencyKey: requestKeyRef.current,
+        failureMessage: "Your practice is saved, but we couldn't send your request. Try again.",
+        refreshOnSuccess: false,
+      });
+      if (submitted === null) return;
+    }
+
+    onFinished(firstName.trim());
   }
 
   return (
     <div className="flex flex-col gap-5" data-testid="firm-setup">
-      <div role="img" aria-label={`Step ${step} of 3`} className="flex gap-1.5">
-        {[1, 2, 3].map((index) => (
-          <span key={index} className={`h-1 flex-1 rounded-pill ${index <= step ? "bg-cell-blue-deep" : "bg-line"}`} />
-        ))}
+      <img src="/brand/hiveforyou-mark.svg" alt="" className="h-10 w-10" width={40} height={40} />
+      <div className="flex flex-col gap-1.5">
+        <h1 className="m-0 font-brand text-[26px] font-semibold leading-tight text-ink">Set up your practice</h1>
+        <p className="m-0 text-body leading-normal text-graphite">
+          Three quick things, so HiveForYou asks your clients for the right documents. You can change these later in
+          Firm settings.
+        </p>
       </div>
-      <span className="text-sm text-graphite">Step {step} of 3</span>
 
-      {step === 1 ? (
-        <>
-          <div className="flex flex-col gap-2">
-            <h1 className="m-0 font-brand text-[32px] font-semibold leading-tight text-ink">Name your firm</h1>
-            <p className="m-0 text-body leading-normal text-graphite">
-              Your clients and your team see it. Every client hive belongs to the firm, so anyone on the team can pick it up.
-            </p>
-          </div>
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-ink">
-            Firm name
-            <input
-              value={name}
-              onChange={(event) => {
-                setName(event.target.value);
-                setError(null);
-              }}
-              placeholder="For example, Rivera Law"
-              className="h-[52px] rounded-xl border border-graphite px-4 text-[17px] font-normal text-ink"
-            />
-          </label>
-        </>
-      ) : null}
-
-      {step === 2 ? (
-        <>
-          <div className="flex flex-col gap-2">
-            <h1 className="m-0 font-brand text-[32px] font-semibold leading-tight text-ink">Who works with you?</h1>
-            <p className="m-0 text-body leading-normal text-graphite">
-              They get an invitation by email. Working alone? Skip this; you can add people later.
-            </p>
-          </div>
-          {rows.map((row, index) => (
-            <div key={index} className="flex flex-wrap gap-2.5">
-              <label className="flex min-w-[220px] flex-[2] flex-col gap-1.5 text-sm font-medium text-ink">
-                Email
-                <input
-                  type="email"
-                  value={row.email}
-                  placeholder="name@yourfirm.com"
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setRows((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, email: value } : item)));
-                    setError(null);
-                  }}
-                  className="h-12 rounded-xl border border-graphite px-3.5 text-base font-normal text-ink"
-                />
-              </label>
-              <label className="flex min-w-[140px] flex-1 flex-col gap-1.5 text-sm font-medium text-ink">
-                Title
-                <input
-                  value={row.title}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setRows((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, title: value } : item)));
-                  }}
-                  className="h-12 rounded-xl border border-graphite px-3.5 text-base font-normal text-ink"
-                />
-              </label>
-            </div>
-          ))}
-          <button
-            type="button"
-            className="self-start border-0 bg-transparent p-0 text-[15px] font-medium text-cell-blue-deep"
-            onClick={() => setRows((current) => [...current, { email: "", title: "Paralegal" }])}
-          >
-            Add someone else
-          </button>
-        </>
-      ) : null}
-
-      {step === 3 ? (
-        <>
-          <div className="flex flex-col gap-2">
-            <h1 className="m-0 font-brand text-[32px] font-semibold leading-tight text-ink">Name your intake assistant</h1>
-            <p className="m-0 text-body leading-normal text-graphite">
-              It asks your clients for documents and checks every page. Clients always see that it is automated, and it never answers questions about the matter.
-            </p>
-          </div>
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-ink">
-            Assistant’s name
-            <input
-              value={assistant}
-              onChange={(event) => {
-                setAssistant(event.target.value);
-                setError(null);
-              }}
-              className="h-[52px] rounded-xl border border-graphite px-4 text-[17px] font-normal text-ink"
-            />
-          </label>
-          <span className="text-sm text-graphite">Clients see: “{preview} · automated”</span>
-        </>
-      ) : null}
-
-      {error ? (
-        <div role="alert" className="text-sm text-coral-deep">
-          {error}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {step === 2 ? (
-          <button
-            type="button"
-            className={QUIET_BUTTON_CLASS}
-            onClick={() => {
-              setRows([{ email: "", title: "Paralegal" }]);
-              setError(null);
-              setStep(3);
+      <section className="flex flex-col gap-[18px] rounded-card border border-line bg-paper p-[22px]">
+        <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
+          Your first name
+          <input
+            value={firstName}
+            onChange={(event) => {
+              setFirstName(event.target.value);
+              setValidationError(null);
             }}
-          >
-            Skip for now
-          </button>
-        ) : (
-          <span />
-        )}
-        <button type="button" className={`${PRIMARY_BUTTON_CLASS} h-12 px-7`} disabled={busy} onClick={next}>
-          {busy ? "Saving…" : step === 3 ? "Finish" : "Next"}
+            autoComplete="given-name"
+            className="h-11 rounded-control border border-line-strong px-3 text-[15px] font-normal text-ink"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
+          Firm or practice name
+          <input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setValidationError(null);
+            }}
+            placeholder="Rivera Law"
+            autoComplete="organization"
+            className="h-11 rounded-control border border-line-strong px-3 text-[15px] font-normal text-ink"
+          />
+          <span className="text-[12.5px] font-normal text-quiet">
+            Your clients see it in emails: “{firmPreview} needs 9 items from you.” Working alone? Use your own name.
+          </span>
+        </label>
+
+        <div role="group" aria-labelledby="firm-practice-areas" className="flex flex-col gap-2.5">
+          <span id="firm-practice-areas" className="text-sm font-semibold text-ink">
+            What do you handle?{" "}
+            <span className="font-normal text-quiet">· choose all that apply</span>
+          </span>
+          {practiceAreaOptions.map((area) => {
+            const on = selectedAreas.includes(area.packId);
+            return (
+              <button
+                key={area.packId}
+                type="button"
+                data-testid={`practice-area-${area.packId}`}
+                aria-pressed={on}
+                onClick={() => toggleArea(area.packId)}
+                className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-control border px-3.5 py-3 text-left ${
+                  on ? "border-cell-blue-deep bg-cell-blue-wash" : "border-line bg-paper"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border text-[13px] ${
+                    on ? "border-cell-blue-deep bg-cell-blue-deep text-paper" : "border-line-strong bg-paper text-transparent"
+                  }`}
+                >
+                  ✓
+                </span>
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-[15px] font-semibold text-ink">{area.label}</span>
+                  <span className="text-[13px] text-graphite">{area.description}</span>
+                </span>
+              </button>
+            );
+          })}
+
+          {!askOpen ? (
+            <button
+              type="button"
+              className="self-start border-0 bg-transparent p-0 text-sm font-medium text-cell-blue-deep"
+              onClick={() => setAskOpen(true)}
+            >
+              Don’t see what you handle?
+            </button>
+          ) : (
+            <label className="flex flex-col gap-1.5 rounded-control bg-canvas p-3.5 text-sm font-semibold text-ink">
+              Tell us what you handle
+              <textarea
+                value={requestText}
+                onChange={(event) => {
+                  setRequestText(event.target.value);
+                  setValidationError(null);
+                  requestAction.clearError();
+                }}
+                rows={2}
+                placeholder="Planning for elderly clients; probate"
+                className="resize-y rounded-control border border-line-strong bg-paper px-3 py-2.5 text-[15px] font-normal text-ink"
+              />
+              <span className="text-[12.5px] font-normal leading-snug text-graphite">
+                We read every request and will email you when HiveForYou covers it. Meanwhile you can still add clients:
+                HiveForYou reads their documents and tells you what’s missing, without a starting checklist.
+              </span>
+              {requestAction.inlineError ? (
+                <span role="alert" className="text-[12.5px] font-normal text-coral-deep">
+                  {requestAction.inlineError.message}
+                  {requestAction.inlineError.reference
+                    ? ` Reference ${requestAction.inlineError.reference}.`
+                    : ""}
+                  {requestAction.inlineError.retryable ? (
+                    <button
+                      type="button"
+                      className="ml-1 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
+                      onClick={() =>
+                        void requestAction.retrySameKey({
+                          url: "/api/v1/firm/practice-area-requests",
+                          body: { body: requestText.trim() },
+                          failureMessage: "Your practice is saved, but we couldn't send your request. Try again.",
+                          refreshOnSuccess: false,
+                        }).then((result) => {
+                          if (result !== null) onFinished(firstName.trim());
+                        })
+                      }
+                    >
+                      Try again
+                    </button>
+                  ) : null}
+                </span>
+              ) : null}
+            </label>
+          )}
+        </div>
+
+        {validationError ? (
+          <div role="alert" className="text-sm text-coral-deep">
+            {validationError}
+          </div>
+        ) : null}
+
+        {firmAction.inlineError ? (
+          <div role="alert" className="text-sm text-coral-deep">
+            {firmAction.inlineError.message}
+            {firmAction.inlineError.reference ? ` Reference ${firmAction.inlineError.reference}.` : ""}
+            {firmAction.inlineError.errorCode === "IDEMPOTENCY_CONFLICT" ? (
+              <>
+                {" "}
+                <Link href="/hives" className="font-semibold text-cell-blue-deep">
+                  Go to your hives
+                </Link>
+              </>
+            ) : firmAction.inlineError.retryable ? (
+              <button
+                type="button"
+                className="ml-1 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
+                onClick={() => void firmAction.retrySameKey({
+                  url: "/api/v1/firm",
+                  body: { name: name.trim(), practiceAreas: selectedAreas },
+                  failureMessage: "Could not save your practice. Try again.",
+                  refreshOnSuccess: false,
+                })}
+              >
+                Try again
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          className={`${PRIMARY_BUTTON_CLASS} h-11`}
+          disabled={pending}
+          onClick={() => void start()}
+        >
+          {pending ? "Saving…" : "Start"}
         </button>
-      </div>
+      </section>
+
+      <p className="m-0 text-[12.5px] leading-normal text-quiet">
+        Adding your team and naming your intake assistant come later, when you need them.
+      </p>
     </div>
   );
 }

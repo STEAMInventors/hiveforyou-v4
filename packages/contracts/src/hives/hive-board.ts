@@ -341,7 +341,7 @@ function buildNext(
   }
 
   return {
-    title: "Everything is in and checked",
+    title: "Nothing to review",
     detail: input.latestReportAudience
       ? `Open the latest ${audienceLabel(input.latestReportAudience)} report.`
       : "Open the latest report.",

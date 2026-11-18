@@ -31,7 +31,6 @@ const firm: ListFirmResponse = {
 
 const board: HiveBoardModel = {
   kicker: "Intake for Ruth Ortiz",
-  headline: "2 things to review",
   progress: { in: 1, total: 2, segments: ["in", "not_in"] },
   needs: [
     {
@@ -122,7 +121,7 @@ describe("HiveBoardThreePane", () => {
     expect(screen.getByText("Collecting · 1 of 2 in")).toBeTruthy();
   });
 
-  it("hides plain Needs you kind label and keeps one WORKSPACE_PRIMARY", () => {
+  it("hides the plain review kind label and keeps one WORKSPACE_PRIMARY", () => {
     renderPane();
     const needsCard = screen.getByTestId("hive-board-needs-card");
     expect(within(needsCard).queryByText("To review", { selector: "[data-state]" })).toBeNull();

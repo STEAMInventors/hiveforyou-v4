@@ -1,5 +1,6 @@
 import { FirmTeamPanel } from "@/components/firm/FirmTeamPanel";
 import { loadFirm } from "@/server/firm/load-firm";
+import { loadPracticeAreaSetupOptions } from "@/server/firm/practice-area-options";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 export default async function FirmAccountPage() {
@@ -7,6 +8,6 @@ export default async function FirmAccountPage() {
   if (!auth.ok) {
     return null;
   }
-  const firm = await loadFirm(auth.client);
-  return <FirmTeamPanel initial={firm} />;
+  const [firm, practiceAreaOptions] = await Promise.all([loadFirm(auth.client), loadPracticeAreaSetupOptions()]);
+  return <FirmTeamPanel initial={firm} practiceAreaOptions={practiceAreaOptions} />;
 }

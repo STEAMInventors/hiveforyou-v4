@@ -10,7 +10,7 @@ const STATE_CLASS: Record<(typeof ORDER)[number], string> = {
 };
 
 const STATE_LABEL: Record<(typeof ORDER)[number], (n: number) => string> = {
-  needs: (n) => `${n} need you`,
+  needs: (n) => `${n} to review`,
   changed: (n) => `${n} changed`,
   missing: (n) => `${n} missing`,
   checked: (n) => `${n} checked`,

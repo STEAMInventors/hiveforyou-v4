@@ -11,6 +11,7 @@ export type WorkspaceActionFailure = {
   reference: string | null;
   /** Network failures can be retried with the same idempotency key. */
   retryable: boolean;
+  errorCode?: string;
 };
 
 export type WorkspaceActionRunOptions = {
@@ -114,6 +115,7 @@ export function useWorkspaceAction(signInNextPath?: string) {
               : (options.failureMessage ?? "Something went wrong."),
             reference: resolvedCorrelation ? referenceSnippet(resolvedCorrelation) : null,
             retryable: isPublicErrorBody(body) ? body.error.retryable : true,
+            errorCode: isPublicErrorBody(body) ? body.error.errorCode : undefined,
           });
           router.refresh();
           return null;

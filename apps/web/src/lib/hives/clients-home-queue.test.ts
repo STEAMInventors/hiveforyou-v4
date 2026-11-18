@@ -109,7 +109,7 @@ describe("clients-home-queue", () => {
     expect(counts.mine).toBe(clientsHomeHivesForQueue(hives, summaries, "mine", viewer, "").length);
   });
 
-  it("orders needs you before waiting (in progress) and then by last activity", () => {
+  it("orders the review queue before waiting (in progress) and then by last activity", () => {
     const urgent = hive({ updatedAt: "2026-11-09T00:00:00.000Z" });
     const waiting = hive({
       id: "660e8400-e29b-41d4-a716-446655440001",
