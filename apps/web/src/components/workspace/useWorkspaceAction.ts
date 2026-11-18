@@ -22,6 +22,8 @@ export type WorkspaceActionRunOptions = {
   idempotencyKey?: string;
   failureMessage?: string;
   refreshOnSuccess?: boolean;
+  /** Called with the same failure that becomes `inlineError`, for callers that track several attempts. */
+  onFailure?: (failure: WorkspaceActionFailure) => void;
 };
 
 type StoredAttempt = {
@@ -109,14 +111,16 @@ export function useWorkspaceAction(signInNextPath?: string) {
           const resolvedCorrelation = isPublicErrorBody(body)
             ? body.error.correlationId
             : response.headers.get(CORRELATION_HEADER_NAME);
-          setInlineError({
+          const failure: WorkspaceActionFailure = {
             message: isPublicErrorBody(body)
               ? body.error.message
               : (options.failureMessage ?? "Something went wrong."),
             reference: resolvedCorrelation ? referenceSnippet(resolvedCorrelation) : null,
             retryable: isPublicErrorBody(body) ? body.error.retryable : true,
             errorCode: isPublicErrorBody(body) ? body.error.errorCode : undefined,
-          });
+          };
+          setInlineError(failure);
+          options.onFailure?.(failure);
           router.refresh();
           return null;
         }
@@ -127,15 +131,11 @@ export function useWorkspaceAction(signInNextPath?: string) {
         }
         return body;
       } catch (error) {
-        if (isNetworkFailure(error)) {
-          setInlineError({ message: NETWORK_MESSAGE, reference: null, retryable: true });
-        } else {
-          setInlineError({
-            message: options.failureMessage ?? "Something went wrong.",
-            reference: null,
-            retryable: true,
-          });
-        }
+        const failure: WorkspaceActionFailure = isNetworkFailure(error)
+          ? { message: NETWORK_MESSAGE, reference: null, retryable: true }
+          : { message: options.failureMessage ?? "Something went wrong.", reference: null, retryable: true };
+        setInlineError(failure);
+        options.onFailure?.(failure);
         router.refresh();
         return null;
       } finally {

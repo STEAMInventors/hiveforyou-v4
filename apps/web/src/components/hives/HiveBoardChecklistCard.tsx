@@ -6,6 +6,7 @@ import Link from "next/link";
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { Card } from "@/components/workspace/Card";
 import { StatusDot } from "@/components/workspace/StatusDot";
+import { CHECKLIST_ANCHOR_ID } from "@/lib/hive-routes";
 
 function checklistState(status: HiveBoardChecklistItem["status"]): "checked" | "needs" | "missing" {
   if (status === "in") return "checked";
@@ -23,7 +24,8 @@ function checklistLabel(status: HiveBoardChecklistItem["status"], statusText: st
 export function HiveBoardChecklistCard({ board }: { board: HiveBoardModel }) {
   return (
     <Card
-      title="Items"
+      id={CHECKLIST_ANCHOR_ID}
+      title="What we asked for"
       headerRight={
         board.progress ? (
           <span className="text-caption text-graphite">

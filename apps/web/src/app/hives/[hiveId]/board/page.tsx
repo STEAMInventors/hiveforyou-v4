@@ -1,11 +1,12 @@
-import { HiveBoardPanel } from "@/components/hives/HiveBoardPanel";
-import { HiveBoardThreePane } from "@/components/hives/HiveBoardThreePane";
+import { HiveConversation } from "@/components/hives/HiveConversation";
+import { HiveStillToCome } from "@/components/hives/HiveStillToCome";
+import { HiveHandoverBanner } from "@/components/workspace/HiveHandoverBanner";
+import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadLatestHandover } from "@/server/firm/load-firm-board";
-import { loadFirm } from "@/server/firm/load-firm";
-import { loadHivePollSnapshot } from "@/server/hives/hive-poll-snapshot";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
+import { loadHiveConversation } from "@/server/hives/hive-conversation";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
@@ -22,57 +23,31 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
   }
 
   const correlationId = await requestCorrelationId();
-  const loaded = await loadHiveBoard(auth.client, {
-    hive,
-    correlationId,
-    userId: auth.userId,
-  });
+  const staffView = showsFirmThreePane(hive);
+  const isAssignee = hive.assigneeUserId?.toLowerCase() === auth.userId.toLowerCase() && hive.stage !== "closed";
 
-  const documentLabels = Object.fromEntries(
-    [
-      ...loaded.overview.preparation.eligibility.documents,
-      ...loaded.overview.preparation.eligibility.excluded.map((item) => ({
-        sourceDocumentId: item.sourceDocumentId,
-        fileName: item.fileName,
-      })),
-    ].map((document) => [document.sourceDocumentId.toLowerCase(), document.fileName]),
-  );
+  const [conversation, board, handover] = await Promise.all([
+    loadHiveConversation(auth.client, hive.id, correlationId),
+    loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId })
+      .then((loaded) => loaded.board)
+      .catch(() => null),
+    staffView && isAssignee ? loadLatestHandover(auth.client, hive.id).catch(() => null) : Promise.resolve(null),
+  ]);
 
-  const documentCount =
-    loaded.overview.preparation.eligibility.documents.length +
-    loaded.overview.preparation.eligibility.excluded.length;
-
-  const threePane = showsFirmThreePane(hive);
-  const firm = threePane ? await loadFirm(auth.client) : null;
-  const poll = threePane ? await loadHivePollSnapshot(auth.client, hive, correlationId) : null;
-  const handover = threePane ? await loadLatestHandover(auth.client, hive.id) : null;
-
-  return threePane && firm?.firm ? (
-    <HiveBoardThreePane
-      hive={hive}
-      currentUserId={auth.userId}
-      board={loaded.board}
-      firm={firm}
-      pollCorrelationId={correlationId}
-      initialPollVersion={poll?.version ?? null}
-      initialFastPoll={poll?.fastPoll ?? false}
-      handover={handover}
-      uploads={loaded.uploads}
-      documentLabels={documentLabels}
-      initialPreparation={loaded.overview.preparation}
-    />
-  ) : (
-    <HiveBoardPanel
-      hive={hive}
-      currentUserId={auth.userId}
-      hiveId={hive.id}
-      hiveName={hive.name}
-      hiveDescription={hive.description ?? ""}
-      hasDocuments={documentCount > 0}
-      board={loaded.board}
-      documentLabels={documentLabels}
-      initialPreparation={loaded.overview.preparation}
-      workspaceMode
-    />
+  return (
+    <>
+      {handover ? <HiveHandoverBanner handover={handover} visible /> : null}
+      <HivePageHead title="Hive board" />
+      <div className="mx-auto flex w-full max-w-[940px] flex-col gap-3" data-testid="hive-board">
+        <HiveStillToCome hiveId={hive.id} progress={board && board.checklist.length > 0 ? board.progress : null} />
+        <HiveConversation
+          hiveId={hive.id}
+          initial={conversation}
+          staffView={staffView}
+          clientName={hive.kind === "client" ? hive.name : null}
+          viewerIsClient={hive.membershipRole === "client"}
+        />
+      </div>
+    </>
   );
 }

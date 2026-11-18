@@ -5,6 +5,7 @@ import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import type { StartingView } from "@/lib/auth/profile";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadTeamNotes } from "@/server/firm/load-firm-board";
+import { loadUnreadMessageCount } from "@/server/hives/hive-conversation";
 import { loadHiveOverview, type HiveSummary } from "@/server/hives/hive-summary";
 import type { AuthenticatedSession } from "@/server/supabase/server-client";
 
@@ -63,7 +64,8 @@ export async function HiveWorkspaceFrame({
     }
   }
 
-  const counts = sidebarCounts(summary, { reportCount, teamNotesCount });
+  const unreadMessageCount = await loadUnreadMessageCount(auth.client, hive.id);
+  const counts = sidebarCounts(summary, { reportCount, teamNotesCount, unreadMessageCount });
 
   return (
     <WorkspaceShell
