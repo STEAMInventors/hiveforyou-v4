@@ -16,8 +16,12 @@ import { HiveSidebarCard } from "./HiveSidebarCard";
 import { countAccessibleLabel, type HiveSidebarCounts } from "./sidebar-counts";
 import { WORKSPACE_NAV_ICONS } from "./workspace-nav-icons";
 
-const HIVE_GROUP: readonly HiveWorkspaceSection[] = ["board", "documents", "facts", "missing", "reports"];
-const MORE_GROUP: readonly HiveWorkspaceSection[] = ["timeline", "notes", "activity"];
+const RAIL: readonly HiveWorkspaceSection[] = ["board", "documents", "findings", "reports", "audit", "notes"];
+
+export type StudyRailRevision = {
+  revisionNumber: number;
+  acceptedAt: string;
+};
 
 type HiveSidebarProps = {
   hive: Hive;
@@ -30,7 +34,17 @@ type HiveSidebarProps = {
   assigneeLabel: string | null;
   assigneeTitle: string | null;
   assistantName: string;
+  /** Null when the hive has no accepted Study. */
+  studyRevision?: StudyRailRevision | null;
+  /** False when the summary failed to load. The footer stays hidden so it cannot show a wrong state. */
+  summaryLoaded?: boolean;
 };
+
+function formatAcceptedDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date);
+}
 
 function NavCount({ count, ariaLabel }: { count: number | null; ariaLabel: string }) {
   if (count === null) return null;
@@ -76,7 +90,11 @@ function NavItem({
       >
         {Icon ? <Icon /> : null}
         {label}
-        {count !== null ? <span className="font-semibold">{count}</span> : null}
+        {count !== null ? (
+          <span className="font-semibold" aria-label={ariaCount}>
+            {count}
+          </span>
+        ) : null}
       </Link>
     );
   }
@@ -98,6 +116,32 @@ function NavItem({
   );
 }
 
+function StudyRailFooter({
+  studyRevision,
+  summaryLoaded,
+}: {
+  studyRevision: StudyRailRevision | null;
+  summaryLoaded: boolean;
+}) {
+  if (!summaryLoaded) return null;
+  const accepted = studyRevision ? formatAcceptedDate(studyRevision.acceptedAt) : "";
+  return (
+    <div className="mt-auto px-2.5 pt-4 text-caption text-graphite" data-testid="study-rail-footer">
+      {studyRevision ? (
+        <>
+          <p className="m-0">Study v{studyRevision.revisionNumber}</p>
+          {accepted ? <p className="m-0">Accepted {accepted}</p> : null}
+        </>
+      ) : (
+        <>
+          <p className="m-0">No Study yet</p>
+          <p className="m-0">Builds once documents are read</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function HiveSidebar({
   hive,
   startingView,
@@ -109,16 +153,19 @@ export function HiveSidebar({
   assigneeLabel,
   assigneeTitle,
   assistantName,
+  studyRevision = null,
+  summaryLoaded = false,
 }: HiveSidebarProps) {
   const back = hiveListBackLink(startingView, hive.kind);
   const firmClient = showsFirmThreePane(hive);
+  const sections = RAIL.filter((section) => (section === "notes" ? firmClient : true));
 
   const countFor = (section: HiveWorkspaceSection): number | null => {
     switch (section) {
-      case "board":
-        return counts.boardNeedsYou;
       case "documents":
         return counts.documents;
+      case "findings":
+        return counts.toReviewCount;
       case "reports":
         return counts.reports;
       case "notes":
@@ -129,14 +176,12 @@ export function HiveSidebar({
   };
 
   const countLabelFor = (section: HiveWorkspaceSection): string | undefined => {
-    if (section === "board") return "items need you";
+    if (section === "findings") return "to review";
     if (section === "documents") return "documents";
     if (section === "reports") return "reports";
     if (section === "notes") return "team notes";
     return undefined;
   };
-
-  const moreSections = MORE_GROUP.filter((section) => (section === "notes" ? firmClient : true));
 
   if (compact) {
     return (
@@ -147,7 +192,7 @@ export function HiveSidebar({
         >
           {back.label}
         </Link>
-        {[...HIVE_GROUP, ...moreSections].map((section) => (
+        {sections.map((section) => (
           <NavItem
             key={section}
             hiveId={hive.id}
@@ -163,7 +208,7 @@ export function HiveSidebar({
   }
 
   return (
-    <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto bg-paper px-3 py-4 min-[900px]:sticky min-[900px]:top-[var(--app-header-height,57px)] min-[900px]:max-h-[calc(100dvh-var(--app-header-height,57px))]">
+    <aside className="flex min-h-0 flex-col gap-4 overflow-hidden bg-paper px-3 py-4 min-[900px]:sticky min-[900px]:top-[var(--app-header-height,57px)] min-[900px]:h-[calc(100dvh-var(--app-header-height,57px))] min-[900px]:max-h-[calc(100dvh-var(--app-header-height,57px))]">
       <HiveSidebarCard
         hive={hive}
         currentUserId={currentUserId}
@@ -172,23 +217,10 @@ export function HiveSidebar({
         assigneeTitle={assigneeTitle}
         assistantName={assistantName}
       />
-      <nav aria-label="Hive sections" data-testid="hive-sidebar">
-        <p className="mb-1 mt-0 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-quiet">Hive</p>
+      <nav aria-label="Hive sections" className="min-h-0 flex-1 overflow-y-auto" data-testid="hive-sidebar">
+        <p className="mb-1 mt-0 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-quiet">Your hive</p>
         <ul className="m-0 flex flex-col gap-0.5 p-0">
-          {HIVE_GROUP.map((section) => (
-            <NavItem
-              key={section}
-              hiveId={hive.id}
-              section={section}
-              active={active}
-              count={countFor(section)}
-              countLabel={countLabelFor(section)}
-            />
-          ))}
-        </ul>
-        <p className="mb-1 mt-4 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-quiet">More</p>
-        <ul className="m-0 flex flex-col gap-0.5 p-0">
-          {moreSections.map((section) => (
+          {sections.map((section) => (
             <NavItem
               key={section}
               hiveId={hive.id}
@@ -200,6 +232,7 @@ export function HiveSidebar({
           ))}
         </ul>
       </nav>
+      <StudyRailFooter studyRevision={studyRevision} summaryLoaded={summaryLoaded} />
     </aside>
   );
 }

@@ -8,6 +8,7 @@ import { QUIET_LINK_CLASS } from "@/components/button-classes";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 
 import { StudyReport } from "./StudyReport";
+import type { StudyWorkspaceSurface } from "./study-surface";
 
 type StudyViewProps = {
   hiveId: string;
@@ -19,7 +20,7 @@ type StudyViewProps = {
   coverageGaps?: readonly CoverageGap[];
   documentPages?: Readonly<Record<string, number>>;
   revisionActions?: ReactNode;
-  workspaceSurface?: "facts" | "missing" | "timeline";
+  workspaceSurface?: StudyWorkspaceSurface;
 };
 
 const NOTICE_CLASS = "flex flex-col gap-3 rounded-card border border-line bg-paper p-5 sm:p-7";

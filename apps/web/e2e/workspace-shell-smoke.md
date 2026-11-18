@@ -18,13 +18,14 @@ Playwright is not installed in this repo yet. Run these steps manually on **stag
 3. For each sidebar section, open the URL and verify breadcrumb + page title (`h1` or `HivePageHead` title):
    - `/hives/{id}/board` — Hive board
    - `/hives/{id}/documents` — Documents
-   - `/hives/{id}/facts` — Facts
-   - `/hives/{id}/missing` — Missing and conflicts
-   - `/hives/{id}/timeline` — Timeline
+   - `/hives/{id}/findings` — Findings (What we know)
+   - `/hives/{id}/findings?tab=gaps` — Findings (Gaps and conflicts)
+   - `/hives/{id}/findings?tab=timeline` — Findings (Timeline)
+   - `/hives/{id}/findings?tab=review` — Findings (To review)
    - `/hives/{id}/reports` — Reports
-   - `/hives/{id}/activity` — What happened
+   - `/hives/{id}/audit` — Audit trail
    - `/hives/{id}/notes` — Team notes
-4. On **Facts**, follow one source chip / page link; confirm the page viewer or API route loads (401/404 must not appear).
+4. On **Findings**, follow one source chip / page link; confirm the page viewer or API route loads (401/404 must not appear). Old `/facts`, `/missing`, `/timeline` and `/activity` addresses redirect.
 5. Open **Hand over** from the sidebar card; cancel without saving (dialog closes).
 
 ## Client member
@@ -32,7 +33,7 @@ Playwright is not installed in this repo yet. Run these steps manually on **stag
 1. Sign in as the invited client; open the shared hive.
 2. Confirm sidebar **does not** show Team notes (or the link is absent).
 3. Request `GET /hives/{id}/notes` (or navigate directly): expect **404** Not Found.
-4. Visit board, documents, facts, missing, timeline, reports, activity — each should load without firm-only controls.
+4. Visit board, documents, findings (each tab), reports and audit — each should load without firm-only controls.
 
 ## Individual (own hive)
 

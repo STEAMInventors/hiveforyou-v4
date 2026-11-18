@@ -130,11 +130,9 @@ type SectionPage = () => Promise<{
 const SECTIONS: readonly { section: HiveWorkspaceSection; page: SectionPage }[] = [
   { section: "board", page: () => import("./[hiveId]/board/page") },
   { section: "documents", page: () => import("./[hiveId]/documents/page") },
-  { section: "facts", page: () => import("./[hiveId]/facts/page") },
-  { section: "missing", page: () => import("./[hiveId]/missing/page") },
-  { section: "timeline", page: () => import("./[hiveId]/timeline/page") },
+  { section: "findings", page: () => import("./[hiveId]/findings/page") },
   { section: "reports", page: () => import("./[hiveId]/reports/page") },
-  { section: "activity", page: () => import("./[hiveId]/activity/page") },
+  { section: "audit", page: () => import("./[hiveId]/audit/page") },
   { section: "notes", page: () => import("./[hiveId]/notes/page") },
 ];
 
