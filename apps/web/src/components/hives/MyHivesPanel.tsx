@@ -291,10 +291,7 @@ export function MyHivesPanel({
                     type="button"
                     className={WORKSPACE_PRIMARY}
                     onClick={() => {
-                      const params = new URLSearchParams();
-                      params.set(CREATE_HIVE_PARAM, "1");
-                      params.set("name", searchTrimmed);
-                      router.push(`${MY_HIVES_PATH}?${params.toString()}`);
+                      router.push(`/hives/new-client?name=${encodeURIComponent(searchTrimmed)}`);
                     }}
                   >
                     New client named {searchTrimmed}

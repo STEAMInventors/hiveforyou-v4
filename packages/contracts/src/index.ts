@@ -11,6 +11,8 @@ export * from "./hives/hive-invitations";
 export * from "./hives/hive-attention";
 export * from "./hives/hive-board";
 export * from "./hives/hive-request-contracts";
+export * from "./hives/new-client-checklist";
+export * from "./hives/hive-board-requests";
 export * from "./source-documents/source-document-contracts";
 export * from "./source-documents/document-read-status-contracts";
 export * from "./study-preparation/study-preparation-contracts";

@@ -1,10 +1,16 @@
+import { buildNewClientChecklistRows, packOptionsFromEntries } from "@hiveforyou/contracts";
 import { redirect } from "next/navigation";
 
 import { NewClientHiveForm } from "@/components/hives/NewClientHiveForm";
 import { fetchMyProfile } from "@/lib/auth/profile";
+import { loadPackEntries } from "@/server/pipeline/pack-loader";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
-export default async function NewClientHivePage() {
+type NewClientPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function NewClientHivePage({ searchParams }: NewClientPageProps) {
   const auth = await requireAuthenticatedUser();
   if (!auth.ok) {
     redirect("/sign-in?next=%2Fhives%2Fnew-client");
@@ -14,5 +20,19 @@ export default async function NewClientHivePage() {
     redirect("/welcome?next=%2Fhives%2Fnew-client");
   }
 
-  return <NewClientHiveForm />;
+  const params = await searchParams;
+  const nameParam = params.name;
+  const initialName = typeof nameParam === "string" ? nameParam : Array.isArray(nameParam) ? nameParam[0] : undefined;
+
+  const { entries } = loadPackEntries();
+  const packOptions = packOptionsFromEntries(entries);
+  const packCatalog = packOptions.map((option) => {
+    const entry = entries.find((row) => row.id === option.id);
+    return {
+      ...option,
+      rows: entry ? buildNewClientChecklistRows(entry.pack) : [],
+    };
+  });
+
+  return <NewClientHiveForm packCatalog={packCatalog} initialName={initialName} />;
 }

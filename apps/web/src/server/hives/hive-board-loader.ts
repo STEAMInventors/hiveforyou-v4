@@ -1,6 +1,8 @@
 import {
   buildHiveBoard,
+  buildHiveBoardChecklistFromRequests,
   conflictRowsFromStudy,
+  normalizeListRequestsResponse,
   parseGapUploadLinks,
   type Hive,
   type HiveBoardModel,
@@ -174,7 +176,7 @@ export async function loadHiveBoard(
     .filter((run) => run.status === "SUCCEEDED" && run.finishedAt)
     .sort((left, right) => Date.parse(right.finishedAt!) - Date.parse(left.finishedAt!))[0];
 
-  const board = buildHiveBoard(
+  let board = buildHiveBoard(
     {
       hiveName: input.hive.name,
       hiveKind: input.hive.kind,
@@ -208,6 +210,22 @@ export async function loadHiveBoard(
     },
     new Date(),
   );
+
+  try {
+    const { data: requestData } = await client.rpc("list_requests", { p_hive_id: input.hive.id });
+    const listed = normalizeListRequestsResponse(requestData);
+    if (listed && listed.requests.length > 0) {
+      const fromRequests = buildHiveBoardChecklistFromRequests(listed.requests, hiveDocumentsPath(input.hive.id));
+      board = {
+        ...board,
+        checklist: fromRequests.checklist,
+        progress: fromRequests.progress,
+        checklistNote: fromRequests.checklistNote,
+      };
+    }
+  } catch {
+    // Study-derived checklist remains when requests cannot be loaded.
+  }
 
   return {
     overview,
