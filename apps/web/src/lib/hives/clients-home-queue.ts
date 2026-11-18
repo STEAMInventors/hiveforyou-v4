@@ -124,11 +124,7 @@ export function clientsHomeQueueTitle(queue: ClientsHomeQueue, searchQuery: stri
   }
   switch (queue) {
     case "needs":
-<<<<<<< HEAD
-      return "For your review";
-=======
       return STATE_LABEL.needs;
->>>>>>> origin/main
     case "ready":
       return "Ready for review";
     case "own":

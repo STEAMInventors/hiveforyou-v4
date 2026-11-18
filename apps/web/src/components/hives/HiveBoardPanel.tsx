@@ -207,11 +207,6 @@ export function HiveBoardPanel({
           {board.needs.length > 0 ? (
             <section className="flex flex-col gap-1" aria-labelledby="hive-board-needs-heading">
               <h3 id="hive-board-needs-heading" className="m-0 mb-1 text-[18px] font-semibold text-cell-blue-deep">
-<<<<<<< HEAD
-                For your review
-=======
-                {STATE_LABEL.needs}
->>>>>>> origin/main
               </h3>
               {board.needs.map((need, index) => (
                 <div

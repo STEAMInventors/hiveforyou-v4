@@ -5,6 +5,7 @@ import { rankHives } from "@hiveforyou/contracts";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Card } from "@/components/workspace/Card";
 import { HiveAppLogo } from "@/components/HiveWordmark";
 import { HiveComposer } from "@/components/HiveComposer";
 import { QUIET_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, WORKSPACE_PRIMARY } from "@/components/button-classes";
@@ -25,6 +26,7 @@ import { CREATE_HIVE_PARAM, MY_HIVES_PATH, hiveDocumentsPath } from "@/lib/hive-
 import type { HiveSummary } from "@/server/hives/hive-summary";
 
 import { ClientsHomeClientList } from "./ClientsHomeClientList";
+import { ClientsHomeFirstVisit } from "./ClientsHomeFirstVisit";
 import { ClientsHomeSidebar } from "./ClientsHomeSidebar";
 import { CreateHiveModal } from "./CreateHiveModal";
 import { DeleteHiveModal } from "./DeleteHiveModal";
@@ -270,13 +272,9 @@ export function MyHivesPanel({
             ) : null}
 
             {clientsEmpty ? (
-              <section className="flex flex-col gap-3">
-                <p className="m-0 text-body text-ink">No clients yet. Start with the first one.</p>
-                <p className="m-0 max-w-[520px] text-small leading-relaxed text-graphite">
-                  Each client gets a hive. Add what they&apos;ve already sent you, and HiveForYou reads every page
-                  and keeps the list of what&apos;s missing.
-                </p>
-              </section>
+              <Card className="overflow-hidden px-0 py-0">
+                <ClientsHomeFirstVisit firstName={greetingFirstName} />
+              </Card>
             ) : null}
 
             {noRows && !clientsEmpty ? (

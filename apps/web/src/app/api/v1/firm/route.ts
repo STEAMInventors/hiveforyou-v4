@@ -1,4 +1,4 @@
-import { createHiveError } from "@hiveforyou/contracts";
+import { createHiveError, normalizePracticeAreaIds } from "@hiveforyou/contracts";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -66,6 +66,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     const name = typeof record?.name === "string" ? record.name.trim() : "";
     const assistantName =
       typeof record?.assistantName === "string" ? record.assistantName.trim() : undefined;
+    const practiceAreas = Array.isArray(record?.practiceAreas)
+      ? normalizePracticeAreaIds(record.practiceAreas.filter((item): item is string => typeof item === "string"))
+      : [];
     if (name.length < 1 || name.length > FIRM_NAME_MAX) {
       throw createHiveError({
         errorCode: "INVALID_REQUEST",
@@ -92,6 +95,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     const { data, error } = await auth.client.rpc("create_firm", {
       p_name: name,
       p_assistant_name: assistantName ?? null,
+      p_practice_areas: practiceAreas,
     });
     if (error) {
       throw createHiveError({

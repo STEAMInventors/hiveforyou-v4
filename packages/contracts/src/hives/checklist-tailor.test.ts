@@ -114,6 +114,12 @@ describe("applyChecklistTailorRules", () => {
     expect(quoteAppearsInText("Car   Loan", "we talked about car loan today")).toBe(true);
   });
 
+  it("rejects quotes shorter than three characters or without word boundaries", () => {
+    expect(quoteAppearsInText("ab", "there is ab today")).toBe(false);
+    expect(quoteAppearsInText("loan", "we talked about carloan today")).toBe(false);
+    expect(quoteAppearsInText("loan", "we talked about car loan today")).toBe(true);
+  });
+
   it("reasonFailsGuard catches advice words", () => {
     expect(reasonFailsGuard("You must file soon.")).toBe(true);
     expect(reasonFailsGuard("You mentioned wages.")).toBe(false);

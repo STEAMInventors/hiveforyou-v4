@@ -4,6 +4,7 @@ import { WelcomeForm } from "@/components/auth/WelcomeForm";
 import { fetchMyProfile } from "@/lib/auth/profile";
 import { suggestedFirstNameFromEmail } from "@/lib/hives/suggested-first-name";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { loadPracticeAreaSetupOptions } from "@/server/firm/practice-area-options";
 import { isNextNavigationError, safeNextPath } from "@/server/auth/redirects";
 
 type PageProps = {
@@ -38,7 +39,14 @@ export default async function WelcomePage({ searchParams }: PageProps) {
     redirect(`/sign-in?next=${encodeURIComponent(next)}`);
   }
 
+  const practiceAreaOptions = loadPracticeAreaSetupOptions();
+
   return (
-    <WelcomeForm nextPath={next} preselectClients={preselectClients} defaultFirstName={defaultFirstName} />
+    <WelcomeForm
+      nextPath={next}
+      preselectClients={preselectClients}
+      defaultFirstName={defaultFirstName}
+      practiceAreaOptions={practiceAreaOptions}
+    />
   );
 }

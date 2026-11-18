@@ -100,11 +100,7 @@ export function ClientsHomeSidebar({
   onSelectQueue: (queue: ClientsHomeQueue) => void;
 }) {
   const clientItems: QueueItem[] = [
-<<<<<<< HEAD
-    { queue: "needs", label: "For your review", count: counts.needs, needsBlueBadge: true },
-=======
     { queue: "needs", label: STATE_LABEL.needs, count: counts.needs, needsBlueBadge: true },
->>>>>>> origin/main
     { queue: "ready", label: "Ready for review", count: counts.ready },
     { queue: "all", label: "All clients", count: counts.all },
   ];

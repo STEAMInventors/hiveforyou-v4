@@ -24,13 +24,7 @@ export function itemMatchesShowFilter(itemState: DisplayState, filter: MissingSh
 
 export const MISSING_SHOW_LABEL: Record<MissingShowFilter, string> = {
   all: "All",
-<<<<<<< HEAD
-  needs: "To review",
-  changed: "Changed",
-  missing: "Missing",
-=======
   needs: STATE_LABEL.needs,
   changed: STATE_LABEL.changed,
   missing: STATE_LABEL.missing,
->>>>>>> origin/main
 };

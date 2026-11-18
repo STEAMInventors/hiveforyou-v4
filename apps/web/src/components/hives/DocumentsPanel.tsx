@@ -76,11 +76,6 @@ type RowStatus = { state: DisplayState | "neutral"; label: string; detail: strin
 export function documentRowStatus(document: SourceDocument, reading: boolean): RowStatus {
   if (document.status === "REJECTED") return { state: "missing", label: "Not accepted", detail: rejectionMessage(document) };
   if (document.status === "PENDING") {
-<<<<<<< HEAD
-    return { state: "needs", label: "To review", detail: "The upload didn't finish. Add this file again." };
-=======
-    return { state: "needs", label: STATE_LABEL.needs, detail: "The upload didn't finish. Add this file again." };
->>>>>>> origin/main
   }
   switch (document.readStatus) {
     case "PENDING":
@@ -91,11 +86,6 @@ export function documentRowStatus(document: SourceDocument, reading: boolean): R
       return { state: "checked", label: "Checked", detail: READ_STATUS_DETAIL.SUCCEEDED };
     case "PARTIAL":
     case "FAILED":
-<<<<<<< HEAD
-      return { state: "needs", label: "To review", detail: READ_STATUS_DETAIL[document.readStatus] };
-=======
-      return { state: "needs", label: STATE_LABEL.needs, detail: READ_STATUS_DETAIL[document.readStatus] };
->>>>>>> origin/main
     case "UNREADABLE":
       return { state: "missing", label: "Missing", detail: READ_STATUS_DETAIL.UNREADABLE };
   }

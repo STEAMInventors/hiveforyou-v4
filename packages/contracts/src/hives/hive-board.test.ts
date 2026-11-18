@@ -73,16 +73,9 @@ describe("buildHiveBoard headlines", () => {
       }),
       "2026-11-15",
     );
-<<<<<<< HEAD
-    expect(board.headline).toBe("2 items for your review");
-    expect(board.readiness.find((line) => line.label === "To review")?.value).toBe("2");
-    expect(buildHiveBoard(baseInput({ unreadableDocuments: [{ fileName: "a.pdf" }] }), "2026-11-15").headline).toBe(
-      "1 item for your review",
-=======
     expect(board.headline).toBe("2 things to review");
     expect(buildHiveBoard(baseInput({ unreadableDocuments: [{ fileName: "a.pdf" }] }), "2026-11-15").headline).toBe(
       "1 thing to review",
->>>>>>> origin/main
     );
   });
 

@@ -57,24 +57,6 @@ function renderRail(overrides: Partial<ComponentProps<typeof HiveSidebar>> = {})
 }
 
 describe("HiveSidebar", () => {
-<<<<<<< HEAD
-  it("shows Team notes only for firm client hives", () => {
-    render(
-      <HiveSidebar
-        hive={hive}
-        startingView="clients"
-        active="board"
-        counts={{ boardNeedsYou: 2, documents: 3, reports: 1, teamNotes: 4 }}
-        firm={{ firm: { id: hive.firmId!, name: "Firm", assistantName: "Assistant" }, members: [], invites: [] }}
-        currentUserId="user"
-        assigneeLabel="You"
-        assigneeTitle="Attorney"
-        assistantName="Assistant"
-      />,
-    );
-    expect(screen.getByRole("link", { name: /Team notes/ })).toBeTruthy();
-    expect(screen.getByLabelText("2 items for your review")).toBeTruthy();
-=======
   it("lists Your hive in order, with Findings carrying the to-review count", () => {
     renderRail();
     expect(screen.getByText("Your hive")).toBeTruthy();
@@ -84,7 +66,6 @@ describe("HiveSidebar", () => {
     const board = screen.getByRole("link", { name: "Hive board" });
     expect(board.textContent).toBe("Hive board");
     expect(findingsToReviewCount(null)).toBeNull();
->>>>>>> origin/main
   });
 
   it("shows Team notes for firm staff and hides it from clients", () => {

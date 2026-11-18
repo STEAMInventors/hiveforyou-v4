@@ -106,8 +106,11 @@ export function normalizeForQuoteMatch(text: string): string {
 
 export function quoteAppearsInText(quote: string, professionalText: string): boolean {
   const q = normalizeForQuoteMatch(quote);
-  if (q === "") return false;
-  return normalizeForQuoteMatch(professionalText).includes(q);
+  if (q.length < 3) return false;
+  const haystack = normalizeForQuoteMatch(professionalText);
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(?:^|[^a-z0-9])${escaped}(?:[^a-z0-9]|$)`);
+  return pattern.test(haystack);
 }
 
 export function reasonFailsGuard(reason: string): boolean {
