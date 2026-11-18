@@ -56,16 +56,18 @@ class Boundary extends Component<BoundaryProps, BoundaryState> {
 export function PaneErrorBoundary({
   hiveId,
   supportReference = null,
+  fallback = null,
   children,
 }: {
   hiveId: string;
   supportReference?: string | null;
+  fallback?: ReactNode;
   children: ReactNode;
 }) {
   const router = useRouter();
   return (
     <Boundary hiveId={hiveId} supportReference={supportReference} onRetry={() => router.refresh()}>
-      <Suspense fallback={null}>{children}</Suspense>
+      <Suspense fallback={fallback}>{children}</Suspense>
     </Boundary>
   );
 }

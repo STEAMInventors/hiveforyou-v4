@@ -31,7 +31,11 @@ const firm: ListFirmResponse = {
 
 const board: HiveBoardModel = {
   kicker: "Intake for Ruth Ortiz",
+<<<<<<< HEAD
   headline: "2 items for your review",
+=======
+  headline: "2 things to review",
+>>>>>>> origin/main
   progress: { in: 1, total: 2, segments: ["in", "not_in"] },
   needs: [
     {
@@ -125,7 +129,10 @@ describe("HiveBoardThreePane", () => {
   it("hides the plain review kind label and keeps one WORKSPACE_PRIMARY", () => {
     renderPane();
     const needsCard = screen.getByTestId("hive-board-needs-card");
+<<<<<<< HEAD
     expect(within(needsCard).getByRole("heading", { name: "For your review" })).toBeTruthy();
+=======
+>>>>>>> origin/main
     expect(within(needsCard).queryByText("To review", { selector: "[data-state]" })).toBeNull();
     expect(within(needsCard).getByText("Changed")).toBeTruthy();
     expect(primaryActions()).toHaveLength(1);

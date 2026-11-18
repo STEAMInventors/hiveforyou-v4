@@ -1,5 +1,5 @@
 import { WorkspacePageSkeleton } from "@/components/workspace/WorkspacePageSkeleton";
 
-export default function ActivityLoading() {
+export default function AuditLoading() {
   return <WorkspacePageSkeleton variant="list" />;
 }

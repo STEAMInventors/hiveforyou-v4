@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Hive } from "@hiveforyou/contracts";
@@ -9,7 +10,11 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/hives/11111111-1111-4111-8111-111111111111/board",
 }));
 
+import { hiveFindingsPath, hiveSectionFromPathname, type FindingsTab } from "@/lib/hive-routes";
+
 import { HiveSidebar } from "./HiveSidebar";
+import { findingsToReviewCount } from "./sidebar-counts";
+import type { HiveSummary } from "@/server/hives/hive-summary";
 
 const hive: Hive = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -22,11 +27,37 @@ const hive: Hive = {
   updatedAt: "2026-11-01T00:00:00.000Z",
 };
 
+const firm = {
+  firm: { id: hive.firmId!, name: "Firm", assistantName: "Assistant" },
+  members: [],
+  invites: [],
+};
+
 afterEach(() => {
   cleanup();
 });
 
+function renderRail(overrides: Partial<ComponentProps<typeof HiveSidebar>> = {}) {
+  return render(
+    <HiveSidebar
+      hive={hive}
+      startingView="clients"
+      active="board"
+      counts={{ toReviewCount: 2, documents: 3, reports: 1, teamNotes: 4 }}
+      firm={firm}
+      currentUserId="user"
+      assigneeLabel="You"
+      assigneeTitle="Attorney"
+      assistantName="Assistant"
+      summaryLoaded
+      studyRevision={{ revisionNumber: 3, acceptedAt: "2026-11-17T12:00:00.000Z" }}
+      {...overrides}
+    />,
+  );
+}
+
 describe("HiveSidebar", () => {
+<<<<<<< HEAD
   it("shows Team notes only for firm client hives", () => {
     render(
       <HiveSidebar
@@ -43,41 +74,91 @@ describe("HiveSidebar", () => {
     );
     expect(screen.getByRole("link", { name: /Team notes/ })).toBeTruthy();
     expect(screen.getByLabelText("2 items for your review")).toBeTruthy();
+=======
+  it("lists Your hive in order, with Findings carrying the to-review count", () => {
+    renderRail();
+    expect(screen.getByText("Your hive")).toBeTruthy();
+    const labels = screen.getAllByRole("link").map((link) => (link.textContent ?? "").replace(/\d+/g, "").trim());
+    expect(labels).toEqual(["Hive board", "Documents", "Findings", "Reports", "Audit trail", "Team notes"]);
+    expect(screen.getByLabelText("2 to review")).toBeTruthy();
+    const board = screen.getByRole("link", { name: "Hive board" });
+    expect(board.textContent).toBe("Hive board");
+    expect(findingsToReviewCount(null)).toBeNull();
+>>>>>>> origin/main
   });
 
-  it("hides Team notes for individual client hives", () => {
-    render(
-      <HiveSidebar
-        hive={{ ...hive, firmId: undefined }}
-        startingView="own"
-        active="board"
-        counts={{ boardNeedsYou: 1, documents: 1, reports: null, teamNotes: null }}
-        firm={null}
-        currentUserId="user"
-        assigneeLabel={null}
-        assigneeTitle={null}
-        assistantName="HiveForYou"
-      />,
-    );
+  it("shows Team notes for firm staff and hides it from clients", () => {
+    renderRail();
+    expect(screen.getByRole("link", { name: /Team notes/ })).toBeTruthy();
+    cleanup();
+    renderRail({
+      hive: { ...hive, membershipRole: "client" },
+      counts: { toReviewCount: 1, documents: 1, reports: null, teamNotes: null },
+    });
+    expect(screen.queryByRole("link", { name: /Team notes/ })).toBeNull();
+    cleanup();
+    renderRail({
+      hive: { ...hive, firmId: undefined },
+      startingView: "own",
+      firm: null,
+      assigneeLabel: null,
+      assigneeTitle: null,
+      assistantName: "HiveForYou",
+      counts: { toReviewCount: 1, documents: 1, reports: null, teamNotes: null },
+    });
     expect(screen.queryByRole("link", { name: /Team notes/ })).toBeNull();
   });
 
-  it("marks the active section with aria-current and hides zero counts", () => {
-    render(
-      <HiveSidebar
-        hive={hive}
-        startingView="clients"
-        active="facts"
-        counts={{ boardNeedsYou: 0, documents: 0, reports: null, teamNotes: null }}
-        firm={null}
-        currentUserId="user"
-        assigneeLabel={null}
-        assigneeTitle={null}
-        assistantName="HiveForYou"
-      />,
+  it("marks Findings current for every findings tab and hides a zero count", () => {
+    const tabs: FindingsTab[] = ["known", "gaps", "timeline", "review"];
+    for (const tab of tabs) {
+      const path = hiveFindingsPath(hive.id, tab).split("?")[0] ?? "";
+      expect(hiveSectionFromPathname(path, hive.id)).toBe("findings");
+    }
+    renderRail({
+      active: "findings",
+      counts: { toReviewCount: null, documents: null, reports: null, teamNotes: null },
+    });
+    const findings = screen.getByRole("link", { name: "Findings" });
+    expect(findings.getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByLabelText(/to review/)).toBeNull();
+  });
+
+  it("shows the study footer on the desktop rail", () => {
+    renderRail();
+    const footer = screen.getByTestId("study-rail-footer");
+    const accepted = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(
+      new Date("2026-11-17T12:00:00.000Z"),
     );
-    const facts = screen.getByRole("link", { name: /Facts/ });
-    expect(facts.getAttribute("aria-current")).toBe("page");
-    expect(within(facts).queryByText("0")).toBeNull();
+    expect(footer.textContent).toContain("Study v3");
+    expect(footer.textContent).toContain(`Accepted ${accepted}`);
+  });
+
+  it("says there is no study yet when the summary loaded without one", () => {
+    renderRail({ studyRevision: null });
+    const footer = screen.getByTestId("study-rail-footer");
+    expect(footer.textContent).toContain("No Study yet");
+    expect(footer.textContent).toContain("Builds once documents are read");
+  });
+
+  it("hides the footer when the summary failed and on the phone rail", () => {
+    renderRail({ summaryLoaded: false });
+    expect(screen.queryByTestId("study-rail-footer")).toBeNull();
+    cleanup();
+    renderRail({ compact: true });
+    expect(screen.getByTestId("hive-sidebar-compact")).toBeTruthy();
+    expect(screen.queryByTestId("study-rail-footer")).toBeNull();
+  });
+});
+
+describe("findingsToReviewCount", () => {
+  it("sums needs and changed and hides zero", () => {
+    const summary = {
+      study: { counts: { needs: 1, changed: 2, missing: 4, checked: 5 } },
+    } as HiveSummary;
+    expect(findingsToReviewCount(summary)).toBe(3);
+    expect(
+      findingsToReviewCount({ study: { counts: { needs: 0, changed: 0, missing: 2, checked: 1 } } } as HiveSummary),
+    ).toBeNull();
   });
 });

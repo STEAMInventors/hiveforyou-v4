@@ -29,7 +29,11 @@ const CHOICES: Choice[] = [
   {
     view: "clients",
     title: "Hives for my clients",
+<<<<<<< HEAD
     description: "One hive per client. You see which clients have something for you to review.",
+=======
+    description: "One hive per client. You see which client has something to review today.",
+>>>>>>> origin/main
   },
 ];
 

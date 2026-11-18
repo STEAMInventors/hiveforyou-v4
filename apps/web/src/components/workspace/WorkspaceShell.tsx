@@ -8,7 +8,7 @@ import type { StartingView } from "@/lib/auth/profile";
 import { hiveSectionFromPathname, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import { useHiveHeaderWorkspace } from "@/components/app-header";
 
-import { HiveSidebar } from "./HiveSidebar";
+import { HiveSidebar, type StudyRailRevision } from "./HiveSidebar";
 import { WorkspaceChromeProvider } from "./workspace-context";
 import type { HiveSidebarCounts } from "./sidebar-counts";
 
@@ -22,6 +22,8 @@ export type WorkspaceShellProps = {
   assigneeLabel: string | null;
   assigneeTitle: string | null;
   assistantName: string;
+  studyRevision?: StudyRailRevision | null;
+  summaryLoaded?: boolean;
   children: ReactNode;
 };
 
@@ -35,6 +37,8 @@ export function WorkspaceShell({
   assigneeLabel,
   assigneeTitle,
   assistantName,
+  studyRevision = null,
+  summaryLoaded = false,
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() ?? "";
@@ -85,6 +89,8 @@ export function WorkspaceShell({
               assigneeLabel={assigneeLabel}
               assigneeTitle={assigneeTitle}
               assistantName={assistantName}
+              studyRevision={studyRevision}
+              summaryLoaded={summaryLoaded}
             />
           </div>
         ) : (
@@ -99,6 +105,8 @@ export function WorkspaceShell({
               assigneeLabel={assigneeLabel}
               assigneeTitle={assigneeTitle}
               assistantName={assistantName}
+              studyRevision={studyRevision}
+              summaryLoaded={summaryLoaded}
             />
           </div>
         )}

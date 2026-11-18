@@ -15,6 +15,7 @@ import {
 import { type ReactNode, useCallback, useEffect, useId, useMemo, useState } from "react";
 
 import { hiveDocumentsPath } from "@/lib/hive-routes";
+import { itemMatchesShowFilter } from "@/lib/missing-show-filter";
 
 import { ComparisonCard } from "./ComparisonCard";
 import { MissingStudyItems } from "./MissingStudyItems";
@@ -31,6 +32,8 @@ import { ReadProblemNotice, readProblemsFromCoverage } from "./ReadProblemNotice
 import { ReportFooter } from "./ReportFooter";
 import { PackReportSections } from "./PackReportSections";
 import { type ChipRef, shortDocumentLabels, shortTypeChipLabels, SourceChips } from "./SourceChip";
+import { missingItemStateForConflict } from "./missing-item-state";
+import type { StudyWorkspaceSurface } from "./study-surface";
 import { countStates, spineRowState, StateBar } from "./StateBar";
 import { STUDY_SECTION_IDS, studyStateTargets } from "./study-summary";
 import { formatDocumentDate, rowChips, selectUpcoming, Timeline } from "./Timeline";
@@ -64,7 +67,7 @@ type StudyReportProps = {
   /** Off when the page header already shows this study's state bar. */
   showStateBar?: boolean;
   /** D18 split study pages; hides the in-report title and "On this page" rail. */
-  workspaceSurface?: "facts" | "missing" | "timeline";
+  workspaceSurface?: StudyWorkspaceSurface;
   /** Accepted canonical study for merging document type labels into chips when a stored view omits them. */
   canonicalStudy?: CanonicalStudy | null;
 };
@@ -357,6 +360,15 @@ export function StudyReport({
   const showFacts = !workspaceSurface || workspaceSurface === "facts";
   const showMissing = !workspaceSurface || workspaceSurface === "missing";
   const showTimeline = !workspaceSurface || workspaceSurface === "timeline";
+  const showReview = workspaceSurface === "review";
+  const inReview = (state: string | null): boolean => {
+    if (state !== "needs" && state !== "changed") return false;
+    return itemMatchesShowFilter(state, "needs") || itemMatchesShowFilter(state, "changed");
+  };
+  const reviewSpine = showReview ? model.spine.filter((row) => inReview(spineRowState(row))) : [];
+  const reviewConflicts = showReview
+    ? model.conflicts.filter((row) => inReview(missingItemStateForConflict(row)))
+    : [];
 
   return (
     <EvidenceViewerProvider
@@ -411,7 +423,7 @@ export function StudyReport({
 
           {showFacts ? <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} /> : null}
 
-          {!isReport && model.personaCoverageCard.length > 0 ? (
+          {!isReport && !showReview && model.personaCoverageCard.length > 0 ? (
             <section className={`${CARD} ${cardGap}`} data-testid="persona-coverage-card">
               <h3 className={SECTION_HEADING}>What each reader needs</h3>
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -427,7 +439,7 @@ export function StudyReport({
             </section>
           ) : null}
 
-          {!isReport && model.checklist.length > 0 ? (
+          {!isReport && !showReview && model.checklist.length > 0 ? (
             <section className={`${CARD} ${cardGap}`} data-testid="pack-checklist">
               <h3 className={SECTION_HEADING}>Checklist</h3>
               <EstablishTable
@@ -556,6 +568,25 @@ export function StudyReport({
               {showTimeline ? timelineCard : null}
               {showFacts ? documentsCard : null}
             </>
+          ) : null}
+
+          {showReview ? (
+            reviewSpine.length === 0 && reviewConflicts.length === 0 ? (
+              <p className="m-0 text-small text-graphite" data-testid="findings-review-empty">
+                Nothing to review right now.
+              </p>
+            ) : (
+              <>
+                {reviewSpine.length > 0 ? (
+                  <section className={`${CARD} ${cardGap}`} data-testid="findings-review-items">
+                    <EstablishTable rows={reviewSpine} compact={false} observations={model.observations} />
+                  </section>
+                ) : null}
+                {reviewConflicts.map((row) => (
+                  <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} />
+                ))}
+              </>
+            )
           ) : null}
 
           {!workspaceSurface ? <ReportFooter /> : null}

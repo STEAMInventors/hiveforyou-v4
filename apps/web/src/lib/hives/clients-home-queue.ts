@@ -1,6 +1,8 @@
 import type { Hive, HiveAttentionLevel } from "@hiveforyou/contracts";
 import { rankHives } from "@hiveforyou/contracts";
 
+import { STATE_LABEL } from "@/components/study/status-state";
+
 import type { HiveSummary } from "@/server/hives/hive-summary";
 
 export type ClientsHomeQueue = "all" | "needs" | "ready" | "own" | "mine" | "unassigned";
@@ -122,7 +124,11 @@ export function clientsHomeQueueTitle(queue: ClientsHomeQueue, searchQuery: stri
   }
   switch (queue) {
     case "needs":
+<<<<<<< HEAD
       return "For your review";
+=======
+      return STATE_LABEL.needs;
+>>>>>>> origin/main
     case "ready":
       return "Ready for review";
     case "own":

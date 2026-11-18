@@ -125,7 +125,11 @@ describe("MyHivesPanel", () => {
     expect(screen.getByRole("link", { name: /New client/ })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "All clients" })).toBeTruthy();
     const nav = screen.getByRole("navigation", { name: "Clients" });
+<<<<<<< HEAD
     const needsButton = within(nav).getByRole("button", { name: /For your review/ });
+=======
+    const needsButton = within(nav).getByRole("button", { name: /To review/ });
+>>>>>>> origin/main
     expect(within(needsButton).getByText("1")).toBeTruthy();
     expect(within(nav).getByRole("button", { name: /Ready for review/ }).textContent).toMatch(/1/);
     expect(screen.queryByText("0")).toBeNull();
@@ -216,7 +220,11 @@ describe("MyHivesPanel", () => {
       .map((button) => button.textContent ?? "");
     const mineAt = labels.findIndex((label) => label.startsWith("Mine"));
     const unassignedAt = labels.findIndex((label) => label.startsWith("Unassigned"));
+<<<<<<< HEAD
     const needsAt = labels.findIndex((label) => label.includes("For your review"));
+=======
+    const needsAt = labels.findIndex((label) => label.startsWith("To review"));
+>>>>>>> origin/main
     expect(mineAt).toBeGreaterThanOrEqual(0);
     expect(unassignedAt).toBeGreaterThan(mineAt);
     expect(needsAt).toBeGreaterThan(unassignedAt);

@@ -48,7 +48,7 @@ describe("WorkspaceShell", () => {
         hive={hive}
         startingView="clients"
         counts={{
-          boardNeedsYou: 1,
+          toReviewCount: 1,
           documents: 2,
           reports: null,
           teamNotes: null,
@@ -80,7 +80,7 @@ describe("WorkspaceShell", () => {
       <WorkspaceShell
         hive={hive}
         startingView="clients"
-        counts={{ boardNeedsYou: 0, documents: 0, reports: null, teamNotes: null }}
+        counts={{ toReviewCount: 0, documents: 0, reports: null, teamNotes: null }}
         firm={null}
         currentUserId="user"
         assigneeLabel={null}

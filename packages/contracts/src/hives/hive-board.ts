@@ -291,7 +291,11 @@ export function hiveBoardOpenChecklistCount(input: HiveBoardChecklistCountInput)
 
 function buildHeadline(needs: readonly HiveBoardNeedItem[], input: HiveBoardInput, checklist: readonly HiveBoardChecklistItem[]): string {
   if (needs.length > 0) {
+<<<<<<< HEAD
     return needs.length === 1 ? "1 item for your review" : `${needs.length} items for your review`;
+=======
+    return needs.length === 1 ? "1 thing to review" : `${needs.length} things to review`;
+>>>>>>> origin/main
   }
   if (input.documentCount === 0) return "Nothing is in yet";
   if (input.readingInProgress) return "Reading the documents";
