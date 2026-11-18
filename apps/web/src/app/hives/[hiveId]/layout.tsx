@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { HiveWorkspaceFrame } from "@/server/hives/hive-workspace-frame";
+import { HiveWorkspaceFrame } from "@/components/workspace/HiveWorkspaceFrame";
 import { hiveWorkspaceStartingView } from "@/server/hives/hive-workspace-props";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { requestCorrelationId } from "@/server/auth/action-support";

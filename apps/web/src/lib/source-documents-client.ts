@@ -13,7 +13,7 @@ import type {
   StartDocumentReadsResponse,
 } from "@hiveforyou/contracts";
 
-import { CORRELATION_HEADER_NAME, parseApiJson } from "./hives-client";
+import { CORRELATION_HEADER_NAME, parseApiJson } from "./hive-api-client";
 
 function hivePath(hiveId: string, suffix: string): string {
   return `/api/v1/hives/${encodeURIComponent(hiveId)}${suffix}`;

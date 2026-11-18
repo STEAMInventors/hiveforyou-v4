@@ -18,8 +18,8 @@ DO $$
 DECLARE
   v_hive uuid;
   v_other uuid;
-  v_key uuid := 'f1b30201-0000-4000-8000-00000000aa1';
-  v_key2 uuid := 'f1b30201-0000-4000-8000-00000000aa2';
+  v_key uuid := 'f1b30201-0000-4000-8000-0000000000a1';
+  v_key2 uuid := 'f1b30201-0000-4000-8000-0000000000a2';
   v_first json;
   v_second json;
   v_count integer;
@@ -29,8 +29,8 @@ BEGIN
     RAISE EXCEPTION 'create_firm failed';
   END IF;
 
-  v_hive := (public.create_hive('Client', 'Note check', 'f1b30201-0000-4000-8000-00000000bb1', 'client')->'hive'->>'id')::uuid;
-  v_other := (public.create_hive('Other', 'Hive', 'f1b30201-0000-4000-8000-00000000bb2', 'client')->'hive'->>'id')::uuid;
+  v_hive := (public.create_hive('Client', 'Note check', 'f1b30201-0000-4000-8000-0000000000b1', 'client')->'hive'->>'id')::uuid;
+  v_other := (public.create_hive('Other', 'Hive', 'f1b30201-0000-4000-8000-0000000000b2', 'client')->'hive'->>'id')::uuid;
 
   SELECT public.add_team_note(v_hive, 'idempotency check note', NULL, v_key) INTO v_first;
   SELECT public.add_team_note(v_hive, 'idempotency check note', NULL, v_key) INTO v_second;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 type ClientsHomeContextValue = {
@@ -50,4 +50,14 @@ export function ClientsHomeProvider({
 
 export function useClientsHomeSearch(): ClientsHomeContextValue | null {
   return useContext(ClientsHomeContext);
+}
+
+export function ClientsHomeLayoutBridge({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("q") ?? "";
+  return (
+    <ClientsHomeProvider enabled={enabled} initialQuery={initialQuery}>
+      {children}
+    </ClientsHomeProvider>
+  );
 }
