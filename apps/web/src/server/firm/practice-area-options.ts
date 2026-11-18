@@ -1,5 +1,3 @@
-import { practiceAreaPackIds } from "@hiveforyou/contracts";
-
 import { loadPackEntries } from "@/server/pipeline/pack-loader";
 
 export type PracticeAreaSetupOption = {
@@ -14,18 +12,16 @@ function firstDescriptionSentence(description: string): string {
   return sentence.endsWith(".") ? sentence : `${sentence}.`;
 }
 
-export function loadPracticeAreaSetupOptions(): PracticeAreaSetupOption[] {
-  const { entries } = loadPackEntries();
-  const byId = new Map(entries.map((entry) => [entry.id, entry.pack]));
-  return practiceAreaPackIds().flatMap((packId) => {
-    const pack = byId.get(packId);
-    if (!pack) return [];
-    return [
-      {
-        packId,
-        label: pack.meta.title,
-        description: firstDescriptionSentence(pack.meta.description),
-      },
-    ];
-  });
+export function practiceAreaAllowlistFromPacks(cwd?: string): ReadonlySet<string> {
+  const { entries } = loadPackEntries(cwd);
+  return new Set(entries.map((entry) => entry.id));
+}
+
+export function loadPracticeAreaSetupOptions(cwd?: string): PracticeAreaSetupOption[] {
+  const { entries } = loadPackEntries(cwd);
+  return entries.map((entry) => ({
+    packId: entry.id,
+    label: entry.pack.meta.title,
+    description: firstDescriptionSentence(entry.pack.meta.description),
+  }));
 }

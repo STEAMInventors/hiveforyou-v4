@@ -123,8 +123,12 @@ export function withApiRoute(
         exceptionType: failureDiagnostics.exceptionType,
       });
 
+      const overrideStatus = (hiveError as { httpStatus?: number }).httpStatus;
       return NextResponse.json(toPublicErrorResponse(hiveError), {
-        status: suggestedHttpStatus(hiveError.errorCode),
+        status:
+          typeof overrideStatus === "number" && Number.isInteger(overrideStatus)
+            ? overrideStatus
+            : suggestedHttpStatus(hiveError.errorCode),
         headers: { [CORRELATION_HEADER]: correlationId },
       });
     }

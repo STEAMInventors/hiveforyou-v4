@@ -82,7 +82,7 @@ export function mapExceptionToHiveError(
   }
 
   if (isHiveError(error)) {
-    return createHiveError({
+    const mapped = createHiveError({
       errorCode: error.errorCode,
       category: error.category,
       stage: error.stage,
@@ -93,6 +93,15 @@ export function mapExceptionToHiveError(
       diagnosticReason: error.diagnosticReason,
       cause: error.cause,
     });
+    const httpStatus = (error as { httpStatus?: unknown }).httpStatus;
+    if (typeof httpStatus === "number") {
+      Object.defineProperty(mapped, "httpStatus", {
+        value: httpStatus,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+    return mapped;
   }
 
   return createHiveError({

@@ -1,14 +1,22 @@
-import { createHiveError, normalizePracticeAreaIds } from "@hiveforyou/contracts";
+import { createHiveError } from "@hiveforyou/contracts";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { loadFirm } from "@/server/firm/load-firm";
+import { mapFirmRpcError } from "@/server/firm/map-firm-rpc-error";
+import { practiceAreaAllowlistFromPacks } from "@/server/firm/practice-area-options";
+import { validatePracticeAreasForFirm } from "@/server/firm/validate-practice-areas";
 import { CORRELATION_HEADER } from "@/server/observability/correlation";
-import { withApiRoute } from "@/server/observability/with-api-route";
+import { withApiRoute, readJsonBody } from "@/server/observability/with-api-route";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 const FIRM_NAME_MAX = 100;
 const ASSISTANT_NAME_MAX = 40;
+
+function isFirmMembershipExists(error: { code?: string; message?: string }): boolean {
+  const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
+  return error.code === "23505" && message.includes("firm_membership_exists");
+}
 
 export async function GET(request: NextRequest): Promise<Response> {
   const run = withApiRoute("firm", "listFirm", async ({ correlationId }) => {
@@ -33,7 +41,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const run = withApiRoute("firm", "createFirm", async ({ correlationId }) => {
+  const run = withApiRoute("firm", "createFirm", async ({ correlationId, request: req }) => {
     const auth = await requireAuthenticatedUser();
     if (!auth.ok) {
       throw createHiveError({
@@ -47,28 +55,16 @@ export async function POST(request: NextRequest): Promise<Response> {
       });
     }
 
-    let raw: unknown;
-    try {
-      raw = await request.json();
-    } catch {
-      throw createHiveError({
-        errorCode: "INVALID_REQUEST",
-        category: "VALIDATION",
-        stage: "SHELL",
-        retryable: false,
-        safeMessage: "Request body must be valid JSON.",
-        correlationId,
-        diagnosticReason: "invalid_json",
-      });
-    }
-
+    const raw = await readJsonBody(req, correlationId);
     const record = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
     const name = typeof record?.name === "string" ? record.name.trim() : "";
     const assistantName =
       typeof record?.assistantName === "string" ? record.assistantName.trim() : undefined;
-    const practiceAreas = Array.isArray(record?.practiceAreas)
-      ? normalizePracticeAreaIds(record.practiceAreas.filter((item): item is string => typeof item === "string"))
+    const practiceAreasRaw = Array.isArray(record?.practiceAreas)
+      ? record.practiceAreas.filter((item): item is string => typeof item === "string")
       : [];
+    const allowed = practiceAreaAllowlistFromPacks();
+    const practiceAreas = validatePracticeAreasForFirm(practiceAreasRaw, allowed, correlationId);
     if (name.length < 1 || name.length > FIRM_NAME_MAX) {
       throw createHiveError({
         errorCode: "INVALID_REQUEST",
@@ -98,15 +94,13 @@ export async function POST(request: NextRequest): Promise<Response> {
       p_practice_areas: practiceAreas,
     });
     if (error) {
-      throw createHiveError({
-        errorCode: "INVALID_REQUEST",
-        category: "VALIDATION",
-        stage: "SHELL",
-        retryable: false,
-        safeMessage: "Could not create the firm. Try again.",
-        correlationId,
-        diagnosticReason: error.message?.slice(0, 80) ?? "create_firm_failed",
-      });
+      if (isFirmMembershipExists(error)) {
+        const existing = await loadFirm(auth.client);
+        if (existing?.firm && existing.firm.name.trim() === name) {
+          return NextResponse.json(existing, { headers: { [CORRELATION_HEADER]: correlationId } });
+        }
+      }
+      throw mapFirmRpcError(error, correlationId);
     }
 
     return NextResponse.json(data, { headers: { [CORRELATION_HEADER]: correlationId } });

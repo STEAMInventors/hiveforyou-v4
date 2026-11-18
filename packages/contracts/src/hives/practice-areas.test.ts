@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { matterTypesForFirm, normalizePracticeAreaIds, practiceAreaPackIds } from "./practice-areas";
+import { matterTypesForFirm, normalizePracticeAreaIds } from "./practice-areas";
 
 describe("practice areas", () => {
   it("normalizes allowed pack ids and drops unknown values", () => {
@@ -20,7 +20,8 @@ describe("practice areas", () => {
     expect(matterTypesForFirm(catalog, areas, true)).toHaveLength(catalog.length);
   });
 
-  it("lists the configured setup pack ids", () => {
-    expect(practiceAreaPackIds().length).toBe(3);
+  it("requires an explicit allowlist for normalization", () => {
+    const allowed = new Set<string>();
+    expect(normalizePracticeAreaIds(["pack-a"], allowed)).toEqual([]);
   });
 });

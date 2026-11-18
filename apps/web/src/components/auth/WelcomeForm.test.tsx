@@ -5,6 +5,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/server/auth/auth-actions", () => ({
   setStartingViewAction: vi.fn(),
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("@/components/workspace/useWorkspaceAction", () => ({
+  useWorkspaceAction: () => ({
+    pending: false,
+    inlineError: null,
+    run: vi.fn().mockResolvedValue({ ok: true }),
+    retrySameKey: vi.fn(),
+    clearError: vi.fn(),
+  }),
+}));
 
 import { filledAuthButtons } from "./auth-test-helpers";
 import { WelcomeForm } from "./WelcomeForm";

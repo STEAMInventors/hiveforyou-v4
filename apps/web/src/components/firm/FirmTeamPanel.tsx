@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { PRIMARY_BUTTON_CLASS } from "@/components/button-classes";
+import { FirmPracticeAreasCard } from "@/components/firm/FirmPracticeAreasCard";
+import type { PracticeAreaSetupOption } from "@/server/firm/practice-area-options";
 
 type FirmTeamPanelProps = {
   initial: ListFirmResponse | null;
+  practiceAreaOptions?: PracticeAreaSetupOption[];
 };
 
-export function FirmTeamPanel({ initial }: FirmTeamPanelProps) {
+export function FirmTeamPanel({ initial, practiceAreaOptions = [] }: FirmTeamPanelProps) {
   const router = useRouter();
   const [firmName, setFirmName] = useState("");
   const [assistantName, setAssistantName] = useState("HiveForYou");
@@ -26,6 +29,9 @@ export function FirmTeamPanel({ initial }: FirmTeamPanelProps) {
             {initial.firm.callerRole === "owner" ? "You own this firm." : "You are on this team."}
           </p>
         </div>
+        {practiceAreaOptions.length > 0 ? (
+          <FirmPracticeAreasCard firm={initial} options={practiceAreaOptions} />
+        ) : null}
         <section>
           <h2 className="m-0 mb-2 text-[18px] font-semibold text-ink">People</h2>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
