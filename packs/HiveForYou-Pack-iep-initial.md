@@ -168,22 +168,22 @@ Hasbrouck & Tindal (2017). Words correct per minute on unpracticed grade-level p
 | 6 | 132 | 145 | 146 | 112 | 116 | 122 |
 
 ## Documents usually needed
-| Document | Holder | When | Settles |
-|---|---|---|---|
-| Prior written notice for evaluation, eligibility and placement | THIRD_PARTY (district) | before signing | T5, S3 |
-| Procedural safeguards notice | THIRD_PARTY (district) | before signing | T6 |
-| Signed consent to evaluate | ASKER_OR_CLIENT or THIRD_PARTY (district) | before signing | T1, T2 |
-| Consent for services | THIRD_PARTY (district) | before signing | T7 |
-| Referral or request for evaluation | ASKER_OR_CLIENT or THIRD_PARTY (school) | before signing | E1 |
-| Exclusionary-factors review (learning disability) | THIRD_PARTY (school) | before signing | E3, E4 |
-| Classroom observation | THIRD_PARTY (school) | before signing | E6 |
-| Intervention / response-to-intervention data | THIRD_PARTY (teacher) | before signing | E5, E9 |
-| Parent input record | THIRD_PARTY (school) | before signing | P3, E1 |
-| Meeting notice, attendance page, any excusal forms | THIRD_PARTY (school) | before signing | T4, M1 |
-| Report cards, state test results, attendance | ASKER_OR_CLIENT | if available | P1, E3 |
-| Private evaluations | ASKER_OR_CLIENT | if any | E1, S3 |
-| Progress reports | THIRD_PARTY (school) | each reporting period (later) | G4 |
-| Service logs | THIRD_PARTY (school) | if progress is slow (later) | S1 |
+| Document | Holder | When | Applies when | Settles |
+|---|---|---|---|---|
+| Prior written notice for evaluation, eligibility and placement | THIRD_PARTY (district) | before signing | | T5, S3 |
+| Procedural safeguards notice | THIRD_PARTY (district) | before signing | | T6 |
+| Signed consent to evaluate | ASKER_OR_CLIENT or THIRD_PARTY (district) | before signing | | T1, T2 |
+| Consent for services | THIRD_PARTY (district) | before signing | | T7 |
+| Referral or request for evaluation | ASKER_OR_CLIENT or THIRD_PARTY (school) | before signing | | E1 |
+| Exclusionary-factors review (learning disability) | THIRD_PARTY (school) | before signing | | E3, E4 |
+| Classroom observation | THIRD_PARTY (school) | before signing | | E6 |
+| Intervention / response-to-intervention data | THIRD_PARTY (teacher) | before signing | | E5, E9 |
+| Parent input record | THIRD_PARTY (school) | before signing | | P3, E1 |
+| Meeting notice, attendance page, any excusal forms | THIRD_PARTY (school) | before signing | | T4, M1 |
+| Report cards, state test results, attendance | ASKER_OR_CLIENT | if available | | P1, E3 |
+| Private evaluations | ASKER_OR_CLIENT | if any | has had a private evaluation | E1, S3 |
+| Progress reports | THIRD_PARTY (school) | each reporting period (later) | | G4 |
+| Service logs | THIRD_PARTY (school) | if progress is slow (later) | | S1 |
 
 ## Terms
 | Term | Plain meaning |

@@ -17,8 +17,14 @@ export type PreparationPlannerTask = (typeof PREPARATION_PLANNER_TASKS)[number];
 /** Tool-free pipeline stages; each requires its own planner alias and fails closed when unset. */
 export const PIPELINE_PLANNER_TASKS = ["extract", "canonicalize", "write"] as const;
 export type PipelinePlannerTask = (typeof PIPELINE_PLANNER_TASKS)[number];
+export const AUXILIARY_PLANNER_TASKS = ["checklist_tailor"] as const;
+export type AuxiliaryPlannerTask = (typeof AUXILIARY_PLANNER_TASKS)[number];
 /** Tasks sent as one `planner-completion@1` call. */
-export const PLANNER_COMPLETION_TASKS = [...PREPARATION_PLANNER_TASKS, ...PIPELINE_PLANNER_TASKS] as const;
+export const PLANNER_COMPLETION_TASKS = [
+  ...PREPARATION_PLANNER_TASKS,
+  ...PIPELINE_PLANNER_TASKS,
+  ...AUXILIARY_PLANNER_TASKS,
+] as const;
 export type PlannerCompletionTask = (typeof PLANNER_COMPLETION_TASKS)[number];
 /** Agentic tool-calling tasks relayed through `study-agent-turn@1` (D-042, D-045). */
 export const STUDY_AGENT_TURN_TASKS = ["study", "writer"] as const;
@@ -27,7 +33,7 @@ export type StudyAgentTurnTask = (typeof STUDY_AGENT_TURN_TASKS)[number];
 export const PLANNER_TASKS = [...PREPARATION_PLANNER_TASKS, ...STUDY_AGENT_TURN_TASKS] as const;
 export type PlannerTask = (typeof PLANNER_TASKS)[number];
 
-export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask | PipelinePlannerTask, string> = {
+export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask | PipelinePlannerTask | AuxiliaryPlannerTask, string> = {
   intent: "hive.intent-analysis/1",
   domain: "hive-domain/1",
   intelligence: "hive-intent-intelligence/1",
@@ -36,6 +42,7 @@ export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask | PipelinePlannerTask, 
   extract: "hive-extract/1",
   canonicalize: "hive-canonicalize/1",
   write: "hive-write/1",
+  checklist_tailor: "checklist-tailor/1",
 } as const;
 
 export const PIPELINE_PROMPT_IDS_V2 = {
@@ -54,6 +61,7 @@ export const PLANNER_MAX_OUTPUT_TOKENS: Record<PlannerCompletionTask, number> = 
   extract: 16000,
   canonicalize: 16000,
   write: 8000,
+  checklist_tailor: 4000,
 };
 /** Per-task request caps. */
 export const PLANNER_MAX_REQUEST_BYTES_BY_TASK: Record<PlannerCompletionTask, number> = {
@@ -63,6 +71,7 @@ export const PLANNER_MAX_REQUEST_BYTES_BY_TASK: Record<PlannerCompletionTask, nu
   extract: 1536 * 1024,
   canonicalize: 2048 * 1024,
   write: 1024 * 1024,
+  checklist_tailor: 256 * 1024,
 };
 export const PLANNER_MAX_REQUEST_BYTES = PLANNER_MAX_REQUEST_BYTES_BY_TASK.intent;
 

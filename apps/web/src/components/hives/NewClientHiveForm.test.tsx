@@ -68,6 +68,7 @@ describe("NewClientHiveForm", () => {
   it("hides the checklist when Something else is chosen", () => {
     render(<NewClientHiveForm packCatalog={packCatalog} />);
     fireEvent.change(screen.getByLabelText(/Matter type/i), { target: { value: "" } });
-    expect(screen.queryByText("Starting checklist")).toBeNull();
+    expect(screen.queryByText(/What to ask/i)).toBeNull();
+    expect(screen.getByText("No checklist")).toBeTruthy();
   });
 });

@@ -1,8 +1,8 @@
 import {
   createHiveError,
   HIVE_NAME_MAX_LENGTH,
-  HIVE_DESCRIPTION_MAX_LENGTH,
   isValidUuid,
+  MAX_TAILOR_PROFESSIONAL_TEXT,
   SOMETHING_ELSE_PACK_ID,
   suggestedHttpStatus,
 } from "@hiveforyou/contracts";
@@ -31,7 +31,8 @@ function parseBody(raw: unknown, correlationId: string): NewClientFlowInput {
   const record = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
   const name = typeof record?.name === "string" ? record.name.trim() : "";
   const email = typeof record?.email === "string" ? record.email.trim().toLowerCase() : undefined;
-  const note = typeof record?.note === "string" ? record.note.trim() : undefined;
+  const professionalText =
+    typeof record?.professionalText === "string" ? record.professionalText.replace(/\s+/g, " ").trim() : undefined;
   const packRaw = record?.packId;
   const packId =
     packRaw === null || packRaw === undefined || packRaw === SOMETHING_ELSE_PACK_ID
@@ -45,9 +46,8 @@ function parseBody(raw: unknown, correlationId: string): NewClientFlowInput {
         .map((row) => {
           if (!row || typeof row !== "object" || Array.isArray(row)) return null;
           const item = row as Record<string, unknown>;
-          if (typeof item.key !== "string" || typeof item.title !== "string") return null;
+          if (typeof item.title !== "string") return null;
           return {
-            key: item.key.trim(),
             title: item.title.trim(),
             custom: item.custom === true,
           };
@@ -66,15 +66,15 @@ function parseBody(raw: unknown, correlationId: string): NewClientFlowInput {
       diagnosticReason: "invalid_name",
     });
   }
-  if (note && note.length > HIVE_DESCRIPTION_MAX_LENGTH) {
+  if (professionalText && professionalText.length > MAX_TAILOR_PROFESSIONAL_TEXT) {
     throw createHiveError({
       errorCode: "INVALID_REQUEST",
       category: "VALIDATION",
       stage: "SHELL",
       retryable: false,
-      safeMessage: `Description must be ${HIVE_DESCRIPTION_MAX_LENGTH} characters or fewer.`,
+      safeMessage: `Keep your note to ${MAX_TAILOR_PROFESSIONAL_TEXT} characters or fewer.`,
       correlationId,
-      diagnosticReason: "description_too_long",
+      diagnosticReason: "professional_text_too_long",
     });
   }
   if (!mode) {
@@ -113,7 +113,7 @@ function parseBody(raw: unknown, correlationId: string): NewClientFlowInput {
   return {
     name,
     email,
-    note: note || undefined,
+    professionalText: professionalText || undefined,
     packId,
     items,
     mode,

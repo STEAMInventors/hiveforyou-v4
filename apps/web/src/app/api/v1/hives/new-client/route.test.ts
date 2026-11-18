@@ -94,7 +94,7 @@ describe("POST /api/v1/hives/new-client", () => {
           mode: "invite",
           email: "ruth@example.com",
           packId: "widget-review",
-          items: [{ key: "pay stubs", title: "Pay stubs", custom: false }],
+          items: [{ title: "Pay stubs", custom: false }],
         }),
       }),
     );
