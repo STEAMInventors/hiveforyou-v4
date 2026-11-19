@@ -19,6 +19,13 @@ vi.mock("@hives/persistence/env", () => ({ loadSupabaseAdminEnv: () => ({}) }));
 vi.mock("@hives/persistence/storage/supabase-client", () => ({
   createSupabaseAdminClient: () => ({ auth: { admin: { getUserById: (id: string) => getUserByIdMock(id) } } }),
 }));
+vi.mock("@/server/hives/hive-assistant-service", () => ({
+  processHiveAssistantReplySafely: vi.fn(),
+}));
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return { ...actual, after: (callback: () => void) => callback() };
+});
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 const CORRELATION_ID = "2eb8421a-b784-4bf8-ac2b-540299b61d13";

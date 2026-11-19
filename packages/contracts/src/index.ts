@@ -17,6 +17,8 @@ export * from "./hives/practice-areas";
 export * from "./hives/pack-holder-labels";
 export * from "./hives/hive-board-requests";
 export * from "./hives/hive-conversation";
+export * from "./hives/assistant-briefing";
+export * from "./hives/assistant-reply";
 export * from "./hives/findings-page-model";
 export * from "./hives/audit-trail-model";
 export * from "./hives/documents-library-model";

@@ -56,6 +56,7 @@ TASK_PROMPT_IDS: dict[str, str] = {
     "canonicalize": "hive-canonicalize/1",
     "write": "hive-write/1",
     "checklist_tailor": "checklist-tailor/1",
+    "assistant_reply": "hive-assistant-reply/1",
 }
 PIPELINE_PROMPT_IDS_V2: dict[str, str] = {
     "canonicalize": "hive-canonicalize/2",
@@ -82,6 +83,7 @@ REQUIRED_TASK_ALIAS_ENV: dict[str, str] = {
     "extract": "PLANNER_EXTRACT_LITELLM_ALIAS",
     "canonicalize": "PLANNER_CANONICALIZE_LITELLM_ALIAS",
     "write": "PLANNER_WRITE_LITELLM_ALIAS",
+    "assistant_reply": "PLANNER_ASSISTANT_LITELLM_ALIAS",
 }
 # `study` (D-042) and `writer` (D-045) run through /v1/study-agent-turn.
 # `extract`, `canonicalize` and `write` are tool-free JSON completions on /v1/plan-completion.
@@ -94,6 +96,7 @@ TASK_MAX_OUTPUT_TOKENS: dict[str, int] = {
     "canonicalize": 16000,
     "write": 8000,
     "checklist_tailor": 4000,
+    "assistant_reply": 1500,
 }
 MAX_OUTPUT_TOKENS = max(TASK_MAX_OUTPUT_TOKENS.values())
 TASK_MAX_REQUEST_BYTES: dict[str, int] = {
@@ -105,6 +108,7 @@ TASK_MAX_REQUEST_BYTES: dict[str, int] = {
     "canonicalize": 2048 * 1024,
     "write": 1024 * 1024,
     "checklist_tailor": 256 * 1024,
+    "assistant_reply": 192 * 1024,
 }
 MAX_REQUEST_BYTES = max(TASK_MAX_REQUEST_BYTES.values())
 TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {
@@ -115,6 +119,8 @@ TASK_MAX_SYSTEM_PROMPT_CHARS: dict[str, int] = {
     "extract": 64_000,
     "canonicalize": 64_000,
     "write": 64_000,
+    "checklist_tailor": 64_000,
+    "assistant_reply": 64_000,
 }
 MAX_SYSTEM_PROMPT_CHARS = max(TASK_MAX_SYSTEM_PROMPT_CHARS.values())
 LITELLM_TIMEOUT_SECONDS = 150.0
@@ -123,6 +129,7 @@ TASK_LITELLM_TIMEOUT_SECONDS: dict[str, float] = {
     "extract": 260.0,
     "canonicalize": 600.0,
     "write": 260.0,
+    "assistant_reply": 40.0,
 }
 
 # study-agent-turn@1 ceilings; the web budget stays below them.
@@ -211,7 +218,17 @@ class PlannerCompletionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     contract_version: Literal["planner-completion@1"]
-    task: Literal["intent", "domain", "intelligence", "plan", "extract", "canonicalize", "write"]
+    task: Literal[
+        "intent",
+        "domain",
+        "intelligence",
+        "plan",
+        "extract",
+        "canonicalize",
+        "write",
+        "checklist_tailor",
+        "assistant_reply",
+    ]
     prompt_id: str = Field(min_length=1, max_length=64)
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=MAX_SYSTEM_PROMPT_CHARS)

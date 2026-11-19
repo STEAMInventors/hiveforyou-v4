@@ -5,7 +5,7 @@ export type ReferencedDocumentLike = {
   readonly quote: string;
 };
 
-const matchTokens = (text: string): Set<string> =>
+export const matchTokens = (text: string): Set<string> =>
   new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((token) => token.length >= 3 || /\d/.test(token)));
 
 /** Share of a referenced document's description words that a gap statement must contain to match it. */

@@ -30,6 +30,7 @@ describe("planner tasks", () => {
       "canonicalize",
       "write",
       "checklist_tailor",
+      "assistant_reply",
     ]);
     expect(PLANNER_MAX_OUTPUT_TOKENS).toEqual({
       intent: 4000,
@@ -39,6 +40,7 @@ describe("planner tasks", () => {
       canonicalize: 16000,
       write: 8000,
       checklist_tailor: 4000,
+      assistant_reply: 1500,
     });
   });
 
