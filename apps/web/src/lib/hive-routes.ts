@@ -1,3 +1,5 @@
+import { mapLegacyFindingsTab } from "@hiveforyou/contracts";
+
 export const MY_HIVES_PATH = "/hives";
 
 export const NEW_CLIENT_HIVE_PATH = `${MY_HIVES_PATH}/new-client`;
@@ -18,6 +20,8 @@ export const HIVE_SECTION_LABELS: Record<HiveWorkspaceSection, string> = {
   audit: "Audit trail",
   notes: "Team notes",
 };
+
+export { FINDINGS_ANCHORS } from "@hiveforyou/contracts";
 
 export type FindingsTab = "known" | "gaps" | "timeline" | "review";
 
@@ -54,11 +58,22 @@ export function hiveStudyPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/study`;
 }
 
-/** `known` is the default and is written without `?tab`. */
+/** Default Findings URL; legacy tabs map to hash anchors via redirect helpers. */
 export function hiveFindingsPath(hiveId: string, tab?: FindingsTab): string {
   const base = `${MY_HIVES_PATH}/${hiveId}/findings`;
   if (!tab || tab === "known") return base;
-  return `${base}?tab=${tab}`;
+  return `${base}#${mapLegacyFindingsTab(tab)}`;
+}
+
+/** Query string before hash for server redirects. */
+export function hiveFindingsRedirectPath(
+  hiveId: string,
+  options?: { tab?: FindingsTab; queryString?: string },
+): string {
+  const base = `${MY_HIVES_PATH}/${hiveId}/findings`;
+  const qs = options?.queryString ?? "";
+  const hash = options?.tab && options.tab !== "known" ? `#${mapLegacyFindingsTab(options.tab)}` : "";
+  return `${base}${qs}${hash}`;
 }
 
 export function hiveAuditPath(hiveId: string): string {
@@ -124,10 +139,10 @@ export function hiveSectionFromPathname(pathname: string, hiveId: string): HiveW
 export function mapStudyLegacyHash(hiveId: string, hash: string): string {
   const key = hash.replace(/^#/, "").trim().toLowerCase();
   if (key === "missing" || key === "disagree" || key === "where-documents-disagree" || key === "missing-documents") {
-    return hiveFindingsPath(hiveId, "gaps");
+    return `${hiveFindingsPath(hiveId)}#${mapLegacyFindingsTab("gaps")}`;
   }
   if (key === "timeline") {
-    return hiveFindingsPath(hiveId, "timeline");
+    return `${hiveFindingsPath(hiveId)}#${mapLegacyFindingsTab("timeline")}`;
   }
   return hiveFindingsPath(hiveId);
 }

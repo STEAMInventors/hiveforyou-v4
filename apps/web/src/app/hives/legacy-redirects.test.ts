@@ -50,7 +50,7 @@ describe("legacy hive routes", () => {
     ).rejects.toThrow(/REDIRECT:/);
     const url = new URL(redirectedPath(permanentRedirectMock.mock.calls.at(-1)?.[0]), "http://local");
     expect(url.pathname).toBe(`/hives/${HIVE_ID}/findings`);
-    expect(url.searchParams.get("tab")).toBe("gaps");
+    expect(url.hash).toBe("#open-items");
     expect(url.searchParams.get("keep")).toBe("1");
   });
 
@@ -63,7 +63,7 @@ describe("legacy hive routes", () => {
     ).rejects.toThrow(/REDIRECT:/);
     const url = new URL(redirectedPath(permanentRedirectMock.mock.calls.at(-1)?.[0]), "http://local");
     expect(url.pathname).toBe(`/hives/${HIVE_ID}/findings`);
-    expect(url.searchParams.get("tab")).toBe("timeline");
+    expect(url.hash).toBe("#timeline");
     expect(url.searchParams.get("ref")).toBe("2");
   });
 

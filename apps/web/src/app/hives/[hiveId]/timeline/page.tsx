@@ -1,6 +1,6 @@
 import { permanentRedirect } from "next/navigation";
 
-import { hiveFindingsPath, preservedQuery } from "@/lib/hive-routes";
+import { hiveFindingsRedirectPath, preservedQuery } from "@/lib/hive-routes";
 
 export default async function TimelineRedirectPage({
   params,
@@ -11,5 +11,7 @@ export default async function TimelineRedirectPage({
 }) {
   const { hiveId } = await params;
   const query = searchParams ? await searchParams : {};
-  permanentRedirect(`${hiveFindingsPath(hiveId)}${preservedQuery(query, { tab: "timeline" })}`);
+  permanentRedirect(
+    hiveFindingsRedirectPath(hiveId, { tab: "timeline", queryString: preservedQuery(query, { tab: null }) }),
+  );
 }

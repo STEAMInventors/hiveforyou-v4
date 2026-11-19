@@ -51,12 +51,11 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
 
   return (
     <>
-      <HivePageHead title="Documents" subtitle="What is in this hive, what each file is, and what still needs to be read." />
-      {requested && requested.checklist.length > 0 ? (
-        <div className="mb-4">
-          <HiveBoardChecklistCard board={requested} />
-        </div>
-      ) : null}
+      <HivePageHead
+        title="Documents"
+        subtitle="Upload, organize, and inspect source documents."
+        primaryAction={{ label: "Add documents", href: `#upload`, testId: "documents-add-primary" }}
+      />
       <DocumentsPanel
         hiveId={hive.id}
         initialDocuments={initialDocuments}
@@ -68,9 +67,17 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
               ? studyDocumentMeta(overview.studyView.view)
               : undefined
         }
+        studyView={overview?.studyTab?.view ?? overview?.studyView?.view ?? null}
         canonicalStudy={overview?.canonicalStudy ?? null}
         referencedDocuments={overview?.referencedDocuments ?? []}
+        summaryCounts={overview?.summary?.study?.counts ?? null}
+        coverageGaps={overview?.preparation?.studyRevision?.coverageGaps ?? []}
       />
+      {requested && requested.checklist.length > 0 ? (
+        <div className="mt-6" id="requested">
+          <HiveBoardChecklistCard board={requested} />
+        </div>
+      ) : null}
     </>
   );
 }

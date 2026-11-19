@@ -46,13 +46,20 @@ function formatAcceptedDate(iso: string): string {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
-function NavCount({ count, ariaLabel }: { count: number | null; ariaLabel: string }) {
+function NavCount({
+  count,
+  ariaLabel,
+  tone = "neutral",
+}: {
+  count: number | null;
+  ariaLabel: string;
+  tone?: "neutral" | "coral";
+}) {
   if (count === null) return null;
+  const toneClass =
+    tone === "coral" ? "bg-coral-wash text-coral-deep" : "bg-mist px-1.5 py-0.5 text-[11px] font-semibold text-graphite";
   return (
-    <span
-      className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-pill bg-mist px-1.5 py-0.5 text-[11px] font-semibold text-graphite"
-      aria-label={ariaLabel}
-    >
+    <span className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-pill px-1.5 ${toneClass}`} aria-label={ariaLabel}>
       {count}
     </span>
   );
@@ -64,6 +71,7 @@ function NavItem({
   active,
   count,
   countLabel,
+  countTone = "neutral",
   compact,
 }: {
   hiveId: string;
@@ -71,6 +79,7 @@ function NavItem({
   active: HiveWorkspaceSection;
   count: number | null;
   countLabel?: string;
+  countTone?: "neutral" | "coral";
   compact?: boolean;
 }) {
   const href = hiveSectionPath(hiveId, section);
@@ -84,8 +93,10 @@ function NavItem({
       <Link
         href={href}
         aria-current={isActive ? "page" : undefined}
-        className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-control border px-3 text-small font-medium no-underline ${
-          isActive ? "border-cell-blue-wash bg-cell-blue-wash text-cell-blue-deep" : "border-line bg-paper text-graphite hover:bg-mist"
+        className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[10px] border px-3 text-small no-underline ${
+          isActive
+            ? "border-cell-blue-wash bg-cell-blue-wash font-semibold text-cell-blue-deep"
+            : "border-line bg-paper font-medium text-ink-muted hover:bg-mist"
         }`}
       >
         {Icon ? <Icon /> : null}
@@ -104,13 +115,15 @@ function NavItem({
       <Link
         href={href}
         aria-current={isActive ? "page" : undefined}
-        className={`flex min-h-10 items-center gap-2.5 rounded-control px-2.5 text-small font-medium no-underline ${
-          isActive ? "bg-cell-blue-wash text-cell-blue-deep" : "text-graphite hover:bg-mist hover:text-ink"
+        className={`flex min-h-10 items-center gap-2.5 rounded-[10px] px-2.5 text-small no-underline ${
+          isActive
+            ? "bg-cell-blue-wash font-semibold text-cell-blue-deep"
+            : "font-medium text-ink-muted hover:bg-mist hover:text-ink"
         }`}
       >
         {Icon ? <Icon /> : null}
         <span className="min-w-0 flex-1 truncate">{label}</span>
-        <NavCount count={count} ariaLabel={ariaCount ?? label} />
+        <NavCount count={count} ariaLabel={ariaCount ?? label} tone={countTone} />
       </Link>
     </li>
   );
@@ -129,8 +142,10 @@ function StudyRailFooter({
     <div className="mt-auto px-2.5 pt-4 text-caption text-graphite" data-testid="study-rail-footer">
       {studyRevision ? (
         <>
-          <p className="m-0">Study v{studyRevision.revisionNumber}</p>
+          <p className="m-0">Study revision</p>
+          <p className="m-0">v{studyRevision.revisionNumber}</p>
           {accepted ? <p className="m-0">Accepted {accepted}</p> : null}
+          <p className="m-0 pt-2">Every finding links to its source page.</p>
         </>
       ) : (
         <>
@@ -203,6 +218,7 @@ export function HiveSidebar({
             active={active}
             count={countFor(section)}
             countLabel={countLabelFor(section)}
+            countTone={section === "findings" ? "coral" : "neutral"}
             compact
           />
         ))}
@@ -231,6 +247,7 @@ export function HiveSidebar({
               active={active}
               count={countFor(section)}
               countLabel={countLabelFor(section)}
+              countTone={section === "findings" ? "coral" : "neutral"}
             />
           ))}
         </ul>

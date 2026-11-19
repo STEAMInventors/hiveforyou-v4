@@ -40,13 +40,13 @@ describe("Documents page", () => {
     loadHiveBoardMock.mockReset();
   });
 
-  it("puts What we asked for at the top, as the #requested target", async () => {
+  it("puts What we asked for below the panel, as the #requested target", async () => {
     loadHiveBoardMock.mockResolvedValue({ board });
     const { container } = render(await DocumentsPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
     const card = container.querySelector("#requested") as HTMLElement;
     expect(within(card).getByRole("heading", { name: "What we asked for" })).toBeTruthy();
     const panel = screen.getByTestId("documents-panel");
-    expect(card.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(panel.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("leaves the page as it was when there is no checklist or it fails to load", async () => {
