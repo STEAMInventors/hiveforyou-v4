@@ -147,6 +147,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     const result = normalizePostHiveMessageResult(data);
     if (!result) throw malformedResponse(correlationId, CONVERSATION_SEND_FAILED);
 
+    const posterClient = auth.client;
     if (!result.duplicate) {
       after(() =>
         processHiveAssistantReplySafely({
@@ -154,6 +155,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
           triggerMessage: result.message,
           authorRole: result.message.authorRole,
           correlationId,
+          userClient: posterClient,
         }),
       );
     }

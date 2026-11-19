@@ -5,6 +5,7 @@ const ASSISTANT_RUN_HOURLY_CAP = 20;
 export type AssistantHiveFlags = {
   contentClass: "synthetic" | "real";
   assistantRepliesOn: boolean;
+  firmId?: string | null;
 };
 
 export type AssistantTriggerInput = {
@@ -32,6 +33,7 @@ export function shouldTriggerHiveAssistant(input: AssistantTriggerInput): { trig
   if (input.message.authorKind === "assistant") return { trigger: false };
   let eligible = false;
   if (input.authorRole === "client") eligible = true;
+  else if (input.authorRole === "owner" && input.hive.firmId == null) eligible = true;
   else if (
     (input.authorRole === "staff" || input.authorRole === "owner") &&
     staffMessageAddressesAssistant(input.message.body, input.assistantName)

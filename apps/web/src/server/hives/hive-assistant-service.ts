@@ -2,7 +2,9 @@ import { loadSupabaseAdminEnv } from "@hives/persistence/env";
 import { createSupabaseAdminClient } from "@hives/persistence/storage/supabase-client";
 import {
   buildAssistantBriefing,
+  HIVE_MESSAGE_PAGE_SIZE,
   normalizeGetStudyTabViewResponse,
+  normalizeHiveMessagePage,
   normalizeListRequestsResponse,
   revisionIdForAssistant,
   validateAssistantReply,
@@ -23,6 +25,7 @@ type RunInput = {
   hiveId: string;
   triggerMessage: HiveMessage;
   correlationId: string;
+  userClient: SupabaseClient;
 };
 
 function authorRoleToBriefing(role: string): AssistantBriefingAskerRole {
@@ -104,16 +107,52 @@ async function finishRun(
   });
 }
 
+async function loadBriefingMessages(
+  userClient: SupabaseClient,
+  hiveId: string,
+  assistantName: string,
+  authorRole: string,
+  triggerMessage: HiveMessage,
+): Promise<HiveMessage[]> {
+  const { data, error } = await userClient.rpc("list_hive_messages", {
+    p_hive_id: hiveId,
+    p_before_created_at: null,
+    p_before_id: null,
+    p_limit: HIVE_MESSAGE_PAGE_SIZE,
+  });
+  if (error) throw error;
+  const page = normalizeHiveMessagePage(data);
+  if (!page) throw new Error("invalid_message_page");
+  return page.messages.map((message) => {
+    if (message.authorKind === "assistant") {
+      return {
+        ...message,
+        authorDisplayName: assistantName,
+        authorRoleLabel: assistantName,
+      };
+    }
+    if (message.id === triggerMessage.id) return triggerMessage;
+    return message;
+  });
+}
+
+async function loadBriefingChecklist(userClient: SupabaseClient, hiveId: string) {
+  const { data, error } = await userClient.rpc("list_requests", { p_hive_id: hiveId });
+  if (error) throw error;
+  return normalizeListRequestsResponse(data)?.requests ?? [];
+}
+
 export async function maybeScheduleHiveAssistantReply(
   input: RunInput & { authorRole: string },
   runModel: AssistantModelRunner = createDefaultAssistantModelRunner(),
 ): Promise<void> {
   const admin = createSupabaseAdminClient(loadSupabaseAdminEnv(process.env));
+  const { userClient } = input;
   const hive = await loadHiveFlags(admin, input.hiveId);
   const assistantName = await loadAssistantName(admin, hive.firmId);
   const runsInLastHour = await countRunsLastHour(admin, input.hiveId);
   const decision = shouldTriggerHiveAssistant({
-    hive,
+    hive: { contentClass: hive.contentClass, assistantRepliesOn: hive.assistantRepliesOn, firmId: hive.firmId },
     message: input.triggerMessage,
     authorRole: input.authorRole as never,
     assistantName,
@@ -147,53 +186,53 @@ export async function maybeScheduleHiveAssistantReply(
 
   const started = Date.now();
   const registryPromptId = "hive-assistant-reply/1";
+  const hasTeam = hive.firmId != null;
+  const replyFallback = { teamFirstName: null, hasTeam };
+
+  let preparation: Awaited<ReturnType<typeof getStudyPreparation>>;
+  let overview: Awaited<ReturnType<typeof loadHiveOverview>>;
+  let requests: Awaited<ReturnType<typeof loadBriefingChecklist>>;
+  let rawTab: unknown;
+  let messageList: HiveMessage[];
+
   try {
-    const preparation = await getStudyPreparation(admin, {
+    preparation = await getStudyPreparation(userClient, {
       hiveId: input.hiveId,
       correlationId: input.correlationId,
       includePreview: false,
     });
-    const overview = await loadHiveOverview(admin, { hiveId: input.hiveId, correlationId: input.correlationId });
-    const { data: requestData } = await admin.rpc("list_requests", { p_hive_id: input.hiveId });
-    const requests = normalizeListRequestsResponse(requestData)?.requests ?? [];
+    overview = await loadHiveOverview(userClient, { hiveId: input.hiveId, correlationId: input.correlationId });
+    requests = await loadBriefingChecklist(userClient, input.hiveId);
+    rawTab = await getStudyTabView(userClient, { hiveId: input.hiveId, correlationId: input.correlationId });
+    messageList = await loadBriefingMessages(
+      userClient,
+      input.hiveId,
+      assistantName,
+      input.authorRole,
+      input.triggerMessage,
+    );
+  } catch {
+    await finishRun(admin, {
+      runId: claim.runId,
+      status: "failed",
+      body: null,
+      sourceRefs: [],
+      studyRevisionId: null,
+      promptId: registryPromptId,
+      model: null,
+      latencyMs: Date.now() - started,
+      errorCode: "briefing_unavailable",
+    });
+    emitAssistantOutcome(input, claim.runId, "failed", Date.now() - started, "briefing_unavailable", 0, 0, 0);
+    return;
+  }
 
-    const rawTab = await getStudyTabView(admin, { hiveId: input.hiveId, correlationId: input.correlationId });
+  try {
     const tab = normalizeGetStudyTabViewResponse(rawTab);
     const pack =
       tab?.canonicalStudy?.packRef != null
         ? loadPackById(tab.canonicalStudy.packRef.id, tab.canonicalStudy.packRef.version)
         : null;
-
-    const { data: messageRows } = await admin
-      .schema("hive")
-      .from("hive_messages")
-      .select("id,author_kind,author_user_id,body,created_at")
-      .eq("hive_id", input.hiveId)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    const messageList: HiveMessage[] = (Array.isArray(messageRows) ? messageRows : []).map((row) => {
-      const record = row as {
-        id?: string;
-        author_kind?: string;
-        author_user_id?: string | null;
-        body?: string;
-        created_at?: string;
-      };
-      const authorKind = record.author_kind === "assistant" ? "assistant" : "person";
-      return {
-        id: record.id ?? "",
-        authorKind,
-        authorRole: authorKind === "assistant" ? "assistant" : (input.authorRole as never),
-        authorUserId: record.author_user_id ?? null,
-        authorDisplayName: authorKind === "assistant" ? assistantName : input.triggerMessage.authorDisplayName,
-        authorRoleLabel: authorKind === "assistant" ? assistantName : input.triggerMessage.authorRoleLabel,
-        isMine: false,
-        body: record.body ?? "",
-        sourceRefs: [],
-        replyToMessageId: null,
-        createdAt: record.created_at ?? new Date().toISOString(),
-      };
-    });
 
     const briefing = buildAssistantBriefing({
       viewer: {
@@ -265,11 +304,11 @@ export async function maybeScheduleHiveAssistantReply(
           };
         },
       },
-      { teamFirstName: null },
+      replyFallback,
     );
 
     const status = validated.routedOnly ? "routed" : "answered";
-  await finishRun(admin, {
+    await finishRun(admin, {
       runId: claim.runId,
       status,
       body: validated.reply,

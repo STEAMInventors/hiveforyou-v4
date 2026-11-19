@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildAssistantBriefing } from "./assistant-briefing";
 import {
+  assistantAnswerNotFoundFallback,
   assistantRouteFallback,
   ASSISTANT_ROUTE_GUARD_PHRASES,
   validateAssistantReply,
@@ -41,6 +42,18 @@ const briefing = buildAssistantBriefing({
   messages: [],
   question: "What about pay?",
   assistantName: "Sam",
+});
+
+describe("assistant fallbacks without a firm team", () => {
+  it("uses owner-only wording for not-found and route", () => {
+    const solo = { teamFirstName: null, hasTeam: false as const };
+    expect(assistantAnswerNotFoundFallback(solo)).toBe(
+      "I couldn't find that in the documents yet. Try adding the document it would be in, or ask me another way.",
+    );
+    expect(assistantRouteFallback(solo)).toBe(
+      "That's a question for a professional. I can only tell you what your documents say.",
+    );
+  });
 });
 
 describe("validateAssistantReply", () => {

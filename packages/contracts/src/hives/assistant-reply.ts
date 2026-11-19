@@ -46,14 +46,22 @@ export type ValidatedAssistantReply = {
 
 export type AssistantReplyFallbackInput = {
   readonly teamFirstName: string | null;
+  /** When false, use owner-only hive copy (no firm team to route to). */
+  readonly hasTeam?: boolean;
 };
 
 export function assistantAnswerNotFoundFallback(input: AssistantReplyFallbackInput): string {
+  if (input.hasTeam === false) {
+    return "I couldn't find that in the documents yet. Try adding the document it would be in, or ask me another way.";
+  }
   const team = input.teamFirstName?.trim() || "the team";
   return `I couldn't find that in the documents yet. I've asked ${team} to take a look.`;
 }
 
 export function assistantRouteFallback(input: AssistantReplyFallbackInput): string {
+  if (input.hasTeam === false) {
+    return "That's a question for a professional. I can only tell you what your documents say.";
+  }
   const team = input.teamFirstName?.trim() || "the team";
   return `That's a good question for ${team}. I've passed it on.`;
 }

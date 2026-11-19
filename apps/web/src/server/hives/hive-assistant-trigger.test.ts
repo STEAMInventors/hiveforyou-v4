@@ -68,6 +68,27 @@ describe("shouldTriggerHiveAssistant", () => {
     ).toBe("rate_limited");
   });
 
+  it("triggers for owners on firmless hives without naming the assistant", () => {
+    expect(
+      shouldTriggerHiveAssistant({
+        hive: { contentClass: "synthetic", assistantRepliesOn: true, firmId: null },
+        message: { ...baseMessage, body: "What does the notice say?" },
+        authorRole: "owner",
+        assistantName: "Sam",
+        runsInLastHour: 0,
+      }).trigger,
+    ).toBe(true);
+    expect(
+      shouldTriggerHiveAssistant({
+        hive: { contentClass: "synthetic", assistantRepliesOn: true, firmId: "11111111-1111-4111-8111-111111111111" },
+        message: { ...baseMessage, body: "What does the notice say?" },
+        authorRole: "owner",
+        assistantName: "Sam",
+        runsInLastHour: 0,
+      }).trigger,
+    ).toBe(false);
+  });
+
   it("never triggers on assistant messages", () => {
     expect(
       shouldTriggerHiveAssistant({
