@@ -56,12 +56,12 @@ TASK_PROMPT_IDS: dict[str, str] = {
     "canonicalize": "hive-canonicalize/1",
     "write": "hive-write/1",
     "checklist_tailor": "checklist-tailor/1",
-    "assistant_reply": "hive-assistant-reply/2",
+    "assistant_reply": "hive-assistant-reply/3",
 }
 PIPELINE_PROMPT_IDS_V2: dict[str, str] = {
     "canonicalize": "hive-canonicalize/2",
     "write": "hive-write/2",
-    "assistant_reply": "hive-assistant-reply/1",
+    "assistant_reply": "hive-assistant-reply/2",
 }
 
 

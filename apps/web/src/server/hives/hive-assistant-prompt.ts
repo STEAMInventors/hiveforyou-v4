@@ -6,7 +6,7 @@ import { ASSISTANT_REPLY_PROMPT_ID, type AuxiliaryPlannerTask } from "@hiveforyo
 
 import { resolvePromptsRoot, type PlannerPrompt } from "@/server/study-preparation/prompt-catalog";
 
-const PROMPT_FILE = "hive-assistant-reply/v2.md";
+const PROMPT_FILE = "hive-assistant-reply/v3.md";
 
 function digestOf(text: string): string {
   const normalized = text.replace(/\r\n/g, "\n");

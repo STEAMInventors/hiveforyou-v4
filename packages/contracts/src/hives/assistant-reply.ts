@@ -2,8 +2,9 @@ import { ASSISTANT_BRIEFING_FIXED_RULES, type AssistantBriefing, type AssistantB
 import { isValidUuid } from "./hive-contracts";
 
 export const ASSISTANT_REPLY_MAX_CHARS = 1200;
-export const ASSISTANT_REPLY_PROMPT_ID = "hive-assistant-reply/2";
-export const ASSISTANT_REPLY_PROMPT_VERSION = "2";
+export const ASSISTANT_REPLY_PROMPT_ID = "hive-assistant-reply/3";
+export const ASSISTANT_REPLY_PROMPT_VERSION = "3";
+export const ASSISTANT_REPLY_LEGACY_PROMPT_ID = "hive-assistant-reply/2";
 
 export const ASSISTANT_ROUTE_GUARD_PHRASES = [
   "you should",
@@ -125,6 +126,106 @@ export function stripLeadingVerdictYesNo(question: string, reply: string): strin
   return reply.replace(LEADING_YES_NO, "").trim();
 }
 
+const DATE_IN_TEXT =
+  /\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4})\b/i;
+const NUMBER_IN_TEXT = /\d[\d,.%]*/;
+const LIST_PREFIX = /^(\d+\.\s+|[-•]\s+)/;
+
+function tokenize(text: string): string[] {
+  return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+}
+
+function fourWordRunInSentence(sentence: string, statement: string): boolean {
+  const words = tokenize(statement);
+  const lower = sentence.toLowerCase();
+  for (let index = 0; index <= words.length - 4; index += 1) {
+    const phrase = words.slice(index, index + 4).join(" ");
+    if (lower.includes(phrase)) return true;
+  }
+  return false;
+}
+
+function matchingFactsForSentence(sentence: string, facts: readonly AssistantBriefingFact[]): AssistantBriefingFact[] {
+  const matched: AssistantBriefingFact[] = [];
+  for (const fact of facts) {
+    if (fourWordRunInSentence(sentence, fact.statement)) {
+      matched.push(fact);
+      continue;
+    }
+    const nums = sentence.match(/\d[\d,.%]*/g) ?? [];
+    if (nums.some((value) => fact.statement.includes(value))) {
+      matched.push(fact);
+      continue;
+    }
+    if (DATE_IN_TEXT.test(sentence)) {
+      const date = sentence.match(DATE_IN_TEXT)?.[0]?.toLowerCase();
+      if (date && fact.statement.toLowerCase().includes(date)) matched.push(fact);
+    }
+  }
+  return matched;
+}
+
+function sentenceNeedsCitation(sentence: string, facts: readonly AssistantBriefingFact[]): boolean {
+  if (NUMBER_IN_TEXT.test(sentence)) return true;
+  if (DATE_IN_TEXT.test(sentence)) return true;
+  return facts.some((fact) => fourWordRunInSentence(sentence, fact.statement));
+}
+
+export function replySegments(text: string): string[] {
+  const segments: string[] = [];
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    if (LIST_PREFIX.test(trimmed)) {
+      segments.push(trimmed);
+      continue;
+    }
+    const parts = trimmed.split(/(?<=[.!?])\s+/).map((part) => part.trim()).filter(Boolean);
+    segments.push(...(parts.length > 0 ? parts : [trimmed]));
+  }
+  return segments;
+}
+
+export function sanitizeTeamMentionsInReply(reply: string, fallback: AssistantReplyFallbackInput): string {
+  if (fallback.hasTeam !== false) return reply;
+  if (!/\bteam\b/i.test(reply)) return reply;
+  return replySegments(reply)
+    .map((segment) => (/\bteam\b/i.test(segment) ? assistantRouteFallback(fallback) : segment))
+    .join(" ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function enforceReplyFactCitations(
+  reply: string,
+  facts: readonly AssistantBriefingFact[],
+  usedFactIds: Set<string>,
+  sourceRefs: AssistantSourceRef[],
+  mapFact: (fact: AssistantBriefingFact) => Omit<AssistantSourceRef, "itemKey"> | null,
+  revisionId: string,
+): { reply: string; keptFactual: boolean } {
+  const kept: string[] = [];
+  let keptFactual = false;
+  for (const segment of replySegments(reply)) {
+    const needsCitation = sentenceNeedsCitation(segment, facts);
+    const matches = needsCitation ? matchingFactsForSentence(segment, facts) : [];
+    if (needsCitation && matches.length === 0) continue;
+    kept.push(segment);
+    if (matches.length > 0) {
+      keptFactual = true;
+      for (const fact of matches) {
+        if (usedFactIds.has(fact.id)) continue;
+        const mapped = mapFact(fact);
+        if (!mapped) continue;
+        usedFactIds.add(fact.id);
+        sourceRefs.push({ ...mapped, factId: fact.id, studyRevisionId: revisionId });
+      }
+    }
+  }
+  const rebuilt = kept.join(" ").replace(/\s{2,}/g, " ").trim();
+  return { reply: rebuilt, keptFactual };
+}
+
 export function validateAssistantReply(
   raw: unknown,
   briefing: AssistantBriefing,
@@ -176,12 +277,25 @@ export function validateAssistantReply(
   let itemKey: string | null = typeof record.itemKey === "string" ? record.itemKey.trim() : null;
   if (itemKey && !checklistKeys(briefing).has(itemKey)) itemKey = null;
 
-  if (intent === "answer" && keptClaims.length === 0 && !reply) {
+  const enforced = enforceReplyFactCitations(
+    reply,
+    briefing.study.facts,
+    usedFactIds,
+    sourceRefs,
+    sourceRefsInput.mapFact,
+    sourceRefsInput.revisionId,
+  );
+  reply = enforced.reply;
+  reply = sanitizeTeamMentionsInReply(reply, fallback);
+
+  const hasDocumentSupport = sourceRefs.length > 0 || enforced.keptFactual || keptClaims.length > 0;
+
+  if (intent === "answer" && !hasDocumentSupport && !reply) {
     intent = "route_to_team";
     reply = assistantAnswerNotFoundFallback(fallback);
   }
 
-  if (intent === "answer" && keptClaims.length === 0) {
+  if (intent === "answer" && !hasDocumentSupport) {
     if (VERDICT_QUESTION_PATTERN.test(briefing.question)) {
       intent = "route_to_team";
       reply = assistantRouteFallback(fallback);
@@ -206,11 +320,7 @@ export function validateAssistantReply(
   }
 
   const routedOnly = intent === "route_to_team";
-  if (routedOnly) {
-    return { intent, reply, sourceRefs: [], itemKey, routedOnly: true };
-  }
-
-  return { intent, reply, sourceRefs, itemKey, routedOnly: false };
+  return { intent, reply, sourceRefs, itemKey, routedOnly };
 }
 
 export function parseAssistantReplyModelOutput(raw: unknown): AssistantReplyModelOutput | null {

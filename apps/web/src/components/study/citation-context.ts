@@ -72,7 +72,7 @@ export function buildCitationContextMap(
 
   if (!sources) return map;
 
-  for (const section of view.sections) {
+  for (const section of view.sections ?? []) {
     for (const paragraph of section.paragraphs) {
       for (const sentence of paragraph.sentences) {
         const refsInSentence = sentence.factIds

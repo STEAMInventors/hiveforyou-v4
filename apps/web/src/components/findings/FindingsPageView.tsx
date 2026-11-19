@@ -20,8 +20,8 @@ import { ComparisonCard } from "@/components/study/ComparisonCard";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { groupMissing } from "@/components/study/MissingList";
 import { MissingStudyItems } from "@/components/study/MissingStudyItems";
-import { findingsChipLabels, shortDocumentLabels, SourceChips } from "@/components/study/SourceChip";
-import { buildCitationContextMap } from "@/components/study/citation-context";
+import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
+import { shortDocumentLabels, SourceChips } from "@/components/study/SourceChip";
 import { Timeline } from "@/components/study/Timeline";
 import { ReadProblemNotice, readProblemsFromCoverage } from "@/components/study/ReadProblemNotice";
 import { hiveDocumentsPath, FINDINGS_ANCHORS } from "@/lib/hive-routes";
@@ -153,18 +153,19 @@ export function FindingsPageView({
       typeInPlainWords,
       date: documents.find((row) => row.id.toLowerCase() === sourceDocumentId)?.date ?? null,
     }));
-    const labels = shortDocumentLabels(labelled);
-    const chipLabels = findingsChipLabels(labelled);
-    const fullLabels = new Map<string, string>();
-    for (const document of labelled) {
-      const full = (document.typeInPlainWords ?? "").trim() || labels.get(document.sourceDocumentId) || "Document";
-      fullLabels.set(document.sourceDocumentId, full);
-    }
-    const readProblems = readProblemsFromCoverage(coverageGaps, (id) => labels.get(id), pageCountFor);
+    const shortLabels = shortDocumentLabels(labelled);
+    const evidence = buildHiveEvidenceViewerModel({
+      view,
+      sources,
+      canonicalStudy,
+      coverageGaps,
+      documentPages,
+    });
+    const readProblems = readProblemsFromCoverage(coverageGaps, (id) => shortLabels.get(id), pageCountFor);
     return {
       documents,
-      labels: fullLabels,
-      chipLabels,
+      labels: evidence?.labels ?? new Map(),
+      chipLabels: evidence?.chipLabels ?? new Map(),
       readProblems,
       conflicts: view.blocks.find((block) => block.name === "conflicts")?.rows ?? [],
       timeline: view.blocks.find((block) => block.name === "timeline")?.rows ?? [],
@@ -172,7 +173,7 @@ export function FindingsPageView({
       documentRequestList:
         view.components?.find((component) => component.name === DOCUMENT_REQUEST_LIST_COMPONENT) ?? null,
       documentDate: (id: string) => documents.find((row) => row.id === id)?.date ?? null,
-      citationContexts: buildCitationContextMap(view, sources),
+      citationContexts: evidence?.citationContexts ?? new Map(),
     };
   }, [view, sources, canonicalStudy, coverageGaps, documentPages]);
 

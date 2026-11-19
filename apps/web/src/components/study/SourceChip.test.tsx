@@ -184,6 +184,15 @@ describe("dedupeChipRefs", () => {
       { sourceDocumentId: "b", pageNumber: 2 },
     ]);
   });
+
+  it("keeps the first non-empty shortLabel per document and page", () => {
+    expect(
+      dedupeChipRefs([
+        { sourceDocumentId: "a", pageNumber: 1 },
+        { sourceDocumentId: "a", pageNumber: 1, shortLabel: "Academic evaluation" },
+      ]),
+    ).toEqual([{ sourceDocumentId: "a", pageNumber: 1, shortLabel: "Academic evaluation" }]);
+  });
 });
 
 describe("SourceChips + evidence viewer", () => {
