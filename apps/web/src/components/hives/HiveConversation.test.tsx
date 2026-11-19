@@ -157,7 +157,7 @@ describe("HiveConversation", () => {
     );
   });
 
-  it("shows the assistant typing line and staff failure line from the list response", () => {
+  it("shows the assistant failure line to firm staff but not while previewing as client", () => {
     const failedId = msgId(42);
     const failedMessage = message({
       id: failedId,
@@ -181,6 +181,43 @@ describe("HiveConversation", () => {
     expect(screen.getByTestId("hive-assistant-failed-line").textContent).toBe(
       "Conv Assistant couldn't answer this one.",
     );
+  });
+
+  it("shows the assistant failure line to the owner of a firmless hive", () => {
+    const failedId = msgId(43);
+    renderConversation({
+      staffView: false,
+      viewerIsClient: false,
+      clientName: null,
+      initial: {
+        ok: true,
+        page: page({
+          messages: [message({ id: failedId, createdAt: at(0, 0, 2), body: "Any update?" })],
+          failedAssistantForMessageIds: [failedId],
+          assistantName: "HiveForYou",
+        }),
+      },
+    });
+    expect(screen.getByTestId("hive-assistant-failed-line").textContent).toBe(
+      "HiveForYou couldn't answer this one.",
+    );
+  });
+
+  it("does not show the assistant failure line to the client", () => {
+    const failedId = msgId(44);
+    renderConversation({
+      staffView: false,
+      viewerIsClient: true,
+      initial: {
+        ok: true,
+        page: page({
+          messages: [message({ id: failedId, createdAt: at(0, 0, 2), body: "Any update?", isMine: true })],
+          failedAssistantForMessageIds: [failedId],
+          assistantName: "HiveForYou",
+        }),
+      },
+    });
+    expect(screen.queryByTestId("hive-assistant-failed-line")).toBeNull();
   });
 
   it("shows the empty state", () => {

@@ -2,6 +2,7 @@ import { loadSupabaseAdminEnv } from "@hives/persistence/env";
 import { createSupabaseAdminClient } from "@hives/persistence/storage/supabase-client";
 import {
   buildAssistantBriefing,
+  buildUnexpectedExceptionDiagnostics,
   HIVE_MESSAGE_PAGE_SIZE,
   normalizeGetStudyTabViewResponse,
   normalizeHiveMessagePage,
@@ -17,6 +18,7 @@ import { emitStructuredEvent } from "@/server/observability/logger";
 import { loadPackById } from "@/server/pipeline/pack-loader";
 import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation/study-preparation";
 
+import { loadHiveAssistantReplyPrompt } from "./hive-assistant-prompt";
 import { createDefaultAssistantModelRunner, type AssistantModelRunner } from "./hive-assistant-model-runner";
 import {
   shouldTriggerHiveAssistant,
@@ -109,18 +111,35 @@ function logAssistantClaimFailed(input: RunInput, code: string): void {
 function logAssistantFailed(
   input: RunInput,
   runId: string,
-  stage: "briefing" | "model" | "validation" | "finish",
   errorCode: string,
+  cause: unknown,
   durationMs?: number,
 ): void {
+  const name = cause instanceof Error ? cause.name : "Error";
+  const { errorDetail } = buildUnexpectedExceptionDiagnostics(cause);
   emitStructuredEvent({
     ...assistantLogBase(input, runId),
     eventName: "hive.assistant.failed",
     severity: "WARN",
     status: "FAILED",
     errorCode,
-    diagnosticField: stage,
+    diagnosticField: `${errorCode}:${name}`,
+    errorDetail,
     ...(durationMs != null ? { durationMs } : {}),
+  });
+}
+
+function logAssistantPackUnavailable(input: RunInput, runId: string, cause: unknown): void {
+  const name = cause instanceof Error ? cause.name : "Error";
+  const { errorDetail } = buildUnexpectedExceptionDiagnostics(cause);
+  emitStructuredEvent({
+    ...assistantLogBase(input, runId),
+    eventName: "hive.assistant.pack_unavailable",
+    severity: "INFO",
+    status: "OK",
+    errorCode: "pack_unavailable",
+    diagnosticField: `pack_unavailable:${name}`,
+    errorDetail,
   });
 }
 
@@ -267,10 +286,11 @@ export async function maybeScheduleHiveAssistantReply(
     logAssistantClaimFailed(input, "not_claimed");
     return;
   }
+  const runId = claim.runId;
 
   if (skipForRate) {
     await finishRun(admin, {
-      runId: claim.runId,
+      runId,
       status: "skipped",
       body: null,
       sourceRefs: [],
@@ -280,7 +300,7 @@ export async function maybeScheduleHiveAssistantReply(
       latencyMs: null,
       errorCode: "rate_limited",
     });
-    logAssistantSkipped(input, "rate_limited", claim.runId);
+    logAssistantSkipped(input, "rate_limited", runId);
     return;
   }
 
@@ -314,7 +334,7 @@ export async function maybeScheduleHiveAssistantReply(
   } catch {
     const durationMs = Date.now() - started;
     await finishRun(admin, {
-      runId: claim.runId,
+      runId,
       status: "failed",
       body: null,
       sourceRefs: [],
@@ -324,18 +344,40 @@ export async function maybeScheduleHiveAssistantReply(
       latencyMs: durationMs,
       errorCode: "briefing_unavailable",
     });
-    logAssistantFailed(input, claim.runId, "briefing", "briefing_unavailable", durationMs);
+    logAssistantFailed(input, runId, "briefing_unavailable", new Error("briefing_unavailable"), durationMs);
     return;
   }
 
-  try {
-    const tab = normalizeGetStudyTabViewResponse(rawTab);
-    const pack =
-      tab?.canonicalStudy?.packRef != null
-        ? loadPackById(tab.canonicalStudy.packRef.id, tab.canonicalStudy.packRef.version)
-        : null;
+  const failRun = async (errorCode: string, cause: unknown, studyRevisionId: string | null = null): Promise<void> => {
+    const durationMs = Date.now() - started;
+    await finishRun(admin, {
+      runId,
+      status: "failed",
+      body: null,
+      sourceRefs: [],
+      studyRevisionId,
+      promptId: registryPromptId,
+      model: null,
+      latencyMs: durationMs,
+      errorCode,
+    });
+    logAssistantFailed(input, runId, errorCode, cause, durationMs);
+  };
 
-    const briefing = buildAssistantBriefing({
+  const tab = normalizeGetStudyTabViewResponse(rawTab);
+  let pack: ReturnType<typeof loadPackById> = null;
+  if (tab?.canonicalStudy?.packRef != null) {
+    try {
+      pack = loadPackById(tab.canonicalStudy.packRef.id, tab.canonicalStudy.packRef.version);
+    } catch (cause) {
+      pack = null;
+      logAssistantPackUnavailable(input, runId, cause);
+    }
+  }
+
+  let briefing: ReturnType<typeof buildAssistantBriefing>;
+  try {
+    briefing = buildAssistantBriefing({
       viewer: {
         role: authorRoleToBriefing(input.authorRole),
         roleLabel: input.triggerMessage.authorRoleLabel ?? input.authorRole,
@@ -365,30 +407,38 @@ export async function maybeScheduleHiveAssistantReply(
       question: input.triggerMessage.body,
       assistantName,
     });
+  } catch (cause) {
+    await failRun("briefing_build_failed", cause);
+    return;
+  }
 
-    const model = await runModel({
+  try {
+    loadHiveAssistantReplyPrompt();
+  } catch (cause) {
+    await failRun("prompt_unavailable", cause, preparation.studyRevision?.id ?? null);
+    return;
+  }
+
+  let model: Awaited<ReturnType<AssistantModelRunner>>;
+  try {
+    model = await runModel({
       briefing: JSON.parse(JSON.stringify(briefing)) as Record<string, unknown>,
       correlationId: input.correlationId,
     });
-    if (!model.ok) {
-      const durationMs = Date.now() - started;
-      await finishRun(admin, {
-        runId: claim.runId,
-        status: "failed",
-        body: null,
-        sourceRefs: [],
-        studyRevisionId: preparation.studyRevision?.id ?? null,
-        promptId: registryPromptId,
-        model: null,
-        latencyMs: durationMs,
-        errorCode: model.errorCode,
-      });
-      logAssistantFailed(input, claim.runId, "model", model.errorCode, durationMs);
-      return;
-    }
+  } catch (cause) {
+    await failRun("model_failed", cause, preparation.studyRevision?.id ?? null);
+    return;
+  }
 
-    const revisionId = revisionIdForAssistant(preparation.studyRevision?.id ?? null);
-    const validated = validateAssistantReply(
+  if (!model.ok) {
+    await failRun("model_failed", new Error(model.errorCode), preparation.studyRevision?.id ?? null);
+    return;
+  }
+
+  const revisionId = revisionIdForAssistant(preparation.studyRevision?.id ?? null);
+  let validated: ReturnType<typeof validateAssistantReply>;
+  try {
+    validated = validateAssistantReply(
       model.output,
       briefing,
       {
@@ -408,10 +458,15 @@ export async function maybeScheduleHiveAssistantReply(
       },
       replyFallback,
     );
+  } catch (cause) {
+    await failRun("validation_failed", cause, preparation.studyRevision?.id ?? null);
+    return;
+  }
 
-    const status = validated.routedOnly ? "routed" : "answered";
+  const status = validated.routedOnly ? "routed" : "answered";
+  try {
     await finishRun(admin, {
-      runId: claim.runId,
+      runId,
       status,
       body: validated.reply,
       sourceRefs: [...validated.sourceRefs],
@@ -422,31 +477,20 @@ export async function maybeScheduleHiveAssistantReply(
       errorCode: null,
       itemKey: validated.itemKey,
     });
-
-    logAssistantAnswered(
-      input,
-      claim.runId,
-      status,
-      model.latencyMs,
-      briefing.study.facts.length,
-      validated.sourceRefs.length,
-      validated.sourceRefs.length,
-    );
-  } catch {
-    const durationMs = Date.now() - started;
-    await finishRun(admin, {
-      runId: claim.runId,
-      status: "failed",
-      body: null,
-      sourceRefs: [],
-      studyRevisionId: null,
-      promptId: registryPromptId,
-      model: null,
-      latencyMs: durationMs,
-      errorCode: "internal",
-    });
-    logAssistantFailed(input, claim.runId, "finish", "internal", durationMs);
+  } catch (cause) {
+    await failRun("finish_failed", cause, preparation.studyRevision?.id ?? null);
+    return;
   }
+
+  logAssistantAnswered(
+    input,
+    runId,
+    status,
+    model.latencyMs,
+    briefing.study.facts.length,
+    validated.sourceRefs.length,
+    validated.sourceRefs.length,
+  );
 }
 
 export async function runHiveAssistantReply(input: RunInput & { authorRole: string }): Promise<void> {

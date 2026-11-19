@@ -70,6 +70,16 @@ vi.mock("@/server/observability/logger", () => ({
   emitStructuredEvent: (...args: unknown[]) => emitStructuredEventMock(...args),
 }));
 
+const loadPackByIdMock = vi.fn();
+vi.mock("@/server/pipeline/pack-loader", () => ({
+  loadPackById: (...args: unknown[]) => loadPackByIdMock(...args),
+}));
+
+const loadHiveAssistantReplyPromptMock = vi.fn();
+vi.mock("./hive-assistant-prompt", () => ({
+  loadHiveAssistantReplyPrompt: () => loadHiveAssistantReplyPromptMock(),
+}));
+
 function chainableHiveRow() {
   return {
     select: vi.fn().mockReturnThis(),
@@ -137,6 +147,14 @@ describe("maybeScheduleHiveAssistantReply briefing client", () => {
     getStudyTabViewMock.mockReset();
     createSupabaseAdminClientMock.mockReset();
     finishRunRpcMock.mockReset();
+    loadPackByIdMock.mockReset();
+    loadHiveAssistantReplyPromptMock.mockReset();
+    loadHiveAssistantReplyPromptMock.mockReturnValue({
+      task: "assistant_reply",
+      id: "hive-assistant-reply/1",
+      digest: "sha256:00",
+      systemPrompt: "system",
+    });
 
     getStudyPreparationMock.mockResolvedValue(preparationPayload);
     loadHiveOverviewMock.mockResolvedValue(overviewPayload);
@@ -260,9 +278,108 @@ describe("maybeScheduleHiveAssistantReply briefing client", () => {
     expect(emitStructuredEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         eventName: "hive.assistant.failed",
-        diagnosticField: "briefing",
+        diagnosticField: "briefing_unavailable:Error",
         errorCode: "briefing_unavailable",
         processingRunId: RUN_ID,
+      }),
+    );
+  });
+});
+
+describe("maybeScheduleHiveAssistantReply pack and prompt", () => {
+  beforeEach(() => {
+    emitStructuredEventMock.mockReset();
+    getStudyPreparationMock.mockReset();
+    loadHiveOverviewMock.mockReset();
+    getStudyTabViewMock.mockReset();
+    createSupabaseAdminClientMock.mockReset();
+    finishRunRpcMock.mockReset();
+    loadPackByIdMock.mockReset();
+    loadHiveAssistantReplyPromptMock.mockReset();
+    loadHiveAssistantReplyPromptMock.mockReturnValue({
+      task: "assistant_reply",
+      id: "hive-assistant-reply/1",
+      digest: "sha256:00",
+      systemPrompt: "system",
+    });
+
+    getStudyPreparationMock.mockResolvedValue(preparationPayload);
+    loadHiveOverviewMock.mockResolvedValue(overviewPayload);
+    getStudyTabViewMock.mockResolvedValue({
+      canonicalStudy: { packRef: { id: "widget-review", version: 1 } },
+    });
+    finishRunRpcMock.mockImplementation(async (name: string) => {
+      if (name === "claim_assistant_run") {
+        return { data: { runId: RUN_ID, claimed: true }, error: null };
+      }
+      if (name === "finish_assistant_run") {
+        return { data: null, error: null };
+      }
+      throw new Error(`unexpected admin rpc ${name}`);
+    });
+    createSupabaseAdminClientMock.mockReturnValue(buildAdminClient());
+  });
+
+  it("still replies when pack load throws, using pack null in the briefing", async () => {
+    loadPackByIdMock.mockImplementation(() => {
+      throw new Error("ENOENT pack");
+    });
+    const runModel = vi.fn(async () => ({
+      ok: true as const,
+      output: { intent: "route_to_team", reply: "", claims: [] },
+      modelId: "harvester",
+      latencyMs: 12,
+    }));
+
+    await maybeScheduleHiveAssistantReply(
+      {
+        hiveId: HIVE_ID,
+        triggerMessage,
+        authorRole: "owner",
+        correlationId: CORRELATION_ID,
+        userClient: buildUserClient(),
+      },
+      runModel,
+    );
+
+    expect(runModel).toHaveBeenCalled();
+    const briefing = runModel.mock.calls[0]?.[0]?.briefing as { matterType?: string | null };
+    expect(briefing?.matterType ?? null).toBeNull();
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: "hive.assistant.pack_unavailable", errorCode: "pack_unavailable" }),
+    );
+    expect(finishRunRpcMock).toHaveBeenCalledWith(
+      "finish_assistant_run",
+      expect.objectContaining({ p_status: "routed", p_error_code: null }),
+    );
+  });
+
+  it("finishes failed with prompt_unavailable when the prompt file cannot load", async () => {
+    loadHiveAssistantReplyPromptMock.mockImplementation(() => {
+      throw new Error("ENOENT prompt");
+    });
+
+    await maybeScheduleHiveAssistantReply({
+      hiveId: HIVE_ID,
+      triggerMessage,
+      authorRole: "owner",
+      correlationId: CORRELATION_ID,
+      userClient: buildUserClient(),
+    });
+
+    expect(finishRunRpcMock).toHaveBeenCalledWith(
+      "finish_assistant_run",
+      expect.objectContaining({
+        p_run_id: RUN_ID,
+        p_status: "failed",
+        p_error_code: "prompt_unavailable",
+      }),
+    );
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "prompt_unavailable",
+        diagnosticField: "prompt_unavailable:Error",
       }),
     );
   });
