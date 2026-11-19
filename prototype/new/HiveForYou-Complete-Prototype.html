@@ -268,7 +268,7 @@ details.more .body { padding: 4px 0 24px; }
 .msg .text { margin-top: 2px; font-size: 15px; white-space: pre-wrap; }
 .msg.mine .text { color: var(--ink); }
 .msg.mine .byline strong::after { content: " · you"; font-weight: 400; color: var(--ink-3); }
-.typing { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); padding: 4px 0 0 44px; }
+.typing { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); padding: 8px 0 0; }
 .composer { position: sticky; bottom: 16px; margin-top: 8px; background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--r-surface); box-shadow: 0 8px 24px -12px rgba(20,30,50,0.18); }
 .composer:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,124,246,0.15); }
 .composer textarea { display: block; width: 100%; min-height: 64px; max-height: 180px; resize: none; border: 0; outline: 0; padding: 14px 16px 6px; background: transparent; font-size: 15px; line-height: 1.5; }
@@ -276,6 +276,21 @@ details.more .body { padding: 4px 0 24px; }
 .composer .hint { font-size: 12.5px; color: var(--ink-3); }
 .previewas { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); }
 .previewas select { height: 30px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); padding: 0 8px; font-size: 13px; color: var(--ink); }
+
+/* Board tabs: Conversation | Ask <assistant> */
+.tabs { display: flex; gap: 24px; margin-top: 20px; border-bottom: 1px solid var(--line); }
+.tabs button { position: relative; height: 40px; padding: 0; border: 0; background: none; font-size: 14px; font-weight: 500; color: var(--ink-3); }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); font-weight: 600; }
+.tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--blue-deep); border-radius: 2px; }
+.empty-ask { padding: 40px 0 24px; text-align: center; }
+.empty-ask p { max-width: 420px; margin: 6px auto 0; }
+.typing .av { width: 22px; height: 22px; }
+.typing .av .mark { width: 11px; height: 14px; }
+.dots { display: inline-flex; gap: 3px; margin-left: 2px; }
+.dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--ink-3); animation: blink 1.2s infinite ease-in-out; }
+.dots i:nth-child(2) { animation-delay: .15s; } .dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
 
 /* Report paper */
 .paper-doc { margin-top: 24px; border: 1px solid var(--line); border-radius: 4px; padding: 48px 56px; box-shadow: 0 1px 2px rgba(20,30,50,0.04), 0 12px 32px -20px rgba(20,30,50,0.2); }
@@ -1014,6 +1029,7 @@ const state = {
   fakeUploads: [], filter: "all", boardActor: "staff", boardDraft: "", boardMessages: {},
   teamNotes: {}, noteDraft: "", typing: false, toast: "",
   expanded: {}, kindFilter: "all", find: "",
+  boardView: "people", askOf: "me", threads: {},
 };
 const $ = (s) => document.querySelector(s);
 const S = () => DATA.S[state.scenario];
@@ -1154,39 +1170,66 @@ function speaker(role) {
   return { name: p.assistant, label: "", av: MARK, cls: "assistant" };
 }
 
+// The board has two parts (AB, 2026-11-19): the Conversation between people (no AI), and each
+// person's own "Ask <assistant>" chat. Staff can read a client's AI chat; clients never see staff's.
+function seedThreads() {
+  const people = messages().filter((m) => m.role !== "assistant");
+  const src = SEED[state.scenario] || SEED.medicaid;
+  const i = src.findIndex((m) => m.role === "assistant");
+  const client = i > 0 ? [{ ...src[i - 1] }, { ...src[i] }] : [];
+  return { people, client, staff: [] };
+}
+const threads = () => (state.threads[state.scenario] ??= seedThreads());
+
+function msgRow(m, viewer, opts = {}) {
+  const sp = speaker(m.role);
+  const mine = m.role === viewer;
+  return `<article class="msg${mine ? " mine" : ""}">
+    <div class="av ${sp.cls}" aria-hidden="true">${sp.av}</div>
+    <div><div class="byline"><strong>${esc(sp.name)}</strong>${sp.label ? `<span>${esc(sp.label)}</span>` : `<span class="ai-tag">AI assistant</span>`}<span class="num">${esc(m.time)}</span></div>
+    ${m.fromAsk ? `<div class="t-meta">From Ask ${esc(P().assistant)}</div>` : ""}
+    <p class="text">${esc(m.text)}</p>${refs(m.ev)}
+    ${m.handoff && opts.canHandoff && !m.handedOff ? `<button class="btn sm" style="margin-top:10px" data-action="handoff:${opts.index}">Ask ${esc(P().staff.split(" ")[0])}</button>` : ""}
+    ${m.handedOff ? `<div class="t-meta" style="margin-top:8px">Sent to ${esc(P().staff.split(" ")[0])} in the Conversation.</div>` : ""}</div>
+  </article>`;
+}
+
 function board() {
   const s = S();
   const p = P();
   const missing = s.exceptions.filter((x) => x.kind === "missing" && !x.hidden);
   const total = s.docs.length + missing.length;
   const inCount = s.docs.length;
-  const msgs = messages();
   const viewer = state.boardActor;
-  return `<div class="col">
-    ${pagehead("Hive board", `Conversation with ${esc(p.client.split(" ")[0])}, ${esc(p.staff.split(" ")[0])} and ${esc(p.assistant)}, the AI assistant. Everyone here sees every message.`)}
-    <div class="still"><span>Still to come</span><span class="bar" aria-hidden="true"><span style="width:${Math.round((inCount / total) * 100)}%"></span></span><span class="num">${inCount} of ${total} in</span><button class="btn text sm" data-tab="documents" style="margin-left:auto">See items ${icon("arrow")}</button></div>
+  const th = threads();
+  const view = state.boardView;
+  const readingClient = view === "ask" && viewer === "staff" && state.askOf === "client";
+  const askList = viewer === "client" ? th.client : readingClient ? th.client : th.staff;
+  const first = (n) => esc(n.split(" ")[0]);
+  const tabs = `<div class="tabs" role="tablist" aria-label="Hive board">
+      <button role="tab" aria-selected="${view === "people"}" data-view="people">Conversation</button>
+      <button role="tab" aria-selected="${view === "ask"}" data-view="ask">Ask ${esc(p.assistant)}</button></div>`;
+  const people = `<div class="thread" id="thread" aria-live="polite"><div class="dateline">Today</div>
+      ${th.people.map((m) => msgRow(m, viewer)).join("")}</div>
+    <div class="composer"><label for="draft" class="sr-only">Message</label>
+      <textarea id="draft" rows="2" placeholder="Write to ${viewer === "client" ? first(p.staff) : first(p.client)}…">${esc(state.boardDraft)}</textarea>
+      <div class="bar"><span class="hint">Everyone in this hive sees this conversation.</span><button class="btn primary" data-action="send">Send ${icon("send")}</button></div></div>`;
+  const ask = `${viewer === "staff" ? `<div class="seg" role="group" aria-label="Whose questions" style="margin-top:16px">
+        <button data-askof="me" aria-pressed="${state.askOf !== "client"}">Your questions</button>
+        <button data-askof="client" aria-pressed="${state.askOf === "client"}">${first(p.client)}'s questions <span class="num muted">${th.client.filter((m) => m.role === "client").length}</span></button></div>` : ""}
+    ${readingClient ? `<p class="t-meta" style="margin-top:12px">${esc(p.client)} asked these. Only your team can see them.</p>` : ""}
     <div class="thread" id="thread" aria-live="polite">
-      <div class="dateline">Today</div>
-      ${msgs.map((m) => {
-        const sp = speaker(m.role);
-        const mine = m.role === viewer;
-        return `<article class="msg${mine ? " mine" : ""}">
-          <div class="av ${sp.cls}" aria-hidden="true">${sp.av}</div>
-          <div><div class="byline"><strong>${esc(sp.name)}</strong>${sp.label ? `<span>${esc(sp.label)}</span>` : `<span class="ai-tag">AI assistant</span>`}<span class="num">${esc(m.time)}</span></div>
-          <p class="text">${esc(m.text)}</p>${refs(m.ev)}</div>
-        </article>`;
-      }).join("")}
-      ${state.typing ? `<div class="typing" role="status">${esc(p.assistant)} is looking through the documents…</div>` : ""}
+      ${askList.length ? askList.map((m, i) => msgRow(m, readingClient ? "none" : viewer, { canHandoff: viewer === "client", index: i })).join("") : `<div class="empty-ask"><h3 class="t-section">Ask anything about these documents</h3><p class="t-meta">Answers come only from the documents, with the page they're on. ${viewer === "client" ? `If ${esc(p.assistant)} can't answer, you can pass the question to ${first(p.staff)}.` : ""}</p></div>`}
+      ${state.typing && !readingClient ? `<div class="typing" role="status"><span class="av assistant" aria-hidden="true">${MARK}</span>${esc(p.assistant)} is looking through the documents<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></div>` : ""}
     </div>
-    ${viewer === "preview" ? "" : ""}
-    <div class="composer">
-      <label for="draft" class="sr-only">Message</label>
-      <textarea id="draft" rows="2" placeholder="Write a message…">${esc(state.boardDraft)}</textarea>
-      <div class="bar">
-        <span class="hint">${viewer === "staff" ? `The client sees this. Start with “${esc(p.assistant)}” to ask the assistant.` : `${esc(p.assistant)} answers from your documents, or passes your question to ${esc(p.staff.split(" ")[0])}.`}</span>
-        <button class="btn primary" data-action="send">Send ${icon("send")}</button>
-      </div>
-    </div>
+    ${readingClient ? "" : `<div class="composer"><label for="draft" class="sr-only">Question</label>
+      <textarea id="draft" rows="2" placeholder="Ask ${esc(p.assistant)} about the documents…">${esc(state.boardDraft)}</textarea>
+      <div class="bar"><span class="hint">${viewer === "client" ? `Only you${" and " + first(p.staff) + "'s team"} can see your questions.` : `Only you can see your questions.`}</span><button class="btn primary" data-action="send">Ask ${icon("send")}</button></div></div>`}`;
+  return `<div class="col">
+    ${pagehead("Hive board", view === "people" ? `Your conversation with ${viewer === "client" ? `${first(p.staff)} at the firm` : first(p.client)}. ${esc(p.assistant)} doesn't take part here.` : `Ask ${esc(p.assistant)}, the AI assistant, about the documents. Answers cite their pages.`)}
+    <div class="still"><span>Still to come</span><span class="bar" aria-hidden="true"><span style="width:${Math.round((inCount / total) * 100)}%"></span></span><span class="num">${inCount} of ${total} in</span><button class="btn text sm" data-tab="documents" style="margin-left:auto">See items ${icon("arrow")}</button></div>
+    ${tabs}
+    ${view === "people" ? people : ask}
     <div class="metaline no-print" style="margin-top:14px"><label class="previewas">Preview as <select id="actor"><option value="staff" ${viewer === "staff" ? "selected" : ""}>${esc(p.staff)} (staff)</option><option value="client" ${viewer === "client" ? "selected" : ""}>${esc(p.client)} (client)</option></select></label><span>Prototype: replies are scripted from synthetic data.</span></div>
   </div>`;
 }
@@ -1204,9 +1247,9 @@ function assistantReply(q) {
     return x ? { text: x.detail, ev: x.ev } : { text: "I couldn't find a difference about that in the documents." };
   }
   if (/eligible|qualify|should i|legal|advice|win/.test(t)) {
-    return { text: `That's a question for ${P().staff.split(" ")[0]}. I've passed it on. I can only tell you what the documents say.` };
+    return { text: `That's a question for ${P().staff.split(" ")[0]}. I can only tell you what the documents say.`, handoff: true };
   }
-  return { text: `I couldn't find that in the documents yet. I've asked ${P().staff.split(" ")[0]} to take a look.` };
+  return { text: "I couldn't find that in the documents.", handoff: true };
 }
 
 /* ───────────── Findings ───────────── */
@@ -1523,15 +1566,24 @@ function action(a) {
     const el = $("#draft"), text = (el?.value || "").trim();
     if (!text) return el?.focus();
     const who = state.boardActor;
-    messages().push({ role: who, text, time: "Just now" });
+    const th = threads();
     state.boardDraft = "";
-    const asks = who === "client" || new RegExp(`^@?${P().assistant}\\b`, "i").test(text);
-    if (asks) {
-      state.typing = true;
-      render(); scrollThread();
-      setTimeout(() => { const r = assistantReply(text); messages().push({ role: "assistant", text: r.text, ev: r.ev, time: "Just now" }); state.typing = false; render(); scrollThread(); }, 900);
-    } else { render(); scrollThread(); }
+    if (state.boardView === "people") { th.people.push({ role: who, text, time: "Just now" }); render(); return scrollThread(); }
+    const list = who === "client" ? th.client : th.staff;
+    list.push({ role: who, text, time: "Just now" });
+    state.typing = true;
+    render(); scrollThread();
+    setTimeout(() => { const r = assistantReply(text); list.push({ role: "assistant", text: r.text, ev: r.ev, handoff: r.handoff, question: text, time: "Just now" }); state.typing = false; render(); scrollThread(); }, 1100);
     return;
+  }
+  if (a.startsWith("handoff:")) {
+    const th = threads();
+    const m = th.client[+a.slice(8)];
+    if (!m || m.handedOff) return;
+    m.handedOff = true;
+    th.people.push({ role: "client", text: m.question || "Could you help with this?", time: "Just now", fromAsk: true });
+    state.boardView = "people";
+    render(); return scrollThread();
   }
   if (a === "addnote") {
     const el = $("#note"), text = (el?.value || "").trim();
@@ -1564,11 +1616,11 @@ function action(a) {
 
 document.addEventListener("click", (e) => {
   if (e.target.id === "scrim") { state.drawer = null; return render(); }
-  const t = e.target.closest("[data-action],[data-open],[data-tab],[data-scenario],[data-evidence],[data-audience],[data-matrix],[data-history],[data-custom],[data-filter],[data-expand],[data-kind]");
+  const t = e.target.closest("[data-action],[data-open],[data-tab],[data-scenario],[data-evidence],[data-audience],[data-matrix],[data-history],[data-custom],[data-filter],[data-expand],[data-kind],[data-view],[data-askof]");
   if (!t) return;
   const ds = t.dataset;
   if (ds.action) return action(ds.action);
-  if (ds.open) { state.scenario = ds.open; state.reportMade = false; state.expanded = {}; state.find = ""; state.kindFilter = "all"; return navigate("workspace", "board"); }
+  if (ds.open) { state.scenario = ds.open; state.reportMade = false; state.expanded = {}; state.find = ""; state.kindFilter = "all"; state.boardView = "people"; state.askOf = "me"; return navigate("workspace", "board"); }
   if (ds.custom != null) { state.customIndex = +ds.custom; return navigate("custom"); }
   if (ds.tab) return navigate("workspace", ds.tab);
   if (ds.scenario) { state.scenario = ds.scenario; state.intent = DATA.S[ds.scenario].ask; state.reportMade = false; return navigate("workspace", "board"); }
@@ -1577,12 +1629,14 @@ document.addEventListener("click", (e) => {
   if (ds.matrix) { state.drawer = { type: "matrix", id: ds.matrix }; return render(); }
   if (ds.filter) { state.filter = ds.filter; return render(); }
   if (ds.expand) { state.expanded[ds.expand] = !state.expanded[ds.expand]; return render(); }
+  if (ds.view) { state.boardView = ds.view; state.boardDraft = ""; return render(); }
+  if (ds.askof) { state.askOf = ds.askof; return render(); }
   if (ds.kind) { state.kindFilter = ds.kind; state.expanded.review = false; return render(); }
   if (ds.history != null) { const r = (state.reportHistory[state.scenario] || [])[+ds.history]; if (r) { state.reportAudience = r.audience; state.reportMade = true; render(); } }
 });
 document.addEventListener("change", (e) => {
   if (e.target.id === "jump" && e.target.value) { document.getElementById(e.target.value)?.scrollIntoView({ behavior: "smooth", block: "start" }); e.target.value = ""; return; }
-  if (e.target.id === "actor") { state.boardActor = e.target.value; state.boardDraft = $("#draft")?.value || ""; return render(); }
+  if (e.target.id === "actor") { state.boardActor = e.target.value; state.askOf = "me"; state.boardDraft = $("#draft")?.value || ""; return render(); }
   if (e.target.id === "file-pick") {
     const files = Array.from(e.target.files || []);
     state.fakeUploads.push(...files.map((f) => ({ name: f.name })));

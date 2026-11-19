@@ -188,18 +188,33 @@ whose rows are objects (Documents) use the stacked phone layout.
 | Text | `blue-deep`, no border | "Show all", "See items", "How it's calculated" |
 Icons are 16px outline SVG in one family (stroke 1.8). No Unicode arrows or emoji as icons.
 
-### Conversation (Hive board)
-- Above: "Still to come" bar — label, thin leaf progress bar, "<in> of <total> in", "See items →".
-- Messages are flat rows (no bubbles): 32px round avatar (client = leaf-wash initials, staff = blue-wash
-  initials, assistant = ink circle with the hive mark), byline "<name> · <role> · <time>", body 15px,
-  refs under the body. The assistant's byline carries an "AI assistant" tag (bordered, 11.5/600).
-  The viewer's own messages add "· you" after the name.
-- Date dividers ("Today") centred between hairlines.
-- Typing line: "<assistant> is looking through the documents…" (`role="status"`).
+### Hive board: two parts (AB, 2026-11-19)
+- **Tabs** under the "Still to come" bar: **Conversation** and **Ask <assistant name>** (text tabs with a
+  2px `blue-deep` underline on the selected one, `role="tablist"`). The URL remembers the tab
+  (`?view=ask`). A hive with no firm has no one to talk to: show the Ask chat only, no tabs.
+- **Conversation** = people only (client ↔ the firm's team). The AI never replies here. Composer
+  placeholder "Write to <first name>…", hint "Everyone in this hive sees this conversation." Unread
+  counts and email notices count this part only.
+- **Ask <assistant>** = each person's own chat with the AI. Empty state: "Ask anything about these
+  documents" + "Answers come only from the documents, with the page they're on." Composer placeholder
+  "Ask <assistant> about the documents…", button "Ask". Client hint: "Only you and <staff>'s team can see
+  your questions." Staff hint: "Only you can see your questions."
+- **Staff** see a segmented control "Your questions | <client>'s questions <n>"; the client's chat is
+  read-only with the line "<client> asked these. Only your team can see them." (no composer, no "· you").
+- **Hand-off:** an assistant reply that couldn't answer or that needs a person shows a secondary button
+  "Ask <staff first name>" (client view, firm hives only). One click posts the question into the
+  Conversation (marked "From Ask <assistant>"), switches to that tab, and the AI reply then reads
+  "Sent to <staff> in the Conversation."
+- **Messages** in both parts are flat rows (no bubbles): 32px round avatar (client = leaf-wash initials,
+  staff = blue-wash initials, assistant = ink circle with the hive mark), byline "<name> · <role> ·
+  <time>", body 15px, refs under the body (max 6, then "+n more"). The assistant's byline carries an
+  "AI assistant" tag. The viewer's own messages add "· you". Assistant text supports only **bold**,
+  line breaks and simple bullet lists, rendered as React nodes.
+- **Waiting:** the instant a question is sent, a typing row appears — small assistant avatar,
+  "<assistant> is looking through the documents" and three pulsing dots (no motion under reduced
+  motion); after 20 s "…is still working on it…". The reply text reveals over ≤1.2 s, then its chips.
 - Composer: one bordered surface (12px radius) sticky at the bottom of the column; textarea without its
-  own border; bottom bar with a hint (staff: "The client sees this. Start with "<assistant>" to ask the
-  assistant.") and **Send** (the page's primary). Enter sends, Shift+Enter new line.
-- Staff-only "Preview as" below the composer.
+  own border; Enter sends, Shift+Enter new line; the send/ask button is the page's primary.
 
 ### Side panel (drawer)
 520px from the right, scrim 28% ink, slides in 220ms ease-out. Header: title + close. Content uses h4
