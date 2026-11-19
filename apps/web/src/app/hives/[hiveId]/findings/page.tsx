@@ -5,6 +5,7 @@ import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import {
+  buildFindingsChainEvidence,
   buildFindingsGlanceMetrics,
   buildFindingsOpenItems,
   buildFindingsTopics,
@@ -121,7 +122,18 @@ export default async function FindingsPage({
         pack={pack}
         topics={topicBundle.topics}
         otherOpenItems={topicBundle.otherOpenItems}
-        glanceMetrics={buildFindingsGlanceMetrics(built.view, pack)}
+        glanceMetrics={buildFindingsGlanceMetrics({
+          view: built.view,
+          pack,
+          canonicalStudy: overview.canonicalStudy,
+          snapshotDocuments: overview.preparation.eligibility.documents,
+          coverageGaps: revision.coverageGaps,
+        })}
+        chainEvidence={
+          overview.canonicalStudy
+            ? buildFindingsChainEvidence(overview.canonicalStudy, pack, built.view)
+            : []
+        }
         openItemCount={findingsOpenItemCount(openItems)}
         coverageGaps={revision.coverageGaps}
         documentPages={documentPageCounts(overview.preparation)}

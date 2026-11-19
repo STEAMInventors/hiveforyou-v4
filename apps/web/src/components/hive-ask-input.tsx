@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useId, useState } from "react";
 
+import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { HiveClientError } from "@/lib/hives-client";
 import { createIntentRequest } from "@/lib/source-documents-client";
 
@@ -11,11 +12,17 @@ type AskState =
   | { kind: "saved" }
   | { kind: "failed"; message: string; correlationId: string | null };
 
+type HiveAskInputProps = {
+  hiveId: string;
+  /** Findings card (textarea); default is the compact header-style field. */
+  variant?: "search" | "findings";
+};
+
 /**
  * Saves the question as the Hive's intent. Nothing is answered here: the next study build from
  * Documents takes it into account, and the status line says so.
  */
-export function HiveAskInput({ hiveId }: { hiveId: string }) {
+export function HiveAskInput({ hiveId, variant = "search" }: HiveAskInputProps) {
   const [text, setText] = useState("");
   const [state, setState] = useState<AskState>({ kind: "idle" });
   const inputId = useId();
@@ -45,6 +52,42 @@ export function HiveAskInput({ hiveId }: { hiveId: string }) {
       : state.kind === "failed"
         ? `${state.message}${state.correlationId ? ` Support reference: ${state.correlationId}` : ""}`
         : "";
+
+  if (variant === "findings") {
+    return (
+      <form onSubmit={submit} className="flex flex-col gap-3" data-testid="hive-ask-findings">
+        <label htmlFor={inputId} className="m-0 text-[14px] font-semibold text-ink">
+          Add a question for the next Study build
+        </label>
+        <textarea
+          id={inputId}
+          rows={2}
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+            if (state.kind !== "saving") setState({ kind: "idle" });
+          }}
+          placeholder="e.g. Does the plan say how progress will be measured?"
+          aria-describedby={statusText ? statusId : undefined}
+          className="min-h-[4.5rem] w-full resize-y rounded-control border border-line bg-paper px-3 py-2 text-[14px] text-ink placeholder:text-quiet"
+          maxLength={2000}
+        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="submit"
+            disabled={text.trim() === "" || state.kind === "saving"}
+            className={`${WORKSPACE_SECONDARY} shrink-0`}
+          >
+            {state.kind === "saving" ? "Saving…" : "Save question"}
+          </button>
+          <p className="m-0 text-small text-graphite">Hive answers it the next time the Study is built.</p>
+        </div>
+        <p id={statusId} role="status" className="m-0 text-small text-graphite empty:hidden">
+          {statusText}
+        </p>
+      </form>
+    );
+  }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-1.5" data-testid="hive-ask">

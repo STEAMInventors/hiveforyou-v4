@@ -7,13 +7,24 @@ vi.mock("@/lib/source-documents-client", () => ({
   createIntentRequest: (...args: unknown[]) => createIntentRequest(...args),
 }));
 
-import { HiveWorkspaceAsk } from "./hive-ask-input";
+import { HiveAskInput, HiveWorkspaceAsk } from "./hive-ask-input";
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 
 afterEach(() => {
   cleanup();
   createIntentRequest.mockReset();
+});
+
+describe("HiveAskInput findings variant", () => {
+  it("uses a textarea, Save question, and never shows Ask", () => {
+    render(<HiveAskInput hiveId={HIVE_ID} variant="findings" />);
+    expect(screen.getByLabelText("Add a question for the next Study build")).toBeTruthy();
+    expect(screen.getByPlaceholderText("e.g. Does the plan say how progress will be measured?")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save question" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+    expect(screen.getByText("Hive answers it the next time the Study is built.")).toBeTruthy();
+  });
 });
 
 describe("HiveWorkspaceAsk", () => {

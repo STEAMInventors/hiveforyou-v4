@@ -5,7 +5,13 @@ import { useWorkspaceChrome } from "@/components/workspace/workspace-context";
 import { useEvidenceViewer } from "./EvidenceViewer";
 import { HiveMark } from "./HiveMark";
 
-export { type LabelledDocument, shortDocumentLabels, shortTypeChipLabels, shortTypeLabel } from "./document-labels";
+export {
+  type LabelledDocument,
+  findingsChipLabels,
+  shortDocumentLabels,
+  shortTypeChipLabels,
+  shortTypeLabel,
+} from "./document-labels";
 
 /** One citable page. `quote` is what the chip's sentence or row relies on there, if known. */
 export type ChipRef = {
@@ -42,7 +48,7 @@ const HONEY_CHIP_CLASS =
   "inline-flex min-h-6 items-center gap-1 whitespace-nowrap rounded-chip border border-honey-chip-border bg-honey-wash px-[6px] py-[1px] align-baseline font-mono text-[12px] leading-none text-honey-deep hover:bg-honey-chip-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cell-blue max-sm:min-h-[44px] max-sm:px-2.5 max-sm:py-1";
 
 const WORKSPACE_CHIP_CLASS =
-  "inline-flex h-[22px] items-center gap-1 whitespace-nowrap rounded-chip border-0 bg-cell-blue-wash px-[6px] align-baseline font-mono text-caption leading-none text-cell-blue-deep hover:bg-cell-blue-tint focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cell-blue max-sm:min-h-11";
+  "inline-flex min-h-[22px] max-w-full min-w-0 items-center gap-1 whitespace-normal rounded-chip border-0 bg-cell-blue-wash px-[6px] py-[1px] align-baseline font-mono text-caption leading-snug text-cell-blue-deep hover:bg-cell-blue-tint focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cell-blue max-sm:min-h-11";
 
 export function useDocumentLabel(sourceDocumentId: string): string {
   return useEvidenceViewer().labelFor(sourceDocumentId);
@@ -62,6 +68,7 @@ export function SourceChip({ chip, honeyStyle = false }: { chip: ChipRef; honeyS
     <button
       type="button"
       className={chipClass}
+      title={`${fullLabel} · p.${chip.pageNumber}`}
       aria-label={`Open ${fullLabel}, page ${chip.pageNumber}`}
       data-testid="source-chip"
       onClick={(event) => viewer.open(chip, event.currentTarget)}
@@ -79,7 +86,7 @@ export function SourceChips({ refs }: { refs: readonly ChipRef[] }) {
   const chips = dedupeChipRefs(refs);
   if (chips.length === 0) return null;
   return (
-    <span className="inline-flex flex-wrap gap-1.5 align-baseline">
+    <span className="inline-flex max-w-full flex-wrap gap-1.5 align-baseline">
       {chips.map((chip) => (
         <SourceChip key={`${chip.sourceDocumentId}:${chip.pageNumber}`} chip={chip} />
       ))}
