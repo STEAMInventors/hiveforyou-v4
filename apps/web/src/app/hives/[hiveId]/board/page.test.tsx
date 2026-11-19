@@ -23,8 +23,8 @@ vi.mock("@/server/hives/hive-conversation", () => ({
     page: { messages: [], participantRoleLabels: [], participantCount: 1, viewerLastReadAt: null, nextCursor: null },
   }),
 }));
-vi.mock("@/components/hives/HiveConversation", () => ({
-  HiveConversation: (props: Record<string, unknown>) => {
+vi.mock("@/components/hives/HiveBoardConversation", () => ({
+  HiveBoardConversation: (props: Record<string, unknown>) => {
     conversationProps.push(props);
     return <div data-testid="conversation-stub" />;
   },
@@ -48,6 +48,7 @@ describe("Hive board page", () => {
     loadHiveBoardMock.mockReset();
     loadHiveBoardMock.mockResolvedValue({
       board: { progress: { in: 1, total: 3 }, checklist: [{ gapId: "g" }], headline: "Old headline", checklistNote: "" },
+      overview: null,
     });
   });
 
@@ -77,7 +78,7 @@ describe("Hive board page", () => {
 
   it("hides the Still to come line without a checklist or when the board fails", async () => {
     hive = firmClientHive;
-    loadHiveBoardMock.mockResolvedValue({ board: { progress: null, checklist: [] } });
+    loadHiveBoardMock.mockResolvedValue({ board: { progress: null, checklist: [] }, overview: null });
     render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
     expect(screen.queryByTestId("hive-still-to-come")).toBeNull();
     cleanup();

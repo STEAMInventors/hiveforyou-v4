@@ -25,6 +25,7 @@ import {
   showsAsMine,
   type ConversationViewer,
 } from "@/components/hives/hive-conversation-view";
+import { AssistantReplyBody } from "@/components/hives/assistant-reply-body";
 import {
   AssistantTypingRow,
   useAssistantMessageReveal,
@@ -36,7 +37,7 @@ import {
   type PendingHiveMessage,
 } from "@/components/hives/useHiveConversation";
 import { WorkspaceError } from "@/components/workspace/WorkspaceError";
-import { SourceChips } from "@/components/study/SourceChip";
+import { SourceChipsCapped } from "@/components/study/SourceChip";
 import { personFirstName } from "@/lib/hives/firm-board";
 import { hiveDocumentsPath, hiveNotesPath } from "@/lib/hive-routes";
 
@@ -151,7 +152,7 @@ function MessageRow({
           {...(assistant && revealActive && !revealComplete ? { "aria-hidden": true } : {})}
           {...(assistant && revealComplete ? { "aria-live": "polite" as const } : {})}
         >
-          {bodyText}
+          {assistant && revealComplete ? <AssistantReplyBody text={message.body} /> : bodyText}
         </p>
         {showChips ? <CardChips refs={chipRefs} /> : null}
         {itemKey ? (
@@ -166,10 +167,14 @@ function MessageRow({
   );
 }
 
-function CardChips({ refs }: { refs: { sourceDocumentId: string; pageNumber: number; factIds?: string[] }[] }) {
+function CardChips({
+  refs,
+}: {
+  refs: { sourceDocumentId: string; pageNumber: number; shortLabel?: string; factIds?: string[] }[];
+}) {
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
-      <SourceChips refs={refs} />
+      <SourceChipsCapped refs={refs} />
     </div>
   );
 }

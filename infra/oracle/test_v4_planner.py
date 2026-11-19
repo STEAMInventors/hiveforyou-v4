@@ -1143,7 +1143,7 @@ def test_assistant_reply_fails_closed_without_alias(client: TestClient, monkeypa
         client,
         body(
             task="assistant_reply",
-            prompt_id="hive-assistant-reply/2",
+            prompt_id="hive-assistant-reply/3",
             system_prompt="Reply from briefing only.",
             user_payload={"question": "What is this?"},
             max_output_tokens=1500,
@@ -1164,7 +1164,7 @@ def assistant_reply_completion_body(prompt_id: str) -> dict[str, object]:
     )
 
 
-@pytest.mark.parametrize("prompt_id", ["hive-assistant-reply/1", "hive-assistant-reply/2"])
+@pytest.mark.parametrize("prompt_id", ["hive-assistant-reply/2", "hive-assistant-reply/3"])
 def test_assistant_reply_accepts_v1_and_v2_prompt_ids(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, prompt_id: str
 ) -> None:

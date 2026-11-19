@@ -151,7 +151,7 @@ describe("maybeScheduleHiveAssistantReply briefing client", () => {
     loadHiveAssistantReplyPromptMock.mockReset();
     loadHiveAssistantReplyPromptMock.mockReturnValue({
       task: "assistant_reply",
-      id: "hive-assistant-reply/2",
+      id: "hive-assistant-reply/3",
       digest: "sha256:00",
       systemPrompt: "system",
     });
@@ -298,7 +298,7 @@ describe("maybeScheduleHiveAssistantReply pack and prompt", () => {
     loadHiveAssistantReplyPromptMock.mockReset();
     loadHiveAssistantReplyPromptMock.mockReturnValue({
       task: "assistant_reply",
-      id: "hive-assistant-reply/2",
+      id: "hive-assistant-reply/3",
       digest: "sha256:00",
       systemPrompt: "system",
     });

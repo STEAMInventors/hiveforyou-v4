@@ -1,6 +1,7 @@
 import { loadSupabaseAdminEnv } from "@hives/persistence/env";
 import { createSupabaseAdminClient } from "@hives/persistence/storage/supabase-client";
 import {
+  ASSISTANT_REPLY_PROMPT_ID,
   buildAssistantBriefing,
   canonicalStudyDocumentRoleLabel,
   buildUnexpectedExceptionDiagnostics,
@@ -75,7 +76,7 @@ function assistantLogBase(input: RunInput, runId?: string | null): Record<string
     correlationId: input.correlationId,
     hiveId: input.hiveId,
     ...(runId ? { processingRunId: runId } : {}),
-    task: "hive-assistant-reply/2",
+    task: ASSISTANT_REPLY_PROMPT_ID,
   };
 }
 
@@ -296,7 +297,7 @@ export async function maybeScheduleHiveAssistantReply(
       body: null,
       sourceRefs: [],
       studyRevisionId: null,
-      promptId: "hive-assistant-reply/2",
+      promptId: ASSISTANT_REPLY_PROMPT_ID,
       model: null,
       latencyMs: null,
       errorCode: "rate_limited",
@@ -306,7 +307,7 @@ export async function maybeScheduleHiveAssistantReply(
   }
 
   const started = Date.now();
-  const registryPromptId = "hive-assistant-reply/2";
+  const registryPromptId = ASSISTANT_REPLY_PROMPT_ID;
   const hasTeam = hive.firmId != null;
   const replyFallback = { teamFirstName: null, hasTeam };
 
@@ -411,6 +412,7 @@ export async function maybeScheduleHiveAssistantReply(
       messages: messageList,
       question: input.triggerMessage.body,
       assistantName,
+      hasTeam,
     });
   } catch (cause) {
     await failRun("briefing_build_failed", cause);

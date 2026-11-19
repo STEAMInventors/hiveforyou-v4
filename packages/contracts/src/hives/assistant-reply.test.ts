@@ -181,4 +181,98 @@ describe("validateAssistantReply", () => {
     expect(result.itemKey).toBeNull();
     expect(result.reply).not.toContain("http://");
   });
+
+  it("attaches a fact ref when route_to_team text cites an unmatched academic metric", () => {
+    const academicBriefing = buildAssistantBriefing({
+      viewer: { role: "client", roleLabel: "Client", firstName: "Maya" },
+      hive: { name: "Maya", purpose: null, matterType: null, stage: null },
+      pack: null,
+      checklist: [],
+      study: {
+        revisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        revisionNumber: 1,
+        canonical: {
+          schema: "hive.canonical-study/1",
+          documents: [
+            {
+              sourceDocumentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              role: "SUPPORTING",
+              typeInPlainWords: "Academic evaluation",
+              date: null,
+              version: null,
+              chainPosition: null,
+            },
+          ],
+          spineSource: null,
+          spine: [],
+          outsideSpine: [
+            {
+              id: "O1",
+              statement: "Maya read at 42 words correct per minute with 86% accuracy",
+              factIds: ["F9"],
+            },
+          ],
+          conflicts: [],
+          timeline: [],
+          gaps: [],
+          domainLabel: "sample",
+        },
+        sources: {
+          documents: {},
+          facts: {
+            F9: {
+              sourceDocumentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+              pageNumber: 2,
+              quote: "42 words correct per minute",
+            },
+          },
+        },
+      },
+      documents: [],
+      messages: [],
+      question: "How is Maya reading?",
+      assistantName: "Sam",
+    });
+    const result = validateAssistantReply(
+      {
+        intent: "route_to_team",
+        reply: "Maya read at 42 words correct per minute with 86% accuracy. I'll ask the team to weigh in.",
+        claims: [],
+      },
+      academicBriefing,
+      {
+        revisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        mapFact: (fact) => ({
+          sourceDocumentId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          pageNumber: 2,
+          shortLabel: fact.sourceLabel,
+          factId: fact.id,
+          studyRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        }),
+      },
+      { teamFirstName: "Alex" },
+    );
+    expect(result.sourceRefs).toHaveLength(1);
+    expect(result.sourceRefs[0]?.shortLabel).toBe("Academic evaluation");
+  });
+
+  it("replaces team language on firmless hives", () => {
+    const result = validateAssistantReply(
+      {
+        intent: "route_to_team",
+        reply: "I'll hand this to the team.",
+        claims: [],
+      },
+      briefing,
+      {
+        revisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        mapFact: () => null,
+      },
+      { teamFirstName: null, hasTeam: false },
+    );
+    expect(result.reply).toBe(
+      "That's a question for a professional. I can only tell you what your documents say.",
+    );
+    expect(result.reply.toLowerCase()).not.toContain("team");
+  });
 });

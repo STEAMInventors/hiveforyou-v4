@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { useWorkspaceChrome } from "@/components/workspace/workspace-context";
 
 import { useEvidenceViewer } from "./EvidenceViewer";
@@ -35,14 +37,71 @@ export function dedupeChipRefs(refs: readonly ChipRef[]): ChipRef[] {
     for (const id of ref.factIds ?? []) {
       if (id.trim() !== "") entry.factIds.add(id);
     }
+    const shortLabel = ref.shortLabel?.trim();
+    if (shortLabel && !entry.ref.shortLabel?.trim()) {
+      entry.ref = { ...entry.ref, shortLabel };
+    }
     byKey.set(key, entry);
   }
   return [...byKey.values()].map(({ ref, quotes, factIds }) => ({
     sourceDocumentId: ref.sourceDocumentId,
     pageNumber: ref.pageNumber,
+    ...(ref.shortLabel?.trim() ? { shortLabel: ref.shortLabel.trim() } : {}),
     ...(quotes.length > 0 ? { quote: quotes.join("\n") } : {}),
     ...(factIds.size > 0 ? { factIds: [...factIds] } : {}),
   }));
+}
+
+export const CONVERSATION_CHIP_CAP = 6;
+
+export function SourceChipsCapped({
+  refs,
+  maxVisible = CONVERSATION_CHIP_CAP,
+}: {
+  refs: readonly ChipRef[];
+  maxVisible?: number;
+}) {
+  const chips = dedupeChipRefs(refs);
+  if (chips.length === 0) return null;
+  if (chips.length <= maxVisible) {
+    return (
+      <span className="inline-flex max-w-full flex-wrap gap-1.5 align-baseline">
+        {chips.map((chip) => (
+          <SourceChip key={`${chip.sourceDocumentId}:${chip.pageNumber}`} chip={chip} />
+        ))}
+      </span>
+    );
+  }
+  return <SourceChipsOverflow chips={chips} maxVisible={maxVisible} />;
+}
+
+function SourceChipsOverflow({ chips, maxVisible }: { chips: ChipRef[]; maxVisible: number }) {
+  const [open, setOpen] = useState(false);
+  const visible = chips.slice(0, maxVisible);
+  const hidden = chips.slice(maxVisible);
+  return (
+    <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 align-baseline">
+      {visible.map((chip) => (
+        <SourceChip key={`${chip.sourceDocumentId}:${chip.pageNumber}`} chip={chip} />
+      ))}
+      <button
+        type="button"
+        className="rounded-chip border border-line bg-paper px-2 py-0.5 font-mono text-[12px] text-cell-blue-deep hover:bg-cell-blue-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cell-blue"
+        data-testid="source-chips-more"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        +{hidden.length} more
+      </button>
+      {open ? (
+        <span className="flex w-full flex-col gap-1.5" data-testid="source-chips-overflow-list">
+          {hidden.map((chip) => (
+            <SourceChip key={`${chip.sourceDocumentId}:${chip.pageNumber}:more`} chip={chip} />
+          ))}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 const HONEY_CHIP_CLASS =

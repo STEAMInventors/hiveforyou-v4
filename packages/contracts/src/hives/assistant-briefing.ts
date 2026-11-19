@@ -91,6 +91,8 @@ export type AssistantBriefing = {
   };
   readonly rules: readonly string[];
   readonly question: string;
+  /** False when the hive has no firm (solo / owner-only). */
+  readonly hasTeam: boolean;
 };
 
 export type BuildAssistantBriefingInput = {
@@ -123,6 +125,7 @@ export type BuildAssistantBriefingInput = {
   readonly messages: readonly HiveMessage[];
   readonly question: string;
   readonly assistantName: string;
+  readonly hasTeam?: boolean;
   readonly budgetBytes?: number;
 };
 
@@ -411,6 +414,7 @@ export function buildAssistantBriefing(input: BuildAssistantBriefingInput): Assi
     conversation: conversationSlice(input.messages),
     rules,
     question: input.question.trim(),
+    hasTeam: input.hasTeam !== false,
   });
 
   if (briefingByteSize(briefing) > budget) {

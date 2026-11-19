@@ -1,4 +1,4 @@
-import { HiveConversation } from "@/components/hives/HiveConversation";
+import { HiveBoardConversation } from "@/components/hives/HiveBoardConversation";
 import { HiveStillToCome } from "@/components/hives/HiveStillToCome";
 import { HiveHandoverBanner } from "@/components/workspace/HiveHandoverBanner";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
@@ -6,6 +6,7 @@ import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadLatestHandover } from "@/server/firm/load-firm-board";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
+import { documentPageCounts } from "@/server/hives/hive-summary";
 import { loadHiveConversation } from "@/server/hives/hive-conversation";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
@@ -26,13 +27,13 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
   const staffView = showsFirmThreePane(hive);
   const isAssignee = hive.assigneeUserId?.toLowerCase() === auth.userId.toLowerCase() && hive.stage !== "closed";
 
-  const [conversation, board, handover] = await Promise.all([
+  const [conversation, boardLoad, handover] = await Promise.all([
     loadHiveConversation(auth.client, hive.id, correlationId),
-    loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId })
-      .then((loaded) => loaded.board)
-      .catch(() => null),
+    loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId }).catch(() => null),
     staffView && isAssignee ? loadLatestHandover(auth.client, hive.id).catch(() => null) : Promise.resolve(null),
   ]);
+  const board = boardLoad?.board ?? null;
+  const overview = boardLoad?.overview;
 
   return (
     <>
@@ -40,13 +41,18 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
       <HivePageHead title="Hive board" />
       <div className="mx-auto flex w-full max-w-[940px] flex-col gap-3" data-testid="hive-board">
         <HiveStillToCome hiveId={hive.id} progress={board && board.checklist.length > 0 ? board.progress : null} />
-        <HiveConversation
+        <HiveBoardConversation
           hiveId={hive.id}
           initial={conversation}
           staffView={staffView}
           clientName={hive.kind === "client" ? hive.name : null}
           viewerIsClient={hive.membershipRole === "client"}
           hiveFirmId={hive.firmId ?? null}
+          studyView={overview?.studyTab?.view ?? null}
+          studySources={overview?.studyTab?.sources ?? null}
+          canonicalStudy={overview?.canonicalStudy ?? null}
+          coverageGaps={overview?.preparation.studyRevision?.coverageGaps ?? []}
+          documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
         />
       </div>
     </>
