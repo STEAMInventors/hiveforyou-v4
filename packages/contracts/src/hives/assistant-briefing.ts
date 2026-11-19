@@ -1,4 +1,9 @@
-import type { CanonicalStudy, CanonicalConflict, CanonicalGap, TimelineEntry } from "../pipeline/canonical-study-contracts";
+import type {
+  CanonicalStudy,
+  CanonicalConflict,
+  CanonicalGap,
+  TimelineEntry,
+} from "../pipeline/canonical-study-contracts";
 import type { Pack, PackPersona } from "../pipeline/pack-contracts";
 import type { StudyViewSources } from "../pipeline/study-view-contracts";
 import { matchTokens } from "../pipeline/study-view-reference-match";
@@ -89,6 +94,7 @@ export type AssistantBriefing = {
 };
 
 export type BuildAssistantBriefingInput = {
+  readonly titleAsPrintedById?: Readonly<Record<string, string>>;
   readonly viewer: {
     role: AssistantBriefingAskerRole;
     roleLabel: string;
@@ -171,17 +177,41 @@ function checklistFromRequests(requests: readonly RequestItem[]): AssistantBrief
     }));
 }
 
-function documentLabel(study: CanonicalStudy, sourceDocumentId: string): string {
-  const doc = study.documents.find((d) => d.sourceDocumentId.toLowerCase() === sourceDocumentId.toLowerCase());
+export type StudyDocumentRoleLabelOptions = {
+  readonly sources?: StudyViewSources | null;
+  readonly titleAsPrintedById?: Readonly<Record<string, string>>;
+};
+
+export function canonicalStudyDocumentRoleLabel(
+  study: CanonicalStudy,
+  sourceDocumentId: string,
+  options?: StudyDocumentRoleLabelOptions,
+): string {
+  const id = sourceDocumentId.toLowerCase();
+  const doc = study.documents.find((d) => d.sourceDocumentId.toLowerCase() === id);
   const type = doc?.typeInPlainWords?.trim();
   if (type) return type;
-  const role = doc?.role ?? "Document";
-  return role.charAt(0) + role.slice(1).toLowerCase();
+  const fromSources = options?.sources?.documents[id]?.typeInPlainWords?.trim();
+  if (fromSources) return fromSources;
+  const printed = options?.titleAsPrintedById?.[id]?.trim();
+  if (printed) return printed;
+  const index = study.documents.findIndex((d) => d.sourceDocumentId.toLowerCase() === id);
+  return `Document ${index >= 0 ? index + 1 : study.documents.length + 1}`;
+}
+
+function documentLabel(
+  study: CanonicalStudy,
+  sourceDocumentId: string,
+  sources: StudyViewSources | null,
+  titleAsPrintedById?: Readonly<Record<string, string>>,
+): string {
+  return canonicalStudyDocumentRoleLabel(study, sourceDocumentId, { sources, titleAsPrintedById });
 }
 
 function studyFacts(
   study: CanonicalStudy,
   sources: StudyViewSources | null,
+  titleAsPrintedById?: Readonly<Record<string, string>>,
 ): AssistantBriefingFact[] {
   const byId = new Map<string, AssistantBriefingFact>();
   const add = (id: string, statement: string, sourceDocumentId: string, page: number | null) => {
@@ -193,7 +223,7 @@ function studyFacts(
     byId.set(id, {
       id,
       statement: text,
-      sourceLabel: documentLabel(study, docId),
+      sourceLabel: documentLabel(study, docId, sources, titleAsPrintedById),
       page: pageNumber ?? null,
     });
   };
@@ -214,7 +244,7 @@ function studyFacts(
       if (existing) {
         byId.set(factId, {
           ...existing,
-          sourceLabel: documentLabel(study, ref.sourceDocumentId),
+          sourceLabel: documentLabel(study, ref.sourceDocumentId, sources, titleAsPrintedById),
           page: ref.pageNumber,
         });
       }
@@ -351,7 +381,7 @@ export function buildAssistantBriefing(input: BuildAssistantBriefingInput): Assi
     ASSISTANT_BRIEFING_HARD_CAP_BYTES,
   );
   const canonical = input.study.canonical;
-  const facts = canonical ? studyFacts(canonical, input.study.sources) : [];
+  const facts = canonical ? studyFacts(canonical, input.study.sources, input.titleAsPrintedById) : [];
   const rules = [...ASSISTANT_BRIEFING_FIXED_RULES, ...packNeverSayRules(input.pack)];
 
   let briefing: AssistantBriefing = sanitizeBriefingPayload({

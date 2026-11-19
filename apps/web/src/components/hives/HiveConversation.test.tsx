@@ -175,8 +175,8 @@ describe("HiveConversation", () => {
         }),
       },
     });
-    expect(screen.getByTestId("hive-assistant-typing").textContent).toBe(
-      "Conv Assistant is looking through the documents…",
+    expect(screen.getByTestId("hive-assistant-typing").textContent).toContain(
+      "Conv Assistant is looking through the documents",
     );
     expect(screen.getByTestId("hive-assistant-failed-line").textContent).toBe(
       "Conv Assistant couldn't answer this one.",
@@ -297,12 +297,12 @@ describe("HiveConversation", () => {
     expect(screen.queryByRole("button", { name: "Load earlier messages" })).toBeNull();
   });
 
-  it("polls every 3 seconds while the assistant is pending", async () => {
+  it("polls every 2 seconds while the assistant is pending", async () => {
     vi.useFakeTimers();
     renderConversation({ initial: { ok: true, page: page({ pendingAssistant: true }) } });
     const listCalls = () => fetchMock.mock.calls.filter(([url, init]) => String(url) === MESSAGES_URL && !init?.method);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(2000);
     });
     expect(listCalls()).toHaveLength(1);
   });

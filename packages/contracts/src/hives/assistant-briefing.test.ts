@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { ASSISTANT_BRIEFING_DEFAULT_BUDGET_BYTES, briefingByteSize, buildAssistantBriefing } from "./assistant-briefing";
+import {
+  ASSISTANT_BRIEFING_DEFAULT_BUDGET_BYTES,
+  briefingByteSize,
+  buildAssistantBriefing,
+  canonicalStudyDocumentRoleLabel,
+} from "./assistant-briefing";
 
 describe("buildAssistantBriefing", () => {
   it("keeps gaps and conflicts when trimming facts for budget", () => {
@@ -61,6 +66,58 @@ describe("buildAssistantBriefing", () => {
     expect(briefing.study.conflicts).toHaveLength(1);
     expect(briefing.study.facts.length).toBeLessThan(facts.length);
     expect(briefingByteSize(briefing)).toBeLessThanOrEqual(ASSISTANT_BRIEFING_DEFAULT_BUDGET_BYTES);
+  });
+
+  it("uses the canonical document role label on facts", () => {
+    const study = {
+      schema: "hive.canonical-study/1" as const,
+      documents: [
+        {
+          sourceDocumentId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          role: "SUPPORTING" as const,
+          typeInPlainWords: "Speech-language evaluation",
+          date: null,
+          version: null,
+          chainPosition: null,
+        },
+      ],
+      spineSource: null,
+      spine: [],
+      outsideSpine: [{ id: "O1", statement: "Score noted", factIds: ["F1"] }],
+      conflicts: [],
+      timeline: [],
+      gaps: [],
+      domainLabel: "sample",
+    };
+    expect(
+      canonicalStudyDocumentRoleLabel(study, "dddddddd-dddd-4ddd-8ddd-dddddddddddd"),
+    ).toBe("Speech-language evaluation");
+    const briefing = buildAssistantBriefing({
+      viewer: { role: "client", roleLabel: "Client", firstName: "Maya" },
+      hive: { name: "Maya", purpose: null, matterType: null, stage: null },
+      pack: null,
+      checklist: [],
+      study: {
+        revisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        revisionNumber: 1,
+        canonical: study,
+        sources: {
+          documents: {},
+          facts: {
+            F1: {
+              sourceDocumentId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              pageNumber: 1,
+              quote: "score",
+            },
+          },
+        },
+      },
+      documents: [],
+      messages: [],
+      question: "What does the evaluation say?",
+      assistantName: "Sam",
+    });
+    expect(briefing.study.facts[0]?.sourceLabel).toBe("Speech-language evaluation");
   });
 
   it("does not put emails or file names in the briefing JSON", () => {

@@ -2,6 +2,7 @@ import { loadSupabaseAdminEnv } from "@hives/persistence/env";
 import { createSupabaseAdminClient } from "@hives/persistence/storage/supabase-client";
 import {
   buildAssistantBriefing,
+  canonicalStudyDocumentRoleLabel,
   buildUnexpectedExceptionDiagnostics,
   HIVE_MESSAGE_PAGE_SIZE,
   normalizeGetStudyTabViewResponse,
@@ -74,7 +75,7 @@ function assistantLogBase(input: RunInput, runId?: string | null): Record<string
     correlationId: input.correlationId,
     hiveId: input.hiveId,
     ...(runId ? { processingRunId: runId } : {}),
-    task: "hive-assistant-reply/1",
+    task: "hive-assistant-reply/2",
   };
 }
 
@@ -295,7 +296,7 @@ export async function maybeScheduleHiveAssistantReply(
       body: null,
       sourceRefs: [],
       studyRevisionId: null,
-      promptId: "hive-assistant-reply/1",
+      promptId: "hive-assistant-reply/2",
       model: null,
       latencyMs: null,
       errorCode: "rate_limited",
@@ -305,7 +306,7 @@ export async function maybeScheduleHiveAssistantReply(
   }
 
   const started = Date.now();
-  const registryPromptId = "hive-assistant-reply/1";
+  const registryPromptId = "hive-assistant-reply/2";
   const hasTeam = hive.firmId != null;
   const replyFallback = { teamFirstName: null, hasTeam };
 
@@ -397,8 +398,12 @@ export async function maybeScheduleHiveAssistantReply(
         canonical: overview.canonicalStudy,
         sources: overview.studyTab?.sources ?? null,
       },
-      documents: preparation.eligibility.documents.map((doc) => ({
-        label: "Document",
+      documents: preparation.eligibility.documents.map((doc, index) => ({
+        label: overview.canonicalStudy
+          ? canonicalStudyDocumentRoleLabel(overview.canonicalStudy, doc.sourceDocumentId, {
+              sources: overview.studyTab?.sources ?? null,
+            })
+          : `Document ${index + 1}`,
         pages: doc.totalPhysicalPages ?? null,
         readState: doc.readStatus,
         unreadablePages: [],

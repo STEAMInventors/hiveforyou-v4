@@ -17,6 +17,7 @@ export {
 export type ChipRef = {
   readonly sourceDocumentId: string;
   readonly pageNumber: number;
+  readonly shortLabel?: string;
   readonly quote?: string;
   /** Fact ids cited on this chip (merged when the same page has multiple quotes). */
   readonly factIds?: readonly string[];
@@ -61,8 +62,8 @@ export function useChipShortLabel(sourceDocumentId: string): string {
 export function SourceChip({ chip, honeyStyle = false }: { chip: ChipRef; honeyStyle?: boolean }) {
   const viewer = useEvidenceViewer();
   const workspace = useWorkspaceChrome();
-  const chipLabel = viewer.chipLabelFor(chip.sourceDocumentId);
-  const fullLabel = viewer.labelFor(chip.sourceDocumentId);
+  const chipLabel = chip.shortLabel?.trim() || viewer.chipLabelFor(chip.sourceDocumentId);
+  const fullLabel = chip.shortLabel?.trim() || viewer.labelFor(chip.sourceDocumentId);
   const chipClass = honeyStyle ? HONEY_CHIP_CLASS : workspace ? WORKSPACE_CHIP_CLASS : HONEY_CHIP_CLASS;
   return (
     <button

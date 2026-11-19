@@ -27,13 +27,13 @@ describe("resolvePromptsRoot", () => {
       const appsWeb = path.join(root, "apps", "web");
       mkdirSync(path.join(promptsDir, "hive-assistant-reply"), { recursive: true });
       mkdirSync(path.join(promptsDir, "checklist-tailor"), { recursive: true });
-      writeFileSync(path.join(promptsDir, "hive-assistant-reply/v1.md"), minimalAssistantPrompt());
+      writeFileSync(path.join(promptsDir, "hive-assistant-reply/v2.md"), minimalAssistantPrompt());
       writeFileSync(path.join(promptsDir, "checklist-tailor/v1.md"), minimalChecklistTailorPrompt());
       mkdirSync(appsWeb, { recursive: true });
 
-      expect(resolvePromptsRoot("hive-assistant-reply/v1.md", appsWeb)).toBe(promptsDir);
+      expect(resolvePromptsRoot("hive-assistant-reply/v2.md", appsWeb)).toBe(promptsDir);
       expect(resolvePromptsRoot("checklist-tailor/v1.md", appsWeb)).toBe(promptsDir);
-      expect(loadHiveAssistantReplyPrompt(appsWeb).id).toBe("hive-assistant-reply/1");
+      expect(loadHiveAssistantReplyPrompt(appsWeb).id).toBe("hive-assistant-reply/2");
       expect(loadChecklistTailorPrompt(appsWeb).task).toBe("checklist_tailor");
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -41,7 +41,7 @@ describe("resolvePromptsRoot", () => {
   });
 
   it("finds prompts beside the repo root cwd", () => {
-    expect(resolvePromptsRoot("hive-assistant-reply/v1.md", REPO_ROOT)).toBe(path.join(REPO_ROOT, "prompts"));
+    expect(resolvePromptsRoot("hive-assistant-reply/v2.md", REPO_ROOT)).toBe(path.join(REPO_ROOT, "prompts"));
     expect(loadHiveAssistantReplyPrompt(REPO_ROOT).digest).toMatch(/^sha256:/);
     expect(loadChecklistTailorPrompt(REPO_ROOT).digest).toMatch(/^sha256:/);
   });

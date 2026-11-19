@@ -46,6 +46,7 @@ export default async function HiveBoardPage({ params }: BoardPageProps) {
           staffView={staffView}
           clientName={hive.kind === "client" ? hive.name : null}
           viewerIsClient={hive.membershipRole === "client"}
+          hiveFirmId={hive.firmId ?? null}
         />
       </div>
     </>
