@@ -77,6 +77,10 @@ describe("hive conversation view helpers", () => {
       "Client · Onboarding associate · Attorney",
     );
     expect(participantLine(["Owner"], 1)).toBe("Only you so far.");
+    expect(participantLine(["Owner", "HiveForYou (AI assistant)"], 1, true)).toBe(
+      "Owner · HiveForYou (AI assistant)",
+    );
+    expect(participantLine(["Owner"], 1, false)).toBe("Only you so far.");
   });
 
   it("omits a byline role that repeats the name", () => {

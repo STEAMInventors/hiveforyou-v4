@@ -45,12 +45,14 @@ const {
   getStudyTabViewMock,
   createSupabaseAdminClientMock,
   finishRunRpcMock,
+  emitStructuredEventMock,
 } = vi.hoisted(() => ({
   getStudyPreparationMock: vi.fn(),
   loadHiveOverviewMock: vi.fn(),
   getStudyTabViewMock: vi.fn(),
   createSupabaseAdminClientMock: vi.fn(),
   finishRunRpcMock: vi.fn(),
+  emitStructuredEventMock: vi.fn(),
 }));
 
 vi.mock("@hives/persistence/env", () => ({ loadSupabaseAdminEnv: () => ({}) }));
@@ -64,7 +66,9 @@ vi.mock("@/server/study-preparation/study-preparation", () => ({
 vi.mock("./hive-summary", () => ({
   loadHiveOverview: (...args: unknown[]) => loadHiveOverviewMock(...args),
 }));
-vi.mock("@/server/observability/logger", () => ({ emitStructuredEvent: vi.fn() }));
+vi.mock("@/server/observability/logger", () => ({
+  emitStructuredEvent: (...args: unknown[]) => emitStructuredEventMock(...args),
+}));
 
 function chainableHiveRow() {
   return {
@@ -127,6 +131,7 @@ function buildUserClient(rpcImpl?: (name: string) => Promise<{ data: unknown; er
 
 describe("maybeScheduleHiveAssistantReply briefing client", () => {
   beforeEach(() => {
+    emitStructuredEventMock.mockReset();
     getStudyPreparationMock.mockReset();
     loadHiveOverviewMock.mockReset();
     getStudyTabViewMock.mockReset();
@@ -190,6 +195,47 @@ describe("maybeScheduleHiveAssistantReply briefing client", () => {
     expect(runModel).toHaveBeenCalled();
   });
 
+  it("logs flags_unavailable and stops when hive flags cannot be loaded", async () => {
+    createSupabaseAdminClientMock.mockReturnValue({
+      rpc: finishRunRpcMock,
+      schema: vi.fn((name: string) => {
+        if (name !== "hive") throw new Error(`unexpected schema ${name}`);
+        return {
+          from: vi.fn((table: string) => {
+            if (table === "hives") {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: { message: "denied" } }),
+              };
+            }
+            if (table === "assistant_runs") {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
+              };
+            }
+            throw new Error(`unexpected table ${table}`);
+          }),
+        };
+      }),
+    } as SupabaseClient);
+
+    await maybeScheduleHiveAssistantReply({
+      hiveId: HIVE_ID,
+      triggerMessage,
+      authorRole: "client",
+      correlationId: CORRELATION_ID,
+      userClient: buildUserClient(),
+    });
+
+    expect(finishRunRpcMock).not.toHaveBeenCalled();
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: "hive.assistant.flags_unavailable", hiveId: HIVE_ID }),
+    );
+  });
+
   it("finishes failed with briefing_unavailable when a user briefing read fails", async () => {
     const userClient = buildUserClient();
     getStudyPreparationMock.mockRejectedValueOnce(new Error("hive_not_found"));
@@ -209,6 +255,14 @@ describe("maybeScheduleHiveAssistantReply briefing client", () => {
         p_status: "failed",
         p_body: null,
         p_error_code: "briefing_unavailable",
+      }),
+    );
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        diagnosticField: "briefing",
+        errorCode: "briefing_unavailable",
+        processingRunId: RUN_ID,
       }),
     );
   });

@@ -77,8 +77,14 @@ export function avatarClassFor(role: HiveMessageAuthorRole): string {
 }
 
 /** Card sub-line: who is in this conversation. */
-export function participantLine(labels: readonly string[], participantCount: number): string {
-  if (participantCount <= 1 || labels.length === 0) return "Only you so far.";
+export function participantLine(
+  labels: readonly string[],
+  participantCount: number,
+  assistantAvailable = false,
+): string {
+  if (labels.length === 0) return "Only you so far.";
+  const hasAssistantLabel = labels.some((label) => label.includes("(AI assistant)"));
+  if (participantCount <= 1 && !assistantAvailable && !hasAssistantLabel) return "Only you so far.";
   return labels.join(" · ");
 }
 

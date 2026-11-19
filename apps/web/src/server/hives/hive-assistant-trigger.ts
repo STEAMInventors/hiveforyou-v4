@@ -27,10 +27,19 @@ export function staffMessageAddressesAssistant(body: string, assistantName: stri
   return pattern.test(trimmed);
 }
 
-export function shouldTriggerHiveAssistant(input: AssistantTriggerInput): { trigger: boolean; skipReason?: string } {
-  if (input.hive.contentClass !== "synthetic") return { trigger: false };
-  if (!input.hive.assistantRepliesOn) return { trigger: false };
-  if (input.message.authorKind === "assistant") return { trigger: false };
+export type AssistantSkipReason =
+  | "not_synthetic"
+  | "replies_off"
+  | "not_eligible"
+  | "assistant_author"
+  | "rate_limited";
+
+export function shouldTriggerHiveAssistant(
+  input: AssistantTriggerInput,
+): { trigger: boolean; skipReason?: AssistantSkipReason } {
+  if (input.hive.contentClass !== "synthetic") return { trigger: false, skipReason: "not_synthetic" };
+  if (!input.hive.assistantRepliesOn) return { trigger: false, skipReason: "replies_off" };
+  if (input.message.authorKind === "assistant") return { trigger: false, skipReason: "assistant_author" };
   let eligible = false;
   if (input.authorRole === "client") eligible = true;
   else if (input.authorRole === "owner" && input.hive.firmId == null) eligible = true;
@@ -40,7 +49,7 @@ export function shouldTriggerHiveAssistant(input: AssistantTriggerInput): { trig
   ) {
     eligible = true;
   }
-  if (!eligible) return { trigger: false };
+  if (!eligible) return { trigger: false, skipReason: "not_eligible" };
   if (input.runsInLastHour >= ASSISTANT_RUN_HOURLY_CAP) return { trigger: true, skipReason: "rate_limited" };
   return { trigger: true };
 }

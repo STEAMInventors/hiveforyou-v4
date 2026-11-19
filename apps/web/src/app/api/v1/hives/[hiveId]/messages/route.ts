@@ -20,7 +20,7 @@ import {
   withHttpStatus,
 } from "@/server/hives/map-conversation-rpc-error";
 import { jsonWithCorrelation, readJsonBody, withApiRoute } from "@/server/observability/with-api-route";
-import { processHiveAssistantReplySafely } from "@/server/hives/hive-assistant-service";
+import { runHiveAssistantReply } from "@/server/hives/hive-assistant-service";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 export const maxDuration = 60;
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     const posterClient = auth.client;
     if (!result.duplicate) {
       after(() =>
-        processHiveAssistantReplySafely({
+        runHiveAssistantReply({
           hiveId,
           triggerMessage: result.message,
           authorRole: result.message.authorRole,

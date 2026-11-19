@@ -140,6 +140,49 @@ describe("HiveConversation", () => {
     expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Only you so far.");
   });
 
+  it("includes the assistant on the participant line when available", () => {
+    renderConversation({
+      initial: {
+        ok: true,
+        page: page({
+          messages: [],
+          participantRoleLabels: ["Owner", "HiveForYou (AI assistant)"],
+          participantCount: 1,
+          assistantAvailable: true,
+        }),
+      },
+    });
+    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe(
+      "Owner · HiveForYou (AI assistant)",
+    );
+  });
+
+  it("shows the assistant typing line and staff failure line from the list response", () => {
+    const failedId = msgId(42);
+    const failedMessage = message({
+      id: failedId,
+      createdAt: at(0, 0, 2),
+      body: "What does the lease say?",
+    });
+    renderConversation({
+      initial: {
+        ok: true,
+        page: page({
+          messages: [failedMessage, STAFF_MSG],
+          pendingAssistant: true,
+          assistantName: "Conv Assistant",
+          failedAssistantForMessageIds: [failedId],
+        }),
+      },
+    });
+    expect(screen.getByTestId("hive-assistant-typing").textContent).toBe(
+      "Conv Assistant is looking through the documents…",
+    );
+    expect(screen.getByTestId("hive-assistant-failed-line").textContent).toBe(
+      "Conv Assistant couldn't answer this one.",
+    );
+  });
+
   it("shows the empty state", () => {
     renderConversation({ initial: { ok: true, page: page({ messages: [] }) } });
     expect(
@@ -215,6 +258,16 @@ describe("HiveConversation", () => {
     );
     expect(screen.getAllByTestId("hive-message")[0]!.textContent).toContain("Earlier hello.");
     expect(screen.queryByRole("button", { name: "Load earlier messages" })).toBeNull();
+  });
+
+  it("polls every 3 seconds while the assistant is pending", async () => {
+    vi.useFakeTimers();
+    renderConversation({ initial: { ok: true, page: page({ pendingAssistant: true }) } });
+    const listCalls = () => fetchMock.mock.calls.filter(([url, init]) => String(url) === MESSAGES_URL && !init?.method);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(listCalls()).toHaveLength(1);
   });
 
   it("polls every 15 seconds while visible and stops when hidden", async () => {
