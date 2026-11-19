@@ -38,16 +38,7 @@ describe("shouldTriggerHiveAssistant", () => {
     ).toBe(false);
   });
 
-  it("requires staff messages to name the assistant and skips when rate limited", () => {
-    expect(
-      shouldTriggerHiveAssistant({
-        hive: { contentClass: "synthetic", assistantRepliesOn: true },
-        message: { ...baseMessage, body: "Sam, what is in the notice?" },
-        authorRole: "staff",
-        assistantName: "Sam",
-        runsInLastHour: 0,
-      }).trigger,
-    ).toBe(true);
+  it("triggers for any staff question on the assistant channel and skips when rate limited", () => {
     expect(
       shouldTriggerHiveAssistant({
         hive: { contentClass: "synthetic", assistantRepliesOn: true },
@@ -56,7 +47,7 @@ describe("shouldTriggerHiveAssistant", () => {
         assistantName: "Sam",
         runsInLastHour: 0,
       }).trigger,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldTriggerHiveAssistant({
         hive: { contentClass: "synthetic", assistantRepliesOn: true },
@@ -68,7 +59,7 @@ describe("shouldTriggerHiveAssistant", () => {
     ).toBe("rate_limited");
   });
 
-  it("triggers for owners on firmless hives without naming the assistant", () => {
+  it("triggers for owners on the assistant channel", () => {
     expect(
       shouldTriggerHiveAssistant({
         hive: { contentClass: "synthetic", assistantRepliesOn: true, firmId: null },
@@ -86,7 +77,7 @@ describe("shouldTriggerHiveAssistant", () => {
         assistantName: "Sam",
         runsInLastHour: 0,
       }).trigger,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("never triggers on assistant messages", () => {

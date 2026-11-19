@@ -221,8 +221,12 @@ async function loadBriefingMessages(
   authorRole: string,
   triggerMessage: HiveMessage,
 ): Promise<HiveMessage[]> {
+  const threadOwner = triggerMessage.authorUserId;
+  if (!threadOwner) throw new Error("invalid_trigger_author");
   const { data, error } = await userClient.rpc("list_hive_messages", {
     p_hive_id: hiveId,
+    p_channel: "assistant",
+    p_thread_owner: threadOwner,
     p_before_created_at: null,
     p_before_id: null,
     p_limit: HIVE_MESSAGE_PAGE_SIZE,

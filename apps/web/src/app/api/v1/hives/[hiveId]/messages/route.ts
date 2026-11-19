@@ -107,8 +107,20 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
       throw conversationInvalidRequest("before", correlationId);
     }
 
+    const channelRaw = req.nextUrl.searchParams.get("channel")?.trim().toLowerCase() ?? "people";
+    const channel = channelRaw === "assistant" ? "assistant" : channelRaw === "people" ? "people" : null;
+    if (!channel) {
+      throw conversationInvalidRequest("channel", correlationId);
+    }
+    const threadOwnerRaw = req.nextUrl.searchParams.get("threadOwner")?.trim().toLowerCase() || null;
+    if (threadOwnerRaw && !isValidUuid(threadOwnerRaw)) {
+      throw conversationInvalidRequest("threadOwner", correlationId);
+    }
+
     const { data, error } = await auth.client.rpc("list_hive_messages", {
       p_hive_id: hiveId,
+      p_channel: channel,
+      p_thread_owner: threadOwnerRaw,
       p_before_created_at: before,
       p_before_id: before ? beforeId : null,
       p_limit: HIVE_MESSAGE_PAGE_SIZE,
@@ -141,6 +153,8 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       p_body: parsed.value.body,
       p_client_request_id: clientRequestId,
       p_reply_to: parsed.value.replyTo,
+      p_channel: parsed.value.channel,
+      p_handoff_from: parsed.value.handoffFrom,
     });
     if (error) throw mapConversationRpcError(error, correlationId, CONVERSATION_SEND_FAILED);
 
@@ -148,7 +162,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     if (!result) throw malformedResponse(correlationId, CONVERSATION_SEND_FAILED);
 
     const posterClient = auth.client;
-    if (!result.duplicate) {
+    if (!result.duplicate && parsed.value.channel === "assistant") {
       after(() =>
         runHiveAssistantReply({
           hiveId,
@@ -160,7 +174,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       );
     }
 
-    if (!result.duplicate && result.notifyUserIds.length > 0) {
+    if (!result.duplicate && parsed.value.channel === "people" && result.notifyUserIds.length > 0) {
       await sendHiveMessageNotices({
         userIds: result.notifyUserIds,
         hiveName: await loadHiveName(auth.client, hiveId),

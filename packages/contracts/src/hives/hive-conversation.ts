@@ -19,6 +19,16 @@ export type HiveMessageSourceRef = {
   readonly itemKey?: string;
 };
 
+export type HiveMessageChannel = "people" | "assistant";
+
+export type HiveAssistantThreadSummary = {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly roleLabel: string;
+  readonly messageCount: number;
+  readonly lastAt: string | null;
+};
+
 export type HiveMessage = {
   readonly id: string;
   readonly authorKind: HiveMessageAuthorKind;
@@ -30,6 +40,9 @@ export type HiveMessage = {
   readonly body: string;
   readonly sourceRefs: readonly HiveMessageSourceRef[];
   readonly replyToMessageId: string | null;
+  readonly handoffFromMessageId?: string | null;
+  readonly triggerMessageId?: string | null;
+  readonly assistantRunStatus?: string | null;
   /** Database timestamp as returned; kept as text so cursors and read marks keep full precision. */
   readonly createdAt: string;
 };
@@ -51,11 +64,15 @@ export type HiveMessagePage = {
   readonly assistantAvailable?: boolean;
   readonly failedAssistantForMessageIds?: readonly string[];
   readonly assistantName?: string;
+  readonly assistantThreads?: readonly HiveAssistantThreadSummary[];
+  readonly threadOwnerUserId?: string;
 };
 
 export type PostHiveMessageRequest = {
   readonly body: string;
   readonly replyTo?: string | null;
+  readonly channel?: HiveMessageChannel;
+  readonly handoffFrom?: string | null;
 };
 
 /** What the API returns to the browser. */
@@ -146,6 +163,11 @@ export function normalizeHiveMessage(raw: unknown): HiveMessage | null {
     return null;
   }
   const roleLabel = typeof record.authorRoleLabel === "string" ? record.authorRoleLabel.trim() : "";
+  const handoffFromMessageId = optionalUuid(record.handoffFromMessageId);
+  const triggerMessageId = optionalUuid(record.triggerMessageId);
+  const assistantRunStatus =
+    typeof record.assistantRunStatus === "string" ? record.assistantRunStatus.trim() : null;
+  if (handoffFromMessageId === undefined || triggerMessageId === undefined) return null;
   return {
     id,
     authorKind: authorKind as HiveMessageAuthorKind,
@@ -157,6 +179,9 @@ export function normalizeHiveMessage(raw: unknown): HiveMessage | null {
     body,
     sourceRefs: normalizeSourceRefs(record.sourceRefs),
     replyToMessageId,
+    handoffFromMessageId,
+    ...(triggerMessageId ? { triggerMessageId } : {}),
+    ...(assistantRunStatus ? { assistantRunStatus } : {}),
     createdAt: record.createdAt,
   };
 }
@@ -206,6 +231,35 @@ export function normalizeHiveMessagePage(raw: unknown): HiveMessagePage | null {
         .map((id) => (typeof id === "string" && isValidUuid(id.trim()) ? id.trim().toLowerCase() : null))
         .filter((id): id is string => id !== null)
     : undefined;
+  const assistantThreads = Array.isArray(record.assistantThreads)
+    ? record.assistantThreads
+        .map((raw) => {
+          const thread = asRecord(raw);
+          if (!thread) return null;
+          const userId = optionalUuid(thread.userId);
+          const displayName = typeof thread.displayName === "string" ? thread.displayName.trim() : "";
+          const roleLabel = typeof thread.roleLabel === "string" ? thread.roleLabel.trim() : "";
+          const messageCount =
+            typeof thread.messageCount === "number" &&
+            Number.isInteger(thread.messageCount) &&
+            thread.messageCount >= 0
+              ? thread.messageCount
+              : null;
+          const lastAt =
+            thread.lastAt === null || thread.lastAt === undefined
+              ? null
+              : isTimestamp(thread.lastAt)
+                ? thread.lastAt
+                : undefined;
+          if (!userId || !displayName || !roleLabel || messageCount === null || lastAt === undefined) return null;
+          return { userId, displayName, roleLabel, messageCount, lastAt };
+        })
+        .filter((row): row is HiveAssistantThreadSummary => row !== null)
+    : undefined;
+  const threadOwnerUserId =
+    typeof record.threadOwnerUserId === "string" && isValidUuid(record.threadOwnerUserId.trim())
+      ? record.threadOwnerUserId.trim().toLowerCase()
+      : undefined;
   return {
     messages,
     participantRoleLabels,
@@ -217,6 +271,8 @@ export function normalizeHiveMessagePage(raw: unknown): HiveMessagePage | null {
     ...(assistantAvailable !== undefined ? { assistantAvailable } : {}),
     ...(failedAssistantForMessageIds ? { failedAssistantForMessageIds } : {}),
     ...(assistantName ? { assistantName } : {}),
+    ...(assistantThreads ? { assistantThreads } : {}),
+    ...(threadOwnerUserId ? { threadOwnerUserId } : {}),
   };
 }
 
@@ -242,8 +298,8 @@ export function normalizePostHiveMessageResponse(raw: unknown): PostHiveMessageR
 }
 
 export type ParsedPostHiveMessageRequest =
-  | { ok: true; value: { body: string; replyTo: string | null } }
-  | { ok: false; field: "body" | "replyTo" };
+  | { ok: true; value: { body: string; replyTo: string | null; channel: HiveMessageChannel; handoffFrom: string | null } }
+  | { ok: false; field: "body" | "replyTo" | "channel" | "handoffFrom" };
 
 export function parsePostHiveMessageRequest(raw: unknown): ParsedPostHiveMessageRequest {
   const record = asRecord(raw);
@@ -251,7 +307,12 @@ export function parsePostHiveMessageRequest(raw: unknown): ParsedPostHiveMessage
   if (body.length < 1 || body.length > HIVE_MESSAGE_BODY_MAX) return { ok: false, field: "body" };
   const replyTo = optionalUuid(record?.replyTo);
   if (replyTo === undefined) return { ok: false, field: "replyTo" };
-  return { ok: true, value: { body, replyTo } };
+  const channelRaw = typeof record?.channel === "string" ? record.channel.trim().toLowerCase() : "people";
+  const channel = channelRaw === "assistant" ? "assistant" : channelRaw === "people" ? "people" : null;
+  if (!channel) return { ok: false, field: "channel" };
+  const handoffFrom = optionalUuid(record?.handoffFrom);
+  if (handoffFrom === undefined) return { ok: false, field: "handoffFrom" };
+  return { ok: true, value: { body, replyTo, channel, handoffFrom } };
 }
 
 /** Up to two initials from a display name, for the avatar square. */

@@ -40,16 +40,6 @@ export function shouldTriggerHiveAssistant(
   if (input.hive.contentClass !== "synthetic") return { trigger: false, skipReason: "not_synthetic" };
   if (!input.hive.assistantRepliesOn) return { trigger: false, skipReason: "replies_off" };
   if (input.message.authorKind === "assistant") return { trigger: false, skipReason: "assistant_author" };
-  let eligible = false;
-  if (input.authorRole === "client") eligible = true;
-  else if (input.authorRole === "owner" && input.hive.firmId == null) eligible = true;
-  else if (
-    (input.authorRole === "staff" || input.authorRole === "owner") &&
-    staffMessageAddressesAssistant(input.message.body, input.assistantName)
-  ) {
-    eligible = true;
-  }
-  if (!eligible) return { trigger: false, skipReason: "not_eligible" };
   if (input.runsInLastHour >= ASSISTANT_RUN_HOURLY_CAP) return { trigger: true, skipReason: "rate_limited" };
   return { trigger: true };
 }

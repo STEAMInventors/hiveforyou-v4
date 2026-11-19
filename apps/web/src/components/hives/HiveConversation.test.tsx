@@ -10,7 +10,7 @@ const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }));
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
-const MESSAGES_URL = `/api/v1/hives/${HIVE_ID}/messages`;
+const MESSAGES_URL = `/api/v1/hives/${HIVE_ID}/messages?channel=people`;
 
 function msgId(n: number): string {
   return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -91,12 +91,22 @@ function composer(): HTMLTextAreaElement {
 }
 
 function posts() {
-  return fetchMock.mock.calls.filter(([url, init]) => String(url) === MESSAGES_URL && init?.method === "POST");
+  return fetchMock.mock.calls.filter(
+    ([url, init]) => String(url).startsWith(`/api/v1/hives/${HIVE_ID}/messages`) && init?.method === "POST",
+  );
 }
 
 beforeEach(() => {
   Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
-  handler = (url) => (url.startsWith(MESSAGES_URL) && !url.endsWith("/read") ? json(page()) : json({ lastReadAt: at(0, 0) }));
+  handler = (url, init) => {
+    if (!String(url).includes(`/api/v1/hives/${HIVE_ID}/messages`) || String(url).endsWith("/read")) {
+      return json({ lastReadAt: at(0, 0) });
+    }
+    if (init?.method === "POST") {
+      return json({ message: STAFF_MSG, duplicate: false }, 201);
+    }
+    return json(page());
+  };
   fetchMock.mockClear();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -140,7 +150,7 @@ describe("HiveConversation", () => {
     expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Only you so far.");
   });
 
-  it("includes the assistant on the participant line when available", () => {
+  it("does not add the assistant to the people participant line", () => {
     renderConversation({
       initial: {
         ok: true,
@@ -152,9 +162,7 @@ describe("HiveConversation", () => {
         }),
       },
     });
-    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe(
-      "Owner · HiveForYou (AI assistant)",
-    );
+    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Owner · HiveForYou (AI assistant)");
   });
 
   it("shows the assistant failure line to firm staff but not while previewing as client", () => {
@@ -165,6 +173,7 @@ describe("HiveConversation", () => {
       body: "What does the lease say?",
     });
     renderConversation({
+      mode: "assistant",
       initial: {
         ok: true,
         page: page({
@@ -186,6 +195,7 @@ describe("HiveConversation", () => {
   it("shows the assistant failure line to the owner of a firmless hive", () => {
     const failedId = msgId(43);
     renderConversation({
+      mode: "assistant",
       staffView: false,
       viewerIsClient: false,
       clientName: null,
@@ -206,6 +216,7 @@ describe("HiveConversation", () => {
   it("does not show the assistant failure line to the client", () => {
     const failedId = msgId(44);
     renderConversation({
+      mode: "assistant",
       staffView: false,
       viewerIsClient: true,
       initial: {
@@ -280,7 +291,15 @@ describe("HiveConversation", () => {
 
   it("loads earlier messages with the keyset cursor", async () => {
     const older = message({ id: msgId(10), createdAt: at(6, 10, 0), body: "Earlier hello." });
-    handler = (url) => (url.includes("?before=") ? json(page({ messages: [older], nextCursor: null })) : json(page()));
+    handler = (url, init) => {
+      if (String(url).includes("before=")) {
+        return json(page({ messages: [older], nextCursor: null }));
+      }
+      if (String(url).endsWith("/messages") && init?.method === "POST") {
+        return json({ message: STAFF_MSG, duplicate: false }, 201);
+      }
+      return json(page());
+    };
     renderConversation({
       initial: {
         ok: true,
@@ -289,9 +308,9 @@ describe("HiveConversation", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Load earlier messages" }));
     await waitFor(() => expect(screen.getByText("Earlier hello.")).toBeTruthy());
-    const call = fetchMock.mock.calls.find(([url]) => String(url).includes("?before="));
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes("before="));
     expect(String(call![0])).toBe(
-      `${MESSAGES_URL}?before=${encodeURIComponent(CLIENT_MSG.createdAt)}&beforeId=${CLIENT_MSG.id}`,
+      `${MESSAGES_URL}&before=${encodeURIComponent(CLIENT_MSG.createdAt)}&beforeId=${CLIENT_MSG.id}`,
     );
     expect(screen.getAllByTestId("hive-message")[0]!.textContent).toContain("Earlier hello.");
     expect(screen.queryByRole("button", { name: "Load earlier messages" })).toBeNull();
@@ -299,8 +318,10 @@ describe("HiveConversation", () => {
 
   it("polls every 2 seconds while the assistant is pending", async () => {
     vi.useFakeTimers();
-    renderConversation({ initial: { ok: true, page: page({ pendingAssistant: true }) } });
-    const listCalls = () => fetchMock.mock.calls.filter(([url, init]) => String(url) === MESSAGES_URL && !init?.method);
+    const assistantList = `/api/v1/hives/${HIVE_ID}/messages?channel=assistant`;
+    renderConversation({ mode: "assistant", initial: { ok: true, page: page({ pendingAssistant: true }) } });
+    const listCalls = () =>
+      fetchMock.mock.calls.filter(([url, init]) => String(url).startsWith(assistantList) && !init?.method);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
@@ -310,7 +331,8 @@ describe("HiveConversation", () => {
   it("polls every 15 seconds while visible and stops when hidden", async () => {
     vi.useFakeTimers();
     renderConversation();
-    const listCalls = () => fetchMock.mock.calls.filter(([url, init]) => String(url) === MESSAGES_URL && !init?.method);
+    const listCalls = () =>
+      fetchMock.mock.calls.filter(([url, init]) => String(url).startsWith(MESSAGES_URL) && !init?.method);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15000);
     });
@@ -368,7 +390,7 @@ describe("HiveConversation", () => {
   it("sends optimistically, then replaces the bubble with the server row", async () => {
     let resolvePost: (response: Response) => void = () => undefined;
     handler = (url, init) =>
-      url === MESSAGES_URL && init?.method === "POST"
+      String(url).endsWith("/messages") && !String(url).includes("?") && init?.method === "POST"
         ? new Promise<Response>((resolve) => {
             resolvePost = resolve;
           })
@@ -382,7 +404,7 @@ describe("HiveConversation", () => {
     expect(within(pending).getByText("Sending…")).toBeTruthy();
     expect(within(pending).getByText("Here is the update.")).toBeTruthy();
     const init = posts()[0]![1]!;
-    expect(JSON.parse(String(init.body))).toEqual({ body: "Here is the update." });
+    expect(JSON.parse(String(init.body))).toEqual({ body: "Here is the update.", channel: "people" });
     expect((init.headers as Record<string, string>)["Idempotency-Key"]).toMatch(/^[0-9a-f-]{36}$/);
 
     const saved = { ...STAFF_MSG, id: msgId(4), createdAt: at(0, 3, 0), body: "Here is the update." };
@@ -397,7 +419,7 @@ describe("HiveConversation", () => {
 
   it("keeps a failed message with its reference; Try again reuses the same key; Remove drops it", async () => {
     handler = (url, init) =>
-      url === MESSAGES_URL && init?.method === "POST"
+      String(url).endsWith("/messages") && !String(url).includes("?") && init?.method === "POST"
         ? json(
             {
               error: {
@@ -432,7 +454,7 @@ describe("HiveConversation", () => {
 
   it("hides Try again for a failure that is not retryable", async () => {
     handler = (url, init) =>
-      url === MESSAGES_URL && init?.method === "POST"
+      String(url).endsWith("/messages") && !String(url).includes("?") && init?.method === "POST"
         ? json(
             {
               error: {
@@ -458,7 +480,7 @@ describe("HiveConversation", () => {
 
   it("sends on Enter but not on Shift+Enter, and disables Send when empty", () => {
     handler = (url, init) =>
-      url === MESSAGES_URL && init?.method === "POST" ? new Promise<Response>(() => undefined) : json(page());
+      String(url).endsWith("/messages") && !String(url).includes("?") && init?.method === "POST" ? new Promise<Response>(() => undefined) : json(page());
     renderConversation();
     const send = screen.getByRole("button", { name: "Send message →" }) as HTMLButtonElement;
     expect(send.disabled).toBe(true);
@@ -480,16 +502,16 @@ describe("HiveConversation", () => {
 
   it("shows the staff note and Preview as to staff only", () => {
     const { unmount } = renderConversation();
-    const note = screen.getByTestId("hive-conversation-staff-note");
+    const note = screen.getByTestId("hive-conversation-people-hint");
     expect(note.textContent).toBe(
-      "Everyone in this hive sees this, including the client. For staff-only notes use Team notes.",
+      "Everyone in this hive sees this. Everyone in this hive sees this, including the client. For staff-only notes use Team notes.",
     );
     expect(within(note).getByRole("link", { name: "Team notes" }).getAttribute("href")).toBe(`/hives/${HIVE_ID}/notes`);
     expect(screen.getByLabelText("Preview as")).toBeTruthy();
     unmount();
 
     renderConversation({ staffView: false, viewerIsClient: true });
-    expect(screen.queryByTestId("hive-conversation-staff-note")).toBeNull();
+    expect(screen.getByTestId("hive-conversation-people-hint").textContent).toBe("Everyone in this hive sees this.");
     expect(screen.queryByLabelText("Preview as")).toBeNull();
   });
 
@@ -501,7 +523,7 @@ describe("HiveConversation", () => {
     expect(rows.map((row) => row.getAttribute("data-mine"))).toEqual(["true", "false"]);
     expect(screen.queryByLabelText("Message")).toBeNull();
     expect(screen.queryByRole("button", { name: "Send message →" })).toBeNull();
-    expect(screen.queryByTestId("hive-conversation-staff-note")).toBeNull();
+    expect(screen.queryByTestId("hive-conversation-people-hint")).toBeNull();
     expect(screen.getByText("Preview — this is what Ruth sees.")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
 

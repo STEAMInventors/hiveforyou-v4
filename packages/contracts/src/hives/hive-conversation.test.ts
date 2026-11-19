@@ -45,6 +45,7 @@ describe("normalizeHiveMessage", () => {
       body: "Hello\nthere",
       sourceRefs: [],
       replyToMessageId: null,
+      handoffFromMessageId: null,
       createdAt: "2026-11-18T14:05:00.123456+00:00",
     });
   });
@@ -133,10 +134,13 @@ describe("post results", () => {
 
 describe("parsePostHiveMessageRequest", () => {
   it("trims the body and accepts an optional reply", () => {
-    expect(parsePostHiveMessageRequest({ body: "  hi  " })).toEqual({ ok: true, value: { body: "hi", replyTo: null } });
+    expect(parsePostHiveMessageRequest({ body: "  hi  " })).toEqual({
+      ok: true,
+      value: { body: "hi", replyTo: null, channel: "people", handoffFrom: null },
+    });
     expect(parsePostHiveMessageRequest({ body: "hi", replyTo: MESSAGE_ID.toUpperCase() })).toEqual({
       ok: true,
-      value: { body: "hi", replyTo: MESSAGE_ID },
+      value: { body: "hi", replyTo: MESSAGE_ID, channel: "people", handoffFrom: null },
     });
   });
 
