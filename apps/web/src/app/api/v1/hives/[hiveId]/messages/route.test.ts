@@ -139,10 +139,14 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
       p_body: SECRET_BODY,
       p_client_request_id: KEY,
       p_reply_to: null,
+      p_channel: "people",
+      p_handoff_from: null,
     });
 
     expect(getUserByIdMock.mock.calls.map((call) => call[0]).sort()).toEqual([USER_A, USER_B].sort());
     expect(sendMock).toHaveBeenCalledTimes(2);
+    expect(afterCallbacks).toHaveLength(0);
+    await POST(postRequest({ body: SECRET_BODY, channel: "assistant" }), context);
     expect(afterCallbacks).toHaveLength(1);
     await Promise.all(afterCallbacks.map((callback) => Promise.resolve(callback())));
     expect(runHiveAssistantReplyMock).toHaveBeenCalledWith({
@@ -179,7 +183,7 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
         }),
     );
     rpcRoutes({ data: { message: ROW, notifyUserIds: [], duplicate: false }, error: null });
-    await POST(postRequest({ body: "Hello" }), context);
+    await POST(postRequest({ body: "Hello", channel: "assistant" }), context);
     expect(afterCallbacks).toHaveLength(1);
     const returned = afterCallbacks[0]!();
     expect(returned).toBeInstanceOf(Promise);
@@ -282,6 +286,8 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
     expect((await first.json()).messages[0].id).toBe(ROW.id);
     expect(rpcMock).toHaveBeenLastCalledWith("list_hive_messages", {
       p_hive_id: HIVE_ID,
+      p_channel: "people",
+      p_thread_owner: null,
       p_before_created_at: null,
       p_before_id: null,
       p_limit: 50,
@@ -291,6 +297,8 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
     await GET(getRequest(`?before=${before}&beforeId=${ROW.id}`), context);
     expect(rpcMock).toHaveBeenLastCalledWith("list_hive_messages", {
       p_hive_id: HIVE_ID,
+      p_channel: "people",
+      p_thread_owner: null,
       p_before_created_at: ROW.createdAt,
       p_before_id: ROW.id,
       p_limit: 50,

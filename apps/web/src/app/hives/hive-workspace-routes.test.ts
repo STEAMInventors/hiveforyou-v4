@@ -22,7 +22,17 @@ vi.mock("@/server/supabase/server-client", () => ({
   requireAuthenticatedUser: vi.fn(async () => ({
     ok: true,
     userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-    client: {},
+    client: {
+      schema: () => ({
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { assistant_name: "Sam" } }),
+            }),
+          }),
+        }),
+      }),
+    },
   })),
   createServerSupabaseClient: vi.fn(async () => ({})),
 }));
@@ -165,7 +175,7 @@ describe("hive workspace section pages", () => {
       const mod = await page();
       await mod.default({
         params: Promise.resolve({ hiveId: HIVE_ID }),
-        ...(section === "reports" ? { searchParams: Promise.resolve({}) } : {}),
+        ...((section === "reports" || section === "board") ? { searchParams: Promise.resolve({}) } : {}),
       });
       expect(loadOwnedHiveOrNotFoundMock).toHaveBeenCalledWith(HIVE_ID, `/hives/${HIVE_ID}/${section}`);
     },

@@ -12,10 +12,14 @@ export async function loadHiveConversation(
   client: SupabaseClient,
   hiveId: string,
   correlationId: string,
+  options: { channel?: "people" | "assistant"; threadOwnerUserId?: string | null } = {},
 ): Promise<HiveConversationLoad> {
+  const channel = options.channel ?? "people";
   try {
     const { data, error } = await client.rpc("list_hive_messages", {
       p_hive_id: hiveId,
+      p_channel: channel,
+      p_thread_owner: channel === "assistant" ? options.threadOwnerUserId ?? null : null,
       p_limit: HIVE_MESSAGE_PAGE_SIZE,
     });
     if (error) {

@@ -12,7 +12,21 @@ let hive: Record<string, unknown> = {};
 
 vi.mock("@/server/hives/load-owned-hive", () => ({ loadOwnedHiveOrNotFound: async () => hive }));
 vi.mock("@/server/supabase/server-client", () => ({
-  requireAuthenticatedUser: async () => ({ ok: true, userId: "u", client: {} }),
+  requireAuthenticatedUser: async () => ({
+    ok: true,
+    userId: "u",
+    client: {
+      schema: () => ({
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { assistant_name: "Maya" } }),
+            }),
+          }),
+        }),
+      }),
+    },
+  }),
 }));
 vi.mock("@/server/auth/action-support", () => ({ requestCorrelationId: async () => "corr" }));
 vi.mock("@/server/firm/load-firm-board", () => ({ loadLatestHandover: async () => null }));
@@ -23,8 +37,8 @@ vi.mock("@/server/hives/hive-conversation", () => ({
     page: { messages: [], participantRoleLabels: [], participantCount: 1, viewerLastReadAt: null, nextCursor: null },
   }),
 }));
-vi.mock("@/components/hives/HiveBoardConversation", () => ({
-  HiveBoardConversation: (props: Record<string, unknown>) => {
+vi.mock("@/components/hives/HiveBoardMessaging", () => ({
+  HiveBoardMessaging: (props: Record<string, unknown>) => {
     conversationProps.push(props);
     return <div data-testid="conversation-stub" />;
   },
@@ -54,7 +68,12 @@ describe("Hive board page", () => {
 
   it("shows only the title, the Still to come line and the conversation", async () => {
     hive = firmClientHive;
-    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    render(
+      await HiveBoardPage({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
     const head = screen.getByTestId("hive-page-head");
     expect(head.textContent).toBe("Hive board");
     expect(screen.getByTestId("hive-still-to-come").textContent).toBe("Still to come · 1 of 3 in · See items →");
@@ -68,22 +87,42 @@ describe("Hive board page", () => {
 
   it("gives clients and individual hives no staff view", async () => {
     hive = { ...firmClientHive, membershipRole: "client" };
-    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    render(
+      await HiveBoardPage({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
     expect(conversationProps[0]).toMatchObject({ staffView: false, viewerIsClient: true });
     cleanup();
     hive = { id: HIVE_ID, name: "My own hive", kind: "own", membershipRole: "owner" };
-    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    render(
+      await HiveBoardPage({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
     expect(conversationProps[1]).toMatchObject({ staffView: false, clientName: null, viewerIsClient: false });
   });
 
   it("hides the Still to come line without a checklist or when the board fails", async () => {
     hive = firmClientHive;
     loadHiveBoardMock.mockResolvedValue({ board: { progress: null, checklist: [] }, overview: null });
-    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    render(
+      await HiveBoardPage({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
     expect(screen.queryByTestId("hive-still-to-come")).toBeNull();
     cleanup();
     loadHiveBoardMock.mockRejectedValue(new Error("down"));
-    render(await HiveBoardPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    render(
+      await HiveBoardPage({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
     expect(screen.queryByTestId("hive-still-to-come")).toBeNull();
     expect(screen.getByTestId("conversation-stub")).toBeTruthy();
   });

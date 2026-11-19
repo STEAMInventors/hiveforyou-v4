@@ -13,6 +13,17 @@ export type HiveBoardConversationProps = HiveConversationProps & {
   readonly canonicalStudy: CanonicalStudy | null;
   readonly coverageGaps: readonly CoverageGap[];
   readonly documentPages?: Readonly<Record<string, number>>;
+  readonly mode?: "people" | "assistant";
+  readonly assistantName?: string;
+  readonly teamMemberFirstName?: string;
+  readonly firmless?: boolean;
+  readonly readOnly?: boolean;
+  readonly threadOwnerUserId?: string | null;
+  readonly onThreadOwnerChange?: (userId: string | null) => void;
+  readonly clientThreadUserId?: string | null;
+  readonly clientThreadFirstName?: string | null;
+  readonly currentUserId?: string | null;
+  readonly onSwitchToConversation?: () => void;
 };
 
 export function HiveBoardConversation({

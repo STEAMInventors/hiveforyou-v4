@@ -57,8 +57,16 @@ function publicErrorOf(value: unknown): PublicErrorBody["error"] | null {
   return typeof candidate.message === "string" ? (error as PublicErrorBody["error"]) : null;
 }
 
-function messagesUrl(hiveId: string): string {
-  return `/api/v1/hives/${encodeURIComponent(hiveId)}/messages`;
+function messagesUrl(
+  hiveId: string,
+  channel: "people" | "assistant",
+  threadOwnerUserId: string | null,
+): string {
+  const base = `/api/v1/hives/${encodeURIComponent(hiveId)}/messages`;
+  const params = new URLSearchParams({ channel });
+  if (channel === "assistant" && threadOwnerUserId) params.set("threadOwner", threadOwnerUserId);
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
 }
 
 export type HiveConversationTriggerContext = {
@@ -71,10 +79,14 @@ export function useHiveConversation({
   hiveId,
   initial,
   assistantTrigger,
+  channel = "people",
+  threadOwnerUserId = null,
 }: {
   hiveId: string;
   initial: ConversationLoad;
   assistantTrigger?: HiveConversationTriggerContext;
+  channel?: "people" | "assistant";
+  threadOwnerUserId?: string | null;
 }) {
   const router = useRouter();
   const boardPath = hiveBoardPath(hiveId);
@@ -117,6 +129,7 @@ export function useHiveConversation({
   const [assistantSwitchError, setAssistantSwitchError] = useState<WorkspaceActionFailure | null>(null);
   const [localFailedAssistantIds, setLocalFailedAssistantIds] = useState<string[]>([]);
   const [assistantRevealIds, setAssistantRevealIds] = useState<Set<string>>(() => new Set());
+  const [assistantThreads, setAssistantThreads] = useState(initialPage?.assistantThreads ?? []);
 
   const markedUpToRef = useRef<string | null>(initialPage?.viewerLastReadAt ?? null);
   const markTimerRef = useRef<number | null>(null);
@@ -132,12 +145,13 @@ export function useHiveConversation({
 
   const fetchPage = useCallback(
     async (cursor: HiveMessageCursor | null): Promise<FetchResult> => {
+      const base = messagesUrl(hiveId, channel, threadOwnerUserId);
       const query = cursor
-        ? `?before=${encodeURIComponent(cursor.beforeCreatedAt)}&beforeId=${encodeURIComponent(cursor.beforeId)}`
+        ? `&before=${encodeURIComponent(cursor.beforeCreatedAt)}&beforeId=${encodeURIComponent(cursor.beforeId)}`
         : "";
       let response: Response;
       try {
-        response = await fetch(`${messagesUrl(hiveId)}${query}`, {
+        response = await fetch(`${base}${query}`, {
           credentials: "same-origin",
           cache: "no-store",
           headers: { [CORRELATION_HEADER_NAME]: crypto.randomUUID() },
@@ -168,7 +182,7 @@ export function useHiveConversation({
         },
       };
     },
-    [boardPath, hiveId],
+    [boardPath, channel, hiveId, threadOwnerUserId],
   );
 
   const applyLatest = useCallback(
@@ -184,6 +198,7 @@ export function useHiveConversation({
       setAssistantAvailable(page.assistantAvailable ?? false);
       if (page.assistantName) setAssistantName(page.assistantName);
       if (page.failedAssistantForMessageIds) setFailedAssistantForMessageIds(page.failedAssistantForMessageIds);
+      if (page.assistantThreads) setAssistantThreads(page.assistantThreads);
       if (!page.pendingAssistant) {
         setLocalAssistantWait((wait) => {
           if (!wait) return null;
@@ -222,6 +237,7 @@ export function useHiveConversation({
   }, [localAssistantWait]);
 
   const scheduleMarkRead = useCallback(() => {
+    if (channel !== "people") return;
     const newest = messagesRef.current[messagesRef.current.length - 1];
     if (!newest || newest.isMine) return;
     const marked = markedUpToRef.current;
@@ -231,7 +247,7 @@ export function useHiveConversation({
       markTimerRef.current = null;
       const target = messagesRef.current[messagesRef.current.length - 1];
       if (!target) return;
-      void fetch(`${messagesUrl(hiveId)}/read`, {
+      void fetch(`/api/v1/hives/${encodeURIComponent(hiveId)}/messages/read`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", [CORRELATION_HEADER_NAME]: crypto.randomUUID() },
@@ -244,7 +260,7 @@ export function useHiveConversation({
         })
         .catch(() => undefined);
     }, MARK_READ_DEBOUNCE_MS);
-  }, [hiveId, router]);
+  }, [channel, hiveId, router]);
 
   useEffect(
     () => () => {
@@ -323,6 +339,13 @@ export function useHiveConversation({
     bump("initial");
   }, [bump, fetchPage, replaceMessages]);
 
+  const threadOwnerRef = useRef(threadOwnerUserId);
+  useEffect(() => {
+    if (threadOwnerRef.current === threadOwnerUserId) return;
+    threadOwnerRef.current = threadOwnerUserId;
+    void retryLoad();
+  }, [retryLoad, threadOwnerUserId]);
+
   const loadEarlier = useCallback(async () => {
     if (!nextCursor || loadingEarlier) return;
     setLoadingEarlier(true);
@@ -340,12 +363,12 @@ export function useHiveConversation({
   }, [bump, fetchPage, loadingEarlier, nextCursor, replaceMessages]);
 
   const submit = useCallback(
-    async (clientRequestId: string, body: string) => {
+    async (clientRequestId: string, body: string, handoffFrom: string | null = null) => {
       const captured: { failure: WorkspaceActionFailure | null } = { failure: null };
       const result = await action.run({
-        url: messagesUrl(hiveId),
+        url: messagesUrl(hiveId, channel, threadOwnerUserId).split("?")[0]!,
         method: "POST",
-        body: { body },
+        body: { body, channel, ...(handoffFrom ? { handoffFrom } : {}) },
         idempotencyKey: clientRequestId,
         failureMessage: CONVERSATION_SEND_FAILED,
         refreshOnSuccess: false,
@@ -358,7 +381,7 @@ export function useHiveConversation({
         replaceMessages(mergeMessages(messagesRef.current, [sent.message]));
         markedUpToRef.current = sent.message.createdAt;
         setPending((items) => items.filter((item) => item.clientRequestId !== clientRequestId));
-        if (assistantTrigger) {
+        if (channel === "assistant" && assistantTrigger) {
           const authorRole = viewerAuthorRole(assistantTrigger.staffView, assistantTrigger.viewerIsClient);
           if (
             messageWouldTriggerAssistant({
@@ -385,7 +408,7 @@ export function useHiveConversation({
       );
       bump("failed");
     },
-    [action, assistantAvailable, assistantName, assistantRepliesOn, assistantTrigger, bump, hiveId, replaceMessages],
+    [action, assistantAvailable, assistantName, assistantRepliesOn, assistantTrigger, bump, channel, hiveId, replaceMessages, threadOwnerUserId],
   );
 
   const clearAssistantReveal = useCallback((messageId: string) => {
@@ -398,13 +421,13 @@ export function useHiveConversation({
   }, []);
 
   const send = useCallback(
-    (raw: string): boolean => {
+    (raw: string, handoffFrom: string | null = null): boolean => {
       const body = raw.trim();
       if (!body || action.pending) return false;
       const clientRequestId = crypto.randomUUID();
       setPending((items) => [...items, { clientRequestId, body, status: "sending", failure: null }]);
       bump("sent");
-      void submit(clientRequestId, body);
+      void submit(clientRequestId, body, handoffFrom);
       return true;
     },
     [action.pending, bump, submit],
@@ -428,12 +451,32 @@ export function useHiveConversation({
     setPending((items) => items.filter((item) => item.clientRequestId !== clientRequestId));
   }, []);
 
+  const handoffToPeople = useCallback(
+    async (body: string, handoffFrom: string): Promise<boolean> => {
+      const clientRequestId = crypto.randomUUID();
+      const captured: { failure: WorkspaceActionFailure | null } = { failure: null };
+      const result = await action.run({
+        url: messagesUrl(hiveId, "people", null).split("?")[0]!,
+        method: "POST",
+        body: { body, channel: "people", handoffFrom },
+        idempotencyKey: clientRequestId,
+        failureMessage: CONVERSATION_SEND_FAILED,
+        refreshOnSuccess: false,
+        onFailure: (failure) => {
+          captured.failure = failure;
+        },
+      });
+      return normalizePostHiveMessageResponse(result) !== null;
+    },
+    [action, hiveId],
+  );
+
   const setAssistantReplies = useCallback(
     (on: boolean) => {
       if (assistantSwitchPending) return;
       setAssistantSwitchPending(true);
       setAssistantSwitchError(null);
-      void fetch(`${messagesUrl(hiveId)}/assistant`, {
+      void fetch(`/api/v1/hives/${encodeURIComponent(hiveId)}/messages/assistant`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", [CORRELATION_HEADER_NAME]: crypto.randomUUID() },
@@ -500,5 +543,9 @@ export function useHiveConversation({
     assistantSwitchPending,
     assistantSwitchError,
     setAssistantReplies,
+    assistantThreads,
+    channel,
+    threadOwnerUserId,
+    handoffToPeople,
   };
 }
