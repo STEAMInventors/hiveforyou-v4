@@ -13,6 +13,10 @@ export type HiveMessageAuthorRole = "client" | "staff" | "owner" | "professional
 export type HiveMessageSourceRef = {
   readonly sourceDocumentId: string;
   readonly pageNumber: number;
+  readonly shortLabel?: string;
+  readonly factId?: string;
+  readonly studyRevisionId?: string;
+  readonly itemKey?: string;
 };
 
 export type HiveMessage = {
@@ -42,6 +46,11 @@ export type HiveMessagePage = {
   readonly participantCount: number;
   readonly viewerLastReadAt: string | null;
   readonly nextCursor: HiveMessageCursor | null;
+  readonly pendingAssistant?: boolean;
+  readonly assistantRepliesOn?: boolean;
+  readonly assistantAvailable?: boolean;
+  readonly failedAssistantForMessageIds?: readonly string[];
+  readonly assistantName?: string;
 };
 
 export type PostHiveMessageRequest = {
@@ -87,12 +96,29 @@ function normalizeSourceRefs(raw: unknown): HiveMessageSourceRef[] {
   for (const item of raw) {
     const record = asRecord(item);
     if (!record) continue;
+    const itemKey = typeof record.itemKey === "string" ? record.itemKey.trim() : "";
+    if (itemKey) {
+      refs.push({ sourceDocumentId: "", pageNumber: 0, itemKey });
+      continue;
+    }
     const sourceDocumentId = typeof record.sourceDocumentId === "string" ? record.sourceDocumentId.trim() : "";
     const pageNumber = record.pageNumber;
+    const shortLabel = typeof record.shortLabel === "string" ? record.shortLabel.trim() : "";
+    const factId = typeof record.factId === "string" ? record.factId.trim() : "";
+    const studyRevisionId =
+      typeof record.studyRevisionId === "string" && isValidUuid(record.studyRevisionId.trim())
+        ? record.studyRevisionId.trim().toLowerCase()
+        : "";
     if (!isValidUuid(sourceDocumentId) || typeof pageNumber !== "number" || !Number.isInteger(pageNumber) || pageNumber < 1) {
       continue;
     }
-    refs.push({ sourceDocumentId: sourceDocumentId.toLowerCase(), pageNumber });
+    refs.push({
+      sourceDocumentId: sourceDocumentId.toLowerCase(),
+      pageNumber,
+      ...(shortLabel ? { shortLabel } : {}),
+      ...(factId ? { factId } : {}),
+      ...(studyRevisionId ? { studyRevisionId } : {}),
+    });
   }
   return refs;
 }
@@ -169,7 +195,29 @@ export function normalizeHiveMessagePage(raw: unknown): HiveMessagePage | null {
         ? record.viewerLastReadAt
         : undefined;
   if (participantCount === null || nextCursor === undefined || viewerLastReadAt === undefined) return null;
-  return { messages, participantRoleLabels, participantCount, viewerLastReadAt, nextCursor };
+  const pendingAssistant = record.pendingAssistant === true ? true : record.pendingAssistant === false ? false : undefined;
+  const assistantRepliesOn =
+    record.assistantRepliesOn === true ? true : record.assistantRepliesOn === false ? false : undefined;
+  const assistantAvailable =
+    record.assistantAvailable === true ? true : record.assistantAvailable === false ? false : undefined;
+  const assistantName = typeof record.assistantName === "string" ? record.assistantName.trim() : undefined;
+  const failedAssistantForMessageIds = Array.isArray(record.failedAssistantForMessageIds)
+    ? record.failedAssistantForMessageIds
+        .map((id) => (typeof id === "string" && isValidUuid(id.trim()) ? id.trim().toLowerCase() : null))
+        .filter((id): id is string => id !== null)
+    : undefined;
+  return {
+    messages,
+    participantRoleLabels,
+    participantCount,
+    viewerLastReadAt,
+    nextCursor,
+    ...(pendingAssistant !== undefined ? { pendingAssistant } : {}),
+    ...(assistantRepliesOn !== undefined ? { assistantRepliesOn } : {}),
+    ...(assistantAvailable !== undefined ? { assistantAvailable } : {}),
+    ...(failedAssistantForMessageIds ? { failedAssistantForMessageIds } : {}),
+    ...(assistantName ? { assistantName } : {}),
+  };
 }
 
 export function normalizePostHiveMessageResult(raw: unknown): PostHiveMessageResult | null {

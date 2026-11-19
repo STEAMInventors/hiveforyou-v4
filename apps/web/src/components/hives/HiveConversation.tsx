@@ -30,8 +30,9 @@ import {
   type PendingHiveMessage,
 } from "@/components/hives/useHiveConversation";
 import { WorkspaceError } from "@/components/workspace/WorkspaceError";
+import { SourceChips } from "@/components/study/SourceChip";
 import { personFirstName } from "@/lib/hives/firm-board";
-import { hiveNotesPath } from "@/lib/hive-routes";
+import { hiveDocumentsPath, hiveNotesPath } from "@/lib/hive-routes";
 
 export const CONVERSATION_EMPTY = "No messages yet. Start the conversation — everyone in this hive will see it.";
 export const CONVERSATION_STAFF_NOTE_LEAD = "Everyone in this hive sees this, including the client. For staff-only notes use";
@@ -87,8 +88,27 @@ function rowClass(mine: boolean): string {
 const BODY_CLASS =
   "m-0 mt-[5px] whitespace-pre-wrap break-words text-[14px] leading-[1.55] text-ink [overflow-wrap:anywhere]";
 
-function MessageRow({ message, mine, mounted }: { message: HiveMessage; mine: boolean; mounted: boolean }) {
-  const role = bylineRole(message);
+function MessageRow({
+  hiveId,
+  message,
+  mine,
+  mounted,
+}: {
+  hiveId: string;
+  message: HiveMessage;
+  mine: boolean;
+  mounted: boolean;
+}) {
+  const assistant = message.authorKind === "assistant";
+  const role = assistant ? "AI assistant" : bylineRole(message);
+  const chipRefs = message.sourceRefs
+    .filter((ref) => ref.sourceDocumentId && ref.pageNumber > 0)
+    .map((ref) => ({
+      sourceDocumentId: ref.sourceDocumentId,
+      pageNumber: ref.pageNumber,
+      ...(ref.factId ? { factIds: [ref.factId] } : {}),
+    }));
+  const itemKey = message.sourceRefs.find((ref) => ref.itemKey)?.itemKey;
   return (
     <article className={rowClass(mine)} data-testid="hive-message" data-mine={mine ? "true" : "false"}>
       <Avatar name={message.authorDisplayName} className={avatarClassFor(message.authorRole)} />
@@ -98,15 +118,37 @@ function MessageRow({ message, mine, mounted }: { message: HiveMessage; mine: bo
           {role ? (
             <>
               <span aria-hidden="true">·</span>
-              <span>{role}</span>
+              {assistant ? (
+                <span className="rounded-pill bg-cell-blue-wash px-1.5 py-px text-[11px] font-medium text-ink">{role}</span>
+              ) : (
+                <span>{role}</span>
+              )}
             </>
           ) : null}
           <span aria-hidden="true">·</span>
           <time dateTime={message.createdAt}>{mounted ? messageTimeLabel(message.createdAt) : ""}</time>
         </p>
         <p className={BODY_CLASS}>{message.body}</p>
+        {chipRefs.length > 0 ? (
+          <CardChips refs={chipRefs} />
+        ) : null}
+        {itemKey ? (
+          <p className="m-0 mt-2 text-[12px]">
+            <Link href={`${hiveDocumentsPath(hiveId)}#requested`} className="font-medium text-cell-blue-deep no-underline">
+              Documents → What we asked for
+            </Link>
+          </p>
+        ) : null}
       </div>
     </article>
+  );
+}
+
+function CardChips({ refs }: { refs: { sourceDocumentId: string; pageNumber: number; factIds?: string[] }[] }) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      <SourceChips refs={refs} />
+    </div>
   );
 }
 
@@ -280,7 +322,42 @@ export function HiveConversation({ hiveId, initial, staffView, clientName, viewe
         </p>
       </div>
       {staffView ? (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {conversation.assistantAvailable ? (
+            <label className="flex items-center gap-2 text-[13px] text-ink">
+              <span>AI assistant:</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={conversation.assistantRepliesOn}
+                data-testid="hive-assistant-switch"
+                disabled={conversation.assistantSwitchPending}
+                onClick={() => conversation.setAssistantReplies(!conversation.assistantRepliesOn)}
+                className={`min-h-8 rounded-pill border px-3 py-1 text-[12px] font-semibold ${
+                  conversation.assistantRepliesOn
+                    ? "border-ink bg-ink text-paper"
+                    : "border-line bg-paper text-ink"
+                }`}
+              >
+                {conversation.assistantRepliesOn ? "On" : "Off"}
+              </button>
+            </label>
+          ) : (
+            <p className="m-0 max-w-xs text-[12px] text-quiet" data-testid="hive-assistant-unavailable-note">
+              The AI assistant replies only on hives with test documents for now.
+            </p>
+          )}
+          {conversation.assistantSwitchError ? (
+            <p role="alert" className="m-0 text-caption text-ink">
+              {conversation.assistantSwitchError.message}
+              {conversation.assistantSwitchError.reference ? (
+                <>
+                  {" "}
+                  Reference <span className="font-mono">{conversation.assistantSwitchError.reference}</span>.
+                </>
+              ) : null}
+            </p>
+          ) : null}
           <label htmlFor={previewSelectId} className="text-[13px] text-quiet">
             Preview as
           </label>
@@ -386,10 +463,25 @@ export function HiveConversation({ hiveId, initial, staffView, clientName, viewe
                         <span className="h-px flex-1 bg-cell-blue-tint" aria-hidden="true" />
                       </div>
                     ) : null}
-                    <MessageRow message={message} mine={showsAsMine(message, preview ? "client" : "self")} mounted={mounted} />
+                    <MessageRow
+                      hiveId={hiveId}
+                      message={message}
+                      mine={showsAsMine(message, preview ? "client" : "self")}
+                      mounted={mounted}
+                    />
+                    {!preview && staffView && conversation.failedAssistantForMessageIds.includes(message.id) ? (
+                      <p className="m-0 ms-11 text-[12px] text-quiet" data-testid="hive-assistant-failed-line">
+                        {conversation.assistantName} couldn&apos;t answer this one.
+                      </p>
+                    ) : null}
                   </Fragment>
                 );
               })}
+              {!preview && conversation.pendingAssistant ? (
+                <p role="status" className="m-0 text-[13px] text-quiet" data-testid="hive-assistant-typing">
+                  {conversation.assistantName} is looking through the documents…
+                </p>
+              ) : null}
               {pending.map((item) => (
                 <PendingRow
                   key={item.clientRequestId}
@@ -441,6 +533,11 @@ export function HiveConversation({ hiveId, initial, staffView, clientName, viewe
                 </p>
               ) : null}
               <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2.5">
+                {staffView ? (
+                  <p className="m-0 max-w-[520px] text-[12px] leading-[1.55] text-graphite" data-testid="hive-conversation-assistant-hint">
+                    Start a message with {conversation.assistantName} to ask the assistant.
+                  </p>
+                ) : null}
                 {staffView ? (
                   <p className="m-0 max-w-[520px] text-[12px] leading-[1.55] text-graphite" data-testid="hive-conversation-staff-note">
                     {CONVERSATION_STAFF_NOTE_LEAD}{" "}

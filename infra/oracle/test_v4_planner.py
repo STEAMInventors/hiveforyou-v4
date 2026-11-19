@@ -1121,3 +1121,29 @@ def test_planner_job_not_found(client: TestClient) -> None:
         headers={"Authorization": f"Bearer {TOKEN}", "x-correlation-id": "job-miss"},
     )
     assert response.status_code == 404
+
+
+def test_assistant_reply_listed_on_health_when_alias_set(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_ASSISTANT_LITELLM_ALIAS", "heavy_lifter")
+    response = client.get("/health", headers={"Authorization": f"Bearer {TOKEN}"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["task_model_aliases"]["assistant_reply"] == "heavy_lifter"
+
+
+def test_assistant_reply_fails_closed_without_alias(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PLANNER_ASSISTANT_LITELLM_ALIAS", raising=False)
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"intent":"route_to_team","reply":"ok","claims":[]}')))
+    response = post(
+        client,
+        body(
+            task="assistant_reply",
+            prompt_id="hive-assistant-reply/1",
+            system_prompt="Reply from briefing only.",
+            user_payload={"question": "What is this?"},
+            max_output_tokens=1500,
+        ),
+    )
+    assert response.status_code == 503
+    assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
+    assert seen == []

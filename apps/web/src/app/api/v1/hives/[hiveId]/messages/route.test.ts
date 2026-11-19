@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET, POST } from "./route";
 
-const { requireAuthenticatedUserMock, sendMock, getUserByIdMock } = vi.hoisted(() => ({
+const { requireAuthenticatedUserMock, sendMock, getUserByIdMock, processHiveAssistantReplySafelyMock } = vi.hoisted(() => ({
   requireAuthenticatedUserMock: vi.fn(),
   sendMock: vi.fn(),
   getUserByIdMock: vi.fn(),
+  processHiveAssistantReplySafelyMock: vi.fn(),
 }));
 
 vi.mock("@/server/supabase/server-client", () => ({
@@ -19,6 +20,13 @@ vi.mock("@hives/persistence/env", () => ({ loadSupabaseAdminEnv: () => ({}) }));
 vi.mock("@hives/persistence/storage/supabase-client", () => ({
   createSupabaseAdminClient: () => ({ auth: { admin: { getUserById: (id: string) => getUserByIdMock(id) } } }),
 }));
+vi.mock("@/server/hives/hive-assistant-service", () => ({
+  processHiveAssistantReplySafely: (...args: unknown[]) => processHiveAssistantReplySafelyMock(...args),
+}));
+vi.mock("next/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/server")>();
+  return { ...actual, after: (callback: () => void) => callback() };
+});
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 const CORRELATION_ID = "2eb8421a-b784-4bf8-ac2b-540299b61d13";
@@ -91,6 +99,7 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_SITE_URL = priorSiteUrl;
+    processHiveAssistantReplySafelyMock.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -119,6 +128,14 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
 
     expect(getUserByIdMock.mock.calls.map((call) => call[0]).sort()).toEqual([USER_A, USER_B].sort());
     expect(sendMock).toHaveBeenCalledTimes(2);
+    expect(processHiveAssistantReplySafelyMock).toHaveBeenCalledWith({
+      hiveId: HIVE_ID,
+      triggerMessage: expect.objectContaining({ id: ROW.id, body: SECRET_BODY }),
+      authorRole: ROW.authorRole,
+      correlationId: CORRELATION_ID,
+      userClient: expect.objectContaining({ rpc: rpcMock }),
+    });
+
     for (const [mail] of sendMock.mock.calls as [{ to: string; subject: string; text: string; html: string }][]) {
       expect(mail.subject).toBe("New message in your hive");
       expect(mail.text).toContain("There's a new message in Ortiz family.");

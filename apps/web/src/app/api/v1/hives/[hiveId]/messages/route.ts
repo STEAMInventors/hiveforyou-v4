@@ -8,7 +8,7 @@ import {
   type PostHiveMessageResponse,
 } from "@hiveforyou/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 
 import { hiveBoardPath } from "@/lib/hive-routes";
 import { sendHiveMessageNotices } from "@/server/hives/hive-message-notices";
@@ -20,7 +20,10 @@ import {
   withHttpStatus,
 } from "@/server/hives/map-conversation-rpc-error";
 import { jsonWithCorrelation, readJsonBody, withApiRoute } from "@/server/observability/with-api-route";
+import { processHiveAssistantReplySafely } from "@/server/hives/hive-assistant-service";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
+
+export const maxDuration = 60;
 
 type RouteContext = { params: Promise<{ hiveId: string }> };
 
@@ -143,6 +146,19 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
 
     const result = normalizePostHiveMessageResult(data);
     if (!result) throw malformedResponse(correlationId, CONVERSATION_SEND_FAILED);
+
+    const posterClient = auth.client;
+    if (!result.duplicate) {
+      after(() =>
+        processHiveAssistantReplySafely({
+          hiveId,
+          triggerMessage: result.message,
+          authorRole: result.message.authorRole,
+          correlationId,
+          userClient: posterClient,
+        }),
+      );
+    }
 
     if (!result.duplicate && result.notifyUserIds.length > 0) {
       await sendHiveMessageNotices({

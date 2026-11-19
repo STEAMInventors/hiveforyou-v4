@@ -77,6 +77,15 @@ export function useHiveConversation({ hiveId, initial }: { hiveId: string; initi
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [earlierError, setEarlierError] = useState<string | null>(null);
   const [change, setChange] = useState<ConversationChange>({ kind: "initial", seq: 0 });
+  const [pendingAssistant, setPendingAssistant] = useState(initialPage?.pendingAssistant ?? false);
+  const [assistantRepliesOn, setAssistantRepliesOn] = useState(initialPage?.assistantRepliesOn ?? true);
+  const [assistantAvailable, setAssistantAvailable] = useState(initialPage?.assistantAvailable ?? false);
+  const [assistantName, setAssistantName] = useState(initialPage?.assistantName ?? "HiveForYou");
+  const [failedAssistantForMessageIds, setFailedAssistantForMessageIds] = useState<readonly string[]>(
+    initialPage?.failedAssistantForMessageIds ?? [],
+  );
+  const [assistantSwitchPending, setAssistantSwitchPending] = useState(false);
+  const [assistantSwitchError, setAssistantSwitchError] = useState<WorkspaceActionFailure | null>(null);
 
   const markedUpToRef = useRef<string | null>(initialPage?.viewerLastReadAt ?? null);
   const markTimerRef = useRef<number | null>(null);
@@ -139,6 +148,11 @@ export function useHiveConversation({ hiveId, initial }: { hiveId: string; initi
       replaceMessages(merged);
       setParticipantLabels(page.participantRoleLabels);
       setParticipantCount(page.participantCount);
+      setPendingAssistant(page.pendingAssistant ?? false);
+      setAssistantRepliesOn(page.assistantRepliesOn ?? true);
+      setAssistantAvailable(page.assistantAvailable ?? false);
+      if (page.assistantName) setAssistantName(page.assistantName);
+      if (page.failedAssistantForMessageIds) setFailedAssistantForMessageIds(page.failedAssistantForMessageIds);
       if (grew) bump("poll");
     },
     [bump, replaceMessages],
@@ -322,6 +336,46 @@ export function useHiveConversation({ hiveId, initial }: { hiveId: string; initi
     setPending((items) => items.filter((item) => item.clientRequestId !== clientRequestId));
   }, []);
 
+  const setAssistantReplies = useCallback(
+    (on: boolean) => {
+      if (assistantSwitchPending) return;
+      setAssistantSwitchPending(true);
+      setAssistantSwitchError(null);
+      void fetch(`${messagesUrl(hiveId)}/assistant`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", [CORRELATION_HEADER_NAME]: crypto.randomUUID() },
+        body: JSON.stringify({ on }),
+      })
+        .then(async (response) => {
+          const body = await response.json().catch(() => null);
+          const publicError = publicErrorOf(body);
+          if (!response.ok || !body || typeof body.assistantRepliesOn !== "boolean") {
+            setAssistantSwitchError(
+              publicError
+                ? {
+                    message: publicError.message,
+                    retryable: publicError.retryable,
+                    reference: publicError.correlationId ?? null,
+                  }
+                : { message: CONVERSATION_LOAD_FAILED, retryable: true, reference: null },
+            );
+            return;
+          }
+          setAssistantRepliesOn(body.assistantRepliesOn);
+        })
+        .catch(() => {
+          setAssistantSwitchError({
+            message: CONVERSATION_LOAD_FAILED,
+            retryable: true,
+            reference: null,
+          });
+        })
+        .finally(() => setAssistantSwitchPending(false));
+    },
+    [assistantSwitchPending, hiveId],
+  );
+
   return {
     messages,
     pending,
@@ -343,5 +397,13 @@ export function useHiveConversation({ hiveId, initial }: { hiveId: string; initi
     retryLoad,
     loadEarlier,
     scheduleMarkRead,
+    pendingAssistant,
+    assistantRepliesOn,
+    assistantAvailable,
+    assistantName,
+    failedAssistantForMessageIds,
+    assistantSwitchPending,
+    assistantSwitchError,
+    setAssistantReplies,
   };
 }
