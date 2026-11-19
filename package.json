@@ -16,9 +16,11 @@
     "canonicalize": "vite-node --config apps/web/vitest.config.ts scripts/run-canonicalize.ts --",
     "write": "vite-node --config apps/web/vitest.config.ts scripts/run-write.ts --",
     "export-run": "vite-node --config apps/web/vitest.config.ts scripts/export-run.ts --",
-    "test:db-pgtap": "node scripts/run-pgtap-database.mjs"
+    "test:db-pgtap": "node scripts/run-pgtap-database.mjs",
+    "ui:shots": "node scripts/ui-shots.mjs"
   },
   "devDependencies": {
+    "playwright": "^1.51.0",
     "@types/node": "^22.10.0",
     "pdf-lib": "^1.17.1",
     "typescript": "^5.7.2",

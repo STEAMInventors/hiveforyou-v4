@@ -108,7 +108,7 @@ const HONEY_CHIP_CLASS =
   "inline-flex min-h-6 items-center gap-1 whitespace-nowrap rounded-chip border border-honey-chip-border bg-honey-wash px-[6px] py-[1px] align-baseline font-mono text-[12px] leading-none text-honey-deep hover:bg-honey-chip-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cell-blue max-sm:min-h-[44px] max-sm:px-2.5 max-sm:py-1";
 
 const WORKSPACE_CHIP_CLASS =
-  "inline-flex min-h-[22px] max-w-full min-w-0 items-center gap-1 whitespace-normal rounded-chip border-0 bg-cell-blue-wash px-[6px] py-[1px] align-baseline font-mono text-caption leading-snug text-cell-blue-deep hover:bg-cell-blue-tint focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cell-blue max-sm:min-h-11";
+  "inline-flex h-6 max-w-full min-w-0 items-center gap-1 whitespace-nowrap rounded-chip border border-line bg-paper px-1.5 align-baseline text-label font-medium text-ink-2 hover:border-line-strong hover:bg-blue-wash hover:text-blue-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue max-sm:min-h-11";
 
 export function useDocumentLabel(sourceDocumentId: string): string {
   return useEvidenceViewer().labelFor(sourceDocumentId);

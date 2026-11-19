@@ -65,10 +65,10 @@ export function messageTimeLabel(createdAt: string): string {
 
 const AVATAR_CLASS: Record<HiveMessageAuthorRole, string> = {
   client: "bg-leaf-wash text-leaf-deep",
-  staff: "bg-cell-blue-wash text-cell-blue-deep",
-  owner: "bg-cell-blue-wash text-cell-blue-deep",
-  professional: "bg-cell-blue-wash text-cell-blue-deep",
-  former: "bg-cell-blue-wash text-cell-blue-deep",
+  staff: "bg-blue-wash text-blue-deep",
+  owner: "bg-blue-wash text-blue-deep",
+  professional: "bg-blue-wash text-blue-deep",
+  former: "bg-blue-wash text-blue-deep",
   assistant: "bg-ink text-paper",
 };
 

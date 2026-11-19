@@ -14,7 +14,11 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import { WORKSPACE_PRIMARY, WORKSPACE_SECONDARY } from "@/components/button-classes";
+import { WORKSPACE_SECONDARY } from "@/components/button-classes";
+import { HiveMark } from "@/components/study/HiveMark";
+import { Button } from "@/components/ui/Button";
+import { Composer } from "@/components/ui/Composer";
+import { Segmented } from "@/components/ui/Segmented";
 import {
   avatarClassFor,
   bylineRole,
@@ -86,29 +90,27 @@ function isNearBottom(element: HTMLElement): boolean {
   return element.scrollHeight - element.scrollTop - element.clientHeight <= BOTTOM_SLACK_PX;
 }
 
-function Avatar({ name, className }: { name: string; className: string }) {
+function Avatar({
+  name,
+  className,
+  assistant,
+}: {
+  name: string;
+  className: string;
+  assistant?: boolean;
+}) {
   return (
     <span
       aria-hidden="true"
-      className={`grid h-[35px] w-[35px] flex-none place-items-center rounded-[11px] text-[12px] font-bold ${className}`}
+      className={`grid h-8 w-8 flex-none place-items-center rounded-pill text-label font-semibold ${className}`}
     >
-      {hiveMessageInitials(name)}
+      {assistant ? <HiveMark className="h-[15px] w-[15px]" /> : hiveMessageInitials(name)}
     </span>
   );
 }
 
-function bubbleClass(mine: boolean): string {
-  return `min-w-0 max-w-[650px] rounded-[13px] border px-[15px] py-3 max-[649px]:max-w-none max-[649px]:flex-1 ${
-    mine ? "border-cell-blue-tint bg-cell-blue-wash" : "border-line bg-paper"
-  }`;
-}
-
-function rowClass(mine: boolean): string {
-  return `flex items-start gap-[11px] ${mine ? "flex-row-reverse self-end" : "self-start"} max-w-full max-[649px]:w-full`;
-}
-
 const BODY_CLASS =
-  "m-0 mt-[5px] whitespace-pre-wrap break-words text-[14px] leading-[1.55] text-ink [overflow-wrap:anywhere]";
+  "m-0 mt-0.5 whitespace-pre-wrap break-words text-body text-ink [overflow-wrap:anywhere]";
 
 function MessageRow({
   hiveId,
@@ -144,16 +146,29 @@ function MessageRow({
   const showChips = chipRefs.length > 0 && (!assistant || !revealActive || revealComplete);
   const itemKey = message.sourceRefs.find((ref) => ref.itemKey)?.itemKey;
   return (
-    <article className={rowClass(mine)} data-testid="hive-message" data-mine={mine ? "true" : "false"}>
-      <Avatar name={message.authorDisplayName} className={avatarClassFor(message.authorRole)} />
-      <div className={bubbleClass(mine)}>
-        <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 text-[12px] text-quiet">
-          <strong className="text-[13px] font-semibold text-ink">{message.authorDisplayName}</strong>
+    <article
+      className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 py-3"
+      data-testid="hive-message"
+      data-mine={mine ? "true" : "false"}
+    >
+      <Avatar
+        name={message.authorDisplayName}
+        className={avatarClassFor(message.authorRole)}
+        assistant={assistant}
+      />
+      <div className="min-w-0">
+        <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-meta text-ink-3">
+          <strong className="text-small font-semibold text-ink">
+            {message.authorDisplayName}
+            {mine ? <span className="font-normal text-ink-3"> · you</span> : null}
+          </strong>
           {role ? (
             <>
               <span aria-hidden="true">·</span>
               {assistant ? (
-                <span className="rounded-pill bg-cell-blue-wash px-1.5 py-px text-[11px] font-medium text-ink">{role}</span>
+                <span className="rounded-[5px] border border-line-strong px-1.5 text-[11.5px] font-semibold text-ink-2">
+                  AI assistant
+                </span>
               ) : (
                 <span>{role}</span>
               )}
@@ -171,8 +186,8 @@ function MessageRow({
         </p>
         {showChips ? <CardChips refs={chipRefs} /> : null}
         {itemKey ? (
-          <p className="m-0 mt-2 text-[12px]">
-            <Link href={`${hiveDocumentsPath(hiveId)}#requested`} className="font-medium text-cell-blue-deep no-underline">
+          <p className="m-0 mt-2 text-label">
+            <Link href={`${hiveDocumentsPath(hiveId)}#requested`} className="font-medium text-blue-deep no-underline hover:underline">
               Documents → What we asked for
             </Link>
           </p>
@@ -211,9 +226,9 @@ function PendingRow({
 }) {
   const failed = item.status === "failed";
   return (
-    <article className={rowClass(true)} data-testid="hive-message-pending" data-status={item.status}>
+    <article className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 py-3" data-testid="hive-message-pending" data-status={item.status}>
       <Avatar name={ownName} className={ownAvatarClass} />
-      <div className={bubbleClass(true)}>
+      <div className="min-w-0">
         <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 text-[12px] text-quiet">
           <strong className="text-[13px] font-semibold text-ink">{ownName}</strong>
           <span aria-hidden="true">·</span>
@@ -227,7 +242,7 @@ function PendingRow({
               {item.failure.reference ? (
                 <>
                   {" "}
-                  Reference <span className="font-mono">{item.failure.reference}</span>.
+                  Reference <span className="tabular-nums">{item.failure.reference}</span>.
                 </>
               ) : null}
             </p>
@@ -396,43 +411,48 @@ export function HiveConversation({
     [conversation, firmless, onSwitchToConversation],
   );
 
+  const clientThreadCount =
+    conversation.messages.filter((row) => row.authorKind === "person" && !row.isMine).length || null;
+
   const head = (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-[22px] py-5 max-[649px]:p-4">
+    <header className="mb-2 flex flex-wrap items-center justify-between gap-3 py-2">
       <div className="min-w-0">
-        <h3 className="m-0 font-brand text-[20px] font-semibold leading-tight text-ink">
-          {assistantMode ? `Ask ${displayAssistantName}` : "Conversation"}
-        </h3>
         {assistantMode ? (
           readOnly && clientThreadFirstName ? (
-            <p className="m-0 mt-1 text-[13px] text-graphite" data-testid="hive-assistant-readonly-note">
+            <p className="m-0 text-meta text-ink-2" data-testid="hive-assistant-readonly-note">
               {personFirstName(clientThreadFirstName)} asked these. Only your team can see this.
             </p>
           ) : (
-            <p className="m-0 mt-1 text-[13px] text-graphite">
+            <p className="m-0 text-meta text-ink-2">
               Answers come only from the documents, with the page they&apos;re on.
             </p>
           )
         ) : (
-          <p className="m-0 mt-1 text-[13px] text-graphite" data-testid="hive-conversation-participants">
+          <p className="m-0 text-meta text-ink-2" data-testid="hive-conversation-participants">
             {participantLine(conversation.participantLabels, conversation.participantCount, false)}
           </p>
         )}
       </div>
-      {assistantMode && staffView && !firmless && clientThreadUserId && onThreadOwnerChange ? (
-        <label className="flex flex-wrap items-center gap-2 text-[13px] text-quiet">
-          Thread
-          <select
-            className="min-h-10 rounded-control border border-line bg-paper px-2.5 text-[13px] text-ink"
-            value={threadOwnerUserId ?? currentUserId ?? ""}
-            onChange={(event) => onThreadOwnerChange(event.target.value)}
-            data-testid="hive-assistant-thread-select"
-          >
-            <option value={currentUserId ?? ""}>Your questions</option>
-            <option value={clientThreadUserId}>
-              {personFirstName(clientThreadFirstName ?? clientName ?? "Client")}&apos;s questions
-            </option>
-          </select>
-        </label>
+      {assistantMode && staffView && !firmless && clientThreadUserId && onThreadOwnerChange && currentUserId ? (
+        <Segmented
+          ariaLabel="Assistant thread"
+          testId="hive-assistant-thread-select"
+          options={[
+            { id: "self", label: "Your questions" },
+            {
+              id: "client",
+              label: `${personFirstName(clientThreadFirstName ?? clientName ?? "Client")}'s questions`,
+              count: clientThreadCount,
+            },
+          ]}
+          value={
+            threadOwnerUserId?.toLowerCase() === clientThreadUserId.toLowerCase() ? "client" : "self"
+          }
+          onChange={(next) => {
+            if (next === "client") onThreadOwnerChange(clientThreadUserId);
+            else onThreadOwnerChange(currentUserId);
+          }}
+        />
       ) : null}
       {assistantMode && staffView ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -482,11 +502,11 @@ export function HiveConversation({
 
   if (conversation.unavailable) {
     return (
-      <section aria-label="Conversation" className="overflow-hidden rounded-[14px] border border-line bg-paper">
+      <section aria-label="Conversation" className="flex flex-col">
         {head}
-        <div className="flex flex-col gap-3 p-[21px]">
+        <div className="flex flex-col gap-3 py-4">
           <p className="m-0 text-body text-ink">This hive is no longer available to you.</p>
-          <Link href="/hives" className="text-small font-semibold text-cell-blue-deep no-underline">
+          <Link href="/hives" className="text-small font-semibold text-blue-deep no-underline hover:underline">
             Back to your hives
           </Link>
         </div>
@@ -497,11 +517,7 @@ export function HiveConversation({
   let previousDay: string | null = null;
 
   return (
-    <section
-      aria-label="Conversation"
-      data-testid="hive-conversation"
-      className="overflow-hidden rounded-[14px] border border-line bg-paper"
-    >
+    <section aria-label="Conversation" data-testid="hive-conversation" className="flex min-w-0 flex-col">
       {head}
       {conversation.reconnecting ? (
         <p role="status" className="m-0 border-b border-line bg-honey-wash px-[22px] py-2 text-caption text-ink">
@@ -525,7 +541,7 @@ export function HiveConversation({
               onScroll={onScroll}
               aria-live="polite"
               data-testid="hive-conversation-messages"
-              className="relative flex max-h-[570px] min-h-[345px] flex-col gap-[18px] overflow-y-auto p-[21px] max-[649px]:p-3.5"
+              className="thread relative flex max-h-[570px] min-h-[280px] flex-col gap-0 overflow-y-auto py-2"
             >
               {conversation.nextCursor ? (
                 <button
@@ -554,7 +570,10 @@ export function HiveConversation({
                 return (
                   <Fragment key={message.id}>
                     {dayChanged && now ? (
-                      <p className="m-0 self-center text-caption font-medium text-quiet" data-testid="hive-conversation-day">
+                      <p
+                        className="my-5 flex items-center gap-3 text-label text-ink-3 before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line"
+                        data-testid="hive-conversation-day"
+                      >
                         {messageDayLabel(message.createdAt, now)}
                       </p>
                     ) : null}
@@ -645,59 +664,55 @@ export function HiveConversation({
               Preview — this is what {clientFirst} sees.
             </p>
           ) : readOnly ? null : (
-            <div className="border-t border-line px-5 pb-5 pt-[17px] max-[649px]:p-[15px]">
-              <label htmlFor={composerId} className="mb-1.5 block text-[12px] font-medium text-quiet">
-                {assistantMode ? "Question" : "Message"}
-              </label>
-              <textarea
-                id={composerId}
-                ref={textareaRef}
-                value={draft}
-                maxLength={HIVE_MESSAGE_BODY_MAX}
-                rows={3}
-                placeholder={
-                  assistantMode ? `Ask ${displayAssistantName} about the documents…` : "Write a message to the conversation…"
-                }
-                onChange={(event) => {
+            <Composer
+              textareaId={composerId}
+              textareaLabel={assistantMode ? "Question" : "Message"}
+              primaryLabel={assistantMode ? "Send" : "Send"}
+              primaryDisabled={!draft.trim() || conversation.sending}
+              onPrimary={submitDraft}
+              hint={
+                assistantMode
+                  ? staffView
+                    ? `The client sees this. Start with “${displayAssistantName}” to ask the assistant.`
+                    : `${displayAssistantName} answers from your documents, or passes your question to ${teamMemberFirstName}.`
+                  : (
+                      <span data-testid="hive-conversation-people-hint">
+                        Everyone in this hive sees this.
+                        {staffView ? (
+                          <>
+                            {" "}
+                            {CONVERSATION_STAFF_NOTE_LEAD}{" "}
+                            <Link href={hiveNotesPath(hiveId)} className="font-medium text-blue-deep hover:underline">
+                              Team notes
+                            </Link>
+                            .
+                          </>
+                        ) : null}
+                      </span>
+                    )
+              }
+              footer={
+                draft.length > HIVE_MESSAGE_COUNTER_FROM ? (
+                  <p className="m-0 border-t border-line px-4 py-1 text-end text-caption text-ink-2" data-testid="hive-conversation-counter">
+                    {draft.length.toLocaleString("en-US")} / {HIVE_MESSAGE_BODY_MAX.toLocaleString("en-US")}
+                  </p>
+                ) : null
+              }
+              textareaRef={textareaRef}
+              textareaProps={{
+                value: draft,
+                maxLength: HIVE_MESSAGE_BODY_MAX,
+                rows: 2,
+                placeholder: assistantMode
+                  ? `Ask ${displayAssistantName} about the documents…`
+                  : "Write a message…",
+                onChange: (event) => {
                   setDraft(event.target.value);
                   resizeComposer();
-                }}
-                onKeyDown={onComposerKeyDown}
-                className="block min-h-[82px] w-full resize-none rounded-[12px] border border-line-strong bg-paper px-3.5 py-3 text-[14px] leading-[1.55] text-ink placeholder:text-quiet"
-              />
-              {draft.length > HIVE_MESSAGE_COUNTER_FROM ? (
-                <p className="m-0 mt-1 text-end text-caption text-graphite" data-testid="hive-conversation-counter">
-                  {draft.length.toLocaleString("en-US")} / {HIVE_MESSAGE_BODY_MAX.toLocaleString("en-US")}
-                </p>
-              ) : null}
-              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2.5">
-                {!assistantMode ? (
-                  <p className="m-0 max-w-[520px] text-[12px] leading-[1.55] text-graphite" data-testid="hive-conversation-people-hint">
-                    Everyone in this hive sees this.
-                    {staffView ? (
-                      <>
-                        {" "}
-                        {CONVERSATION_STAFF_NOTE_LEAD}{" "}
-                        <Link href={hiveNotesPath(hiveId)} className="font-medium text-cell-blue-deep">
-                          Team notes
-                        </Link>
-                        .
-                      </>
-                    ) : null}
-                  </p>
-                ) : (
-                  <span />
-                )}
-                <button
-                  type="button"
-                  className={`${WORKSPACE_PRIMARY} ms-auto`}
-                  disabled={!draft.trim() || conversation.sending}
-                  onClick={submitDraft}
-                >
-                  {assistantMode ? "Ask →" : "Send message →"}
-                </button>
-              </div>
-            </div>
+                },
+                onKeyDown: onComposerKeyDown,
+              }}
+            />
           )}
         </>
       )}

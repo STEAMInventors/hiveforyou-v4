@@ -56,10 +56,9 @@ function NavCount({
   tone?: "neutral" | "coral";
 }) {
   if (count === null) return null;
-  const toneClass =
-    tone === "coral" ? "bg-coral-wash text-coral-deep" : "bg-mist px-1.5 py-0.5 text-[11px] font-semibold text-graphite";
+  const toneClass = tone === "coral" ? "text-coral-deep" : "text-ink-3";
   return (
-    <span className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-pill px-1.5 ${toneClass}`} aria-label={ariaLabel}>
+    <span className={`ms-auto text-label font-semibold tabular-nums ${toneClass}`} aria-label={ariaLabel}>
       {count}
     </span>
   );
@@ -93,10 +92,10 @@ function NavItem({
       <Link
         href={href}
         aria-current={isActive ? "page" : undefined}
-        className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[10px] border px-3 text-small no-underline ${
+        className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-control px-2.5 text-small no-underline ${
           isActive
-            ? "border-cell-blue-wash bg-cell-blue-wash font-semibold text-cell-blue-deep"
-            : "border-line bg-paper font-medium text-ink-muted hover:bg-mist"
+            ? "bg-paper font-semibold text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgba(20,30,50,0.04)]"
+            : "font-medium text-ink-2 hover:bg-hover hover:text-ink"
         }`}
       >
         {Icon ? <Icon /> : null}
@@ -115,10 +114,10 @@ function NavItem({
       <Link
         href={href}
         aria-current={isActive ? "page" : undefined}
-        className={`flex min-h-10 items-center gap-2.5 rounded-[10px] px-2.5 text-small no-underline ${
+        className={`flex h-9 items-center gap-2.5 rounded-control px-2.5 text-small no-underline ${
           isActive
-            ? "bg-cell-blue-wash font-semibold text-cell-blue-deep"
-            : "font-medium text-ink-muted hover:bg-mist hover:text-ink"
+            ? "bg-paper font-semibold text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgba(20,30,50,0.04)]"
+            : "font-medium text-ink-2 hover:bg-hover hover:text-ink"
         }`}
       >
         {Icon ? <Icon /> : null}

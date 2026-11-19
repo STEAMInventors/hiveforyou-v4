@@ -1,14 +1,12 @@
 "use client";
 
 import {
-  hiveMessageInitials,
   shouldTriggerHiveAssistant,
   type HiveMessage,
   type HiveMessageAuthorRole,
 } from "@hiveforyou/contracts";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
-import { avatarClassFor } from "@/components/hives/hive-conversation-view";
 export const ASSISTANT_TYPING_LONG_MS = 20_000;
 export const ASSISTANT_TYPING_TIMEOUT_MS = 60_000;
 export const ASSISTANT_REVEAL_MAX_MS = 1200;
@@ -68,25 +66,17 @@ export function AssistantTypingRow({
 }) {
   const line = longWait
     ? `${assistantName} is still working on it…`
-    : `${assistantName} is looking through the documents`;
+    : `${assistantName} is looking through the documents…`;
   return (
-    <div className={rowClass(false)} data-testid="hive-assistant-typing">
-      <span
-        aria-hidden="true"
-        className={`grid h-[35px] w-[35px] flex-none place-items-center rounded-[11px] text-[12px] font-bold ${avatarClassFor("assistant")}`}
-      >
-        {hiveMessageInitials(assistantName)}
-      </span>
-      <p role="status" className="m-0 flex flex-wrap items-center text-[13px] text-quiet">
-        {line}
-        <TypingDots />
-      </p>
-    </div>
+    <p
+      role="status"
+      className="m-0 flex flex-wrap items-center gap-2 ps-11 pt-1 text-meta text-ink-3"
+      data-testid="hive-assistant-typing"
+    >
+      {line}
+      <TypingDots />
+    </p>
   );
-}
-
-function rowClass(mine: boolean): string {
-  return `flex items-start gap-[11px] ${mine ? "flex-row-reverse self-end" : "self-start"} max-w-full max-[649px]:w-full`;
 }
 
 export function useAssistantTypingPhase(waiting: boolean, startedAt: number | null): boolean {

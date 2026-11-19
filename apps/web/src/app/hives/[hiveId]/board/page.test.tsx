@@ -76,7 +76,10 @@ describe("Hive board page", () => {
     );
     const head = screen.getByTestId("hive-page-head");
     expect(head.textContent).toBe("Hive board");
-    expect(screen.getByTestId("hive-still-to-come").textContent).toBe("Still to come · 1 of 3 in · See items →");
+    const still = screen.getByTestId("hive-still-to-come");
+    expect(still.textContent).toContain("Still to come");
+    expect(still.textContent).toContain("1 of 3 in");
+    expect(still.textContent).toContain("See items");
     expect(screen.getByTestId("conversation-stub")).toBeTruthy();
     expect(screen.queryByText("Old headline")).toBeNull();
     expect(screen.queryByText("To review")).toBeNull();

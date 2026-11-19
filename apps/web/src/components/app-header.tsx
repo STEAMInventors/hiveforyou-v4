@@ -92,12 +92,12 @@ export function AppHeader({
 
   return (
     <header
-      className="sticky top-0 z-40 border-b border-line bg-paper px-[clamp(16px,3vw,28px)] py-3 [--app-header-height:57px]"
+      className="sticky top-0 z-40 flex h-top-sm min-h-top-sm items-center border-b border-line bg-paper px-[clamp(16px,3vw,40px)] min-[600px]:h-top min-[600px]:min-h-top"
       data-testid="app-header"
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 min-[900px]:flex-nowrap">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-5 gap-y-3 min-[900px]:flex-nowrap">
         <div
-          className={`flex min-h-11 shrink-0 items-center min-[900px]:w-[236px] ${
+          className={`flex min-h-11 shrink-0 items-center min-[900px]:w-rail ${
             inHive ? "max-[899px]:w-auto" : ""
           }`}
           data-testid="header-logo-column"
@@ -116,12 +116,12 @@ export function AppHeader({
         {inHive && workspace?.section && breadcrumb ? (
           <nav
             aria-label="Breadcrumb"
-            className="hidden min-w-0 flex-1 items-center text-caption text-graphite min-[900px]:flex"
+            className="hidden min-w-0 flex-1 items-center text-meta text-ink-3 min-[900px]:flex"
             data-testid="workspace-breadcrumb"
           >
             <ol className="m-0 flex min-w-0 list-none flex-wrap items-center gap-1 p-0">
               <li className="shrink-0">
-                <Link href={breadcrumb.href} className="text-cell-blue-deep no-underline hover:underline">
+                <Link href={breadcrumb.href} className="text-blue-deep no-underline hover:underline">
                   {breadcrumb.label}
                 </Link>
               </li>

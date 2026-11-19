@@ -58,7 +58,7 @@ export default async function HiveBoardPage({ params, searchParams }: BoardPageP
     <>
       {handover ? <HiveHandoverBanner handover={handover} visible /> : null}
       <HivePageHead title="Hive board" />
-      <div className="mx-auto flex w-full max-w-[940px] flex-col gap-3" data-testid="hive-board">
+      <div className="mx-auto flex w-full max-w-col-read flex-col gap-3" data-testid="hive-board">
         <HiveStillToCome hiveId={hive.id} progress={board && board.checklist.length > 0 ? board.progress : null} />
         <Suspense fallback={null}>
           <HiveBoardMessaging

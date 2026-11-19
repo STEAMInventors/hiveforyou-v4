@@ -3,6 +3,7 @@
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import type { HiveBoardConversationProps } from "@/components/hives/HiveBoardConversation";
 import { HiveBoardConversation } from "@/components/hives/HiveBoardConversation";
+import { Tabs } from "@/components/ui/Tabs";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
@@ -63,38 +64,17 @@ export function HiveBoardMessaging({
   );
 
   const tabs = !firmless ? (
-    <div
-      role="tablist"
-      aria-label="Hive board"
-      className="flex gap-2 border-b border-line px-[22px] pt-4 max-[649px]:px-4"
-      data-testid="hive-board-view-tabs"
-    >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "conversation"}
-        className={`rounded-t-control border px-4 py-2 text-[13px] font-semibold ${
-          view === "conversation"
-            ? "border-line border-b-paper bg-paper text-ink"
-            : "border-transparent bg-mist text-graphite"
-        }`}
-        onClick={() => setView("conversation")}
-      >
-        Conversation
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "ask"}
-        className={`rounded-t-control border px-4 py-2 text-[13px] font-semibold ${
-          view === "ask"
-            ? "border-line border-b-paper bg-paper text-ink"
-            : "border-transparent bg-mist text-graphite"
-        }`}
-        onClick={() => setView("ask")}
-      >
-        Ask {assistantName}
-      </button>
+    <div data-testid="hive-board-view-tabs">
+      <Tabs
+        ariaLabel="Hive board"
+        className="mb-2"
+        options={[
+          { id: "conversation" as const, label: "Conversation" },
+          { id: "ask" as const, label: `Ask ${assistantName}` },
+        ]}
+        value={view}
+        onChange={setView}
+      />
     </div>
   ) : null;
 
