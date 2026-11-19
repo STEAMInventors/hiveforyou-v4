@@ -102,13 +102,21 @@ export function extractSection(markdown: string, heading: string, untilEnd = fal
   return section;
 }
 
-function promptsRoot(cwd: string): string {
-  for (const candidate of [path.join(cwd, "../../prompts"), path.join(cwd, "prompts")]) {
-    if (existsSync(path.join(candidate, STUDY_TEMPLATE_FILE))) {
+const PROMPTS_ROOT_CANDIDATES = (cwd: string): readonly string[] =>
+  [path.join(cwd, "../../prompts"), path.join(cwd, "prompts")] as const;
+
+/** Resolves the repo `prompts/` root for `cwd`, requiring `relativePath` to exist under a candidate. */
+export function resolvePromptsRoot(relativePath: string, cwd: string = process.cwd()): string {
+  for (const candidate of PROMPTS_ROOT_CANDIDATES(cwd)) {
+    if (existsSync(path.join(candidate, relativePath))) {
       return candidate;
     }
   }
-  throw new Error("prompt_files_missing");
+  throw new Error(`prompt_file_missing:${relativePath}`);
+}
+
+function promptsRoot(cwd: string): string {
+  return resolvePromptsRoot(STUDY_TEMPLATE_FILE, cwd);
 }
 
 function readPromptId(markdown: string, expectedId: string): void {

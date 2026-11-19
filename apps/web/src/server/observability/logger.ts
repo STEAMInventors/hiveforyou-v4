@@ -296,6 +296,9 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "pack_index_unreadable",
   "pack_file_parse_failed",
   "pack_pinned_version_not_found",
+  "prompt_unavailable",
+  "model_failed",
+  "invalid_output",
 ]);
 
 const ALLOWED_EXCEPTION_TYPES = new Set([

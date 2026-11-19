@@ -11,7 +11,12 @@ export function createDefaultChecklistTailorModelRunner(deps?: Partial<PlannerDe
   const plannerDeps: PlannerDeps = { getConfig, fetchFn: deps?.fetchFn };
 
   return async (input) => {
-    const prompt = loadChecklistTailorPrompt();
+    let prompt;
+    try {
+      prompt = loadChecklistTailorPrompt();
+    } catch {
+      return { ok: false as const, reason: "prompt_unavailable" as const };
+    }
     const registry = MODEL_REGISTRY.checklist_tailor;
     const correlationId = input.correlationId;
     try {
@@ -31,7 +36,7 @@ export function createDefaultChecklistTailorModelRunner(deps?: Partial<PlannerDe
         timeoutMs: registry.timeoutMs,
       });
       const content = result.contentJson;
-      if (!content || typeof content !== "object") return { ok: false };
+      if (!content || typeof content !== "object") return { ok: false as const, reason: "model_failed" as const };
       return {
         ok: true,
         output: content as never,
@@ -39,7 +44,7 @@ export function createDefaultChecklistTailorModelRunner(deps?: Partial<PlannerDe
         latencyMs: result.latencyMs,
       };
     } catch {
-      return { ok: false };
+      return { ok: false as const, reason: "model_failed" as const };
     }
   };
 }
