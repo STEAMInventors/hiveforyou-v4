@@ -1,15 +1,396 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HiveForYou — The complicated, made simple.</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4&display=swap" rel="stylesheet">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HiveForYou — prototype v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Outfit:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap" rel="stylesheet">
 <style>
-:root{--blue:#3B7CF6;--deep:#1A56C4;--coral:#EF5143;--honey:#F6B826;--leaf:#2FA35A;--ink:#1F2328;--graph:#4A525C;--muted:#6B737D;--line:#E3E6EA;--mist:#F4F6F8;--paper:#fff;--shadow:0 12px 40px rgba(27,43,68,.055)}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:white;color:var(--ink);font:15px/1.55 'DM Sans',sans-serif}button,input,textarea,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-offset:3px}h1,h2,h3,h4{font-family:Outfit,sans-serif;letter-spacing:-.025em;line-height:1.2;margin:0;font-weight:600}h1{font-size:clamp(36px,5vw,64px)}h2{font-size:30px}h3{font-size:21px}h4{font-size:16px}p{margin:0}a{color:var(--deep)}.muted{color:var(--muted)}.sub{color:var(--graph)}.small{font-size:13px}.tiny{font-size:12px}.mono{font-family:'JetBrains Mono',monospace}.hidden{display:none!important}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 17px;min-height:42px;border-radius:11px;border:1px solid var(--line);background:white;color:var(--ink);font-weight:600;font-size:14px;white-space:nowrap;transition:.15s}.btn:hover{background:#F5F7FA;border-color:#CED7E4}.btn.primary{color:white;background:var(--deep);border-color:var(--deep)}.btn.primary:hover{background:#1646A1}.btn.ghost{border-color:transparent;background:transparent}.btn.ghost:hover{background:var(--mist)}.btn.sm{min-height:34px;padding:6px 11px;font-size:13px}.btn.round{border-radius:999px}.brand{display:inline-flex;align-items:center;gap:11px;font-family:Outfit;font-size:24px;letter-spacing:-.04em;white-space:nowrap}.brand strong{font-weight:600}.brand span{font-weight:400}.mark{width:35px;height:39px;flex:none}.mark polygon{stroke:white;stroke-width:2.5;stroke-linejoin:round}.topbar{height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 clamp(20px,4vw,64px);border-bottom:1px solid var(--line);background:white;position:sticky;top:0;z-index:30}.top-actions,.flex,.actions{display:flex;align-items:center;gap:10px}.flex.wrap{flex-wrap:wrap}.flex.between{justify-content:space-between}.grow{flex:1;min-width:0}.icon{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}.nav-text{border:none;background:none;padding:10px;color:var(--graph);font-weight:600}.nav-text:hover{color:var(--deep)}.page{max-width:1220px;padding:42px 24px 80px;margin:auto}.hero{max-width:910px;margin:0 auto;padding:94px 0 60px;text-align:center}.hero .brand{justify-content:center;margin-bottom:29px}.hero h1{letter-spacing:-.042em}.hero .lead{font-size:19px;color:var(--graph);margin:18px auto 36px;max-width:590px}.intent-ring{padding:2px;border-radius:20px;background:linear-gradient(100deg,var(--blue) 0 27%,var(--coral) 27% 51%,var(--honey) 51% 76%,var(--leaf) 76%);box-shadow:0 8px 28px rgba(44,83,146,.08)}.intent-inner{background:white;border-radius:18px;min-height:70px;display:flex;align-items:center;gap:12px;padding:8px 9px 8px 22px}.intent-inner input{border:none;outline:none;min-width:0;flex:1;font-size:17px;background:transparent}.intent-inner input:focus{outline:none}.intent-inner button{width:51px;height:51px;border-radius:14px;border:0;background:var(--deep);color:white;font-size:23px}.examples{margin:22px 0;display:flex;flex-wrap:wrap;justify-content:center;gap:10px}.pill{border:1px solid var(--line);background:var(--mist);border-radius:99px;padding:9px 15px;font-size:13px;font-weight:600;color:var(--graph)}.pill:hover{background:#E8F0FE;color:var(--deep)}.eyebrow{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.03em}.feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:45px}.feature{border:1px solid var(--line);border-radius:20px;padding:28px;background:white}.feature svg{width:26px;height:26px;color:var(--deep);margin-bottom:24px}.feature h3{margin-bottom:8px}.feature p{color:var(--graph);font-size:14px}.trust{margin-top:38px;text-align:center;color:var(--graph);font-size:13px}.header-title{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;margin-bottom:28px}.header-title p{color:var(--graph);margin-top:7px}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.card{border:1px solid var(--line);background:white;border-radius:17px;padding:22px;box-shadow:0 1px 3px rgba(10,24,43,.018)}.card.hover{cursor:pointer;transition:.15s}.card.hover:hover{border-color:#9CB7EF;box-shadow:var(--shadow);transform:translateY(-1px)}.card h3{margin-bottom:8px}.card .footer{padding-top:18px;margin-top:20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}.badge{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;background:var(--mist);border-radius:6px;font-weight:600;font-size:12px;color:var(--graph)}.badge.blue{background:#E8F0FE;color:var(--deep)}.badge.coral{background:#FDEDEB;color:#B33A2E}.badge.honey{background:#FEF3D6;color:#7A5200}.badge.green{background:#E6F4EA;color:#197040}.dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}.shell{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:calc(100vh - 76px)}.sidebar{border-right:1px solid var(--line);padding:25px 13px;background:#FCFCFD;position:sticky;top:76px;height:calc(100vh - 76px);overflow-y:auto}.sidenav{display:flex;flex-direction:column;gap:4px}.sidenav button{display:flex;align-items:center;gap:11px;width:100%;background:transparent;border:0;border-radius:10px;text-align:left;padding:11px 12px;color:var(--graph);font-weight:600;font-size:14px}.sidenav button.active{background:#E8F0FE;color:var(--deep)}.sidenav button:hover:not(.active){background:var(--mist)}.sidefoot{border-top:1px solid var(--line);padding:20px 12px;margin-top:30px}.workspace{min-width:0;background:#FAFBFC;padding:31px clamp(20px,3vw,45px) 85px}.workspace-inner{max-width:1150px;margin:0 auto}.crumb{color:var(--muted);font-size:13px;margin-bottom:19px}.crumb button{border:0;background:none;color:var(--deep);padding:0}.ws-title{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:23px}.ws-title h2{font-size:29px}.ws-title p{margin-top:6px;color:var(--graph)}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:24px}.stat{background:white;border:1px solid var(--line);border-radius:14px;padding:17px}.stat strong{display:block;font:600 27px/1.2 Outfit;margin:8px 0 1px}.stat .eyebrow{font-size:12px}.state-stripe{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}.state-stripe .badge{padding:7px 11px}.cols{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(270px,1fr);gap:18px}.stack{display:flex;flex-direction:column;gap:18px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:17px}.section-head h3{font-size:20px}.rowitem{display:flex;align-items:flex-start;gap:12px;padding:15px 0;border-top:1px solid var(--line)}.rowitem:first-of-type{border-top:0}.rowitem .content{flex:1;min-width:0}.rowitem strong{font-size:14px}.rowitem p{font-size:13px;color:var(--graph);margin:5px 0}.file-icon{width:39px;height:43px;border-radius:9px;background:#E8F0FE;color:var(--deep);display:grid;place-items:center;flex:none}.file-icon svg{width:21px;height:21px}.source{border:1px solid #E9CF8B;background:#FFF4D9;color:#755000;border-radius:6px;padding:4px 7px;font:500 11px 'JetBrains Mono',monospace;cursor:pointer;display:inline-flex;align-items:center;margin:3px 5px 3px 0;white-space:nowrap}.source:hover{background:#FBE6AC}.source.disabled{opacity:.6;cursor:default}.question{padding:15px;border:1px solid var(--line);border-radius:11px;margin:9px 0}.question p{font-size:14px}.question .small{margin-top:8px}.space{height:14px}.askbar{display:flex;gap:9px;align-items:center;border:1px solid #BBCBE5;background:white;border-radius:15px;padding:7px;margin:0 0 24px}.askbar input{border:0;flex:1;min-width:0;outline:none;padding:8px 12px;font-size:15px}.tabs{display:flex;gap:7px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:13px;margin-bottom:22px}.tabs button{border:1px solid transparent;background:transparent;padding:8px 14px;border-radius:9px;font-weight:600;color:var(--graph)}.tabs button.active{background:#E8F0FE;color:var(--deep)}.tabs button:hover{border-color:var(--line)}.data-table{width:100%;border-collapse:collapse;font-size:13px}.data-table th{text-align:left;color:var(--muted);font-size:12px;background:#F8F9FB;font-weight:600;padding:12px 10px}.data-table td{border-top:1px solid var(--line);padding:13px 10px;vertical-align:top}.data-table tr:hover td{background:#FBFCFE}.scrolltable{overflow:auto}.table-action{padding:0;background:none;border:0;color:var(--deep);font-weight:600;text-align:left}.matrix-cell{width:100%;height:31px;border-radius:6px;border:0;display:flex;justify-content:center;align-items:center;font-size:12px;font-weight:700}.matrix-cell.complete{background:#E6F4EA;color:#197040}.matrix-cell.partial,.matrix-cell.unknown{background:#FEF3D6;color:#7A5200}.matrix-cell.gap{background:#FDEDEB;color:#B33A2E}.matrix-cell:hover{outline:2px solid var(--deep)}.timeline{position:relative;padding-left:20px;border-left:2px solid #D8E2F4;margin-left:10px}.event{position:relative;padding:1px 0 20px 14px}.event:before{content:'';position:absolute;left:-26px;top:5px;height:10px;width:10px;background:white;border:2px solid var(--blue);border-radius:50%}.event strong{font-size:12px;color:var(--deep)}.event p{margin-top:5px}.focusbox{border-left:3px solid var(--blue);padding:14px 17px;background:#F6F9FF;border-radius:0 10px 10px 0}.empty{padding:40px 20px;text-align:center}.empty h3{margin:10px 0}.report-paper{background:white;border:1px solid var(--line);box-shadow:0 15px 38px rgba(21,35,54,.045);padding:clamp(22px,5vw,50px);border-radius:10px;max-width:850px;margin:18px auto}.report-paper h2{margin:9px 0 17px}.report-paper h3{margin:32px 0 12px;font-size:18px}.report-paper p{margin:8px 0}.report-paper .summary{font-size:17px;line-height:1.8;color:var(--graph)}.divider{height:1px;background:var(--line);margin:19px 0}.panel-backdrop{position:fixed;inset:0;background:rgba(13,24,42,.32);z-index:60;display:flex;justify-content:flex-end}.drawer{width:min(560px,100%);height:100%;background:white;box-shadow:-15px 0 70px rgba(20,30,45,.16);overflow-y:auto;padding:26px}.drawer-header{display:flex;justify-content:space-between;align-items:center;gap:15px;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:20px}.docpage{background:#fff;border:1px solid #DCE1E7;box-shadow:0 10px 20px #1722320b;min-height:340px;padding:33px 28px;margin:16px 0}.quote{font:18px/1.6 'Source Serif 4',serif;color:var(--ink);padding:17px;background:#FFF5DD;border-left:3px solid var(--honey);margin:16px 0}.formfield{display:block;margin:15px 0}.formfield span{display:block;font-size:13px;font-weight:600;margin-bottom:6px}.formfield input,.formfield textarea,.formfield select{width:100%;border:1px solid #CAD2DC;border-radius:9px;padding:10px 12px;background:white;min-height:43px}.formfield textarea{min-height:90px}.notice{padding:13px 15px;border:1px solid #D5E2F6;background:#F6F9FF;border-radius:10px;color:var(--graph);font-size:13px}.toast{position:fixed;bottom:24px;right:24px;max-width:420px;padding:13px 18px;color:white;background:#25374D;border-radius:12px;box-shadow:var(--shadow);z-index:90;font-size:13px}.step{display:flex;gap:12px;margin-top:14px}.step .num{width:29px;height:29px;display:grid;place-items:center;background:#E8F0FE;color:var(--deep);font-weight:700;border-radius:50%;flex:none}.demo-label{background:#FEF3D6;color:#7A5200;font-weight:600;font-size:11px;padding:6px 9px;border-radius:999px}.mobile-nav{display:none}.footer-site{border-top:1px solid var(--line);padding:24px;color:var(--muted);font-size:12px;text-align:center}.separator{border:0;border-top:1px solid var(--line);margin:18px 0}@media(max-width:1100px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:840px){.shell{grid-template-columns:1fr}.sidebar{height:auto;position:static;border-right:0;border-bottom:1px solid var(--line);padding:8px;overflow-x:auto}.sidenav{flex-direction:row}.sidenav button{width:auto;white-space:nowrap}.sidefoot{display:none}.cols{grid-template-columns:1fr}.feature-grid{grid-template-columns:1fr}.hero{padding-top:54px}.topbar{height:66px}.top-actions .nav-text{display:none}}@media(max-width:580px){.cards,.stats{grid-template-columns:1fr}.workspace{padding:21px 15px 55px}.page{padding:22px 17px 55px}.hero{padding:42px 0}.hero h1{font-size:37px}.hero .lead{font-size:16px}.intent-inner{padding-left:12px}.intent-inner input{font-size:14px}.topbar{padding:0 16px}.brand{font-size:20px}.top-actions .btn{padding:8px 11px}.ws-title h2{font-size:25px}.drawer{padding:18px}.report-paper{padding:20px}.hide-mobile{display:none!important}}@media print{.topbar,.sidebar,.tabs,.actions,.btn,.source,.askbar,.state-stripe{display:none!important}.shell{display:block}.workspace{background:white;padding:0}.report-paper{border:0;box-shadow:none;margin:0;max-width:none}.page{padding:0}}
-.side-group{margin-bottom:15px}.side-group-label{font-size:11px;font-weight:600;color:var(--muted);padding:14px 12px 7px;letter-spacing:.015em}.sidenav button[aria-current="page"]{background:#E8F0FE;color:var(--deep)}.sidenav button .icon{width:18px;height:18px;flex:none}.sidefoot .btn{justify-content:flex-start}
-/* Hive board: shared conversation and Sarah onboarding assistant */
-.board-layout{display:block}.board-thread{padding:0;overflow:hidden}.board-thread-head{padding:20px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.board-thread-head h3{font-size:20px}.board-messages{padding:21px;display:flex;flex-direction:column;gap:18px;min-height:345px;max-height:570px;overflow:auto;background:linear-gradient(180deg,#fff,#FCFDFE)}.board-msg{display:flex;align-items:flex-start;gap:11px;max-width:93%}.board-msg.mine{align-self:flex-end;flex-direction:row-reverse}.board-avatar{flex:none;width:35px;height:35px;border-radius:11px;display:grid;place-items:center;font-weight:700;font-size:12px;background:#E8F0FE;color:var(--deep)}.board-avatar.sarah{background:#1F2328;color:#fff}.board-avatar.client{background:#E6F4EA;color:#197040}.board-avatar.staff{background:#E8F0FE;color:#1A56C4}.board-bubble{padding:12px 15px;border:1px solid var(--line);border-radius:13px;background:#fff;max-width:650px;min-width:0}.board-msg.mine .board-bubble{background:#F0F5FF;border-color:#C9DBFC}.board-bubble p{white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0;font-size:14px;line-height:1.55}.board-byline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.board-byline strong{color:var(--ink);font-size:13px}.board-composer{padding:17px 20px 20px;border-top:1px solid var(--line);background:white}.board-composer textarea{border:1px solid #CCD7E6;border-radius:12px;padding:12px 14px;min-height:82px;width:100%;resize:vertical;background:#fff;font-size:14px}.board-composer-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;flex-wrap:wrap}.board-actor{border:1px solid var(--line);border-radius:9px;padding:8px;background:white;color:var(--ink);font-size:13px}.board-subtitle{font-size:13px;color:var(--muted)}.board-suggestions{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px}.board-suggestions button{background:#F4F6F8;border:1px solid var(--line);padding:7px 10px;border-radius:9px;color:var(--graph);font-size:12px}.board-suggestions button:hover{background:#E8F0FE;color:var(--deep)}.board-side .card{padding:20px}.board-list{display:flex;flex-direction:column;gap:0;margin-top:11px}.board-list-item{display:flex;gap:10px;padding:12px 0;border-top:1px solid var(--line);align-items:flex-start}.board-list-item:first-child{border-top:0}.board-list-item p{font-size:12px;color:var(--graph);margin:3px 0}.board-mini{height:27px;width:27px;display:grid;place-items:center;border-radius:9px;background:#F1F5FB;color:var(--deep);flex:none}.board-note{font-size:12px;line-height:1.55;color:var(--graph)}.board-request{background:#F9FAFC;border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-top:10px}.board-request strong{font-size:13px}.board-request p{font-size:12px;color:var(--graph);margin:5px 0}.board-actor-readout{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.board-actor-readout select{max-width:230px}.board-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.board-promptbar{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}.board-promptbar button{border:1px solid var(--line);background:white;border-radius:9px;padding:7px 10px;color:var(--deep);font-size:12px;font-weight:600}@media(max-width:1080px){.board-layout{grid-template-columns:1fr}.board-side{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.board-side .card{margin:0}}@media(max-width:650px){.board-side{display:flex;flex-direction:column}.board-messages{padding:14px}.board-msg{max-width:100%}.board-thread-head{padding:16px}.board-composer{padding:15px}}
+/* HiveForYou design system — prototype v2 ("calm document desk"). Tokens mirror docs/DESIGN.md. */
+:root {
+  --ink: #1b1f24;
+  --ink-2: #454d57;
+  --ink-3: #6b737d;
+  --line: #e7e9ec;
+  --line-strong: #d6dade;
+  --paper: #ffffff;
+  --canvas: #f7f8fa;
+  --hover: #f3f4f6;
 
-/* Findings: a single evidence-led page without tabs or nested navigation */
-.finding-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin:0 0 20px;flex-wrap:wrap}.finding-intro h3{font-size:25px;margin:6px 0}.finding-intro p{max-width:660px}.finding-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:13px;margin-bottom:20px}.finding-metric{padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:white;display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0}.finding-metric strong{font:600 23px/1.2 Outfit,sans-serif;overflow-wrap:anywhere}.finding-metric .source{margin-top:3px}.finding-topics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;align-items:start}.finding-topic{min-width:0}.finding-topic .section-head{margin-bottom:8px}.finding-fact{padding:15px 0;border-top:1px solid var(--line)}.finding-fact:first-of-type{border-top:0}.finding-fact p{font-size:14px;line-height:1.6;margin-bottom:8px}.finding-related{border-top:1px solid var(--line);margin-top:7px;padding-top:17px}.finding-open{border-left:3px solid var(--honey);padding:10px 0 12px 14px;margin-top:12px;background:linear-gradient(90deg,#FFF9EC,transparent)}.finding-open-title{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px}.finding-open-title strong{font-size:14px}.finding-open>p{margin:8px 0}.finding-explore{margin-top:25px}.finding-explore h3{font-size:20px}.finding-detail{background:white;border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden}.finding-detail summary{cursor:pointer;padding:18px 21px;font-weight:600;display:flex;justify-content:space-between;gap:16px;align-items:center}.finding-detail summary:hover{background:#F8FAFD}.finding-detail summary:focus-visible{outline:3px solid var(--blue);outline-offset:-3px}.finding-detail-hint{color:var(--muted);font-size:12px;font-weight:400;text-align:right}.finding-detail-body{padding:0 16px 16px}.finding-detail-body>.card{box-shadow:none;border:0;padding:12px 3px}.finding-detail-body .timeline{margin-top:15px}@media(max-width:900px){.finding-topics{grid-template-columns:1fr}}@media(max-width:580px){.finding-detail summary{flex-direction:column;align-items:flex-start;gap:2px}.finding-detail-hint{text-align:left}}
-</style></head><body><div id="app"></div><script>
+  --blue: #3b7cf6;
+  --blue-deep: #1a56c4;
+  --blue-wash: #eef3fe;
+  --coral: #ef5143;
+  --coral-deep: #b3392d;
+  --coral-wash: #fdf0ee;
+  --honey: #f6b826;
+  --honey-deep: #7a5200;
+  --honey-wash: #fef6e0;
+  --leaf: #2fa35a;
+  --leaf-deep: #1d7a42;
+  --leaf-wash: #eaf5ee;
+
+  --font-display: "Outfit", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --font-page: "Source Serif 4", Georgia, serif;
+
+  --r-control: 8px;
+  --r-surface: 12px;
+  --shadow-pop: 0 12px 32px -8px rgba(20, 30, 50, 0.18), 0 2px 6px rgba(20, 30, 50, 0.06);
+
+  --col-read: 760px;
+  --col-wide: 1040px;
+  --top-h: 60px;
+  --rail-w: 240px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 15px/1.6 var(--font-body);
+  font-feature-settings: "tnum" 0;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: #cfe0fd; color: var(--ink); }
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+a { color: var(--blue-deep); text-underline-offset: 3px; }
+h1, h2, h3, h4 { margin: 0; font-family: var(--font-display); font-weight: 600; color: var(--ink); text-wrap: balance; }
+p { margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Type scale: title 30 · section 19 · item 15/600 · body 15 · meta 13 · label 12.5 */
+.t-title { font-size: 30px; line-height: 1.15; letter-spacing: -0.02em; }
+.t-section { font-size: 19px; line-height: 1.3; letter-spacing: -0.01em; }
+.t-item { font: 600 15px/1.45 var(--font-body); }
+.t-meta { font-size: 13px; line-height: 1.5; color: var(--ink-3); }
+.t-lead { font-size: 15px; color: var(--ink-2); }
+.muted { color: var(--ink-3); }
+
+/* Buttons: one primary per screen; secondary bordered; text = link-style */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 36px; padding: 0 14px; border-radius: var(--r-control);
+  border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink);
+  font-weight: 600; font-size: 14px; white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.btn:hover { background: var(--hover); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.primary { background: var(--blue-deep); border-color: var(--blue-deep); color: #fff; }
+.btn.primary:hover { background: #1647a3; }
+.btn.text { border-color: transparent; background: transparent; color: var(--blue-deep); padding: 0 6px; height: 32px; }
+.btn.text:hover { background: var(--blue-wash); }
+.btn.quiet { border-color: transparent; background: transparent; color: var(--ink-2); }
+.btn.quiet:hover { background: var(--hover); color: var(--ink); }
+.btn.sm { height: 30px; padding: 0 10px; font-size: 13px; }
+.icon { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.btn .icon { width: 16px; height: 16px; }
+
+/* Status = dot + word (never a filled pill) */
+.status { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.status.blue { color: var(--blue-deep); }
+.status.coral { color: var(--coral-deep); }
+.status.honey { color: var(--honey-deep); }
+.status.honey::before { background: var(--honey); }
+.status.leaf { color: var(--leaf-deep); }
+.status.grey { color: var(--ink-3); }
+
+/* Source reference: the signature element, quiet until touched */
+.refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ref {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  height: 24px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--paper); color: var(--ink-2); font-size: 12.5px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.ref svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 1.8; fill: none; flex: none; opacity: 0.7; }
+.ref:hover { background: var(--blue-wash); border-color: #c9d9fb; color: var(--blue-deep); }
+.ref .pg { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ref:hover .pg { color: var(--blue-deep); }
+
+/* Top bar */
+.topbar {
+  position: sticky; top: 0; z-index: 30; height: var(--top-h);
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: rgba(255,255,255,0.92); backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: inline-flex; align-items: center; gap: 9px; border: 0; background: none; padding: 0; font-family: var(--font-display); font-size: 20px; letter-spacing: -0.035em; color: var(--ink); }
+.brand strong { font-weight: 600; }
+.brand span { font-weight: 400; }
+.mark { width: 24px; height: 30px; flex: none; }
+.mark polygon { stroke: #fff; stroke-width: 2.5; stroke-linejoin: round; }
+.topnav { display: flex; align-items: center; gap: 4px; }
+.topnav .btn.quiet { height: 34px; }
+.demo-tag { margin-left: 8px; font-size: 12px; font-weight: 500; color: var(--honey-deep); background: var(--honey-wash); border-radius: 6px; padding: 3px 8px; }
+.avatar-me { width: 30px; height: 30px; border-radius: 50%; background: var(--blue-wash); color: var(--blue-deep); display: grid; place-items: center; font-size: 12px; font-weight: 600; margin-left: 8px; }
+
+/* Hive shell */
+.shell { background: linear-gradient(to right, var(--canvas) calc(var(--rail-w) - 1px), var(--line) calc(var(--rail-w) - 1px), var(--line) var(--rail-w), var(--paper) var(--rail-w)); display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); min-height: calc(100vh - var(--top-h)); }
+.rail { position: sticky; top: var(--top-h); align-self: start; height: calc(100vh - var(--top-h)); overflow-y: auto; border-right: 1px solid var(--line); background: var(--canvas); padding: 20px 12px; display: flex; flex-direction: column; }
+.hivecard { display: flex; gap: 10px; padding: 4px 8px 18px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.hive-initials { width: 34px; height: 34px; border-radius: 9px; background: var(--paper); border: 1px solid var(--line); display: grid; place-items: center; font: 600 13px var(--font-display); color: var(--ink-2); flex: none; }
+.hivecard .name { font: 600 14px/1.3 var(--font-body); }
+.hivecard .purpose { font-size: 12.5px; line-height: 1.4; color: var(--ink-3); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.railnav { display: flex; flex-direction: column; gap: 2px; }
+.railnav button {
+  display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 10px;
+  border: 0; border-radius: var(--r-control); background: transparent; color: var(--ink-2);
+  font-size: 14px; font-weight: 500; text-align: left;
+}
+.railnav button:hover { background: var(--hover); color: var(--ink); }
+.railnav button[aria-current="page"] { background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(20,30,50,0.04); }
+.railnav button[aria-current="page"] .icon { color: var(--blue-deep); }
+.railnav .count { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.railnav .count.alert { color: var(--coral-deep); }
+.railnav .staff { margin-left: auto; font-size: 11.5px; color: var(--ink-3); }
+.railfoot { margin-top: auto; padding: 16px 10px 4px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+.railfoot strong { color: var(--ink-2); font-weight: 600; }
+
+.main { min-width: 0; padding: 28px 40px 96px; }
+.col { max-width: var(--col-read); margin: 0 auto; }
+.col.wide { max-width: var(--col-wide); }
+.crumb { font-size: 13px; color: var(--ink-3); margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.crumb button { border: 0; background: none; padding: 0; color: var(--ink-3); }
+.crumb button:hover { color: var(--blue-deep); text-decoration: underline; text-underline-offset: 3px; }
+.pagehead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 20px; margin-bottom: 8px; }
+.pagehead p { margin-top: 6px; color: var(--ink-2); }
+.pagehead .actions { display: flex; gap: 8px; flex: none; }
+
+/* Sections: space and a rule, not boxes */
+.section { padding-top: 36px; }
+.section > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--ink); }
+.section > header .t-meta { white-space: nowrap; }
+.rows > * { border-bottom: 1px solid var(--line); }
+.row { padding: 16px 0; }
+.row p { color: var(--ink); }
+
+.metaline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; color: var(--ink-3); }
+.metaline > * + *::before { content: ""; display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: var(--line-strong); margin-right: 14px; vertical-align: middle; }
+
+/* At a glance: a definition row, not hero tiles */
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 24px; }
+.glance > div { padding: 14px 16px 14px 0; }
+.glance > div + div { padding-left: 16px; border-left: 1px solid var(--line); }
+.glance dt { font-size: 12.5px; color: var(--ink-3); }
+.glance dd { margin: 2px 0 0; font: 600 20px/1.3 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.glance .sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+
+/* Open items list */
+.item { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 16px 0; }
+.item .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.item .detail { grid-column: 1; color: var(--ink-2); font-size: 14px; }
+.item .side { grid-row: 1 / span 3; grid-column: 2; align-self: start; }
+.item .refs { grid-column: 1; }
+
+/* Statements */
+.topic { padding-top: 28px; }
+.topic h3 { font: 600 15px/1.4 var(--font-body); display: flex; align-items: center; gap: 12px; }
+.statement { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.statement:last-child { border-bottom: 0; }
+.statement p { font-size: 15px; }
+
+/* Long pages: counts, "show all", filter, on-this-page */
+.count-h { font: 500 13px var(--font-body); color: var(--ink-3); margin-left: 6px; }
+.more-btn { margin: 8px 0 0 -6px; }
+.findbar { display: flex; gap: 8px; margin-top: 28px; }
+.filterbox { flex: 1; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--paper); color: var(--ink-3); }
+.filterbox:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,124,246,0.15); }
+.filterbox input { flex: 1; height: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 14px; color: var(--ink); }
+.filterbox .icon { width: 15px; height: 15px; }
+.jump select { height: 38px; border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--paper); padding: 0 10px; font-size: 14px; }
+.withtoc { display: grid; grid-template-columns: minmax(0, 1fr); }
+.withtoc > .col { min-width: 0; width: 100%; }
+.seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg button { flex: none; }
+.toc { display: none; }
+@media (min-width: 1280px) {
+  .withtoc { grid-template-columns: minmax(0, 1fr) 200px; gap: 40px; max-width: calc(var(--col-read) + 240px); margin: 0 auto; }
+  .withtoc > .col { margin: 0; }
+  .toc { display: block; position: sticky; top: calc(var(--top-h) + 28px); align-self: start; padding-top: 150px; font-size: 13px; }
+  .toc-title { font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+  .toc a { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0 5px 10px; border-left: 2px solid var(--line); color: var(--ink-3); text-decoration: none; line-height: 1.35; }
+  .toc a:hover { color: var(--ink); }
+  .toc a[aria-current] { border-left-color: var(--blue-deep); color: var(--ink); font-weight: 600; }
+  .jump { display: none; }
+}
+
+/* Two-column rows (date or label, then content) */
+.trow { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; }
+.trow > * { min-width: 0; }
+
+/* Disclosures */
+details.more { border-bottom: 1px solid var(--line); }
+details.more > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 2px; cursor: pointer; font-weight: 600; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary .icon { transition: transform 160ms ease; color: var(--ink-3); }
+details.more[open] > summary .icon { transform: rotate(90deg); }
+details.more > summary .t-meta { font-weight: 400; margin-left: auto; }
+details.more .body { padding: 4px 0 24px; }
+
+/* Tables */
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th { text-align: left; font-size: 12.5px; font-weight: 500; color: var(--ink-3); padding: 10px 12px 10px 0; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+.table td { padding: 14px 12px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table tr:last-child td { border-bottom: 1px solid var(--line); }
+.table td.n, .table th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.table .cell-sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+.table tbody tr:hover td { background: #fafbfc; }
+.scrollx { overflow-x: auto; }
+
+/* Segmented control */
+.seg { display: inline-flex; padding: 3px; border-radius: 9px; background: var(--hover); gap: 2px; }
+.seg button { height: 30px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(20,30,50,0.08), 0 0 0 1px var(--line); }
+
+/* Conversation */
+.still { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink-2); }
+.still .bar { flex: 1; max-width: 160px; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.still .bar span { display: block; height: 100%; background: var(--leaf); }
+.thread { padding: 8px 0 24px; }
+.dateline { display: flex; align-items: center; gap: 12px; margin: 20px 0 8px; font-size: 12.5px; color: var(--ink-3); }
+.dateline::before, .dateline::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.msg { display: grid; grid-template-columns: 32px 1fr; gap: 12px; padding: 12px 0; }
+.av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+.av.client { background: var(--leaf-wash); color: var(--leaf-deep); }
+.av.staff { background: var(--blue-wash); color: var(--blue-deep); }
+.av.assistant { background: var(--ink); color: #fff; }
+.av.assistant .mark { width: 15px; height: 19px; }
+.av.assistant .mark polygon { stroke: var(--ink); }
+.byline { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; color: var(--ink-3); }
+.byline strong { font-size: 14px; color: var(--ink); font-weight: 600; }
+.ai-tag { font-size: 11.5px; font-weight: 600; color: var(--ink-2); border: 1px solid var(--line-strong); border-radius: 5px; padding: 0 6px; line-height: 18px; }
+.msg .text { margin-top: 2px; font-size: 15px; white-space: pre-wrap; }
+.msg.mine .text { color: var(--ink); }
+.msg.mine .byline strong::after { content: " · you"; font-weight: 400; color: var(--ink-3); }
+.typing { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); padding: 4px 0 0 44px; }
+.composer { position: sticky; bottom: 16px; margin-top: 8px; background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--r-surface); box-shadow: 0 8px 24px -12px rgba(20,30,50,0.18); }
+.composer:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,124,246,0.15); }
+.composer textarea { display: block; width: 100%; min-height: 64px; max-height: 180px; resize: none; border: 0; outline: 0; padding: 14px 16px 6px; background: transparent; font-size: 15px; line-height: 1.5; }
+.composer .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px 10px 16px; }
+.composer .hint { font-size: 12.5px; color: var(--ink-3); }
+.previewas { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-3); }
+.previewas select { height: 30px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--paper); padding: 0 8px; font-size: 13px; color: var(--ink); }
+
+/* Report paper */
+.paper-doc { margin-top: 24px; border: 1px solid var(--line); border-radius: 4px; padding: 48px 56px; box-shadow: 0 1px 2px rgba(20,30,50,0.04), 0 12px 32px -20px rgba(20,30,50,0.2); }
+.paper-doc h2 { font-size: 26px; letter-spacing: -0.02em; margin: 8px 0 12px; }
+.paper-doc h3 { font-size: 16px; margin: 28px 0 8px; }
+.paper-doc p { margin: 8px 0; }
+
+/* Drawer */
+.scrim { position: fixed; inset: 0; z-index: 50; background: rgba(20, 26, 34, 0.28); }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 51; width: min(520px, 100vw); background: var(--paper); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; animation: slidein 220ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes slidein { from { transform: translateX(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+.drawer:focus { outline: 0; }
+.drawer header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.drawer .content { padding: 20px 24px 32px; overflow-y: auto; }
+.drawer h4 { font: 600 13px var(--font-body); color: var(--ink-3); margin: 24px 0 6px; }
+.excerpt { margin: 16px 0; padding: 22px 24px; border: 1px solid var(--line); border-radius: 4px; background: #fffefb; font-family: var(--font-page); font-size: 16px; line-height: 1.6; color: #2a2a2a; box-shadow: 0 1px 0 var(--line), 0 6px 18px -14px rgba(0,0,0,0.25); }
+.excerpt mark { background: #fff1bf; padding: 1px 2px; border-radius: 2px; }
+.excerpt .src { font-family: var(--font-body); font-size: 12px; color: var(--ink-3); margin-bottom: 12px; }
+.field { display: block; margin-top: 16px; }
+.field span { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.field input, .field textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: var(--r-control); padding: 10px 12px; background: var(--paper); }
+.field textarea { min-height: 90px; resize: vertical; }
+.field input:focus, .field textarea:focus { outline: 0; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,124,246,0.15); }
+.dl { display: grid; grid-template-columns: 120px 1fr; gap: 8px 16px; font-size: 14px; margin-top: 16px; }
+.dl dt { color: var(--ink-3); }
+.dl dd { margin: 0; }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: var(--shadow-pop); }
+
+/* Landing */
+.hero { max-width: 760px; margin: 0 auto; padding: 120px 24px 56px; text-align: center; }
+.hero h1 { font-size: clamp(40px, 6vw, 64px); line-height: 1.04; letter-spacing: -0.04em; }
+.hero .lead { margin: 18px auto 36px; max-width: 540px; font-size: 18px; color: var(--ink-2); }
+.ring { padding: 2px; border-radius: 16px; background: linear-gradient(100deg, var(--blue) 0 25%, var(--coral) 25% 50%, var(--honey) 50% 75%, var(--leaf) 75%); box-shadow: 0 10px 30px -14px rgba(26, 86, 196, 0.35); }
+.ring-inner { display: flex; align-items: center; gap: 8px; background: var(--paper); border-radius: 14px; padding: 8px 8px 8px 20px; }
+.ring-inner input { flex: 1; min-width: 0; height: 48px; border: 0; outline: 0; font-size: 17px; background: transparent; }
+.ring-inner .btn.primary { height: 44px; width: 44px; padding: 0; border-radius: 10px; }
+.suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 8px; margin-top: 18px; font-size: 14px; color: var(--ink-3); }
+.suggest button { border: 0; background: none; padding: 4px 6px; border-radius: 6px; color: var(--ink-2); font-weight: 500; }
+.suggest button:hover { background: var(--hover); color: var(--ink); }
+.hero .alt { margin-top: 28px; display: flex; justify-content: center; gap: 8px; }
+.how { max-width: var(--col-wide); margin: 0 auto; padding: 48px 24px 96px; }
+.how h2 { font-size: 24px; letter-spacing: -0.02em; text-align: center; }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin-top: 40px; }
+.steps > div { border-top: 2px solid var(--ink); padding-top: 16px; }
+.steps > div:nth-child(1) { border-color: var(--blue); }
+.steps > div:nth-child(2) { border-color: var(--honey); }
+.steps > div:nth-child(3) { border-color: var(--leaf); }
+.steps h3 { font-size: 17px; margin-bottom: 6px; }
+.steps p { color: var(--ink-2); font-size: 14.5px; }
+.trustline { margin-top: 48px; text-align: center; font-size: 13px; color: var(--ink-3); }
+
+/* Library */
+.hivelist .hrow { display: grid; grid-template-columns: 40px 1fr auto auto; gap: 16px; align-items: center; width: 100%; padding: 16px 8px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; border-radius: 0; }
+.hivelist .hrow:hover { background: #fafbfc; }
+.hivelist .hrow .icon { color: var(--ink-3); }
+
+/* Notes */
+.note { padding: 14px 0; border-bottom: 1px solid var(--line); }
+
+.show-sm { display: none; }
+/* Phone */
+@media (max-width: 899px) {
+  :root { --top-h: 56px; }
+  .topbar { padding: 0 16px; }
+  .topnav .hide-sm { display: none; }
+  .shell { display: block; }
+  .rail { position: sticky; top: var(--top-h); z-index: 20; height: auto; padding: 0; border-right: 0; border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.96); backdrop-filter: blur(8px); }
+  .hivecard, .railfoot { display: none; }
+  .railnav { flex-direction: row; overflow-x: auto; gap: 4px; padding: 8px 12px; scrollbar-width: none; }
+  .railnav button { width: auto; flex: none; height: 36px; padding: 0 12px; }
+  .railnav button .icon { display: none; }
+  .railnav .count { margin-left: 6px; }
+  .railnav .staff { display: none; }
+  .main { padding: 20px 16px 120px; }
+  .t-title { font-size: 26px; }
+  .pagehead { flex-direction: column; align-items: stretch; }
+  .btn { height: 44px; }
+  .btn.sm { height: 36px; }
+  .item { grid-template-columns: 1fr; }
+  .item .side { grid-row: auto; grid-column: 1; }
+  .glance { grid-template-columns: 1fr 1fr; }
+  .glance > div, .glance > div + div { padding: 12px 12px 12px 0; border-left: 0; }
+  .shell { background: none; }
+  .steps { grid-template-columns: 1fr; gap: 28px; }
+  .hero { padding-top: 64px; }
+  .paper-doc { padding: 28px 20px; }
+  .composer { bottom: 8px; }
+  .hivelist .hrow { grid-template-columns: 1fr auto; }
+  .hivelist .hrow .hide-sm { display: none; }
+  .dl { grid-template-columns: 1fr; gap: 2px; }
+  .section > header { flex-wrap: wrap; }
+  .seg button { height: 40px; }
+  .suggest button { min-height: 44px; padding: 0 10px; }
+  .previewas select { height: 44px; }
+  .btn.text.sm, .btn.sm { min-height: 40px; }
+  .trow { grid-template-columns: 1fr; gap: 2px; }
+  .findbar { flex-wrap: wrap; }
+  .filterbox { flex-basis: 100%; height: 44px; }
+  .jump, .jump select { width: 100%; height: 44px; }
+  .metaline { gap: 4px 10px; }
+  .metaline > * + *::before { margin-right: 10px; }
+  .table.stack-sm thead { display: none; }
+  .table.stack-sm tr { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .table.stack-sm td { display: block; padding: 0; border: 0; }
+  .table.stack-sm td.hide-sm { display: none; }
+  .table.stack-sm td:last-child { grid-row: 1; grid-column: 2; }
+  .table.stack-sm tbody tr:hover td { background: none; }
+  .show-sm { display: block; }
+}
+@media (max-width: 400px) { .glance { grid-template-columns: 1fr; } .hero h1 { font-size: 36px; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+@media print { .topbar, .rail, .pagehead .actions, .seg, .no-print { display: none !important; } .shell { display: block; } .paper-doc { border: 0; box-shadow: none; padding: 0; } }
+</style></head><body><div id="app"></div>
+<script>
 // Synthetic demonstration data for the HiveForYou V4 prototype. Every value is invented.
 (function () {
   const S = {};
@@ -563,127 +944,684 @@
   window.HIVE_DATA = { S, intents };
 })();
 
-</script><script>
-const DATA=window.HIVE_DATA;const icons={arrow:'<path d="M5 12h14m-7-7 7 7-7 7"/>',back:'<path d="m15 18-6-6 6-6"/>',file:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7"/>',layers:'<path d="m12 2 9 5-9 5-9-5 9-5Zm-9 10 9 5 9-5M3 17l9 5 9-5"/>',report:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h6"/>',check:'<path d="m5 12 5 5 9-10"/>',alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',plus:'<path d="M12 5v14M5 12h14"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',upload:'<path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/>',eye:'<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',download:'<path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/>',x:'<path d="M5 5l14 14M19 5 5 19"/>',chevron:'<path d="m9 18 6-6-6-6"/>',copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/>',list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/>',shield:'<path d="m12 2 8 4v6c0 6-4 9-8 10-4-1-8-4-8-10V6z"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 10h18"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>'};
-// Exact original prototype sidebar icon geometry, kept separate from content icons.
-Object.assign(icons,{
- 'hive-board':'<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>',
- 'source-document':'<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>',
- 'facts-original':'<circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/>',
- 'missing-conflicts':'<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/>',
- 'reports-original':'<path d="M5 20V11M12 20V4M19 20v-6"/>',
- 'timeline-original':'<path d="M4 18l6-6 4 4 6-8"/>',
- 'what-happened':'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
-});
-const icon=(n)=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${icons[n]||icons.file}</svg>`;const mark=`<svg class="mark" viewBox="0 0 54 68" aria-hidden="true"><polygon fill="#3B7CF6" points="26,2 40,10 40,26 26,34 12,26 12,10"/><polygon fill="#EF5143" points="40,19 54,27 54,43 40,51 26,43 26,27" transform="translate(-1 0)"/><polygon fill="#F6B826" points="26,36 40,44 40,60 26,68 12,60 12,44"/><polygon fill="#2FA35A" points="12,19 26,27 26,43 12,51 -2,43 -2,27" transform="translate(1 0)"/></svg>`;const brand=`<div class="brand">${mark}<div><strong>Hive</strong><span>ForYou</span></div></div>`;const escapeHtml=(s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const state={view:'landing',scenario:'medicaid',tab:'overview',studyTab:'understand',reportAudience:'customer',reportMade:false,drawer:null,query:'',search:'',intent:'',notes:{},decisions:{},fakeUploads:[],created:[],reportHistory:{},selectedYear:null,filter:'all',boardActor:'staff',boardDraft:'',boardMessages:{},boardRequests:{}};const $=s=>document.querySelector(s);const scenario=()=>DATA.S[state.scenario];const demoNames={medicaid:'Financial review',iep:'IEP meeting',insurance:'Insurance claim'};
-const currentIssues=()=>scenario().exceptions.filter(x=>!x.hidden&&!state.decisions[x.id]);const issuesCount=(kind)=>currentIssues().filter(x=>x.kind===kind).length;const evObj=id=>scenario().ev[id];const docObj=id=>scenario().docs.find(d=>d.id===id);const btn=(text,action,cls='')=>`<button class="btn ${cls}" data-action="${action}">${text}</button>`;const chip=(id)=>{const e=evObj(id);if(!e)return '';const d=docObj(e.doc);return `<button class="source" data-evidence="${id}" title="Open supporting page">${escapeHtml(d?.role||'Source')} · p.${e.page}</button>`};const chips=(ids)=>Array.isArray(ids)?ids.map(chip).join(''):'';const badge=(t,cls='')=>`<span class="badge ${cls}">${escapeHtml(t)}</span>`;
-function topbar(){return `<header class="topbar"><button class="btn ghost" data-action="landing" style="padding:0;border:0">${brand}</button><nav class="top-actions"><button class="nav-text" data-action="how">How it works</button><button class="nav-text" data-action="library">My hives</button><span class="demo-label hide-mobile">Synthetic demo</span>${btn(state.view==='landing'?'Explore sample':'All hives','library','primary round')}</nav></header>`}
-function landing(){return `${topbar()}<main><section class="hero page"><div class="eyebrow" style="margin-bottom:17px;color:var(--deep)">THE COMPLICATED, MADE SIMPLE.</div><h1>What are you working on?</h1><p class="lead">Bring the documents. Tell us what you need to understand. See the whole picture, with every finding linked to its source.</p><form id="intent-form" class="intent-ring"><div class="intent-inner"><input id="intent" aria-label="What are you working on?" placeholder="Describe what you need to understand…" value="${escapeHtml(state.intent)}"/><button type="submit" aria-label="Continue">→</button></div></form><div class="examples"><button class="pill" data-scenario="iep">Prepare for an IEP meeting</button><button class="pill" data-scenario="medicaid">Understand Medicaid paperwork</button><button class="pill" data-scenario="insurance">Review an insurance claim</button></div><div class="flex wrap" style="justify-content:center;margin-top:26px">${btn(`${icon('upload')} Add documents`,'new','')}${btn('See a sample hive','library','ghost')}</div><p class="muted small" style="margin-top:18px">Upload whatever you have — old, partial, or out of order is fine.</p></section><section class="page" id="how-it-works" style="padding-top:12px"><div style="text-align:center"><div class="eyebrow">ONE HOME FOR YOUR PAPERWORK</div><h2 style="margin-top:9px">From scattered pages to clear next steps.</h2></div><div class="feature-grid"><article class="feature">${icon('file')}<h3>01. Documents</h3><p>Keep your files together. See what each document covers, which pages were read, and what still needs attention.</p></article><article class="feature">${icon('layers')}<h3>02. Study</h3><p>Explore a connected view of facts, dates, differences and gaps. Every supported finding opens the original page.</p></article><article class="feature">${icon('report')}<h3>03. Reports</h3><p>Get a plain-language summary or a detailed professional-format report from the same source-backed Study.</p></article></div><div class="trust">${icon('shield')} No source, no claim. Demo records are entirely synthetic. This prototype does not process your actual documents.</div></section></main><footer class="footer-site">HiveForYou · The complicated, made simple. · Interactive design prototype</footer>`}
-function library(){const hives=Object.values(DATA.S).filter(x=>x.docs&&x.exceptions);return `${topbar()}<main class="page"><div class="header-title"><div><div class="eyebrow">YOUR WORKSPACES</div><h2 style="margin-top:8px">My hives</h2><p>One place for each situation, with its documents, Study, and reports.</p></div>${btn(`${icon('plus')} New hive`,'new','primary')}</div><div class="cards">${hives.map(x=>`<article class="card hover" data-open="${x.id}" tabindex="0" role="button"><div class="flex between" style="margin-bottom:20px">${badge(demoNames[x.id]||x.label,'blue')}${icon('chevron')}</div><h3>${escapeHtml(x.hiveTitle)}</h3><p class="sub small" style="min-height:50px">${escapeHtml(x.purpose)}</p><div class="footer"><span>${x.docs.length} documents · Study v${x.studyRev}</span><span>Open ${icon('arrow')}</span></div></article>`).join('')}${state.created.map((x,i)=>`<article class="card hover" data-custom="${i}" tabindex="0" role="button"><div class="flex between">${badge('New hive','honey')}${icon('chevron')}</div><h3 style="margin-top:20px">${escapeHtml(x.title)}</h3><p class="sub small">${escapeHtml(x.desc||'Ready for your first document')}</p><div class="footer">No documents · No Study yet</div></article>`).join('')}</div><div class="notice" style="margin-top:25px">These are sample hives with invented documents and findings. Open any sample to explore interactive workflows, source citations, review decisions and report views.</div></main>`}
-function side(){
- const items=[
-  ['overview','Hive board','hive-board'],
-  ['documents','Documents','source-document'],
-  ['plan','Work plan','list'],
-  ['study','Findings','facts-original'],
-  ['reports','Reports','reports-original'],
-  ['audit','Audit trail','shield']
- ];
- return `<aside class="sidebar"><nav class="sidenav" aria-label="Hive navigation"><div class="side-group"><div class="side-group-label">YOUR HIVE</div>${items.map(([k,label,ic])=>`<button data-tab="${k}" aria-current="${state.tab===k?'page':'false'}" class="${state.tab===k?'active':''}">${icon(ic)} <span>${label}</span>${k==='study'&&currentIssues().length?` <span style="margin-left:auto" class="badge coral" title="Items needing attention">${currentIssues().length}</span>`:''}</button>`).join('')}</div></nav><div class="sidefoot"><div class="small muted">Study revision</div><strong>v${scenario().studyRev}</strong><p class="tiny muted">Accepted synthetic sample</p><hr class="separator"><div class="tiny muted">Every finding can link to its source page.</div></div></aside>`
-}
-function statebar(){return `<div class="state-stripe">${badge(`${issuesCount('needs')} Needs you`,'blue')}${badge(`${issuesCount('changed')} Changed`,'honey')}${badge(`${issuesCount('missing')} Missing`,'coral')}${badge(`${scenario().docs.filter(d=>d.cov===100&&!d.dup).length} Checked`,'green')}</div>`}
-function workspace(){
- const s=scenario();
- const titles={overview:'Hive board',documents:'Documents',study:'Findings',plan:'Work plan',reports:'Reports',audit:'Audit trail'};
- const descriptions={documents:'Upload, organize, and inspect source documents.',study:'Explore source-backed findings, timelines, and items needing attention.',plan:'Track tasks and document requests.',reports:'Generate and export Customer or Professional reports.',audit:'Inspect source lineage, validation checks, and recorded decisions.'};
- const headerActions=state.tab==='documents'?btn(`${icon('upload')} Add documents`,'upload','primary'):state.tab==='reports'?btn(`${icon('download')} Print / PDF`,'print','primary'):'';
- const content=state.tab==='overview'?board():state.tab==='documents'?documents():state.tab==='study'?study():state.tab==='plan'?plan():state.tab==='reports'?reports():audit();
- return `${topbar()}<div class="shell">${side()}<main class="workspace"><div class="workspace-inner"><div class="crumb"><button data-action="library">My hives</button> &nbsp;/&nbsp; ${escapeHtml(s.hiveTitle)} &nbsp;/&nbsp; ${titles[state.tab]||'Findings'}</div><div class="ws-title"><div><h2>${titles[state.tab]||'Findings'}</h2>${state.tab==='overview'?'':`<p>${escapeHtml(descriptions[state.tab]||'')}</p>`}</div><div class="actions">${headerActions}</div></div>${content}</div></main></div>`;
+</script>
+<script>
+// HiveForYou prototype v2 — "calm document desk". Synthetic data only (window.HIVE_DATA).
+// Structure: helpers → shared chrome (topbar, rail) → pages → drawer → events.
+// See docs/DESIGN.md for the rules this file demonstrates.
+
+const DATA = window.HIVE_DATA;
+
+const ICONS = {
+  arrow: '<path d="M5 12h14m-6-6 6 6-6 6"/>',
+  file: '<path d="M7 3h7l4 4v14H7zM14 3v4h4"/>',
+  board: '<path d="M4 5h16v11H9l-5 4z"/>',
+  findings: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
+  reports: '<path d="M6 20V11M12 20V5M18 20v-6"/>',
+  audit: '<path d="m12 3 7 3v5c0 5-3.2 8.3-7 10-3.8-1.7-7-5-7-10V6z"/><path d="m9 12 2 2 4-4"/>',
+  notes: '<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4M8 9h8M8 13h5"/>',
+  upload: '<path d="M12 15V4m-4 4 4-4 4 4M5 15v5h14v-5"/>',
+  download: '<path d="M12 4v11m-4-4 4 4 4-4M5 19h14"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  chevron: '<path d="m9 6 6 6-6 6"/>',
+  doc: '<path d="M7 3h7l4 4v14H7z"/>',
+  send: '<path d="M5 12h13m-5-6 6 6-6 6"/>',
+  filter: '<path d="M4 5h16l-6 7v6l-4 2v-8z"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+};
+const icon = (n, cls = "icon") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ICONS.file}</svg>`;
+const MARK = `<svg class="mark" viewBox="0 0 54 68" aria-hidden="true"><polygon fill="#3B7CF6" points="26,2 40,10 40,26 26,34 12,26 12,10"/><polygon fill="#EF5143" points="40,19 54,27 54,43 40,51 26,43 26,27" transform="translate(-1 0)"/><polygon fill="#F6B826" points="26,36 40,44 40,60 26,68 12,60 12,44"/><polygon fill="#2FA35A" points="12,19 26,27 26,43 12,51 -2,43 -2,27" transform="translate(1 0)"/></svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// People on each sample hive (synthetic). The assistant name comes from the firm's settings in the app.
+const PEOPLE = {
+  medicaid: { client: "Dana Ellis", staff: "Priya Shah", staffTitle: "Onboarding associate", assistant: "Sarah" },
+  iep: { client: "Rosa Carter", staff: "Priya Shah", staffTitle: "Onboarding associate", assistant: "Sarah" },
+  insurance: { client: "Tom Reyes", staff: "Priya Shah", staffTitle: "Onboarding associate", assistant: "Sarah" },
+};
+const TEAM_NOTES = {
+  medicaid: [
+    { who: "Priya Shah", when: "Oct 28", text: "Dana confirmed she has online access to the savings account; asked her for the 2022 statements by Friday." },
+    { who: "Leo Marsh", when: "Oct 29", text: "Attorney review can start once the April–June 2023 checking statements are in." },
+  ],
+  iep: [{ who: "Priya Shah", when: "Nov 3", text: "Rosa wants the speech therapy change raised first at the meeting." }],
+  insurance: [{ who: "Priya Shah", when: "Nov 2", text: "Adjuster call scheduled; ask about the hallway flooring line." }],
+};
+
+// A large sample assembled from the three samples, to test long pages. Nothing new is invented.
+(function buildLargeSample() {
+  const all = ["medicaid", "iep", "insurance"].map((k) => DATA.S[k]);
+  const base = DATA.S.medicaid;
+  const groups = [];
+  for (const s of all) for (const g of s.understand.groups) {
+    const same = groups.find((x) => x.title === g.title);
+    same ? same.items.push(...g.items) : groups.push({ ...g, items: [...g.items] });
+  }
+  DATA.S.large = {
+    ...base, id: "large", hiveTitle: "Large sample hive", purpose: "All three samples in one hive, to test long pages",
+    docs: all.flatMap((s) => s.docs), ev: Object.assign({}, ...all.map((s) => s.ev)),
+    exceptions: all.flatMap((s) => s.exceptions), understand: { metrics: base.understand.metrics, groups },
+    timeline: all.flatMap((s) => s.timeline), ops: all.flatMap((s, i) => s.ops.map((o) => (i ? { ...o, calc: undefined } : o))),
+  };
+  PEOPLE.large = PEOPLE.medicaid; TEAM_NOTES.large = TEAM_NOTES.medicaid;
+})();
+
+const state = {
+  view: "landing", scenario: "medicaid", tab: "board",
+  reportAudience: "customer", reportMade: false, reportHistory: {},
+  drawer: null, intent: "", decisions: {}, notes: {}, created: [], customIndex: 0,
+  fakeUploads: [], filter: "all", boardActor: "staff", boardDraft: "", boardMessages: {},
+  teamNotes: {}, noteDraft: "", typing: false, toast: "",
+  expanded: {}, kindFilter: "all", find: "",
+};
+const $ = (s) => document.querySelector(s);
+const S = () => DATA.S[state.scenario];
+const P = () => PEOPLE[state.scenario];
+const ev = (id) => S().ev[id];
+const doc = (id) => S().docs.find((d) => d.id === id);
+const openItems = () => S().exceptions.filter((x) => !x.hidden && !state.decisions[x.id]);
+const initials = (name) => name.split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+
+const btn = (label, action, cls = "") => `<button class="btn ${cls}" data-action="${action}">${label}</button>`;
+const KIND = {
+  missing: { word: "Missing", tone: "coral" },
+  changed: { word: "Changed", tone: "honey" },
+  needs: { word: "To review", tone: "blue" },
+};
+const status = (word, tone) => `<span class="status ${tone}">${esc(word)}</span>`;
+
+// Source reference: "<document role> · p.<n>" — never a file name.
+const ref = (id) => {
+  const e = ev(id);
+  if (!e) return "";
+  const d = doc(e.doc);
+  return `<button class="ref" data-evidence="${id}" title="Open ${esc(d?.role || "source")}, page ${e.page}">${icon("doc", "")}${esc(d?.role || "Source")} <span class="pg">p.${e.page}</span></button>`;
+};
+const refs = (ids) => (ids && ids.length ? `<div class="refs">${ids.map(ref).join("")}</div>` : "");
+
+function calcValue(id) {
+  const c = S().calcs?.[id];
+  if (!c) return "—";
+  const total = c.inputs.filter((i) => !i.when || state.decisions[i.when.x] === i.when.status).reduce((n, i) => n + i.value * i.sign, 0);
+  return c.unit === "usd"
+    ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(total)
+    : `${total} ${c.unit === "min" ? "minutes" : c.unit}`;
 }
 
-const seedBoard = {
- medicaid:[
-  {role:'staff',name:'Onboarding specialist',text:'Welcome. I will help organize the documents for the financial review. You can send what you have now, even if some statements are missing.',time:'9:05 AM'},
-  {role:'client',name:'Client',text:'I uploaded the bank statements I could find. I am not sure whether the savings account was open in 2022.',time:'9:13 AM'},
-  {role:'sarah',name:'Sarah · AI assistant',text:'I can help track the coverage. In this sample, the earliest savings statement starts in January 2023, so the 2022 account status remains unknown. We can ask for the account opening date rather than assume it was open.',time:'9:14 AM',ev:['e15']},
-  {role:'staff',name:'Onboarding specialist',text:'Please confirm whether you can request the missing checking statements from April through June 2023. I will keep the request open until you respond.',time:'9:18 AM',ev:['e10','e11']}
- ],
- iep:[
-  {role:'staff',name:'Onboarding specialist',text:'Welcome. Please upload the plans, evaluations, and progress reports you have. The documents do not have to be in order.',time:'9:05 AM'},
-  {role:'client',name:'Client',text:'I uploaded the draft IEP and the previous plan. Can we check the change in speech therapy?',time:'9:11 AM'},
-  {role:'sarah',name:'Sarah · AI assistant',text:'The synthetic prior plan lists 90 minutes per week and the draft lists 60. A useful question for the meeting is: “What led to the change?”',time:'9:12 AM',ev:['f1','f2']},
-  {role:'staff',name:'Onboarding specialist',text:'I will also request the occupational therapy evaluation mentioned in the draft.',time:'9:15 AM',ev:['f8']}
- ],
- insurance:[
-  {role:'staff',name:'Onboarding specialist',text:'Welcome. I will help collect the claim documents and keep outstanding requests in one place.',time:'9:05 AM'},
-  {role:'client',name:'Client',text:'The contractor estimate is higher than the adjuster estimate. Can Sarah help identify why?',time:'9:10 AM'},
-  {role:'sarah',name:'Sarah · AI assistant',text:'I can outline the differences shown in the sample. The flooring estimates describe different areas: the contractor includes the hallway, while the adjuster’s line does not name it.',time:'9:11 AM',ev:['g4','g5']},
-  {role:'staff',name:'Onboarding specialist',text:'I will follow up on the missing policy endorsement before preparing a final comparison.',time:'9:17 AM',ev:['g15']}
- ]
+/* ───────────── Long lists (generic) ─────────────
+   Any list longer than its limit shows the first n and a "Show all" control with the total.
+   Limits: 5 rows for item lists, 3 statements per topic. A filter or search shows everything. */
+const LIMIT = { items: 5, statements: 3, rows: 6 };
+function limited(listId, arr, n) {
+  const open = state.expanded[listId] || state.find.trim();
+  return { shown: open ? arr : arr.slice(0, n), hidden: open ? 0 : Math.max(0, arr.length - n), total: arr.length };
+}
+function moreControl(listId, hidden, total, label) {
+  if (state.find.trim() || total <= 0) return "";
+  if (hidden > 0) return `<button class="btn text sm more-btn" data-expand="${listId}">${label ? esc(label) : `Show all ${total}`}</button>`;
+  if (state.expanded[listId]) return `<button class="btn text sm more-btn" data-expand="${listId}">Show fewer</button>`;
+  return "";
+}
+const matches = (...texts) => {
+  const q = state.find.trim().toLowerCase();
+  return !q || texts.some((x) => String(x || "").toLowerCase().includes(q));
 };
-function boardMessages(){return state.boardMessages[state.scenario]||(state.boardMessages[state.scenario]=seedBoard[state.scenario].map(m=>({...m})));}
-function boardRequests(){return state.boardRequests[state.scenario]||(state.boardRequests[state.scenario]=scenario().exceptions.filter(x=>x.kind==='missing').slice(0,3).map(x=>({id:x.id,title:x.title,status:'Open'})));}
-function sarahReply(q){let s=scenario(),t=q.toLowerCase(),issues=currentIssues();let matching=issues.find(x=>x.title.toLowerCase().split(' ').some(w=>w.length>5&&t.includes(w)));if(/missing|gap|documents|statement|need|request/.test(t)){let arr=issues.filter(x=>x.kind==='missing');let chosen=matching||arr[0];return chosen?{text:`I can help organize that request. The sample records show: ${chosen.detail} I’ve kept this as an open onboarding item; please confirm whether you can provide it.`,ev:chosen.ev}: {text:'The sample currently has no open missing-document items. The original sources remain available in Documents.'}}if(/transfer|compare|change|different|speech|estimate/.test(t)){let x=matching||issues.find(x=>x.kind==='changed')||issues[0];return x?{text:`Here is the relevant point from the sample: ${x.detail} This is a source-backed observation, not a final decision.`,ev:x.ev}:{text:'I can help compare accepted document statements. Open Facts for the full evidence-backed view.'}}if(/next|start|plan|process|help|onboard/.test(t)){let todo=s.tasks.find(x=>!['COMPLETED','SKIPPED'].includes(x.state));return {text:todo?`A useful next step is “${todo.title}.” ${todo.does} The onboarding specialist can confirm the request and follow up with you.`:'The sample work plan has no additional steps listed.'}}return {text:'I can help clarify what the uploaded sample documents say, point to evidence, and prepare a missing-document request. For a new question, I will flag it for the onboarding specialist rather than invent an answer.'};}
-function board(){
-  const msgs=boardMessages(),actor=state.boardActor;
-  return `<section class="card board-thread" style="max-width:940px;margin:0 auto">
-    <div class="board-thread-head"><div><h3>Conversation</h3><div class="board-subtitle">Client · Onboarding specialist · Sarah (AI assistant)</div></div></div>
-    <div class="board-messages" id="board-messages" aria-live="polite">${msgs.map(m=>`<article class="board-msg ${m.role===actor?'mine':''}"><div class="board-avatar ${m.role}">${m.role==='sarah'?'S':m.role==='staff'?'OS':'C'}</div><div class="board-bubble"><div class="board-byline"><strong>${escapeHtml(m.name)}</strong><span>${escapeHtml(m.time)}</span>${m.role==='sarah'?badge('Simulated AI',''):''}</div><p>${escapeHtml(m.text)}</p>${chips(m.ev)}</div></article>`).join('')}</div>
-    <div class="board-composer"><label for="board-draft" class="eyebrow">Message</label><textarea id="board-draft" placeholder="Write a message to the onboarding conversation…">${escapeHtml(state.boardDraft)}</textarea><div class="board-composer-meta"><label class="board-actor-readout"><span class="small muted">Preview as</span><select class="board-actor" id="board-actor"><option value="staff" ${actor==='staff'?'selected':''}>Onboarding specialist</option><option value="client" ${actor==='client'?'selected':''}>Client</option></select></label><button class="btn primary" data-action="board-send">Send message ${icon('arrow')}</button></div><p class="board-note" style="margin-top:9px">Prototype: choose either participant to simulate both sides. Sarah provides scripted replies using synthetic information. No live messaging or AI service is connected.</p></div>
-  </section>`;
+
+/* ───────────── Chrome ───────────── */
+
+function topbar() {
+  const inHive = state.view === "workspace" || state.view === "custom";
+  return `<header class="topbar">
+    <button class="brand" data-action="landing" aria-label="HiveForYou home">${MARK}<span><strong>Hive</strong><span>ForYou</span></span></button>
+    <nav class="topnav" aria-label="Site">
+      <button class="btn quiet hide-sm" data-action="how">How it works</button>
+      <button class="btn quiet" data-action="library">${inHive ? "All hives" : "My hives"}</button>
+      <span class="demo-tag hide-sm">Synthetic demo</span>
+      ${inHive ? `<span class="avatar-me" title="Signed in as Priya Shah">PS</span>` : ""}
+    </nav>
+  </header>`;
 }
-function overview(){const s=scenario();const focus=currentIssues().slice(0,3);return `${statebar()}<div class="stats"><div class="stat"><span class="eyebrow">Documents</span><strong>${s.docs.length}</strong><span class="small muted">Uploaded sources</span></div><div class="stat"><span class="eyebrow">Study</span><strong>v${s.studyRev}</strong><span class="small muted">Accepted revision</span></div><div class="stat"><span class="eyebrow">Needs attention</span><strong>${currentIssues().length}</strong><span class="small muted">Questions and gaps</span></div><div class="stat"><span class="eyebrow">Work plan</span><strong>${s.tasks.filter(t=>t.state==='COMPLETED').length}/${s.tasks.length}</strong><span class="small muted">Steps completed</span></div></div><div class="askbar"><span style="margin-left:10px;color:var(--deep)">${icon('search')}</span><input id="ask" aria-label="Ask about these documents" placeholder="Ask anything about these documents…" value="${escapeHtml(state.query)}"><button class="btn primary" data-action="ask">Explore ${icon('arrow')}</button></div><div class="cols"><div class="stack"><section class="card"><div class="section-head"><h3>The picture so far</h3>${btn('Explore Study','study','ghost sm')}</div><p class="sub small" style="margin-bottom:15px">${escapeHtml(s.goal)}</p>${s.understand.groups.slice(0,3).map(g=>`<div class="rowitem"><div class="file-icon" style="height:32px;width:32px">${icon('check')}</div><div class="content"><strong>${escapeHtml(g.title)}</strong>${g.items.slice(0,2).map(it=>`<p>${escapeHtml(it.text)}</p>${chips(it.ev)}`).join('')}</div></div>`).join('')}</section><section class="card"><div class="section-head"><h3>What changed over time</h3>${btn('Full timeline','timeline','ghost sm')}</div>${s.timeline.slice(-4).map(t=>`<div class="rowitem"><div class="content"><strong>${escapeHtml(t.date)}</strong><p>${escapeHtml(t.text)}</p>${chips(t.ev)}</div></div>`).join('')}</section></div><div class="stack"><section class="card"><div class="section-head"><h3>Worth your attention</h3>${btn('View all','review','ghost sm')}</div>${focus.length?focus.map(x=>`<div class="rowitem"><div class="content"><div style="margin-bottom:6px">${badge(x.kind==='missing'?'Missing':x.kind==='changed'?'Changed':'Needs you',x.kind==='missing'?'coral':x.kind==='changed'?'honey':'blue')}</div><strong>${escapeHtml(x.title)}</strong><p>${escapeHtml(x.detail)}</p>${chips(x.ev)}<div>${btn('Review this','issue:'+x.id,'sm')}</div></div></div>`).join(''):'<p class="sub">No unresolved items in this demo state.</p>'}</section><section class="card"><div class="section-head"><h3>Next useful steps</h3>${btn('Work plan','plan','ghost sm')}</div>${s.tasks.filter(t=>!['COMPLETED','SKIPPED'].includes(t.state)).slice(0,4).map(t=>`<div class="rowitem"><div class="content"><strong>${escapeHtml(t.title)}</strong><p>${escapeHtml(t.does)}</p>${badge(t.state.replaceAll('_',' ').toLowerCase(),t.state==='FAILED'?'coral':'')}</div></div>`).join('')}</section></div></div>`}
-function documents(){const s=scenario();const docs=s.docs.filter(d=>state.filter==='all'||(state.filter==='attention'&&(d.flags.length||d.cov!==100))||(state.filter==='ready'&&d.cov===100&&!d.flags.length));return `${statebar()}<section class="card"><div class="section-head"><div><h3>Source library</h3><p class="sub small">${s.docs.length} original files; document names are never used as evidence citations.</p></div><div class="flex"><select id="docfilter" aria-label="Filter documents" style="border:1px solid var(--line);border-radius:9px;padding:7px"><option value="all" ${state.filter==='all'?'selected':''}>All documents</option><option value="attention" ${state.filter==='attention'?'selected':''}>Needs attention</option><option value="ready" ${state.filter==='ready'?'selected':''}>Read completely</option></select>${btn(`${icon('plus')} Add files`,'upload','sm')}</div></div><div class="scrolltable"><table class="data-table"><thead><tr><th>Document</th><th>Period / date</th><th>Pages</th><th>Read state</th><th></th></tr></thead><tbody>${docs.map(d=>`<tr><td><strong>${escapeHtml(d.role)}</strong><div class="tiny muted">${escapeHtml(d.file)}</div><div class="tiny muted">${escapeHtml(d.type)}</div></td><td>${escapeHtml(d.period)}</td><td>${d.pages}</td><td>${d.dup?badge('Duplicate','honey'):d.cov===100?badge('Pages read','green'):badge(d.cov==null?'Not reviewed':d.cov+'% read','coral')}<div class="tiny muted" style="margin-top:5px">${escapeHtml(d.flags.map(f=>f.t).join('; '))}</div></td><td>${btn('Inspect','doc:'+d.id,'sm')}</td></tr>`).join('')}</tbody></table></div></section><div class="notice" style="margin-top:17px">Reading a page is not the same as proving its statements true. Supporting evidence is verified against what the source says; gaps and unreadable pages remain visible.</div>${state.fakeUploads.length?`<section class="card" style="margin-top:18px"><h3>Files added during this demo</h3>${state.fakeUploads.map(f=>`<div class="rowitem"><div class="content"><strong>${escapeHtml(f.name)}</strong><p>Local demo registration only · Not read or analyzed</p></div>${badge('Not processed','honey')}</div>`).join('')}</section>`:''}`}
-function study(){
- const s=scenario(),issues=currentIssues(),seen=new Set();
- const issueCard=x=>`<div class="finding-open"><div class="finding-open-title">${badge(x.kind==='missing'?'Missing':x.kind==='changed'?'Difference':'Needs clarification',x.kind==='missing'?'coral':x.kind==='changed'?'honey':'blue')}<strong>${escapeHtml(x.title)}</strong></div><p class="sub small">${escapeHtml(x.question||questionFor(x))}</p>${chips(x.ev)}<div style="margin-top:8px">${btn('Review context','issue:'+x.id,'sm')}</div></div>`;
- const groups=s.understand.groups.map(g=>{
-  const ev=new Set(g.items.flatMap(it=>it.ev||[]));
-  const related=issues.filter(x=>!seen.has(x.id)&&(x.ev||[]).some(id=>ev.has(id))).slice(0,2);
-  related.forEach(x=>seen.add(x.id));
-  return `<section class="card finding-topic"><div class="section-head"><h3>${escapeHtml(g.title)}</h3>${g.unc?badge('Uncertain','honey'):''}</div>${g.items.map(it=>`<div class="finding-fact"><p>${escapeHtml(it.text)}</p>${chips(it.ev)}</div>`).join('')}${related.length?`<div class="finding-related"><div class="eyebrow">Needs clarification</div>${related.map(issueCard).join('')}</div>`:''}</section>`;
- }).join('');
- const other=issues.filter(x=>!seen.has(x.id));
- return `<div class="notice" style="margin-bottom:20px">Accepted Study v${s.studyRev} · Synthetic demonstration evidence. Findings describe what the sample records say; they are not independent verification of real-world events.</div>
-  <section class="finding-intro"><div><div class="eyebrow" style="color:var(--deep)">THE PICTURE SO FAR</div><h3>What we learned from these documents</h3><p class="sub small">Organized by topic, with original page references next to every supported statement.</p></div>${issues.length?badge(`${issues.length} need attention`,'coral'):badge('No open items','green')}</section>
-  ${s.understand.metrics.length?`<div class="finding-metrics">${s.understand.metrics.map(m=>`<div class="finding-metric"><span class="eyebrow">${escapeHtml(m.label)}</span><strong>${escapeHtml(m.value||calcDisplay(m.calc))}</strong><span class="small muted">${escapeHtml(m.sub||'')}</span>${chips(m.ev)}${m.calc?btn('See calculation','calc:'+m.calc,'sm'):''}</div>`).join('')}</div>`:''}
-  <div class="finding-topics">${groups}</div>
-  ${other.length?`<section class="card finding-topic"><h3>Other items needing clarification</h3><p class="sub small" style="margin:8px 0 14px">Open questions remain separate from accepted facts.</p>${other.map(issueCard).join('')}</section>`:''}
-  <section class="finding-explore"><h3>Explore supporting detail</h3><p class="sub small" style="margin:6px 0 16px">Open a section only when you need to examine the underlying analysis. No additional menu navigation.</p>
-   <details class="finding-detail"><summary>Compare information across documents <span class="finding-detail-hint">${escapeHtml(s.compare.title)}</span></summary><div class="finding-detail-body">${studyCompare()}</div></details>
-   <details class="finding-detail"><summary>See events in date order <span class="finding-detail-hint">Document-backed timeline</span></summary><div class="finding-detail-body">${timeline(true)}</div></details>
-   <details class="finding-detail"><summary>Check document coverage <span class="finding-detail-hint">What is complete or missing</span></summary><div class="finding-detail-body">${coverage()}</div></details>
-  </section>`;
+
+const TABS = [
+  ["board", "Hive board", "board"],
+  ["documents", "Documents", "file"],
+  ["findings", "Findings", "findings"],
+  ["reports", "Reports", "reports"],
+  ["audit", "Audit trail", "audit"],
+  ["notes", "Team notes", "notes"],
+];
+
+function rail() {
+  const s = S();
+  const open = openItems().length;
+  const unread = state.tab === "board" ? 0 : 1;
+  return `<aside class="rail">
+    <div class="hivecard"><div class="hive-initials">${initials(s.hiveTitle.replace(/'s\b/, ""))}</div><div><div class="name">${esc(s.hiveTitle)}</div><div class="purpose">${esc(s.purpose)}</div></div></div>
+    <nav class="railnav" aria-label="Hive sections">
+      ${TABS.map(([k, label, ic]) => {
+        const count =
+          k === "findings" && open ? `<span class="count alert" aria-label="${open} to review">${open}</span>`
+          : k === "documents" ? `<span class="count">${s.docs.length}</span>`
+          : k === "board" && unread ? `<span class="count" aria-label="1 unread message">1</span>`
+          : k === "notes" ? `<span class="staff">${icon("lock", "icon")}</span>` : "";
+        return `<button data-tab="${k}" ${state.tab === k ? 'aria-current="page"' : ""}>${icon(ic)}<span>${label}</span>${count}</button>`;
+      }).join("")}
+    </nav>
+    <div class="railfoot"><strong>Study v${s.studyRev}</strong> · accepted ${esc(s.studyRevs.at(-1).date)}<br>Every finding opens its source page.</div>
+  </aside>`;
 }
-function studyUnderstand(){let s=scenario();return `<div class="stats" style="grid-template-columns:repeat(3,1fr)">${s.understand.metrics.map(m=>`<div class="stat"><span class="eyebrow">${escapeHtml(m.label)}</span><strong style="font-size:23px">${escapeHtml(m.value||calcDisplay(m.calc))}</strong><div class="small muted">${escapeHtml(m.sub||'')}</div>${chips(m.ev)}${m.calc?btn('View calculation','calc:'+m.calc,'sm'):''}</div>`).join('')}</div><div class="cols"><div class="stack">${s.understand.groups.map(g=>`<section class="card"><div class="section-head"><h3>${escapeHtml(g.title)}</h3>${g.unc?badge('Uncertain','honey'):''}</div>${g.items.map(it=>`<div class="rowitem"><div class="content"><p style="color:var(--ink);font-size:14px">${escapeHtml(it.text)}</p>${chips(it.ev)}</div></div>`).join('')}</section>`).join('')}</div><aside class="stack"><section class="card"><h3>Study history</h3>${s.studyRevs.map(r=>`<div class="rowitem"><div class="content"><strong>Revision ${r.rev} · ${escapeHtml(r.date)}</strong><p>${escapeHtml(r.note)}</p></div></div>`).join('')}</section><section class="card"><h3>What remains open</h3><p class="sub small" style="margin:10px 0">The Study preserves questions and limitations instead of filling gaps with assumptions.</p>${btn('Review open items','review','primary')}</section></aside></div>`}
-function studyCompare(){let s=scenario();return `<section class="card"><div class="section-head"><div><h3>${escapeHtml(s.compare.title)}</h3><p class="sub small">${escapeHtml(s.compare.sub)}</p></div></div><div class="scrolltable"><table class="data-table"><thead><tr>${s.compare.cols.map(x=>`<th>${escapeHtml(x)}</th>`).join('')}<th>Result</th></tr></thead><tbody>${s.compare.rows.map(r=>`<tr>${r.cells.map(c=>`<td>${escapeHtml(c)}</td>`).join('')}<td><div>${badge(r.result,r.rs==='changed'?'honey':r.rs==='needs'?'blue':'green')}</div>${chips(r.ev)}${r.x?btn('Review','issue:'+r.x,'sm'):''}</td></tr>`).join('')}</tbody></table></div></section>`}
-function coverage(){let m=scenario().matrix;return `<section class="card"><h3>${escapeHtml(m.title)}</h3><p class="sub small" style="margin:8px 0 20px">${escapeHtml(m.sub)}</p><div class="scrolltable"><table class="data-table"><thead><tr><th>${escapeHtml(m.rowHead)}</th>${m.cols.map(x=>`<th>${escapeHtml(x)}</th>`).join('')}</tr></thead><tbody>${m.rows.map((r,ri)=>`<tr><td><strong>${escapeHtml(r.label)}</strong></td>${r.cells.map((c,ci)=>`<td style="min-width:90px"><button class="matrix-cell ${c.s}" data-matrix="${ri}:${ci}" title="${escapeHtml(c.note)}">${c.s==='complete'?'✓':c.s==='gap'?'Missing':c.s==='partial'?'Partial':'Unknown'}</button></td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="flex wrap" style="margin-top:19px">${badge('Checked','green')}${badge('Partial / unknown','honey')}${badge('Missing','coral')}</div></section>`}
-function timeline(embedded=false){let s=scenario();return `<section class="card"><h3>${embedded?'Chronology':'Document-backed timeline'}</h3><p class="sub small" style="margin:8px 0 24px">Events are ordered by documented dates, not by upload order.</p><div class="timeline">${s.timeline.map(t=>`<div class="event"><strong>${escapeHtml(t.date)}</strong><p>${escapeHtml(t.text)}</p>${chips(t.ev)}</div>`).join('')}</div></section>`}
-function questions(){let s=scenario();return `<div class="cols"><section class="card"><h3>Questions worth asking</h3><p class="sub small" style="margin:8px 0 16px">These are prompts for a conversation, not verdicts.</p>${s.exceptions.filter(x=>!x.hidden).map(x=>`<div class="question"><p><strong>${escapeHtml(x.question||questionFor(x))}</strong></p>${chips(x.ev)}${btn('Review context','issue:'+x.id,'sm')}</div>`).join('')}</section><aside class="card"><h3>Use these questions</h3><p class="sub small" style="margin:10px 0 20px">Open any source chip to see why a question was suggested. The original record remains unchanged.</p>${btn('Create a meeting brief','reports','primary')}</aside></div>`}
-function questionFor(x){return x.kind==='missing'?`Could we obtain or clarify: ${x.title.toLowerCase()}?`:`What explains ${x.title.charAt(0).toLowerCase()+x.title.slice(1)}?`}
-function review(){let issues=currentIssues();return `${statebar()}<div class="cols"><div class="stack"><section class="card"><h3>Items to resolve</h3><p class="sub small" style="margin:8px 0 14px">Answer what you know, request missing documents, or leave items open. Your answers remain separate from the original records.</p>${issues.length?issues.map(x=>`<div class="rowitem"><div class="content">${badge(x.kind==='missing'?'Missing':x.kind==='changed'?'Changed':'Needs you',x.kind==='missing'?'coral':x.kind==='changed'?'honey':'blue')}<h4 style="margin:10px 0 6px">${escapeHtml(x.title)}</h4><p>${escapeHtml(x.detail)}</p>${chips(x.ev)}<div>${btn('Open review','issue:'+x.id,'sm primary')}</div></div></div>`).join(''):'<div class="empty"><h3>No open items</h3><p class="sub">All visible demo items were marked for review or resolved.</p></div>'}</section></div><aside class="stack"><section class="card"><h3>Your review decisions</h3>${Object.keys(state.decisions).length?Object.entries(state.decisions).map(([id,d])=>`<div class="rowitem"><div class="content"><strong>${escapeHtml(scenario().exceptions.find(x=>x.id===id)?.title||id)}</strong><p>${escapeHtml(d)}</p><button class="table-action" data-action="undo:${id}">Reopen</button></div></div>`).join(''):'<p class="sub small" style="margin-top:10px">No decisions recorded in this session.</p>'}</section><div class="notice">Demo decisions stay in this browser session. They are not submitted to any server or used to rewrite source facts.</div></aside></div>`}
-function plan(){let s=scenario();return `<div class="cols"><section class="card"><h3>Work plan</h3><p class="sub small" style="margin:8px 0 17px">A transparent sequence for making the documents useful. Steps are examples, not automated work executed here.</p>${s.tasks.map((t,i)=>`<div class="rowitem"><div class="step num" style="margin:0"><span class="num">${i+1}</span></div><div class="content"><div class="flex wrap between"><strong>${escapeHtml(t.title)}</strong>${badge(t.state.replaceAll('_',' ').toLowerCase(),t.state==='COMPLETED'?'green':t.state==='FAILED'?'coral':t.state==='NEEDS_REVIEW'?'blue':'')}</div><p>${escapeHtml(t.does||t.why||'')}</p><p class="tiny muted">${escapeHtml(t.result||t.runResult||t.why||'')}</p>${chips(t.inputs?.filter(x=>s.ev[x]))}</div></div>`).join('')}</section><aside class="stack"><section class="card"><h3>How work is organized</h3><div class="step"><span class="num">1</span><div><strong>Read and classify</strong><p class="sub small">Identify documents and dates.</p></div></div><div class="step"><span class="num">2</span><div><strong>Check and reconcile</strong><p class="sub small">Compare supported records without guessing.</p></div></div><div class="step"><span class="num">3</span><div><strong>Resolve open items</strong><p class="sub small">Collect explanations or missing files.</p></div></div><div class="step"><span class="num">4</span><div><strong>Prepare the output</strong><p class="sub small">Generate a summary from the same Study.</p></div></div></section>${btn('Review open items','review','primary')}</aside></div>`}
-function calcDisplay(id){let c=scenario().calcs?.[id];if(!c)return '—';let total=c.inputs.filter(i=>!i.when||state.decisions[i.when.x]===i.when.status).reduce((n,i)=>n+i.value*i.sign,0);return c.unit==='usd'?new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(total):`${total} ${c.unit==='min'?'minutes':c.unit}`}
-function reports(){let s=scenario();return `<div class="cols"><section class="stack"><div class="card"><div class="section-head"><h3>Generate a report</h3>${badge(`Study v${s.studyRev}`,'green')}</div><p class="sub small">Both audiences use the same source-backed Study. Professional formatting adds detail, not a different set of facts.</p><div class="tabs" style="margin-top:18px;margin-bottom:15px"><button data-audience="customer" class="${state.reportAudience==='customer'?'active':''}">Customer · plain language</button><button data-audience="pro" class="${state.reportAudience==='pro'?'active':''}">Professional · evidence detail</button></div><div class="flex wrap between"><div class="small sub">${escapeHtml(s.deliverable)}</div>${btn(`${icon('report')} Generate sample report`,'generate','primary')}</div></div>${state.reportMade?reportContent():`<div class="empty card"><div style="color:var(--deep)">${icon('report')}</div><h3>Ready when you are</h3><p class="sub small">Generate a sample report to see how the same Study becomes an audience-specific document.</p></div>`}</section><aside class="stack"><section class="card"><h3>Saved outputs</h3><p class="sub small" style="margin:8px 0 15px">Each Generate action creates a separate demonstration report.</p>${(state.reportHistory[state.scenario]||[]).map((r,i)=>`<div class="rowitem"><div class="content"><strong>${r.audience==='pro'?'Professional':'Customer'} report · #${i+1}</strong><p>Study v${s.studyRev} · Demo generated</p><button class="table-action" data-history="${i}">Open report</button></div></div>`).join('')||'<p class="sub small">No reports generated in this session.</p>'}</section><div class="notice">Report exports use your browser’s Print / Save as PDF function. This demonstration does not store documents or create authenticated reports.</div></aside></div>`}
-function reportContent(){let s=scenario();let pro=state.reportAudience==='pro';return `<article class="report-paper" id="print-report"><div class="flex between" style="margin-bottom:16px">${brand}${badge('Synthetic demonstration','honey')}</div><div class="eyebrow">${pro?'PROFESSIONAL REVIEW':'CUSTOMER SUMMARY'} · STUDY V${s.studyRev}</div><h2>${escapeHtml(s.deliverable)}</h2><p class="summary">${escapeHtml(s.goal)} This summary describes what is documented, what remains uncertain, and which questions may help move the review forward.</p><div class="divider"></div><h3>What the documents show</h3>${s.understand.groups.filter(g=>!g.unc).slice(0,pro?4:2).map(g=>`<div style="margin:15px 0"><strong>${escapeHtml(g.title)}</strong>${g.items.slice(0,pro?8:2).map(it=>`<p>${escapeHtml(it.text)} ${chips(it.ev)}</p>`).join('')}</div>`).join('')}<h3>What needs clarification</h3>${s.exceptions.filter(x=>!x.hidden).slice(0,pro?10:4).map(x=>`<div style="margin:14px 0"><p><strong>${escapeHtml(x.title)}</strong></p><p class="sub small">${escapeHtml(x.detail)}</p>${chips(x.ev)}</div>`).join('')}<h3>Questions worth asking</h3>${s.exceptions.filter(x=>!x.hidden).slice(0,pro?10:4).map(x=>`<p>• ${escapeHtml(x.question||questionFor(x))} ${chips(x.ev)}</p>`).join('')}${pro?`<h3>Source inventory and scope</h3><div class="scrolltable"><table class="data-table"><thead><tr><th>Source</th><th>Period</th><th>Coverage</th></tr></thead><tbody>${s.docs.map(d=>`<tr><td>${escapeHtml(d.role)}</td><td>${escapeHtml(d.period)}</td><td>${d.dup?'Duplicate':d.cov==null?'Not checked':d.cov+'% read'}</td></tr>`).join('')}</tbody></table></div><h3>Review limitations</h3><p>Statements are cited as claims made by source documents. Unreadable material, uncertain matching and absent uploads limit conclusions; this report makes no eligibility, legal or coverage determination.</p>`:''}<div class="divider"></div><div class="tiny muted">Prepared with HiveForYou · Synthetic data · This output is not legal, financial, educational or medical advice.</div></article>`}
-function audit(){let s=scenario();return `<div class="cols"><section class="card"><h3>Checks and methods</h3><p class="sub small" style="margin:8px 0 15px">A readable description of how the demo reached its findings.</p>${s.ops.map(o=>`<div class="rowitem"><div class="content"><strong>${escapeHtml(o.title)}</strong><p><b>Method:</b> ${escapeHtml(o.method)}</p><p><b>Result:</b> ${escapeHtml(o.output)}</p>${chips(o.ev)}${o.calc?btn('Inspect calculation','calc:'+o.calc,'sm'):''}</div></div>`).join('')}</section><aside class="card"><h3>Study revisions</h3>${s.studyRevs.map(r=>`<div class="rowitem"><div class="content"><strong>v${r.rev} · ${escapeHtml(r.date)}</strong><p>${escapeHtml(r.note)}</p></div></div>`).join('')}<div class="notice">The audit screen is a UI demonstration. It does not represent a real server-side processing log.</div></aside></div>`}
-function drawerContent(){const d=state.drawer;if(!d)return '';const s=scenario();let title='',content='';if(d.type==='evidence'){let e=evObj(d.id),doc=docObj(e.doc);title='Source evidence';content=`${badge(e.status==='verified'?'Verified source attribution':e.status==='unreadable'?'Unreadable':'Uncertain',e.status==='verified'?'green':'honey')}<h3 style="margin:17px 0 10px">${escapeHtml(doc.role)}</h3><p class="sub small">${escapeHtml(doc.file)} · Physical page ${e.page} of ${doc.pages}</p><div class="docpage"><div class="eyebrow">${escapeHtml(doc.org||'Source document')}</div><div class="divider"></div><p class="sub small">Document page ${e.page} · Synthetic reconstruction of evidence excerpt</p><div class="quote">“${escapeHtml(e.quote)}”</div><p class="tiny muted">This is a sample excerpt, not a full original PDF page or a verified visual highlight.</p></div><h4>What this supports</h4><p class="sub" style="margin-top:8px">${escapeHtml(e.supports)}</p>${e.unc?`<div class="notice" style="margin-top:15px">${escapeHtml(e.unc)}</div>`:''}`}
-else if(d.type==='doc'){let x=docObj(d.id);title='Document details';let related=Object.entries(s.ev).filter(([id,e])=>e.doc===x.id);content=`<div class="flex"><span class="file-icon">${icon('file')}</span><div><h3>${escapeHtml(x.role)}</h3><p class="small muted">${escapeHtml(x.file)}</p></div></div><div class="divider"></div><p><b>Type:</b> ${escapeHtml(x.type)}</p><p><b>Period:</b> ${escapeHtml(x.period)}</p><p><b>Page count:</b> ${x.pages}</p><p><b>Read coverage:</b> ${x.cov==null?'Not checked':x.cov+'%'}</p><p><b>Issuer:</b> ${escapeHtml(x.org||'Unspecified')}</p>${x.flags.map(f=>`<div class="notice" style="margin-top:14px">${escapeHtml(f.t)}</div>`).join('')}<h3 style="margin:28px 0 10px">Evidence linked to this file</h3>${related.length?related.map(([id,e])=>`<div class="rowitem"><div class="content"><p>${escapeHtml(e.supports)}</p>${chip(id)}</div></div>`).join(''):'<p class="sub small">No linked evidence in this demo.</p>'}`}
-else if(d.type==='issue'){let x=s.exceptions.find(a=>a.id===d.id);title='Review item';content=`${badge(x.kind==='missing'?'Missing':x.kind==='changed'?'Changed':'Needs you',x.kind==='missing'?'coral':x.kind==='changed'?'honey':'blue')}<h3 style="margin:15px 0">${escapeHtml(x.title)}</h3><p>${escapeHtml(x.detail)}</p><h4 style="margin-top:23px">Why it matters</h4><p class="sub" style="margin-top:7px">${escapeHtml(x.why)}</p><h4 style="margin-top:23px">Supporting pages</h4><div style="margin:8px 0 20px">${chips(x.ev)}</div>${x.question?`<div class="notice">Worth asking: ${escapeHtml(x.question)}</div>`:''}${x.request?`<div class="notice">Possible document request: ${escapeHtml(x.request)}</div>`:''}<label class="formfield"><span>Your note (optional)</span><textarea id="review-note" placeholder="Record your explanation or question…">${escapeHtml(state.notes[x.id]||'')}</textarea></label><div class="flex wrap">${btn(x.acceptLabel||'Mark reviewed','resolve:reviewed','primary')}${x.rejectLabel?btn(x.rejectLabel,'resolve:rejected',''):''}${btn('Not applicable','resolve:not applicable','')}</div><p class="small muted" style="margin-top:15px">A review decision records your input. It never rewrites the underlying document.</p>`}
-else if(d.type==='matrix'){let [r,c]=d.id.split(':').map(Number),m=s.matrix,v=m.rows[r].cells[c];title='Coverage detail';content=`<h3>${escapeHtml(m.rows[r].label)} · ${escapeHtml(m.cols[c])}</h3><p class="sub" style="margin:17px 0">${escapeHtml(v.note)}</p>${badge(v.s,v.s==='complete'?'green':v.s==='gap'?'coral':'honey')}<h4 style="margin-top:25px">Related evidence</h4>${chips(v.ev)}${v.x?`<div style="margin-top:20px">${btn('Review this gap','issue:'+v.x,'primary')}</div>`:''}`}
-else if(d.type==='calc'){let c=s.calcs[d.id];title='Calculation detail';content=`<h3>${escapeHtml(c.title)}</h3><div class="stat" style="margin:20px 0"><span class="eyebrow">Calculated result</span><strong>${escapeHtml(calcDisplay(d.id))}</strong></div><h4>Method</h4><p class="sub" style="margin:8px 0 20px">${escapeHtml(c.method)}</p><h4>Included inputs</h4>${c.inputs.filter(i=>!i.when||state.decisions[i.when.x]===i.when.status).map(i=>`<div class="rowitem"><div class="content"><strong>${escapeHtml(i.label)}</strong><p>${i.sign<0?'−':'+'}${escapeHtml(i.value)}</p>${chip(i.ev)}</div></div>`).join('')}<p class="small muted" style="margin-top:15px">Values are recomputed from the sample numeric inputs; no model arithmetic is trusted as the result.</p>`}
-else if(d.type==='new'){title='Create a hive';content=`<p class="sub">Give this situation a name. A new hive starts empty; nothing is treated as analyzed until a real processing workflow succeeds.</p><form id="create-form"><label class="formfield"><span>Hive name</span><input id="hive-title" required maxlength="100" placeholder="e.g., Mom’s paperwork"/></label><label class="formfield"><span>Description (optional)</span><textarea id="hive-desc" maxlength="500" placeholder="What are you trying to understand?"></textarea></label><button class="btn primary" type="submit">Create demo hive</button></form>`}
-else if(d.type==='upload'){title='Add documents';content=`<h3>Add source files</h3><p class="sub small" style="margin:12px 0">In this demo, selected file names appear in Documents only. No file contents leave your computer, and no analysis is performed.</p><label class="formfield"><span>Select files · PDF, PNG, JPG, DOCX</span><input id="file-pick" type="file" accept=".pdf,.png,.jpg,.jpeg,.docx" multiple></label><div class="notice">The production workflow would register private originals, read physical pages, verify evidence and update the Study only after successful validation.</div><div style="margin-top:20px">${btn('Close','close','')}</div>`}
-return `<div class="panel-backdrop" id="overlay"><aside class="drawer" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}"><div class="drawer-header"><h3>${escapeHtml(title)}</h3><button class="btn sm" data-action="close" aria-label="Close">${icon('x')}</button></div>${content}</aside></div>`}
-function customEmpty(){let x=state.created[state.customIndex];return `${topbar()}<main class="page"><div class="crumb"><button data-action="library">My hives</button> / ${escapeHtml(x.title)}</div><div class="empty card" style="max-width:730px;margin:50px auto"><h2>${escapeHtml(x.title)}</h2><p class="sub" style="margin:12px 0 26px">No documents yet. No Study has been created.</p>${btn(`${icon('upload')} Add documents`,'upload','primary')}<p class="muted small" style="margin-top:16px">Demo uploads are not processed or stored.</p></div></main>`}
-function render(){let html=state.view==='landing'?landing():state.view==='library'?library():state.view==='custom'?customEmpty():workspace();$('#app').innerHTML=html+(state.drawer?drawerContent():'')+(state.toast?`<div class="toast" role="status">${escapeHtml(state.toast)}</div>`:'');if(state.drawer){$('.drawer')?.focus();} }
-function toast(msg){state.toast=msg;render();setTimeout(()=>{state.toast='';$('.toast')?.remove()},3000)}
-function navigate(view,tab){state.view=view;if(tab)state.tab=tab;state.drawer=null;render();scrollTo(0,0)}
-function action(a){if(a==='board-send'){let el=$('#board-draft'),txt=(el?.value||'').trim();if(!txt){el?.focus();return}let who=state.boardActor;boardMessages().push({role:who,name:who==='staff'?'Onboarding specialist':'Client',text:txt,time:'Just now'});state.boardDraft='';let lower=txt.toLowerCase();if(who==='client'||/sarah|help|what|which|missing|next|compare|review|check/i.test(txt)){let answer=sarahReply(txt);boardMessages().push({role:'sarah',name:'Sarah · AI assistant',text:answer.text,time:'Just now',ev:answer.ev});}render();$('#board-messages')?.scrollTo({top:$('#board-messages').scrollHeight});return}if(a==='board-ask-sarah'){state.boardDraft='What should we do next?';let answer=sarahReply(state.boardDraft);boardMessages().push({role:'sarah',name:'Sarah · AI assistant',text:answer.text,time:'Just now',ev:answer.ev});state.boardDraft='';render();$('#board-messages')?.scrollTo({top:$('#board-messages').scrollHeight});return}if(a.startsWith('board-request:')){let r=boardRequests().find(x=>x.id===a.slice(14));if(!r)return;let issue=scenario().exceptions.find(x=>x.id===r.id);if(r.status==='Open'||r.status==='Requested'){boardMessages().push({role:'staff',name:'Onboarding specialist',text:`Document request: ${issue.request||issue.title} Please let us know whether you can supply this, or if it is not applicable.`,time:'Just now',ev:issue.ev});r.status='Requested';}render();$('#board-messages')?.scrollTo({top:$('#board-messages').scrollHeight});return}if(a==='landing'||a==='library'){navigate(a);return}if(a==='how'){navigate('landing');setTimeout(()=>$('#how-it-works')?.scrollIntoView({behavior:'smooth'}),10);return}if(a==='new'||a==='upload'){state.drawer={type:a};render();return}if(a==='close'){state.drawer=null;render();return}if(a==='review'){state.studyTab='attention';navigate('workspace','study');return}if(a==='timeline'){state.studyTab='timeline';navigate('workspace','study');return}if(a==='study'||a==='documents'||a==='overview'||a==='plan'||a==='reports'||a==='audit'){navigate('workspace',a);return}if(a==='ask'){state.query=$('#ask')?.value||state.query;if(!state.query.trim())return toast('Type a question to explore the Study.');state.studyTab=/missing|gap|cover/i.test(state.query)?'coverage':/compare|difference|change/i.test(state.query)?'compare':/timeline|when|date/i.test(state.query)?'timeline':/question|ask|meeting/i.test(state.query)?'questions':'understand';navigate('workspace','study');toast('Showing a relevant view of the synthetic Study. No new model analysis was run.');return}if(a==='generate'){state.reportMade=true;(state.reportHistory[state.scenario]??=[]).unshift({audience:state.reportAudience});render();return}if(a==='print'){print();return}if(a.startsWith('doc:')){state.drawer={type:'doc',id:a.slice(4)};render();return}if(a.startsWith('issue:')){state.drawer={type:'issue',id:a.slice(6)};render();return}if(a.startsWith('calc:')){state.drawer={type:'calc',id:a.slice(5)};render();return}if(a.startsWith('undo:')){delete state.decisions[a.slice(5)];render();return}if(a.startsWith('resolve:')){let id=state.drawer.id;state.notes[id]=$('#review-note')?.value||'';state.decisions[id]=a.slice(8);state.drawer=null;toast('Review response recorded for this demo session.');return}}
-document.addEventListener('click',e=>{const t=e.target.closest('[data-board-prompt],[data-action],[data-open],[data-tab],[data-study],[data-scenario],[data-evidence],[data-audience],[data-matrix],[data-history],[data-custom]');if(!t){if(e.target.id==='overlay'){state.drawer=null;render()}return}if(t.dataset.boardPrompt){state.boardDraft=t.dataset.boardPrompt;render();$('#board-draft')?.focus();return}if(t.dataset.action){action(t.dataset.action);return}if(t.dataset.open){state.scenario=t.dataset.open;state.tab='overview';state.reportMade=false;navigate('workspace');return}if(t.dataset.custom!=null){state.customIndex=+t.dataset.custom;navigate('custom');return}if(t.dataset.tab){if(t.dataset.tab==='review'||t.dataset.tab==='timeline'){state.studyTab=t.dataset.tab==='review'?'attention':'timeline';navigate('workspace','study')}else navigate('workspace',t.dataset.tab);return}if(t.dataset.study){state.studyTab=t.dataset.study;render();return}if(t.dataset.scenario){state.scenario=t.dataset.scenario;state.tab='overview';state.intent=DATA.S[state.scenario].ask;state.reportMade=false;navigate('workspace');return}if(t.dataset.evidence){state.drawer={type:'evidence',id:t.dataset.evidence};render();return}if(t.dataset.audience){state.reportAudience=t.dataset.audience;render();return}if(t.dataset.matrix){state.drawer={type:'matrix',id:t.dataset.matrix};render();return}if(t.dataset.history!=null){let r=(state.reportHistory[state.scenario]||[])[+t.dataset.history];if(r){state.reportAudience=r.audience;state.reportMade=true;render()}return}});
-document.addEventListener('change',e=>{if(e.target.id==='board-actor'){state.boardActor=e.target.value;state.boardDraft=$('#board-draft')?.value||'';render();return}if(e.target.id==='docfilter'){state.filter=e.target.value;render()}if(e.target.id==='file-pick'){const files=Array.from(e.target.files||[]);const allowed=['pdf','png','jpg','jpeg','docx'];const good=files.filter(f=>allowed.includes(f.name.toLowerCase().split('.').pop()));state.fakeUploads.push(...good.map(f=>({name:f.name,size:f.size})));state.drawer=null;state.tab='documents';toast(`${good.length} file name(s) added to the demo. No content was read.`)}});
-document.addEventListener('submit',e=>{if(e.target.id==='intent-form'){e.preventDefault();state.intent=$('#intent')?.value||'';if(!state.intent.trim()){action('library');return}let q=state.intent.toLowerCase();state.scenario=/iep|school|special education/.test(q)?'iep':/insurance|claim|adjuster|contractor/.test(q)?'insurance':'medicaid';state.query=state.intent;state.studyTab='understand';state.tab='overview';navigate('workspace');toast('Loaded a related synthetic sample; your request was not analyzed.')}if(e.target.id==='create-form'){e.preventDefault();let title=$('#hive-title').value.trim();if(!title)return;state.created.push({title,desc:$('#hive-desc').value.trim()});state.customIndex=state.created.length-1;navigate('custom')}});
-document.addEventListener('input',e=>{if(e.target.id==='board-draft')state.boardDraft=e.target.value});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.drawer){state.drawer=null;render()}if(e.key==='Enter'&&e.target.matches('[data-open],[data-custom]'))e.target.click()});render();
+
+function pagehead(title, lead, actions = "") {
+  return `<div class="crumb"><button data-action="library">All hives</button><span>/</span><span>${esc(S().hiveTitle)}</span></div>
+  <div class="pagehead"><div><h1 class="t-title">${title}</h1>${lead ? `<p>${lead}</p>` : ""}</div>${actions ? `<div class="actions">${actions}</div>` : ""}</div>`;
+}
+
+function workspace() {
+  const pages = { board, documents, findings, reports, audit, notes };
+  return `${topbar()}<div class="shell">${rail()}<main class="main" id="main">${(pages[state.tab] || board)()}</main></div>`;
+}
+
+/* ───────────── Hive board ───────────── */
+
+const SEED = {
+  large: null,
+  medicaid: [
+    { role: "staff", text: "Welcome. I'll help organize the documents for the financial review. Send what you have now, even if some statements are missing.", time: "9:05 AM" },
+    { role: "client", text: "I uploaded the bank statements I could find. I'm not sure whether the savings account was open in 2022.", time: "9:13 AM" },
+    { role: "assistant", text: "The earliest savings statement starts in January 2023, so the documents don't show whether the account was open in 2022. Priya can ask the bank for the opening date.", time: "9:14 AM", ev: ["e15"] },
+    { role: "staff", text: "Could you request the checking statements for April through June 2023? I'll keep that request open until they arrive.", time: "9:18 AM", ev: ["e10", "e11"] },
+  ],
+  iep: [
+    { role: "staff", text: "Welcome. Please upload the plans, evaluations and progress reports you have. They don't need to be in order.", time: "9:05 AM" },
+    { role: "client", text: "I uploaded the draft IEP and the previous plan. Can we check the change in speech therapy?", time: "9:11 AM" },
+    { role: "assistant", text: "The prior plan lists 90 minutes of speech therapy a week; the draft lists 60. Worth asking at the meeting: what led to the change?", time: "9:12 AM", ev: ["f1", "f2"] },
+    { role: "staff", text: "I'll also request the occupational therapy evaluation the draft mentions.", time: "9:15 AM", ev: ["f8"] },
+  ],
+  insurance: [
+    { role: "staff", text: "Welcome. I'll collect the claim documents and keep the open requests in one place.", time: "9:05 AM" },
+    { role: "client", text: "The contractor estimate is higher than the adjuster's. Can Sarah help find why?", time: "9:10 AM" },
+    { role: "assistant", text: "The two flooring lines cover different areas: the contractor includes the hallway; the adjuster's line doesn't name it.", time: "9:11 AM", ev: ["g4", "g5"] },
+    { role: "staff", text: "I'll follow up on the missing policy endorsement before preparing the comparison.", time: "9:17 AM", ev: ["g15"] },
+  ],
+};
+const messages = () => (state.boardMessages[state.scenario] ??= (SEED[state.scenario] || SEED.medicaid).map((m) => ({ ...m })));
+
+function speaker(role) {
+  const p = P();
+  if (role === "client") return { name: p.client, label: "Client", av: initials(p.client), cls: "client" };
+  if (role === "staff") return { name: p.staff, label: p.staffTitle, av: initials(p.staff), cls: "staff" };
+  return { name: p.assistant, label: "", av: MARK, cls: "assistant" };
+}
+
+function board() {
+  const s = S();
+  const p = P();
+  const missing = s.exceptions.filter((x) => x.kind === "missing" && !x.hidden);
+  const total = s.docs.length + missing.length;
+  const inCount = s.docs.length;
+  const msgs = messages();
+  const viewer = state.boardActor;
+  return `<div class="col">
+    ${pagehead("Hive board", `Conversation with ${esc(p.client.split(" ")[0])}, ${esc(p.staff.split(" ")[0])} and ${esc(p.assistant)}, the AI assistant. Everyone here sees every message.`)}
+    <div class="still"><span>Still to come</span><span class="bar" aria-hidden="true"><span style="width:${Math.round((inCount / total) * 100)}%"></span></span><span class="num">${inCount} of ${total} in</span><button class="btn text sm" data-tab="documents" style="margin-left:auto">See items ${icon("arrow")}</button></div>
+    <div class="thread" id="thread" aria-live="polite">
+      <div class="dateline">Today</div>
+      ${msgs.map((m) => {
+        const sp = speaker(m.role);
+        const mine = m.role === viewer;
+        return `<article class="msg${mine ? " mine" : ""}">
+          <div class="av ${sp.cls}" aria-hidden="true">${sp.av}</div>
+          <div><div class="byline"><strong>${esc(sp.name)}</strong>${sp.label ? `<span>${esc(sp.label)}</span>` : `<span class="ai-tag">AI assistant</span>`}<span class="num">${esc(m.time)}</span></div>
+          <p class="text">${esc(m.text)}</p>${refs(m.ev)}</div>
+        </article>`;
+      }).join("")}
+      ${state.typing ? `<div class="typing" role="status">${esc(p.assistant)} is looking through the documents…</div>` : ""}
+    </div>
+    ${viewer === "preview" ? "" : ""}
+    <div class="composer">
+      <label for="draft" class="sr-only">Message</label>
+      <textarea id="draft" rows="2" placeholder="Write a message…">${esc(state.boardDraft)}</textarea>
+      <div class="bar">
+        <span class="hint">${viewer === "staff" ? `The client sees this. Start with “${esc(p.assistant)}” to ask the assistant.` : `${esc(p.assistant)} answers from your documents, or passes your question to ${esc(p.staff.split(" ")[0])}.`}</span>
+        <button class="btn primary" data-action="send">Send ${icon("send")}</button>
+      </div>
+    </div>
+    <div class="metaline no-print" style="margin-top:14px"><label class="previewas">Preview as <select id="actor"><option value="staff" ${viewer === "staff" ? "selected" : ""}>${esc(p.staff)} (staff)</option><option value="client" ${viewer === "client" ? "selected" : ""}>${esc(p.client)} (client)</option></select></label><span>Prototype: replies are scripted from synthetic data.</span></div>
+  </div>`;
+}
+
+function assistantReply(q) {
+  const t = q.toLowerCase();
+  const items = openItems();
+  const match = items.find((x) => x.title.toLowerCase().split(" ").some((w) => w.length > 5 && t.includes(w)));
+  if (/missing|gap|statement|need|request|document/.test(t)) {
+    const x = match || items.find((i) => i.kind === "missing");
+    return x ? { text: `${x.detail} You can add it under Documents → What we asked for.`, ev: x.ev } : { text: "Nothing requested is still missing." };
+  }
+  if (/transfer|compare|change|different|speech|estimate/.test(t)) {
+    const x = match || items.find((i) => i.kind === "changed") || items[0];
+    return x ? { text: x.detail, ev: x.ev } : { text: "I couldn't find a difference about that in the documents." };
+  }
+  if (/eligible|qualify|should i|legal|advice|win/.test(t)) {
+    return { text: `That's a question for ${P().staff.split(" ")[0]}. I've passed it on. I can only tell you what the documents say.` };
+  }
+  return { text: `I couldn't find that in the documents yet. I've asked ${P().staff.split(" ")[0]} to take a look.` };
+}
+
+/* ───────────── Findings ───────────── */
+
+function findings() {
+  const s = S();
+  const all = openItems();
+  const kinds = ["missing", "changed", "needs"].filter((k) => all.some((x) => x.kind === k));
+  const byKind = all.filter((x) => state.kindFilter === "all" || x.kind === state.kindFilter);
+  const items = byKind.filter((x) => matches(x.title, x.detail, ...(x.ev || []).map((id) => doc(ev(id)?.doc)?.role)));
+  const list = limited("review", items, LIMIT.items);
+  const topics = s.understand.groups
+    .map((g, i) => ({ ...g, id: `topic-${i}`, rows: g.items.filter((it) => matches(g.title, it.text, ...(it.ev || []).map((id) => doc(ev(id)?.doc)?.role))) }))
+    .filter((g) => g.rows.length);
+  const statementCount = topics.reduce((n, g) => n + g.rows.length, 0);
+  const finding = state.find.trim();
+  const toc = [["review", "To review", items.length], ...topics.map((g) => [g.id, g.title, g.rows.length]), ["more", "Supporting detail", ""]];
+  return `<div class="withtoc">
+  <div class="col">
+    ${pagehead("Findings", "What the documents show, organized by topic. Every statement opens the page it comes from.")}
+    <div class="metaline"><span>Study v${s.studyRev}, accepted ${esc(s.studyRevs.at(-1).date)}</span><span class="num">${s.docs.length} documents</span><span class="num">${all.length} to review</span><span class="num">${s.understand.groups.reduce((n, g) => n + g.items.length, 0)} statements</span></div>
+    <p class="t-meta" style="margin-top:4px">Findings describe what the documents say. They aren't independent verification.</p>
+    ${s.understand.metrics.length ? `<dl class="glance">${s.understand.metrics.map((m) => `<div><dt>${esc(m.label)}</dt><dd>${esc(m.value || calcValue(m.calc))}</dd>${m.sub ? `<div class="sub">${esc(m.sub)}</div>` : ""}${m.calc ? `<button class="btn text sm" style="margin-left:-6px;margin-top:2px" data-action="calc:${m.calc}">How it's calculated</button>` : ""}</div>`).join("")}</dl>` : ""}
+
+    <div class="findbar">
+      <label class="filterbox"><span class="sr-only">Filter findings</span>${icon("filter")}<input id="find" type="search" placeholder="Filter by a word, name or amount" value="${esc(state.find)}" autocomplete="off"></label>
+      <label class="jump"><span class="sr-only">Jump to</span><select id="jump"><option value="">Jump to…</option>${toc.map(([id, l, n]) => `<option value="${id}">${esc(l)}${n !== "" ? ` (${n})` : ""}</option>`).join("")}</select></label>
+    </div>
+    ${finding ? `<p class="t-meta" role="status" style="margin-top:10px">${items.length} ${items.length === 1 ? "item" : "items"} and ${statementCount} ${statementCount === 1 ? "statement" : "statements"} match “${esc(finding)}”. <button class="btn text sm" data-action="clearfind">Clear</button></p>` : ""}
+
+    <section class="section" id="review" aria-labelledby="h-review">
+      <header><h2 class="t-section" id="h-review">To review <span class="count-h num">${items.length}</span></h2>
+        ${kinds.length > 1 ? `<div class="seg" role="group" aria-label="Show">${[["all", "All", all.length], ...kinds.map((k) => [k, KIND[k].word, all.filter((x) => x.kind === k).length])].map(([k, l, n]) => `<button data-kind="${k}" aria-pressed="${state.kindFilter === k}">${l} <span class="num muted">${n}</span></button>`).join("")}</div>` : ""}
+      </header>
+      <div class="rows">${list.shown.map((x) => {
+        const k = KIND[x.kind] || KIND.needs;
+        return `<div class="item"><div class="top">${status(k.word, k.tone)}<span class="t-item">${esc(x.title)}</span></div>
+          <p class="detail">${esc(x.detail)}</p>${refs(x.ev)}
+          <div class="side"><button class="btn sm" data-action="issue:${x.id}">Review</button></div></div>`;
+      }).join("") || `<p class="row muted">${finding ? "No items match." : "Everything has been reviewed."}</p>`}</div>
+      ${moreControl("review", list.hidden, list.total)}
+    </section>
+
+    <section class="section" aria-labelledby="h-known">
+      <header><h2 class="t-section" id="h-known">What the documents show</h2><span class="t-meta num">${topics.length} topics · ${statementCount} statements</span></header>
+      ${topics.map((g) => {
+        const l = limited(g.id, g.rows, LIMIT.statements);
+        return `<div class="topic" id="${g.id}"><h3>${esc(g.title)} <span class="count-h num">${g.rows.length}</span>${g.unc ? status("Uncertain", "honey") : ""}</h3>
+          ${l.shown.map((it) => `<div class="statement"><p>${esc(it.text)}</p>${refs(it.ev)}</div>`).join("")}
+          ${moreControl(g.id, l.hidden, l.total, `${l.hidden} more in ${g.title}`)}</div>`;
+      }).join("") || `<p class="row muted">No statements match.</p>`}
+    </section>
+
+    <section class="section" id="more" aria-labelledby="h-more">
+      <header><h2 class="t-section" id="h-more">Supporting detail</h2></header>
+      <details class="more"><summary>Compare across documents<span class="t-meta">${esc(s.compare.title)}</span>${icon("chevron")}</summary><div class="body">${compareTable()}</div></details>
+      <details class="more"><summary>Events in date order<span class="t-meta">${s.timeline.length} dated events</span>${icon("chevron")}</summary><div class="body">${timelineList()}</div></details>
+      <details class="more"><summary>Document coverage<span class="t-meta">What's complete and what's missing</span>${icon("chevron")}</summary><div class="body">${coverageTable()}</div></details>
+    </section>
+  </div>
+  <nav class="toc" aria-label="On this page"><div class="toc-title">On this page</div>${toc.map(([id, l, n]) => `<a href="#${id}" data-toc="${id}"><span>${esc(l)}</span>${n !== "" ? `<span class="num">${n}</span>` : ""}</a>`).join("")}</nav>
+  </div>`;
+}
+
+function compareTable() {
+  const c = S().compare;
+  const tone = { changed: ["Changed", "honey"], needs: ["To review", "blue"], same: ["Matches", "leaf"] };
+  return `<p class="t-meta" style="margin-bottom:8px">${esc(c.sub)}</p><div class="scrollx"><table class="table"><thead><tr>${c.cols.map((h) => `<th>${esc(h)}</th>`).join("")}<th>Result</th></tr></thead><tbody>${c.rows.map((r) => {
+    const [w, t] = tone[r.rs] || [r.result, "grey"];
+    return `<tr>${r.cells.map((v, i) => `<td class="${/^\$|^\d/.test(v) && i === r.cells.length - 1 ? "n" : ""}">${esc(v)}</td>`).join("")}<td>${status(w, t)}<div class="cell-sub">${esc(r.result)}</div>${refs(r.ev)}</td></tr>`;
+  }).join("")}</tbody></table></div>`;
+}
+function timelineList() {
+  const l = limited("timeline", S().timeline, LIMIT.rows);
+  return `<div class="rows">${l.shown.map((t) => `<div class="row trow"><span class="t-meta num" style="color:var(--ink-2)">${esc(t.date)}</span><div><p>${esc(t.text)}</p>${refs(t.ev)}</div></div>`).join("")}</div>${moreControl("timeline", l.hidden, l.total)}`;
+}
+function coverageTable() {
+  const m = S().matrix;
+  const word = { complete: ["Complete", "leaf"], gap: ["Missing", "coral"], partial: ["Partial", "honey"], unknown: ["Unknown", "grey"] };
+  return `<p class="t-meta" style="margin-bottom:8px">${esc(m.sub)}</p><div class="scrollx"><table class="table"><thead><tr><th>${esc(m.rowHead)}</th>${m.cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${m.rows.map((r, ri) => `<tr><td><strong>${esc(r.label)}</strong></td>${r.cells.map((c, ci) => {
+    const [w, t] = word[c.s] || word.unknown;
+    return `<td><button class="btn quiet sm" style="padding:0 6px;margin-left:-6px" data-matrix="${ri}:${ci}" title="${esc(c.note)}">${status(w, t)}</button></td>`;
+  }).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+/* ───────────── Documents ───────────── */
+
+function documents() {
+  const s = S();
+  const pages = s.docs.reduce((n, d) => n + d.pages, 0);
+  const unreadable = s.docs.filter((d) => d.cov != null && d.cov < 100).length;
+  const dups = s.docs.filter((d) => d.dup).length;
+  const list = s.docs.filter((d) => state.filter === "all" || (state.filter === "attention" && (d.flags.length || d.cov !== 100)) || (state.filter === "ready" && d.cov === 100 && !d.flags.length));
+  const missing = s.exceptions.filter((x) => x.kind === "missing" && !x.hidden);
+  const readState = (d) =>
+    d.dup ? status("Duplicate", "honey") : d.cov === 100 ? status("Read", "leaf") : d.cov == null ? status("Not read yet", "grey") : status(`${d.cov}% read`, "coral");
+  return `<div class="col wide">
+    ${pagehead("Documents", "Everything uploaded to this hive, what each file is, and how much of it was read.", btn(`${icon("upload")} Add documents`, "upload", "primary"))}
+    <div class="metaline"><span class="num">${s.docs.length} files</span><span class="num">${pages} pages</span>${unreadable ? `<span>${unreadable} with unreadable pages</span>` : ""}${dups ? `<span>${dups} duplicate set aside</span>` : ""}</div>
+
+    <section class="section" aria-labelledby="h-lib">
+      <header><h2 class="t-section" id="h-lib">Source library</h2>
+        <div class="seg" role="group" aria-label="Filter documents">${[["all", "All"], ["attention", "To review"], ["ready", "Read completely"]].map(([k, l]) => `<button data-filter="${k}" aria-pressed="${state.filter === k}">${l}</button>`).join("")}</div>
+      </header>
+      <div class="scrollx"><table class="table stack-sm"><thead><tr><th>Document</th><th>Period</th><th class="n">Pages</th><th>Read</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+      ${list.map((d) => `<tr><td><strong>${esc(d.role)}</strong><div class="cell-sub">${esc(d.type)} · ${esc(d.file)}</div><div class="cell-sub show-sm num">${esc(d.period)} · ${d.pages} pages</div></td><td class="num hide-sm">${esc(d.period)}</td><td class="n hide-sm">${d.pages}</td><td>${readState(d)}${d.flags.length ? `<div class="cell-sub">${esc(d.flags.map((f) => f.t).join("; "))}</div>` : ""}</td><td style="text-align:right">${btn("Inspect", "doc:" + d.id, "sm quiet")}</td></tr>`).join("")}
+      ${state.fakeUploads.map((f) => `<tr><td><strong>${esc(f.name)}</strong><div class="cell-sub">Added in this demo · not read</div></td><td>—</td><td class="n">—</td><td>${status("Not read yet", "grey")}</td><td></td></tr>`).join("")}
+      </tbody></table></div>
+      <p class="t-meta" style="margin-top:12px">Reading a page isn't the same as proving what it says. Unreadable pages and gaps stay visible.</p>
+    </section>
+
+    <section class="section" id="requested" aria-labelledby="h-asked">
+      <header><h2 class="t-section" id="h-asked">What we asked for</h2><span class="t-meta num">${missing.length} still to come</span></header>
+      <div class="rows">${limited("asked", missing, LIMIT.items).shown.map((x) => `<div class="item"><div class="top">${status("Missing", "coral")}<span class="t-item">${esc(x.request || x.title)}</span></div><p class="detail">${esc(x.detail)}</p><div class="side">${btn("Add it", "upload", "sm")}</div></div>`).join("")}</div>
+      ${(() => { const l = limited("asked", missing, LIMIT.items); return moreControl("asked", l.hidden, l.total); })()}
+    </section>
+  </div>`;
+}
+
+/* ───────────── Reports ───────────── */
+
+function reports() {
+  const s = S();
+  const hist = state.reportHistory[state.scenario] || [];
+  return `<div class="col">
+    ${pagehead("Reports", "One Study, written for two readers. Both use the same facts and sources.", state.reportMade ? btn(`${icon("download")} Print or save as PDF`, "print", "") : "")}
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between;padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+      <div class="seg" role="group" aria-label="Audience">${[["customer", "For the client · plain language"], ["pro", "For the professional · evidence detail"]].map(([k, l]) => `<button data-audience="${k}" aria-pressed="${state.reportAudience === k}">${l}</button>`).join("")}</div>
+      ${btn("Generate report", "generate", "primary")}
+    </div>
+    ${hist.length ? `<div class="t-meta" style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:4px">Saved reports:${hist.map((r, i) => `<button class="btn text sm" data-history="${i}">${r.audience === "pro" ? "Professional" : "Client"} report · ${esc(r.at)}</button>`).join("")}</div>` : ""}
+    ${state.reportMade ? reportPaper() : `<p class="t-meta" style="margin-top:16px">Choose a reader and generate. The report is built from Study v${s.studyRev}; nothing new is analyzed.</p>`}
+  </div>`;
+}
+function reportPaper() {
+  const s = S();
+  const pro = state.reportAudience === "pro";
+  const ex = s.exceptions.filter((x) => !x.hidden);
+  return `<article class="paper-doc" id="print-report">
+    <div style="display:flex;justify-content:space-between;align-items:center"><span class="brand" style="font-size:16px">${MARK}<span><strong>Hive</strong><span>ForYou</span></span></span><span class="t-meta">${pro ? "Professional review" : "Client summary"} · Study v${s.studyRev}</span></div>
+    <h2>${esc(s.deliverable)}</h2><p class="t-lead">${esc(s.goal)}</p>
+    <h3>What the documents show</h3>
+    ${s.understand.groups.filter((g) => !g.unc).slice(0, pro ? 4 : 2).map((g) => `<p><strong>${esc(g.title)}.</strong> ${g.items.slice(0, pro ? 6 : 2).map((it) => esc(it.text)).join(" ")}</p>`).join("")}
+    <h3>What still needs an answer</h3>
+    ${ex.slice(0, pro ? 10 : 4).map((x) => `<p><strong>${esc(x.title)}.</strong> ${esc(x.detail)}</p>${pro ? refs(x.ev) : ""}`).join("")}
+    ${pro ? `<h3>Sources and scope</h3><table class="table"><thead><tr><th>Source</th><th>Period</th><th class="n">Read</th></tr></thead><tbody>${s.docs.map((d) => `<tr><td>${esc(d.role)}</td><td>${esc(d.period)}</td><td class="n">${d.dup ? "Duplicate" : d.cov == null ? "—" : d.cov + "%"}</td></tr>`).join("")}</tbody></table>
+    <h3>Limits</h3><p>Statements are cited as what the documents say. Unreadable pages, uncertain matches and missing uploads limit what can be concluded. This report makes no eligibility, legal or coverage determination.</p>` : ""}
+    <p class="t-meta" style="margin-top:32px;padding-top:12px;border-top:1px solid var(--line)">Prepared with HiveForYou · not legal, financial, educational or medical advice.</p>
+  </article>`;
+}
+
+/* ───────────── Audit trail ───────────── */
+
+function audit() {
+  const s = S();
+  return `<div class="col">
+    ${pagehead("Audit trail", "How HiveForYou reached its findings: each check, its method and its result.")}
+    <section class="section" aria-labelledby="h-checks" style="padding-top:8px">
+      <header><h2 class="t-section" id="h-checks">Checks</h2><span class="t-meta num">${s.ops.length} checks</span></header>
+      <div class="rows">${limited("checks", s.ops, LIMIT.rows).shown.map((o) => `<div class="row"><div class="t-item">${esc(o.title)}</div>
+        <dl class="dl" style="margin-top:8px"><dt>Method</dt><dd>${esc(o.method)}</dd><dt>Result</dt><dd>${esc(o.output)}</dd></dl>${refs(o.ev)}
+        ${o.calc ? `<button class="btn text sm" style="margin-left:-6px;margin-top:6px" data-action="calc:${o.calc}">How it's calculated</button>` : ""}</div>`).join("")}</div>
+      ${(() => { const l = limited("checks", s.ops, LIMIT.rows); return moreControl("checks", l.hidden, l.total); })()}
+    </section>
+    <section class="section" aria-labelledby="h-revs">
+      <header><h2 class="t-section" id="h-revs">Study revisions</h2></header>
+      <div class="rows">${[...s.studyRevs].reverse().map((r) => `<div class="row trow"><span class="num"><strong>v${r.rev}</strong> <span class="muted">· ${esc(r.date)}</span></span><span>${esc(r.note)}</span></div>`).join("")}</div>
+    </section>
+  </div>`;
+}
+
+/* ───────────── Team notes (staff only) ───────────── */
+
+function notes() {
+  const list = (state.teamNotes[state.scenario] ??= TEAM_NOTES[state.scenario].map((n) => ({ ...n })));
+  return `<div class="col">
+    ${pagehead("Team notes", `Only people at your firm see these. Never shown to ${esc(P().client)}.`)}
+    <div class="rows">${list.map((n) => `<div class="note"><div class="byline"><strong>${esc(n.who)}</strong><span class="num">${esc(n.when)}</span></div><p class="text" style="margin-top:2px">${esc(n.text)}</p></div>`).join("")}</div>
+    <div class="composer" style="position:static;margin-top:20px"><label for="note" class="sr-only">Team note</label><textarea id="note" placeholder="Add a note for the team…">${esc(state.noteDraft)}</textarea><div class="bar"><span class="hint">${icon("lock", "icon")} Staff only</span>${btn("Add note", "addnote", "primary")}</div></div>
+  </div>`;
+}
+
+/* ───────────── Front page and hive list ───────────── */
+
+function landing() {
+  return `${topbar()}<main>
+    <section class="hero">
+      <h1>What are you working on?</h1>
+      <p class="lead">Bring the documents. Say what you need to understand. See the whole picture, with every finding tied to its page.</p>
+      <form id="intent-form" class="ring"><div class="ring-inner"><label for="intent" class="sr-only">What are you working on?</label><input id="intent" placeholder="e.g. Mom's Medicaid application" value="${esc(state.intent)}" autocomplete="off"><button class="btn primary" type="submit" aria-label="Continue">${icon("arrow")}</button></div></form>
+      <div class="suggest"><span>Try:</span><button data-scenario="iep">Preparing for an IEP meeting</button><button data-scenario="medicaid">Medicaid paperwork</button><button data-scenario="insurance">An insurance claim</button></div>
+      <div class="alt">${btn(`${icon("upload")} Add documents`, "new", "")}${btn("See a sample hive", "library", "quiet")}</div>
+    </section>
+    <section class="how" id="how-it-works">
+      <h2>From a pile of paper to clear next steps</h2>
+      <div class="steps">
+        <div><h3>Collect</h3><p>Upload whatever you have, old, partial or out of order. HiveForYou reads every page and tells you what's missing.</p></div>
+        <div><h3>Understand</h3><p>See what the documents establish, where they disagree, and what happened when. Every statement opens its page.</p></div>
+        <div><h3>Share</h3><p>Get a plain-language summary, or an evidence-detailed report for a professional, from the same Study.</p></div>
+      </div>
+      <p class="trustline">No source, no claim. This prototype uses invented documents only.</p>
+    </section>
+  </main>`;
+}
+
+function library() {
+  const hives = Object.values(DATA.S).filter((x) => x.docs && x.exceptions);
+  return `${topbar()}<main class="main"><div class="col wide">
+    <div class="pagehead"><div><h1 class="t-title">My hives</h1><p>One hive for each situation, with its documents, findings and reports.</p></div><div class="actions">${btn(`${icon("plus")} New hive`, "new", "primary")}</div></div>
+    <div class="hivelist" style="border-top:1px solid var(--ink)">
+      ${hives.map((x) => {
+        const open = x.exceptions.filter((e) => !e.hidden).length;
+        return `<button class="hrow" data-open="${x.id}"><span class="hive-initials">${initials(x.hiveTitle.replace(/'s\b/, ""))}</span><span><span class="t-item" style="display:block">${esc(x.hiveTitle)}</span><span class="t-meta">${esc(x.purpose)}</span></span><span class="t-meta num hide-sm">${x.docs.length} documents · Study v${x.studyRev}</span><span class="status ${open ? "coral" : "leaf"}">${open ? `${open} to review` : "Up to date"}</span></button>`;
+      }).join("")}
+      ${state.created.map((x, i) => `<button class="hrow" data-custom="${i}"><span class="hive-initials">${initials(x.title) || "H"}</span><span><span class="t-item" style="display:block">${esc(x.title)}</span><span class="t-meta">${esc(x.desc || "No documents yet")}</span></span><span class="t-meta hide-sm">No documents</span><span class="status grey">Empty</span></button>`).join("")}
+    </div>
+  </div></main>`;
+}
+
+function customEmpty() {
+  const x = state.created[state.customIndex];
+  return `${topbar()}<main class="main"><div class="col" style="text-align:center;padding-top:64px">
+    <h1 class="t-title">${esc(x.title)}</h1><p class="t-lead" style="margin:10px 0 28px">No documents yet. Upload whatever you have — old, partial or out of order is fine.</p>
+    ${btn(`${icon("upload")} Add documents`, "upload", "primary")}</div></main>`;
+}
+
+/* ───────────── Drawer ───────────── */
+
+function drawer() {
+  const d = state.drawer;
+  if (!d) return "";
+  const s = S();
+  let title = "", body = "", foot = "";
+  if (d.type === "evidence") {
+    const e = ev(d.id), x = doc(e.doc);
+    title = `${x.role} · page ${e.page}`;
+    const st = e.status === "verified" ? status("Checked against the page", "leaf") : e.status === "unreadable" ? status("Unreadable", "coral") : status("Uncertain", "honey");
+    body = `${st}<div class="excerpt"><div class="src">${esc(x.org || "Source document")} · page ${e.page} of ${x.pages}</div>“<mark>${esc(e.quote)}</mark>”</div>
+      <h4>What this supports</h4><p>${esc(e.supports)}</p>${e.unc ? `<h4>Why it's uncertain</h4><p>${esc(e.unc)}</p>` : ""}
+      <p class="t-meta" style="margin-top:24px">Prototype excerpt from a synthetic page. The app shows the real page image here.</p>`;
+  } else if (d.type === "doc") {
+    const x = doc(d.id);
+    const linked = Object.entries(s.ev).filter(([, e]) => e.doc === x.id);
+    title = x.role;
+    body = `<dl class="dl" style="margin-top:0"><dt>What it is</dt><dd>${esc(x.type)}</dd><dt>Period</dt><dd>${esc(x.period)}</dd><dt>Pages</dt><dd class="num">${x.pages}</dd><dt>Read</dt><dd>${x.cov == null ? "Not read yet" : x.cov + "%"}</dd><dt>Issued by</dt><dd>${esc(x.org || "—")}</dd><dt>File</dt><dd>${esc(x.file)}</dd></dl>
+      ${x.flags.map((f) => `<p style="margin-top:12px">${status("Note", "honey")} ${esc(f.t)}</p>`).join("")}
+      <h4>Findings that cite this document</h4><div class="rows">${linked.map(([id, e]) => `<div class="row"><p>${esc(e.supports)}</p>${refs([id])}</div>`).join("") || `<p class="muted">None yet.</p>`}</div>`;
+  } else if (d.type === "issue") {
+    const x = s.exceptions.find((a) => a.id === d.id);
+    const k = KIND[x.kind] || KIND.needs;
+    title = "Review";
+    body = `${status(k.word, k.tone)}<h3 class="t-section" style="margin:10px 0 8px">${esc(x.title)}</h3><p>${esc(x.detail)}</p>
+      <h4>Why it matters</h4><p>${esc(x.why)}</p><h4>Pages</h4>${refs(x.ev)}
+      ${x.question ? `<h4>Worth asking</h4><p>${esc(x.question)}</p>` : ""}${x.request ? `<h4>Document to request</h4><p>${esc(x.request)}</p>` : ""}
+      <label class="field"><span>Note (optional)</span><textarea id="review-note" placeholder="What you know, or what you asked for…">${esc(state.notes[x.id] || "")}</textarea></label>`;
+    foot = `<div style="display:flex;gap:8px;flex-wrap:wrap">${btn(x.acceptLabel || "Mark reviewed", "resolve:reviewed", "primary")}${btn("Not applicable", "resolve:not applicable", "")}</div><p class="t-meta" style="margin-top:10px">A decision records your answer. It never changes the document.</p>`;
+  } else if (d.type === "matrix") {
+    const [r, c] = d.id.split(":").map(Number), m = s.matrix, v = m.rows[r].cells[c];
+    title = `${m.rows[r].label} · ${m.cols[c]}`;
+    body = `<p>${esc(v.note)}</p>${refs(v.ev)}${v.x ? `<div style="margin-top:16px">${btn("Review this gap", "issue:" + v.x, "")}</div>` : ""}`;
+  } else if (d.type === "calc") {
+    const c = s.calcs[d.id];
+    title = c.title;
+    body = `<dl class="glance" style="margin-top:0"><div><dt>Result</dt><dd>${esc(calcValue(d.id))}</dd></div></dl><h4>Method</h4><p>${esc(c.method)}</p><h4>Inputs</h4>
+      <div class="rows">${c.inputs.filter((i) => !i.when || state.decisions[i.when.x] === i.when.status).map((i) => `<div class="row" style="display:flex;justify-content:space-between;gap:12px"><div><p>${esc(i.label)}</p>${refs([i.ev])}</div><span class="num">${i.sign < 0 ? "−" : "+"}${esc(i.value)}</span></div>`).join("")}</div>
+      <p class="t-meta" style="margin-top:12px">Recomputed from the numbers on the pages; the model's arithmetic is never trusted.</p>`;
+  } else if (d.type === "new") {
+    title = "New hive";
+    body = `<form id="create-form"><label class="field" style="margin-top:0"><span>Name</span><input id="hive-title" required maxlength="100" placeholder="e.g. Mom's paperwork"></label><label class="field"><span>What are you trying to understand? (optional)</span><textarea id="hive-desc" maxlength="500"></textarea></label><div style="margin-top:20px"><button class="btn primary" type="submit">Create hive</button></div></form>`;
+  } else if (d.type === "upload") {
+    title = "Add documents";
+    body = `<p>PDFs, photos or Word files. Old, partial or out of order is fine.</p><label class="field"><span>Choose files</span><input id="file-pick" type="file" accept=".pdf,.png,.jpg,.jpeg,.heic,.docx" multiple></label><p class="t-meta" style="margin-top:12px">In this prototype only the file names are listed; nothing is read.</p>`;
+  }
+  return `<div class="scrim" id="scrim"></div><aside class="drawer" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1">
+    <header><h2 class="t-section">${esc(title)}</h2><button class="btn quiet sm" data-action="close" aria-label="Close">${icon("x")}</button></header>
+    <div class="content">${body}</div>${foot ? `<div style="padding:16px 24px;border-top:1px solid var(--line)">${foot}</div>` : ""}</aside>`;
+}
+
+/* ───────────── Render and events ───────────── */
+
+function render() {
+  const html = state.view === "landing" ? landing() : state.view === "library" ? library() : state.view === "custom" ? customEmpty() : workspace();
+  $("#app").innerHTML = html + drawer() + (state.toast ? `<div class="toast" role="status">${esc(state.toast)}</div>` : "");
+  if (state.drawer) $(".drawer")?.focus();
+  watchToc();
+}
+let tocObserver;
+function watchToc() {
+  tocObserver?.disconnect();
+  const links = [...document.querySelectorAll("[data-toc]")];
+  if (!links.length) return;
+  tocObserver = new IntersectionObserver((entries) => {
+    const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+    if (top) links.forEach((l) => l.toggleAttribute("aria-current", l.dataset.toc === top.target.id));
+  }, { rootMargin: "-80px 0px -60% 0px" });
+  links.forEach((l) => { const el = document.getElementById(l.dataset.toc); if (el) tocObserver.observe(el); });
+}
+function toast(msg) {
+  state.toast = msg;
+  render();
+  setTimeout(() => { state.toast = ""; $(".toast")?.remove(); }, 3000);
+}
+function navigate(view, tab) {
+  state.view = view;
+  if (tab) state.tab = tab;
+  state.drawer = null;
+  render();
+  scrollTo(0, 0);
+}
+function scrollThread() { const t = $("#thread"); t?.lastElementChild?.scrollIntoView({ block: "nearest" }); }
+
+function action(a) {
+  if (a === "send") {
+    const el = $("#draft"), text = (el?.value || "").trim();
+    if (!text) return el?.focus();
+    const who = state.boardActor;
+    messages().push({ role: who, text, time: "Just now" });
+    state.boardDraft = "";
+    const asks = who === "client" || new RegExp(`^@?${P().assistant}\\b`, "i").test(text);
+    if (asks) {
+      state.typing = true;
+      render(); scrollThread();
+      setTimeout(() => { const r = assistantReply(text); messages().push({ role: "assistant", text: r.text, ev: r.ev, time: "Just now" }); state.typing = false; render(); scrollThread(); }, 900);
+    } else { render(); scrollThread(); }
+    return;
+  }
+  if (a === "addnote") {
+    const el = $("#note"), text = (el?.value || "").trim();
+    if (!text) return el?.focus();
+    state.teamNotes[state.scenario].push({ who: "Priya Shah", when: "Just now", text });
+    state.noteDraft = "";
+    return render();
+  }
+  if (a === "landing" || a === "library") return navigate(a);
+  if (a === "how") { navigate("landing"); return setTimeout(() => $("#how-it-works")?.scrollIntoView({ behavior: "smooth" }), 10); }
+  if (a === "new" || a === "upload") { state.drawer = { type: a }; return render(); }
+  if (a === "close") { state.drawer = null; return render(); }
+  if (a === "generate") {
+    state.reportMade = true;
+    (state.reportHistory[state.scenario] ??= []).unshift({ audience: state.reportAudience, at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) });
+    return render();
+  }
+  if (a === "print") return print();
+  if (a === "clearfind") { state.find = ""; render(); return $("#find")?.focus(); }
+  const [kind, id] = [a.slice(0, a.indexOf(":")), a.slice(a.indexOf(":") + 1)];
+  if (kind === "doc" || kind === "issue" || kind === "calc") { state.drawer = { type: kind, id }; return render(); }
+  if (kind === "resolve") {
+    const issue = state.drawer.id;
+    state.notes[issue] = $("#review-note")?.value || "";
+    state.decisions[issue] = id;
+    state.drawer = null;
+    return toast("Decision recorded for this demo session.");
+  }
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target.id === "scrim") { state.drawer = null; return render(); }
+  const t = e.target.closest("[data-action],[data-open],[data-tab],[data-scenario],[data-evidence],[data-audience],[data-matrix],[data-history],[data-custom],[data-filter],[data-expand],[data-kind]");
+  if (!t) return;
+  const ds = t.dataset;
+  if (ds.action) return action(ds.action);
+  if (ds.open) { state.scenario = ds.open; state.reportMade = false; state.expanded = {}; state.find = ""; state.kindFilter = "all"; return navigate("workspace", "board"); }
+  if (ds.custom != null) { state.customIndex = +ds.custom; return navigate("custom"); }
+  if (ds.tab) return navigate("workspace", ds.tab);
+  if (ds.scenario) { state.scenario = ds.scenario; state.intent = DATA.S[ds.scenario].ask; state.reportMade = false; return navigate("workspace", "board"); }
+  if (ds.evidence) { state.drawer = { type: "evidence", id: ds.evidence }; return render(); }
+  if (ds.audience) { state.reportAudience = ds.audience; return render(); }
+  if (ds.matrix) { state.drawer = { type: "matrix", id: ds.matrix }; return render(); }
+  if (ds.filter) { state.filter = ds.filter; return render(); }
+  if (ds.expand) { state.expanded[ds.expand] = !state.expanded[ds.expand]; return render(); }
+  if (ds.kind) { state.kindFilter = ds.kind; state.expanded.review = false; return render(); }
+  if (ds.history != null) { const r = (state.reportHistory[state.scenario] || [])[+ds.history]; if (r) { state.reportAudience = r.audience; state.reportMade = true; render(); } }
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "jump" && e.target.value) { document.getElementById(e.target.value)?.scrollIntoView({ behavior: "smooth", block: "start" }); e.target.value = ""; return; }
+  if (e.target.id === "actor") { state.boardActor = e.target.value; state.boardDraft = $("#draft")?.value || ""; return render(); }
+  if (e.target.id === "file-pick") {
+    const files = Array.from(e.target.files || []);
+    state.fakeUploads.push(...files.map((f) => ({ name: f.name })));
+    state.drawer = null;
+    state.tab = "documents";
+    toast(`${files.length} file name(s) listed. Nothing was read.`);
+  }
+});
+document.addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (e.target.id === "intent-form") {
+    state.intent = $("#intent")?.value || "";
+    if (!state.intent.trim()) return action("library");
+    const q = state.intent.toLowerCase();
+    state.scenario = /iep|school|special education/.test(q) ? "iep" : /insurance|claim|adjuster|contractor/.test(q) ? "insurance" : "medicaid";
+    navigate("workspace", "board");
+    toast("Opened a related sample hive. Your text wasn't analyzed.");
+  }
+  if (e.target.id === "create-form") {
+    const title = $("#hive-title").value.trim();
+    if (!title) return;
+    state.created.push({ title, desc: $("#hive-desc").value.trim() });
+    state.customIndex = state.created.length - 1;
+    navigate("custom");
+  }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id === "draft") state.boardDraft = e.target.value;
+  if (e.target.id === "note") state.noteDraft = e.target.value;
+  if (e.target.id === "find") {
+    const pos = e.target.selectionStart;
+    state.find = e.target.value;
+    render();
+    const f = $("#find"); f.focus(); f.setSelectionRange(pos, pos);
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && state.drawer) { state.drawer = null; render(); }
+  if (e.key === "Enter" && !e.shiftKey && e.target.id === "draft") { e.preventDefault(); action("send"); }
+});
+render();
 </script></body></html>
