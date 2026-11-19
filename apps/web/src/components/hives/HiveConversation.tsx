@@ -473,7 +473,7 @@ export function HiveConversation({ hiveId, initial, staffView, clientName, viewe
                       mine={showsAsMine(message, preview ? "client" : "self")}
                       mounted={mounted}
                     />
-                    {!preview && staffView && conversation.failedAssistantForMessageIds.includes(message.id) ? (
+                    {!preview && !viewerIsClient && conversation.failedAssistantForMessageIds.includes(message.id) ? (
                       <p className="m-0 ms-11 text-[12px] text-quiet" data-testid="hive-assistant-failed-line">
                         {conversation.assistantName} couldn&apos;t answer this one.
                       </p>
