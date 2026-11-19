@@ -3,11 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET, POST } from "./route";
 
-const { requireAuthenticatedUserMock, sendMock, getUserByIdMock, processHiveAssistantReplySafelyMock } = vi.hoisted(() => ({
+const {
+  requireAuthenticatedUserMock,
+  sendMock,
+  getUserByIdMock,
+  runHiveAssistantReplyMock,
+  afterCallbacks,
+} = vi.hoisted(() => ({
   requireAuthenticatedUserMock: vi.fn(),
   sendMock: vi.fn(),
   getUserByIdMock: vi.fn(),
-  processHiveAssistantReplySafelyMock: vi.fn(),
+  runHiveAssistantReplyMock: vi.fn(),
+  afterCallbacks: [] as Array<() => unknown>,
 }));
 
 vi.mock("@/server/supabase/server-client", () => ({
@@ -21,11 +28,16 @@ vi.mock("@hives/persistence/storage/supabase-client", () => ({
   createSupabaseAdminClient: () => ({ auth: { admin: { getUserById: (id: string) => getUserByIdMock(id) } } }),
 }));
 vi.mock("@/server/hives/hive-assistant-service", () => ({
-  processHiveAssistantReplySafely: (...args: unknown[]) => processHiveAssistantReplySafelyMock(...args),
+  runHiveAssistantReply: (...args: unknown[]) => runHiveAssistantReplyMock(...args),
 }));
 vi.mock("next/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/server")>();
-  return { ...actual, after: (callback: () => void) => callback() };
+  return {
+    ...actual,
+    after: (callback: () => unknown) => {
+      afterCallbacks.push(callback);
+    },
+  };
 });
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
@@ -81,6 +93,9 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
   const priorSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
   beforeEach(() => {
+    afterCallbacks.length = 0;
+    runHiveAssistantReplyMock.mockReset();
+    runHiveAssistantReplyMock.mockResolvedValue(undefined);
     process.env.NEXT_PUBLIC_SITE_URL = "https://app.example.test";
     logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -99,7 +114,7 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
 
   afterEach(() => {
     process.env.NEXT_PUBLIC_SITE_URL = priorSiteUrl;
-    processHiveAssistantReplySafelyMock.mockReset();
+    afterCallbacks.length = 0;
     vi.restoreAllMocks();
   });
 
@@ -128,7 +143,9 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
 
     expect(getUserByIdMock.mock.calls.map((call) => call[0]).sort()).toEqual([USER_A, USER_B].sort());
     expect(sendMock).toHaveBeenCalledTimes(2);
-    expect(processHiveAssistantReplySafelyMock).toHaveBeenCalledWith({
+    expect(afterCallbacks).toHaveLength(1);
+    await Promise.all(afterCallbacks.map((callback) => Promise.resolve(callback())));
+    expect(runHiveAssistantReplyMock).toHaveBeenCalledWith({
       hiveId: HIVE_ID,
       triggerMessage: expect.objectContaining({ id: ROW.id, body: SECRET_BODY }),
       authorRole: ROW.authorRole,
@@ -148,6 +165,27 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
         expect(part).not.toContain("Jordan");
       }
     }
+  });
+
+  it("after() awaits the assistant promise from the callback", async () => {
+    let assistantDone = false;
+    runHiveAssistantReplyMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          setTimeout(() => {
+            assistantDone = true;
+            resolve();
+          }, 50);
+        }),
+    );
+    rpcRoutes({ data: { message: ROW, notifyUserIds: [], duplicate: false }, error: null });
+    await POST(postRequest({ body: "Hello" }), context);
+    expect(afterCallbacks).toHaveLength(1);
+    const returned = afterCallbacks[0]!();
+    expect(returned).toBeInstanceOf(Promise);
+    expect(assistantDone).toBe(false);
+    await returned;
+    expect(assistantDone).toBe(true);
   });
 
   it("sends nothing on a duplicate replay and returns 200", async () => {

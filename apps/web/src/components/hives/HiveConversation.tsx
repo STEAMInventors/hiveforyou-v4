@@ -318,7 +318,11 @@ export function HiveConversation({ hiveId, initial, staffView, clientName, viewe
       <div className="min-w-0">
         <h3 className="m-0 font-brand text-[20px] font-semibold leading-tight text-ink">Conversation</h3>
         <p className="m-0 mt-1 text-[13px] text-graphite" data-testid="hive-conversation-participants">
-          {participantLine(conversation.participantLabels, conversation.participantCount)}
+          {participantLine(
+            conversation.participantLabels,
+            conversation.participantCount,
+            conversation.assistantAvailable,
+          )}
         </p>
       </div>
       {staffView ? (

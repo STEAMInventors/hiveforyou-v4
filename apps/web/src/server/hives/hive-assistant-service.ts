@@ -18,7 +18,11 @@ import { loadPackById } from "@/server/pipeline/pack-loader";
 import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation/study-preparation";
 
 import { createDefaultAssistantModelRunner, type AssistantModelRunner } from "./hive-assistant-model-runner";
-import { shouldTriggerHiveAssistant, type AssistantHiveFlags } from "./hive-assistant-trigger";
+import {
+  shouldTriggerHiveAssistant,
+  type AssistantHiveFlags,
+  type AssistantSkipReason,
+} from "./hive-assistant-trigger";
 import { loadHiveOverview } from "./hive-summary";
 
 type RunInput = {
@@ -33,16 +37,16 @@ function authorRoleToBriefing(role: string): AssistantBriefingAskerRole {
   return "professional";
 }
 
-async function loadHiveFlags(client: SupabaseClient, hiveId: string): Promise<AssistantHiveFlags & { name: string; stage: string | null; firmId: string | null }> {
+type LoadedHiveFlags = AssistantHiveFlags & { name: string; stage: string | null; firmId: string | null };
+
+async function loadHiveFlags(client: SupabaseClient, hiveId: string): Promise<LoadedHiveFlags | null> {
   const { data, error } = await client
     .schema("hive")
     .from("hives")
     .select("content_class,assistant_replies_on,name,stage,firm_id")
     .eq("id", hiveId)
     .maybeSingle();
-  if (error || !data) {
-    return { contentClass: "real", assistantRepliesOn: false, name: "Hive", stage: null, firmId: null };
-  }
+  if (error || !data) return null;
   const row = data as {
     content_class?: string;
     assistant_replies_on?: boolean;
@@ -57,6 +61,88 @@ async function loadHiveFlags(client: SupabaseClient, hiveId: string): Promise<As
     stage: typeof row.stage === "string" ? row.stage : null,
     firmId: typeof row.firm_id === "string" ? row.firm_id : null,
   };
+}
+
+function assistantLogBase(input: RunInput, runId?: string | null): Record<string, unknown> {
+  return {
+    timestamp: new Date().toISOString(),
+    component: "hives",
+    operation: "hiveAssistantReply",
+    stage: "SHELL",
+    correlationId: input.correlationId,
+    hiveId: input.hiveId,
+    ...(runId ? { processingRunId: runId } : {}),
+    task: "hive-assistant-reply/1",
+  };
+}
+
+function logAssistantSkipped(input: RunInput, reason: AssistantSkipReason, runId?: string | null): void {
+  emitStructuredEvent({
+    ...assistantLogBase(input, runId),
+    eventName: "hive.assistant.skipped",
+    severity: "INFO",
+    status: "OK",
+    errorCode: reason,
+  });
+}
+
+function logAssistantFlagsUnavailable(input: RunInput): void {
+  emitStructuredEvent({
+    ...assistantLogBase(input),
+    eventName: "hive.assistant.flags_unavailable",
+    severity: "WARN",
+    status: "FAILED",
+    diagnosticReason: "persistence_failed",
+  });
+}
+
+function logAssistantClaimFailed(input: RunInput, code: string): void {
+  emitStructuredEvent({
+    ...assistantLogBase(input),
+    eventName: "hive.assistant.claim_failed",
+    severity: "WARN",
+    status: "FAILED",
+    errorCode: code,
+  });
+}
+
+function logAssistantFailed(
+  input: RunInput,
+  runId: string,
+  stage: "briefing" | "model" | "validation" | "finish",
+  errorCode: string,
+  durationMs?: number,
+): void {
+  emitStructuredEvent({
+    ...assistantLogBase(input, runId),
+    eventName: "hive.assistant.failed",
+    severity: "WARN",
+    status: "FAILED",
+    errorCode,
+    diagnosticField: stage,
+    ...(durationMs != null ? { durationMs } : {}),
+  });
+}
+
+function logAssistantAnswered(
+  input: RunInput,
+  runId: string,
+  status: "answered" | "routed",
+  durationMs: number,
+  factsSent: number,
+  claimsKept: number,
+  claimsDropped: number,
+): void {
+  emitStructuredEvent({
+    ...assistantLogBase(input, runId),
+    eventName: status === "routed" ? "hive.assistant.routed" : "hive.assistant.answered",
+    severity: "INFO",
+    status: "OK",
+    durationMs,
+    totalCount: factsSent,
+    inputCount: claimsKept,
+    outputCount: claimsDropped,
+  });
 }
 
 async function loadAssistantName(client: SupabaseClient, firmId: string | null): Promise<string> {
@@ -149,6 +235,10 @@ export async function maybeScheduleHiveAssistantReply(
   const admin = createSupabaseAdminClient(loadSupabaseAdminEnv(process.env));
   const { userClient } = input;
   const hive = await loadHiveFlags(admin, input.hiveId);
+  if (!hive) {
+    logAssistantFlagsUnavailable(input);
+    return;
+  }
   const assistantName = await loadAssistantName(admin, hive.firmId);
   const runsInLastHour = await countRunsLastHour(admin, input.hiveId);
   const decision = shouldTriggerHiveAssistant({
@@ -158,16 +248,25 @@ export async function maybeScheduleHiveAssistantReply(
     assistantName,
     runsInLastHour,
   });
-  if (!decision.trigger) return;
+  if (!decision.trigger) {
+    if (decision.skipReason) logAssistantSkipped(input, decision.skipReason);
+    return;
+  }
 
   const skipForRate = decision.skipReason === "rate_limited";
 
   const { data: claimRaw, error: claimError } = await admin.rpc("claim_assistant_run", {
     p_trigger_message_id: input.triggerMessage.id,
   });
-  if (claimError) return;
+  if (claimError) {
+    logAssistantClaimFailed(input, claimError.code ?? "claim_failed");
+    return;
+  }
   const claim = claimRaw as { runId?: string; claimed?: boolean } | null;
-  if (!claim?.runId || !claim.claimed) return;
+  if (!claim?.runId || !claim.claimed) {
+    logAssistantClaimFailed(input, "not_claimed");
+    return;
+  }
 
   if (skipForRate) {
     await finishRun(admin, {
@@ -181,6 +280,7 @@ export async function maybeScheduleHiveAssistantReply(
       latencyMs: null,
       errorCode: "rate_limited",
     });
+    logAssistantSkipped(input, "rate_limited", claim.runId);
     return;
   }
 
@@ -212,6 +312,7 @@ export async function maybeScheduleHiveAssistantReply(
       input.triggerMessage,
     );
   } catch {
+    const durationMs = Date.now() - started;
     await finishRun(admin, {
       runId: claim.runId,
       status: "failed",
@@ -220,10 +321,10 @@ export async function maybeScheduleHiveAssistantReply(
       studyRevisionId: null,
       promptId: registryPromptId,
       model: null,
-      latencyMs: Date.now() - started,
+      latencyMs: durationMs,
       errorCode: "briefing_unavailable",
     });
-    emitAssistantOutcome(input, claim.runId, "failed", Date.now() - started, "briefing_unavailable", 0, 0, 0);
+    logAssistantFailed(input, claim.runId, "briefing", "briefing_unavailable", durationMs);
     return;
   }
 
@@ -270,6 +371,7 @@ export async function maybeScheduleHiveAssistantReply(
       correlationId: input.correlationId,
     });
     if (!model.ok) {
+      const durationMs = Date.now() - started;
       await finishRun(admin, {
         runId: claim.runId,
         status: "failed",
@@ -278,10 +380,10 @@ export async function maybeScheduleHiveAssistantReply(
         studyRevisionId: preparation.studyRevision?.id ?? null,
         promptId: registryPromptId,
         model: null,
-        latencyMs: Date.now() - started,
+        latencyMs: durationMs,
         errorCode: model.errorCode,
       });
-      emitAssistantOutcome(input, claim.runId, "failed", Date.now() - started, model.errorCode, briefing.study.facts.length, 0, 0);
+      logAssistantFailed(input, claim.runId, "model", model.errorCode, durationMs);
       return;
     }
 
@@ -321,17 +423,17 @@ export async function maybeScheduleHiveAssistantReply(
       itemKey: validated.itemKey,
     });
 
-    emitAssistantOutcome(
+    logAssistantAnswered(
       input,
       claim.runId,
       status,
       model.latencyMs,
-      null,
       briefing.study.facts.length,
       validated.sourceRefs.length,
       validated.sourceRefs.length,
     );
   } catch {
+    const durationMs = Date.now() - started;
     await finishRun(admin, {
       runId: claim.runId,
       status: "failed",
@@ -340,41 +442,24 @@ export async function maybeScheduleHiveAssistantReply(
       studyRevisionId: null,
       promptId: registryPromptId,
       model: null,
-      latencyMs: Date.now() - started,
+      latencyMs: durationMs,
       errorCode: "internal",
     });
+    logAssistantFailed(input, claim.runId, "finish", "internal", durationMs);
   }
 }
 
-function emitAssistantOutcome(
-  input: RunInput,
-  runId: string,
-  status: string,
-  latencyMs: number,
-  errorCode: string | null,
-  factsSent: number,
-  claimsKept: number,
-  claimsDropped: number,
-): void {
-  emitStructuredEvent({
-    eventName: "hive.assistant.completed",
-    severity: status === "failed" || status === "skipped" ? "WARN" : "INFO",
-    timestamp: new Date().toISOString(),
-    component: "hives",
-    operation: "hiveAssistantReply",
-    stage: "SHELL",
-    correlationId: input.correlationId,
-    operationId: runId,
-    status: status === "answered" || status === "routed" ? "OK" : "FAILED",
-    durationMs: latencyMs,
-    diagnosticReason: errorCode ?? status,
-    totalCount: factsSent,
-    inputCount: claimsKept,
-    outputCount: claimsDropped,
-    task: "hive-assistant-reply/1",
-  });
-}
-
-export function processHiveAssistantReplySafely(input: RunInput & { authorRole: string }): void {
-  void maybeScheduleHiveAssistantReply(input).catch(() => undefined);
+export async function runHiveAssistantReply(input: RunInput & { authorRole: string }): Promise<void> {
+  try {
+    await maybeScheduleHiveAssistantReply(input);
+  } catch {
+    emitStructuredEvent({
+      ...assistantLogBase(input),
+      eventName: "hive.assistant.failed",
+      severity: "ERROR",
+      status: "FAILED",
+      errorCode: "unexpected",
+      diagnosticField: "finish",
+    });
+  }
 }

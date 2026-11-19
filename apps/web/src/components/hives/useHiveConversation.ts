@@ -11,7 +11,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { BOARD_POLL_FAILURES_BEFORE_NOTICE, CONVERSATION_POLL_INTERVAL_MS } from "@/components/hives/hive-board-poll";
+import {
+  BOARD_POLL_FAILURES_BEFORE_NOTICE,
+  conversationPollIntervalMs,
+} from "@/components/hives/hive-board-poll";
 import { firstUnreadMessageId, mergeMessages } from "@/components/hives/hive-conversation-view";
 import { useWorkspaceAction, type WorkspaceActionFailure } from "@/components/workspace/useWorkspaceAction";
 import { hiveBoardPath } from "@/lib/hive-routes";
@@ -84,6 +87,8 @@ export function useHiveConversation({ hiveId, initial }: { hiveId: string; initi
   const [failedAssistantForMessageIds, setFailedAssistantForMessageIds] = useState<readonly string[]>(
     initialPage?.failedAssistantForMessageIds ?? [],
   );
+  const pendingAssistantRef = useRef(initialPage?.pendingAssistant ?? false);
+  pendingAssistantRef.current = pendingAssistant;
   const [assistantSwitchPending, setAssistantSwitchPending] = useState(false);
   const [assistantSwitchError, setAssistantSwitchError] = useState<WorkspaceActionFailure | null>(null);
 
@@ -210,7 +215,12 @@ export function useHiveConversation({ hiveId, initial }: { hiveId: string; initi
       }
     };
     const start = () => {
-      if (timer === null) timer = window.setInterval(() => void pollOnce(), CONVERSATION_POLL_INTERVAL_MS);
+      if (timer === null) {
+        timer = window.setInterval(
+          () => void pollOnce(),
+          conversationPollIntervalMs(pendingAssistantRef.current),
+        );
+      }
     };
     const stop = () => {
       if (timer !== null) {
@@ -233,7 +243,7 @@ export function useHiveConversation({ hiveId, initial }: { hiveId: string; initi
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [applyLatest, fetchPage, loaded, unavailable]);
+  }, [applyLatest, fetchPage, loaded, pendingAssistant, unavailable]);
 
   const retryLoad = useCallback(async () => {
     setRetryingLoad(true);
