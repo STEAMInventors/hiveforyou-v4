@@ -3,12 +3,16 @@ import type { Pack, PackCheck } from "../pipeline/pack-contracts";
 import { checkIdsLinkedToSpine } from "../pipeline/spine-check-display";
 import type { StudyView, StudyViewRow, StudyViewSources, StudyViewValue } from "../pipeline/study-view-contracts";
 import { partitionDocumentRequests, DOCUMENT_REQUEST_LIST_COMPONENT } from "../pipeline/document-request-list-contracts";
+import type { CoverageGap, SnapshotDocument } from "../study-preparation/study-preparation-contracts";
+import { STUDY_VIEW_BLOCK_NAMES, type StudyViewBlockName } from "../pipeline/study-view-contracts";
 
 export const FINDINGS_ANCHORS = {
   topics: "topics",
   openItems: "open-items",
   timeline: "timeline",
 } as const;
+
+export const FINDINGS_FORBIDDEN_STATUS_CODES = ["matches", "worth-asking"] as const;
 
 export type FindingsOpenItemKind = "missing" | "difference" | "needs";
 
@@ -43,8 +47,37 @@ export type FindingsGlanceMetric = {
   readonly calculationId: string | null;
 };
 
+export type FindingsGlanceMetricsInput = {
+  readonly view: StudyView;
+  readonly pack: Pack | null;
+  readonly canonicalStudy: CanonicalStudy | null;
+  readonly snapshotDocuments: readonly SnapshotDocument[];
+  readonly coverageGaps: readonly CoverageGap[];
+};
+
+export type FindingsChainEvidenceLink = {
+  readonly linkLabel: string;
+  readonly statusLabel: string;
+  readonly valueText: string;
+  readonly values: readonly StudyViewValue[];
+};
+
+export type FindingsChainEvidenceSection = {
+  readonly chainLabel: string;
+  readonly rowLabel: string;
+  readonly links: readonly FindingsChainEvidenceLink[];
+};
+
+const MAX_GLANCE_METRICS = 4;
+const MAX_METRIC_VALUE_CHARS = 16;
+
 function blockRows(view: StudyView, name: string): readonly StudyViewRow[] {
   return view.blocks.find((block) => block.name === name)?.rows ?? [];
+}
+
+function allViewValues(view: StudyView): StudyViewValue[] {
+  const names: readonly StudyViewBlockName[] = STUDY_VIEW_BLOCK_NAMES;
+  return names.flatMap((name) => blockRows(view, name)).flatMap((row) => [...row.values]);
 }
 
 function factIdsFromValues(values: readonly StudyViewValue[]): string[] {
@@ -59,19 +92,39 @@ function checkById(pack: Pack): Map<string, PackCheck> {
   return new Map(pack.checks.map((check) => [check.id, check]));
 }
 
-function spineGroupForElement(study: CanonicalStudy, pack: Pack | null, spineId: string): string {
-  if (!pack) {
-    const element = study.spine.find((item) => item.id === spineId);
-    return element?.kind?.trim() || element?.label?.trim() || "General";
-  }
+function packCheckGroupTitle(study: CanonicalStudy, pack: Pack, spineId: string): string | null {
   const checks = checkById(pack);
   const linked = checkIdsLinkedToSpine(study, pack, spineId);
   for (const checkId of linked) {
     const def = checks.get(checkId);
     if (def?.group?.trim()) return def.group.trim();
   }
-  const element = study.spine.find((item) => item.id === spineId);
-  return element?.kind?.trim() || "General";
+  return null;
+}
+
+export function fromDocumentTopicTitle(typeInPlainWords: string): string {
+  const trimmed = typeInPlainWords.trim();
+  if (trimmed === "") return "Other findings";
+  const lower = trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
+  return `From the ${lower}`;
+}
+
+export function findingsTopicGroup(
+  row: StudyViewRow,
+  study: CanonicalStudy,
+  pack: Pack | null,
+): { key: string; title: string } {
+  if (pack) {
+    const packGroup = packCheckGroupTitle(study, pack, row.id);
+    if (packGroup) return { key: `pack:${packGroup.toLowerCase()}`, title: packGroup };
+  }
+  const docId = row.values[0]?.sourceRef.sourceDocumentId.trim().toLowerCase();
+  const document = docId ? study.documents.find((entry) => entry.sourceDocumentId.toLowerCase() === docId) : null;
+  const type = document?.typeInPlainWords?.trim();
+  if (type) {
+    return { key: `doc:${docId ?? type.toLowerCase()}`, title: fromDocumentTopicTitle(type) };
+  }
+  return { key: "other", title: "Other findings" };
 }
 
 function statementText(row: StudyViewRow): string {
@@ -86,6 +139,197 @@ function statementText(row: StudyViewRow): string {
 function rowUncertain(row: StudyViewRow): boolean {
   const status = (row.status ?? "").toUpperCase();
   return status === "UNSUPPORTED" || status === "PARTLY_SHOWN" || status === "NOT_SHOWN" || status === "CONFLICT";
+}
+
+export function chainLinkStatusLabel(missing: boolean): string {
+  return missing ? "Not shown in these documents" : "Shown in these documents";
+}
+
+export function findingsFileReadCounts(
+  documents: readonly SnapshotDocument[],
+): { filesRead: number; uniqueFiles: number; exactDuplicates: number } | null {
+  if (documents.length === 0) return null;
+  const seen = new Set<string>();
+  for (const document of documents) {
+    const sha = document.sha256.trim().toLowerCase();
+    if (sha !== "") seen.add(sha);
+  }
+  const uniqueFiles = seen.size > 0 ? seen.size : documents.length;
+  return {
+    filesRead: documents.length,
+    uniqueFiles,
+    exactDuplicates: Math.max(0, documents.length - uniqueFiles),
+  };
+}
+
+export function findingsPageReadCounts(
+  documents: readonly SnapshotDocument[],
+  coverageGaps: readonly CoverageGap[],
+): { pagesRead: number; pagesTotal: number; unreadable: number } | null {
+  if (documents.length === 0) return null;
+  let pagesRead = 0;
+  let pagesTotal = 0;
+  for (const document of documents) {
+    pagesRead += document.verifiedPageCount;
+    pagesTotal += document.totalPhysicalPages;
+  }
+  if (pagesTotal === 0) return null;
+  const unreadable = coverageGaps.filter(
+    (gap) => gap.reason === "UNREADABLE" || gap.reason === "PAGES_WITHOUT_TEXT" || gap.reason === "PAGES_NOT_READ",
+  ).length;
+  return { pagesRead, pagesTotal, unreadable };
+}
+
+function supportedStatementCount(view: StudyView): number | null {
+  const spine = blockRows(view, "spine_table");
+  const outside = blockRows(view, "outside_spine");
+  const count = [...spine, ...outside].filter((row) => row.values.length > 0).length;
+  return count > 0 ? count : null;
+}
+
+function truncateMetricValue(text: string, max = MAX_METRIC_VALUE_CHARS): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1)}…`;
+}
+
+function valuesForComputedId(view: StudyView, computeId: string): StudyViewValue[] {
+  const id = computeId.trim();
+  return allViewValues(view).filter(
+    (value) => value.factId === id || value.factId.endsWith(`.${id}`) || value.factId.startsWith(`${id}:`),
+  );
+}
+
+function filesMetricSub(files: { uniqueFiles: number; exactDuplicates: number }): string {
+  if (files.exactDuplicates > 0) {
+    const dupLabel = files.exactDuplicates === 1 ? "1 exact duplicate" : `${files.exactDuplicates} exact duplicates`;
+    return `${files.uniqueFiles} unique · ${dupLabel}`;
+  }
+  return `${files.uniqueFiles} unique`;
+}
+
+export function buildFindingsGlanceMetrics(input: FindingsGlanceMetricsInput): FindingsGlanceMetric[] {
+  const metrics: FindingsGlanceMetric[] = [];
+  const push = (metric: FindingsGlanceMetric) => {
+    if (metrics.length >= MAX_GLANCE_METRICS) return;
+    metrics.push(metric);
+  };
+
+  const files = findingsFileReadCounts(input.snapshotDocuments);
+  if (files) {
+    push({
+      id: "files-read",
+      label: "Files read",
+      value: String(files.filesRead),
+      sub: filesMetricSub(files),
+      values: [],
+      calculationId: null,
+    });
+  }
+
+  const pages = findingsPageReadCounts(input.snapshotDocuments, input.coverageGaps);
+  if (pages) {
+    const unreadableSub =
+      pages.unreadable > 0
+        ? `${pages.unreadable} unreadable`
+        : null;
+    push({
+      id: "pages-read",
+      label: "Pages read",
+      value: `${pages.pagesRead} of ${pages.pagesTotal}`,
+      sub: unreadableSub,
+      values: [],
+      calculationId: null,
+    });
+  }
+
+  const supported = supportedStatementCount(input.view);
+  if (supported != null) {
+    push({
+      id: "supported-statements",
+      label: "Supported statements",
+      value: String(supported),
+      sub: "Each tied to its page",
+      values: [],
+      calculationId: null,
+    });
+  }
+
+  if (input.pack) {
+    for (const def of input.pack.computedValues) {
+      if (metrics.length >= MAX_GLANCE_METRICS) break;
+      const values = valuesForComputedId(input.view, def.id);
+      if (values.length === 0) continue;
+      const primary = values[0]?.valueAsWritten?.trim();
+      if (!primary) continue;
+      push({
+        id: `computed-${def.id}`,
+        label: def.label.trim() || def.id,
+        value: truncateMetricValue(primary),
+        sub: null,
+        values,
+        calculationId: def.id,
+      });
+    }
+  }
+
+  return metrics;
+}
+
+export function buildFindingsChainEvidence(
+  study: CanonicalStudy | null,
+  pack: Pack | null,
+  view: StudyView,
+): FindingsChainEvidenceSection[] {
+  if (!study?.chains?.length || !pack) return [];
+  const valueByFact = new Map<string, StudyViewValue>();
+  for (const value of allViewValues(view)) valueByFact.set(value.factId, value);
+
+  const sections: FindingsChainEvidenceSection[] = [];
+  for (const chain of study.chains) {
+    const def = pack.chains.find((entry) => entry.id === chain.chainId);
+    const chainLabel = def?.label.trim() || chain.chainId;
+    for (const row of chain.rows) {
+      const links: FindingsChainEvidenceLink[] = [];
+      row.links.forEach((link, index) => {
+        const linkLabel = def?.links[index]?.trim() || `Step ${index + 1}`;
+        if ("missing" in link && link.missing) {
+          links.push({
+            linkLabel,
+            statusLabel: chainLinkStatusLabel(true),
+            valueText: "",
+            values: [],
+          });
+          return;
+        }
+        if ("factIds" in link) {
+          const values = link.factIds
+            .map((factId) => valueByFact.get(factId))
+            .filter((value): value is StudyViewValue => value !== undefined);
+          const parts = values.map((value) => value.valueAsWritten.trim()).filter((part) => part !== "");
+          links.push({
+            linkLabel,
+            statusLabel: chainLinkStatusLabel(false),
+            valueText: parts.length > 0 ? parts.join(" · ") : linkLabel,
+            values,
+          });
+        }
+      });
+      if (links.length > 0) {
+        sections.push({
+          chainLabel,
+          rowLabel: row.label.trim() || "This item",
+          links,
+        });
+      }
+    }
+  }
+  return sections;
+}
+
+export function findingsDisplayContainsForbiddenStatusCodes(text: string): boolean {
+  const lower = text.toLowerCase();
+  return FINDINGS_FORBIDDEN_STATUS_CODES.some((code) => lower.includes(code));
 }
 
 export function buildFindingsOpenItems(
@@ -208,22 +452,23 @@ export function buildFindingsTopics(input: {
   const outside = blockRows(input.view, "outside_spine");
 
   for (const row of spine) {
-    const groupKey = input.canonicalStudy
-      ? spineGroupForElement(input.canonicalStudy, input.pack, row.id)
-      : row.kind?.trim() || row.label?.trim() || "General";
-    const entry = groups.get(groupKey) ?? { title: groupKey, statements: [], uncertain: false };
+    const topic =
+      input.canonicalStudy != null
+        ? findingsTopicGroup(row, input.canonicalStudy, input.pack)
+        : { key: row.id, title: "Other findings" };
+    const entry = groups.get(topic.key) ?? { title: topic.title, statements: [], uncertain: false };
     entry.statements.push({
       id: row.id,
       text: statementText(row),
       values: row.values,
     });
     if (rowUncertain(row)) entry.uncertain = true;
-    groups.set(groupKey, entry);
+    groups.set(topic.key, entry);
   }
 
   for (const row of outside) {
-    const groupKey = "Other supporting detail";
-    const entry = groups.get(groupKey) ?? { title: groupKey, statements: [], uncertain: false };
+    const groupKey = "other-outside";
+    const entry = groups.get(groupKey) ?? { title: "Other findings", statements: [], uncertain: false };
     entry.statements.push({
       id: row.id,
       text: statementText(row),
@@ -234,12 +479,12 @@ export function buildFindingsTopics(input: {
 
   const topics = new Map<string, FindingsTopic>();
   let index = 0;
-  for (const [title, group] of groups) {
+  for (const [, group] of groups) {
     index += 1;
     const id = `topic-${index}`;
     topics.set(id, {
       id,
-      title,
+      title: group.title,
       uncertain: group.uncertain,
       statements: group.statements,
       openItems: [],
@@ -257,27 +502,6 @@ export function buildFindingsTopics(input: {
     topics: [...topics.values()],
     otherOpenItems: placement.other,
   };
-}
-
-export function buildFindingsGlanceMetrics(view: StudyView, pack: Pack | null): FindingsGlanceMetric[] {
-  const chains = blockRows(view, "chains");
-  if (chains.length === 0) return [];
-  const metrics: FindingsGlanceMetric[] = [];
-  for (const row of chains) {
-    if (row.values.length === 0) continue;
-    const label = row.label?.trim() || row.statement?.trim() || "At a glance";
-    const primary = row.values[0]?.valueAsWritten?.trim();
-    if (!primary) continue;
-    metrics.push({
-      id: row.id,
-      label,
-      value: primary,
-      sub: row.kind?.trim() || null,
-      values: row.values,
-      calculationId: pack?.computedValues.some((c) => row.id.includes(c.id)) ? row.id : null,
-    });
-  }
-  return metrics;
 }
 
 export function mapLegacyFindingsTab(tab: string | undefined): string {

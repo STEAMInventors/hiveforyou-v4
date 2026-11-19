@@ -3,6 +3,7 @@
 import type {
   CanonicalStudy,
   CoverageGap,
+  FindingsChainEvidenceSection,
   FindingsGlanceMetric,
   FindingsOpenItem,
   FindingsTopic,
@@ -19,7 +20,7 @@ import { ComparisonCard } from "@/components/study/ComparisonCard";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { groupMissing } from "@/components/study/MissingList";
 import { MissingStudyItems } from "@/components/study/MissingStudyItems";
-import { shortDocumentLabels, shortTypeChipLabels, SourceChips } from "@/components/study/SourceChip";
+import { findingsChipLabels, shortDocumentLabels, SourceChips } from "@/components/study/SourceChip";
 import { buildCitationContextMap } from "@/components/study/citation-context";
 import { Timeline } from "@/components/study/Timeline";
 import { ReadProblemNotice, readProblemsFromCoverage } from "@/components/study/ReadProblemNotice";
@@ -37,6 +38,7 @@ type FindingsPageViewProps = {
   topics: FindingsTopic[];
   otherOpenItems: FindingsOpenItem[];
   glanceMetrics: FindingsGlanceMetric[];
+  chainEvidence: readonly FindingsChainEvidenceSection[];
   openItemCount: number;
   coverageGaps: readonly CoverageGap[];
   documentPages?: Readonly<Record<string, number>>;
@@ -110,12 +112,15 @@ export function FindingsPageView({
   topics,
   otherOpenItems,
   glanceMetrics,
+  chainEvidence,
   openItemCount,
   coverageGaps,
   documentPages,
   preparation,
+  pack,
 }: FindingsPageViewProps) {
   const [reviewId, setReviewId] = useState<string | null>(null);
+  const [calculationId, setCalculationId] = useState<string | null>(null);
   const reviewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const pageCountFor = (id: string) => documentPages?.[id] ?? documentPages?.[id.toLowerCase()];
 
@@ -149,11 +154,16 @@ export function FindingsPageView({
       date: documents.find((row) => row.id.toLowerCase() === sourceDocumentId)?.date ?? null,
     }));
     const labels = shortDocumentLabels(labelled);
-    const chipLabels = shortTypeChipLabels(labelled);
+    const chipLabels = findingsChipLabels(labelled);
+    const fullLabels = new Map<string, string>();
+    for (const document of labelled) {
+      const full = (document.typeInPlainWords ?? "").trim() || labels.get(document.sourceDocumentId) || "Document";
+      fullLabels.set(document.sourceDocumentId, full);
+    }
     const readProblems = readProblemsFromCoverage(coverageGaps, (id) => labels.get(id), pageCountFor);
     return {
       documents,
-      labels,
+      labels: fullLabels,
       chipLabels,
       readProblems,
       conflicts: view.blocks.find((block) => block.name === "conflicts")?.rows ?? [],
@@ -187,13 +197,12 @@ export function FindingsPageView({
           </p>
         ) : null}
 
-        <div className={`${CARD} border-cell-blue-wash bg-cell-blue-wash text-[14px] text-ink`} data-testid="findings-notice">
+        <div
+          className={`${CARD} border border-cell-blue-tint bg-cell-blue-wash text-[14px] text-ink`}
+          data-testid="findings-notice"
+        >
           Accepted Study v{revisionNumber} · Findings describe what the documents say; they are not independent verification of
           real-world events.
-        </div>
-
-        <div className="rounded-[14px] border border-line bg-paper p-[22px]">
-          <HiveAskInput hiveId={hiveId} />
         </div>
 
         <section className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
@@ -222,18 +231,31 @@ export function FindingsPageView({
             data-testid="findings-metrics"
           >
             {glanceMetrics.map((metric) => (
-              <div key={metric.id} className={`${CARD} flex flex-col gap-1`}>
+              <div key={metric.id} className={`${CARD} flex min-w-0 flex-col gap-1`}>
                 <span className="text-[12px] text-quiet">{metric.label}</span>
                 <span className="font-brand text-[23px] font-semibold text-ink">{metric.value}</span>
-                {metric.sub ? <span className="text-small text-graphite">{metric.sub}</span> : null}
-                <SourceChips
-                  refs={metric.values.map((value) => ({
-                    sourceDocumentId: value.sourceRef.sourceDocumentId,
-                    pageNumber: value.sourceRef.pageNumber,
-                    quote: value.sourceRef.quote,
-                    factIds: [value.factId],
-                  }))}
-                />
+                {metric.sub ? <span className="text-[12.5px] text-quiet">{metric.sub}</span> : null}
+                {metric.values.length > 0 ? (
+                  <div className="max-w-full">
+                    <SourceChips
+                      refs={metric.values.map((value) => ({
+                        sourceDocumentId: value.sourceRef.sourceDocumentId,
+                        pageNumber: value.sourceRef.pageNumber,
+                        quote: value.sourceRef.quote,
+                        factIds: [value.factId],
+                      }))}
+                    />
+                  </div>
+                ) : null}
+                {metric.calculationId && pack ? (
+                  <button
+                    type="button"
+                    className={`${WORKSPACE_SECONDARY} mt-1 self-start px-3 text-[13px]`}
+                    onClick={() => setCalculationId(metric.calculationId)}
+                  >
+                    See calculation
+                  </button>
+                ) : null}
               </div>
             ))}
           </div>
@@ -245,7 +267,7 @@ export function FindingsPageView({
           data-testid="findings-topics"
         >
           {topics.map((topic) => (
-            <section key={topic.id} className={`${CARD} flex flex-col gap-4`}>
+            <section key={topic.id} className={`${CARD} flex min-w-0 flex-col gap-4`}>
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">{topic.title}</h3>
                 {topic.uncertain ? (
@@ -258,7 +280,7 @@ export function FindingsPageView({
               {topic.statements.map((statement) => (
                 <div key={statement.id} className="border-b border-line pb-3 last:border-b-0">
                   <p className="m-0 text-[14px] leading-[1.6] text-ink">{statement.text}</p>
-                  <div className="mt-2">
+                  <div className="mt-2 max-w-full min-w-0">
                     <SourceChips
                       refs={statement.values.map((value) => ({
                         sourceDocumentId: value.sourceRef.sourceDocumentId,
@@ -302,6 +324,10 @@ export function FindingsPageView({
           </section>
         ) : null}
 
+        <section className={`${CARD} min-w-0`} data-testid="findings-question-card">
+          <HiveAskInput hiveId={hiveId} variant="findings" />
+        </section>
+
         <section className="flex flex-col gap-3">
           <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Explore supporting detail</h3>
           <p className="m-0 text-small text-graphite">Open a section when you need to examine the underlying analysis.</p>
@@ -310,7 +336,7 @@ export function FindingsPageView({
               Compare information across documents
               <span className="text-small font-normal text-quiet">Where records disagree</span>
             </summary>
-            <div className="border-t border-line px-[22px] py-4">
+            <div className="flex flex-col gap-5 border-t border-line px-[22px] py-4">
               {model.conflicts.length === 0 ? (
                 <p className="m-0 text-small text-graphite">No disagreements recorded in this Study.</p>
               ) : (
@@ -318,6 +344,39 @@ export function FindingsPageView({
                   <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} />
                 ))
               )}
+              {chainEvidence.length > 0 ? (
+                <div className="flex flex-col gap-3" data-testid="findings-chain-evidence">
+                  <h4 className="m-0 text-[14px] font-semibold text-ink">How the evidence connects</h4>
+                  {chainEvidence.map((section) => (
+                    <div key={`${section.chainLabel}:${section.rowLabel}`} className="flex flex-col gap-2">
+                      <p className="m-0 text-[14px] font-semibold text-ink">
+                        {section.chainLabel}: {section.rowLabel}
+                      </p>
+                      <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                        {section.links.map((link) => (
+                          <li key={link.linkLabel} className="min-w-0 text-[14px] text-ink">
+                            <span className="font-medium">{link.linkLabel}</span>
+                            {link.valueText ? <span className="text-graphite"> — {link.valueText}</span> : null}
+                            <span className="ml-1 text-[12.5px] text-quiet">({link.statusLabel})</span>
+                            {link.values.length > 0 ? (
+                              <span className="mt-1 block max-w-full">
+                                <SourceChips
+                                  refs={link.values.map((value) => ({
+                                    sourceDocumentId: value.sourceRef.sourceDocumentId,
+                                    pageNumber: value.sourceRef.pageNumber,
+                                    quote: value.sourceRef.quote,
+                                    factIds: [value.factId],
+                                  }))}
+                                />
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </details>
           <details className={DETAILS} id={FINDINGS_ANCHORS.timeline} data-testid="findings-detail-timeline">
@@ -349,6 +408,46 @@ export function FindingsPageView({
             </div>
           </details>
         </section>
+
+        {calculationId && pack ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4"
+            role="presentation"
+            onClick={() => setCalculationId(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="findings-calculation-title"
+              className={`${CARD} max-w-md shadow-lg`}
+              data-testid="findings-calculation-dialog"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {(() => {
+                const def = pack.computedValues.find((entry) => entry.id === calculationId);
+                if (!def) return null;
+                return (
+                  <>
+                    <h3 id="findings-calculation-title" className="m-0 font-brand text-section font-semibold text-ink">
+                      {def.label.trim() || def.id}
+                    </h3>
+                    <p className="m-0 mt-3 text-small text-graphite">
+                      {def.op.trim()} · {def.inputs.trim()}
+                      {def.per.trim() ? ` · per ${def.per.trim()}` : ""}
+                    </p>
+                    <button
+                      type="button"
+                      className={`${WORKSPACE_SECONDARY} mt-4`}
+                      onClick={() => setCalculationId(null)}
+                    >
+                      Close
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        ) : null}
 
         {reviewItem ? (
           <FindingsReviewDrawer

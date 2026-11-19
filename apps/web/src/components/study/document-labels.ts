@@ -128,6 +128,25 @@ export function shortDocumentLabels(documents: readonly LabelledDocument[]): Map
 /**
  * Chip line: short type (≤3 words) per document; when two share the same short type, number them in list order.
  */
+const FINDINGS_CHIP_MAX = 24;
+
+/** Full document role line for Findings chips (type in plain words, truncated). */
+export function findingsChipLabel(typeInPlainWords: string | null | undefined): string {
+  const trimmed = (typeInPlainWords ?? "").trim();
+  const base = trimmed === "" ? FALLBACK_LABEL : trimmed;
+  if (base.length <= FINDINGS_CHIP_MAX) return base;
+  return `${base.slice(0, FINDINGS_CHIP_MAX - 1)}…`;
+}
+
+export function findingsChipLabels(documents: readonly LabelledDocument[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const document of documents) {
+    if (out.has(document.sourceDocumentId)) continue;
+    out.set(document.sourceDocumentId, findingsChipLabel(document.typeInPlainWords));
+  }
+  return out;
+}
+
 export function shortTypeChipLabels(documents: readonly LabelledDocument[]): Map<string, string> {
   const base = new Map<string, string>();
   for (const document of documents) {
