@@ -3,6 +3,7 @@
 import type { ReactNode, RefObject, TextareaHTMLAttributes } from "react";
 
 import { Button } from "./Button";
+import { SendIcon } from "./SendIcon";
 
 export type ComposerProps = {
   textareaId: string;
@@ -11,6 +12,8 @@ export type ComposerProps = {
   primaryLabel: string;
   onPrimary: () => void;
   primaryDisabled?: boolean;
+  /** Renders a 16px send arrow after the primary label (hive board). */
+  primaryTrailIcon?: boolean;
   footer?: ReactNode;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
   textareaProps: TextareaHTMLAttributes<HTMLTextAreaElement>;
@@ -23,6 +26,7 @@ export function Composer({
   primaryLabel,
   onPrimary,
   primaryDisabled,
+  primaryTrailIcon = false,
   footer,
   textareaRef,
   textareaProps,
@@ -42,6 +46,7 @@ export function Composer({
         {hint ? <span className="max-w-[min(100%,520px)] text-label text-ink-3">{hint}</span> : <span />}
         <Button type="button" onClick={onPrimary} disabled={primaryDisabled} className="ms-auto">
           {primaryLabel}
+          {primaryTrailIcon ? <SendIcon /> : null}
         </Button>
       </div>
       {footer}

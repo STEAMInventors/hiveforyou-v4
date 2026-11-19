@@ -1,32 +1,29 @@
 "use client";
 
-import { HiveConversation } from "@/components/hives/HiveConversation";
-import { PageHead } from "@/components/ui/PageHead";
-
-import { GALLERY_HIVE_ID, GALLERY_PEOPLE_PAGE } from "../fixtures/board-messages";
+import {
+  GALLERY_ASK_STAFF_READONLY_PAGE,
+  GALLERY_CLIENT_ID,
+  GALLERY_PEOPLE_PAGE,
+  GALLERY_STAFF_ID,
+} from "../fixtures/board-messages";
+import { GalleryBoardLayout } from "./GalleryBoardLayout";
 import { GalleryFrame } from "./GalleryFrame";
 
 export function GalleryBoardAsk() {
   return (
-    <GalleryFrame title="board-ask">
-      <div className="mx-auto max-w-col-read">
-        <PageHead title="Hive board" description="Staff viewing the client assistant thread." />
-        <HiveConversation
-          hiveId={GALLERY_HIVE_ID}
-          initial={{ ok: true, page: GALLERY_PEOPLE_PAGE }}
-          staffView
-          clientName="Elena Vasquez"
-          viewerIsClient={false}
-          mode="assistant"
-          assistantName="Sarah"
-          readOnly
-          clientThreadFirstName="Elena"
-          clientThreadUserId="c0000000-0000-4000-8000-000000000001"
-          currentUserId="d0000000-0000-4000-8000-000000000002"
-          threadOwnerUserId="c0000000-0000-4000-8000-000000000001"
-          onThreadOwnerChange={() => undefined}
-        />
-      </div>
+    <GalleryFrame>
+      <GalleryBoardLayout
+        titleSlug="board-ask"
+        view="ask"
+        staffView
+        viewerIsClient={false}
+        currentUserId={GALLERY_STAFF_ID}
+        defaultAskThreadOwnerId={GALLERY_CLIENT_ID}
+        mockAssistantFetch={GALLERY_ASK_STAFF_READONLY_PAGE}
+        initialPeople={GALLERY_PEOPLE_PAGE}
+        initialAsk={{ ok: true, page: GALLERY_ASK_STAFF_READONLY_PAGE }}
+        clientThreadUserId={GALLERY_CLIENT_ID}
+      />
     </GalleryFrame>
   );
 }

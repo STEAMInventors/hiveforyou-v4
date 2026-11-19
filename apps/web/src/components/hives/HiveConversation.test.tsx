@@ -504,14 +504,16 @@ describe("HiveConversation", () => {
     const { unmount } = renderConversation();
     const note = screen.getByTestId("hive-conversation-people-hint");
     expect(note.textContent).toBe(
-      "Everyone in this hive sees this. Everyone in this hive sees this, including the client. For staff-only notes use Team notes.",
+      "Everyone in this hive sees this conversation. For staff-only notes use Team notes.",
     );
     expect(within(note).getByRole("link", { name: "Team notes" }).getAttribute("href")).toBe(`/hives/${HIVE_ID}/notes`);
     expect(screen.getByLabelText("Preview as")).toBeTruthy();
     unmount();
 
     renderConversation({ staffView: false, viewerIsClient: true });
-    expect(screen.getByTestId("hive-conversation-people-hint").textContent).toBe("Everyone in this hive sees this.");
+    expect(screen.getByTestId("hive-conversation-people-hint").textContent).toBe(
+      "Everyone in this hive sees this conversation.",
+    );
     expect(screen.queryByLabelText("Preview as")).toBeNull();
   });
 

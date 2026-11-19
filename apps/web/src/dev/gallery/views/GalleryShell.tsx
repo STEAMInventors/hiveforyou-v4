@@ -1,26 +1,64 @@
-import { AppShell } from "@/components/app-header";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
-import { WorkspaceChromeProvider } from "@/components/workspace/workspace-context";
+"use client";
 
+import { useEffect } from "react";
+
+import { HivePageHead } from "@/components/workspace/HivePageHead";
+import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
+import { AppShell } from "@/components/app-header";
+
+import { GALLERY_ASSISTANT_NAME, GALLERY_HIVE, GALLERY_HIVE_ID } from "../fixtures/board-messages";
 import { GalleryFrame } from "./GalleryFrame";
 
 export function GalleryShell() {
+  useEffect(() => {
+    document.title = "Development gallery — shell";
+  }, []);
+
   return (
-    <GalleryFrame title="shell">
-      <WorkspaceChromeProvider>
-        <AppShell account={{ initials: "JL", displayName: "Jordan Lee", email: "jordan@example.com", startingView: "clients" }}>
-          <div className="flex min-h-[480px] bg-canvas">
-            <aside className="hidden w-rail shrink-0 border-r border-line bg-canvas p-3 min-[900px]:block">
-              <p className="m-0 text-label font-semibold text-ink">Sample client hive</p>
-              <p className="m-0 mt-1 text-label text-ink-3">Bank statements review</p>
-            </aside>
-            <div className="flex-1 bg-paper px-4 py-6 min-[900px]:px-10">
-              <HivePageHead title="Hive board" subtitle="Prototype shell chrome fixture." />
-              <p className="m-0 text-body text-ink-2">Content column uses the workspace frame.</p>
-            </div>
-          </div>
-        </AppShell>
-      </WorkspaceChromeProvider>
+    <GalleryFrame>
+      <AppShell
+        account={{
+          initials: "PS",
+          displayName: "Priya Shah",
+          email: "priya@example.com",
+          startingView: "clients",
+        }}
+      >
+        <WorkspaceShell
+          hive={GALLERY_HIVE}
+          startingView="clients"
+          counts={{
+            toReviewCount: 3,
+            documents: 12,
+            reports: 2,
+            teamNotes: 1,
+            unreadMessages: 2,
+          }}
+          firm={{
+            firm: {
+              firmId: GALLERY_HIVE.firmId!,
+              name: "Example firm",
+              assistantName: GALLERY_ASSISTANT_NAME,
+            },
+            members: [],
+            pendingInvitations: [],
+          }}
+          currentUserId="d0000000-0000-4000-8000-000000000002"
+          assigneeLabel="Priya Shah"
+          assigneeTitle="Onboarding associate"
+          assistantName={GALLERY_ASSISTANT_NAME}
+          studyRevision={{ revisionNumber: 2, acceptedAt: "2026-10-20T00:00:00.000Z" }}
+          summaryLoaded
+        >
+          <HivePageHead
+            title="Hive board"
+            subtitle={`Ask ${GALLERY_ASSISTANT_NAME}, the AI assistant, about the documents. Answers cite their pages.`}
+          />
+          <p className="m-0 text-body text-ink-2" data-testid="gallery-shell-placeholder">
+            Board column uses the live workspace shell — open a board-* page for the full thread.
+          </p>
+        </WorkspaceShell>
+      </AppShell>
     </GalleryFrame>
   );
 }

@@ -14,6 +14,8 @@ export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"
   readonly initialPeople: ConversationLoad;
   readonly initialAsk: ConversationLoad;
   readonly teamMemberFirstName: string;
+  /** Dev gallery: open on another member's Ask thread without waiting for a click. */
+  readonly defaultAskThreadOwnerId?: string | null;
 };
 
 type BoardView = "conversation" | "ask";
@@ -30,6 +32,7 @@ export function HiveBoardMessaging({
   initialPeople,
   initialAsk,
   teamMemberFirstName,
+  defaultAskThreadOwnerId = null,
   hiveId,
   staffView,
   clientName,
@@ -41,7 +44,7 @@ export function HiveBoardMessaging({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const view = activeView(searchParams, firmless);
-  const [askThreadOwner, setAskThreadOwner] = useState<string | null>(currentUserId);
+  const [askThreadOwner, setAskThreadOwner] = useState<string | null>(defaultAskThreadOwnerId ?? currentUserId);
 
   const setView = useCallback(
     (next: BoardView) => {

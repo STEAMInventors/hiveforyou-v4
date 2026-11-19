@@ -7,6 +7,8 @@ import {
 } from "@hiveforyou/contracts";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { HiveMark } from "@/components/study/HiveMark";
+
 export const ASSISTANT_TYPING_LONG_MS = 20_000;
 export const ASSISTANT_TYPING_TIMEOUT_MS = 60_000;
 export const ASSISTANT_REVEAL_MAX_MS = 1200;
@@ -64,17 +66,30 @@ export function AssistantTypingRow({
   assistantName: string;
   longWait: boolean;
 }) {
-  const line = longWait
-    ? `${assistantName} is still working on it…`
-    : `${assistantName} is looking through the documents…`;
+  const line = longWait ? (
+    <>
+      <span aria-hidden>…</span>
+      {assistantName} is still working on it…
+    </>
+  ) : (
+    `${assistantName} is looking through the documents`
+  );
   return (
     <p
       role="status"
-      className="m-0 flex flex-wrap items-center gap-2 ps-11 pt-1 text-meta text-ink-3"
+      className="m-0 grid grid-cols-[32px_minmax(0,1fr)] gap-3 pt-1 text-meta text-ink-3"
       data-testid="hive-assistant-typing"
     >
-      {line}
-      <TypingDots />
+      <span
+        aria-hidden="true"
+        className="grid h-[22px] w-[22px] place-items-center rounded-pill bg-ink text-paper"
+      >
+        <HiveMark className="h-[11px] w-[11px]" />
+      </span>
+      <span className="flex min-w-0 flex-wrap items-center gap-1">
+        {line}
+        {!longWait ? <TypingDots /> : null}
+      </span>
     </p>
   );
 }

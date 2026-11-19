@@ -110,7 +110,7 @@ export function WorkspaceShell({
             />
           </div>
         )}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col bg-paper">
           <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-5 min-[900px]:px-10 min-[900px]:py-7 min-[900px]:pb-16">
             {children}
           </div>

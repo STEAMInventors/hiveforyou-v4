@@ -6,9 +6,8 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 
 import { AccountMenu, type AccountMenuDetails } from "@/components/account-menu";
 import { HiveAppLogo } from "@/components/HiveWordmark";
-import { hiveListBackLink } from "@/lib/hives/hive-list-back";
 import { useClientsHomeSearch } from "@/lib/hives/clients-home-context";
-import { HIVE_SECTION_LABELS, MY_HIVES_PATH, type HiveWorkspaceSection } from "@/lib/hive-routes";
+import { MY_HIVES_PATH, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import type { StartingView } from "@/lib/auth/profile";
 import type { HiveKind } from "@hiveforyou/contracts";
 
@@ -85,11 +84,6 @@ export function AppHeader({
     onHiveList && account.startingView === "clients" && clientsHome?.enabled;
   const hideListLogo = onHiveList && account.startingView !== "clients";
 
-  const breadcrumb =
-    inHive && workspace?.section && workspace.startingView && workspace.hiveKind
-      ? hiveListBackLink(workspace.startingView, workspace.hiveKind)
-      : null;
-
   return (
     <header
       className="sticky top-0 z-40 flex h-top-sm min-h-top-sm items-center border-b border-line bg-paper px-[clamp(16px,3vw,40px)] min-[600px]:h-top min-[600px]:min-h-top"
@@ -112,32 +106,6 @@ export function AppHeader({
             <HiveAppLogo display="lockup" size="header" />
           </Link>
         </div>
-
-        {inHive && workspace?.section && breadcrumb ? (
-          <nav
-            aria-label="Breadcrumb"
-            className="hidden min-w-0 flex-1 items-center text-meta text-ink-3 min-[900px]:flex"
-            data-testid="workspace-breadcrumb"
-          >
-            <ol className="m-0 flex min-w-0 list-none flex-wrap items-center gap-1 p-0">
-              <li className="shrink-0">
-                <Link href={breadcrumb.href} className="text-blue-deep no-underline hover:underline">
-                  {breadcrumb.label}
-                </Link>
-              </li>
-              <li aria-hidden className="shrink-0">
-                /
-              </li>
-              <li className="min-w-0 max-w-[min(28vw,320px)] truncate font-medium text-ink" title={workspace.hiveName}>
-                {workspace.hiveName}
-              </li>
-              <li aria-hidden className="shrink-0">
-                /
-              </li>
-              <li className="shrink-0 truncate">{HIVE_SECTION_LABELS[workspace.section]}</li>
-            </ol>
-          </nav>
-        ) : null}
 
         {clientsListHeader && clientsHome ? (
           <div

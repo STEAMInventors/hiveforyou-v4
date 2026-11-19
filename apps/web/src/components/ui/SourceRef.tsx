@@ -18,15 +18,15 @@ export function SourceRef({ chip, title }: SourceRefProps) {
   return (
     <button
       type="button"
-      className="inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-chip border border-line bg-paper px-1.5 text-label font-medium text-ink-2 hover:border-line-strong hover:bg-blue-wash hover:text-blue-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue"
+      className="inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-chip border border-line bg-paper px-1.5 text-label font-medium text-ink-2 hover:border-line-strong hover:bg-blue-wash hover:text-blue-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue max-sm:min-h-10 max-sm:py-2"
       title={title ?? `${fullLabel} · p.${chip.pageNumber}`}
       aria-label={`Open ${fullLabel}, page ${chip.pageNumber}`}
       data-testid="source-ref"
       onClick={(event) => viewer.open(chip, event.currentTarget)}
     >
-      <HiveMark className="h-3.5 w-3.5 shrink-0 opacity-80" />
+      <HiveMark className="h-3 w-3 shrink-0 opacity-80" />
       <span className="truncate">
-        {display} · p.{chip.pageNumber}
+        {display} · <span className="text-ink-3">p.{chip.pageNumber}</span>
       </span>
     </button>
   );

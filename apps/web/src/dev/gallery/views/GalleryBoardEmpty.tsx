@@ -1,35 +1,21 @@
 "use client";
 
-import { HiveConversation } from "@/components/hives/HiveConversation";
-import { PageHead } from "@/components/ui/PageHead";
-
-import { GALLERY_HIVE_ID } from "../fixtures/board-messages";
+import { GALLERY_ASK_EMPTY_PAGE, GALLERY_PEOPLE_PAGE, GALLERY_STAFF_ID } from "../fixtures/board-messages";
+import { GalleryBoardLayout } from "./GalleryBoardLayout";
 import { GalleryFrame } from "./GalleryFrame";
 
 export function GalleryBoardEmpty() {
   return (
-    <GalleryFrame title="board-empty">
-      <div className="mx-auto max-w-col-read">
-        <PageHead title="Hive board" />
-        <HiveConversation
-          hiveId={GALLERY_HIVE_ID}
-          initial={{
-            ok: true,
-            page: {
-              messages: [],
-              participantRoleLabels: [],
-              participantCount: 0,
-              viewerLastReadAt: null,
-              nextCursor: null,
-            },
-          }}
-          staffView
-          clientName="Elena Vasquez"
-          viewerIsClient={false}
-          mode="people"
-          assistantName="Sarah"
-        />
-      </div>
+    <GalleryFrame>
+      <GalleryBoardLayout
+        titleSlug="board-empty"
+        view="ask"
+        staffView
+        viewerIsClient={false}
+        currentUserId={GALLERY_STAFF_ID}
+        initialPeople={{ ...GALLERY_PEOPLE_PAGE, messages: [] }}
+        initialAsk={{ ok: true, page: GALLERY_ASK_EMPTY_PAGE }}
+      />
     </GalleryFrame>
   );
 }
