@@ -14,12 +14,17 @@ import { MODEL_REGISTRY } from "@/server/models/model-registry";
 
 export const TAILOR_FALLBACK_MESSAGE = "Couldn't tailor right now. Showing the usual list.";
 
+export type ChecklistTailorFallbackReason = "prompt_unavailable" | "model_failed" | "invalid_output";
+
 export type ChecklistTailorModelRunner = (input: {
   packTitle: string;
   rows: ReturnType<typeof packRowsForTailor>;
   professionalText: string;
   correlationId: string;
-}) => Promise<{ ok: true; output: ChecklistTailorModelOutput; modelId: string; latencyMs: number } | { ok: false }>;
+}) => Promise<
+  | { ok: true; output: ChecklistTailorModelOutput; modelId: string; latencyMs: number }
+  | { ok: false; reason?: ChecklistTailorFallbackReason }
+>;
 
 export function buildTailorUserPayload(pack: Pack, professionalText: string) {
   const rows = packRowsForTailor(pack);
@@ -67,20 +72,43 @@ export async function runChecklistTailor(
       correlationId,
     });
     if (!modelResult.ok) {
+      const reason = modelResult.reason ?? "model_failed";
+      logChecklistTailorFallback(correlationId, reason, Date.now() - started);
       emitTailorOutcome(correlationId, registry.promptId, null, Date.now() - started, "fallback");
       return { ...checklistTailorWithoutModel(packRows, true), message: TAILOR_FALLBACK_MESSAGE };
     }
     const parsed = parseChecklistTailorModelOutput(modelResult.output);
     if (!parsed) {
+      logChecklistTailorFallback(correlationId, "invalid_output", modelResult.latencyMs);
       emitTailorOutcome(correlationId, registry.promptId, modelResult.modelId, modelResult.latencyMs, "invalid_output");
       return { ...checklistTailorWithoutModel(packRows, true), message: TAILOR_FALLBACK_MESSAGE };
     }
     emitTailorOutcome(correlationId, registry.promptId, modelResult.modelId, modelResult.latencyMs, "ok");
     return applyChecklistTailorRules(packRows, text, parsed);
   } catch {
+    logChecklistTailorFallback(correlationId, "model_failed", Date.now() - started);
     emitTailorOutcome(correlationId, registry.promptId, null, Date.now() - started, "error");
     return { ...checklistTailorWithoutModel(packRows, true), message: TAILOR_FALLBACK_MESSAGE };
   }
+}
+
+function logChecklistTailorFallback(
+  correlationId: string,
+  reason: ChecklistTailorFallbackReason,
+  durationMs: number,
+): void {
+  emitStructuredEvent({
+    eventName: "hive.checklist_tailor.fallback",
+    severity: "WARN",
+    timestamp: new Date().toISOString(),
+    component: "hives",
+    operation: "checklistTailor",
+    stage: "SHELL",
+    correlationId,
+    status: "FAILED",
+    durationMs,
+    diagnosticReason: reason,
+  });
 }
 
 function emitTailorOutcome(

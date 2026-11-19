@@ -4,21 +4,18 @@ import path from "node:path";
 
 import { CHECKLIST_TAILOR_PROMPT_ID, type AuxiliaryPlannerTask } from "@hiveforyou/contracts";
 
-import type { PlannerPrompt } from "./prompt-catalog";
+import { resolvePromptsRoot, type PlannerPrompt } from "./prompt-catalog";
 
 const PROMPT_FILE = "checklist-tailor/v1.md";
-
-function repoPath(...parts: string[]): string {
-  return path.join(process.cwd(), ...parts);
-}
 
 function digestOf(text: string): string {
   const normalized = text.replace(/\r\n/g, "\n");
   return `sha256:${createHash("sha256").update(normalized, "utf8").digest("hex")}`;
 }
 
-export function loadChecklistTailorPrompt(): PlannerPrompt & { readonly task: AuxiliaryPlannerTask } {
-  const absolute = repoPath("prompts", PROMPT_FILE);
+export function loadChecklistTailorPrompt(cwd: string = process.cwd()): PlannerPrompt & { readonly task: AuxiliaryPlannerTask } {
+  const root = resolvePromptsRoot(PROMPT_FILE, cwd);
+  const absolute = path.join(root, PROMPT_FILE);
   const raw = readFileSync(absolute, "utf8");
   const systemStart = raw.indexOf("## System");
   const systemEnd = raw.indexOf("## User", systemStart);
