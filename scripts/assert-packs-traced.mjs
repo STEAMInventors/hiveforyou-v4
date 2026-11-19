@@ -51,7 +51,7 @@ const nftFiles = [];
 collectNftJson(serverDir, nftFiles);
 
 const packPattern = /(^|[\\/])packs([\\/]archive)?[\\/].+\.md$/i;
-const assistantPromptPattern = /(^|[\\/])prompts[\\/]hive-assistant-reply[\\/]v1\.md$/i;
+const assistantPromptPattern = /(^|[\\/])prompts[\\/]hive-assistant-reply[\\/]v2\.md$/i;
 
 /** @param {string} nftPath */
 function routeMarkerForNft(nftPath) {
@@ -115,7 +115,7 @@ function assertRouteTraced(marker, nftPaths) {
   }
   if (!promptFound) {
     console.error(
-      `assert-packs-traced: prompts/hive-assistant-reply/v1.md missing in trace for app/${marker}`,
+      `assert-packs-traced: prompts/hive-assistant-reply/v2.md missing in trace for app/${marker}`,
     );
     return false;
   }

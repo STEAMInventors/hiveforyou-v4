@@ -93,6 +93,76 @@ describe("validateAssistantReply", () => {
     }
   });
 
+  it("strips a leading yes on eligibility questions but keeps supported claims", () => {
+    const mayaBriefing = buildAssistantBriefing({
+      viewer: { role: "client", roleLabel: "Client", firstName: "Maya" },
+      hive: { name: "Maya", purpose: null, matterType: null, stage: null },
+      pack: null,
+      checklist: [],
+      study: {
+        revisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        revisionNumber: 1,
+        canonical: {
+          schema: "hive.canonical-study/1",
+          documents: [
+            {
+              sourceDocumentId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              role: "SUPPORTING",
+              typeInPlainWords: "Speech-language evaluation",
+              date: null,
+              version: null,
+              chainPosition: null,
+            },
+          ],
+          spineSource: null,
+          spine: [],
+          outsideSpine: [{ id: "O1", statement: "Eligibility was determined", factIds: ["F1"] }],
+          conflicts: [],
+          timeline: [],
+          gaps: [],
+          domainLabel: "sample",
+        },
+        sources: {
+          documents: {},
+          facts: {
+            F1: {
+              sourceDocumentId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              pageNumber: 1,
+              quote: "eligible",
+            },
+          },
+        },
+      },
+      documents: [],
+      messages: [],
+      question: "Is Maya eligible for services?",
+      assistantName: "Sam",
+    });
+    const result = validateAssistantReply(
+      {
+        intent: "answer",
+        reply: "Yes. The eligibility team determined she meets the criteria in the file.",
+        claims: [{ text: "The eligibility team determined she meets the criteria in the file.", factIds: ["F1"] }],
+      },
+      mayaBriefing,
+      {
+        revisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        mapFact: (fact) => ({
+          sourceDocumentId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          pageNumber: 1,
+          shortLabel: fact.sourceLabel,
+          factId: fact.id,
+          studyRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        }),
+      },
+      { teamFirstName: "Alex" },
+    );
+    expect(result.reply.startsWith("The eligibility team determined")).toBe(true);
+    expect(result.reply.toLowerCase().startsWith("yes")).toBe(false);
+    expect(result.sourceRefs).toHaveLength(1);
+    expect(result.sourceRefs[0]?.shortLabel).toBe("Speech-language evaluation");
+  });
+
   it("nulls a bad itemKey and caps reply length", () => {
     const result = validateAssistantReply(
       {

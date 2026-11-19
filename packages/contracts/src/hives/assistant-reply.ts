@@ -2,8 +2,8 @@ import { ASSISTANT_BRIEFING_FIXED_RULES, type AssistantBriefing, type AssistantB
 import { isValidUuid } from "./hive-contracts";
 
 export const ASSISTANT_REPLY_MAX_CHARS = 1200;
-export const ASSISTANT_REPLY_PROMPT_ID = "hive-assistant-reply/1";
-export const ASSISTANT_REPLY_PROMPT_VERSION = "1";
+export const ASSISTANT_REPLY_PROMPT_ID = "hive-assistant-reply/2";
+export const ASSISTANT_REPLY_PROMPT_VERSION = "2";
 
 export const ASSISTANT_ROUTE_GUARD_PHRASES = [
   "you should",
@@ -17,6 +17,17 @@ export const ASSISTANT_ROUTE_GUARD_PHRASES = [
   "you will lose",
   "legal advice",
 ] as const;
+
+const ELIGIBILITY_GUARD_PHRASES = [
+  "is eligible",
+  "isn't eligible",
+  "is not eligible",
+  "qualifies",
+  "doesn't qualify",
+] as const;
+
+const VERDICT_QUESTION_PATTERN = /eligib|qualif|approve|deny|win|lose|should i|must i/i;
+const LEADING_YES_NO = /^(yes|no)\b[!.:,]?\s*/i;
 
 export type AssistantReplyIntent = "answer" | "ask_for_item" | "route_to_team";
 
@@ -85,10 +96,33 @@ function stripUrls(text: string): string {
   return text.replace(/\bhttps?:\/\/[^\s]+/gi, "").replace(/\bwww\.[^\s]+/gi, "");
 }
 
+function sentenceCitesDocument(sentence: string): boolean {
+  return /\b(records|states|lists|found)\b/i.test(sentence);
+}
+
+function replyHasBlockedEligibilityPhrase(text: string): boolean {
+  const sentences = text.split(/(?<=[.!?])\s+/).filter((part) => part.trim() !== "");
+  const parts = sentences.length > 0 ? sentences : [text];
+  for (const sentence of parts) {
+    const lower = sentence.toLowerCase();
+    for (const phrase of ELIGIBILITY_GUARD_PHRASES) {
+      if (!lower.includes(phrase)) continue;
+      if (sentenceCitesDocument(sentence)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 function containsGuardPhrase(text: string, extra: readonly string[]): boolean {
   const lower = text.toLowerCase();
   const phrases = [...ASSISTANT_ROUTE_GUARD_PHRASES, ...extra.map((p) => p.toLowerCase())];
-  return phrases.some((phrase) => lower.includes(phrase));
+  return phrases.some((phrase) => lower.includes(phrase)) || replyHasBlockedEligibilityPhrase(text);
+}
+
+export function stripLeadingVerdictYesNo(question: string, reply: string): string {
+  if (!VERDICT_QUESTION_PATTERN.test(question)) return reply;
+  return reply.replace(LEADING_YES_NO, "").trim();
 }
 
 export function validateAssistantReply(
@@ -103,6 +137,7 @@ export function validateAssistantReply(
   const record = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as AssistantReplyModelOutput) : {};
   let intent = parseIntent(record.intent);
   let reply = typeof record.reply === "string" ? record.reply.trim() : "";
+  reply = stripLeadingVerdictYesNo(briefing.question, reply);
   const packNeverSay = briefing.rules.filter((rule) => !(ASSISTANT_BRIEFING_FIXED_RULES as readonly string[]).includes(rule));
 
   if (containsGuardPhrase(reply, packNeverSay)) {
@@ -147,7 +182,12 @@ export function validateAssistantReply(
   }
 
   if (intent === "answer" && keptClaims.length === 0) {
-    reply = assistantAnswerNotFoundFallback(fallback);
+    if (VERDICT_QUESTION_PATTERN.test(briefing.question)) {
+      intent = "route_to_team";
+      reply = assistantRouteFallback(fallback);
+    } else {
+      reply = assistantAnswerNotFoundFallback(fallback);
+    }
   }
 
   if (intent === "route_to_team" && !reply) {

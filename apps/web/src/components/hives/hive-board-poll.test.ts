@@ -11,8 +11,8 @@ describe("boardPollStateFromFailures", () => {
 });
 
 describe("conversationPollIntervalMs", () => {
-  it("uses 3s while assistant is pending and 15s otherwise", () => {
-    expect(conversationPollIntervalMs(true)).toBe(3000);
+  it("uses 2s while assistant is pending and 15s otherwise", () => {
+    expect(conversationPollIntervalMs(true)).toBe(2000);
     expect(conversationPollIntervalMs(false)).toBe(15000);
   });
 });

@@ -43,7 +43,7 @@ export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask | PipelinePlannerTask |
   canonicalize: "hive-canonicalize/1",
   write: "hive-write/1",
   checklist_tailor: "checklist-tailor/1",
-  assistant_reply: "hive-assistant-reply/1",
+  assistant_reply: "hive-assistant-reply/2",
 } as const;
 
 export const PIPELINE_PROMPT_IDS_V2 = {

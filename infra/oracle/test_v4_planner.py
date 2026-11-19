@@ -327,6 +327,7 @@ def test_unconfigured_litellm_is_unavailable(client: TestClient, monkeypatch: py
 def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PLANNER_STUDY_LITELLM_ALIAS", "heavy_lifter")
     monkeypatch.setenv("PLANNER_WRITER_LITELLM_ALIAS", "harvester")
+    monkeypatch.setenv("PLANNER_ASSISTANT_LITELLM_ALIAS", "heavy_lifter")
     for task, alias in PIPELINE_ALIASES.items():
         monkeypatch.setenv(PIPELINE_ALIAS_ENV[task], alias)
     data = client.get("/health").json()
@@ -339,6 +340,8 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
         "plan": "sorter",
         "study": "heavy_lifter",
         "writer": "harvester",
+        "checklist_tailor": "sorter",
+        "assistant_reply": "heavy_lifter",
         **PIPELINE_ALIASES,
     }
     assert data["task_aliases_configured"] is True
@@ -442,6 +445,8 @@ def test_completion_caps_mirror_the_wire_contract() -> None:
         "domain": 4000,
         "intelligence": 12000,
         "plan": 12000,
+        "checklist_tailor": 4000,
+        "assistant_reply": 1500,
         **PIPELINE_MAX_OUTPUT_TOKENS,
     }
 
@@ -1138,7 +1143,7 @@ def test_assistant_reply_fails_closed_without_alias(client: TestClient, monkeypa
         client,
         body(
             task="assistant_reply",
-            prompt_id="hive-assistant-reply/1",
+            prompt_id="hive-assistant-reply/2",
             system_prompt="Reply from briefing only.",
             user_payload={"question": "What is this?"},
             max_output_tokens=1500,
@@ -1146,4 +1151,38 @@ def test_assistant_reply_fails_closed_without_alias(client: TestClient, monkeypa
     )
     assert response.status_code == 503
     assert response.json()["error_code"] == "MODEL_UNAVAILABLE"
+    assert seen == []
+
+
+def assistant_reply_completion_body(prompt_id: str) -> dict[str, object]:
+    return body(
+        task="assistant_reply",
+        prompt_id=prompt_id,
+        system_prompt="Reply from briefing only.",
+        user_payload={"question": "What is this?"},
+        max_output_tokens=1500,
+    )
+
+
+@pytest.mark.parametrize("prompt_id", ["hive-assistant-reply/1", "hive-assistant-reply/2"])
+def test_assistant_reply_accepts_v1_and_v2_prompt_ids(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, prompt_id: str
+) -> None:
+    monkeypatch.setenv("PLANNER_ASSISTANT_LITELLM_ALIAS", "heavy_lifter")
+    seen = use_litellm(
+        lambda _: httpx.Response(200, json=completion('{"intent":"route_to_team","reply":"ok","claims":[]}'))
+    )
+    response = post(client, assistant_reply_completion_body(prompt_id))
+    assert response.status_code == 200
+    assert response.json()["task"] == "assistant_reply"
+    assert response.json()["model_alias"] == "heavy_lifter"
+    assert len(seen) == 1
+
+
+def test_assistant_reply_rejects_unknown_prompt_id(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_ASSISTANT_LITELLM_ALIAS", "heavy_lifter")
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, assistant_reply_completion_body("hive-assistant-reply/9"))
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_REQUEST"
     assert seen == []

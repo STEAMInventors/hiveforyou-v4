@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Fragment,
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -24,6 +25,11 @@ import {
   showsAsMine,
   type ConversationViewer,
 } from "@/components/hives/hive-conversation-view";
+import {
+  AssistantTypingRow,
+  useAssistantMessageReveal,
+  useAssistantTypingPhase,
+} from "@/components/hives/assistant-conversation-ui";
 import {
   useHiveConversation,
   type ConversationLoad,
@@ -48,6 +54,7 @@ export type HiveConversationProps = {
   clientName: string | null;
   /** Avatar colour for the viewer's own unsent messages. */
   viewerIsClient: boolean;
+  hiveFirmId?: string | null;
 };
 
 const noopSubscribe = () => () => undefined;
@@ -93,21 +100,32 @@ function MessageRow({
   message,
   mine,
   mounted,
+  revealActive,
+  onRevealComplete,
 }: {
   hiveId: string;
   message: HiveMessage;
   mine: boolean;
   mounted: boolean;
+  revealActive: boolean;
+  onRevealComplete: (messageId: string) => void;
 }) {
   const assistant = message.authorKind === "assistant";
   const role = assistant ? "AI assistant" : bylineRole(message);
+  const { displayBody, revealComplete } = useAssistantMessageReveal(message, assistant && revealActive);
+  useEffect(() => {
+    if (assistant && revealActive && revealComplete) onRevealComplete(message.id);
+  }, [assistant, message.id, onRevealComplete, revealActive, revealComplete]);
   const chipRefs = message.sourceRefs
     .filter((ref) => ref.sourceDocumentId && ref.pageNumber > 0)
     .map((ref) => ({
       sourceDocumentId: ref.sourceDocumentId,
       pageNumber: ref.pageNumber,
+      ...(ref.shortLabel ? { shortLabel: ref.shortLabel } : {}),
       ...(ref.factId ? { factIds: [ref.factId] } : {}),
     }));
+  const bodyText = assistant && revealActive ? displayBody : message.body;
+  const showChips = chipRefs.length > 0 && (!assistant || !revealActive || revealComplete);
   const itemKey = message.sourceRefs.find((ref) => ref.itemKey)?.itemKey;
   return (
     <article className={rowClass(mine)} data-testid="hive-message" data-mine={mine ? "true" : "false"}>
@@ -128,10 +146,14 @@ function MessageRow({
           <span aria-hidden="true">·</span>
           <time dateTime={message.createdAt}>{mounted ? messageTimeLabel(message.createdAt) : ""}</time>
         </p>
-        <p className={BODY_CLASS}>{message.body}</p>
-        {chipRefs.length > 0 ? (
-          <CardChips refs={chipRefs} />
-        ) : null}
+        <p
+          className={BODY_CLASS}
+          {...(assistant && revealActive && !revealComplete ? { "aria-hidden": true } : {})}
+          {...(assistant && revealComplete ? { "aria-live": "polite" as const } : {})}
+        >
+          {bodyText}
+        </p>
+        {showChips ? <CardChips refs={chipRefs} /> : null}
         {itemKey ? (
           <p className="m-0 mt-2 text-[12px]">
             <Link href={`${hiveDocumentsPath(hiveId)}#requested`} className="font-medium text-cell-blue-deep no-underline">
@@ -206,8 +228,23 @@ function PendingRow({
   );
 }
 
-export function HiveConversation({ hiveId, initial, staffView, clientName, viewerIsClient }: HiveConversationProps) {
-  const conversation = useHiveConversation({ hiveId, initial });
+export function HiveConversation({
+  hiveId,
+  initial,
+  staffView,
+  clientName,
+  viewerIsClient,
+  hiveFirmId = null,
+}: HiveConversationProps) {
+  const conversation = useHiveConversation({
+    hiveId,
+    initial,
+    assistantTrigger: { staffView, viewerIsClient, hiveFirmId },
+  });
+  const assistantTypingLongWait = useAssistantTypingPhase(
+    conversation.pendingAssistant,
+    conversation.assistantTypingStartedAt,
+  );
   const mounted = useMounted();
   const [viewer, setViewer] = useState<ConversationViewer>("self");
   const [draft, setDraft] = useState("");
@@ -472,6 +509,8 @@ export function HiveConversation({ hiveId, initial, staffView, clientName, viewe
                       message={message}
                       mine={showsAsMine(message, preview ? "client" : "self")}
                       mounted={mounted}
+                      revealActive={conversation.assistantRevealIds.has(message.id)}
+                      onRevealComplete={conversation.clearAssistantReveal}
                     />
                     {!preview && !viewerIsClient && conversation.failedAssistantForMessageIds.includes(message.id) ? (
                       <p className="m-0 ms-11 text-[12px] text-quiet" data-testid="hive-assistant-failed-line">
@@ -482,9 +521,7 @@ export function HiveConversation({ hiveId, initial, staffView, clientName, viewe
                 );
               })}
               {!preview && conversation.pendingAssistant ? (
-                <p role="status" className="m-0 text-[13px] text-quiet" data-testid="hive-assistant-typing">
-                  {conversation.assistantName} is looking through the documents…
-                </p>
+                <AssistantTypingRow assistantName={conversation.assistantName} longWait={assistantTypingLongWait} />
               ) : null}
               {pending.map((item) => (
                 <PendingRow
