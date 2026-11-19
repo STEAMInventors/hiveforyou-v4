@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { PRIMARY_BUTTON_CLASS, QUIET_LINK_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
+import { QUIET_LINK_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import type { DisplayState } from "@/components/study/StatusBadge";
 import { StatusBadge } from "@/components/study/StatusBadge";
 import { STATE_LABEL } from "@/components/study/status-state";
@@ -161,7 +161,6 @@ export function DocumentsPanel({
       ? analysis.state.studyRevision
       : null;
   const showRebuild = analysis.state?.studyRevision != null && !analysis.active;
-  const analyzeIsPrimary = documents.length > 0 && !!analysis.availability?.canAnalyze && !analysis.active;
   const eligibilityDocuments = analysis.state?.eligibility.documents ?? [];
   const readMetrics = useMemo(
     () => buildDocumentsLibraryReadMetrics(eligibilityDocuments, coverageGaps),
@@ -239,7 +238,7 @@ export function DocumentsPanel({
         ) : (
           <button
             type="button"
-            className={analyzeIsPrimary ? PRIMARY_BUTTON_CLASS : SECONDARY_BUTTON_CLASS}
+            className={SECONDARY_BUTTON_CLASS}
             disabled={analyzeDisabled}
             aria-describedby="documents-analyze-hint"
             data-testid="analyze-button"

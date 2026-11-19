@@ -123,7 +123,6 @@ export default async function FindingsPage({
         otherOpenItems={topicBundle.otherOpenItems}
         glanceMetrics={buildFindingsGlanceMetrics(built.view, pack)}
         openItemCount={findingsOpenItemCount(openItems)}
-        allOpenItemIds={openItems.map((item) => item.id)}
         coverageGaps={revision.coverageGaps}
         documentPages={documentPageCounts(overview.preparation)}
         preparation={overview.preparation}

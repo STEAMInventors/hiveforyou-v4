@@ -9,7 +9,7 @@ import type {
 } from "@hiveforyou/contracts";
 import { useEffect, useId, useMemo, useRef } from "react";
 
-import { WORKSPACE_PRIMARY, WORKSPACE_SECONDARY } from "@/components/button-classes";
+import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { ComparisonCard } from "@/components/study/ComparisonCard";
 import { EstablishTable } from "@/components/study/EstablishTable";
 import { SourceChips } from "@/components/study/SourceChip";
@@ -40,14 +40,12 @@ function resolveOpenItemContext(
 }
 
 type FindingsReviewDrawerProps = {
-  hiveId: string;
   item: FindingsOpenItem;
   view: StudyView;
   sources: StudyViewSources | null;
   canonicalStudy: CanonicalStudy | null;
   documentDate: (sourceDocumentId: string) => string | null | undefined;
   onClose: () => void;
-  onMarkReviewed: (itemId: string) => void;
 };
 
 export function FindingsReviewDrawer({
@@ -57,7 +55,6 @@ export function FindingsReviewDrawer({
   canonicalStudy,
   documentDate,
   onClose,
-  onMarkReviewed,
 }: FindingsReviewDrawerProps) {
   const item = reviewItem;
   const titleId = useId();
@@ -93,19 +90,10 @@ export function FindingsReviewDrawer({
         data-testid="findings-review-drawer"
         className="fixed inset-y-0 right-0 z-[51] flex w-full max-w-lg flex-col border-l border-line bg-paper shadow-lg"
       >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <header className="border-b border-line px-5 py-4">
           <h2 id={titleId} className="m-0 font-brand text-section font-semibold text-ink">
             Review context
           </h2>
-          <button
-            ref={closeRef}
-            type="button"
-            className={WORKSPACE_SECONDARY}
-            onClick={onClose}
-            aria-label="Close review"
-          >
-            Close
-          </button>
         </header>
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
           <p className="m-0 text-body font-medium text-ink">{item.title}</p>
@@ -117,45 +105,18 @@ export function FindingsReviewDrawer({
             <p className="m-0 rounded-control border border-line bg-mist p-3 text-small text-graphite">{model.gapText}</p>
           ) : null}
         </div>
-        <footer className="flex flex-wrap gap-2 border-t border-line px-5 py-4">
+        <footer className="border-t border-line px-5 py-4">
           <button
+            ref={closeRef}
             type="button"
-            className={WORKSPACE_PRIMARY}
-            data-testid="findings-mark-reviewed"
-            onClick={() => {
-              onMarkReviewed(item.id);
-              onClose();
-            }}
+            className={WORKSPACE_SECONDARY}
+            onClick={onClose}
+            aria-label="Close review"
           >
-            Mark reviewed
-          </button>
-          <button type="button" className={WORKSPACE_SECONDARY} onClick={onClose}>
-            Leave open
+            Close
           </button>
         </footer>
       </aside>
     </>
   );
-}
-
-export function resolvedFindingsStorageKey(hiveId: string): string {
-  return `hive.findings-resolved:${hiveId}`;
-}
-
-export function loadResolvedFindingIds(hiveId: string): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = sessionStorage.getItem(resolvedFindingsStorageKey(hiveId));
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((entry): entry is string => typeof entry === "string"));
-  } catch {
-    return new Set();
-  }
-}
-
-export function saveResolvedFindingIds(hiveId: string, ids: ReadonlySet<string>): void {
-  if (typeof window === "undefined") return;
-  sessionStorage.setItem(resolvedFindingsStorageKey(hiveId), JSON.stringify([...ids]));
 }

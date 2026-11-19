@@ -70,7 +70,7 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
         studyView={overview?.studyTab?.view ?? overview?.studyView?.view ?? null}
         canonicalStudy={overview?.canonicalStudy ?? null}
         referencedDocuments={overview?.referencedDocuments ?? []}
-        summaryCounts={overview?.summary.study?.counts ?? null}
+        summaryCounts={overview?.summary?.study?.counts ?? null}
         coverageGaps={overview?.preparation?.studyRevision?.coverageGaps ?? []}
       />
       {requested && requested.checklist.length > 0 ? (

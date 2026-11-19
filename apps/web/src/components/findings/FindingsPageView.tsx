@@ -11,7 +11,7 @@ import type {
   StudyView,
   StudyViewSources,
 } from "@hiveforyou/contracts";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { HiveAskInput } from "@/components/hive-ask-input";
@@ -24,11 +24,7 @@ import { buildCitationContextMap } from "@/components/study/citation-context";
 import { Timeline } from "@/components/study/Timeline";
 import { ReadProblemNotice, readProblemsFromCoverage } from "@/components/study/ReadProblemNotice";
 import { hiveDocumentsPath, FINDINGS_ANCHORS } from "@/lib/hive-routes";
-import {
-  FindingsReviewDrawer,
-  loadResolvedFindingIds,
-  saveResolvedFindingIds,
-} from "@/components/findings/FindingsReviewDrawer";
+import { FindingsReviewDrawer } from "@/components/findings/FindingsReviewDrawer";
 import { DOCUMENT_REQUEST_LIST_COMPONENT, documentRequestListHasContent } from "@hiveforyou/contracts";
 
 type FindingsPageViewProps = {
@@ -42,7 +38,6 @@ type FindingsPageViewProps = {
   otherOpenItems: FindingsOpenItem[];
   glanceMetrics: FindingsGlanceMetric[];
   openItemCount: number;
-  allOpenItemIds: readonly string[];
   coverageGaps: readonly CoverageGap[];
   documentPages?: Readonly<Record<string, number>>;
   preparation: GetStudyPreparationResponse | null;
@@ -70,7 +65,7 @@ function FindingsOpenItemCard({
 }: {
   item: FindingsOpenItem;
   sources: StudyViewSources | null;
-  onReview: () => void;
+  onReview: (trigger: HTMLButtonElement) => void;
 }) {
   const badge = openItemBadge(item.kind);
   const chips =
@@ -98,7 +93,7 @@ function FindingsOpenItemCard({
         type="button"
         className={`${WORKSPACE_SECONDARY} mt-3 min-h-9 px-3 text-[13px]`}
         data-review-id={item.id}
-        onClick={onReview}
+        onClick={(event) => onReview(event.currentTarget)}
       >
         Review context
       </button>
@@ -116,35 +111,26 @@ export function FindingsPageView({
   otherOpenItems,
   glanceMetrics,
   openItemCount,
-  allOpenItemIds,
   coverageGaps,
   documentPages,
   preparation,
 }: FindingsPageViewProps) {
   const [reviewId, setReviewId] = useState<string | null>(null);
-  const [resolvedIds, setResolvedIds] = useState<Set<string>>(() => new Set());
+  const reviewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const pageCountFor = (id: string) => documentPages?.[id] ?? documentPages?.[id.toLowerCase()];
 
-  useEffect(() => {
-    setResolvedIds(loadResolvedFindingIds(hiveId));
-  }, [hiveId]);
+  const openReview = useCallback((itemId: string, trigger: HTMLButtonElement) => {
+    reviewTriggerRef.current = trigger;
+    setReviewId(itemId);
+  }, []);
 
-  const markReviewed = useCallback(
-    (itemId: string) => {
-      setResolvedIds((current) => {
-        const next = new Set(current);
-        next.add(itemId);
-        saveResolvedFindingIds(hiveId, next);
-        return next;
-      });
-    },
-    [hiveId],
-  );
-
-  const unresolvedCount = useMemo(
-    () => allOpenItemIds.filter((id) => !resolvedIds.has(id)).length,
-    [allOpenItemIds, resolvedIds],
-  );
+  const closeReview = useCallback(() => {
+    const trigger = reviewTriggerRef.current;
+    setReviewId(null);
+    requestAnimationFrame(() => {
+      trigger?.focus();
+    });
+  }, []);
 
   const model = useMemo(() => {
     const documents = view.blocks.find((block) => block.name === "documents")?.rows ?? [];
@@ -220,12 +206,12 @@ export function FindingsPageView({
           </div>
           <span
             className={`inline-flex shrink-0 items-center rounded-pill px-3 py-1.5 text-small font-semibold ${
-              unresolvedCount > 0 ? "bg-coral-wash text-coral-deep" : "bg-leaf-wash text-leaf-deep"
+              openItemCount > 0 ? "bg-coral-wash text-coral-deep" : "bg-leaf-wash text-leaf-deep"
             }`}
             data-testid="findings-open-count"
-            aria-label={unresolvedCount > 0 ? `${unresolvedCount} to review` : "Nothing to review"}
+            aria-label={openItemCount > 0 ? `${openItemCount} to review` : "Nothing to review"}
           >
-            {unresolvedCount > 0 ? `${unresolvedCount} to review` : "Nothing to review"}
+            {openItemCount > 0 ? `${openItemCount} to review` : "Nothing to review"}
           </span>
         </section>
 
@@ -292,7 +278,7 @@ export function FindingsPageView({
                       key={item.id}
                       item={item}
                       sources={sources}
-                      onReview={() => setReviewId(item.id)}
+                      onReview={(trigger) => openReview(item.id, trigger)}
                     />
                   ))}
                 </div>
@@ -306,7 +292,12 @@ export function FindingsPageView({
             <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Other items to clarify</h3>
             <p className="m-0 text-small text-graphite">Open questions that are not tied to a single topic yet.</p>
             {otherOpenItems.map((item) => (
-              <FindingsOpenItemCard key={item.id} item={item} sources={sources} onReview={() => setReviewId(item.id)} />
+              <FindingsOpenItemCard
+                key={item.id}
+                item={item}
+                sources={sources}
+                onReview={(trigger) => openReview(item.id, trigger)}
+              />
             ))}
           </section>
         ) : null}
@@ -361,14 +352,12 @@ export function FindingsPageView({
 
         {reviewItem ? (
           <FindingsReviewDrawer
-            hiveId={hiveId}
             item={reviewItem}
             view={view}
             sources={sources}
             canonicalStudy={canonicalStudy}
             documentDate={model.documentDate}
-            onClose={() => setReviewId(null)}
-            onMarkReviewed={markReviewed}
+            onClose={closeReview}
           />
         ) : null}
       </div>

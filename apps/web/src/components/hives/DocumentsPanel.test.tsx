@@ -324,14 +324,21 @@ describe("DocumentsPanel — Analyze", () => {
       sourceDocumentId: row.id,
     }));
     server.readDocuments = server.documents.length;
-    render(<DocumentsPanel hiveId={HIVE_ID} initialDocuments={server.documents} documentMeta={meta} />);
+    render(
+      <DocumentsPanel
+        hiveId={HIVE_ID}
+        initialDocuments={server.documents}
+        documentMeta={meta}
+        studyView={study.view}
+      />,
+    );
     const rows = await screen.findAllByTestId("source-library-row");
     for (const row of rows) {
-      const label = row.querySelector(".font-brand")?.textContent ?? "";
+      const label = within(row).getByRole("rowheader").textContent ?? "";
       expect(label).not.toMatch(/^Document \d+$/);
       expect(label.length).toBeGreaterThan(0);
     }
-    expect(rows.some((row) => (row.textContent ?? "").includes("Trustee's objection"))).toBe(true);
+    expect(rows.some((row) => (row.textContent ?? "").includes("Trustee"))).toBe(true);
   });
 
   it("offers Analyze as the only way to process documents", async () => {

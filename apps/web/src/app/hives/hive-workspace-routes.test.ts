@@ -69,9 +69,16 @@ vi.mock("@/server/hives/hive-summary", () => ({
     studyView: null,
     canonicalStudy: null,
     referencedDocuments: [],
+    summary: { study: null },
   })),
   documentPageCounts: vi.fn(() => ({})),
 }));
+
+vi.mock("@/server/hives/load-study-revision-history", () => ({
+  loadStudyRevisionHistory: vi.fn(async () => []),
+}));
+
+vi.mock("@/components/audit/AuditTrailPageView", () => ({ AuditTrailPageView: () => null }));
 
 vi.mock("@/server/source-documents/hive-vault-upload-adapter", () => ({
   listHiveSourceDocumentsWithV3Vault: vi.fn(async () => ({ sourceDocuments: [] })),
