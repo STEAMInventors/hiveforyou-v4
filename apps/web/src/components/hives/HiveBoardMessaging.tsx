@@ -16,6 +16,8 @@ export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"
   readonly teamMemberFirstName: string;
   /** Dev gallery: open on another member's Ask thread without waiting for a click. */
   readonly defaultAskThreadOwnerId?: string | null;
+  /** Dev gallery: Ask tab before searchParams hydrate (does not change production URLs). */
+  readonly initialBoardView?: BoardView;
 };
 
 type BoardView = "conversation" | "ask";
@@ -33,6 +35,7 @@ export function HiveBoardMessaging({
   initialAsk,
   teamMemberFirstName,
   defaultAskThreadOwnerId = null,
+  initialBoardView,
   hiveId,
   staffView,
   clientName,
@@ -43,7 +46,8 @@ export function HiveBoardMessaging({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const view = activeView(searchParams, firmless);
+  const urlView = activeView(searchParams, firmless);
+  const view = initialBoardView ?? urlView;
   const [askThreadOwner, setAskThreadOwner] = useState<string | null>(defaultAskThreadOwnerId ?? currentUserId);
 
   const setView = useCallback(
@@ -109,11 +113,32 @@ export function HiveBoardMessaging({
       <HiveBoardConversation
         key={askThreadOwner ?? "self"}
         hiveId={hiveId}
-        initial={
-          askThreadOwner && currentUserId && askThreadOwner !== currentUserId.toLowerCase()
-            ? { ok: true, page: { messages: [], participantRoleLabels: [], participantCount: 0, viewerLastReadAt: null, nextCursor: null } }
-            : initialAsk
-        }
+        initial={(() => {
+          const viewingOtherAsk =
+            Boolean(
+              askThreadOwner && currentUserId && askThreadOwner.toLowerCase() !== currentUserId.toLowerCase(),
+            );
+          const gallerySeed =
+            Boolean(
+              defaultAskThreadOwnerId &&
+                askThreadOwner?.toLowerCase() === defaultAskThreadOwnerId.toLowerCase() &&
+                initialAsk.ok &&
+                initialAsk.page.messages.length > 0,
+            );
+          if (viewingOtherAsk && !gallerySeed) {
+            return {
+              ok: true,
+              page: {
+                messages: [],
+                participantRoleLabels: [],
+                participantCount: 0,
+                viewerLastReadAt: null,
+                nextCursor: null,
+              },
+            } as ConversationLoad;
+          }
+          return initialAsk;
+        })()}
         staffView={staffView}
         clientName={clientName}
         viewerIsClient={viewerIsClient}

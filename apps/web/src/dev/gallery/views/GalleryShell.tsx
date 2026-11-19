@@ -6,7 +6,7 @@ import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
 import { AppShell } from "@/components/app-header";
 
-import { GALLERY_ASSISTANT_NAME, GALLERY_HIVE, GALLERY_HIVE_ID } from "../fixtures/board-messages";
+import { GALLERY_ASSISTANT_NAME, GALLERY_HIVE } from "../fixtures/board-messages";
 import { GalleryFrame } from "./GalleryFrame";
 
 export function GalleryShell() {

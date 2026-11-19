@@ -138,18 +138,32 @@ export const GALLERY_ASK_EMPTY_PAGE: HiveMessagePage = {
   nextCursor: null,
 };
 
+const LONG_REF_DOC = "doc-checking";
+
 export function longMessagePage(count: number): HiveMessagePage {
   const messages: HiveMessage[] = [];
   for (let i = 0; i < count; i += 1) {
+    const staffRow = i % 3 === 0;
     messages.push(
       msg({
         id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
         createdAt: new Date(Date.UTC(2026, 9, 28, 8, i % 60)).toISOString(),
         body: `Sample message ${i + 1} for scroll and wrap checks.`,
-        isMine: i % 3 === 0,
-        authorRole: i % 3 === 0 ? "staff" : "client",
-        authorDisplayName: i % 3 === 0 ? "Priya Shah" : "Dana Ellis",
-        authorUserId: i % 3 === 0 ? PRIYA_ID : DANA_ID,
+        isMine: staffRow,
+        authorRole: staffRow ? "staff" : "client",
+        authorDisplayName: staffRow ? "Priya Shah" : "Dana Ellis",
+        authorUserId: staffRow ? PRIYA_ID : DANA_ID,
+        ...(i === 7
+          ? {
+              body: "Here is one reply with every cited page from the checking file (cap at six, then +6 more).",
+              sourceRefs: Array.from({ length: 12 }, (_, page) => ({
+                sourceDocumentId: LONG_REF_DOC,
+                pageNumber: page + 1,
+                shortLabel: "Checking stmts",
+                factId: `long-ref-${page + 1}`,
+              })),
+            }
+          : {}),
       }),
     );
   }

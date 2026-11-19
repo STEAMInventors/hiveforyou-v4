@@ -75,7 +75,9 @@ describe("Hive board page", () => {
       }),
     );
     const head = screen.getByTestId("hive-page-head");
-    expect(head.textContent).toBe("Hive board");
+    expect(head.textContent).toContain("Hive board");
+    expect(head.textContent).toContain("Your conversation with Ruth");
+    expect(head.textContent).toContain("Maya doesn't take part here");
     const still = screen.getByTestId("hive-still-to-come");
     expect(still.textContent).toContain("Still to come");
     expect(still.textContent).toContain("1 of 3 in");

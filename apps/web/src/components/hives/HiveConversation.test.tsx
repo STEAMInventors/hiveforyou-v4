@@ -162,7 +162,7 @@ describe("HiveConversation", () => {
         }),
       },
     });
-    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Owner · HiveForYou (AI assistant)");
+    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Only you so far.");
   });
 
   it("shows the assistant failure line to firm staff but not while previewing as client", () => {
