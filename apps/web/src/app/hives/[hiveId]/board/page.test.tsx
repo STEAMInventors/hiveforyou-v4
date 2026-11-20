@@ -90,6 +90,17 @@ describe("Hive board page", () => {
     expect(conversationProps[0]).toMatchObject({ staffView: true, clientName: "Ruth Ortiz", viewerIsClient: false });
   });
 
+  it("passes null teamMemberFirstName when the hive has no assignee", async () => {
+    hive = { ...firmClientHive, assigneeDisplayName: null };
+    render(
+      await HiveBoardPage({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(conversationProps[0]).toMatchObject({ teamMemberFirstName: null });
+  });
+
   it("gives clients and individual hives no staff view", async () => {
     hive = { ...firmClientHive, membershipRole: "client" };
     render(

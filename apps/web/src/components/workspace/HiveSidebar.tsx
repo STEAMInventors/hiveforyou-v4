@@ -12,6 +12,8 @@ import {
 } from "@/lib/hive-routes";
 import type { StartingView } from "@/lib/auth/profile";
 
+import { TEXT_LINK_CLASS } from "@/components/button-classes";
+
 import { HiveSidebarCard } from "./HiveSidebarCard";
 import { countAccessibleLabel, type HiveSidebarCounts } from "./sidebar-counts";
 import { WORKSPACE_NAV_ICONS } from "./workspace-nav-icons";
@@ -43,7 +45,7 @@ type HiveSidebarProps = {
 function formatAcceptedDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
 }
 
 function NavCount({
@@ -92,16 +94,15 @@ function NavItem({
       <Link
         href={href}
         aria-current={isActive ? "page" : undefined}
-        className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-control px-2.5 text-small no-underline ${
+        className={`inline-flex h-9 min-h-10 shrink-0 items-center gap-1.5 rounded-control px-2.5 text-small no-underline ${
           isActive
             ? "bg-paper font-semibold text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgba(20,30,50,0.04)]"
             : "font-medium text-ink-2 hover:bg-hover hover:text-ink"
         }`}
       >
-        {Icon ? <Icon /> : null}
-        {label}
+        <span>{label}</span>
         {count !== null ? (
-          <span className="font-semibold" aria-label={ariaCount}>
+          <span className="font-semibold tabular-nums text-ink-3" aria-label={ariaCount}>
             {count}
           </span>
         ) : null}
@@ -141,10 +142,11 @@ function StudyRailFooter({
     <div className="mt-auto px-2.5 pt-4 text-caption text-graphite" data-testid="study-rail-footer">
       {studyRevision ? (
         <>
-          <p className="m-0">Study revision</p>
-          <p className="m-0">v{studyRevision.revisionNumber}</p>
-          {accepted ? <p className="m-0">Accepted {accepted}</p> : null}
-          <p className="m-0 pt-2">Every finding links to its source page.</p>
+          <p className="m-0">
+            Study v{studyRevision.revisionNumber}
+            {accepted ? ` · accepted ${accepted}` : null}
+          </p>
+          <p className="m-0 pt-1.5">Every finding opens its source page.</p>
         </>
       ) : (
         <>
@@ -205,7 +207,7 @@ export function HiveSidebar({
       <nav aria-label="Hive sections" className="flex gap-2 overflow-x-auto pb-1" data-testid="hive-sidebar-compact">
         <Link
           href={back.href}
-          className="inline-flex min-h-11 shrink-0 items-center rounded-control border border-line bg-paper px-3 text-small font-medium text-cell-blue-deep no-underline hover:bg-mist"
+          className={`${TEXT_LINK_CLASS} inline-flex min-h-10 shrink-0 items-center border-0 bg-transparent px-1 text-small no-underline`}
         >
           {back.label}
         </Link>
@@ -236,7 +238,6 @@ export function HiveSidebar({
         assistantName={assistantName}
       />
       <nav aria-label="Hive sections" className="min-h-0 flex-1 overflow-y-auto" data-testid="hive-sidebar">
-        <p className="mb-1 mt-0 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-quiet">Your hive</p>
         <ul className="m-0 flex flex-col gap-0.5 p-0">
           {sections.map((section) => (
             <NavItem

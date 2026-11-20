@@ -54,7 +54,9 @@ export default async function HiveBoardPage({ params, searchParams }: BoardPageP
       : "HiveForYou";
   const board = boardLoad?.board ?? null;
   const overview = boardLoad?.overview;
-  const staffFirstName = personFirstName(hive.assigneeDisplayName ?? "your team");
+  const staffFirstName = hive.assigneeDisplayName?.trim()
+    ? personFirstName(hive.assigneeDisplayName)
+    : null;
   const boardView = firmless || view === "ask" ? "ask" : "conversation";
   const boardDescription = hiveBoardPageDescription({
     firmless,
@@ -68,8 +70,9 @@ export default async function HiveBoardPage({ params, searchParams }: BoardPageP
   return (
     <>
       {handover ? <HiveHandoverBanner handover={handover} visible /> : null}
-      <HivePageHead title="Hive board" subtitle={boardDescription} />
-      <div className="mx-auto flex w-full max-w-col-read flex-col gap-3" data-testid="hive-board">
+      <div className="mx-auto flex w-full max-w-col-read flex-col gap-3">
+        <HivePageHead title="Hive board" subtitle={boardDescription} />
+        <div className="flex flex-col gap-3" data-testid="hive-board">
         <HiveStillToCome hiveId={hive.id} progress={board && board.checklist.length > 0 ? board.progress : null} />
         <Suspense fallback={null}>
           <HiveBoardMessaging
@@ -91,6 +94,7 @@ export default async function HiveBoardPage({ params, searchParams }: BoardPageP
           documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
           />
         </Suspense>
+        </div>
       </div>
     </>
   );

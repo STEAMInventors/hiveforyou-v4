@@ -89,6 +89,26 @@ describe("AppHeader", () => {
     expect(screen.getByLabelText("Find a client")).toBeTruthy();
   });
 
+  it("shows a quiet All hives link in the hive workspace", () => {
+    pathname = `/hives/${HIVE_ID}/board`;
+    render(
+      <AppHeader
+        workspace={{
+          hiveId: HIVE_ID,
+          hiveName: "Widget batch review",
+          section: "board",
+          startingView: "clients",
+          hiveKind: "client",
+        }}
+        account={account}
+      />,
+    );
+    const link = screen.getByTestId("header-all-hives");
+    expect(link.textContent).toBe("All hives");
+    expect(link.getAttribute("href")).toBe("/hives");
+    expect(link.className).not.toMatch(/\bbg-cell-blue/);
+  });
+
   it("does not show a workspace breadcrumb when a hive section is active", () => {
     pathname = `/hives/${HIVE_ID}/findings`;
     render(

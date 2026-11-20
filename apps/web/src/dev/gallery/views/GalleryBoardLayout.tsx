@@ -151,8 +151,9 @@ export function GalleryBoardLayout({
         studyRevision={{ revisionNumber: 2, acceptedAt: "2026-10-20T00:00:00.000Z" }}
         summaryLoaded
       >
-        <HivePageHead title="Hive board" subtitle={subtitle} />
-        <BoardColumn className="mx-auto flex w-full max-w-col-read flex-col gap-3" data-testid="hive-board">
+        <BoardColumn className="mx-auto flex w-full max-w-col-read flex-col gap-3">
+          <HivePageHead title="Hive board" subtitle={subtitle} />
+          <div className="flex flex-col gap-3" data-testid="hive-board">
           {progress ? <HiveStillToCome hiveId={GALLERY_HIVE_ID} progress={progress} /> : null}
           <EvidenceViewerProvider
             hiveId={GALLERY_HIVE_ID}
@@ -186,6 +187,7 @@ export function GalleryBoardLayout({
               />
             </Suspense>
           </EvidenceViewerProvider>
+          </div>
         </BoardColumn>
       </WorkspaceShell>
     </AppShell>

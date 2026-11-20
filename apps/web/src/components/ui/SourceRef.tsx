@@ -1,6 +1,5 @@
 "use client";
 
-import { HiveMark } from "@/components/study/HiveMark";
 import type { ChipRef } from "@/components/study/SourceChip";
 import { useEvidenceViewer } from "@/components/study/EvidenceViewer";
 
@@ -8,6 +7,26 @@ export type SourceRefProps = {
   chip: ChipRef;
   title?: string;
 };
+
+function DocumentOutlineIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0 opacity-70"
+      aria-hidden
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
+  );
+}
 
 export function SourceRef({ chip, title }: SourceRefProps) {
   const viewer = useEvidenceViewer();
@@ -24,7 +43,7 @@ export function SourceRef({ chip, title }: SourceRefProps) {
       data-testid="source-ref"
       onClick={(event) => viewer.open(chip, event.currentTarget)}
     >
-      <HiveMark className="h-3 w-3 shrink-0 opacity-80" />
+      <DocumentOutlineIcon />
       <span className="truncate">
         {display} · <span className="text-ink-3">p.{chip.pageNumber}</span>
       </span>

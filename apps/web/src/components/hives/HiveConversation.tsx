@@ -26,7 +26,6 @@ import {
   messageDayKey,
   messageDayLabel,
   messageTimeLabel,
-  participantLine,
   showsAsMine,
   type ConversationViewer,
 } from "@/components/hives/hive-conversation-view";
@@ -67,8 +66,11 @@ export type HiveConversationProps = {
   hiveFirmId?: string | null;
   mode?: "people" | "assistant";
   assistantName?: string;
-  teamMemberFirstName?: string;
+  teamMemberFirstName?: string | null;
   firmless?: boolean;
+  previewViewer?: ConversationViewer;
+  onPreviewViewerChange?: (viewer: ConversationViewer) => void;
+  previewOnTabs?: boolean;
   readOnly?: boolean;
   threadOwnerUserId?: string | null;
   onThreadOwnerChange?: (userId: string | null) => void;
@@ -79,6 +81,36 @@ export type HiveConversationProps = {
 };
 
 const noopSubscribe = () => () => undefined;
+
+function teamHandoffLabel(teamMemberFirstName: string | null | undefined): string {
+  const trimmed = teamMemberFirstName?.trim();
+  return trimmed ? personFirstName(trimmed) : "the team";
+}
+
+type ConversationPreviewSelectProps = {
+  id: string;
+  value: ConversationViewer;
+  onChange: (viewer: ConversationViewer) => void;
+};
+
+export function ConversationPreviewSelect({ id, value, onChange }: ConversationPreviewSelectProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <label htmlFor={id} className="text-[13px] text-quiet">
+        Preview as
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value === "client" ? "client" : "self")}
+        className="min-h-10 rounded-control border border-line bg-paper px-2.5 text-[13px] text-ink"
+      >
+        <option value="self">You</option>
+        <option value="client">Client</option>
+      </select>
+    </div>
+  );
+}
 
 function useMounted(): boolean {
   return useSyncExternalStore(
@@ -280,8 +312,11 @@ export function HiveConversation({
   hiveFirmId = null,
   mode = "people",
   assistantName: assistantNameProp = "HiveForYou",
-  teamMemberFirstName = "your team",
+  teamMemberFirstName = null,
   firmless = false,
+  previewViewer,
+  onPreviewViewerChange,
+  previewOnTabs = false,
   readOnly = false,
   threadOwnerUserId = null,
   onThreadOwnerChange,
@@ -296,13 +331,16 @@ export function HiveConversation({
     channel: mode,
     threadOwnerUserId: mode === "assistant" ? threadOwnerUserId : null,
     assistantTrigger: mode === "assistant" ? { staffView, viewerIsClient, hiveFirmId } : undefined,
+    assistantName: assistantNameProp,
   });
   const assistantTypingLongWait = useAssistantTypingPhase(
     conversation.pendingAssistant,
     conversation.assistantTypingStartedAt,
   );
   const mounted = useMounted();
-  const [viewer, setViewer] = useState<ConversationViewer>("self");
+  const [internalViewer, setInternalViewer] = useState<ConversationViewer>("self");
+  const viewer = previewViewer ?? internalViewer;
+  const setViewer = onPreviewViewerChange ?? setInternalViewer;
   const [draft, setDraft] = useState("");
   const [showNewPill, setShowNewPill] = useState(false);
   const [handedOffAssistantIds, setHandedOffAssistantIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -432,28 +470,16 @@ export function HiveConversation({
     return match.messageCount;
   }, [clientThreadUserId, conversation.assistantThreads]);
 
-  const peopleParticipantLabels = useMemo(
-    () =>
-      conversation.participantLabels.filter(
-        (label) => !label.toLowerCase().includes("ai assistant"),
-      ),
-    [conversation.participantLabels],
-  );
+  const showConversationHead = assistantMode || !previewOnTabs;
 
-  const head = (
+  const head = showConversationHead ? (
     <header className="mb-2 flex flex-wrap items-center justify-between gap-3 py-2">
       <div className="min-w-0">
-        {assistantMode ? (
-          readOnly && clientThreadFirstName ? (
-            <p className="m-0 text-meta text-ink-2" data-testid="hive-assistant-readonly-note">
-              {personFirstName(clientThreadFirstName)} asked these. Only your team can see them.
-            </p>
-          ) : null
-        ) : (
-          <p className="m-0 text-meta text-ink-2" data-testid="hive-conversation-participants">
-            {participantLine(peopleParticipantLabels, conversation.participantCount, false)}
+        {assistantMode && readOnly && clientThreadFirstName ? (
+          <p className="m-0 text-meta text-ink-2" data-testid="hive-assistant-readonly-note">
+            {personFirstName(clientThreadFirstName)} asked these. Only your team can see them.
           </p>
-        )}
+        ) : null}
       </div>
       {assistantMode && staffView && !firmless && clientThreadUserId && onThreadOwnerChange && currentUserId ? (
         <Segmented
@@ -503,24 +529,11 @@ export function HiveConversation({
             </p>
           )}
         </div>
-      ) : staffView && !assistantMode ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <label htmlFor={previewSelectId} className="text-[13px] text-quiet">
-            Preview as
-          </label>
-          <select
-            id={previewSelectId}
-            value={viewer}
-            onChange={(event) => setViewer(event.target.value === "client" ? "client" : "self")}
-            className="min-h-10 rounded-control border border-line bg-paper px-2.5 text-[13px] text-ink"
-          >
-            <option value="self">You</option>
-            <option value="client">Client</option>
-          </select>
-        </div>
+      ) : staffView && !assistantMode && !previewOnTabs ? (
+        <ConversationPreviewSelect id={previewSelectId} value={viewer} onChange={setViewer} />
       ) : null}
     </header>
-  );
+  ) : null;
 
   if (conversation.unavailable) {
     return (
@@ -590,7 +603,7 @@ export function HiveConversation({
                         <>
                           {" "}
                           If {displayAssistantName} can&apos;t answer, you can pass the question to{" "}
-                          {personFirstName(teamMemberFirstName)}.
+                          {teamHandoffLabel(teamMemberFirstName)}.
                         </>
                       ) : null}
                     </p>
@@ -645,7 +658,7 @@ export function HiveConversation({
                         if (handedOff) {
                           return (
                             <p className="m-0 ms-11 text-meta text-ink-3" data-testid="hive-assistant-handoff-sent">
-                              Sent to {personFirstName(teamMemberFirstName)} in the Conversation.
+                              Sent to {teamHandoffLabel(teamMemberFirstName)} in the Conversation.
                             </p>
                           );
                         }
@@ -659,7 +672,7 @@ export function HiveConversation({
                             data-testid="hive-assistant-handoff"
                             onClick={() => handoffAskTeam(message.id, trigger.body)}
                           >
-                            Ask {personFirstName(teamMemberFirstName)}
+                            Ask {teamHandoffLabel(teamMemberFirstName)}
                           </Button>
                         );
                       })()

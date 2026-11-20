@@ -128,7 +128,7 @@ describe("HiveConversation", () => {
     expect(within(rows[0]!).getByText("9:14 AM")).toBeTruthy();
     expect(within(rows[1]!).getByText("Onboarding associate")).toBeTruthy();
     expect(screen.getAllByTestId("hive-conversation-day").map((el) => el.textContent)).toEqual(["Yesterday", "Today"]);
-    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Client · Onboarding associate");
+    expect(screen.queryByTestId("hive-conversation-participants")).toBeNull();
     expect(screen.getByTestId("hive-conversation-messages").getAttribute("aria-live")).toBe("polite");
   });
 
@@ -142,27 +142,12 @@ describe("HiveConversation", () => {
     expect(body.className).toContain("whitespace-pre-wrap");
   });
 
-  it("says Only you so far. when the viewer is the only participant", () => {
+  it("does not show a participant line above the thread", () => {
     renderConversation({
       initial: { ok: true, page: page({ messages: [], participantRoleLabels: ["Owner"], participantCount: 1 }) },
       staffView: false,
     });
-    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Only you so far.");
-  });
-
-  it("does not add the assistant to the people participant line", () => {
-    renderConversation({
-      initial: {
-        ok: true,
-        page: page({
-          messages: [],
-          participantRoleLabels: ["Owner", "HiveForYou (AI assistant)"],
-          participantCount: 1,
-          assistantAvailable: true,
-        }),
-      },
-    });
-    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Only you so far.");
+    expect(screen.queryByTestId("hive-conversation-participants")).toBeNull();
   });
 
   it("shows the assistant failure line to firm staff but not while previewing as client", () => {

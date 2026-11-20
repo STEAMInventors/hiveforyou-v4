@@ -222,7 +222,7 @@ describe("SourceChips + evidence viewer", () => {
     );
     const chips = screen.getAllByTestId("source-chip");
     expect(within(chips[0]!).getByTestId("source-ref").tagName).toBe("BUTTON");
-    expect(within(chips[0]!).getByTestId("hive-mark")).toBeTruthy();
+    expect(within(chips[0]!).getByTestId("source-ref").querySelector("svg")).toBeTruthy();
     expect(screen.queryByText(/02_plan\.pdf/)).toBeNull();
 
     fireEvent.click(within(chips[0]!).getByTestId("source-ref"));

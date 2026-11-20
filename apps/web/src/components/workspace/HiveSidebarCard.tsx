@@ -50,7 +50,7 @@ export function HiveSidebarCard({
   const purpose = hive.description?.trim() ?? "";
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-card border border-line bg-paper p-3.5" data-testid="hive-sidebar-card">
+    <div className="flex flex-col gap-2 border-b border-line pb-4" data-testid="hive-sidebar-card">
       <div className="flex gap-2.5">
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-mist text-caption font-bold text-ink"
@@ -68,7 +68,7 @@ export function HiveSidebarCard({
 
       {firmClient ? (
         <>
-          <p className="m-0 text-caption text-graphite">
+          <p className="m-0 text-label text-graphite">
             On it:{" "}
             <span className="font-semibold text-ink">
               {assigneeLabel ?? "Unassigned"}
@@ -102,7 +102,7 @@ export function HiveSidebarCard({
               </button>
             ) : null}
           </p>
-          <p className="m-0 text-caption text-graphite">
+          <p className="m-0 text-label text-graphite">
             <span className="font-semibold text-ink">{assistantName}</span> · automated{" "}
             {renaming ? (
               <span className="inline-flex flex-wrap items-center gap-1">

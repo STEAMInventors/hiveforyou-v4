@@ -6,13 +6,15 @@ export function hiveBoardPageDescription(input: {
   assistantName: string;
   viewerIsClient: boolean;
   clientName: string | null;
-  staffFirstName: string;
+  staffFirstName: string | null;
 }): string {
   if (input.firmless || input.view === "ask") {
     return `Ask ${input.assistantName}, the AI assistant, about the documents. Answers cite their pages.`;
   }
   const otherSide = input.viewerIsClient
-    ? personFirstName(input.staffFirstName)
+    ? input.staffFirstName?.trim()
+      ? personFirstName(input.staffFirstName)
+      : "the team"
     : personFirstName(input.clientName ?? "them");
   return `Your conversation with ${otherSide}. ${input.assistantName} doesn't take part here.`;
 }

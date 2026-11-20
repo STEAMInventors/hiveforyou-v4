@@ -3,9 +3,11 @@
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import type { HiveBoardConversationProps } from "@/components/hives/HiveBoardConversation";
 import { HiveBoardConversation } from "@/components/hives/HiveBoardConversation";
+import { ConversationPreviewSelect, type HiveConversationProps } from "@/components/hives/HiveConversation";
+import type { ConversationViewer } from "@/components/hives/hive-conversation-view";
 import { Tabs } from "@/components/ui/Tabs";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 
 export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"> & {
   readonly firmless: boolean;
@@ -13,7 +15,7 @@ export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"
   readonly currentUserId: string | null;
   readonly initialPeople: ConversationLoad;
   readonly initialAsk: ConversationLoad;
-  readonly teamMemberFirstName: string;
+  readonly teamMemberFirstName: string | null;
   /** Dev gallery: open on another member's Ask thread without waiting for a click. */
   readonly defaultAskThreadOwnerId?: string | null;
   /** Dev gallery: Ask tab before searchParams hydrate (does not change production URLs). */
@@ -49,6 +51,8 @@ export function HiveBoardMessaging({
   const urlView = activeView(searchParams, firmless);
   const view = initialBoardView ?? urlView;
   const [askThreadOwner, setAskThreadOwner] = useState<string | null>(defaultAskThreadOwnerId ?? currentUserId);
+  const [previewViewer, setPreviewViewer] = useState<ConversationViewer>("self");
+  const previewSelectId = useId();
 
   const setView = useCallback(
     (next: BoardView) => {
@@ -70,11 +74,19 @@ export function HiveBoardMessaging({
     [initialAsk],
   );
 
+  const conversationPreviewProps: Pick<HiveConversationProps, "previewViewer" | "onPreviewViewerChange" | "previewOnTabs"> =
+    staffView
+      ? { previewViewer, onPreviewViewerChange: setPreviewViewer, previewOnTabs: true }
+      : {};
+
   const tabs = !firmless ? (
-    <div data-testid="hive-board-view-tabs">
+    <div
+      className="mb-2 flex flex-wrap items-center justify-between gap-3"
+      data-testid="hive-board-view-tabs"
+    >
       <Tabs
         ariaLabel="Hive board"
-        className="mb-2"
+        className="mb-0"
         options={[
           { id: "conversation" as const, label: "Conversation" },
           { id: "ask" as const, label: `Ask ${assistantName}` },
@@ -82,6 +94,9 @@ export function HiveBoardMessaging({
         value={view}
         onChange={setView}
       />
+      {staffView && view === "conversation" ? (
+        <ConversationPreviewSelect id={previewSelectId} value={previewViewer} onChange={setPreviewViewer} />
+      ) : null}
     </div>
   ) : null;
 
@@ -101,6 +116,7 @@ export function HiveBoardMessaging({
           teamMemberFirstName={teamMemberFirstName}
           firmless={firmless}
           onSwitchToConversation={() => setView("conversation")}
+          {...conversationPreviewProps}
           {...study}
         />
       </div>

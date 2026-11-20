@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
 import { AccountMenu, type AccountMenuDetails } from "@/components/account-menu";
+import { QUIET_LINK_CLASS } from "@/components/button-classes";
 import { HiveAppLogo } from "@/components/HiveWordmark";
 import { useClientsHomeSearch } from "@/lib/hives/clients-home-context";
 import { MY_HIVES_PATH, type HiveWorkspaceSection } from "@/lib/hive-routes";
@@ -126,7 +127,16 @@ export function AppHeader({
 
         <div className="order-2 hidden min-h-11 min-w-0 flex-1 min-[600px]:block" aria-hidden />
 
-        <div className="order-2 ml-auto shrink-0 min-[600px]:order-3">
+        <div className="order-2 ml-auto flex shrink-0 items-center gap-4 min-[600px]:order-3">
+          {inHive ? (
+            <Link
+              href={MY_HIVES_PATH}
+              className={`${QUIET_LINK_CLASS} text-small font-medium text-ink-2 hover:text-ink`}
+              data-testid="header-all-hives"
+            >
+              All hives
+            </Link>
+          ) : null}
           <AccountMenu {...account} />
         </div>
       </div>
