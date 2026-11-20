@@ -4,21 +4,18 @@ export type ButtonVariant = "primary" | "secondary" | "quiet" | "text";
 export type ButtonSize = "default" | "small";
 
 const BASE =
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-control text-[15px] no-underline transition-colors disabled:cursor-not-allowed disabled:opacity-45";
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-[7px] whitespace-nowrap rounded-button border text-[13.5px] font-semibold no-underline transition-colors h-[34px] px-[13px] max-[759px]:h-11 disabled:cursor-not-allowed disabled:opacity-50";
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary:
-    "border-0 bg-blue-deep font-semibold text-paper hover:bg-cell-blue-hover min-h-11 min-[900px]:min-h-9 px-[18px] py-2",
-  secondary:
-    "border border-line-strong bg-paper font-medium text-ink hover:border-line hover:bg-hover min-h-11 min-[900px]:min-h-9 px-4 py-2",
-  quiet:
-    "border-0 bg-transparent font-medium text-ink-2 hover:bg-hover hover:text-ink min-h-11 min-[900px]:min-h-9 px-3 py-2",
-  text: "border-0 bg-transparent p-0 font-medium text-blue-deep hover:underline min-h-11 min-[900px]:min-h-auto",
+  primary: "border-blue-deep bg-blue-deep text-paper hover:bg-blue-press",
+  secondary: "border-line-strong bg-paper text-ink hover:bg-hover",
+  quiet: "border-transparent bg-transparent text-ink-2 hover:bg-hover",
+  text: "border-transparent bg-transparent px-1.5 text-blue-deep hover:bg-blue-wash",
 };
 
 const SIZE: Record<ButtonSize, string> = {
   default: "",
-  small: "!min-h-9 !px-3 !py-1.5 !text-[13px] min-[900px]:!min-h-8",
+  small: "!h-8 !px-2.5 !text-meta max-[759px]:!h-10",
 };
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {

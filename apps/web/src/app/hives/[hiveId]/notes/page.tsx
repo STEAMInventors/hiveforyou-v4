@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
 import { HiveTeamNotesPanel } from "@/components/hives/HiveTeamNotesPanel";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { loadTeamNotes } from "@/server/firm/load-firm-board";
 import { loadFirm } from "@/server/firm/load-firm";
@@ -26,10 +25,9 @@ export default async function NotesPage({ params }: { params: Promise<{ hiveId: 
 
   return (
     <>
-      <HivePageHead
-        title="Team notes"
-        subtitle={`Only people at ${firmName} see these. Never shown to ${clientName}.`}
-      />
+      <p className="m-0 mb-4 text-meta text-ink-3">
+        Only people at {firmName} see these. Never shown to {clientName}.
+      </p>
       <HiveTeamNotesPanel hive={hive} firmName={firmName} clientName={clientName} notes={notes} />
     </>
   );

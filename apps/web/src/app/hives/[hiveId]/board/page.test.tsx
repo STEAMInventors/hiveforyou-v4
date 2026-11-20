@@ -74,10 +74,9 @@ describe("Hive board page", () => {
         searchParams: Promise.resolve({}),
       }),
     );
-    const head = screen.getByTestId("hive-page-head");
-    expect(head.textContent).toContain("Hive board");
-    expect(head.textContent).toContain("Your conversation with Ruth");
-    expect(head.textContent).toContain("Maya doesn't take part here");
+    expect(screen.queryByTestId("hive-page-head")).toBeNull();
+    expect(screen.getByText(/Your conversation with Ruth/, { hidden: true })).toBeTruthy();
+    expect(screen.getByText(/Maya doesn't take part here/, { hidden: true })).toBeTruthy();
     const still = screen.getByTestId("hive-still-to-come");
     expect(still.textContent).toContain("Still to come");
     expect(still.textContent).toContain("1 of 3 in");

@@ -3,7 +3,6 @@ import { Suspense } from "react";
 import { HiveBoardMessaging } from "@/components/hives/HiveBoardMessaging";
 import { HiveStillToCome } from "@/components/hives/HiveStillToCome";
 import { HiveHandoverBanner } from "@/components/workspace/HiveHandoverBanner";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { hiveBoardPageDescription } from "@/lib/hives/board-head-copy";
 import { personFirstName, showsFirmThreePane } from "@/lib/hives/firm-board";
 import { requestCorrelationId } from "@/server/auth/action-support";
@@ -71,7 +70,7 @@ export default async function HiveBoardPage({ params, searchParams }: BoardPageP
     <>
       {handover ? <HiveHandoverBanner handover={handover} visible /> : null}
       <div className="mx-auto flex w-full max-w-col-read flex-col gap-3">
-        <HivePageHead title="Hive board" subtitle={boardDescription} />
+        <p className="sr-only">{boardDescription}</p>
         <div className="flex flex-col gap-3" data-testid="hive-board">
         <HiveStillToCome hiveId={hive.id} progress={board && board.checklist.length > 0 ? board.progress : null} />
         <Suspense fallback={null}>

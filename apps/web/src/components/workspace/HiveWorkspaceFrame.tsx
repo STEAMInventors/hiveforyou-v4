@@ -84,6 +84,7 @@ export async function HiveWorkspaceFrame({
           : null
       }
       summaryLoaded={summaryFailedCorrelationId == null}
+      documentCount={summary ? summary.documentCount : null}
     >
       {children}
     </WorkspaceShell>

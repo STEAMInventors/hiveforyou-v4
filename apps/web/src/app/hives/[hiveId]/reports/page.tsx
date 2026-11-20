@@ -1,7 +1,6 @@
 import type { GetHiveReportsResponse, ReportAudience } from "@hiveforyou/contracts";
 
 import { ReportsPanel } from "@/components/reports/ReportsPanel";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { WorkspaceError } from "@/components/workspace/WorkspaceError";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { documentPageCounts, loadHiveOverview, type HiveSummary } from "@/server/hives/hive-summary";
@@ -60,7 +59,7 @@ export default async function ReportsPage({ params, searchParams }: ReportsPageP
 
   return (
     <>
-      <HivePageHead title="Reports" subtitle="Customer and professional reports from the accepted study." />
+      <p className="m-0 mb-4 text-meta text-ink-3">Customer and professional reports from the accepted study.</p>
       {load.ok ? (
         <ReportsPanel
           hiveId={hive.id}

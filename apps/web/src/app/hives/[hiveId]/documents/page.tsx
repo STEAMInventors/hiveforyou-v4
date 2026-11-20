@@ -1,8 +1,10 @@
 import type { HiveBoardModel } from "@hiveforyou/contracts";
 
+import Link from "next/link";
+
 import { DocumentsPanel } from "@/components/hives/DocumentsPanel";
 import { HiveBoardChecklistCard } from "@/components/hives/HiveBoardChecklistCard";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
+import { WORKSPACE_PRIMARY } from "@/components/button-classes";
 import { studyDocumentMeta } from "@/components/study/study-summary";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { type HiveOverview, loadHiveOverview } from "@/server/hives/hive-summary";
@@ -51,11 +53,11 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
 
   return (
     <>
-      <HivePageHead
-        title="Documents"
-        subtitle="Upload, organize, and inspect source documents."
-        primaryAction={{ label: "Add documents", href: `#upload`, testId: "documents-add-primary" }}
-      />
+      <div className="mb-4 flex justify-end">
+        <Link href="#upload" className={WORKSPACE_PRIMARY} data-testid="documents-add-primary">
+          Add documents
+        </Link>
+      </div>
       <DocumentsPanel
         hiveId={hive.id}
         initialDocuments={initialDocuments}

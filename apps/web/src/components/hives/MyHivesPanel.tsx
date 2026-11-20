@@ -251,6 +251,20 @@ export function MyHivesPanel({
                 {greetingLine(greetingFirstName)}
               </p>
               <h1 className="m-0 font-brand text-section font-semibold text-ink">{title}</h1>
+              {clientsHome?.enabled ? (
+                <label className="mt-3 flex h-11 items-center gap-2 rounded-input bg-mist px-3.5">
+                  <span className="sr-only">Find a client</span>
+                  <input
+                    type="search"
+                    value={clientsHome.findQuery}
+                    onChange={(event) => clientsHome.setFindQuery(event.target.value)}
+                    placeholder="Find a client"
+                    aria-label="Find a client"
+                    data-testid="header-find-client"
+                    className="h-full w-full border-0 bg-transparent text-body text-ink outline-none"
+                  />
+                </label>
+              ) : null}
               {!searchTrimmed && queue !== "own" ? <p className="m-0 text-small text-quiet">{countLine}</p> : null}
             </header>
 

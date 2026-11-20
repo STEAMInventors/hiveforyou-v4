@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { FindingsPageView } from "@/components/findings/FindingsPageView";
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import {
   buildFindingsChainEvidence,
@@ -76,7 +75,6 @@ export default async function FindingsPage({
     });
     return (
       <>
-        <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
         <WorkspaceLoadError message={failure.message} correlationId={correlationId} retryable={failure.retryable} />
       </>
     );
@@ -87,7 +85,6 @@ export default async function FindingsPage({
   if (!revision || !built?.view) {
     return (
       <>
-        <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
         <div className="rounded-[14px] border border-line bg-paper p-[22px]">
           <h2 className="m-0 font-brand text-section font-semibold text-ink">Your Study builds once documents are read</h2>
           <Link href={hiveDocumentsPath(hive.id)} className={`${WORKSPACE_SECONDARY} mt-4`}>
@@ -112,7 +109,7 @@ export default async function FindingsPage({
 
   return (
     <>
-      <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
+      <p className="m-0 mb-4 text-meta text-ink-3">{PAGE_SUBTITLE}</p>
       <FindingsPageView
         hiveId={hive.id}
         revisionNumber={revision.revisionNumber}

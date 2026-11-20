@@ -1,5 +1,4 @@
 import { AuditTrailPageView } from "@/components/audit/AuditTrailPageView";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { buildAuditTrailEntries, valuesToSourceRefs } from "@hiveforyou/contracts";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
@@ -71,7 +70,7 @@ export default async function AuditPage({ params }: { params: Promise<{ hiveId: 
 
   return (
     <>
-      <HivePageHead title="Audit trail" subtitle="How HiveForYou reached its findings: each check, its method and result." />
+      <p className="m-0 mb-4 text-meta text-ink-3">How HiveForYou reached its findings: each check, its method and result.</p>
       <AuditTrailPageView entries={entries} revisions={revisions} board={loaded.board} assistantName={assistantName} />
     </>
   );
