@@ -1,7 +1,7 @@
 "use client";
 
 import type { FindingsOpenItem, HiveBoardChecklistItem, SourceDocument, StudyViewSources } from "@hiveforyou/contracts";
-import { useCallback, useId, useState } from "react";
+import { useState } from "react";
 
 import { useEvidenceViewer } from "@/components/study/EvidenceViewer";
 import { Button } from "@/components/ui/Button";
@@ -10,8 +10,7 @@ import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { Step } from "@/components/ui/Step";
 import { CHECKLIST_ANCHOR_ID } from "@/lib/hive-routes";
-import { uploadSourceDocument as uploadSourceDocumentClient } from "@/lib/source-documents-client";
-
+import { ChecklistGapAddButton } from "./ChecklistGapAddButton";
 import { firstChipForOpenItem, openItemForChecklistGap, stillToComeCount } from "./documents-page-model";
 
 const LIMIT = 5;
@@ -57,81 +56,6 @@ function WhyButton({
   );
 }
 
-function AddSlotButton({
-  hiveId,
-  gapId,
-  title,
-  revisionId,
-  documents,
-  onDocumentsChange,
-  onAddFiles,
-}: {
-  hiveId: string;
-  gapId: string;
-  title: string;
-  revisionId: string | null;
-  documents: readonly SourceDocument[];
-  onDocumentsChange: (documents: SourceDocument[]) => void;
-  onAddFiles: () => void;
-}) {
-  const inputId = useId();
-  const runUpload = useCallback(
-    async (file: File) => {
-      if (!revisionId) return;
-      const { sourceDocument } = await uploadSourceDocumentClient(hiveId, {
-        file,
-        clientRequestId: crypto.randomUUID(),
-        canonicalGapId: gapId,
-        canonicalGapStudyRevisionId: revisionId,
-        canonicalGapTitle: title,
-      });
-      if (sourceDocument.status === "REGISTERED") {
-        onDocumentsChange([
-          ...documents,
-          {
-            ...sourceDocument,
-            canonicalGapId: gapId,
-            canonicalGapStudyRevisionId: revisionId,
-            canonicalGapTitle: title,
-          },
-        ]);
-      }
-    },
-    [documents, gapId, hiveId, onDocumentsChange, revisionId, title],
-  );
-
-  if (itemClosed(revisionId)) {
-    return (
-      <Button variant="secondary" type="button" onClick={onAddFiles}>
-        Add it
-      </Button>
-    );
-  }
-
-  return (
-    <>
-      <input
-        id={inputId}
-        type="file"
-        accept=".pdf,.png,.jpg,.jpeg,.docx"
-        className="sr-only"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void runUpload(file);
-          event.target.value = "";
-        }}
-      />
-      <Button variant="secondary" type="button" onClick={() => document.getElementById(inputId)?.click()}>
-        Add it
-      </Button>
-    </>
-  );
-}
-
-function itemClosed(revisionId: string | null): boolean {
-  return revisionId == null || revisionId.trim() === "";
-}
-
 export function DocumentsStillToCome({
   hiveId,
   checklist,
@@ -169,7 +93,7 @@ export function DocumentsStillToCome({
             action={
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {item.status === "not_in" ? (
-                  <AddSlotButton
+                  <ChecklistGapAddButton
                     hiveId={hiveId}
                     gapId={item.gapId}
                     title={item.title}

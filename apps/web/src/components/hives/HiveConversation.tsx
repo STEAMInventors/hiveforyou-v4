@@ -85,6 +85,8 @@ export type HiveConversationProps = {
     otherFullName: string;
     otherKind: "client" | "staff";
     assistantName: string;
+    header?: "default" | "hidden";
+    peopleLockHint?: string;
   } | null;
   /** Replaces the composer text. `nonce` changes when Home asks again. */
   fillDraft?: { nonce: number; text: string } | null;
@@ -492,17 +494,18 @@ export function HiveConversation({
 
   const showConversationHead = !column && (assistantMode || !previewOnTabs);
 
-  const head = column ? (
-    <header className="flex items-center justify-between gap-2.5 border-b border-line pb-3">
-      <div className="min-w-0">
-        <h2 className="m-0 text-[16px] font-semibold text-ink">Conversation with {column.otherFirstName}</h2>
-        <p className="m-0 mt-0.5 text-[12.5px] text-ink-3">
-          People only. {column.assistantName} doesn&apos;t take part here.
-        </p>
-      </div>
-      <PersonAvatar person={{ id: "other", name: column.otherFullName, kind: column.otherKind }} />
-    </header>
-  ) : showConversationHead ? (
+  const head =
+    column && column.header !== "hidden" ? (
+      <header className="flex items-center justify-between gap-2.5 border-b border-line pb-3">
+        <div className="min-w-0">
+          <h2 className="m-0 text-[16px] font-semibold text-ink">Conversation with {column.otherFirstName}</h2>
+          <p className="m-0 mt-0.5 text-[12.5px] text-ink-3">
+            People only. {column.assistantName} doesn&apos;t take part here.
+          </p>
+        </div>
+        <PersonAvatar person={{ id: "other", name: column.otherFullName, kind: column.otherKind }} />
+      </header>
+    ) : showConversationHead ? (
     <header className="mb-2 flex flex-wrap items-center justify-between gap-3 py-2">
       <div className="min-w-0">
         {assistantMode && readOnly && clientThreadFirstName ? (
@@ -777,7 +780,9 @@ export function HiveConversation({
                     teamMemberFirstName,
                   })
                 ) : column ? (
-                  <span data-testid="hive-conversation-people-hint">Everyone in this hive sees this</span>
+                  <span data-testid="hive-conversation-people-hint">
+                    {column.peopleLockHint ?? "Everyone in this hive sees this"}
+                  </span>
                 ) : (
                   <span data-testid="hive-conversation-people-hint">
                     Everyone in this hive sees this conversation.

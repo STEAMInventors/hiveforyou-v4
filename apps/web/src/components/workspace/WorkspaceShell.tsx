@@ -24,7 +24,7 @@ export type WorkspaceShellProps = {
   firm: ListFirmResponse | null;
   currentUserId: string | null;
   assigneeLabel: string | null;
-  assigneeTitle: string | null;
+  assigneeTitle?: string | null;
   assistantName: string;
   studyRevision?: StudyRailRevision | null;
   summaryLoaded?: boolean;
@@ -51,6 +51,8 @@ export function WorkspaceShell({
   const section: HiveWorkspaceSection = hiveSectionFromPathname(pathname, hive.id) ?? "board";
   const setWorkspace = useHiveHeaderWorkspace()?.setWorkspace;
   const staffView = showsFirmThreePane(hive);
+  const clientFirmHive =
+    hive.kind === "client" && Boolean(hive.firmId) && hive.membershipRole === "client";
 
   useEffect(() => {
     if (!setWorkspace) return;
@@ -62,7 +64,7 @@ export function WorkspaceShell({
       startingView,
       staffView,
       assistantName,
-      staffFirstName: assigneeLabel,
+      staffFirstName: assigneeLabel ?? hive.assigneeDisplayName ?? null,
       clientName: hive.kind === "client" ? hive.name : null,
       currentUserId,
       firmId: hive.firmId ?? null,
@@ -96,13 +98,21 @@ export function WorkspaceShell({
   return (
     <WorkspaceChromeProvider>
       <div className="flex min-h-full flex-1 flex-col bg-paper">
-        <div className="mx-auto flex w-full max-w-content flex-1 flex-col px-4 min-[760px]:px-8">
-          <HiveHead
-            hive={hive}
-            assistantName={assistantName}
-            documentCount={documentCount}
-            unreadMessages={counts.unreadMessages}
-          />
+        <div
+          className={
+            clientFirmHive
+              ? "mx-auto flex w-full max-w-[460px] flex-1 flex-col px-5 pb-[120px] pt-[22px]"
+              : "mx-auto flex w-full max-w-content flex-1 flex-col px-4 min-[760px]:px-8"
+          }
+        >
+          {!clientFirmHive ? (
+            <HiveHead
+              hive={hive}
+              assistantName={assistantName}
+              documentCount={documentCount}
+              unreadMessages={counts.unreadMessages}
+            />
+          ) : null}
           {children}
         </div>
       </div>

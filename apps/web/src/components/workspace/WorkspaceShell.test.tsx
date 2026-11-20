@@ -76,7 +76,7 @@ describe("WorkspaceShell", () => {
     expect(screen.queryByTestId("hive-sidebar-compact")).toBeNull();
   });
 
-  it("keeps the hive head for a client until the client home replaces it", () => {
+  it("hides the hive head for a firm client on client home", () => {
     render(
       <WorkspaceShell
         hive={{ ...hive, firmId: "22222222-2222-4222-8222-222222222222", membershipRole: "client" }}
@@ -93,7 +93,7 @@ describe("WorkspaceShell", () => {
       </WorkspaceShell>,
     );
 
-    expect(screen.getByTestId("hive-head")).toBeTruthy();
+    expect(screen.queryByTestId("hive-head")).toBeNull();
     expect(screen.getByText("Client body")).toBeTruthy();
   });
 });

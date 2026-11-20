@@ -5,16 +5,21 @@ import {
 } from "@hiveforyou/contracts";
 import { notFound, redirect } from "next/navigation";
 
+import type { HiveBoardChecklistItem, SourceDocument } from "@hiveforyou/contracts";
+
+import { ClientHome } from "@/components/home/ClientHome";
 import { HiveHome, type HiveHomeViewer } from "@/components/home/HiveHome";
 import { buildHiveHomeContent } from "@/components/home/home-model";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 import { requestCorrelationId } from "@/server/auth/action-support";
+import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadHiveConversation } from "@/server/hives/hive-conversation";
 import { documentPageCounts, loadHiveOverview, type HiveOverview } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { loadPackById } from "@/server/pipeline/pack-loader";
+import { createLiveHiveVaultUploadAdapterDeps, listHiveSourceDocumentsWithV3Vault } from "@/server/source-documents/hive-vault-upload-adapter";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
 type HiveRootPageProps = {
@@ -55,6 +60,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
 
   const correlationId = await requestCorrelationId();
   let overview: HiveOverview | null = null;
+  let boardChecklist: readonly HiveBoardChecklistItem[] = [];
   let checklist: { title: string; status: string }[] | null = null;
   let progress: { in: number; total: number } | null = null;
   let loadError: { message: string; correlationId: string; retryable: boolean } | null = null;
@@ -62,6 +68,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
   try {
     const boardLoad = await loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId });
     overview = boardLoad.overview;
+    boardChecklist = boardLoad.board.checklist;
     checklist = boardLoad.board.checklist.map((item) => ({ title: item.title, status: item.status }));
     progress = boardLoad.board.progress;
   } catch (error) {
@@ -84,7 +91,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       ? auth.client.schema("hive").from("firms").select("assistant_name").eq("id", hive.firmId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  const assistantName =
+  let assistantName =
     typeof (firmRow.data as { assistant_name?: string } | null)?.assistant_name === "string"
       ? (firmRow.data as { assistant_name: string }).assistant_name.trim() || "HiveForYou"
       : "HiveForYou";
@@ -118,6 +125,62 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
     : null;
 
   const viewer = homeViewer(hive);
+  const acceptedStudyRevisionId = revision?.id ?? null;
+
+  if (viewer === "client") {
+    let initialDocuments: SourceDocument[] = [];
+    let staffTitle: string | null = null;
+    if (hive.firmId) {
+      const firm = await loadFirm(auth.client);
+      if (firm) {
+        const assistant = firm.firm?.assistantName?.trim();
+        if (assistant) assistantName = assistant;
+        const members = firm.members.filter((member) => member.joined && member.state === "active" && member.userId);
+        const assignee = members.find(
+          (member) =>
+            member.userId && hive.assigneeUserId && member.userId.toLowerCase() === hive.assigneeUserId.toLowerCase(),
+        );
+        staffTitle = assignee?.title ?? null;
+      }
+    }
+    try {
+      const deps = createLiveHiveVaultUploadAdapterDeps(auth.client, correlationId);
+      const listed = await listHiveSourceDocumentsWithV3Vault(deps, {
+        ownerUserId: auth.userId,
+        hiveId: hive.id,
+        correlationId,
+      });
+      initialDocuments = listed.sourceDocuments;
+    } catch {
+      // Client home still renders; gap upload falls back to Documents.
+    }
+
+    return (
+      <ClientHome
+        hiveId={hive.id}
+        hiveTitle={hive.name}
+        staffDisplayName={hive.assigneeDisplayName?.trim() || null}
+        staffTitle={staffTitle}
+        assistantName={assistantName}
+        checklist={boardChecklist}
+        progress={progress}
+        openItems={openItems}
+        initialDocuments={initialDocuments}
+        acceptedStudyRevisionId={acceptedStudyRevisionId}
+        initialPeople={people}
+        currentUserId={auth.userId}
+        hiveFirmId={hive.firmId ?? null}
+        loadError={loadError}
+        view={view}
+        sources={sources}
+        canonicalStudy={canonicalStudy}
+        coverageGaps={revision?.coverageGaps ?? []}
+        topics={topics}
+        documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
+      />
+    );
+  }
+
   return (
     <HiveHome
       hiveId={hive.id}

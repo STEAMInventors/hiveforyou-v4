@@ -326,20 +326,6 @@ function HiveHomeBody({
             />
           </>
         ) : null}
-        {content && content.hasStudy && !staffBrief ? (
-          <>
-            <StateSentence
-              documentsIn={content.documentsIn}
-              checklistSize={content.checklistSize}
-              toReview={content.toReview}
-              stillToCome={content.stillToCome.length}
-              lastWrote={content.lastWrote}
-            />
-            {content.checklistSize != null ? (
-              <ProgressMeter received={content.documentsIn} total={content.checklistSize} />
-            ) : null}
-          </>
-        ) : null}
       </div>
       {conversation}
     </div>
