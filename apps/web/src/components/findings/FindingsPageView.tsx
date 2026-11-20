@@ -12,12 +12,12 @@ import type {
   StudyView,
   StudyViewSources,
 } from "@hiveforyou/contracts";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { HiveAskInput } from "@/components/hive-ask-input";
 import { ComparisonCard } from "@/components/study/ComparisonCard";
-import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
+import { EvidenceViewerProvider, useEvidenceViewer } from "@/components/study/EvidenceViewer";
 import { groupMissing } from "@/components/study/MissingList";
 import { MissingStudyItems } from "@/components/study/MissingStudyItems";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
@@ -25,7 +25,7 @@ import { shortDocumentLabels, SourceChips } from "@/components/study/SourceChip"
 import { Timeline } from "@/components/study/Timeline";
 import { ReadProblemNotice, readProblemsFromCoverage } from "@/components/study/ReadProblemNotice";
 import { hiveDocumentsPath, FINDINGS_ANCHORS } from "@/lib/hive-routes";
-import { FindingsReviewDrawer } from "@/components/findings/FindingsReviewDrawer";
+import type { ChipRef } from "@/components/study/SourceChip";
 import { DOCUMENT_REQUEST_LIST_COMPONENT, documentRequestListHasContent } from "@hiveforyou/contracts";
 
 type FindingsPageViewProps = {
@@ -60,15 +60,46 @@ function openItemBadge(kind: FindingsOpenItem["kind"]): { label: string; classNa
   }
 }
 
-function FindingsOpenItemCard({
+function openItemChip(item: FindingsOpenItem, sources: StudyViewSources | null): ChipRef | null {
+  const factId = item.factIds[0];
+  if (!factId || !sources) return null;
+  const ref = sources.facts[factId];
+  if (!ref) return null;
+  return {
+    sourceDocumentId: ref.sourceDocumentId,
+    pageNumber: ref.pageNumber,
+    quote: ref.quote,
+    factIds: [factId],
+  };
+}
+
+function OpenItemEvidenceButton({
   item,
   sources,
-  onReview,
+  label = "Review",
 }: {
   item: FindingsOpenItem;
   sources: StudyViewSources | null;
-  onReview: (trigger: HTMLButtonElement) => void;
+  label?: string;
 }) {
+  const viewer = useEvidenceViewer();
+  const chip = openItemChip(item, sources);
+  return (
+    <button
+      type="button"
+      className={WORKSPACE_SECONDARY}
+      disabled={!chip}
+      onClick={(event) => {
+        if (!chip) return;
+        viewer.open(chip, event.currentTarget, { itemId: item.id });
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function FindingsOpenItemCard({ item, sources }: { item: FindingsOpenItem; sources: StudyViewSources | null }) {
   const badge = openItemBadge(item.kind);
   const chips =
     item.factIds.length > 0
@@ -91,14 +122,9 @@ function FindingsOpenItemCard({
           <SourceChips refs={chips} />
         </div>
       ) : null}
-      <button
-        type="button"
-        className={`${WORKSPACE_SECONDARY} mt-3 min-h-9 px-3 text-[13px]`}
-        data-review-id={item.id}
-        onClick={(event) => onReview(event.currentTarget)}
-      >
-        Review context
-      </button>
+      <span className="mt-3 inline-flex">
+        <OpenItemEvidenceButton item={item} sources={sources} label="Review context" />
+      </span>
     </div>
   );
 }
@@ -119,23 +145,8 @@ export function FindingsPageView({
   preparation,
   pack,
 }: FindingsPageViewProps) {
-  const [reviewId, setReviewId] = useState<string | null>(null);
   const [calculationId, setCalculationId] = useState<string | null>(null);
-  const reviewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const pageCountFor = (id: string) => documentPages?.[id] ?? documentPages?.[id.toLowerCase()];
-
-  const openReview = useCallback((itemId: string, trigger: HTMLButtonElement) => {
-    reviewTriggerRef.current = trigger;
-    setReviewId(itemId);
-  }, []);
-
-  const closeReview = useCallback(() => {
-    const trigger = reviewTriggerRef.current;
-    setReviewId(null);
-    requestAnimationFrame(() => {
-      trigger?.focus();
-    });
-  }, []);
 
   const model = useMemo(() => {
     const documents = view.blocks.find((block) => block.name === "documents")?.rows ?? [];
@@ -181,7 +192,10 @@ export function FindingsPageView({
     preparation?.processingRun?.status === "AWAITING_ACKNOWLEDGEMENT" ||
     preparation?.studyRevision?.coverageAcknowledgement === "PENDING";
 
-  const reviewItem = [...topics.flatMap((topic) => topic.openItems), ...otherOpenItems].find((item) => item.id === reviewId);
+  const allOpenItems = useMemo(
+    () => [...topics.flatMap((topic) => topic.openItems), ...otherOpenItems],
+    [topics, otherOpenItems],
+  );
 
   return (
     <EvidenceViewerProvider
@@ -190,6 +204,12 @@ export function FindingsPageView({
       chipLabels={model.chipLabels}
       pageCountFor={pageCountFor}
       citationContexts={model.citationContexts}
+      view={view}
+      sources={sources}
+      canonicalStudy={canonicalStudy}
+      openItems={allOpenItems}
+      topics={topics}
+      coverageGaps={coverageGaps}
     >
       <div className="flex flex-col gap-5">
         {awaitingAck ? (
@@ -297,12 +317,7 @@ export function FindingsPageView({
                 <div id={FINDINGS_ANCHORS.openItems} className="flex flex-col gap-3">
                   <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-honey-deep">To clarify</p>
                   {topic.openItems.map((item) => (
-                    <FindingsOpenItemCard
-                      key={item.id}
-                      item={item}
-                      sources={sources}
-                      onReview={(trigger) => openReview(item.id, trigger)}
-                    />
+                    <FindingsOpenItemCard key={item.id} item={item} sources={sources} />
                   ))}
                 </div>
               ) : null}
@@ -315,12 +330,7 @@ export function FindingsPageView({
             <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Other items to clarify</h3>
             <p className="m-0 text-small text-graphite">Open questions that are not tied to a single topic yet.</p>
             {otherOpenItems.map((item) => (
-              <FindingsOpenItemCard
-                key={item.id}
-                item={item}
-                sources={sources}
-                onReview={(trigger) => openReview(item.id, trigger)}
-              />
+              <FindingsOpenItemCard key={item.id} item={item} sources={sources} />
             ))}
           </section>
         ) : null}
@@ -450,16 +460,6 @@ export function FindingsPageView({
           </div>
         ) : null}
 
-        {reviewItem ? (
-          <FindingsReviewDrawer
-            item={reviewItem}
-            view={view}
-            sources={sources}
-            canonicalStudy={canonicalStudy}
-            documentDate={model.documentDate}
-            onClose={closeReview}
-          />
-        ) : null}
       </div>
     </EvidenceViewerProvider>
   );

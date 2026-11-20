@@ -3,12 +3,15 @@
 import type {
   CanonicalStudy,
   CoverageGap,
+  FindingsOpenItem,
+  FindingsTopic,
   StudyView,
   StudyViewRow,
   StudyViewSources,
 } from "@hiveforyou/contracts";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { HiveConversation } from "@/components/hives/HiveConversation";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
@@ -28,6 +31,7 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { Step } from "@/components/ui/Step";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { personFirstName } from "@/lib/hives/firm-board";
+import { EVIDENCE_COMPOSE_PARAM } from "@/lib/hive-compose-query";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 
 import {
@@ -60,6 +64,8 @@ export type HiveHomeProps = {
   sources: StudyViewSources | null;
   canonicalStudy: CanonicalStudy | null;
   coverageGaps: readonly CoverageGap[];
+  openItems: readonly FindingsOpenItem[];
+  topics: readonly FindingsTopic[];
   documentPages?: Readonly<Record<string, number>>;
   initialPeople: ConversationLoad;
   currentUserId: string | null;
@@ -74,10 +80,14 @@ function stepDot(kind: "missing" | "difference" | "needs") {
   return <StatusDot state="needs" label="To review" />;
 }
 
-function LookAtIt({ chip }: { chip: ChipRef }) {
+function LookAtIt({ chip, itemId }: { chip: ChipRef; itemId: string }) {
   const viewer = useEvidenceViewer();
   return (
-    <Button variant="secondary" type="button" onClick={(event) => viewer.open(chip, event.currentTarget)}>
+    <Button
+      variant="secondary"
+      type="button"
+      onClick={(event) => viewer.open(chip, event.currentTarget, { itemId })}
+    >
       Look at it
     </Button>
   );
@@ -105,6 +115,14 @@ export function HiveHome(props: HiveHomeProps) {
       chipLabels={evidence.chipLabels}
       pageCountFor={pageCountFor}
       citationContexts={evidence.citationContexts}
+      view={props.view}
+      sources={props.sources}
+      canonicalStudy={props.canonicalStudy}
+      openItems={props.openItems}
+      topics={props.topics}
+      coverageGaps={props.coverageGaps}
+      clientFirstName={props.clientName?.trim() ? personFirstName(props.clientName) : null}
+      staffOnFirmHive={props.staffView && props.hiveFirmId != null && !props.viewerIsClient}
     >
       {body}
     </EvidenceViewerProvider>
@@ -131,6 +149,13 @@ function HiveHomeBody({
   const [topicsOpen, setTopicsOpen] = useState<ReadonlySet<string>>(() => new Set());
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [fillDraft, setFillDraft] = useState<{ nonce: number; text: string } | null>(null);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const text = searchParams.get(EVIDENCE_COMPOSE_PARAM)?.trim() ?? "";
+    if (!text) return;
+    setFillDraft({ nonce: Date.now(), text });
+  }, [searchParams]);
 
   const clientFirst = clientName?.trim() ? personFirstName(clientName) : null;
   const staffFirst = staffName?.trim() ? personFirstName(staffName) : null;
@@ -241,7 +266,7 @@ function HiveHomeBody({
                             </Button>
                           )
                         ) : step.ref ? (
-                          <LookAtIt chip={step.ref} />
+                          <LookAtIt chip={step.ref} itemId={step.id} />
                         ) : null
                       }
                     />

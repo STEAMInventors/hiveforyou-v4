@@ -133,38 +133,39 @@ describe("FindingsPageView layout", () => {
   });
 });
 
-describe("FindingsPageView review flow", () => {
-  it("opens the review drawer with spine context, source chips, and comparison for conflicts", () => {
+describe("FindingsPageView evidence flow", () => {
+  it("opens the evidence view with spine context and comparison for conflicts", () => {
     const { openItems } = renderFindingsPage();
     const spineItem = openItems.find((item) => item.id.startsWith("spine-"));
-    expect(spineItem).toBeTruthy();
-    const spineButton = document.querySelector<HTMLButtonElement>(`button[data-review-id="${spineItem!.id}"]`);
-    expect(spineButton).toBeTruthy();
-    fireEvent.click(spineButton!);
-
-    const drawer = screen.getByTestId("findings-review-drawer");
-    expect(within(drawer).getByText(spineItem!.question)).toBeTruthy();
-    expect(within(drawer).getByTestId("establish-table")).toBeTruthy();
-    expect(within(drawer).getAllByTestId("source-chip").length).toBeGreaterThan(0);
-
-    fireEvent.click(within(drawer).getByRole("button", { name: "Close review" }));
-
     const conflictItem = openItems.find((item) => item.id.startsWith("conflict-"));
+    expect(spineItem).toBeTruthy();
     expect(conflictItem).toBeTruthy();
-    const conflictButton = document.querySelector<HTMLButtonElement>(`button[data-review-id="${conflictItem!.id}"]`);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Review context" })[0]!);
+
+    const panel = screen.getByTestId("evidence-viewer");
+    expect(within(panel).getByText(spineItem!.question)).toBeTruthy();
+    expect(within(panel).getByTestId("establish-table")).toBeTruthy();
+
+    fireEvent.click(within(panel).getByRole("button", { name: /Back to Home/i }));
+
+    const conflictButton = screen.getAllByRole("button", { name: "Review context" }).find((button) => {
+      const card = button.parentElement?.parentElement;
+      return card?.textContent?.includes(conflictItem!.title);
+    });
+    expect(conflictButton).toBeTruthy();
     fireEvent.click(conflictButton!);
-    expect(within(screen.getByTestId("findings-review-drawer")).getAllByTestId("comparison-card").length).toBeGreaterThan(0);
+    expect(within(screen.getByTestId("evidence-viewer")).getAllByTestId("comparison-card").length).toBeGreaterThan(0);
   });
 
-  it("closes from the footer Close control without changing the server open count", async () => {
+  it("closes from Back without changing the server open count", async () => {
     const { openItemCount } = renderFindingsPage();
     const reviewButton = screen.getAllByRole("button", { name: "Review context" })[0]!;
     fireEvent.click(reviewButton);
 
-    const drawer = screen.getByTestId("findings-review-drawer");
-    fireEvent.click(within(drawer).getByRole("button", { name: "Close review" }));
+    fireEvent.click(screen.getByRole("button", { name: /Back to Home/i }));
 
-    expect(screen.queryByTestId("findings-review-drawer")).toBeNull();
+    expect(screen.queryByTestId("evidence-viewer")).toBeNull();
     expect(screen.getByTestId("findings-open-count").textContent).toBe(`${openItemCount} to review`);
     expect(sessionStorage.length).toBe(0);
     await waitFor(() => {
@@ -176,25 +177,12 @@ describe("FindingsPageView review flow", () => {
     renderFindingsPage();
     const reviewButton = screen.getAllByRole("button", { name: "Review context" })[0]!;
     fireEvent.click(reviewButton);
-    expect(screen.getByTestId("findings-review-drawer")).toBeTruthy();
+    expect(screen.getByTestId("evidence-viewer")).toBeTruthy();
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
 
-    expect(screen.queryByTestId("findings-review-drawer")).toBeNull();
+    expect(screen.queryByTestId("evidence-viewer")).toBeNull();
     expect(sessionStorage.length).toBe(0);
-    await waitFor(() => {
-      expect(document.activeElement).toBe(reviewButton);
-    });
-  });
-
-  it("closes when the backdrop is clicked", async () => {
-    renderFindingsPage();
-    const reviewButton = screen.getAllByRole("button", { name: "Review context" })[0]!;
-    fireEvent.click(reviewButton);
-
-    fireEvent.click(screen.getByTestId("findings-review-backdrop"));
-
-    expect(screen.queryByTestId("findings-review-drawer")).toBeNull();
     await waitFor(() => {
       expect(document.activeElement).toBe(reviewButton);
     });

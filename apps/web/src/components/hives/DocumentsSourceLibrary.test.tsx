@@ -8,7 +8,11 @@ import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { DocumentsSourceLibrary } from "./DocumentsSourceLibrary";
 import { buildDocumentsLibraryReadMetrics } from "./documents-library-metrics";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/hives/test-hive/findings",
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 

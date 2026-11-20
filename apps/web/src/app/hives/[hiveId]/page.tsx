@@ -133,6 +133,8 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       sources={sources}
       canonicalStudy={canonicalStudy}
       coverageGaps={revision?.coverageGaps ?? []}
+      openItems={openItems}
+      topics={topics}
       documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
       initialPeople={people}
       currentUserId={auth.userId}
