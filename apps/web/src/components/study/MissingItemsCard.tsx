@@ -25,7 +25,7 @@ export type MissingItemRow = {
 
 const SEGMENT_ACTIVE = "border-ink bg-ink text-paper";
 const SEGMENT_IDLE =
-  "border-line bg-paper text-graphite hover:border-line-strong hover:text-ink";
+  "border-line bg-paper text-ink-2 hover:border-line-strong hover:text-ink";
 
 type MissingItemsCardProps = {
   readonly items: readonly MissingItemRow[];
@@ -115,7 +115,7 @@ export function MissingItemsCard({ items }: MissingItemsCardProps) {
       testId="missing-items-card"
     >
       {visible.length === 0 ? (
-        <p className="m-0 text-small text-graphite" data-testid="missing-items-empty">
+        <p className="m-0 text-small text-ink-2" data-testid="missing-items-empty">
           Nothing in this view.
         </p>
       ) : (

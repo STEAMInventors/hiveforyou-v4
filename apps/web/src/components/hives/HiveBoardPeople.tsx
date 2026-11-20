@@ -215,20 +215,20 @@ export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
 
   return (
     <div className="border-t border-line pt-4">
-      <p className="m-0 text-caption text-graphite">People in this hive</p>
+      <p className="m-0 text-caption text-ink-2">People in this hive</p>
       <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
         {rows.length === 0 ? (
-          <li className="text-body text-graphite">{`You · ${viewerRole}`}</li>
+          <li className="text-body text-ink-2">{`You · ${viewerRole}`}</li>
         ) : (
           rows.map((row) => (
-            <li key={row.key} className="flex items-center justify-between gap-2 text-body text-graphite">
+            <li key={row.key} className="flex items-center justify-between gap-2 text-body text-ink-2">
               <span className="text-body">{row.line}</span>
               {isOwner && row.invitationId ? (
                 <span className="flex shrink-0 items-center gap-3">
                   {row.email ? (
                     <button
                       type="button"
-                      className="min-h-11 text-small text-cell-blue-deep underline"
+                      className="min-h-11 text-small text-blue-deep underline"
                       disabled={busy}
                       onClick={() => void sendAgain(row.invitationId!, row.email!, row.role)}
                     >
@@ -237,7 +237,7 @@ export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
                   ) : null}
                   <button
                     type="button"
-                    className="min-h-11 text-small text-cell-blue-deep underline"
+                    className="min-h-11 text-small text-blue-deep underline"
                     disabled={busy}
                     onClick={() => void revoke(row.invitationId!)}
                   >
@@ -280,9 +280,9 @@ export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-paper/80 px-5"
         >
-          <div className="w-full max-w-[400px] rounded-card border border-line bg-paper p-6 shadow-lg">
+          <div className="w-full max-w-[400px] rounded-input border border-line bg-paper p-6 shadow-lg">
             <h2 className="m-0 font-brand text-[22px] font-semibold text-ink">Remove from this hive?</h2>
-            <p className="mt-2 text-small text-graphite">
+            <p className="mt-2 text-small text-ink-2">
               <strong>{removeTarget.label}</strong> will lose access immediately. You can invite them again later.
             </p>
             {err ? (
@@ -312,9 +312,9 @@ export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-paper/80 px-5"
         >
-          <div className="w-full max-w-[400px] rounded-card border border-line bg-paper p-6 shadow-lg">
+          <div className="w-full max-w-[400px] rounded-input border border-line bg-paper p-6 shadow-lg">
             <h2 className="m-0 font-brand text-[22px] font-semibold text-ink">{inviteTitle}</h2>
-            <p className="mt-2 text-small text-graphite">
+            <p className="mt-2 text-small text-ink-2">
               {hive.kind === "client"
                 ? "They get a sign-in link by email and see what you ask for. No password."
                 : "They get a link to a read-only summary, and choose whether to take it on."}

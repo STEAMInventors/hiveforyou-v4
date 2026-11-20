@@ -119,7 +119,7 @@ export function StudyTabPanel({
       >
         Rebuild without checklist
       </button>
-      <p id="study-tab-rebuild-hint" className="m-0 max-w-xs text-caption text-quiet sm:text-end">
+      <p id="study-tab-rebuild-hint" className="m-0 max-w-xs text-caption text-ink-3 sm:text-end">
         {!analysis.state
           ? "Loading rebuild options…"
           : rebuildAvailabilityResolved?.canRebuild

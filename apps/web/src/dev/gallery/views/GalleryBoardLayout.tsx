@@ -150,6 +150,7 @@ export function GalleryBoardLayout({
         assistantName={GALLERY_ASSISTANT_NAME}
         studyRevision={{ revisionNumber: 2, acceptedAt: "2026-10-20T00:00:00.000Z" }}
         summaryLoaded
+        initialAssistant={askLoad}
       >
         <BoardColumn className="mx-auto flex w-full max-w-col-read flex-col gap-3">
           <HivePageHead title="Hive board" subtitle={subtitle} />

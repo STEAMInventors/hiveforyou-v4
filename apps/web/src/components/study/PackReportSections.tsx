@@ -12,7 +12,7 @@ import { SourceChips, type ChipRef } from "./SourceChip";
 import { Timeline } from "./Timeline";
 import { rowChips } from "./Timeline";
 
-const CARD = "flex flex-col rounded-card border border-line bg-paper p-5 sm:p-7";
+const CARD = "flex flex-col rounded-input border border-line bg-paper p-5 sm:p-7";
 const SECTION_HEADING = "m-0 font-brand text-section font-semibold text-ink";
 const LIST_HEADING = "m-0 text-small font-semibold text-ink";
 
@@ -96,7 +96,7 @@ function customerUnansweredList(rows: readonly StudyViewRow[]): ReactNode {
         {rows.map((row) => (
           <li key={row.id} className="max-w-prose text-body text-ink">
             {row.statement}
-            {row.kind ? <span className="text-quiet"> — {row.kind}</span> : null}
+            {row.kind ? <span className="text-ink-3"> — {row.kind}</span> : null}
             <SourceChips refs={rowChips(row)} />
           </li>
         ))}
@@ -178,7 +178,7 @@ function renderBlock(
           {rows.map((row) => (
             <li key={row.id} className="max-w-prose text-body text-ink">
               <span className="font-medium">{row.label}</span>
-              {row.missing && row.missing.length > 0 ? <span className="text-quiet"> · not shown</span> : null}
+              {row.missing && row.missing.length > 0 ? <span className="text-ink-3"> · not shown</span> : null}
               <SourceChips refs={rowChips(row)} />
             </li>
           ))}

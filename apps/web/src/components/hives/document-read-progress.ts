@@ -12,11 +12,11 @@ export type ReadPollState = "ok" | "reconnecting" | "auth_expired";
 
 export type ReadStatusPresentation = { label: string; className: string };
 
-const ACTIVE_PILL = "bg-cell-blue-wash text-cell-blue-deep";
+const ACTIVE_PILL = "bg-blue-wash text-blue-deep";
 const NEEDS_ATTENTION_PILL = "bg-coral-wash text-coral-deep";
 
 const STATUS_PRESENTATION: Record<DocumentReadStatus, ReadStatusPresentation> = {
-  QUEUED: { label: "Waiting", className: "bg-mist text-ink-muted" },
+  QUEUED: { label: "Waiting", className: "bg-mist text-ink-2" },
   READING: { label: "Reading", className: ACTIVE_PILL },
   SAVING: { label: "Saving", className: ACTIVE_PILL },
   VERIFYING: { label: "Checking", className: ACTIVE_PILL },

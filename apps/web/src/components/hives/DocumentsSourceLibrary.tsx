@@ -2,59 +2,72 @@
 
 import {
   buildDocumentsLibraryRows,
-  filterDocumentsLibraryRows,
-  type DocumentsLibraryFilter,
   type DocumentsLibraryRow,
+  type SourceDocument,
+  type StudyView,
+  type StudyViewRow,
 } from "@hiveforyou/contracts";
-import type { SourceDocument, StudyView } from "@hiveforyou/contracts";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
-import { WORKSPACE_SECONDARY } from "@/components/button-classes";
-import type { StudyDocumentMeta } from "@/components/study/study-summary";
-import { StatusDot } from "@/components/workspace/StatusDot";
+import { documentRoleLabel, latestChainPosition } from "@/components/study/DocumentsTable";
 import { useEvidenceViewer } from "@/components/study/EvidenceViewer";
+import { Section } from "@/components/ui/Section";
+import { StatusDot } from "@/components/ui/StatusDot";
+import type { StudyDocumentMeta } from "@/components/study/study-summary";
 
-import { AddFilesButton } from "./SourceFilePicker";
 import type { DocumentsLibraryReadMetrics } from "./documents-library-metrics";
 
-const CARD = "rounded-[14px] border border-line bg-paper p-[22px]";
 const NOTICE =
-  "Reading a page is not the same as proving its statements true. Supporting evidence is verified against what the source says; gaps and unreadable pages remain visible.";
+  "Reading a page isn't the same as proving what it says. Unreadable pages and gaps stay visible.";
 
-function readStateCell(row: DocumentsLibraryRow, onRetry?: () => void): ReactNode {
+function readCell(row: DocumentsLibraryRow, onRetry?: () => void): ReactNode {
   switch (row.readState) {
     case "pages-read":
-      return <StatusDot state="checked" label="Pages read" />;
+      return <StatusDot state="checked" label="Read" />;
     case "partial":
       return (
-        <div className="flex flex-col gap-0.5">
-          <StatusDot state="missing" label={row.partialPercent != null ? `${row.partialPercent}% read` : "Partly read"} />
-          {row.readDetail ? <span className="text-[12px] text-coral-deep">{row.readDetail}</span> : null}
-        </div>
+        <StatusDot
+          state="missing"
+          label={row.partialPercent != null ? `${row.partialPercent}% read` : "Partly read"}
+        />
       );
     case "duplicate":
-      return (
-        <div className="flex flex-col gap-0.5">
-          <StatusDot state="changed" label="Duplicate" />
-          {row.readDetail ? <span className="text-[12px] text-honey-deep">{row.readDetail}</span> : null}
-        </div>
-      );
+      return <StatusDot state="changed" label="Duplicate" />;
     case "reading":
-      return <span className="text-[12.5px] font-semibold text-graphite">Reading…</span>;
+      return <span className="text-meta font-semibold text-ink-2">Reading…</span>;
     case "failed":
       return (
-        <div className="flex flex-col items-start gap-1">
-          <StatusDot state="missing" label="Couldn't read" />
+        <div className="flex flex-col items-end gap-1 min-[760px]:items-start">
+          <StatusDot state="missing" label="Not read yet" />
           {onRetry ? (
-            <button type="button" className={`${WORKSPACE_SECONDARY} min-h-8 px-2 text-[12px]`} onClick={onRetry}>
+            <button
+              type="button"
+              className="text-meta font-semibold text-blue-deep hover:underline"
+              onClick={(event) => {
+                event.stopPropagation();
+                onRetry();
+              }}
+            >
               Try again
             </button>
           ) : null}
         </div>
       );
     case "unreadable":
-      return <StatusDot state="missing" label="Couldn't read" />;
+      return <StatusDot state="missing" label="Not read yet" />;
   }
+}
+
+function flagsForRow(row: DocumentsLibraryRow, studyRow: StudyViewRow | undefined): string {
+  const parts: string[] = [];
+  const type = row.typeLine?.trim() || studyRow?.typeInPlainWords?.trim();
+  if (type) parts.push(type);
+  if (row.readState === "duplicate" && row.duplicateOfFileName) {
+    parts.push(`Duplicate of ${row.duplicateOfFileName}`);
+  } else if (row.readDetail) {
+    parts.push(row.readDetail);
+  }
+  return parts.join(" · ");
 }
 
 type DocumentsSourceLibraryProps = {
@@ -63,9 +76,6 @@ type DocumentsSourceLibraryProps = {
   studyView: StudyView | null;
   metrics: DocumentsLibraryReadMetrics;
   readingInProgress: boolean;
-  addDisabled: boolean;
-  addDescribedBy?: string;
-  onAddFiles: (files: File[]) => void;
   onRetryRead?: (sourceDocumentId: string) => void;
   toolbar?: ReactNode;
 };
@@ -76,33 +86,41 @@ export function DocumentsSourceLibrary({
   studyView,
   metrics,
   readingInProgress,
-  addDisabled,
-  addDescribedBy,
-  onAddFiles,
   onRetryRead,
   toolbar,
 }: DocumentsSourceLibraryProps) {
-  const [filter, setFilter] = useState<DocumentsLibraryFilter>("all");
   const evidence = useEvidenceViewer();
 
   const rows = useMemo(
     () =>
-      filterDocumentsLibraryRows(
-        buildDocumentsLibraryRows({
-          documents,
-          documentMeta,
-          studyView,
-          pageCounts: metrics.pageCounts,
-          verifiedPages: metrics.verifiedPages,
-          unreadableFirstPage: metrics.unreadableFirstPage,
-          readingInProgress,
-        }),
-        filter,
-      ),
-    [documents, documentMeta, studyView, metrics, readingInProgress, filter],
+      buildDocumentsLibraryRows({
+        documents,
+        documentMeta,
+        studyView,
+        pageCounts: metrics.pageCounts,
+        verifiedPages: metrics.verifiedPages,
+        unreadableFirstPage: metrics.unreadableFirstPage,
+        readingInProgress,
+      }),
+    [documents, documentMeta, studyView, metrics, readingInProgress],
   );
 
-  const openInspect = (row: DocumentsLibraryRow, trigger: HTMLElement) => {
+  const studyRows = studyView?.blocks.find((block) => block.name === "documents")?.rows ?? [];
+  const rowById = useMemo(() => new Map(studyRows.map((row) => [row.id.toLowerCase(), row])), [studyRows]);
+  const latestChain = latestChainPosition(studyRows);
+  const unreadableIds = useMemo(
+    () =>
+      new Set(
+        documents
+          .filter((document) => document.readStatus === "UNREADABLE" || document.readStatus === "FAILED")
+          .map((document) => document.sourceDocumentId.toLowerCase()),
+      ),
+    [documents],
+  );
+
+  const pageTotal = rows.reduce((sum, row) => sum + (row.pageCount ?? 0), 0);
+
+  const openRow = (row: DocumentsLibraryRow, trigger: HTMLElement) => {
     evidence.open(
       {
         sourceDocumentId: row.sourceDocumentId,
@@ -114,96 +132,104 @@ export function DocumentsSourceLibrary({
     );
   };
 
+  if (documents.length === 0) return null;
+
   return (
-    <section className={CARD} data-testid="source-library-card">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="m-0 font-brand text-[16px] font-semibold text-ink">Source library</h3>
-          <p className="m-0 mt-1 text-small text-graphite">
-            {documents.length} original {documents.length === 1 ? "file" : "files"}; file names are never used as evidence
-            citations.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="sr-only" htmlFor="documents-library-filter">
-            Filter documents
-          </label>
-          <select
-            id="documents-library-filter"
-            className="min-h-9 rounded-control border border-line bg-paper px-2 text-small text-ink"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value as DocumentsLibraryFilter)}
-            data-testid="documents-library-filter"
-          >
-            <option value="all">All documents</option>
-            <option value="to-review">To review</option>
-            <option value="read">Read completely</option>
-          </select>
-          <AddFilesButton
-            showLabel
-            label="Add files"
-            disabled={addDisabled}
-            describedBy={addDescribedBy}
-            className={WORKSPACE_SECONDARY}
-            onAdd={onAddFiles}
-          />
+    <Section
+      title="Uploaded"
+      headingRight={
+        <>
+          {documents.length} {documents.length === 1 ? "file" : "files"}
+          {pageTotal > 0 ? ` · ${pageTotal} pages` : ""}
+        </>
+      }
+    >
+      {toolbar ? <div className="mb-3 flex flex-wrap items-center gap-2">{toolbar}</div> : null}
+
+      <div className="max-[759px]:flex max-[759px]:flex-col max-[759px]:gap-0 min-[760px]:overflow-x-auto" role="region" aria-label="Uploaded documents">
+        <table className="w-full min-w-[640px] border-collapse max-[759px]:hidden" data-testid="source-library-table">
+          <thead>
+            <tr className="border-b border-line text-left text-meta font-semibold text-ink-3">
+              <th scope="col" className="pb-2 pr-3">
+                Document
+              </th>
+              <th scope="col" className="pb-2 pr-3">
+                Period
+              </th>
+              <th scope="col" className="pb-2 pr-3 text-right tabular-nums">
+                Pages
+              </th>
+              <th scope="col" className="pb-2">
+                Read
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const studyRow = rowById.get(row.sourceDocumentId.toLowerCase());
+              const role = studyRow
+                ? documentRoleLabel(studyRow, latestChain, unreadableIds.has(row.sourceDocumentId.toLowerCase()))
+                : row.titleLine;
+              const sub = flagsForRow(row, studyRow);
+              return (
+                <tr
+                  key={row.sourceDocumentId}
+                  className="cursor-pointer border-b border-line transition-colors hover:bg-[#FAFBFC]"
+                  data-testid="source-library-row"
+                  onClick={(event) => openRow(row, event.currentTarget)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openRow(row, event.currentTarget);
+                    }
+                  }}
+                  tabIndex={0}
+                >
+                  <th scope="row" className="py-3.5 pr-3 text-left">
+                    <p className="m-0 text-body font-semibold text-ink">{role}</p>
+                    {sub ? <p className="m-0 text-meta text-ink-3">{sub}</p> : null}
+                  </th>
+                  <td className="py-3.5 pr-3 whitespace-nowrap text-body text-ink-2">{row.periodLabel}</td>
+                  <td className="py-3.5 pr-3 text-right tabular-nums text-body text-ink-2">{row.pageCount ?? "—"}</td>
+                  <td className="py-3.5">{readCell(row, onRetryRead ? () => onRetryRead(row.sourceDocumentId) : undefined)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <div className="min-[760px]:hidden">
+          {rows.map((row) => {
+            const studyRow = rowById.get(row.sourceDocumentId.toLowerCase());
+            const role = studyRow
+              ? documentRoleLabel(studyRow, latestChain, unreadableIds.has(row.sourceDocumentId.toLowerCase()))
+              : row.titleLine;
+            const sub = flagsForRow(row, studyRow);
+            return (
+              <button
+                key={row.sourceDocumentId}
+                type="button"
+                className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 border-b border-line py-3.5 text-left"
+                data-testid="source-library-row-mobile"
+                onClick={(event) => openRow(row, event.currentTarget)}
+              >
+                <span className="col-span-2 text-body font-semibold text-ink">{role}</span>
+                {sub ? <span className="col-span-2 text-meta text-ink-3">{sub}</span> : null}
+                <span className="text-meta text-ink-3">
+                  {row.periodLabel}
+                  {row.pageCount != null ? ` · ${row.pageCount} pages` : ""}
+                </span>
+                <span>{readCell(row)}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {toolbar ? <div className="mt-2 flex flex-wrap items-center gap-2">{toolbar}</div> : null}
-
-      {documents.length === 0 ? null : (
-        <div className="mt-4 overflow-x-auto" role="region" aria-label="Source library" tabIndex={0}>
-          <table className="w-full min-w-[760px] border-collapse text-small" data-testid="source-library-table">
-            <thead>
-              <tr className="border-b border-line text-left text-caption font-semibold text-quiet">
-                <th scope="col" className="pb-2 pr-3">
-                  Document
-                </th>
-                <th scope="col" className="pb-2 pr-3">
-                  Period / date
-                </th>
-                <th scope="col" className="pb-2 pr-3 text-right">
-                  Pages
-                </th>
-                <th scope="col" className="pb-2 pr-3">
-                  Read state
-                </th>
-                <th scope="col" className="pb-2">
-                  <span className="sr-only">Inspect</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.sourceDocumentId} className="border-b border-line" data-testid="source-library-row">
-                  <th scope="row" className="py-3 pr-3 text-left font-medium text-ink">
-                    <p className="m-0">{row.titleLine}</p>
-                    <p className="m-0 text-[12px] text-quiet">{row.fileName}</p>
-                  </th>
-                  <td className="py-3 pr-3 whitespace-nowrap text-graphite">{row.periodLabel}</td>
-                  <td className="py-3 pr-3 text-right tabular-nums text-graphite">{row.pageCount ?? "—"}</td>
-                  <td className="py-3 pr-3">{readStateCell(row, onRetryRead ? () => onRetryRead(row.sourceDocumentId) : undefined)}</td>
-                  <td className="py-3">
-                    <button
-                      type="button"
-                      className={`${WORKSPACE_SECONDARY} min-h-9 px-3 text-[13px]`}
-                      onClick={(event) => openInspect(row, event.currentTarget)}
-                    >
-                      Inspect
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <p className="m-0 mt-4 text-small text-graphite" data-testid="source-library-notice">
+      <p className="m-0 mt-4 text-meta text-ink-2" data-testid="source-library-notice">
         {NOTICE}
       </p>
-    </section>
+    </Section>
   );
 }
 

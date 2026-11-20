@@ -14,7 +14,7 @@ const ITEM_CLASS =
   "flex min-h-11 w-full cursor-pointer items-center rounded-control border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink no-underline hover:bg-mist focus-visible:bg-mist";
 
 const QUIET_BUTTON_CLASS =
-  "flex min-h-11 w-full items-center rounded-control border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-muted hover:bg-mist focus-visible:bg-mist disabled:cursor-not-allowed disabled:opacity-45";
+  "flex min-h-11 w-full items-center rounded-control border-0 bg-transparent px-3 text-left text-[15px] font-medium text-ink-2 hover:bg-mist focus-visible:bg-mist disabled:cursor-not-allowed disabled:opacity-45";
 
 const menuItems = (menu: HTMLElement | null): HTMLElement[] =>
   Array.from(menu?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
@@ -145,12 +145,12 @@ export function AccountMenu({ initials, displayName, email, startingView, firmLi
                 Edit
               </button>
             </div>
-            {email ? <span className="text-sm text-ink-muted">{email}</span> : null}
+            {email ? <span className="text-sm text-ink-2">{email}</span> : null}
             {startingView ? (
-              <span className="text-[13px] text-ink-subtle">{startingViewLabel(startingView)}</span>
+              <span className="text-[13px] text-ink-3">{startingViewLabel(startingView)}</span>
             ) : null}
             {firmLine ? (
-              <Link href="/account/firm" role="menuitem" tabIndex={-1} className="text-[13px] text-graphite no-underline hover:underline">
+              <Link href="/account/firm" role="menuitem" tabIndex={-1} className="text-[13px] text-ink-2 no-underline hover:underline">
                 {firmLine}
               </Link>
             ) : null}

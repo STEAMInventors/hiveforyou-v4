@@ -24,7 +24,7 @@ describe("signed-out landing", () => {
     render(ui);
     const filled = screen
       .getAllByRole("link")
-      .filter((link) => link.className.includes("bg-cell-blue-deep"));
+      .filter((link) => link.className.includes("bg-blue-deep"));
     expect(filled).toHaveLength(1);
     expect(filled[0]!.textContent).toBe("Get started");
     expect(filled[0]!.getAttribute("href")).toBe("/sign-in?new=1");

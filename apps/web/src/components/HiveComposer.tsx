@@ -97,7 +97,7 @@ export function HiveComposer({
               maxLength={INTENT_TEXT_MAX_LENGTH}
               aria-invalid={intentError ? true : undefined}
               aria-describedby={describedBy || undefined}
-              className="min-h-11 min-w-0 flex-1 border-0 bg-transparent p-0 text-[17px] text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-0 focus-visible:outline-none"
+              className="min-h-11 min-w-0 flex-1 border-0 bg-transparent p-0 text-[17px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-0 focus-visible:outline-none"
               placeholder="Describe your situation"
               onChange={(event) => onIntentTextChange(event.target.value)}
               onKeyDown={(event) => {
@@ -162,9 +162,9 @@ export function HiveComposer({
       ) : null}
 
       <div
-        className={`hive-composer box-border flex w-full flex-col gap-2.5 rounded-card border-2 bg-paper pb-3 pl-5 pr-4 pt-4 transition-colors ${
+        className={`hive-composer box-border flex w-full flex-col gap-2.5 rounded-input border-2 bg-paper pb-3 pl-5 pr-4 pt-4 transition-colors ${
           dragActive
-            ? "border-cell-blue bg-cell-blue-wash"
+            ? "border-blue bg-blue-wash"
             : invalid
               ? "border-coral-deep"
               : "border-line"
@@ -202,7 +202,7 @@ export function HiveComposer({
           maxLength={INTENT_TEXT_MAX_LENGTH}
           aria-invalid={intentError ? true : undefined}
           aria-describedby={describedBy}
-          className="w-full resize-none border-0 bg-transparent p-0 text-[18px] leading-[1.5] text-ink placeholder:text-ink-subtle read-only:text-ink-muted focus:outline-none focus:ring-0 focus-visible:outline-none"
+          className="w-full resize-none border-0 bg-transparent p-0 text-[18px] leading-[1.5] text-ink placeholder:text-ink-3 read-only:text-ink-2 focus:outline-none focus:ring-0 focus-visible:outline-none"
           placeholder="Describe your situation, then add whatever documents you have…"
           onChange={(event) => onIntentTextChange(event.target.value)}
           onKeyDown={(event) => {
@@ -213,14 +213,14 @@ export function HiveComposer({
           }}
         />
         {intentText.length > COUNTER_THRESHOLD ? (
-          <span className="self-end text-[12.5px] text-ink-subtle" aria-live="polite">
+          <span className="self-end text-[12.5px] text-ink-3" aria-live="polite">
             {intentText.length} / {INTENT_TEXT_MAX_LENGTH}
           </span>
         ) : null}
 
         {onAudienceChange ? (
           <div className="flex items-center gap-2 border-t border-line pt-2">
-            <label htmlFor={audienceId} className="shrink-0 text-[13px] font-medium text-ink-muted">
+            <label htmlFor={audienceId} className="shrink-0 text-[13px] font-medium text-ink-2">
               For
             </label>
             <input
@@ -230,7 +230,7 @@ export function HiveComposer({
               value={audience}
               maxLength={INTENT_AUDIENCE_MAX_LENGTH}
               aria-label="Who is this for? (optional)"
-              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] text-ink placeholder:text-ink-subtle read-only:text-ink-muted focus:outline-none focus:ring-0 focus-visible:outline-none"
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] text-ink placeholder:text-ink-3 read-only:text-ink-2 focus:outline-none focus:ring-0 focus-visible:outline-none"
               placeholder="Who is this for? Optional, for example the vendor team or my accountant"
               onChange={(event) => onAudienceChange(event.target.value)}
             />
@@ -247,14 +247,14 @@ export function HiveComposer({
               describedBy={hintId}
               onAdd={onAddFiles}
             />
-            <p id={hintId} className="m-0 text-[13px] text-ink-subtle">
+            <p id={hintId} className="m-0 text-[13px] text-ink-3">
               {hint}
             </p>
           </div>
           <button
             type="submit"
             disabled={busy}
-            className="ml-auto inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-button border-0 bg-cell-blue-deep px-4 text-[14px] font-medium text-paper transition-colors hover:bg-cell-blue-hover disabled:cursor-not-allowed disabled:opacity-45 max-sm:w-full max-sm:justify-center"
+            className="ml-auto inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-button border-0 bg-blue-deep px-4 text-[14px] font-medium text-paper transition-colors hover:bg-blue-press disabled:cursor-not-allowed disabled:opacity-45 max-sm:w-full max-sm:justify-center"
           >
             {busy ? "Creating Hive…" : "Create Hive"}
           </button>

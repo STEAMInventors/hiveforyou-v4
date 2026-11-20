@@ -1,6 +1,13 @@
 "use client";
 
-export type TabOption<T extends string> = { id: T; label: string };
+import type { ReactNode } from "react";
+
+export type TabOption<T extends string> = {
+  id: T;
+  label: string;
+  count?: number | null;
+  trailing?: ReactNode;
+};
 
 export function Tabs<T extends string>({
   options,
@@ -18,7 +25,12 @@ export function Tabs<T extends string>({
   testId?: string;
 }) {
   return (
-    <div role="tablist" aria-label={ariaLabel} data-testid={testId} className={`flex gap-6 border-b border-line ${className}`.trim()}>
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      data-testid={testId}
+      className={`flex gap-5 overflow-x-auto border-b border-line [scrollbar-width:none] min-[760px]:gap-[26px] ${className}`.trim()}
+    >
       {options.map((option) => {
         const selected = value === option.id;
         return (
@@ -27,12 +39,18 @@ export function Tabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={selected}
-            className={`-mb-px border-b-2 bg-transparent px-0 py-3 text-meta font-semibold ${
-              selected ? "border-blue-deep text-ink" : "border-transparent text-ink-2 hover:text-ink"
+            className={`relative -mb-px inline-flex h-11 shrink-0 items-center gap-[7px] border-0 border-b-2 bg-transparent px-0 text-[14px] min-[760px]:h-[42px] ${
+              selected ? "border-ink font-semibold text-ink" : "border-transparent font-medium text-ink-3 hover:text-ink"
             }`}
             onClick={() => onChange(option.id)}
           >
             {option.label}
+            {option.count != null ? (
+              <span className="rounded-[9px] bg-mist px-[7px] py-px text-[11.5px] font-semibold tabular-nums text-ink-3">
+                {option.count}
+              </span>
+            ) : null}
+            {option.trailing}
           </button>
         );
       })}

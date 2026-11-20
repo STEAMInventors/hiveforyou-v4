@@ -134,8 +134,8 @@ function HiveRow({
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-3 py-4 min-[760px]:flex-nowrap min-[760px]:gap-x-5">
         <div className="min-w-0 flex-1 basis-[200px]">
           <Link href={hivePath(hive.id)} className="block rounded-control no-underline hover:bg-mist group-hover:bg-mist -mx-2 px-2 py-1">
-            <p className="m-0 text-[17px] font-semibold text-cell-blue-deep">{hive.name}</p>
-            {kicker ? <p className="m-0 mt-0.5 text-[13px] text-graphite">{kicker}</p> : null}
+            <p className="m-0 text-[17px] font-semibold text-blue-deep">{hive.name}</p>
+            {kicker ? <p className="m-0 mt-0.5 text-[13px] text-ink-2">{kicker}</p> : null}
           </Link>
         </div>
         <div className="min-w-0 flex-[2] basis-[260px]">
@@ -150,11 +150,11 @@ function HiveRow({
         </div>
         <div className="flex min-w-[150px] flex-col gap-1.5 basis-[150px]">
           <IntakeSegments summary={summary} />
-          <span className="text-[13px] text-graphite">{intakeLabel(summary, attention)}</span>
+          <span className="text-[13px] text-ink-2">{intakeLabel(summary, attention)}</span>
         </div>
         <div className="ml-auto flex min-w-[110px] items-start gap-2 basis-[110px] min-[760px]:ml-0">
           {activity ? (
-            <span className="flex-1 text-right text-[13px] text-quiet min-[760px]:block">{activity}</span>
+            <span className="flex-1 text-right text-[13px] text-ink-3 min-[760px]:block">{activity}</span>
           ) : (
             <span className="flex-1" />
           )}
@@ -206,7 +206,7 @@ export function HiveList({
     <div className="w-full">
       {showColumnHeaders ? (
         <div
-          className="hidden min-[760px]:flex gap-5 border-b border-line px-3 pb-2 pt-4 text-[13px] font-semibold text-quiet"
+          className="hidden min-[760px]:flex gap-5 border-b border-line px-3 pb-2 pt-4 text-[13px] font-semibold text-ink-3"
           data-testid="hive-list-column-headers"
         >
           <span className="min-w-0 flex-1 basis-[200px]">Client</span>
@@ -224,7 +224,7 @@ export function HiveList({
               <li key={hive.id} className="flex flex-col gap-2 border-b border-line px-3 py-4" data-testid="hive-card-deleting">
                 <StatusBadge state="missing" label="Deletion incomplete" />
                 <h2 className="m-0 break-words font-brand text-section font-semibold text-ink">{hive.name}</h2>
-                <p className="m-0 text-body text-graphite">
+                <p className="m-0 text-body text-ink-2">
                   We couldn&apos;t finish deleting this hive. Try again to remove its files and take it off your list.
                 </p>
                 {retryError ? (

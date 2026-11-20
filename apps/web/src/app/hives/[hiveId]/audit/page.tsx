@@ -1,10 +1,9 @@
 import { AuditTrailPageView } from "@/components/audit/AuditTrailPageView";
-import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { buildAuditTrailEntries, valuesToSourceRefs } from "@hiveforyou/contracts";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
-import { documentPageCounts, loadHiveOverview } from "@/server/hives/hive-summary";
+import { documentPageCounts } from "@/server/hives/hive-summary";
 import { loadStudyRevisionHistory } from "@/server/hives/load-study-revision-history";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { loadPackById } from "@/server/pipeline/pack-loader";
@@ -19,8 +18,7 @@ export default async function AuditPage({ params }: { params: Promise<{ hiveId: 
   const loaded = await loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId });
   const firm = await loadFirm(auth.client);
   const assistantName = firm?.firm?.assistantName?.trim() || "HiveForYou";
-
-  const overview = loaded.overview;
+  const { overview } = loaded;
   const pack =
     overview.canonicalStudy?.packRef != null
       ? loadPackById(overview.canonicalStudy.packRef.id, overview.canonicalStudy.packRef.version)
@@ -71,8 +69,15 @@ export default async function AuditPage({ params }: { params: Promise<{ hiveId: 
 
   return (
     <>
-      <HivePageHead title="Audit trail" subtitle="How HiveForYou reached its findings: each check, its method and result." />
-      <AuditTrailPageView entries={entries} revisions={revisions} board={loaded.board} assistantName={assistantName} />
+      <p className="m-0 mb-6 text-meta text-ink-3">
+        How HiveForYou reached its findings: each check, its method and result.
+      </p>
+      <AuditTrailPageView
+        entries={entries}
+        revisions={revisions}
+        board={loaded.board}
+        assistantName={assistantName}
+      />
     </>
   );
 }

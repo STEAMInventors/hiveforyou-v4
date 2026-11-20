@@ -1,11 +1,63 @@
 "use client";
 
-import type { AuditTrailEntry, StudyRevisionLine } from "@hiveforyou/contracts";
+import type { AuditTrailEntry, HiveBoardModel, StudyRevisionLine } from "@hiveforyou/contracts";
+import { useState, type ReactNode } from "react";
 
-import { SourceChips } from "@/components/study/SourceChip";
-import type { HiveBoardModel } from "@hiveforyou/contracts";
+import type { ChipRef } from "@/components/study/SourceChip";
+import { Section } from "@/components/ui/Section";
+import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
+import { SourceRefs } from "@/components/ui/SourceRefs";
+import { StatusDot } from "@/components/ui/StatusDot";
 
-const CARD = "rounded-[14px] border border-line bg-paper p-[22px]";
+const ROW_LIMIT = 6;
+
+const revisionDateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
+function entryDetail(entry: AuditTrailEntry): string {
+  return `${entry.method} ${entry.result}`.trim();
+}
+
+function toChipRefs(chips: AuditTrailEntry["chips"]): ChipRef[] {
+  return chips.map((chip) => ({
+    sourceDocumentId: chip.sourceDocumentId,
+    pageNumber: chip.pageNumber,
+    quote: chip.quote,
+    factIds: "factIds" in chip && chip.factIds ? [...chip.factIds] : [],
+  }));
+}
+
+function PaginatedSection({
+  title,
+  count,
+  testId,
+  children,
+  itemCount,
+  expanded,
+  onExpand,
+  onCollapse,
+}: {
+  title: string;
+  count?: number;
+  testId: string;
+  children: ReactNode;
+  itemCount: number;
+  expanded: boolean;
+  onExpand: () => void;
+  onCollapse: () => void;
+}) {
+  return (
+    <Section title={title} headingRight={count ?? itemCount}>
+      <div data-testid={testId}>{children}</div>
+      {itemCount > ROW_LIMIT ? (
+        expanded ? (
+          <ShowFewer label="Show fewer" onClick={onCollapse} />
+        ) : (
+          <ShowMore label={`Show all ${itemCount}`} onClick={onExpand} />
+        )
+      ) : null}
+    </Section>
+  );
+}
 
 export function AuditTrailPageView({
   entries,
@@ -18,57 +70,110 @@ export function AuditTrailPageView({
   board: HiveBoardModel;
   assistantName: string;
 }) {
+  const [checksExpanded, setChecksExpanded] = useState(false);
+  const [revisionsExpanded, setRevisionsExpanded] = useState(false);
+  const [activityExpanded, setActivityExpanded] = useState(false);
+
+  const activityRows = [...board.activity].reverse();
+  const visibleChecks = checksExpanded ? entries : entries.slice(0, ROW_LIMIT);
+  const visibleRevisions = revisionsExpanded ? revisions : revisions.slice(0, ROW_LIMIT);
+  const visibleActivity = activityExpanded ? activityRows : activityRows.slice(0, ROW_LIMIT);
+
   return (
-    <div className="grid grid-cols-1 gap-5 min-[1100px]:grid-cols-[2fr_1fr]">
-      <section className={`${CARD} flex flex-col gap-4`} data-testid="audit-checks">
-        <div>
-          <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Checks and methods</h2>
-          <p className="m-0 mt-1 text-small text-graphite">
-            A readable description of how HiveForYou reached its findings.
-          </p>
-        </div>
-        {entries.map((entry) => (
-          <div key={entry.id} className="border-t border-line pt-4 first:border-t-0 first:pt-0">
-            <h3 className="m-0 text-[15px] font-semibold text-ink">{entry.title}</h3>
-            <p className="m-0 mt-2 text-small text-ink">
-              <span className="font-semibold">Method:</span> {entry.method}
-            </p>
-            <p className="m-0 mt-1 text-small text-ink">
-              <span className="font-semibold">Result:</span> {entry.result}
-            </p>
-            {entry.chips.length > 0 ? (
-              <div className="mt-2">
-                <SourceChips refs={entry.chips} />
+    <div className="mx-auto w-full max-w-col-read" data-testid="audit-trail">
+      {entries.length === 0 ? (
+        <p className="m-0 text-body text-ink-2" data-testid="audit-empty">
+          Checks will appear here after a study is accepted.
+        </p>
+      ) : (
+        <PaginatedSection
+          title="Checks and methods"
+          count={entries.length}
+          testId="audit-checks"
+          itemCount={entries.length}
+          expanded={checksExpanded}
+          onExpand={() => setChecksExpanded(true)}
+          onCollapse={() => setChecksExpanded(false)}
+        >
+          {visibleChecks.map((entry) => (
+            <div
+              key={entry.id}
+              className="flex flex-col gap-1 border-b border-line py-4 first:pt-0"
+              data-testid="audit-check-row"
+            >
+              <div className="flex flex-wrap items-start gap-2.5">
+                <StatusDot state="checked" label="Checked" />
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 text-item font-semibold text-ink">{entry.title}</p>
+                  <p className="m-0 mt-1 text-meta text-ink-2">{entryDetail(entry)}</p>
+                  <SourceRefs refs={toChipRefs(entry.chips)} inert />
+                </div>
               </div>
-            ) : null}
-          </div>
-        ))}
-      </section>
-      <aside className="flex flex-col gap-4">
-        <section className={`${CARD} flex flex-col gap-3`} data-testid="audit-revisions">
-          <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Study revisions</h2>
-          {revisions.map((revision) => (
-            <div key={revision.revisionNumber} className="border-t border-line pt-3 first:border-t-0 first:pt-0">
-              <p className="m-0 text-small font-semibold text-ink">
-                v{revision.revisionNumber} ·{" "}
-                {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(revision.acceptedAt))}
-              </p>
-              <p className="m-0 text-small text-graphite">{revision.summary}</p>
             </div>
           ))}
-        </section>
-        <details className={CARD} data-testid="audit-activity">
-          <summary className="cursor-pointer font-brand text-[20px] font-semibold text-ink">Activity log</summary>
-          <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
-            {[...board.activity].reverse().map((event) => (
-              <li key={`${event.at}-${event.text}`} className="border-t border-line pt-2 text-small text-graphite first:border-t-0">
-                <span className="text-quiet">{event.atLabel}</span> ·{" "}
-                <span className={event.actor === assistantName ? "text-cell-blue-deep" : ""}>{event.actor}</span> {event.text}
+        </PaginatedSection>
+      )}
+
+      <PaginatedSection
+        title="Study versions"
+        count={revisions.length}
+        testId="audit-revisions"
+        itemCount={revisions.length}
+        expanded={revisionsExpanded}
+        onExpand={() => setRevisionsExpanded(true)}
+        onCollapse={() => setRevisionsExpanded(false)}
+      >
+        {revisions.length === 0 ? (
+          <p className="m-0 text-body text-ink-2">No study versions yet.</p>
+        ) : (
+          visibleRevisions.map((revision) => (
+            <div
+              key={revision.revisionNumber}
+              className="border-b border-line py-3.5 first:pt-0"
+              data-testid="audit-revision-row"
+            >
+              <p className="m-0 text-item font-semibold text-ink">
+                v{revision.revisionNumber} · {revisionDateFormat.format(new Date(revision.acceptedAt))}
+              </p>
+              <p className="m-0 mt-1 text-meta text-ink-2">{revision.summary}</p>
+            </div>
+          ))
+        )}
+      </PaginatedSection>
+
+      <PaginatedSection
+        title="Activity"
+        count={activityRows.length}
+        testId="audit-activity"
+        itemCount={activityRows.length}
+        expanded={activityExpanded}
+        onExpand={() => setActivityExpanded(true)}
+        onCollapse={() => setActivityExpanded(false)}
+      >
+        {activityRows.length === 0 ? (
+          <p className="m-0 text-body text-ink-2">Nothing yet.</p>
+        ) : (
+          <ul className="m-0 list-none p-0">
+            {visibleActivity.map((event) => (
+              <li
+                key={`${event.at}-${event.text}`}
+                className="border-b border-line py-3 first:pt-0 text-body text-ink"
+              >
+                <span className="text-meta text-ink-3">{event.atLabel}</span>
+                {" · "}
+                <span
+                  className={`font-semibold ${
+                    event.actor === assistantName || event.actor === "HiveForYou" ? "text-blue-deep" : "text-ink"
+                  }`}
+                >
+                  {event.actor}
+                </span>{" "}
+                {event.text}
               </li>
             ))}
           </ul>
-        </details>
-      </aside>
+        )}
+      </PaginatedSection>
     </div>
   );
 }
