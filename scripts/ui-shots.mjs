@@ -80,8 +80,17 @@ function galleryUrl(pageName) {
   return url;
 }
 
-function abortGoogleFonts(context) {
-  return context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.abort());
+/** Stub fonts so the browser does not log 404 console errors (abort() does). */
+function stubGoogleFonts(context) {
+  return context.route(/fonts\.(googleapis|gstatic)\.com/, async (route) => {
+    const url = route.request().url();
+    const css = url.includes("css") || url.includes("css2");
+    await route.fulfill({
+      status: 200,
+      contentType: css ? "text/css" : "font/woff2",
+      body: css ? "/* ui:shots font stub */" : "",
+    });
+  });
 }
 
 async function pageOverflows(page) {
@@ -319,11 +328,17 @@ async function captureConceptState(page, state, width) {
   });
 }
 
+function isBenignConsoleError(text) {
+  return /fonts\.(googleapis|gstatic)\.com/i.test(text);
+}
+
 function attachGalleryDiagnostics(page, diagnostics, pageName, width) {
   const tag = `gallery:${pageName}@${width}px`;
   page.on("console", (message) => {
     if (message.type() === "error") {
-      diagnostics.console.push(`${tag}: ${message.text()}`);
+      const text = message.text();
+      if (isBenignConsoleError(text)) return;
+      diagnostics.console.push(`${tag}: ${text}`);
     }
   });
   page.on("pageerror", (error) => {
@@ -349,7 +364,7 @@ async function main() {
 
   if (!skipGallery) {
     const galleryContext = await browser.newContext();
-    await abortGoogleFonts(galleryContext);
+    await stubGoogleFonts(galleryContext);
     for (const pageName of galleryPages) {
       for (const width of galleryWidths) {
         const page = await galleryContext.newPage();
@@ -368,7 +383,7 @@ async function main() {
   }
 
   const protoContext = await browser.newContext();
-  await abortGoogleFonts(protoContext);
+  await stubGoogleFonts(protoContext);
 
   for (const state of conceptStates) {
     for (const width of prototypeWidths) {
