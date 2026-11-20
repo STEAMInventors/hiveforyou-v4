@@ -101,7 +101,7 @@ export function HiveCardMenu({
         aria-label={`Options for ${hiveName}`}
         className={
           triggerClassName ||
-          "flex h-11 w-11 items-center justify-center rounded-control text-ink-3 transition-colors hover:bg-mist hover:text-ink"
+          "flex h-11 w-11 items-center justify-center rounded-control text-ink-subtle transition-colors hover:bg-mist hover:text-ink"
         }
         onClick={() => setOpen((value) => !value)}
       >

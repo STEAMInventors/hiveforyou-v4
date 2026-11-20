@@ -1,6 +1,6 @@
 import { permanentRedirect } from "next/navigation";
 
-import { HOME_SHOW_ANCHOR, hiveHomePath, preservedQuery } from "@/lib/hive-routes";
+import { hiveFindingsRedirectPath, preservedQuery } from "@/lib/hive-routes";
 
 export default async function MissingRedirectPage({
   params,
@@ -11,5 +11,7 @@ export default async function MissingRedirectPage({
 }) {
   const { hiveId } = await params;
   const query = searchParams ? await searchParams : {};
-  permanentRedirect(`${hiveHomePath(hiveId)}${preservedQuery(query, { tab: null })}#${HOME_SHOW_ANCHOR}`);
+  permanentRedirect(
+    hiveFindingsRedirectPath(hiveId, { tab: "gaps", queryString: preservedQuery(query, { tab: null }) }),
+  );
 }

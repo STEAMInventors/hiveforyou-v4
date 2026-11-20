@@ -10,46 +10,26 @@ const prototypeWidths = [390, 768, 1280, 1920];
 const galleryPages = [
   "components",
   "shell",
-  "omni-staff-empty",
-  "omni-staff-results",
-  "omni-answer",
-  "omni-client-handoff",
-  "omni-staff-client-questions",
-  "home-staff",
-  "home-long",
-  "home-firmless",
-  "home-no-study",
-  "evidence-statement",
-  "evidence-item",
-  "evidence-unreadable",
-  "documents",
-  "documents-empty",
-  "client-home",
-  "client-home-done",
-  "report",
-  "audit",
-  "notes",
-  "my-hives",
+  "board-people",
+  "board-ask",
+  "board-ask-client",
+  "board-firmless",
+  "board-empty",
+  "board-long",
 ];
-
-const conceptPath = path.join(root, "prototype/new/HiveForYou-Concept-v4.html");
-const conceptUrl = `file:///${conceptPath.replace(/\\/g, "/")}`;
 const baseUrl = process.env.UI_SHOTS_BASE_URL ?? "http://127.0.0.1:3000";
+const prototypeUrl = `file:///${path.join(root, "prototype/new/HiveForYou-Complete-Prototype.html").replace(/\\/g, "/")}`;
 
-const omniPages = new Set([
-  "omni-staff-empty",
-  "omni-staff-results",
-  "omni-answer",
-  "omni-client-handoff",
-  "omni-staff-client-questions",
+const askGalleryPages = new Set([
+  "board-ask",
+  "board-ask-client",
+  "board-empty",
+  "board-firmless",
 ]);
 
 function galleryUrl(pageName) {
-  const url = `${baseUrl}/dev/gallery/${pageName}`;
-  if (pageName === "omni-staff-results") return `${url}?ask=1`;
-  if (omniPages.has(pageName)) return `${url}?ask=1`;
-  if (pageName.startsWith("evidence-")) return `${url}?source=f1`;
-  return url;
+  const path = `${baseUrl}/dev/gallery/${pageName}`;
+  return askGalleryPages.has(pageName) ? `${path}?view=ask` : path;
 }
 
 function abortGoogleFonts(context) {
@@ -60,63 +40,13 @@ async function pageOverflows(page) {
   return page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 }
 
-async function openConcept(page) {
-  await page.goto(conceptUrl, { waitUntil: "domcontentloaded", timeout: 120_000 });
-  await page.waitForTimeout(400);
-}
-
-async function afterGalleryLoad(page, pageName) {
-  if (pageName === "home-long") {
-    await page.waitForSelector('[data-testid="hive-message"]', { timeout: 30_000 }).catch(() => undefined);
-  }
-  if (omniPages.has(pageName)) {
-    const input = page.locator('[data-testid="omni"] input, [data-testid="omni"] textarea').first();
-    await input.waitFor({ state: "visible", timeout: 15_000 }).catch(() => undefined);
-    await input.focus().catch(() => undefined);
-    if (pageName === "omni-staff-results") {
-      await input.fill("2023").catch(() => undefined);
-    }
-  }
-  await page.waitForTimeout(pageName.startsWith("omni") ? 1200 : 800);
-}
-
-const conceptStates = [
-  { slug: "home-staff", tab: "home", who: "staff" },
-  { slug: "omni-answer", tab: "home", who: "staff", ask: true },
-  { slug: "evidence-item", tab: "home", who: "staff", openItem: "x2" },
-  { slug: "documents", tab: "documents", who: "staff" },
-  { slug: "client-home", who: "client" },
-];
-
-async function captureConceptState(page, state, width) {
-  await openConcept(page);
-  if (state.who === "client") {
-    await page.locator('[data-who="client"]').click();
-    await page.waitForTimeout(200);
-  }
-  if (state.tab) {
-    const tab = page.locator(`[data-tab="${state.tab}"]`);
-    await tab.waitFor({ state: "visible", timeout: 15_000 });
-    await tab.click();
-    await page.waitForTimeout(250);
-  }
-  if (state.ask) {
-    await page.locator("#omni").focus().catch(() => undefined);
-    await page.locator("#omni").fill("2023").catch(() => undefined);
-    await page.waitForTimeout(300);
-  }
-  if (state.openItem) {
-    await page.locator(`[data-item="${state.openItem}"]`).first().click({ timeout: 15_000 });
-    await page.waitForTimeout(400);
-  } else if (state.evidence) {
-    await page.locator(`[data-ev="${state.evidence}"]`).first().click({ timeout: 15_000 });
-    await page.waitForTimeout(400);
-  }
-  await page.setViewportSize({ width, height: 900 });
-  await page.screenshot({
-    path: path.join(outDir, `concept-${state.slug}-${width}.png`),
-    fullPage: true,
-  });
+async function openPrototypeMedicaidBoard(page) {
+  await page.goto(prototypeUrl, { waitUntil: "domcontentloaded", timeout: 120_000 });
+  await page.waitForTimeout(300);
+  const medicaid = page.locator('[data-scenario="medicaid"]');
+  await medicaid.waitFor({ state: "visible", timeout: 30_000 });
+  await medicaid.click();
+  await page.waitForSelector('[data-view="people"]', { timeout: 30_000 });
 }
 
 async function main() {
@@ -132,36 +62,60 @@ async function main() {
   const browser = await chromium.launch();
   const overflowPages = [];
 
-  const skipGallery = process.env.UI_SHOTS_CONCEPT_ONLY === "1";
+  const galleryContext = await browser.newContext();
+  await abortGoogleFonts(galleryContext);
 
-  if (!skipGallery) {
-    const galleryContext = await browser.newContext();
-    await abortGoogleFonts(galleryContext);
-    for (const pageName of galleryPages) {
-      for (const width of galleryWidths) {
-        const page = await galleryContext.newPage();
-        await page.setViewportSize({ width, height: 900 });
-        await page.goto(galleryUrl(pageName), { waitUntil: "domcontentloaded", timeout: 120_000 });
-        await afterGalleryLoad(page, pageName);
-        if (await pageOverflows(page)) {
-          overflowPages.push(`gallery:${pageName}@${width}px`);
-        }
-        await page.screenshot({ path: path.join(outDir, `gallery-${pageName}-${width}.png`), fullPage: true });
-        await page.close();
+  for (const pageName of galleryPages) {
+    for (const width of galleryWidths) {
+      const page = await galleryContext.newPage();
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(galleryUrl(pageName), { waitUntil: "domcontentloaded", timeout: 120_000 });
+      if (pageName === "board-ask" || pageName === "board-long") {
+        await page.waitForSelector('[data-testid="hive-message"]', { timeout: 30_000 }).catch(() => undefined);
       }
+      await page.waitForTimeout(pageName === "board-ask" ? 2500 : 1500);
+      if (await pageOverflows(page)) {
+        overflowPages.push(`gallery:${pageName}@${width}px`);
+      }
+      await page.screenshot({ path: path.join(outDir, `gallery-${pageName}-${width}.png`), fullPage: true });
+      await page.close();
     }
-    await galleryContext.close();
   }
+  await galleryContext.close();
 
   const protoContext = await browser.newContext();
   await abortGoogleFonts(protoContext);
 
-  for (const state of conceptStates) {
-    for (const width of prototypeWidths) {
-      const page = await protoContext.newPage();
-      await captureConceptState(page, state, width);
-      await page.close();
-    }
+  for (const width of prototypeWidths) {
+    const page = await protoContext.newPage();
+    await page.setViewportSize({ width, height: 900 });
+    await openPrototypeMedicaidBoard(page);
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(outDir, `prototype-board-people-${width}.png`), fullPage: true });
+
+    await page.locator('[data-view="ask"]').click();
+    await page.waitForTimeout(200);
+    await page.locator('[data-askof="client"]').click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(outDir, `prototype-board-ask-${width}.png`), fullPage: true });
+    await page.close();
+  }
+
+  for (const width of prototypeWidths) {
+    const page = await protoContext.newPage();
+    await page.setViewportSize({ width, height: 900 });
+    await openPrototypeMedicaidBoard(page);
+    await page.selectOption("#actor", "client");
+    await page.waitForTimeout(200);
+    await page.locator('[data-view="ask"]').click();
+    await page.waitForTimeout(200);
+    const draft = page.locator("#draft");
+    await draft.waitFor({ state: "visible", timeout: 15_000 });
+    await draft.fill("Should I qualify for Medicaid?");
+    await page.locator('[data-action="send"]').click();
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: path.join(outDir, `prototype-board-ask-client-${width}.png`), fullPage: true });
+    await page.close();
   }
 
   await protoContext.close();
@@ -171,7 +125,7 @@ async function main() {
   if (overflowPages.length > 0) {
     console.log("Horizontal overflow:");
     for (const line of overflowPages) console.log(`  - ${line}`);
-  } else if (!skipGallery) {
+  } else {
     console.log("No horizontal overflow on gallery pages.");
   }
 }

@@ -12,11 +12,12 @@ import type {
   StudyView,
   StudyViewSources,
 } from "@hiveforyou/contracts";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
+import { HiveAskInput } from "@/components/hive-ask-input";
 import { ComparisonCard } from "@/components/study/ComparisonCard";
-import { EvidenceViewerProvider, useEvidenceViewer } from "@/components/study/EvidenceViewer";
+import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { groupMissing } from "@/components/study/MissingList";
 import { MissingStudyItems } from "@/components/study/MissingStudyItems";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
@@ -24,7 +25,7 @@ import { shortDocumentLabels, SourceChips } from "@/components/study/SourceChip"
 import { Timeline } from "@/components/study/Timeline";
 import { ReadProblemNotice, readProblemsFromCoverage } from "@/components/study/ReadProblemNotice";
 import { hiveDocumentsPath, FINDINGS_ANCHORS } from "@/lib/hive-routes";
-import type { ChipRef } from "@/components/study/SourceChip";
+import { FindingsReviewDrawer } from "@/components/findings/FindingsReviewDrawer";
 import { DOCUMENT_REQUEST_LIST_COMPONENT, documentRequestListHasContent } from "@hiveforyou/contracts";
 
 type FindingsPageViewProps = {
@@ -46,7 +47,7 @@ type FindingsPageViewProps = {
 
 const CARD = "rounded-[14px] border border-line bg-paper p-[22px]";
 const DETAILS =
-  "group rounded-[14px] border border-line bg-paper [&_summary]:flex [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:items-center [&_summary]:justify-between [&_summary]:gap-3 [&_summary]:rounded-[14px] [&_summary]:px-[22px] [&_summary]:py-4 [&_summary]:font-medium [&_summary]:text-ink [&_summary]:outline-none [&_summary]:focus-visible:ring-2 [&_summary]:focus-visible:ring-blue-deep";
+  "group rounded-[14px] border border-line bg-paper [&_summary]:flex [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:items-center [&_summary]:justify-between [&_summary]:gap-3 [&_summary]:rounded-[14px] [&_summary]:px-[22px] [&_summary]:py-4 [&_summary]:font-medium [&_summary]:text-ink [&_summary]:outline-none [&_summary]:focus-visible:ring-2 [&_summary]:focus-visible:ring-cell-blue-deep";
 
 function openItemBadge(kind: FindingsOpenItem["kind"]): { label: string; className: string } {
   switch (kind) {
@@ -55,50 +56,19 @@ function openItemBadge(kind: FindingsOpenItem["kind"]): { label: string; classNa
     case "difference":
       return { label: "Difference", className: "bg-honey-wash text-honey-deep" };
     default:
-      return { label: "Needs clarification", className: "bg-blue-wash text-blue-deep" };
+      return { label: "Needs clarification", className: "bg-cell-blue-wash text-cell-blue-deep" };
   }
 }
 
-function openItemChip(item: FindingsOpenItem, sources: StudyViewSources | null): ChipRef | null {
-  const factId = item.factIds[0];
-  if (!factId || !sources) return null;
-  const ref = sources.facts[factId];
-  if (!ref) return null;
-  return {
-    sourceDocumentId: ref.sourceDocumentId,
-    pageNumber: ref.pageNumber,
-    quote: ref.quote,
-    factIds: [factId],
-  };
-}
-
-function OpenItemEvidenceButton({
+function FindingsOpenItemCard({
   item,
   sources,
-  label = "Review",
+  onReview,
 }: {
   item: FindingsOpenItem;
   sources: StudyViewSources | null;
-  label?: string;
+  onReview: (trigger: HTMLButtonElement) => void;
 }) {
-  const viewer = useEvidenceViewer();
-  const chip = openItemChip(item, sources);
-  return (
-    <button
-      type="button"
-      className={WORKSPACE_SECONDARY}
-      disabled={!chip}
-      onClick={(event) => {
-        if (!chip) return;
-        viewer.open(chip, event.currentTarget, { itemId: item.id });
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function FindingsOpenItemCard({ item, sources }: { item: FindingsOpenItem; sources: StudyViewSources | null }) {
   const badge = openItemBadge(item.kind);
   const chips =
     item.factIds.length > 0
@@ -115,15 +85,20 @@ function FindingsOpenItemCard({ item, sources }: { item: FindingsOpenItem; sourc
         <span className={`rounded-pill px-2 py-0.5 text-[12px] font-semibold ${badge.className}`}>{badge.label}</span>
         <span className="text-[14px] font-semibold text-ink">{item.title}</span>
       </div>
-      <p className="m-0 text-[14px] leading-relaxed text-ink-2">{item.question}</p>
+      <p className="m-0 text-[14px] leading-relaxed text-graphite">{item.question}</p>
       {chips.length > 0 ? (
         <div className="mt-2">
           <SourceChips refs={chips} />
         </div>
       ) : null}
-      <span className="mt-3 inline-flex">
-        <OpenItemEvidenceButton item={item} sources={sources} label="Review context" />
-      </span>
+      <button
+        type="button"
+        className={`${WORKSPACE_SECONDARY} mt-3 min-h-9 px-3 text-[13px]`}
+        data-review-id={item.id}
+        onClick={(event) => onReview(event.currentTarget)}
+      >
+        Review context
+      </button>
     </div>
   );
 }
@@ -144,8 +119,23 @@ export function FindingsPageView({
   preparation,
   pack,
 }: FindingsPageViewProps) {
+  const [reviewId, setReviewId] = useState<string | null>(null);
   const [calculationId, setCalculationId] = useState<string | null>(null);
+  const reviewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const pageCountFor = (id: string) => documentPages?.[id] ?? documentPages?.[id.toLowerCase()];
+
+  const openReview = useCallback((itemId: string, trigger: HTMLButtonElement) => {
+    reviewTriggerRef.current = trigger;
+    setReviewId(itemId);
+  }, []);
+
+  const closeReview = useCallback(() => {
+    const trigger = reviewTriggerRef.current;
+    setReviewId(null);
+    requestAnimationFrame(() => {
+      trigger?.focus();
+    });
+  }, []);
 
   const model = useMemo(() => {
     const documents = view.blocks.find((block) => block.name === "documents")?.rows ?? [];
@@ -191,10 +181,7 @@ export function FindingsPageView({
     preparation?.processingRun?.status === "AWAITING_ACKNOWLEDGEMENT" ||
     preparation?.studyRevision?.coverageAcknowledgement === "PENDING";
 
-  const allOpenItems = useMemo(
-    () => [...topics.flatMap((topic) => topic.openItems), ...otherOpenItems],
-    [topics, otherOpenItems],
-  );
+  const reviewItem = [...topics.flatMap((topic) => topic.openItems), ...otherOpenItems].find((item) => item.id === reviewId);
 
   return (
     <EvidenceViewerProvider
@@ -203,22 +190,16 @@ export function FindingsPageView({
       chipLabels={model.chipLabels}
       pageCountFor={pageCountFor}
       citationContexts={model.citationContexts}
-      view={view}
-      sources={sources}
-      canonicalStudy={canonicalStudy}
-      openItems={allOpenItems}
-      topics={topics}
-      coverageGaps={coverageGaps}
     >
       <div className="flex flex-col gap-5">
         {awaitingAck ? (
-          <p className="m-0 text-small text-ink-2" data-testid="findings-pending-decision">
+          <p className="m-0 text-small text-graphite" data-testid="findings-pending-decision">
             Review material gaps and accept the Study when you are ready.
           </p>
         ) : null}
 
         <div
-          className={`${CARD} border border-blue-tint bg-blue-wash text-[14px] text-ink`}
+          className={`${CARD} border border-cell-blue-tint bg-cell-blue-wash text-[14px] text-ink`}
           data-testid="findings-notice"
         >
           Accepted Study v{revisionNumber} · Findings describe what the documents say; they are not independent verification of
@@ -227,9 +208,9 @@ export function FindingsPageView({
 
         <section className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
           <div>
-            <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-blue-deep">The picture so far</p>
+            <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-cell-blue-deep">The picture so far</p>
             <h2 className="m-0 mt-1 font-brand text-[25px] font-semibold text-ink">What we learned from these documents</h2>
-            <p className="m-0 mt-1 text-small text-ink-2">
+            <p className="m-0 mt-1 text-small text-graphite">
               Organized by topic, with original page references next to every supported statement.
             </p>
           </div>
@@ -252,9 +233,9 @@ export function FindingsPageView({
           >
             {glanceMetrics.map((metric) => (
               <div key={metric.id} className={`${CARD} flex min-w-0 flex-col gap-1`}>
-                <span className="text-[12px] text-ink-3">{metric.label}</span>
+                <span className="text-[12px] text-quiet">{metric.label}</span>
                 <span className="font-brand text-[23px] font-semibold text-ink">{metric.value}</span>
-                {metric.sub ? <span className="text-[12.5px] text-ink-3">{metric.sub}</span> : null}
+                {metric.sub ? <span className="text-[12.5px] text-quiet">{metric.sub}</span> : null}
                 {metric.values.length > 0 ? (
                   <div className="max-w-full">
                     <SourceChips
@@ -316,7 +297,12 @@ export function FindingsPageView({
                 <div id={FINDINGS_ANCHORS.openItems} className="flex flex-col gap-3">
                   <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-honey-deep">To clarify</p>
                   {topic.openItems.map((item) => (
-                    <FindingsOpenItemCard key={item.id} item={item} sources={sources} />
+                    <FindingsOpenItemCard
+                      key={item.id}
+                      item={item}
+                      sources={sources}
+                      onReview={(trigger) => openReview(item.id, trigger)}
+                    />
                   ))}
                 </div>
               ) : null}
@@ -327,24 +313,33 @@ export function FindingsPageView({
         {otherOpenItems.length > 0 ? (
           <section className={`${CARD} flex flex-col gap-3`} id={FINDINGS_ANCHORS.openItems}>
             <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Other items to clarify</h3>
-            <p className="m-0 text-small text-ink-2">Open questions that are not tied to a single topic yet.</p>
+            <p className="m-0 text-small text-graphite">Open questions that are not tied to a single topic yet.</p>
             {otherOpenItems.map((item) => (
-              <FindingsOpenItemCard key={item.id} item={item} sources={sources} />
+              <FindingsOpenItemCard
+                key={item.id}
+                item={item}
+                sources={sources}
+                onReview={(trigger) => openReview(item.id, trigger)}
+              />
             ))}
           </section>
         ) : null}
 
+        <section className={`${CARD} min-w-0`} data-testid="findings-question-card">
+          <HiveAskInput hiveId={hiveId} variant="findings" />
+        </section>
+
         <section className="flex flex-col gap-3">
           <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Explore supporting detail</h3>
-          <p className="m-0 text-small text-ink-2">Open a section when you need to examine the underlying analysis.</p>
+          <p className="m-0 text-small text-graphite">Open a section when you need to examine the underlying analysis.</p>
           <details className={DETAILS} data-testid="findings-detail-compare">
             <summary>
               Compare information across documents
-              <span className="text-small font-normal text-ink-3">Where records disagree</span>
+              <span className="text-small font-normal text-quiet">Where records disagree</span>
             </summary>
             <div className="flex flex-col gap-5 border-t border-line px-[22px] py-4">
               {model.conflicts.length === 0 ? (
-                <p className="m-0 text-small text-ink-2">No disagreements recorded in this Study.</p>
+                <p className="m-0 text-small text-graphite">No disagreements recorded in this Study.</p>
               ) : (
                 model.conflicts.map((row) => (
                   <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} />
@@ -362,8 +357,8 @@ export function FindingsPageView({
                         {section.links.map((link) => (
                           <li key={link.linkLabel} className="min-w-0 text-[14px] text-ink">
                             <span className="font-medium">{link.linkLabel}</span>
-                            {link.valueText ? <span className="text-ink-2"> — {link.valueText}</span> : null}
-                            <span className="ml-1 text-[12.5px] text-ink-3">({link.statusLabel})</span>
+                            {link.valueText ? <span className="text-graphite"> — {link.valueText}</span> : null}
+                            <span className="ml-1 text-[12.5px] text-quiet">({link.statusLabel})</span>
                             {link.values.length > 0 ? (
                               <span className="mt-1 block max-w-full">
                                 <SourceChips
@@ -388,7 +383,7 @@ export function FindingsPageView({
           <details className={DETAILS} id={FINDINGS_ANCHORS.timeline} data-testid="findings-detail-timeline">
             <summary>
               See events in date order
-              <span className="text-small font-normal text-ink-3">Document-backed timeline</span>
+              <span className="text-small font-normal text-quiet">Document-backed timeline</span>
             </summary>
             <div className="border-t border-line px-[22px] py-4">
               <Timeline rows={model.timeline} upcomingId={null} />
@@ -397,7 +392,7 @@ export function FindingsPageView({
           <details className={DETAILS} data-testid="findings-detail-coverage">
             <summary>
               Check document coverage
-              <span className="text-small font-normal text-ink-3">Missing list and requests</span>
+              <span className="text-small font-normal text-quiet">Missing list and requests</span>
             </summary>
             <div className="flex flex-col gap-4 border-t border-line px-[22px] py-4">
               <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} />
@@ -437,7 +432,7 @@ export function FindingsPageView({
                     <h3 id="findings-calculation-title" className="m-0 font-brand text-section font-semibold text-ink">
                       {def.label.trim() || def.id}
                     </h3>
-                    <p className="m-0 mt-3 text-small text-ink-2">
+                    <p className="m-0 mt-3 text-small text-graphite">
                       {def.op.trim()} · {def.inputs.trim()}
                       {def.per.trim() ? ` · per ${def.per.trim()}` : ""}
                     </p>
@@ -455,6 +450,16 @@ export function FindingsPageView({
           </div>
         ) : null}
 
+        {reviewItem ? (
+          <FindingsReviewDrawer
+            item={reviewItem}
+            view={view}
+            sources={sources}
+            canonicalStudy={canonicalStudy}
+            documentDate={model.documentDate}
+            onClose={closeReview}
+          />
+        ) : null}
       </div>
     </EvidenceViewerProvider>
   );

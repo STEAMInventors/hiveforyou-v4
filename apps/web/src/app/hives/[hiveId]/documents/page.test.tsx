@@ -1,11 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { loadHiveBoardMock, loadHiveOverviewMock } = vi.hoisted(() => ({
-  loadHiveBoardMock: vi.fn(),
-  loadHiveOverviewMock: vi.fn(),
-}));
+const { loadHiveBoardMock } = vi.hoisted(() => ({ loadHiveBoardMock: vi.fn() }));
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -20,22 +17,10 @@ vi.mock("@/server/source-documents/hive-vault-upload-adapter", () => ({
   createLiveHiveVaultUploadAdapterDeps: () => ({}),
   listHiveSourceDocumentsWithV3Vault: async () => ({ sourceDocuments: [] }),
 }));
-vi.mock("@/server/hives/hive-summary", () => ({ loadHiveOverview: (...args: unknown[]) => loadHiveOverviewMock(...args) }));
+vi.mock("@/server/hives/hive-summary", () => ({ loadHiveOverview: async () => null }));
 vi.mock("@/server/hives/hive-board-loader", () => ({ loadHiveBoard: (...args: unknown[]) => loadHiveBoardMock(...args) }));
-vi.mock("@/server/pipeline/pack-loader", () => ({ loadPackById: () => null }));
-
-type PanelProps = { checklist?: { gapId: string; title: string }[]; openItems?: unknown[]; topics?: unknown[] };
-let lastPanelProps: PanelProps | null = null;
-
 vi.mock("@/components/hives/DocumentsPanel", () => ({
-  DocumentsPanel: (props: PanelProps) => {
-    lastPanelProps = props;
-    return (
-      <div data-testid="documents-panel">
-        {props.checklist && props.checklist.length > 0 ? <div id="requested" data-testid="requested-anchor" /> : null}
-      </div>
-    );
-  },
+  DocumentsPanel: () => <div data-testid="documents-panel" />,
 }));
 
 import DocumentsPage from "./page";
@@ -53,34 +38,27 @@ afterEach(() => cleanup());
 describe("Documents page", () => {
   beforeEach(() => {
     loadHiveBoardMock.mockReset();
-    loadHiveOverviewMock.mockReset();
-    lastPanelProps = null;
   });
 
-  it("passes checklist, open items, and topics into DocumentsPanel with the #requested anchor inside it", async () => {
-    loadHiveBoardMock.mockResolvedValue({
-      board,
-      overview: {
-        studyTab: { view: { schema: "hive.study-view/1", sections: [], blocks: [], components: [] }, sources: { facts: {} } },
-        canonicalStudy: null,
-        referencedDocuments: [],
-        preparation: { studyRevision: null },
-      },
-    });
-    render(await DocumentsPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
-    expect(screen.getByTestId("requested-anchor")).toBeTruthy();
-    expect(lastPanelProps?.checklist?.length).toBe(1);
-    expect(Array.isArray(lastPanelProps?.openItems)).toBe(true);
-    expect(Array.isArray(lastPanelProps?.topics)).toBe(true);
-  });
-
-  it("leaves the page without a requested anchor when there is no checklist", async () => {
-    loadHiveBoardMock.mockResolvedValue({
-      board: { ...board, checklist: [] },
-      overview: null,
-    });
+  it("puts What we asked for below the panel, as the #requested target", async () => {
+    loadHiveBoardMock.mockResolvedValue({ board });
     const { container } = render(await DocumentsPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
-    expect(container.querySelector("#requested")).toBeNull();
+    const card = container.querySelector("#requested") as HTMLElement;
+    expect(within(card).getByRole("heading", { name: "What we asked for" })).toBeTruthy();
+    const panel = screen.getByTestId("documents-panel");
+    expect(panel.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("leaves the page as it was when there is no checklist or it fails to load", async () => {
+    loadHiveBoardMock.mockResolvedValue({ board: { ...board, checklist: [] } });
+    const first = render(await DocumentsPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    expect(first.container.querySelector("#requested")).toBeNull();
+    cleanup();
+    loadHiveBoardMock.mockImplementation(async () => {
+      throw new Error("board unavailable");
+    });
+    const second = render(await DocumentsPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    expect(second.container.querySelector("#requested")).toBeNull();
     expect(screen.getByTestId("documents-panel")).toBeTruthy();
   });
 });

@@ -68,16 +68,16 @@ export function DeleteHiveModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-[61] w-full max-w-md rounded-input border border-line bg-paper p-6 shadow-[0_24px_48px_rgba(31,35,40,0.18)]"
+        className="relative z-[61] w-full max-w-md rounded-card border border-line bg-paper p-6 shadow-[0_24px_48px_rgba(31,35,40,0.18)]"
       >
         <h2 id={titleId} className="m-0 font-brand text-[22px] font-semibold text-ink">
           Delete this Hive?
         </h2>
-        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">
           This permanently deletes <span className="font-semibold text-ink">{hiveName}</span>, all
           uploaded documents, and any data in this Hive. This cannot be undone.
         </p>
-        <p className="mt-3 text-sm text-ink-2">
+        <p className="mt-3 text-sm text-ink-muted">
           Type{" "}
           <span className="font-mono font-semibold text-ink">{HIVE_DELETE_CONFIRMATION_TEXT}</span>{" "}
           to confirm.

@@ -1,6 +1,6 @@
 import type { BoundRef, BoundValue, NumericStatus } from "@hiveforyou/contracts";
 
-export const CARD_CLASS = "flex flex-col gap-3 rounded-input border border-line bg-paper p-5 sm:p-7";
+export const CARD_CLASS = "flex flex-col gap-3 rounded-card border border-line bg-paper p-5 sm:p-7";
 export const HEADING_CLASS = "m-0 font-brand text-section font-semibold text-ink";
 
 /**
@@ -27,7 +27,7 @@ export function SourceChips({
             href={pageHref(ref)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex max-w-[240px] items-center truncate rounded-chip border border-honey-chip-border bg-honey-wash px-[7px] py-[2px] font-mono text-[12px] text-honey-deep hover:bg-honey-chip-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue"
+            className="inline-flex max-w-[240px] items-center truncate rounded-chip border border-honey-chip-border bg-honey-wash px-[7px] py-[2px] font-mono text-[12px] text-honey-deep hover:bg-honey-chip-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-cell-blue"
             title={`Open ${title}`}
             aria-label={`Open ${title}`}
           >
@@ -36,7 +36,7 @@ export function SourceChips({
         ) : (
           <span
             key={key}
-            className="inline-flex max-w-[240px] items-center truncate rounded-chip bg-mist px-[7px] py-[2px] font-mono text-[12px] text-ink-2"
+            className="inline-flex max-w-[240px] items-center truncate rounded-chip bg-mist px-[7px] py-[2px] font-mono text-[12px] text-ink-muted"
             title={title}
           >
             {label}
@@ -51,9 +51,9 @@ type ValueStatus = BoundValue["status"] | NumericStatus;
 
 const STATUS_BADGE: Record<ValueStatus, { label: string; className: string }> = {
   VERIFIED: { label: "Verified", className: "bg-leaf-wash text-leaf-deep" },
-  CALCULATED: { label: "Calculated", className: "bg-blue-wash text-blue-deep" },
+  CALCULATED: { label: "Calculated", className: "bg-cell-blue-wash text-cell-blue-deep" },
   UNVERIFIED: { label: "Not verified", className: "bg-honey-wash text-honey-deep" },
-  NONCALCULABLE: { label: "Not calculable", className: "bg-mist text-ink-2" },
+  NONCALCULABLE: { label: "Not calculable", className: "bg-mist text-ink-muted" },
 };
 
 /** Verified, unverified and noncalculable values always look different (D-041). */

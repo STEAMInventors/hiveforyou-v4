@@ -3,19 +3,16 @@
 import type { ReactNode, RefObject, TextareaHTMLAttributes } from "react";
 
 import { Button } from "./Button";
-import { LockIcon } from "./LockIcon";
 import { SendIcon } from "./SendIcon";
 
 export type ComposerProps = {
   textareaId: string;
   textareaLabel: string;
   hint?: ReactNode;
-  /** Draws the lock beside the hint. */
-  lock?: boolean;
   primaryLabel: string;
   onPrimary: () => void;
   primaryDisabled?: boolean;
-  /** Renders a 16px send arrow after the primary label. */
+  /** Renders a 16px send arrow after the primary label (hive board). */
   primaryTrailIcon?: boolean;
   footer?: ReactNode;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
@@ -26,7 +23,6 @@ export function Composer({
   textareaId,
   textareaLabel,
   hint,
-  lock = false,
   primaryLabel,
   onPrimary,
   primaryDisabled,
@@ -36,7 +32,7 @@ export function Composer({
   textareaProps,
 }: ComposerProps) {
   return (
-    <div className="sticky bottom-4 mt-2 rounded-input border border-line-strong bg-paper shadow-rest transition-[border-color,box-shadow] focus-within:border-blue focus-within:shadow-focus">
+    <div className="composer-shell sticky bottom-4 mt-2 rounded-surface border border-line-strong bg-paper shadow-composer focus-within:border-blue focus-within:shadow-[0_0_0_3px_rgba(59,124,246,0.15)]">
       <label htmlFor={textareaId} className="sr-only">
         {textareaLabel}
       </label>
@@ -44,17 +40,10 @@ export function Composer({
         id={textareaId}
         ref={textareaRef}
         {...textareaProps}
-        className={`block max-h-40 min-h-[52px] w-full resize-none border-0 bg-transparent px-3.5 pb-1 pt-3 text-message text-ink outline-none placeholder:text-ink-3 ${textareaProps.className ?? ""}`.trim()}
+        className={`block min-h-16 max-h-[180px] w-full resize-none border-0 bg-transparent px-4 pb-1.5 pt-3.5 text-body text-ink outline-none placeholder:text-ink-3 ${textareaProps.className ?? ""}`.trim()}
       />
-      <div className="flex flex-wrap items-center justify-between gap-2.5 px-2 pb-2 pl-3.5 pt-1.5">
-        {hint ? (
-          <span className="inline-flex max-w-[min(100%,520px)] items-center gap-1.5 text-[12px] text-ink-3">
-            {lock ? <LockIcon /> : null}
-            {hint}
-          </span>
-        ) : (
-          <span />
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-2.5 pb-2.5 pl-4 pt-2">
+        {hint ? <span className="max-w-[min(100%,520px)] text-label text-ink-3">{hint}</span> : <span />}
         <Button type="button" onClick={onPrimary} disabled={primaryDisabled} className="ms-auto">
           {primaryLabel}
           {primaryTrailIcon ? <SendIcon /> : null}

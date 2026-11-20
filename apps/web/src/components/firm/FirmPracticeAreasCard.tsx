@@ -40,10 +40,10 @@ export function FirmPracticeAreasCard({ firm, options }: FirmPracticeAreasCardPr
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-input border border-line bg-paper p-5" data-testid="firm-practice-areas-card">
+    <section className="flex flex-col gap-3 rounded-card border border-line bg-paper p-5" data-testid="firm-practice-areas-card">
       <div>
         <h2 className="m-0 text-[18px] font-semibold text-ink">What you handle</h2>
-        <p className="m-0 mt-1 text-small text-ink-2">
+        <p className="m-0 mt-1 text-small text-graphite">
           {canEdit ? "Choose all practice areas that apply." : "Your firm owner or attorney manages these."}
         </p>
       </div>
@@ -55,7 +55,7 @@ export function FirmPracticeAreasCard({ firm, options }: FirmPracticeAreasCardPr
               key={area.packId}
               data-testid={`firm-practice-area-${area.packId}`}
               className={`flex min-h-11 items-start gap-3 rounded-control border px-3.5 py-3 ${
-                on ? "border-blue-deep bg-blue-wash" : "border-line bg-paper"
+                on ? "border-cell-blue-deep bg-cell-blue-wash" : "border-line bg-paper"
               } ${canEdit ? "cursor-pointer" : "opacity-90"}`}
             >
               <input
@@ -67,7 +67,7 @@ export function FirmPracticeAreasCard({ firm, options }: FirmPracticeAreasCardPr
               />
               <span className="flex flex-col gap-0.5">
                 <span className="text-[15px] font-semibold text-ink">{area.label}</span>
-                <span className="text-[13px] text-ink-2">{area.description}</span>
+                <span className="text-[13px] text-graphite">{area.description}</span>
               </span>
             </label>
           );
@@ -80,7 +80,7 @@ export function FirmPracticeAreasCard({ firm, options }: FirmPracticeAreasCardPr
           {action.inlineError.retryable ? (
             <button
               type="button"
-              className="ml-1 border-0 bg-transparent p-0 font-semibold text-blue-deep"
+              className="ml-1 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
               onClick={() =>
                 void action.retrySameKey({
                   url: "/api/v1/firm/practice-areas",

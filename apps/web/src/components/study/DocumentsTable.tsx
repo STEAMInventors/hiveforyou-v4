@@ -33,7 +33,7 @@ export function latestChainPosition(rows: readonly StudyViewRow[]): number | nul
 }
 
 const CELL = "border-b border-line px-3 py-3 align-top first:pl-0 last:pr-0";
-const HEAD = "border-b border-line px-3 pb-2 text-left text-caption font-semibold text-ink-3 first:pl-0 last:pr-0";
+const HEAD = "border-b border-line px-3 pb-2 text-left text-caption font-semibold text-quiet first:pl-0 last:pr-0";
 
 function DocumentCell({ id }: { id: string }) {
   return <>{useDocumentLabel(id)}</>;
@@ -75,9 +75,9 @@ export function DocumentsTable({ rows, unreadableIds, pageCountFor }: DocumentsT
                 <th scope="row" className={`${CELL} text-left font-medium text-ink`}>
                   <DocumentCell id={row.id} />
                 </th>
-                <td className={`${CELL} ${role === UNREADABLE_ROLE ? "font-medium text-coral-deep" : "text-ink-2"}`}>{role}</td>
-                <td className={`${CELL} whitespace-nowrap font-brand text-ink-2`}>{formatDocumentDate(row.date) ?? "—"}</td>
-                <td className={`${CELL} text-right tabular-nums text-ink-2`}>{pages ?? "—"}</td>
+                <td className={`${CELL} ${role === UNREADABLE_ROLE ? "font-medium text-coral-deep" : "text-graphite"}`}>{role}</td>
+                <td className={`${CELL} whitespace-nowrap font-brand text-graphite`}>{formatDocumentDate(row.date) ?? "—"}</td>
+                <td className={`${CELL} text-right tabular-nums text-graphite`}>{pages ?? "—"}</td>
               </tr>
             );
           })}

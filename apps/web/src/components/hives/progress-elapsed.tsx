@@ -36,8 +36,8 @@ export function ProgressElapsed(props: {
       {props.stepLabel ? (
         <p className="m-0 text-[13px] text-ink">{props.stepLabel}</p>
       ) : null}
-      {props.detail ? <p className="m-0 text-[12px] text-ink-2">{props.detail}</p> : null}
-      {props.typicalRange ? <p className="m-0 text-[12px] text-ink-2">Usually {props.typicalRange}</p> : null}
+      {props.detail ? <p className="m-0 text-[12px] text-ink-muted">{props.detail}</p> : null}
+      {props.typicalRange ? <p className="m-0 text-[12px] text-ink-muted">Usually {props.typicalRange}</p> : null}
     </div>
   );
 }

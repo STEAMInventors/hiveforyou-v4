@@ -3,7 +3,7 @@ import type { HiveAttentionCounts } from "@hiveforyou/contracts";
 const ORDER = ["needs", "changed", "missing", "checked"] as const;
 
 const STATE_CLASS: Record<(typeof ORDER)[number], string> = {
-  needs: "text-blue-deep",
+  needs: "text-cell-blue-deep",
   changed: "text-honey-deep",
   missing: "text-coral-deep",
   checked: "text-leaf-deep",

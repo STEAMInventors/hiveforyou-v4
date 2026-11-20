@@ -31,13 +31,13 @@ export function TabEmptyState({ variant, hiveId }: TabEmptyStateProps) {
   return (
     <section
       aria-labelledby={titleId}
-      className="flex flex-col items-start gap-3 rounded-input border-2 border-dashed border-line bg-paper p-7"
+      className="flex flex-col items-start gap-3 rounded-card border-2 border-dashed border-line bg-paper p-7"
     >
       <h2 id={titleId} className="m-0 inline-flex items-center gap-2 font-brand text-section font-semibold text-ink">
         <HiveMark className="h-5 w-5 shrink-0" />
         {content.title}
       </h2>
-      <p className="m-0 max-w-prose text-body text-ink-2">{content.body}</p>
+      <p className="m-0 max-w-prose text-body text-graphite">{content.body}</p>
       {variant !== "documents" ? (
         <Link href={hiveDocumentsPath(hiveId)} className={QUIET_LINK_CLASS}>
           Go to Documents

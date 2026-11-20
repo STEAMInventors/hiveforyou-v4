@@ -13,8 +13,6 @@ const routerMock = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
-  usePathname: () => "/hives/test-hive/documents",
-  useSearchParams: () => new URLSearchParams(),
 }));
 
 import { bankruptcyC13Fixture } from "@/components/study/fixtures/bankruptcy-c13";

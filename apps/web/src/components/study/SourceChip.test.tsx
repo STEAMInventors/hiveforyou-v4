@@ -8,14 +8,6 @@ import { dedupeChipRefs, shortDocumentLabels, shortTypeChipLabels, shortTypeLabe
 
 afterEach(cleanup);
 
-const routerPush = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: routerPush }),
-  usePathname: () => "/hives/test-hive",
-  useSearchParams: () => new URLSearchParams(),
-}));
-
 export const pdfDocumentFileCalls: unknown[] = [];
 
 vi.mock("react-pdf", () => ({
@@ -263,12 +255,8 @@ describe("SourceChips + evidence viewer", () => {
     });
 
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => {
-      expect(screen.queryByTestId("evidence-viewer")).toBeNull();
-    });
-    await waitFor(() => {
-      expect(document.activeElement).toBe(screen.getAllByTestId("source-ref")[0]!);
-    });
+    expect(screen.queryByTestId("evidence-viewer")).toBeNull();
+    expect(document.activeElement).toBe(within(chips[0]!).getByTestId("source-ref"));
   });
 
   it("shows not-found status for PDF when quote does not match persisted text", async () => {

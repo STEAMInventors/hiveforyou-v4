@@ -16,10 +16,10 @@ const STATE_LABELS: Record<SourceFileState, string> = {
 };
 
 const STATE_CLASSES: Record<SourceFileState, string> = {
-  ready: "bg-mist text-ink-2",
+  ready: "bg-mist text-ink-muted",
   invalid: "bg-coral-wash text-coral-deep",
-  uploading: "bg-blue-wash text-blue-deep",
-  checking: "bg-blue-wash text-blue-deep",
+  uploading: "bg-cell-blue-wash text-cell-blue-deep",
+  checking: "bg-cell-blue-wash text-cell-blue-deep",
   registered: "bg-leaf-wash text-leaf-deep",
   rejected: "bg-coral-wash text-coral-deep",
   failed: "bg-honey-wash text-honey-deep",
@@ -78,7 +78,6 @@ type AddFilesButtonProps = {
   describedBy?: string;
   /** Replaces the labelled button's styling. */
   className?: string;
-  "data-documents-add"?: string;
 };
 
 export function AddFilesButton({
@@ -88,7 +87,6 @@ export function AddFilesButton({
   showLabel = false,
   describedBy,
   className,
-  "data-documents-add": dataDocumentsAdd,
 }: AddFilesButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -112,7 +110,6 @@ export function AddFilesButton({
       <button
         type="button"
         disabled={disabled}
-        data-documents-add={dataDocumentsAdd}
         aria-label={showLabel ? undefined : label}
         aria-describedby={describedBy}
         className={
@@ -120,7 +117,7 @@ export function AddFilesButton({
             ? className
             : showLabel
               ? "inline-flex h-10 cursor-pointer items-center gap-2 rounded-button border border-line bg-paper px-4 text-[14px] font-medium text-ink transition-colors hover:bg-mist disabled:cursor-not-allowed disabled:opacity-45"
-              : "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-button border-0 bg-transparent text-ink-3 transition-colors hover:bg-mist hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
+              : "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-button border-0 bg-transparent text-ink-subtle transition-colors hover:bg-mist hover:text-ink disabled:cursor-not-allowed disabled:opacity-45"
         }
         onClick={() => inputRef.current?.click()}
       >
@@ -160,7 +157,7 @@ export function SelectedFileChips({ files, onRemove, busy = false }: SelectedFil
               <span className="min-w-0 max-w-[220px] truncate font-medium" title={item.file.name}>
                 {item.file.name}
               </span>
-              <span className={`shrink-0 ${problem ? "" : "text-ink-3"}`} aria-live="polite">
+              <span className={`shrink-0 ${problem ? "" : "text-ink-subtle"}`} aria-live="polite">
                 {item.state === "ready" ? formatSize(item.file.size) : STATE_LABELS[item.state]}
               </span>
               {removable ? (
@@ -217,7 +214,7 @@ export function SelectedFileList({
             <p className="m-0 truncate text-sm font-semibold text-ink" title={item.file.name}>
               {item.file.name}
             </p>
-            <p className="m-0 mt-0.5 text-xs text-ink-2">
+            <p className="m-0 mt-0.5 text-xs text-ink-muted">
               {formatSize(item.file.size)}
               {item.message ? (
                 <span
@@ -242,7 +239,7 @@ export function SelectedFileList({
           {onRemove && !busy && item.state !== "registered" ? (
             <button
               type="button"
-              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-ink-2 hover:bg-mist hover:text-ink"
+              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-ink-muted hover:bg-mist hover:text-ink"
               aria-label={`Remove ${item.file.name}`}
               onClick={() => onRemove(item.key)}
             >

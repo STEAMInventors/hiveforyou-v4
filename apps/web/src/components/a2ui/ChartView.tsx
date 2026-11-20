@@ -36,17 +36,17 @@ export function ChartView({ title, kind, unit, points }: ChartProps) {
                   width={step * 0.6}
                   y={Math.min(y(value), y(0))}
                   height={Math.abs(y(0) - y(value))}
-                  className={points[index].status === "VERIFIED" ? "fill-leaf" : "fill-blue"}
+                  className={points[index].status === "VERIFIED" ? "fill-leaf" : "fill-cell-blue"}
                   rx={3}
                 />
               ),
             )
-          : <polyline points={linePoints} fill="none" className="stroke-blue" strokeWidth={2.5} />}
+          : <polyline points={linePoints} fill="none" className="stroke-cell-blue" strokeWidth={2.5} />}
       </svg>
       <table className="w-full border-collapse text-left text-[13.5px]">
         <caption className="sr-only">{title}</caption>
         <thead>
-          <tr className="border-b border-line text-ink-3">
+          <tr className="border-b border-line text-ink-subtle">
             <th className="py-1.5 font-medium">Item</th>
             <th className="py-1.5 font-medium">Value{unit ? ` (${unit})` : ""}</th>
             <th className="py-1.5 font-medium">Status</th>

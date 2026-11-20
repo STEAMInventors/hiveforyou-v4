@@ -12,9 +12,6 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`);
   },
-  permanentRedirect: (url: string) => {
-    throw new Error(`REDIRECT:${url}`);
-  },
 }));
 
 vi.mock("@/server/hives/load-owned-hive", () => ({
@@ -103,14 +100,18 @@ vi.mock("@/server/hives/hive-conversation", () => ({
   loadUnreadMessageCount: vi.fn(async () => null),
 }));
 
+vi.mock("@/components/hives/HiveBoardThreePane", () => ({ HiveBoardThreePane: () => null }));
+vi.mock("@/components/hives/HiveBoardPanel", () => ({ HiveBoardPanel: () => null }));
 vi.mock("@/components/hives/HiveConversation", () => ({ HiveConversation: () => null }));
 vi.mock("@/components/hives/HiveStillToCome", () => ({ HiveStillToCome: () => null }));
+vi.mock("@/components/hives/HiveBoardChecklistCard", () => ({ HiveBoardChecklistCard: () => null }));
 vi.mock("@/components/workspace/HiveHandoverBanner", () => ({ HiveHandoverBanner: () => null }));
 vi.mock("@/components/hives/DocumentsPanel", () => ({ DocumentsPanel: () => null }));
 vi.mock("@/components/hives/HiveTeamNotesPanel", () => ({ HiveTeamNotesPanel: () => null }));
 vi.mock("@/components/hives/HiveActivityPanel", () => ({ HiveActivityPanel: () => null }));
 vi.mock("@/components/reports/ReportsPanel", () => ({ ReportsPanel: () => null }));
 vi.mock("@/components/workspace/HivePageHead", () => ({ HivePageHead: () => null }));
+vi.mock("@/components/hive-ask-input", () => ({ HiveAskInput: () => null }));
 vi.mock("@/components/study/StudyTabPanel", () => ({ StudyTabPanel: () => null }));
 vi.mock("@/components/study/StudyView", () => ({ StudyView: () => null }));
 vi.mock("@/components/study/StudyPromptPreview", () => ({ StudyPromptPreview: () => null }));
@@ -153,7 +154,9 @@ type SectionPage = () => Promise<{
 }>;
 
 const SECTIONS: readonly { section: HiveWorkspaceSection; page: SectionPage }[] = [
+  { section: "board", page: () => import("./[hiveId]/board/page") },
   { section: "documents", page: () => import("./[hiveId]/documents/page") },
+  { section: "findings", page: () => import("./[hiveId]/findings/page") },
   { section: "reports", page: () => import("./[hiveId]/reports/page") },
   { section: "audit", page: () => import("./[hiveId]/audit/page") },
   { section: "notes", page: () => import("./[hiveId]/notes/page") },
@@ -172,33 +175,12 @@ describe("hive workspace section pages", () => {
       const mod = await page();
       await mod.default({
         params: Promise.resolve({ hiveId: HIVE_ID }),
-        ...(section === "reports" ? { searchParams: Promise.resolve({}) } : {}),
+        ...((section === "reports" || section === "board") ? { searchParams: Promise.resolve({}) } : {}),
       });
       expect(loadOwnedHiveOrNotFoundMock).toHaveBeenCalledWith(HIVE_ID, `/hives/${HIVE_ID}/${section}`);
     },
     20_000,
   );
-});
-
-describe("moved hive routes", () => {
-  it("sends the board to Home", async () => {
-    loadOwnedHiveOrNotFoundMock.mockClear();
-    const mod = await import("./[hiveId]/board/page");
-    await expect(
-      mod.default({
-        params: Promise.resolve({ hiveId: HIVE_ID }),
-        searchParams: Promise.resolve({}),
-      }),
-    ).rejects.toThrow(`REDIRECT:/hives/${HIVE_ID}`);
-    expect(loadOwnedHiveOrNotFoundMock).not.toHaveBeenCalled();
-  });
-
-  it("sends findings to Home#show", async () => {
-    const mod = await import("./[hiveId]/findings/page");
-    await expect(mod.default({ params: Promise.resolve({ hiveId: HIVE_ID }) })).rejects.toThrow(
-      `REDIRECT:/hives/${HIVE_ID}#show`,
-    );
-  });
 });
 
 describe("notes page firm gate", () => {

@@ -8,7 +8,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: replaceMock }),
 }));
 
-import { hiveHomeShowPath } from "@/lib/hive-routes";
+import { hiveFindingsPath } from "@/lib/hive-routes";
 import { StudyLegacyRedirect } from "./StudyLegacyRedirect";
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
@@ -20,20 +20,22 @@ afterEach(() => {
 });
 
 describe("StudyLegacyRedirect", () => {
-  it("redirects to Home when the hash is empty", async () => {
+  it("redirects to findings when the hash is empty", async () => {
     render(<StudyLegacyRedirect hiveId={HIVE_ID} queryString="" />);
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(hiveHomeShowPath(HIVE_ID)));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(hiveFindingsPath(HIVE_ID)));
   });
 
-  it("redirects a disagree hash to Home and keeps other query params", async () => {
+  it("redirects a disagree hash to gaps and keeps other query params", async () => {
     window.location.hash = "#disagree";
     render(<StudyLegacyRedirect hiveId={HIVE_ID} queryString="ref=1" />);
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(`/hives/${HIVE_ID}?ref=1#show`));
+    await waitFor(() =>
+      expect(replaceMock).toHaveBeenCalledWith(`/hives/${HIVE_ID}/findings?ref=1#open-items`),
+    );
   });
 
-  it("redirects other hashes to Home", async () => {
+  it("redirects other hashes to findings", async () => {
     window.location.hash = "#establish";
     render(<StudyLegacyRedirect hiveId={HIVE_ID} queryString="" />);
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(hiveHomeShowPath(HIVE_ID)));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(hiveFindingsPath(HIVE_ID)));
   });
 });

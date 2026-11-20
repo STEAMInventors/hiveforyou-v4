@@ -24,7 +24,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { WORKSPACE_PRIMARY, WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { Card } from "@/components/workspace/Card";
 import { CORRELATION_HEADER_NAME } from "@/lib/hives-client";
-import { MY_HIVES_PATH, hiveDocumentsPath, hiveHomePath } from "@/lib/hive-routes";
+import { MY_HIVES_PATH, hiveBoardPath, hiveDocumentsPath } from "@/lib/hive-routes";
 
 type PackCatalogEntry = NewClientPackOption & {
   rows: NewClientChecklistRow[];
@@ -33,7 +33,7 @@ type PackCatalogEntry = NewClientPackOption & {
 const SOMETHING_ELSE_LABEL = "Something else (no checklist)";
 
 const TAILOR_BUTTON_EXTRA =
-  "self-start bg-blue-wash text-blue-deep hover:border-blue-wash hover:bg-blue-wash";
+  "self-start bg-cell-blue-wash text-cell-blue-deep hover:border-cell-blue-wash hover:bg-cell-blue-tint";
 
 type PartialFailure = {
   hiveId: string;
@@ -93,12 +93,12 @@ function asChecklistSelection(items: readonly TailoredChecklistItem[]): NewClien
 
 const TAG_PILL: Record<Exclude<ChecklistTailorRowTag, "plain">, { label: string; className: string }> = {
   depends: { label: "Depends", className: "bg-honey-wash text-honey-deep" },
-  from_note: { label: "From your note", className: "bg-blue-wash text-blue-deep" },
-  left_out: { label: "Left out", className: "bg-mist text-ink-2" },
+  from_note: { label: "From your note", className: "bg-cell-blue-wash text-cell-blue-deep" },
+  left_out: { label: "Left out", className: "bg-mist text-graphite" },
   added: { label: "Added by HiveForYou", className: "bg-leaf-wash text-leaf-deep" },
 };
 
-const USER_ADDED_PILL = { label: "Added by you", className: "bg-blue-wash text-blue-deep" };
+const USER_ADDED_PILL = { label: "Added by you", className: "bg-cell-blue-wash text-cell-blue-deep" };
 
 function PersonPlusIcon() {
   return (
@@ -355,7 +355,7 @@ export function NewClientHiveForm({
       const payload: unknown = await response.json().catch(() => null);
       if (response.ok && payload && typeof payload === "object" && (payload as { ok?: unknown }).ok === true) {
         const hiveId = String((payload as { hiveId: string }).hiveId);
-        router.push(mode === "invite" ? hiveHomePath(hiveId) : hiveDocumentsPath(hiveId));
+        router.push(mode === "invite" ? hiveBoardPath(hiveId) : hiveDocumentsPath(hiveId));
         return;
       }
       const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
@@ -407,13 +407,13 @@ export function NewClientHiveForm({
       >
         <input
           type="checkbox"
-          className="mt-0.5 size-[18px] shrink-0 accent-blue-deep"
+          className="mt-0.5 size-[18px] shrink-0 accent-cell-blue-deep"
           checked={row.ticked}
           onChange={() => toggleItem(row.key)}
           disabled={busy || tailoring}
         />
         <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className={`text-small ${row.ticked ? "text-ink" : "text-ink-2"}`}>{row.title}</span>
+          <span className={`text-small ${row.ticked ? "text-ink" : "text-graphite"}`}>{row.title}</span>
           {showMeta ? (
             <span className="flex flex-wrap items-center gap-1.5">
               <span
@@ -421,7 +421,7 @@ export function NewClientHiveForm({
               >
                 {pill.label}
               </span>
-              {row.reason ? <span className="text-caption text-ink-2">{row.reason}</span> : null}
+              {row.reason ? <span className="text-caption text-graphite">{row.reason}</span> : null}
             </span>
           ) : null}
         </span>
@@ -436,31 +436,31 @@ export function NewClientHiveForm({
     >
       <input
         type="checkbox"
-        className="mt-0.5 size-[18px] shrink-0 accent-blue-deep"
+        className="mt-0.5 size-[18px] shrink-0 accent-cell-blue-deep"
         checked={row.ticked}
         onChange={() => toggleItem(row.key)}
         disabled={busy || tailoring}
       />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className={`text-small ${row.ticked ? "text-ink" : "text-ink-2"}`}>{row.title}</span>
-        {row.sourceLabel ? <span className="text-caption text-ink-2">{row.sourceLabel}</span> : null}
+        <span className={`text-small ${row.ticked ? "text-ink" : "text-graphite"}`}>{row.title}</span>
+        {row.sourceLabel ? <span className="text-caption text-graphite">{row.sourceLabel}</span> : null}
       </span>
     </label>
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-5 bg-mist px-4 pb-16 pt-[clamp(24px,6vh,64px)] min-[900px]:px-8">
+    <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-5 bg-canvas px-4 pb-16 pt-[clamp(24px,6vh,64px)] min-[900px]:px-8">
       <div className="flex items-center gap-3.5">
         <span
           aria-hidden="true"
-          className="flex size-11 shrink-0 items-center justify-center rounded-control bg-blue-wash text-blue-deep"
+          className="flex size-11 shrink-0 items-center justify-center rounded-control bg-cell-blue-wash text-cell-blue-deep"
         >
           <PersonPlusIcon />
         </span>
         <div className="flex min-w-0 flex-col gap-0.5">
           <Link
             href={MY_HIVES_PATH}
-            className="inline-flex min-h-5 items-center self-start text-caption text-ink-2 no-underline hover:underline"
+            className="inline-flex min-h-5 items-center self-start text-caption text-graphite no-underline hover:underline"
           >
             All clients /
           </Link>
@@ -494,7 +494,7 @@ export function NewClientHiveForm({
             <label htmlFor={emailId} className="mt-4 flex flex-col gap-1.5 text-small font-medium text-ink">
               <span>
                 Client&apos;s email{" "}
-                <span className="text-caption font-normal text-ink-3">· needed only to invite them</span>
+                <span className="text-caption font-normal text-quiet">· needed only to invite them</span>
               </span>
               <input
                 id={emailId}
@@ -520,7 +520,7 @@ export function NewClientHiveForm({
                 {canShowAllMatterTypes ? (
                   <button
                     type="button"
-                    className="min-h-5 border-0 bg-transparent p-0 text-caption font-medium text-blue-deep"
+                    className="min-h-5 border-0 bg-transparent p-0 text-caption font-medium text-cell-blue-deep"
                     onClick={() => setShowAllMatterTypes(true)}
                   >
                     Show all matter types
@@ -551,7 +551,7 @@ export function NewClientHiveForm({
                 <label htmlFor={professionalTextId} className="mt-4 flex flex-col gap-1.5 text-small font-medium text-ink">
                   <span>
                     What do you know so far?{" "}
-                    <span className="text-caption font-normal text-ink-3">· optional</span>
+                    <span className="text-caption font-normal text-quiet">· optional</span>
                   </span>
                   <textarea
                     id={professionalTextId}
@@ -562,7 +562,7 @@ export function NewClientHiveForm({
                     placeholder="Single, wages from one employer, car loan, a credit card lawsuit, no business."
                     className="rounded-control border border-line-strong px-3 py-2.5 text-[16px] font-normal text-ink"
                   />
-                  <span className="text-caption font-normal leading-snug text-ink-3">
+                  <span className="text-caption font-normal leading-snug text-quiet">
                     HiveForYou uses this to choose what to ask {clientGreeting} for. Only your team sees it.
                   </span>
                 </label>
@@ -577,7 +577,7 @@ export function NewClientHiveForm({
                   {tailorButtonLabel}
                 </button>
                 {tailorMessage ? (
-                  <p className="m-0 text-caption text-ink-2" role="status">
+                  <p className="m-0 text-caption text-graphite" role="status">
                     {tailorMessage}
                   </p>
                 ) : null}
@@ -599,13 +599,13 @@ export function NewClientHiveForm({
               headerRight={
                 <div className="flex gap-4">
                   <span className="flex flex-col items-end">
-                    <span className="font-brand text-[21px] font-semibold leading-none text-blue-deep">{askCount}</span>
-                    <span className="text-caption text-ink-3">to ask for</span>
+                    <span className="font-brand text-[21px] font-semibold leading-none text-cell-blue-deep">{askCount}</span>
+                    <span className="text-caption text-quiet">to ask for</span>
                   </span>
                   {leftOutCount > 0 ? (
                     <span className="flex flex-col items-end">
-                      <span className="font-brand text-[21px] font-semibold leading-none text-ink-2">{leftOutCount}</span>
-                      <span className="text-caption text-ink-3">left out</span>
+                      <span className="font-brand text-[21px] font-semibold leading-none text-graphite">{leftOutCount}</span>
+                      <span className="text-caption text-quiet">left out</span>
                     </span>
                   ) : null}
                 </div>
@@ -615,7 +615,7 @@ export function NewClientHiveForm({
                 {clientItems.map((row) => renderChecklistRow(row))}
                 {otherItems.length > 0 ? (
                   <>
-                    <p className="m-0 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+                    <p className="m-0 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-quiet">
                       Usually from someone else
                     </p>
                     {otherItems.map((row) => renderOtherRow(row))}
@@ -654,7 +654,7 @@ export function NewClientHiveForm({
             </Card>
           ) : (
             <Card title="No checklist">
-              <p className="m-0 text-small leading-relaxed text-ink-2">
+              <p className="m-0 text-small leading-relaxed text-graphite">
                 {clientFirst ?? "Your client"} can send whatever they have. HiveForYou reads every page and tells you
                 what&apos;s missing as documents arrive.
               </p>
@@ -662,12 +662,12 @@ export function NewClientHiveForm({
           )}
 
           {partial ? (
-            <div className="flex flex-col gap-2 rounded-input border border-line bg-paper px-[18px] py-4">
+            <div className="flex flex-col gap-2 rounded-card border border-line bg-paper px-[18px] py-4">
               <p className="m-0 text-small text-ink" role="alert">
                 {partialLine}
               </p>
               {partial.reference ? (
-                <p className="m-0 font-mono text-caption text-ink-3">Error code: {partial.reference}</p>
+                <p className="m-0 font-mono text-caption text-quiet">Error code: {partial.reference}</p>
               ) : null}
               <div className="flex flex-wrap gap-3">
                 <button
@@ -678,7 +678,7 @@ export function NewClientHiveForm({
                 >
                   Try again
                 </button>
-                <Link href={hiveHomePath(partial.hiveId)} className={`${WORKSPACE_SECONDARY} no-underline`}>
+                <Link href={hiveBoardPath(partial.hiveId)} className={`${WORKSPACE_SECONDARY} no-underline`}>
                   Open {clientFirstName(partial.hiveName) ?? partial.hiveName}&apos;s hive
                 </Link>
               </div>
@@ -702,12 +702,12 @@ export function NewClientHiveForm({
             >
               {busy ? "Creating…" : "I have their documents"}
             </button>
-            <Link href={MY_HIVES_PATH} className="px-1.5 text-small font-medium text-ink-2 no-underline hover:underline">
+            <Link href={MY_HIVES_PATH} className="px-1.5 text-small font-medium text-graphite no-underline hover:underline">
               Cancel
             </Link>
           </div>
 
-          <p className="m-0 text-caption leading-snug text-ink-3">
+          <p className="m-0 text-caption leading-snug text-quiet">
             {clientFirst ?? "Your client"} gets an email with a sign-in code and the number of items. Nothing from the
             documents or your note is ever in an email.
           </p>

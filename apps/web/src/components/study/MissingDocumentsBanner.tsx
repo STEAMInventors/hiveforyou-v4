@@ -46,7 +46,7 @@ export function MissingDocumentsBanner({ hiveId, summary, onRebuild, rebuilding 
 
   return (
     <div
-      className="flex flex-col gap-3 rounded-input border border-coral/40 bg-paper px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+      className="flex flex-col gap-3 rounded-card border border-coral/40 bg-paper px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
       data-testid="missing-documents-banner"
     >
       {summary.hasPendingUploads && missingCount === 0 ? (
@@ -58,7 +58,7 @@ export function MissingDocumentsBanner({ hiveId, summary, onRebuild, rebuilding 
                 {rebuilding ? "Rebuilding…" : "Rebuild study"}
               </button>
             ) : null}
-            <button type="button" className="text-small text-ink-3 underline" onClick={dismiss}>
+            <button type="button" className="text-small text-quiet underline" onClick={dismiss}>
               Dismiss
             </button>
           </div>
@@ -72,7 +72,7 @@ export function MissingDocumentsBanner({ hiveId, summary, onRebuild, rebuilding 
               on Documents
             </Link>
           </p>
-          <button type="button" className="self-start text-small text-ink-3 underline sm:self-center" onClick={dismiss}>
+          <button type="button" className="self-start text-small text-quiet underline sm:self-center" onClick={dismiss}>
             Dismiss
           </button>
         </>

@@ -40,7 +40,7 @@ function headerLine(askNow: number, askLater: number, customer: boolean): string
 function BasisTag({ item }: { item: DocumentRequestItem }) {
   if (item.basis.type === "MENTIONED") {
     return (
-      <span className="inline-flex flex-wrap items-center gap-1 text-small text-ink-3">
+      <span className="inline-flex flex-wrap items-center gap-1 text-small text-quiet">
         Mentioned in{" "}
         <SourceChips
           refs={item.basis.sourceRefs.map((ref) => ({
@@ -53,7 +53,7 @@ function BasisTag({ item }: { item: DocumentRequestItem }) {
     );
   }
   return (
-    <span className="rounded-chip bg-mist px-2 py-0.5 text-caption font-medium text-ink-2" data-basis="usually-expected">
+    <span className="rounded-chip bg-mist px-2 py-0.5 text-caption font-medium text-graphite" data-basis="usually-expected">
       Usually expected
     </span>
   );
@@ -68,10 +68,10 @@ function RequestWhy({ title, why }: { title: string; why: string }) {
   if (!showWhy(title, why)) return null;
   const parsed = parseDocumentRequestWhy(why);
   if ("plain" in parsed) {
-    return <span className="text-body text-ink-2">{parsed.plain}</span>;
+    return <span className="text-body text-graphite">{parsed.plain}</span>;
   }
   return (
-    <div className="flex flex-col gap-1 text-body text-ink-2">
+    <div className="flex flex-col gap-1 text-body text-graphite">
       <span>{parsed.lead}</span>
       <ul className="m-0 list-disc pl-5">
         {parsed.bullets.map((bullet) => (
@@ -133,7 +133,7 @@ export function DocumentRequestList({ component, customer, sentenceChips, holder
 
   return (
     <div className="flex flex-col gap-5" data-testid="document-request-list" data-fallback={component.fallback ? "true" : "false"}>
-      {summary ? <p className="m-0 max-w-prose text-body text-ink-2">{summary}</p> : null}
+      {summary ? <p className="m-0 max-w-prose text-body text-graphite">{summary}</p> : null}
       {component.intro ? (
         <p className="m-0 max-w-prose text-body text-ink">
           {component.intro.text} <SourceChips refs={sentenceChips(component.intro.factIds)} />
@@ -141,7 +141,7 @@ export function DocumentRequestList({ component, customer, sentenceChips, holder
       ) : null}
       {parts.legacyLines.length > 0 ? (
         <>
-          <p className="m-0 max-w-prose text-small text-ink-3" data-testid="document-request-legacy-hint">
+          <p className="m-0 max-w-prose text-small text-quiet" data-testid="document-request-legacy-hint">
             {DOCUMENT_REQUEST_LIST_LEGACY_HINT}
           </p>
           <ul className="m-0 flex list-disc flex-col gap-2 pl-5" data-testid="document-request-legacy-list">
@@ -154,7 +154,7 @@ export function DocumentRequestList({ component, customer, sentenceChips, holder
         </>
       ) : null}
       {courtRecordCount > 0 ? (
-        <p className="m-0 max-w-prose text-body text-ink-2" data-testid="court-register-line">
+        <p className="m-0 max-w-prose text-body text-graphite" data-testid="court-register-line">
           {courtRecordCount} {courtRecordCount === 1 ? "item" : "items"}: check the court&apos;s claims register
         </p>
       ) : null}
@@ -169,7 +169,7 @@ export function DocumentRequestList({ component, customer, sentenceChips, holder
           <h4 id={`${listId}-intake`} className="m-0 text-small font-semibold text-ink">
             Worth collecting if you have them
           </h4>
-          <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-body text-ink-2">
+          <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-body text-graphite">
             {component.intakePrompts.map((prompt) => (
               <li key={prompt.id}>{prompt.text}</li>
             ))}
@@ -219,7 +219,7 @@ function RequestGroup({
       </h4>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {items.map((item) => (
-          <li key={item.id} className="flex gap-3 rounded-input border border-line bg-paper p-3" data-row-id={item.id} data-kind={item.kind}>
+          <li key={item.id} className="flex gap-3 rounded-card border border-line bg-paper p-3" data-row-id={item.id} data-kind={item.kind}>
             {interactive && item.kind === "REQUESTABLE_DOCUMENT" ? (
               <input
                 type="checkbox"
@@ -236,13 +236,13 @@ function RequestGroup({
                   <RequestWhy title={item.title} why={item.why} />
                   <BasisTag item={item} />
                   {item.holderType ? (
-                    <span className="text-small text-ink-3">Likely held by: {holderTypeLabel(item.holderType, item.holder, holderCtx)}</span>
+                    <span className="text-small text-quiet">Likely held by: {holderTypeLabel(item.holderType, item.holder, holderCtx)}</span>
                   ) : item.holder ? (
-                    <span className="text-small text-ink-3">Likely held by: {item.holder}</span>
+                    <span className="text-small text-quiet">Likely held by: {item.holder}</span>
                   ) : null}
                 </>
               ) : (
-                <span className="text-body text-ink-2">
+                <span className="text-body text-graphite">
                   {item.when ? `Expected: ${item.when}` : showWhy(item.title, item.why) ? item.why : null}
                 </span>
               )}

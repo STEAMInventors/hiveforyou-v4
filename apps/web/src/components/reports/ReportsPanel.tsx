@@ -46,8 +46,7 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-const CARD = "flex flex-col gap-4 rounded-input border border-line bg-paper p-5 sm:p-7";
-const REPORT_PAPER = "rounded-paper border border-line bg-paper px-8 py-10 shadow-paper sm:px-14 sm:py-12";
+const CARD = "flex flex-col gap-4 rounded-card border border-line bg-paper p-5 sm:p-7";
 
 type ActionError = { message: string; correlationId: string | null };
 
@@ -130,18 +129,14 @@ export function ReportsPanel({
 
   if (!state.studyRevision) {
     return (
-      <section className="flex flex-col gap-2 rounded-input border border-line bg-paper p-5 sm:p-7" data-testid="reports-empty">
+      <section className="flex flex-col gap-2 rounded-card border border-line bg-paper p-5 sm:p-7" data-testid="reports-empty">
         <h2 className="m-0 font-brand text-section font-semibold text-ink">No reports yet</h2>
-        <p className="m-0 max-w-prose text-body text-ink-2">
+        <p className="m-0 max-w-prose text-body text-graphite">
           Analyze your documents from the Documents tab. Both reports are written from the same checked study.
         </p>
       </section>
     );
   }
-
-  const printReport = () => {
-    window.print();
-  };
 
   const runActive = !!run && isActiveReportRunStatus(run.status);
   const runFailed = run?.status === "FAILED";
@@ -157,7 +152,7 @@ export function ReportsPanel({
               href={`?audience=${option.param}`}
               aria-current={current ? "page" : undefined}
               className={`inline-flex min-h-9 items-center rounded-[9px] px-4 text-small font-medium no-underline max-sm:min-h-[44px] ${
-                current ? "bg-blue-deep text-paper" : "text-ink-2 hover:text-ink"
+                current ? "bg-cell-blue-deep text-paper" : "text-graphite hover:text-ink"
               }`}
               onClick={(event) => {
                 event.preventDefault();
@@ -210,7 +205,7 @@ export function ReportsPanel({
         {runFailed ? (
           <div role="alert" className="flex flex-col gap-1 rounded-control bg-missing-bg px-4 py-3 text-small text-missing-fg" data-testid="report-run-status">
             <span>{run.errorMessageSafe ?? "This report couldn't be written."} Your study is safe; you can generate the report again.</span>
-            <span className="font-mono text-[11px] text-ink-3">Support reference: {run.correlationId}</span>
+            <span className="font-mono text-[11px] text-quiet">Support reference: {run.correlationId}</span>
           </div>
         ) : null}
         {actionError ? (
@@ -224,17 +219,6 @@ export function ReportsPanel({
 
   return (
     <section aria-label="Reports" className="flex flex-col gap-5">
-      <button type="button" className="sr-only" data-testid="print-report" onClick={printReport}>
-        Print
-      </button>
-      <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <p className="m-0 text-meta text-ink-3">
-          Written from Study v{state.studyRevision.revisionNumber}. Nothing new is analyzed.
-        </p>
-        <button type="button" className={COMPACT_SECONDARY_BUTTON_CLASS} onClick={printReport} data-testid="save-as-pdf">
-          Save as PDF
-        </button>
-      </div>
       <HiveMissingDocumentsChrome
         hiveId={hiveId}
         canonicalStudy={canonicalStudy}
@@ -248,7 +232,7 @@ export function ReportsPanel({
       ) : null}
 
       {shown && isStudyViewReport(shown) ? (
-        <article aria-label={shown.title} data-testid="report-view" data-print="report" className={REPORT_PAPER}>
+        <article aria-label={shown.title} data-testid="report-view">
           <StudyReport
             key={`${shown.id}:${audience}`}
             hiveId={hiveId}
@@ -267,19 +251,18 @@ export function ReportsPanel({
             canonicalStudy={canonicalStudy}
             controls={controls}
             status={status}
-            flatInPaper
           />
         </article>
       ) : (
         <>
           <header className={CARD}>
             <div className="flex flex-wrap items-center justify-between gap-3">{controls}</div>
-            <p className="m-0 text-small text-ink-3">
+            <p className="m-0 text-small text-quiet">
               {AUDIENCES.find((option) => option.key === audience)?.description} From study revision{" "}
               {state.studyRevision.revisionNumber}.
             </p>
             {state.studyRevision.coverageGaps.length > 0 ? (
-              <details className="text-small text-ink-2" data-testid="reports-limitations">
+              <details className="text-small text-graphite" data-testid="reports-limitations">
                 <summary className="cursor-pointer">Limitations of this study</summary>
                 <ul className="m-0 mt-1.5 flex list-none flex-col gap-1 p-0">
                   {state.studyRevision.coverageGaps.map((gap) => (
@@ -296,7 +279,7 @@ export function ReportsPanel({
             <article aria-label={shown.title} className="flex flex-col gap-4" data-testid="report-view">
               <header className="flex flex-col gap-1">
                 <h2 className="m-0 font-brand text-title font-semibold text-ink">{shown.title}</h2>
-                <span className="text-caption text-ink-3">
+                <span className="text-caption text-quiet">
                   Written <span className="font-brand">{dateFormat.format(new Date(shown.createdAt))}</span> UTC · study revision{" "}
                   {shown.revisionNumber}
                 </span>
@@ -304,7 +287,7 @@ export function ReportsPanel({
               <A2uiView view={shown.view} />
             </article>
           ) : !runActive ? (
-            <p className="m-0 rounded-input border border-dashed border-line bg-paper px-6 py-8 text-center text-body text-ink-2">
+            <p className="m-0 rounded-card border border-dashed border-line bg-paper px-6 py-8 text-center text-body text-graphite">
               No {audience === "CUSTOMER" ? "Customer" : "Pro"} report for this study yet.
             </p>
           ) : null}
@@ -326,7 +309,7 @@ export function ReportsPanel({
                   onClick={() => void open(report.id)}
                 >
                   {report.title}
-                  <span className="ml-2 text-caption text-ink-3">
+                  <span className="ml-2 text-caption text-quiet">
                     <span className="font-brand">{dateFormat.format(new Date(report.createdAt))}</span> UTC · revision{" "}
                     {report.revisionNumber}
                   </span>

@@ -11,11 +11,11 @@ type Of<N extends ApplicationViewComponent["component"]> = Extract<ApplicationVi
 const SEVERITY: Record<"HIGH" | "MEDIUM" | "LOW", string> = {
   HIGH: "bg-coral-wash text-coral-deep",
   MEDIUM: "bg-honey-wash text-honey-deep",
-  LOW: "bg-mist text-ink-2",
+  LOW: "bg-mist text-ink-muted",
 };
 
 const BLOCK_TONE: Record<string, string> = {
-  INTERPRETATION: "border-l-2 border-blue pl-3",
+  INTERPRETATION: "border-l-2 border-cell-blue pl-3",
   UNCERTAINTY: "border-l-2 border-honey pl-3",
   LIMITATION: "border-l-2 border-line-strong pl-3",
 };
@@ -36,14 +36,14 @@ function ProvenanceBadge({
   }
   if (kind === "DETERMINATION") {
     return (
-      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-mist px-2 text-[11px] font-medium text-ink-2">
+      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-mist px-2 text-[11px] font-medium text-ink-muted">
         Reserved determination
       </span>
     );
   }
   if (kind === "GENERAL_INFORMATION") {
     return (
-      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-mist px-2 text-[11px] font-medium text-ink-2">
+      <span className="inline-flex h-5 shrink-0 items-center rounded-full bg-mist px-2 text-[11px] font-medium text-ink-muted">
         General information
       </span>
     );
@@ -54,7 +54,7 @@ function ProvenanceBadge({
       : criterionSource === "DOCUMENT"
         ? "Interpretation · Document criterion"
         : "Interpretation";
-  const tone = criterionSource === "GENERAL_KNOWLEDGE" ? "bg-honey-wash text-honey-deep" : "bg-blue-wash text-blue-deep";
+  const tone = criterionSource === "GENERAL_KNOWLEDGE" ? "bg-honey-wash text-honey-deep" : "bg-cell-blue-wash text-cell-blue-deep";
   return <span className={`inline-flex h-5 shrink-0 items-center rounded-full px-2 text-[11px] font-medium ${tone}`}>{label}</span>;
 }
 
@@ -68,9 +68,9 @@ function ClaimItem({ claim }: { claim: BoundClaim }) {
         {claim.kind === "ASSESSMENT" ? <ProvenanceBadge kind="INTERPRETATION" criterionSource={claim.criterionSource} /> : null}
         {claim.kind === "DETERMINATION" ? <ProvenanceBadge kind="DETERMINATION" /> : null}
       </span>
-      {claim.criterion ? <span className="text-[13px] leading-[1.45] text-ink-2">Criterion: {claim.criterion}</span> : null}
+      {claim.criterion ? <span className="text-[13px] leading-[1.45] text-ink-muted">Criterion: {claim.criterion}</span> : null}
       {claim.quotes.slice(0, 2).map((quote) => (
-        <q key={quote} className="text-[13.5px] italic leading-[1.5] text-ink-2">
+        <q key={quote} className="text-[13.5px] italic leading-[1.5] text-ink-muted">
           {quote}
         </q>
       ))}
@@ -95,7 +95,7 @@ const REGISTRY: { [N in ApplicationViewComponent["component"]]: (props: Of<N>) =
             </span>
           ) : null}
           <p className="m-0 text-[15px] leading-[1.6] text-ink">{block.text}</p>
-          {block.criterion ? <span className="text-[13px] leading-[1.45] text-ink-2">Criterion: {block.criterion}</span> : null}
+          {block.criterion ? <span className="text-[13px] leading-[1.45] text-ink-muted">Criterion: {block.criterion}</span> : null}
           <SourceChips refs={block.refs} />
         </div>
       ))}
@@ -123,7 +123,7 @@ const REGISTRY: { [N in ApplicationViewComponent["component"]]: (props: Of<N>) =
   ),
   Metric: ({ label, value, unit, status, usesAssumptions, refs }) => (
     <section className={CARD_CLASS} data-component="Metric">
-      <span className="text-[13.5px] font-medium text-ink-2">{label}</span>
+      <span className="text-[13.5px] font-medium text-ink-muted">{label}</span>
       <span className="flex flex-wrap items-center gap-2">
         <span className="font-brand text-[28px] font-semibold text-ink">{formatValue(value, unit)}</span>
         <StatusBadge status={status} usesAssumptions={usesAssumptions} />
@@ -137,7 +137,7 @@ const REGISTRY: { [N in ApplicationViewComponent["component"]]: (props: Of<N>) =
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-[13.5px]">
           <thead>
-            <tr className="border-b border-line text-ink-3">
+            <tr className="border-b border-line text-ink-subtle">
               {columns.map((column) => (
                 <th key={column} className="py-1.5 pr-3 font-medium">
                   {column}
@@ -170,7 +170,7 @@ const REGISTRY: { [N in ApplicationViewComponent["component"]]: (props: Of<N>) =
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-[13.5px]">
           <thead>
-            <tr className="border-b border-line text-ink-3">
+            <tr className="border-b border-line text-ink-subtle">
               <th className="py-1.5 pr-3 font-medium">
                 <span className="sr-only">Item</span>
               </th>
@@ -202,7 +202,7 @@ const REGISTRY: { [N in ApplicationViewComponent["component"]]: (props: Of<N>) =
       <ol className="m-0 flex list-none flex-col gap-3 border-l border-line p-0 pl-4">
         {events.map((event, index) => (
           <li key={index} className="flex flex-col gap-1">
-            <span className="font-mono text-[12.5px] text-ink-3">{event.date}</span>
+            <span className="font-mono text-[12.5px] text-ink-subtle">{event.date}</span>
             <span className="text-[15px] leading-[1.55] text-ink">{event.text}</span>
             <SourceChips refs={event.refs} />
           </li>
@@ -269,7 +269,7 @@ const REGISTRY: { [N in ApplicationViewComponent["component"]]: (props: Of<N>) =
           {sources.map((source) => (
             <li key={source.sourceDocumentId} className="text-[14px] text-ink">
               <span className="font-medium">{source.fileName}</span>
-              <span className="text-ink-2"> — pages {source.pageNumbers.join(", ")}</span>
+              <span className="text-ink-muted"> — pages {source.pageNumbers.join(", ")}</span>
             </li>
           ))}
         </ul>
@@ -284,7 +284,7 @@ export function A2uiView({ view }: { view: ApplicationView }) {
       {view.components.map((component) => {
         if (!isKnownViewComponent(component)) {
           return (
-            <p key={(component as { id?: string }).id} className="m-0 rounded-input border border-dashed border-line px-5 py-4 text-[14px] text-ink-2" data-component="Fallback">
+            <p key={(component as { id?: string }).id} className="m-0 rounded-card border border-dashed border-line px-5 py-4 text-[14px] text-ink-muted" data-component="Fallback">
               This part of the report can&apos;t be shown.
             </p>
           );

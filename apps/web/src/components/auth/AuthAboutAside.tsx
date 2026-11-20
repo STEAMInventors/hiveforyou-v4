@@ -2,7 +2,7 @@ const HEX_POINTS = "12,1.8 21.2,7 21.2,17 12,22.2 2.8,17 2.8,7";
 
 const VALUE_POINTS = [
   {
-    fillClass: "fill-blue",
+    fillClass: "fill-cell-blue",
     title: "Upload whatever you have",
     description:
       "Letters, statements, forms. Old, partial or out of order is fine.",
@@ -74,11 +74,11 @@ export function AuthAboutAside() {
         <svg width={172} height={170} viewBox="0 0 172 170" aria-hidden className="shrink-0">
           <polygon
             points="60,10 86,25 86,55 60,70 34,55 34,25"
-            className="fill-blue"
+            className="fill-cell-blue"
           />
           <polygon
             points="112,10 138,25 138,55 112,70 86,55 86,25"
-            className="fill-blue-wash"
+            className="fill-cell-blue-wash"
           />
           <polygon
             points="34,55 60,70 60,100 34,115 8,100 8,70"
@@ -122,7 +122,7 @@ export function AuthAboutAside() {
               </svg>
               <span className="flex flex-col gap-0.5">
                 <span className="text-base font-semibold text-ink">{point.title}</span>
-                <span className="text-[14.5px] leading-normal text-ink-2">
+                <span className="text-[14.5px] leading-normal text-ink-muted">
                   {point.description}
                 </span>
               </span>
@@ -130,8 +130,8 @@ export function AuthAboutAside() {
           ))}
         </ul>
 
-        <div className="flex flex-col gap-2.5 rounded-input border border-line bg-paper px-[18px] py-4 shadow-[0_8px_24px_rgba(31,35,40,0.06)]">
-          <p className="m-0 text-xs font-semibold text-ink-3">
+        <div className="flex flex-col gap-2.5 rounded-card border border-line bg-paper px-[18px] py-4 shadow-[0_8px_24px_rgba(31,35,40,0.06)]">
+          <p className="m-0 text-xs font-semibold text-ink-subtle">
             Example: what this hive needs · 1 of 3 in
           </p>
           <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
@@ -149,7 +149,7 @@ export function AuthAboutAside() {
           </ul>
         </div>
 
-        <p className="m-0 text-[12.5px] leading-normal text-ink-3">
+        <p className="m-0 text-[12.5px] leading-normal text-ink-subtle">
           Your documents stay private to your account. Not legal, financial or medical advice.
         </p>
       </div>

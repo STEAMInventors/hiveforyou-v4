@@ -3,60 +3,51 @@
 @tailwind utilities;
 
 :root {
-  /* DESIGN.md §2 (v3) */
-  --ink: #1f2328;
-  --ink-2: #4a525c;
+  /* DESIGN.md §2 */
+  --ink: #1b1f24;
+  --ink-2: #454d57;
   --ink-3: #6b737d;
-  --line: #e3e6ea;
-  --line-strong: #d3d8de;
-  --mist: #f4f6f8;
-  --hover: #eef1f4;
+  --line: #e7e9ec;
+  --line-strong: #d6dade;
   --paper: #ffffff;
-  --page-warm: #fffefb;
-  --cite: #fff1bf;
-  --cite-ring: #f3d97a;
+  --canvas: #f7f8fa;
+  --hover: #f3f4f6;
   --blue: #3b7cf6;
   --blue-deep: #1a56c4;
-  --blue-wash: #e8f0fe;
-  --blue-press: #1647a3;
+  --blue-wash: #eef3fe;
   --coral: #ef5143;
-  --coral-deep: #b33a2e;
-  --coral-wash: #fdedeb;
+  --coral-deep: #b3392d;
+  --coral-wash: #fdf0ee;
   --honey: #f6b826;
   --honey-deep: #7a5200;
-  --honey-wash: #fef3d6;
+  --honey-wash: #fef6e0;
   --leaf: #2fa35a;
-  --leaf-deep: #197040;
-  --leaf-wash: #e6f4ea;
-  --top-h: 64px;
-  --top-h-sm: 60px;
-  --col-content: 1240px;
-  --col-convo: 400px;
+  --leaf-deep: #1d7a42;
+  --leaf-wash: #eaf5ee;
+  --top-h: 60px;
+  --top-h-sm: 56px;
   --col-read: 760px;
   --col-wide: 1040px;
-  --r-button: 9px;
-  --r-input: 12px;
-  --r-popover: 14px;
-  --r-ref: 7px;
-  --r-tag: 5px;
-  --r-sheet: 18px;
-  --r-page: 4px;
+  --r-control: 8px;
+  --r-surface: 12px;
+  --r-chip: 6px;
+  --r-paper: 4px;
+  --r-card: 12px;
   --r-pill: 999px;
-  --shadow-lift: 0 1px 2px rgba(16, 24, 40, 0.05), 0 12px 32px -16px rgba(16, 24, 40, 0.18);
-  --shadow-pop: 0 2px 6px rgba(16, 24, 40, 0.06), 0 24px 56px -20px rgba(16, 24, 40, 0.28);
-  --shadow-focus: 0 0 0 3px rgba(59, 124, 246, 0.14);
-  --shadow-rest: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --avatar-client-ring: color-mix(in srgb, var(--leaf-deep) 18%, transparent);
-  --avatar-staff-ring: color-mix(in srgb, var(--blue-deep) 16%, transparent);
+  --shadow-pop: 0 12px 32px -8px rgba(20, 30, 50, 0.18);
+  --shadow-composer: 0 8px 24px -12px rgba(20, 30, 50, 0.18);
+  --shadow-paper: 0 1px 2px rgba(20, 30, 50, 0.04), 0 12px 32px -20px rgba(20, 30, 50, 0.2);
   --font-brand: "Outfit", "Helvetica Neue", Arial, sans-serif;
   --font-ui: "DM Sans", "Helvetica Neue", Arial, sans-serif;
   --font-quote: "Source Serif 4", Georgia, serif;
   --font-ref: "JetBrains Mono", ui-monospace, monospace;
 
-  --r-control: var(--r-button);
-  --r-surface: var(--r-input);
-  --r-chip: var(--r-ref);
-  --shadow-paper: 0 1px 2px rgba(16, 24, 40, 0.04), 0 16px 40px -24px rgba(16, 24, 40, 0.22);
+  /* Legacy aliases (remove in UI-1c) */
+  --cell-blue: var(--blue);
+  --cell-blue-deep: var(--blue-deep);
+  --graphite: var(--ink-2);
+  --quiet: var(--ink-3);
+  --mist: var(--hover);
   --needs-bg: var(--blue-wash);
   --needs-fg: var(--blue-deep);
   --changed-bg: var(--honey-wash);
@@ -72,17 +63,16 @@
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
+  --color-ink-muted: var(--ink-2);
+  --color-ink-subtle: var(--ink-3);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-paper: var(--paper);
+  --color-canvas: var(--canvas);
   --color-hover: var(--hover);
-  --color-page-warm: var(--page-warm);
-  --color-cite: var(--cite);
-  --color-cite-ring: var(--cite-ring);
   --color-blue: var(--blue);
   --color-blue-deep: var(--blue-deep);
   --color-blue-wash: var(--blue-wash);
-  --color-blue-press: var(--blue-press);
   --color-coral: var(--coral);
   --color-coral-deep: var(--coral-deep);
   --color-coral-wash: var(--coral-wash);
@@ -96,7 +86,13 @@
   --color-leaf: var(--leaf);
   --color-leaf-deep: var(--leaf-deep);
   --color-leaf-wash: var(--leaf-wash);
-  --color-mist: var(--mist);
+  --color-cell-blue: var(--blue);
+  --color-cell-blue-deep: var(--blue-deep);
+  --color-cell-blue-hover: #164aa8;
+  --color-cell-blue-wash: var(--blue-wash);
+  --color-cell-blue-tint: #f4f8ff;
+  --color-mist: var(--hover);
+  --color-surface-hover: #fafbfc;
 }
 
 @layer base {
@@ -113,9 +109,7 @@
     background: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-dm-sans), var(--font-ui);
-    font-size: 14.5px;
-    line-height: 1.55;
-    letter-spacing: -0.003em;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -155,39 +149,6 @@
 @layer utilities {
   .tabular-nums {
     font-variant-numeric: tabular-nums;
-  }
-}
-
-@keyframes hfy-rise {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes hfy-pagein {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes hfy-sheet {
-  from {
-    opacity: 0.6;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 
@@ -232,11 +193,11 @@
     padding: 2px;
     background: conic-gradient(
       from 200deg,
-      var(--color-blue),
+      var(--color-cell-blue),
       var(--color-coral),
       var(--color-honey),
       var(--color-leaf),
-      var(--color-blue)
+      var(--color-cell-blue)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -280,11 +241,11 @@
     padding: 2px;
     background: conic-gradient(
       from 200deg,
-      var(--color-blue),
+      var(--color-cell-blue),
       var(--color-coral),
       var(--color-honey),
       var(--color-leaf),
-      var(--color-blue)
+      var(--color-cell-blue)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -335,11 +296,11 @@
     padding: 2px;
     background: conic-gradient(
       from 200deg,
-      var(--color-blue),
+      var(--color-cell-blue),
       var(--color-coral),
       var(--color-honey),
       var(--color-leaf),
-      var(--color-blue)
+      var(--color-cell-blue)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -428,35 +389,15 @@
     }
     30% {
       transform: scale(1.14);
-      color: var(--lh-pulse, var(--color-blue));
+      color: var(--lh-pulse, var(--color-cell-blue));
     }
   }
 
   .react-pdf__Page__textContent .evidence-highlight {
     border-radius: 2px;
-    background-color: var(--cite);
-    box-shadow: 0 0 0 1px var(--cite-ring);
+    background-color: rgba(255, 214, 0, 0.45);
+    background-color: color-mix(in srgb, var(--honey) 45%, transparent);
     color: transparent;
     mix-blend-mode: multiply;
-  }
-
-  @media print {
-    body * {
-      visibility: hidden;
-    }
-    [data-print="report"],
-    [data-print="report"] * {
-      visibility: visible;
-    }
-    [data-print="report"] {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 100%;
-      box-shadow: none !important;
-    }
-    .no-print {
-      display: none !important;
-    }
   }
 }

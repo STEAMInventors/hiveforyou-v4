@@ -1,54 +1,24 @@
 import { notFound } from "next/navigation";
 
 import { isDevGalleryEnabled } from "@/dev/gallery/gallery-gate";
-import {
-  GalleryAudit,
-  GalleryClientHome,
-  GalleryClientHomeDone,
-  GalleryComponents,
-  GalleryDocuments,
-  GalleryDocumentsEmpty,
-  GalleryEvidenceItem,
-  GalleryEvidenceStatement,
-  GalleryEvidenceUnreadable,
-  GalleryHomeFirmless,
-  GalleryHomeLong,
-  GalleryHomeNoStudy,
-  GalleryHomeStaff,
-  GalleryMyHives,
-  GalleryNotes,
-  GalleryOmniAnswer,
-  GalleryOmniClientHandoff,
-  GalleryOmniStaffClientQuestions,
-  GalleryOmniStaffEmpty,
-  GalleryOmniStaffResults,
-  GalleryReport,
-  GalleryShell,
-} from "@/dev/gallery/views/GalleryUI2Bundle";
+import { GalleryBoardAsk } from "@/dev/gallery/views/GalleryBoardAsk";
+import { GalleryBoardAskClient } from "@/dev/gallery/views/GalleryBoardAskClient";
+import { GalleryBoardEmpty } from "@/dev/gallery/views/GalleryBoardEmpty";
+import { GalleryBoardFirmless } from "@/dev/gallery/views/GalleryBoardFirmless";
+import { GalleryBoardLong } from "@/dev/gallery/views/GalleryBoardLong";
+import { GalleryBoardPeople } from "@/dev/gallery/views/GalleryBoardPeople";
+import { GalleryComponents } from "@/dev/gallery/views/GalleryComponents";
+import { GalleryShell } from "@/dev/gallery/views/GalleryShell";
 
 const PAGES = {
   components: GalleryComponents,
   shell: GalleryShell,
-  "omni-staff-empty": GalleryOmniStaffEmpty,
-  "omni-staff-results": GalleryOmniStaffResults,
-  "omni-answer": GalleryOmniAnswer,
-  "omni-client-handoff": GalleryOmniClientHandoff,
-  "omni-staff-client-questions": GalleryOmniStaffClientQuestions,
-  "home-staff": GalleryHomeStaff,
-  "home-long": GalleryHomeLong,
-  "home-firmless": GalleryHomeFirmless,
-  "home-no-study": GalleryHomeNoStudy,
-  "evidence-statement": GalleryEvidenceStatement,
-  "evidence-item": GalleryEvidenceItem,
-  "evidence-unreadable": GalleryEvidenceUnreadable,
-  documents: GalleryDocuments,
-  "documents-empty": GalleryDocumentsEmpty,
-  "client-home": GalleryClientHome,
-  "client-home-done": GalleryClientHomeDone,
-  report: GalleryReport,
-  audit: GalleryAudit,
-  notes: GalleryNotes,
-  "my-hives": GalleryMyHives,
+  "board-people": GalleryBoardPeople,
+  "board-ask": GalleryBoardAsk,
+  "board-ask-client": GalleryBoardAskClient,
+  "board-firmless": GalleryBoardFirmless,
+  "board-empty": GalleryBoardEmpty,
+  "board-long": GalleryBoardLong,
 } as const;
 
 type GalleryPageKey = keyof typeof PAGES;

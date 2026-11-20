@@ -17,7 +17,6 @@ import {
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { HiveMark } from "@/components/study/HiveMark";
-import { Avatar as PersonAvatar } from "@/components/ui/AvatarStack";
 import { Button } from "@/components/ui/Button";
 import { Composer } from "@/components/ui/Composer";
 import { Segmented } from "@/components/ui/Segmented";
@@ -79,17 +78,6 @@ export type HiveConversationProps = {
   clientThreadFirstName?: string | null;
   currentUserId?: string | null;
   onSwitchToConversation?: () => void;
-  /** Home column: people-only header, no preview switch, page scroll under 1100px. */
-  column?: {
-    otherFirstName: string;
-    otherFullName: string;
-    otherKind: "client" | "staff";
-    assistantName: string;
-    header?: "default" | "hidden";
-    peopleLockHint?: string;
-  } | null;
-  /** Replaces the composer text. `nonce` changes when Home asks again. */
-  fillDraft?: { nonce: number; text: string } | null;
 };
 
 const noopSubscribe = () => () => undefined;
@@ -108,7 +96,7 @@ type ConversationPreviewSelectProps = {
 export function ConversationPreviewSelect({ id, value, onChange }: ConversationPreviewSelectProps) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <label htmlFor={id} className="text-[13px] text-ink-3">
+      <label htmlFor={id} className="text-[13px] text-quiet">
         Preview as
       </label>
       <select
@@ -226,7 +214,7 @@ function MessageRow({
         </p>
         {fromAskAssistantName && message.handoffFromMessageId ? (
           <p className="m-0 text-meta text-ink-3" data-testid="hive-message-handoff-line">
-            Passed on from Ask {fromAskAssistantName}
+            From Ask {fromAskAssistantName}
           </p>
         ) : null}
         <p
@@ -281,14 +269,14 @@ function PendingRow({
     <article className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 py-3" data-testid="hive-message-pending" data-status={item.status}>
       <Avatar name={ownName} className={ownAvatarClass} />
       <div className="min-w-0">
-        <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 text-[12px] text-ink-3">
+        <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 text-[12px] text-quiet">
           <strong className="text-[13px] font-semibold text-ink">{ownName}</strong>
           <span aria-hidden="true">·</span>
           <span>{failed ? "Not sent" : "Sending…"}</span>
         </p>
         <p className={BODY_CLASS}>{item.body}</p>
         {failed && item.failure ? (
-          <div className="mt-2.5 border-t border-blue-tint pt-2.5">
+          <div className="mt-2.5 border-t border-cell-blue-tint pt-2.5">
             <p role="alert" className="m-0 text-caption text-ink">
               {item.failure.message}
               {item.failure.reference ? (
@@ -336,8 +324,6 @@ export function HiveConversation({
   clientThreadFirstName = null,
   currentUserId = null,
   onSwitchToConversation,
-  column = null,
-  fillDraft = null,
 }: HiveConversationProps) {
   const conversation = useHiveConversation({
     hiveId,
@@ -484,28 +470,9 @@ export function HiveConversation({
     return match.messageCount;
   }, [clientThreadUserId, conversation.assistantThreads]);
 
-  const filledNonceRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!fillDraft || filledNonceRef.current === fillDraft.nonce) return;
-    filledNonceRef.current = fillDraft.nonce;
-    setDraft(fillDraft.text);
-    textareaRef.current?.focus();
-  }, [fillDraft]);
+  const showConversationHead = assistantMode || !previewOnTabs;
 
-  const showConversationHead = !column && (assistantMode || !previewOnTabs);
-
-  const head =
-    column && column.header !== "hidden" ? (
-      <header className="flex items-center justify-between gap-2.5 border-b border-line pb-3">
-        <div className="min-w-0">
-          <h2 className="m-0 text-[16px] font-semibold text-ink">Conversation with {column.otherFirstName}</h2>
-          <p className="m-0 mt-0.5 text-[12.5px] text-ink-3">
-            People only. {column.assistantName} doesn&apos;t take part here.
-          </p>
-        </div>
-        <PersonAvatar person={{ id: "other", name: column.otherFullName, kind: column.otherKind }} />
-      </header>
-    ) : showConversationHead ? (
+  const head = showConversationHead ? (
     <header className="mb-2 flex flex-wrap items-center justify-between gap-3 py-2">
       <div className="min-w-0">
         {assistantMode && readOnly && clientThreadFirstName ? (
@@ -557,7 +524,7 @@ export function HiveConversation({
               </button>
             </label>
           ) : (
-            <p className="m-0 max-w-xs text-[12px] text-ink-3" data-testid="hive-assistant-unavailable-note">
+            <p className="m-0 max-w-xs text-[12px] text-quiet" data-testid="hive-assistant-unavailable-note">
               The AI assistant answers only on hives with test documents for now.
             </p>
           )}
@@ -585,11 +552,7 @@ export function HiveConversation({
   let previousDay: string | null = null;
 
   return (
-    <section
-      aria-label="Conversation"
-      data-testid="hive-conversation"
-      className={`flex min-w-0 flex-col ${column ? "h-full min-h-0" : ""}`}
-    >
+    <section aria-label="Conversation" data-testid="hive-conversation" className="flex min-w-0 flex-col">
       {head}
       {conversation.reconnecting ? (
         <p role="status" className="m-0 border-b border-line bg-honey-wash px-[22px] py-2 text-caption text-ink">
@@ -613,9 +576,7 @@ export function HiveConversation({
               onScroll={onScroll}
               aria-live="polite"
               data-testid="hive-conversation-messages"
-              className={`thread relative flex flex-col gap-0 py-2 ${
-                column ? "min-h-0 flex-1 overflow-visible min-[1100px]:overflow-y-auto" : "max-h-[570px] min-h-[280px] overflow-y-auto"
-              }`}
+              className="thread relative flex max-h-[570px] min-h-[280px] flex-col gap-0 overflow-y-auto py-2"
             >
               {conversation.nextCursor ? (
                 <button
@@ -648,7 +609,7 @@ export function HiveConversation({
                     </p>
                   </div>
                 ) : (
-                  <p className="m-auto max-w-[420px] text-center text-small text-ink-2">{CONVERSATION_EMPTY}</p>
+                  <p className="m-auto max-w-[420px] text-center text-small text-graphite">{CONVERSATION_EMPTY}</p>
                 )
               ) : null}
               {messages.map((message) => {
@@ -659,11 +620,7 @@ export function HiveConversation({
                   <Fragment key={message.id}>
                     {dayChanged && now ? (
                       <p
-                        className={
-                          column
-                            ? "my-4 text-center text-[11.5px] text-ink-3"
-                            : "my-5 flex items-center gap-3 text-label text-ink-3 before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line"
-                        }
+                        className="my-5 flex items-center gap-3 text-label text-ink-3 before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line"
                         data-testid="hive-conversation-day"
                       >
                         {messageDayLabel(message.createdAt, now)}
@@ -674,11 +631,11 @@ export function HiveConversation({
                         role="separator"
                         aria-label="New messages"
                         data-new-divider=""
-                        className="flex items-center gap-3 text-caption font-semibold text-blue-deep"
+                        className="flex items-center gap-3 text-caption font-semibold text-cell-blue-deep"
                       >
-                        <span className="h-px flex-1 bg-blue-wash" aria-hidden="true" />
+                        <span className="h-px flex-1 bg-cell-blue-tint" aria-hidden="true" />
                         New
-                        <span className="h-px flex-1 bg-blue-wash" aria-hidden="true" />
+                        <span className="h-px flex-1 bg-cell-blue-tint" aria-hidden="true" />
                       </div>
                     ) : null}
                     <MessageRow
@@ -725,7 +682,7 @@ export function HiveConversation({
                     !viewerIsClient &&
                     message.authorKind === "person" &&
                     conversation.failedAssistantForMessageIds.includes(message.id) ? (
-                      <p className="m-0 ms-11 text-[12px] text-ink-3" data-testid="hive-assistant-failed-line">
+                      <p className="m-0 ms-11 text-[12px] text-quiet" data-testid="hive-assistant-failed-line">
                         {displayAssistantName} couldn&apos;t answer this one.
                       </p>
                     ) : null}
@@ -758,7 +715,7 @@ export function HiveConversation({
             ) : null}
           </div>
           {preview ? (
-            <p className="m-0 border-t border-line px-5 py-4 text-small text-ink-2 max-[649px]:p-[15px]">
+            <p className="m-0 border-t border-line px-5 py-4 text-small text-graphite max-[649px]:p-[15px]">
               Preview — this is what {clientFirst} sees.
             </p>
           ) : readOnly ? null : (
@@ -769,7 +726,6 @@ export function HiveConversation({
               primaryTrailIcon
               primaryDisabled={!draft.trim() || conversation.sending}
               onPrimary={submitDraft}
-              lock={Boolean(column)}
               hint={
                 assistantMode ? (
                   assistantComposerHint({
@@ -779,10 +735,6 @@ export function HiveConversation({
                     assistantName: displayAssistantName,
                     teamMemberFirstName,
                   })
-                ) : column ? (
-                  <span data-testid="hive-conversation-people-hint">
-                    {column.peopleLockHint ?? "Everyone in this hive sees this"}
-                  </span>
                 ) : (
                   <span data-testid="hive-conversation-people-hint">
                     Everyone in this hive sees this conversation.
@@ -813,14 +765,12 @@ export function HiveConversation({
                 rows: 2,
                 placeholder: assistantMode
                   ? `Ask ${displayAssistantName} about the documents…`
-                  : column
-                    ? `Write to ${column.otherFirstName}…`
-                    : conversationComposerPlaceholder({
-                        viewerIsClient,
-                        clientName,
-                        clientAuthorName: clientAuthor ?? null,
-                        teamMemberFirstName,
-                      }),
+                  : conversationComposerPlaceholder({
+                      viewerIsClient,
+                      clientName,
+                      clientAuthorName: clientAuthor ?? null,
+                      teamMemberFirstName,
+                    }),
                 onChange: (event) => {
                   setDraft(event.target.value);
                   resizeComposer();

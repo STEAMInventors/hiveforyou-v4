@@ -51,7 +51,7 @@ export function SignInHeading({
       <TitleTag className="m-0 font-brand text-[32px] font-semibold leading-[1.15] text-ink">
         {title}
       </TitleTag>
-      <p className="m-0 text-base leading-[1.55] text-ink-2">{lede}</p>
+      <p className="m-0 text-base leading-[1.55] text-ink-muted">{lede}</p>
     </div>
   );
 }
@@ -80,7 +80,7 @@ export function SignInField({ label, error, id, ...inputProps }: SignInFieldProp
         {...inputProps}
         id={id}
         aria-invalid={error ? true : undefined}
-        className="h-[52px] rounded-button border border-line-strong bg-paper px-4 text-[17px] font-normal text-ink outline-none focus:border-blue"
+        className="h-[52px] rounded-button border border-line-strong bg-paper px-4 text-[17px] font-normal text-ink outline-none focus:border-cell-blue"
       />
       {error ? <SignInFieldError message={error} /> : null}
     </div>

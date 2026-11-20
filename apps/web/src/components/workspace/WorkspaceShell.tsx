@@ -2,18 +2,15 @@
 
 import type { Hive, ListFirmResponse } from "@hiveforyou/contracts";
 import { usePathname } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import type { StartingView } from "@/lib/auth/profile";
-import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { hiveSectionFromPathname, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import { useHiveHeaderWorkspace } from "@/components/app-header";
 
-import type { ConversationLoad } from "@/components/hives/useHiveConversation";
-
-import { HiveHead } from "./HiveHead";
+import { HiveSidebar, type StudyRailRevision } from "./HiveSidebar";
 import { WorkspaceChromeProvider } from "./workspace-context";
-import type { HiveSidebarCounts, StudyRailRevision } from "./sidebar-counts";
+import type { HiveSidebarCounts } from "./sidebar-counts";
 
 export type WorkspaceShellProps = {
   hive: Hive;
@@ -23,13 +20,10 @@ export type WorkspaceShellProps = {
   firm: ListFirmResponse | null;
   currentUserId: string | null;
   assigneeLabel: string | null;
-  assigneeTitle?: string | null;
+  assigneeTitle: string | null;
   assistantName: string;
   studyRevision?: StudyRailRevision | null;
   summaryLoaded?: boolean;
-  documentCount?: number | null;
-  initialAssistant: ConversationLoad;
-  initialClientAssistant?: ConversationLoad | null;
   children: ReactNode;
 };
 
@@ -38,20 +32,19 @@ export function WorkspaceShell({
   startingView,
   summaryFailedCorrelationId = null,
   counts,
+  firm,
   currentUserId,
   assigneeLabel,
+  assigneeTitle,
   assistantName,
-  documentCount = null,
-  initialAssistant,
-  initialClientAssistant = null,
+  studyRevision = null,
+  summaryLoaded = false,
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() ?? "";
   const section: HiveWorkspaceSection = hiveSectionFromPathname(pathname, hive.id) ?? "board";
   const setWorkspace = useHiveHeaderWorkspace()?.setWorkspace;
-  const staffView = showsFirmThreePane(hive);
-  const clientFirmHive =
-    hive.kind === "client" && Boolean(hive.firmId) && hive.membershipRole === "client";
+  const [compactNav, setCompactNav] = useState(false);
 
   useEffect(() => {
     if (!setWorkspace) return;
@@ -61,32 +54,9 @@ export function WorkspaceShell({
       hiveKind: hive.kind,
       section,
       startingView,
-      staffView,
-      assistantName,
-      staffFirstName: assigneeLabel ?? hive.assigneeDisplayName ?? null,
-      clientName: hive.kind === "client" ? hive.name : null,
-      currentUserId,
-      firmId: hive.firmId ?? null,
-      firmless: hive.firmId == null,
-      initialAssistant,
-      initialClientAssistant,
     });
     return () => setWorkspace(null);
-  }, [
-    assistantName,
-    assigneeLabel,
-    currentUserId,
-    hive.firmId,
-    hive.id,
-    hive.kind,
-    hive.name,
-    initialAssistant,
-    initialClientAssistant,
-    section,
-    setWorkspace,
-    staffView,
-    startingView,
-  ]);
+  }, [hive.id, hive.name, section, setWorkspace, startingView]);
 
   useEffect(() => {
     if (summaryFailedCorrelationId) {
@@ -94,25 +64,56 @@ export function WorkspaceShell({
     }
   }, [hive.id, summaryFailedCorrelationId]);
 
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(max-width: 899px)");
+    const apply = () => setCompactNav(query.matches);
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
+  }, []);
+
   return (
     <WorkspaceChromeProvider>
-      <div className="flex min-h-full flex-1 flex-col bg-paper">
-        <div
-          className={
-            clientFirmHive
-              ? "mx-auto flex w-full max-w-[460px] flex-1 flex-col px-5 pb-[120px] pt-[22px]"
-              : "mx-auto flex w-full max-w-content flex-1 flex-col px-4 min-[760px]:px-8"
-          }
-        >
-          {!clientFirmHive ? (
-            <HiveHead
+      <div className="flex min-h-full flex-1 flex-col bg-canvas min-[900px]:grid min-[900px]:grid-cols-[240px_minmax(0,1fr)]">
+        {compactNav ? (
+          <div className="border-b border-line bg-paper px-3 py-2 min-[900px]:hidden">
+            <HiveSidebar
               hive={hive}
+              startingView={startingView}
+              active={section}
+              counts={counts}
+              compact
+              firm={firm}
+              currentUserId={currentUserId}
+              assigneeLabel={assigneeLabel}
+              assigneeTitle={assigneeTitle}
               assistantName={assistantName}
-              documentCount={documentCount}
-              unreadMessages={counts.unreadMessages}
+              studyRevision={studyRevision}
+              summaryLoaded={summaryLoaded}
             />
-          ) : null}
-          {children}
+          </div>
+        ) : (
+          <div className="hidden min-[900px]:block min-[900px]:border-r min-[900px]:border-line">
+            <HiveSidebar
+              hive={hive}
+              startingView={startingView}
+              active={section}
+              counts={counts}
+              firm={firm}
+              currentUserId={currentUserId}
+              assigneeLabel={assigneeLabel}
+              assigneeTitle={assigneeTitle}
+              assistantName={assistantName}
+              studyRevision={studyRevision}
+              summaryLoaded={summaryLoaded}
+            />
+          </div>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col bg-paper">
+          <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-5 min-[900px]:px-10 min-[900px]:py-7 min-[900px]:pb-16">
+            {children}
+          </div>
         </div>
       </div>
     </WorkspaceChromeProvider>

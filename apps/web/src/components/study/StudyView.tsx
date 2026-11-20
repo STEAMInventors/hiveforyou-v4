@@ -23,7 +23,7 @@ type StudyViewProps = {
   workspaceSurface?: StudyWorkspaceSurface;
 };
 
-const NOTICE_CLASS = "flex flex-col gap-3 rounded-input border border-line bg-paper p-5 sm:p-7";
+const NOTICE_CLASS = "flex flex-col gap-3 rounded-card border border-line bg-paper p-5 sm:p-7";
 const NOTICE_HEADING = "m-0 font-brand text-section font-semibold text-ink";
 
 /**
@@ -45,7 +45,7 @@ export function StudyView({
     return (
       <section role="status" className={NOTICE_CLASS} data-testid="study-legacy-notice">
         <h2 className={NOTICE_HEADING}>This study was built the earlier way</h2>
-        <p className="m-0 max-w-prose text-body text-ink-2">
+        <p className="m-0 max-w-prose text-body text-graphite">
           Rebuild it to see it in the new study view. Rebuild uses the pages already read; earlier revisions and their
           reports stay.
         </p>
@@ -59,7 +59,7 @@ export function StudyView({
     return (
       <section role="alert" className={NOTICE_CLASS} data-testid="study-view-unavailable">
         <h2 className={NOTICE_HEADING}>Study layout isn&apos;t available</h2>
-        <p className="m-0 max-w-prose text-body text-ink-2">
+        <p className="m-0 max-w-prose text-body text-graphite">
           We couldn&apos;t build this page from your accepted study. Try again from Documents, or contact support if it keeps
           happening.
         </p>

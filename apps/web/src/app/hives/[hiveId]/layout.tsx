@@ -13,7 +13,7 @@ type HiveLayoutProps = {
 
 export default async function HiveLayout({ children, params }: HiveLayoutProps) {
   const { hiveId } = await params;
-  const returnPath = `/hives/${hiveId}`;
+  const returnPath = `/hives/${hiveId}/board`;
   const hive = await loadOwnedHiveOrNotFound(hiveId, returnPath);
   const auth = await requireAuthenticatedUser();
   if (!auth.ok) {

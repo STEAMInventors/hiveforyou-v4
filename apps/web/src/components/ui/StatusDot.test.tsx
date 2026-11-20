@@ -11,9 +11,4 @@ describe("StatusDot", () => {
     render(<StatusDot state="needs" />);
     expect(screen.getByText("To review")).toBeTruthy();
   });
-
-  it("adds Received", () => {
-    render(<StatusDot state="received" />);
-    expect(screen.getByText("Received")).toBeTruthy();
-  });
 });

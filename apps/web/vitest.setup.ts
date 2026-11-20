@@ -1,16 +1,5 @@
 import { vi } from "vitest";
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    refresh: vi.fn(),
-    back: vi.fn(),
-  }),
-  usePathname: () => "/hives/11111111-1111-4111-8111-111111111111",
-  useSearchParams: () => new URLSearchParams(),
-}));
-
 /**
  * pdf.js (via react-pdf) expects browser globals when test files import components that load it.
  */

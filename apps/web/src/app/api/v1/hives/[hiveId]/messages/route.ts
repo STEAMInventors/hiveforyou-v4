@@ -10,7 +10,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { after, type NextRequest } from "next/server";
 
-import { hiveHomePath } from "@/lib/hive-routes";
+import { hiveBoardPath } from "@/lib/hive-routes";
 import { sendHiveMessageNotices } from "@/server/hives/hive-message-notices";
 import {
   CONVERSATION_LOAD_FAILED,
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       await sendHiveMessageNotices({
         userIds: result.notifyUserIds,
         hiveName: await loadHiveName(auth.client, hiveId),
-        conversationUrl: `${resolvePublicBaseUrl(req)}${hiveHomePath(hiveId)}`,
+        conversationUrl: `${resolvePublicBaseUrl(req)}${hiveBoardPath(hiveId)}`,
         correlationId,
       }).catch(() => undefined);
     }

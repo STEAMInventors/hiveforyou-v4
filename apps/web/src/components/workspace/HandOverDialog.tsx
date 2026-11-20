@@ -31,7 +31,7 @@ export function HandOverDialog({
   const assigneeId = useId();
   const noteId = useId();
   const dialogRef = useRef<HTMLFormElement>(null);
-  const path = `/hives/${hive.id}`;
+  const path = `/hives/${hive.id}/board`;
   const action = useWorkspaceAction(path);
   const [assignee, setAssignee] = useState<string>(UNASSIGNED);
   const [note, setNote] = useState("");
@@ -141,13 +141,13 @@ export function HandOverDialog({
           </select>
         </label>
         {unassigned ? (
-          <p className="m-0 text-caption text-ink-2">
+          <p className="m-0 text-caption text-graphite">
             An unassigned hive keeps no handover note. Assign someone to leave a note for them.
           </p>
         ) : (
           <label className="flex flex-col gap-1.5 text-small font-medium text-ink" htmlFor={noteId}>
             Note for the next person
-            <span className="text-caption font-normal text-ink-2">Optional</span>
+            <span className="text-caption font-normal text-graphite">Optional</span>
             <textarea
               id={noteId}
               value={note}
@@ -156,7 +156,7 @@ export function HandOverDialog({
               onChange={(event) => setNote(event.target.value)}
               className="w-full rounded-control border border-line px-3 py-2 text-small font-normal"
             />
-            <span className="text-caption font-normal text-ink-3">
+            <span className="text-caption font-normal text-quiet">
               {note.length}/{NOTE_MAX}
             </span>
           </label>
@@ -173,7 +173,7 @@ export function HandOverDialog({
             {action.inlineError.retryable ? (
               <button
                 type="button"
-                className="ml-2 border-0 bg-transparent p-0 font-semibold text-blue-deep"
+                className="ml-2 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
                 onClick={() => void action.retrySameKey({
                   url: `/api/v1/hives/${hive.id}/assignment`,
                   body: {

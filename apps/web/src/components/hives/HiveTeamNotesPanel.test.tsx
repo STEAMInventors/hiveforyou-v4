@@ -58,7 +58,7 @@ describe("HiveTeamNotesPanel", () => {
     render(<HiveTeamNotesPanel hive={hive} firmName="Rivera" clientName="Ruth" notes={[]} />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Please review stubs." } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save note" }));
     });
 
     expect((await screen.findByRole("alert")).textContent).toContain("No");
@@ -86,11 +86,11 @@ describe("HiveTeamNotesPanel", () => {
 
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "First note" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save note" }));
     });
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Second note" } });
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save note" }));
     });
 
     expect(keys).toHaveLength(2);

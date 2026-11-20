@@ -41,14 +41,14 @@ export function ChangedValue({ before, after }: { before: readonly StudyViewValu
     <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-1" data-testid="changed-value">
       {distinctValues(before).map((value) => (
         <span key={`before-${value.text}`} className="inline">
-          <s className="font-quote text-body text-ink-3">
+          <s className="font-quote text-body text-quiet">
             <span className="sr-only">Earlier: </span>
             {value.text}
           </s>{" "}
           <SourceChips refs={value.refs} />
         </span>
       ))}
-      <span aria-hidden className="text-ink-3">
+      <span aria-hidden className="text-quiet">
         →
       </span>
       {distinctValues(after).map((value) => (

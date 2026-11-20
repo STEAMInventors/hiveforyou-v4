@@ -34,8 +34,7 @@ describe("legacy hive routes", () => {
       }),
     ).rejects.toThrow(/REDIRECT:/);
     const url = new URL(redirectedPath(permanentRedirectMock.mock.calls.at(-1)?.[0]), "http://local");
-    expect(url.pathname).toBe(`/hives/${HIVE_ID}`);
-    expect(url.hash).toBe("#show");
+    expect(url.pathname).toBe(`/hives/${HIVE_ID}/findings`);
     expect(url.searchParams.getAll("keep")).toEqual(["1"]);
     expect(url.searchParams.getAll("extra")).toEqual(["a", "b"]);
     expect(url.searchParams.has("tab")).toBe(false);
@@ -50,8 +49,8 @@ describe("legacy hive routes", () => {
       }),
     ).rejects.toThrow(/REDIRECT:/);
     const url = new URL(redirectedPath(permanentRedirectMock.mock.calls.at(-1)?.[0]), "http://local");
-    expect(url.pathname).toBe(`/hives/${HIVE_ID}`);
-    expect(url.hash).toBe("#show");
+    expect(url.pathname).toBe(`/hives/${HIVE_ID}/findings`);
+    expect(url.hash).toBe("#open-items");
     expect(url.searchParams.get("keep")).toBe("1");
   });
 
@@ -63,8 +62,8 @@ describe("legacy hive routes", () => {
       }),
     ).rejects.toThrow(/REDIRECT:/);
     const url = new URL(redirectedPath(permanentRedirectMock.mock.calls.at(-1)?.[0]), "http://local");
-    expect(url.pathname).toBe(`/hives/${HIVE_ID}`);
-    expect(url.hash).toBe("#show");
+    expect(url.pathname).toBe(`/hives/${HIVE_ID}/findings`);
+    expect(url.hash).toBe("#timeline");
     expect(url.searchParams.get("ref")).toBe("2");
   });
 
