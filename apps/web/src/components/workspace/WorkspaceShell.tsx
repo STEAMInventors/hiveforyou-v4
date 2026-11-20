@@ -9,6 +9,8 @@ import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { hiveSectionFromPathname, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import { useHiveHeaderWorkspace } from "@/components/app-header";
 
+import type { ConversationLoad } from "@/components/hives/useHiveConversation";
+
 import type { StudyRailRevision } from "./HiveSidebar";
 import { HiveHead } from "./HiveHead";
 import { WorkspaceChromeProvider } from "./workspace-context";
@@ -27,6 +29,8 @@ export type WorkspaceShellProps = {
   studyRevision?: StudyRailRevision | null;
   summaryLoaded?: boolean;
   documentCount?: number | null;
+  initialAssistant: ConversationLoad;
+  initialClientAssistant?: ConversationLoad | null;
   children: ReactNode;
 };
 
@@ -39,6 +43,8 @@ export function WorkspaceShell({
   assigneeLabel,
   assistantName,
   documentCount = null,
+  initialAssistant,
+  initialClientAssistant = null,
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() ?? "";
@@ -61,9 +67,25 @@ export function WorkspaceShell({
       currentUserId,
       firmId: hive.firmId ?? null,
       firmless: hive.firmId == null,
+      initialAssistant,
+      initialClientAssistant,
     });
     return () => setWorkspace(null);
-  }, [assistantName, assigneeLabel, currentUserId, hive.firmId, hive.id, hive.kind, hive.name, section, setWorkspace, staffView, startingView]);
+  }, [
+    assistantName,
+    assigneeLabel,
+    currentUserId,
+    hive.firmId,
+    hive.id,
+    hive.kind,
+    hive.name,
+    initialAssistant,
+    initialClientAssistant,
+    section,
+    setWorkspace,
+    staffView,
+    startingView,
+  ]);
 
   useEffect(() => {
     if (summaryFailedCorrelationId) {

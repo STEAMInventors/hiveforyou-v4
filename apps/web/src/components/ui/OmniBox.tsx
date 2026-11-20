@@ -24,6 +24,8 @@ export type OmniAnswer = {
   refs: readonly ChipRef[];
   handoff: boolean;
   readonlyNote: string | null;
+  sendError?: { message: string; reference: string | null; retryable: boolean } | null;
+  onRetrySend?: (() => void) | null;
 };
 
 export type OmniBoxProps = {
@@ -204,7 +206,24 @@ export function OmniBox({
                 </span>
                 <span>answers only from the documents</span>
               </div>
-              {answer.pending ? (
+              {answer.sendError ? (
+                <div className="text-body text-ink" data-testid="omni-send-error">
+                  <p role="alert" className="m-0">
+                    {answer.sendError.message}
+                    {answer.sendError.reference ? (
+                      <>
+                        {" "}
+                        Reference <span className="tabular-nums">{answer.sendError.reference}</span>.
+                      </>
+                    ) : null}
+                  </p>
+                  {answer.sendError.retryable && answer.onRetrySend ? (
+                    <Button variant="secondary" type="button" className="mt-2" onClick={answer.onRetrySend}>
+                      Try again
+                    </Button>
+                  ) : null}
+                </div>
+              ) : answer.pending ? (
                 <p role="status" className="m-0 text-body text-ink-3" data-testid="omni-typing">
                   {answer.longWait ? "…still working on it…" : "Looking through the documents"}
                   {answer.longWait ? null : <TypingDots />}
@@ -370,6 +389,17 @@ function Groups({
             </HitRow>
           );
         })}
+        {catalog.clientQuestionsLoadError ? (
+          <p role="alert" className="mx-2 mt-1 px-0 text-meta text-ink-2" data-testid="omni-client-questions-error">
+            {catalog.clientQuestionsLoadError.message}
+            {catalog.clientQuestionsLoadError.reference ? (
+              <>
+                {" "}
+                Reference <span className="tabular-nums">{catalog.clientQuestionsLoadError.reference}</span>.
+              </>
+            ) : null}
+          </p>
+        ) : null}
       </>
     );
   }

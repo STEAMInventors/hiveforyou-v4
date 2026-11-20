@@ -7,6 +7,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import { AccountMenu, type AccountMenuDetails } from "@/components/account-menu";
 import { HiveBrandMark } from "@/components/HiveWordmark";
 import { HiveOmni } from "@/components/hives/HiveOmni";
+import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { OmniCatalogProvider } from "@/components/ui/omni-catalog";
 import { MY_HIVES_PATH, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import type { StartingView } from "@/lib/auth/profile";
@@ -25,6 +26,8 @@ export type HiveHeaderWorkspace = {
   currentUserId?: string | null;
   firmId?: string | null;
   firmless?: boolean;
+  initialAssistant?: ConversationLoad;
+  initialClientAssistant?: ConversationLoad | null;
 };
 
 type HiveHeaderContextValue = {
@@ -135,6 +138,10 @@ export function AppHeader({
             currentUserId={workspace.currentUserId ?? null}
             firmless={workspace.firmless ?? workspace.firmId == null}
             firmId={workspace.firmId ?? null}
+            initialAssistant={
+              workspace.initialAssistant ?? { ok: false, message: "Could not load the conversation. Try again.", correlationId: null, retryable: true }
+            }
+            initialClientAssistant={workspace.initialClientAssistant ?? null}
           />
         ) : null}
       </div>

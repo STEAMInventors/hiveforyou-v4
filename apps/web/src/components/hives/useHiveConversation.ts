@@ -90,6 +90,7 @@ export function useHiveConversation({
   channel = "people",
   threadOwnerUserId = null,
   assistantName: assistantNameProp = "HiveForYou",
+  enablePolling = true,
 }: {
   hiveId: string;
   initial: ConversationLoad;
@@ -97,6 +98,8 @@ export function useHiveConversation({
   channel?: "people" | "assistant";
   threadOwnerUserId?: string | null;
   assistantName?: string;
+  /** When false, no background poll (e.g. Omni box closed with no pending reply). */
+  enablePolling?: boolean;
 }) {
   const router = useRouter();
   const boardPath = hiveHomePath(hiveId);
@@ -284,7 +287,7 @@ export function useHiveConversation({
   const loaded = loadError === null;
 
   useEffect(() => {
-    if (!loaded || unavailable) return;
+    if (!enablePolling || !loaded || unavailable) return;
     let timer: number | null = null;
     let cancelled = false;
     const pollOnce = async () => {
@@ -329,7 +332,7 @@ export function useHiveConversation({
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [applyLatest, fetchPage, loaded, effectivePendingAssistant, unavailable]);
+  }, [applyLatest, enablePolling, fetchPage, loaded, effectivePendingAssistant, unavailable]);
 
   const retryLoad = useCallback(async () => {
     setRetryingLoad(true);
@@ -433,14 +436,14 @@ export function useHiveConversation({
   }, []);
 
   const send = useCallback(
-    (raw: string, handoffFrom: string | null = null): boolean => {
+    (raw: string, handoffFrom: string | null = null): string | false => {
       const body = raw.trim();
       if (!body || action.pending) return false;
       const clientRequestId = crypto.randomUUID();
       setPending((items) => [...items, { clientRequestId, body, status: "sending", failure: null }]);
       bump("sent");
       void submit(clientRequestId, body, handoffFrom);
-      return true;
+      return clientRequestId;
     },
     [action.pending, bump, submit],
   );
@@ -559,5 +562,6 @@ export function useHiveConversation({
     channel,
     threadOwnerUserId,
     handoffToPeople,
+    assistantTriggerMessageId: localAssistantWait?.triggerMessageId ?? null,
   };
 }

@@ -16,7 +16,20 @@ vi.mock("./HiveHead", () => ({
   HiveHead: () => <header data-testid="hive-head">Hive head</header>,
 }));
 
+import type { ConversationLoad } from "@/components/hives/useHiveConversation";
+
 import { WorkspaceShell } from "./WorkspaceShell";
+
+const EMPTY_ASSISTANT_LOAD: ConversationLoad = {
+  ok: true,
+  page: {
+    messages: [],
+    participantRoleLabels: [],
+    participantCount: 0,
+    viewerLastReadAt: null,
+    nextCursor: null,
+  },
+};
 
 const hive: Hive = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -51,6 +64,7 @@ describe("WorkspaceShell", () => {
         assigneeLabel={null}
         assigneeTitle={null}
         assistantName="HiveForYou"
+        initialAssistant={EMPTY_ASSISTANT_LOAD}
       >
         <p>Workspace body</p>
       </WorkspaceShell>,
@@ -73,6 +87,7 @@ describe("WorkspaceShell", () => {
         assigneeLabel={null}
         assigneeTitle={null}
         assistantName="HiveForYou"
+        initialAssistant={EMPTY_ASSISTANT_LOAD}
       >
         <p>Client body</p>
       </WorkspaceShell>,

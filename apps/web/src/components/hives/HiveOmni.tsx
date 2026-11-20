@@ -1,30 +1,36 @@
 "use client";
 
-import { normalizeHiveMessagePage, type HiveMessage, type HiveMessagePage } from "@hiveforyou/contracts";
+import { type HiveMessage, type HiveMessagePage } from "@hiveforyou/contracts";
 import { useEffect, useMemo, useState } from "react";
 
 import { useEvidenceViewer } from "@/components/study/EvidenceViewer";
 import type { ChipRef } from "@/components/study/SourceChip";
 import { useAssistantTypingPhase } from "@/components/hives/assistant-conversation-ui";
-import { useHiveConversation } from "@/components/hives/useHiveConversation";
+import {
+  useHiveConversation,
+  type ConversationLoad,
+  type PendingHiveMessage,
+} from "@/components/hives/useHiveConversation";
 import { OmniBox, type OmniAnswer } from "@/components/ui/OmniBox";
 import { useOmniCatalog } from "@/components/ui/omni-catalog";
 import type { OmniQuestion } from "@/components/ui/omni-catalog";
 import { Toast } from "@/components/ui/Toast";
 import { personFirstName } from "@/lib/hives/firm-board";
-import { CORRELATION_HEADER_NAME } from "@/lib/hives-client";
 
-const EMPTY_PAGE: HiveMessagePage = {
-  messages: [],
-  participantRoleLabels: [],
-  participantCount: 0,
-  viewerLastReadAt: null,
-  nextCursor: null,
-  pendingAssistant: false,
-  assistantRepliesOn: true,
-  assistantAvailable: true,
-  assistantThreads: [],
-};
+function emptyAssistantPage(assistantName: string): HiveMessagePage {
+  return {
+    messages: [],
+    participantRoleLabels: [],
+    participantCount: 0,
+    viewerLastReadAt: null,
+    nextCursor: null,
+    pendingAssistant: false,
+    assistantRepliesOn: true,
+    assistantAvailable: true,
+    assistantThreads: [],
+    assistantName,
+  };
+}
 
 function chipsOf(message: HiveMessage | undefined): ChipRef[] {
   if (!message) return [];
@@ -37,7 +43,7 @@ function chipsOf(message: HiveMessage | undefined): ChipRef[] {
     }));
 }
 
-function questionsFrom(messages: readonly HiveMessage[]): OmniQuestion[] {
+export function questionsFrom(messages: readonly HiveMessage[]): OmniQuestion[] {
   const rows: OmniQuestion[] = [];
   for (const message of messages) {
     if (message.authorKind !== "person") continue;
@@ -52,6 +58,22 @@ function questionsFrom(messages: readonly HiveMessage[]): OmniQuestion[] {
   return rows.reverse().slice(0, 5);
 }
 
+function referenceSnippet(correlationId: string): string {
+  return correlationId.slice(0, 8);
+}
+
+function clientQuestionsLoadError(
+  load: ConversationLoad | null | undefined,
+  clientName: string | null,
+): { message: string; reference: string | null } | null {
+  if (!load || load.ok) return null;
+  const who = clientName ? personFirstName(clientName) : "the client";
+  return {
+    message: `Couldn't load ${who}'s questions.`,
+    reference: load.correlationId ? referenceSnippet(load.correlationId) : null,
+  };
+}
+
 export function HiveOmni({
   hiveId,
   assistantName,
@@ -61,6 +83,8 @@ export function HiveOmni({
   currentUserId,
   firmless,
   firmId,
+  initialAssistant,
+  initialClientAssistant = null,
 }: {
   hiveId: string;
   assistantName: string;
@@ -70,12 +94,41 @@ export function HiveOmni({
   currentUserId: string | null;
   firmless: boolean;
   firmId: string | null;
+  initialAssistant: ConversationLoad;
+  initialClientAssistant?: ConversationLoad | null;
 }) {
   const catalog = useOmniCatalog();
   const viewer = useEvidenceViewer();
+  const assistantInitial = useMemo((): ConversationLoad => {
+    if (initialAssistant.ok) return initialAssistant;
+    return {
+      ok: true,
+      page: emptyAssistantPage(assistantName),
+    };
+  }, [assistantName, initialAssistant]);
+
+  const serverYourQuestions = useMemo(
+    () => (initialAssistant.ok ? questionsFrom(initialAssistant.page.messages) : []),
+    [initialAssistant],
+  );
+  const serverClientQuestions = useMemo(() => {
+    if (!initialClientAssistant?.ok) return [];
+    return questionsFrom(initialClientAssistant.page.messages);
+  }, [initialClientAssistant]);
+
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [history, setHistory] = useState<OmniQuestion | null>(null);
+  const [historyNote, setHistoryNote] = useState<string | null>(null);
+  const [trackingMessageId, setTrackingMessageId] = useState<string | null>(null);
+  const [activeSendRequestId, setActiveSendRequestId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [askedAt, setAskedAt] = useState<number | null>(null);
+  const [awaitingReply, setAwaitingReply] = useState(false);
+
   const conversation = useHiveConversation({
     hiveId,
-    initial: { ok: true, page: { ...EMPTY_PAGE, assistantName } },
+    initial: assistantInitial,
     channel: "assistant",
     threadOwnerUserId: currentUserId,
     assistantName,
@@ -84,43 +137,14 @@ export function HiveOmni({
       viewerIsClient: audience === "client",
       hiveFirmId: firmId,
     },
+    enablePolling: open || awaitingReply,
   });
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const [liveQuestion, setLiveQuestion] = useState<string | null>(null);
-  const [history, setHistory] = useState<OmniQuestion | null>(null);
-  const [historyNote, setHistoryNote] = useState<string | null>(null);
-  const [clientQuestions, setClientQuestions] = useState<OmniQuestion[]>([]);
-  const [toast, setToast] = useState<string | null>(null);
-  const [askedAt, setAskedAt] = useState<number | null>(null);
-
-  const otherThreadId =
-    conversation.assistantThreads.find(
-      (thread) => currentUserId && thread.userId.toLowerCase() !== currentUserId.toLowerCase(),
-    )?.userId ?? null;
 
   useEffect(() => {
-    if (audience !== "staff" || !otherThreadId) return;
-    let cancelled = false;
-    const url = `/api/v1/hives/${encodeURIComponent(hiveId)}/messages?channel=assistant&threadOwner=${encodeURIComponent(otherThreadId)}`;
-    void fetch(url, {
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: { [CORRELATION_HEADER_NAME]: crypto.randomUUID() },
-    })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return normalizeHiveMessagePage(await response.json());
-      })
-      .then((page) => {
-        if (cancelled || !page) return;
-        setClientQuestions(questionsFrom(page.messages));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [audience, hiveId, otherThreadId]);
+    if (conversation.assistantTriggerMessageId) {
+      setTrackingMessageId(conversation.assistantTriggerMessageId);
+    }
+  }, [conversation.assistantTriggerMessageId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -130,48 +154,94 @@ export function HiveOmni({
     }
   }, []);
 
-  const yourQuestions = catalog.yourQuestions.length > 0 ? catalog.yourQuestions : questionsFrom(conversation.messages);
+  const pendingSend: PendingHiveMessage | undefined = activeSendRequestId
+    ? conversation.pending.find((item) => item.clientRequestId === activeSendRequestId)
+  : undefined;
+
+  const failedSend = pendingSend?.status === "failed" ? pendingSend : undefined;
+
+  const livePerson = trackingMessageId
+    ? conversation.messages.find((message) => message.id === trackingMessageId)
+    : undefined;
+  const liveReply = trackingMessageId
+    ? conversation.messages.find(
+        (message) => message.authorKind === "assistant" && message.triggerMessageId === trackingMessageId,
+      )
+    : undefined;
+
+  const liveQuestionText =
+    history?.question ??
+    livePerson?.body ??
+    (failedSend ? failedSend.body : trackingMessageId ? pendingSend?.body ?? null : null);
+
+  const pending =
+    Boolean(trackingMessageId) &&
+    !history &&
+    !liveReply &&
+    !failedSend &&
+    (conversation.pendingAssistant || pendingSend?.status === "sending");
+
+  const longWait = useAssistantTypingPhase(pending, askedAt);
+
+  useEffect(() => {
+    const waiting =
+      open ||
+      conversation.pendingAssistant ||
+      (trackingMessageId != null && !liveReply && !failedSend) ||
+      pendingSend?.status === "sending";
+    setAwaitingReply(waiting);
+  }, [conversation.pendingAssistant, failedSend, liveReply, open, pendingSend?.status, trackingMessageId]);
+
+  const clientLoadError = useMemo(
+    () => clientQuestionsLoadError(initialClientAssistant, clientName),
+    [clientName, initialClientAssistant],
+  );
+
+  const yourQuestions =
+    catalog.yourQuestions.length > 0
+      ? catalog.yourQuestions
+      : serverYourQuestions.length > 0
+        ? serverYourQuestions
+        : questionsFrom(conversation.messages);
+
   const mergedCatalog = useMemo(
     () => ({
       ...catalog,
       yourQuestions,
-      clientQuestions: catalog.clientQuestions.length > 0 ? catalog.clientQuestions : clientQuestions,
+      clientQuestions:
+        catalog.clientQuestions.length > 0 ? catalog.clientQuestions : serverClientQuestions,
       clientName: catalog.clientName ?? clientName,
+      clientQuestionsLoadError: clientLoadError,
     }),
-    [catalog, clientName, clientQuestions, yourQuestions],
+    [catalog, clientLoadError, clientName, serverClientQuestions, yourQuestions],
   );
 
-  const livePerson = liveQuestion
-    ? [...conversation.messages].reverse().find((message) => message.authorKind === "person" && message.body.trim() === liveQuestion.trim())
-    : undefined;
-  const liveReply = livePerson
-    ? conversation.messages.find((message) => message.authorKind === "assistant" && message.triggerMessageId === livePerson.id)
-    : undefined;
-  const pending = Boolean(liveQuestion) && !history && !liveReply;
-  const longWait = useAssistantTypingPhase(pending, askedAt);
-
-  const answer: OmniAnswer | null = history
-    ? {
-        question: history.question,
-        pending: false,
-        longWait: false,
-        text: history.answer,
-        refs: history.refs,
-        handoff: false,
-        readonlyNote: historyNote,
-      }
-    : liveQuestion
+  const answer: OmniAnswer | null =
+    history || trackingMessageId || failedSend
       ? {
-          question: liveQuestion,
+          question: liveQuestionText ?? "",
           pending,
           longWait,
-          text: liveReply?.body ?? null,
-          refs: chipsOf(liveReply),
+          text: history ? history.answer : failedSend ? null : (liveReply?.body ?? null),
+          refs: history ? history.refs : chipsOf(liveReply),
           handoff:
+            !history &&
+            !failedSend &&
             audience === "client" &&
             !firmless &&
             (liveReply?.assistantRunStatus === "routed" || liveReply?.assistantRunStatus === "failed"),
-          readonlyNote: null,
+          readonlyNote: historyNote,
+          sendError: failedSend?.failure
+            ? {
+                message: failedSend.failure.message,
+                reference: failedSend.failure.reference,
+                retryable: failedSend.failure.retryable,
+              }
+            : null,
+          onRetrySend:
+            failedSend && failedSend.failure?.retryable
+              ? () => conversation.retry(failedSend.clientRequestId)
+              : null,
         }
       : null;
 
@@ -180,10 +250,12 @@ export function HiveOmni({
     if (!trimmed) return;
     setHistory(null);
     setHistoryNote(null);
-    setLiveQuestion(trimmed);
+    setTrackingMessageId(null);
     setAskedAt(Date.now());
     setOpen(true);
-    conversation.send(trimmed);
+    setAwaitingReply(true);
+    const requestId = conversation.send(trimmed);
+    if (requestId) setActiveSendRequestId(requestId);
   };
 
   return (
@@ -194,17 +266,14 @@ export function HiveOmni({
         catalog={mergedCatalog}
         staffFirstName={staffFirstName ? personFirstName(staffFirstName) : null}
         query={query}
-        onQueryChange={(value) => {
-          setQuery(value);
-          setHistory(null);
-          setLiveQuestion(null);
-        }}
+        onQueryChange={(value) => setQuery(value)}
         open={open}
         onOpenChange={setOpen}
         answer={answer}
         onAsk={ask}
         onOpenQuestion={(hit) => {
-          setLiveQuestion(null);
+          setTrackingMessageId(null);
+          setActiveSendRequestId(null);
           setHistory(hit.question);
           const name = clientName ? personFirstName(clientName) : "The client";
           setHistoryNote(
@@ -217,12 +286,13 @@ export function HiveOmni({
           viewer.open(chip);
         }}
         onHandoff={() => {
-          if (!liveReply || !liveQuestion) return;
-          void conversation.handoffToPeople(liveQuestion, liveReply.id).then((ok) => {
+          if (!liveReply || !livePerson) return;
+          void conversation.handoffToPeople(livePerson.body, liveReply.id).then((ok) => {
             if (!ok) return;
             const who = staffFirstName ? personFirstName(staffFirstName) : "your team";
             setToast(`Sent to ${who} in your messages.`);
-            setLiveQuestion(null);
+            setTrackingMessageId(null);
+            setActiveSendRequestId(null);
             setOpen(false);
             setQuery("");
           });
@@ -230,7 +300,8 @@ export function HiveOmni({
         onNewQuestion={() => {
           setHistory(null);
           setHistoryNote(null);
-          setLiveQuestion(null);
+          setTrackingMessageId(null);
+          setActiveSendRequestId(null);
           setQuery("");
           document.getElementById("omni")?.focus();
         }}

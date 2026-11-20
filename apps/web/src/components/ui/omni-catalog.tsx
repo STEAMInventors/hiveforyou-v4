@@ -44,6 +44,7 @@ export type OmniCatalog = {
   yourQuestions: readonly OmniQuestion[];
   clientQuestions: readonly OmniQuestion[];
   clientName: string | null;
+  clientQuestionsLoadError?: { message: string; reference: string | null } | null;
 };
 
 export const EMPTY_OMNI_CATALOG: OmniCatalog = {
@@ -54,6 +55,7 @@ export const EMPTY_OMNI_CATALOG: OmniCatalog = {
   yourQuestions: [],
   clientQuestions: [],
   clientName: null,
+  clientQuestionsLoadError: null,
 };
 
 export type OmniHit =
