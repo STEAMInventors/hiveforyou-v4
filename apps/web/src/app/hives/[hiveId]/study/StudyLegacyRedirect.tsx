@@ -1,6 +1,6 @@
 "use client";
 
-import { hiveFindingsPath, mapStudyLegacyHash } from "@/lib/hive-routes";
+import { mapStudyLegacyHash } from "@/lib/hive-routes";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -26,7 +26,7 @@ export function StudyLegacyRedirect({ hiveId, queryString }: { hiveId: string; q
 
   useEffect(() => {
     const hash = typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "";
-    const target = hash ? mapStudyLegacyHash(hiveId, hash) : hiveFindingsPath(hiveId);
+    const target = mapStudyLegacyHash(hiveId, hash);
     router.replace(joinTarget(target, queryString));
   }, [hiveId, queryString, router]);
 

@@ -137,7 +137,7 @@ export function InviteAcceptPanel(props: InviteAcceptPanelProps) {
         return;
       }
       if (body.hiveId) {
-        router.push(`/hives/${body.hiveId}/board`);
+        router.push(`/hives/${body.hiveId}`);
         return;
       }
       router.push("/hives");

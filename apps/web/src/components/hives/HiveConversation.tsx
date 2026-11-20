@@ -17,6 +17,7 @@ import {
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { HiveMark } from "@/components/study/HiveMark";
+import { Avatar as PersonAvatar } from "@/components/ui/AvatarStack";
 import { Button } from "@/components/ui/Button";
 import { Composer } from "@/components/ui/Composer";
 import { Segmented } from "@/components/ui/Segmented";
@@ -78,6 +79,15 @@ export type HiveConversationProps = {
   clientThreadFirstName?: string | null;
   currentUserId?: string | null;
   onSwitchToConversation?: () => void;
+  /** Home column: people-only header, no preview switch, page scroll under 1100px. */
+  column?: {
+    otherFirstName: string;
+    otherFullName: string;
+    otherKind: "client" | "staff";
+    assistantName: string;
+  } | null;
+  /** Replaces the composer text. `nonce` changes when Home asks again. */
+  fillDraft?: { nonce: number; text: string } | null;
 };
 
 const noopSubscribe = () => () => undefined;
@@ -214,7 +224,7 @@ function MessageRow({
         </p>
         {fromAskAssistantName && message.handoffFromMessageId ? (
           <p className="m-0 text-meta text-ink-3" data-testid="hive-message-handoff-line">
-            From Ask {fromAskAssistantName}
+            Passed on from Ask {fromAskAssistantName}
           </p>
         ) : null}
         <p
@@ -324,6 +334,8 @@ export function HiveConversation({
   clientThreadFirstName = null,
   currentUserId = null,
   onSwitchToConversation,
+  column = null,
+  fillDraft = null,
 }: HiveConversationProps) {
   const conversation = useHiveConversation({
     hiveId,
@@ -470,9 +482,27 @@ export function HiveConversation({
     return match.messageCount;
   }, [clientThreadUserId, conversation.assistantThreads]);
 
-  const showConversationHead = assistantMode || !previewOnTabs;
+  const filledNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!fillDraft || filledNonceRef.current === fillDraft.nonce) return;
+    filledNonceRef.current = fillDraft.nonce;
+    setDraft(fillDraft.text);
+    textareaRef.current?.focus();
+  }, [fillDraft]);
 
-  const head = showConversationHead ? (
+  const showConversationHead = !column && (assistantMode || !previewOnTabs);
+
+  const head = column ? (
+    <header className="flex items-center justify-between gap-2.5 border-b border-line pb-3">
+      <div className="min-w-0">
+        <h2 className="m-0 text-[16px] font-semibold text-ink">Conversation with {column.otherFirstName}</h2>
+        <p className="m-0 mt-0.5 text-[12.5px] text-ink-3">
+          People only. {column.assistantName} doesn&apos;t take part here.
+        </p>
+      </div>
+      <PersonAvatar person={{ id: "other", name: column.otherFullName, kind: column.otherKind }} />
+    </header>
+  ) : showConversationHead ? (
     <header className="mb-2 flex flex-wrap items-center justify-between gap-3 py-2">
       <div className="min-w-0">
         {assistantMode && readOnly && clientThreadFirstName ? (
@@ -552,7 +582,11 @@ export function HiveConversation({
   let previousDay: string | null = null;
 
   return (
-    <section aria-label="Conversation" data-testid="hive-conversation" className="flex min-w-0 flex-col">
+    <section
+      aria-label="Conversation"
+      data-testid="hive-conversation"
+      className={`flex min-w-0 flex-col ${column ? "h-full min-h-0" : ""}`}
+    >
       {head}
       {conversation.reconnecting ? (
         <p role="status" className="m-0 border-b border-line bg-honey-wash px-[22px] py-2 text-caption text-ink">
@@ -576,7 +610,9 @@ export function HiveConversation({
               onScroll={onScroll}
               aria-live="polite"
               data-testid="hive-conversation-messages"
-              className="thread relative flex max-h-[570px] min-h-[280px] flex-col gap-0 overflow-y-auto py-2"
+              className={`thread relative flex flex-col gap-0 py-2 ${
+                column ? "min-h-0 flex-1 overflow-visible min-[1100px]:overflow-y-auto" : "max-h-[570px] min-h-[280px] overflow-y-auto"
+              }`}
             >
               {conversation.nextCursor ? (
                 <button
@@ -620,7 +656,11 @@ export function HiveConversation({
                   <Fragment key={message.id}>
                     {dayChanged && now ? (
                       <p
-                        className="my-5 flex items-center gap-3 text-label text-ink-3 before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line"
+                        className={
+                          column
+                            ? "my-4 text-center text-[11.5px] text-ink-3"
+                            : "my-5 flex items-center gap-3 text-label text-ink-3 before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line"
+                        }
                         data-testid="hive-conversation-day"
                       >
                         {messageDayLabel(message.createdAt, now)}
@@ -726,6 +766,7 @@ export function HiveConversation({
               primaryTrailIcon
               primaryDisabled={!draft.trim() || conversation.sending}
               onPrimary={submitDraft}
+              lock={Boolean(column)}
               hint={
                 assistantMode ? (
                   assistantComposerHint({
@@ -735,6 +776,8 @@ export function HiveConversation({
                     assistantName: displayAssistantName,
                     teamMemberFirstName,
                   })
+                ) : column ? (
+                  <span data-testid="hive-conversation-people-hint">Everyone in this hive sees this</span>
                 ) : (
                   <span data-testid="hive-conversation-people-hint">
                     Everyone in this hive sees this conversation.
@@ -765,12 +808,14 @@ export function HiveConversation({
                 rows: 2,
                 placeholder: assistantMode
                   ? `Ask ${displayAssistantName} about the documents…`
-                  : conversationComposerPlaceholder({
-                      viewerIsClient,
-                      clientName,
-                      clientAuthorName: clientAuthor ?? null,
-                      teamMemberFirstName,
-                    }),
+                  : column
+                    ? `Write to ${column.otherFirstName}…`
+                    : conversationComposerPlaceholder({
+                        viewerIsClient,
+                        clientName,
+                        clientAuthorName: clientAuthor ?? null,
+                        teamMemberFirstName,
+                      }),
                 onChange: (event) => {
                   setDraft(event.target.value);
                   resizeComposer();

@@ -31,7 +31,7 @@ export function HandOverDialog({
   const assigneeId = useId();
   const noteId = useId();
   const dialogRef = useRef<HTMLFormElement>(null);
-  const path = `/hives/${hive.id}/board`;
+  const path = `/hives/${hive.id}`;
   const action = useWorkspaceAction(path);
   const [assignee, setAssignee] = useState<string>(UNASSIGNED);
   const [note, setNote] = useState("");

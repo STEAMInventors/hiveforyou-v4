@@ -12,6 +12,9 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`REDIRECT:${url}`);
   },
+  permanentRedirect: (url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  },
 }));
 
 vi.mock("@/server/hives/load-owned-hive", () => ({
@@ -154,9 +157,7 @@ type SectionPage = () => Promise<{
 }>;
 
 const SECTIONS: readonly { section: HiveWorkspaceSection; page: SectionPage }[] = [
-  { section: "board", page: () => import("./[hiveId]/board/page") },
   { section: "documents", page: () => import("./[hiveId]/documents/page") },
-  { section: "findings", page: () => import("./[hiveId]/findings/page") },
   { section: "reports", page: () => import("./[hiveId]/reports/page") },
   { section: "audit", page: () => import("./[hiveId]/audit/page") },
   { section: "notes", page: () => import("./[hiveId]/notes/page") },
@@ -175,12 +176,33 @@ describe("hive workspace section pages", () => {
       const mod = await page();
       await mod.default({
         params: Promise.resolve({ hiveId: HIVE_ID }),
-        ...((section === "reports" || section === "board") ? { searchParams: Promise.resolve({}) } : {}),
+        ...(section === "reports" ? { searchParams: Promise.resolve({}) } : {}),
       });
       expect(loadOwnedHiveOrNotFoundMock).toHaveBeenCalledWith(HIVE_ID, `/hives/${HIVE_ID}/${section}`);
     },
     20_000,
   );
+});
+
+describe("moved hive routes", () => {
+  it("sends the board to Home", async () => {
+    loadOwnedHiveOrNotFoundMock.mockClear();
+    const mod = await import("./[hiveId]/board/page");
+    await expect(
+      mod.default({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    ).rejects.toThrow(`REDIRECT:/hives/${HIVE_ID}`);
+    expect(loadOwnedHiveOrNotFoundMock).not.toHaveBeenCalled();
+  });
+
+  it("sends findings to Home#show", async () => {
+    const mod = await import("./[hiveId]/findings/page");
+    await expect(mod.default({ params: Promise.resolve({ hiveId: HIVE_ID }) })).rejects.toThrow(
+      `REDIRECT:/hives/${HIVE_ID}#show`,
+    );
+  });
 });
 
 describe("notes page firm gate", () => {

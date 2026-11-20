@@ -23,7 +23,7 @@ import {
 } from "@/components/hives/hive-board-poll";
 import { firstUnreadMessageId, mergeMessages } from "@/components/hives/hive-conversation-view";
 import { useWorkspaceAction, type WorkspaceActionFailure } from "@/components/workspace/useWorkspaceAction";
-import { hiveBoardPath } from "@/lib/hive-routes";
+import { hiveHomePath } from "@/lib/hive-routes";
 import { CORRELATION_HEADER_NAME } from "@/lib/hives-client";
 
 export const CONVERSATION_LOAD_FAILED = "Could not load the conversation. Try again.";
@@ -99,7 +99,7 @@ export function useHiveConversation({
   assistantName?: string;
 }) {
   const router = useRouter();
-  const boardPath = hiveBoardPath(hiveId);
+  const boardPath = hiveHomePath(hiveId);
   const action = useWorkspaceAction(boardPath);
   const initialPage = initial.ok ? initial.page : null;
   const initialMessages = initialPage ? mergeMessages([], initialPage.messages) : [];

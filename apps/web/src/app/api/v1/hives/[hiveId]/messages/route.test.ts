@@ -160,9 +160,10 @@ describe("/api/v1/hives/[hiveId]/messages", () => {
     for (const [mail] of sendMock.mock.calls as [{ to: string; subject: string; text: string; html: string }][]) {
       expect(mail.subject).toBe("New message in your hive");
       expect(mail.text).toContain("There's a new message in Ortiz family.");
-      expect(mail.text).toContain(`https://app.example.test/hives/${HIVE_ID}/board`);
+      expect(mail.text).toContain(`https://app.example.test/hives/${HIVE_ID}`);
+      expect(mail.text).not.toContain(`/hives/${HIVE_ID}/board`);
       expect(mail.html).toContain("Open the conversation");
-      expect(mail.html).toContain(`https://app.example.test/hives/${HIVE_ID}/board`);
+      expect(mail.html).toContain(`https://app.example.test/hives/${HIVE_ID}`);
       for (const part of [mail.subject, mail.text, mail.html]) {
         expect(part).not.toContain("Maple Street");
         expect(part).not.toContain("lease");

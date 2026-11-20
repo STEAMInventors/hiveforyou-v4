@@ -7,7 +7,7 @@ import Link from "next/link";
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { Card } from "@/components/workspace/Card";
 import { StatusDot } from "@/components/workspace/StatusDot";
-import { hiveBoardPath } from "@/lib/hive-routes";
+import { hiveHomePath } from "@/lib/hive-routes";
 import {
   attentionStatusDots,
   clientHiveMetaLine,
@@ -79,7 +79,7 @@ function ClientRow({
     <li className="list-none border-t border-line first:border-t-0" data-testid="clients-home-row">
       <div className="group relative flex flex-wrap items-start gap-x-4 gap-y-3 px-1 py-3 min-[760px]:grid min-[760px]:grid-cols-[minmax(180px,1.2fr)_minmax(220px,1.6fr)_120px_120px_44px] min-[760px]:items-center">
         <Link
-          href={hiveBoardPath(hive.id)}
+          href={hiveHomePath(hive.id)}
           className="absolute inset-0 z-0 rounded-control group-hover:bg-canvas"
           aria-label={`Open ${hive.name}`}
         />

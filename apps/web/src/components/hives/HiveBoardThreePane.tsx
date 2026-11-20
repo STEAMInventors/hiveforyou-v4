@@ -59,14 +59,14 @@ export function HiveBoardThreePane({
 }: HiveBoardThreePaneProps) {
   const router = useRouter();
   const analysis = useStudyPreparation(hive.id, { initialPreparation });
-  const stageActionHook = useWorkspaceAction(`/hives/${hive.id}/board`);
+  const stageActionHook = useWorkspaceAction(`/hives/${hive.id}`);
   const [narrow, setNarrow] = useState(readNarrow);
   const [pane, setPane] = useState<PaneId>("items");
   const [preview, setPreview] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
-  const inviteAction = useWorkspaceAction(`/hives/${hive.id}/board`);
+  const inviteAction = useWorkspaceAction(`/hives/${hive.id}`);
   const [pollFailures, setPollFailures] = useState(0);
   const [pollUnavailable, setPollUnavailable] = useState(false);
   const pollState = pollUnavailable ? "unavailable" : boardPollStateFromFailures(pollFailures);

@@ -28,7 +28,7 @@ export function HiveSidebarCard({
   assistantName,
 }: HiveSidebarCardProps) {
   const renameId = useId();
-  const path = `/hives/${hive.id}/board`;
+  const path = `/hives/${hive.id}`;
   const action = useWorkspaceAction(path);
   const handOverTriggerRef = useRef<HTMLButtonElement>(null);
   const [renaming, setRenaming] = useState(false);

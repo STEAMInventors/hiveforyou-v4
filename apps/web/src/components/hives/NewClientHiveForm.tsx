@@ -24,7 +24,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { WORKSPACE_PRIMARY, WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { Card } from "@/components/workspace/Card";
 import { CORRELATION_HEADER_NAME } from "@/lib/hives-client";
-import { MY_HIVES_PATH, hiveBoardPath, hiveDocumentsPath } from "@/lib/hive-routes";
+import { MY_HIVES_PATH, hiveDocumentsPath, hiveHomePath } from "@/lib/hive-routes";
 
 type PackCatalogEntry = NewClientPackOption & {
   rows: NewClientChecklistRow[];
@@ -355,7 +355,7 @@ export function NewClientHiveForm({
       const payload: unknown = await response.json().catch(() => null);
       if (response.ok && payload && typeof payload === "object" && (payload as { ok?: unknown }).ok === true) {
         const hiveId = String((payload as { hiveId: string }).hiveId);
-        router.push(mode === "invite" ? hiveBoardPath(hiveId) : hiveDocumentsPath(hiveId));
+        router.push(mode === "invite" ? hiveHomePath(hiveId) : hiveDocumentsPath(hiveId));
         return;
       }
       const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
@@ -678,7 +678,7 @@ export function NewClientHiveForm({
                 >
                   Try again
                 </button>
-                <Link href={hiveBoardPath(partial.hiveId)} className={`${WORKSPACE_SECONDARY} no-underline`}>
+                <Link href={hiveHomePath(partial.hiveId)} className={`${WORKSPACE_SECONDARY} no-underline`}>
                   Open {clientFirstName(partial.hiveName) ?? partial.hiveName}&apos;s hive
                 </Link>
               </div>
