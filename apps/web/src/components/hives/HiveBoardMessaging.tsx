@@ -3,8 +3,11 @@
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import type { HiveBoardConversationProps } from "@/components/hives/HiveBoardConversation";
 import { HiveBoardConversation } from "@/components/hives/HiveBoardConversation";
+import { ConversationPreviewSelect, type HiveConversationProps } from "@/components/hives/HiveConversation";
+import type { ConversationViewer } from "@/components/hives/hive-conversation-view";
+import { Tabs } from "@/components/ui/Tabs";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 
 export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"> & {
   readonly firmless: boolean;
@@ -12,7 +15,11 @@ export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"
   readonly currentUserId: string | null;
   readonly initialPeople: ConversationLoad;
   readonly initialAsk: ConversationLoad;
-  readonly teamMemberFirstName: string;
+  readonly teamMemberFirstName: string | null;
+  /** Dev gallery: open on another member's Ask thread without waiting for a click. */
+  readonly defaultAskThreadOwnerId?: string | null;
+  /** Dev gallery: Ask tab before searchParams hydrate (does not change production URLs). */
+  readonly initialBoardView?: BoardView;
 };
 
 type BoardView = "conversation" | "ask";
@@ -29,6 +36,8 @@ export function HiveBoardMessaging({
   initialPeople,
   initialAsk,
   teamMemberFirstName,
+  defaultAskThreadOwnerId = null,
+  initialBoardView,
   hiveId,
   staffView,
   clientName,
@@ -39,8 +48,11 @@ export function HiveBoardMessaging({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const view = activeView(searchParams, firmless);
-  const [askThreadOwner, setAskThreadOwner] = useState<string | null>(currentUserId);
+  const urlView = activeView(searchParams, firmless);
+  const view = initialBoardView ?? urlView;
+  const [askThreadOwner, setAskThreadOwner] = useState<string | null>(defaultAskThreadOwnerId ?? currentUserId);
+  const [previewViewer, setPreviewViewer] = useState<ConversationViewer>("self");
+  const previewSelectId = useId();
 
   const setView = useCallback(
     (next: BoardView) => {
@@ -62,39 +74,29 @@ export function HiveBoardMessaging({
     [initialAsk],
   );
 
+  const conversationPreviewProps: Pick<HiveConversationProps, "previewViewer" | "onPreviewViewerChange" | "previewOnTabs"> =
+    staffView
+      ? { previewViewer, onPreviewViewerChange: setPreviewViewer, previewOnTabs: true }
+      : {};
+
   const tabs = !firmless ? (
     <div
-      role="tablist"
-      aria-label="Hive board"
-      className="flex gap-2 border-b border-line px-[22px] pt-4 max-[649px]:px-4"
+      className="mb-2 flex flex-wrap items-center justify-between gap-3"
       data-testid="hive-board-view-tabs"
     >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "conversation"}
-        className={`rounded-t-control border px-4 py-2 text-[13px] font-semibold ${
-          view === "conversation"
-            ? "border-line border-b-paper bg-paper text-ink"
-            : "border-transparent bg-mist text-graphite"
-        }`}
-        onClick={() => setView("conversation")}
-      >
-        Conversation
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "ask"}
-        className={`rounded-t-control border px-4 py-2 text-[13px] font-semibold ${
-          view === "ask"
-            ? "border-line border-b-paper bg-paper text-ink"
-            : "border-transparent bg-mist text-graphite"
-        }`}
-        onClick={() => setView("ask")}
-      >
-        Ask {assistantName}
-      </button>
+      <Tabs
+        ariaLabel="Hive board"
+        className="mb-0"
+        options={[
+          { id: "conversation" as const, label: "Conversation" },
+          { id: "ask" as const, label: `Ask ${assistantName}` },
+        ]}
+        value={view}
+        onChange={setView}
+      />
+      {staffView && view === "conversation" ? (
+        <ConversationPreviewSelect id={previewSelectId} value={previewViewer} onChange={setPreviewViewer} />
+      ) : null}
     </div>
   ) : null;
 
@@ -114,6 +116,7 @@ export function HiveBoardMessaging({
           teamMemberFirstName={teamMemberFirstName}
           firmless={firmless}
           onSwitchToConversation={() => setView("conversation")}
+          {...conversationPreviewProps}
           {...study}
         />
       </div>
@@ -126,11 +129,32 @@ export function HiveBoardMessaging({
       <HiveBoardConversation
         key={askThreadOwner ?? "self"}
         hiveId={hiveId}
-        initial={
-          askThreadOwner && currentUserId && askThreadOwner !== currentUserId.toLowerCase()
-            ? { ok: true, page: { messages: [], participantRoleLabels: [], participantCount: 0, viewerLastReadAt: null, nextCursor: null } }
-            : initialAsk
-        }
+        initial={(() => {
+          const viewingOtherAsk =
+            Boolean(
+              askThreadOwner && currentUserId && askThreadOwner.toLowerCase() !== currentUserId.toLowerCase(),
+            );
+          const gallerySeed =
+            Boolean(
+              defaultAskThreadOwnerId &&
+                askThreadOwner?.toLowerCase() === defaultAskThreadOwnerId.toLowerCase() &&
+                initialAsk.ok &&
+                initialAsk.page.messages.length > 0,
+            );
+          if (viewingOtherAsk && !gallerySeed) {
+            return {
+              ok: true,
+              page: {
+                messages: [],
+                participantRoleLabels: [],
+                participantCount: 0,
+                viewerLastReadAt: null,
+                nextCursor: null,
+              },
+            } as ConversationLoad;
+          }
+          return initialAsk;
+        })()}
         staffView={staffView}
         clientName={clientName}
         viewerIsClient={viewerIsClient}

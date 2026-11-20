@@ -16,7 +16,7 @@ export function Card({ title, subtitle, headerRight, children, className = "", t
   return (
     <section
       id={id}
-      className={`flex flex-col rounded-card border border-line bg-paper px-[18px] py-4 ${id ? "scroll-mt-6" : ""} ${className}`.trim()}
+      className={`flex flex-col rounded-surface border border-line-strong bg-paper px-5 py-4 ${id ? "scroll-mt-6" : ""} ${className}`.trim()}
       data-testid={testId}
     >
       {hasHeader ? (

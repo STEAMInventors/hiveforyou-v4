@@ -75,7 +75,7 @@ export function WorkspaceShell({
 
   return (
     <WorkspaceChromeProvider>
-      <div className="flex min-h-full flex-1 flex-col bg-canvas min-[900px]:grid min-[900px]:grid-cols-[236px_minmax(0,1fr)]">
+      <div className="flex min-h-full flex-1 flex-col bg-canvas min-[900px]:grid min-[900px]:grid-cols-[240px_minmax(0,1fr)]">
         {compactNav ? (
           <div className="border-b border-line bg-paper px-3 py-2 min-[900px]:hidden">
             <HiveSidebar
@@ -110,8 +110,8 @@ export function WorkspaceShell({
             />
           </div>
         )}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="mx-auto flex w-full max-w-workspace flex-1 flex-col gap-4 px-4 py-6 min-[900px]:px-8 min-[900px]:pb-16">
+        <div className="flex min-w-0 flex-1 flex-col bg-paper">
+          <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-5 min-[900px]:px-10 min-[900px]:py-7 min-[900px]:pb-16">
             {children}
           </div>
         </div>

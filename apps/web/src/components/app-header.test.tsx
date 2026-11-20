@@ -89,7 +89,27 @@ describe("AppHeader", () => {
     expect(screen.getByLabelText("Find a client")).toBeTruthy();
   });
 
-  it("shows the workspace breadcrumb on desktop when a hive section is active", () => {
+  it("shows a quiet All hives link in the hive workspace", () => {
+    pathname = `/hives/${HIVE_ID}/board`;
+    render(
+      <AppHeader
+        workspace={{
+          hiveId: HIVE_ID,
+          hiveName: "Widget batch review",
+          section: "board",
+          startingView: "clients",
+          hiveKind: "client",
+        }}
+        account={account}
+      />,
+    );
+    const link = screen.getByTestId("header-all-hives");
+    expect(link.textContent).toBe("All hives");
+    expect(link.getAttribute("href")).toBe("/hives");
+    expect(link.className).not.toMatch(/\bbg-cell-blue/);
+  });
+
+  it("does not show a workspace breadcrumb when a hive section is active", () => {
     pathname = `/hives/${HIVE_ID}/findings`;
     render(
       <AppHeader
@@ -103,34 +123,8 @@ describe("AppHeader", () => {
         account={account}
       />,
     );
-    const header = screen.getByTestId("app-header");
-    const logoColumn = screen.getByTestId("header-logo-column");
-    const breadcrumb = screen.getByTestId("workspace-breadcrumb");
-    expect(logoColumn.contains(breadcrumb)).toBe(false);
-    expect(header.firstElementChild?.contains(logoColumn)).toBe(true);
-    expect(header.firstElementChild?.contains(breadcrumb)).toBe(true);
-    expect(breadcrumb.className).toContain("min-[900px]:flex");
-    expect(screen.getByText("Findings")).toBeTruthy();
+    expect(screen.queryByTestId("workspace-breadcrumb")).toBeNull();
     expect(screen.queryByTestId("hive-header-ask-pill")).toBeNull();
-  });
-
-  it("truncates long hive names in the breadcrumb and exposes the full name", () => {
-    const longName = "Southern District widget manufacturing and supply cooperative review";
-    pathname = `/hives/${HIVE_ID}/board`;
-    render(
-      <AppHeader
-        workspace={{
-          hiveId: HIVE_ID,
-          hiveName: longName,
-          section: "board",
-          startingView: "own",
-          hiveKind: "own",
-        }}
-        account={{ ...account, startingView: "own" }}
-      />,
-    );
-    const hiveCrumb = screen.getByTitle(longName);
-    expect(hiveCrumb.className).toContain("truncate");
   });
 
   it("opens an accessible account menu from the keyboard and returns focus on Escape", () => {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { HiveMessage } from "@hiveforyou/contracts";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HiveBoardConversation } from "./HiveBoardConversation";
@@ -99,8 +99,9 @@ describe("HiveBoardConversation evidence chips", () => {
     );
 
     const chip = screen.getByTestId("source-chip");
-    expect(chip.textContent).toContain("Speech-language evaluation");
-    fireEvent.click(chip);
+    const ref = within(chip).getByTestId("source-ref");
+    expect(ref.getAttribute("title")).toContain("Speech-language evaluation");
+    fireEvent.click(ref);
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalled();
     });

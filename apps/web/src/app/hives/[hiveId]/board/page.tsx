@@ -4,7 +4,8 @@ import { HiveBoardMessaging } from "@/components/hives/HiveBoardMessaging";
 import { HiveStillToCome } from "@/components/hives/HiveStillToCome";
 import { HiveHandoverBanner } from "@/components/workspace/HiveHandoverBanner";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
-import { showsFirmThreePane } from "@/lib/hives/firm-board";
+import { hiveBoardPageDescription } from "@/lib/hives/board-head-copy";
+import { personFirstName, showsFirmThreePane } from "@/lib/hives/firm-board";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadLatestHandover } from "@/server/firm/load-firm-board";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
@@ -53,12 +54,25 @@ export default async function HiveBoardPage({ params, searchParams }: BoardPageP
       : "HiveForYou";
   const board = boardLoad?.board ?? null;
   const overview = boardLoad?.overview;
+  const staffFirstName = hive.assigneeDisplayName?.trim()
+    ? personFirstName(hive.assigneeDisplayName)
+    : null;
+  const boardView = firmless || view === "ask" ? "ask" : "conversation";
+  const boardDescription = hiveBoardPageDescription({
+    firmless,
+    view: boardView,
+    assistantName,
+    viewerIsClient: hive.membershipRole === "client",
+    clientName: hive.kind === "client" ? hive.name : null,
+    staffFirstName,
+  });
 
   return (
     <>
       {handover ? <HiveHandoverBanner handover={handover} visible /> : null}
-      <HivePageHead title="Hive board" />
-      <div className="mx-auto flex w-full max-w-[940px] flex-col gap-3" data-testid="hive-board">
+      <div className="mx-auto flex w-full max-w-col-read flex-col gap-3">
+        <HivePageHead title="Hive board" subtitle={boardDescription} />
+        <div className="flex flex-col gap-3" data-testid="hive-board">
         <HiveStillToCome hiveId={hive.id} progress={board && board.checklist.length > 0 ? board.progress : null} />
         <Suspense fallback={null}>
           <HiveBoardMessaging
@@ -68,7 +82,7 @@ export default async function HiveBoardPage({ params, searchParams }: BoardPageP
           currentUserId={auth.userId}
           initialPeople={conversationPeople}
           initialAsk={initialAsk}
-          teamMemberFirstName="your team"
+          teamMemberFirstName={staffFirstName}
           staffView={staffView}
           clientName={hive.kind === "client" ? hive.name : null}
           viewerIsClient={hive.membershipRole === "client"}
@@ -80,6 +94,7 @@ export default async function HiveBoardPage({ params, searchParams }: BoardPageP
           documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
           />
         </Suspense>
+        </div>
       </div>
     </>
   );

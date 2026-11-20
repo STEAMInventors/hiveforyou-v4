@@ -13,7 +13,7 @@ const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 afterEach(cleanup);
 
 describe("HiveMark and source chips", () => {
-  it("renders one HiveMark on meta, footer, difference footer, read-problem notice, and every SourceChip", () => {
+  it("renders HiveMark on meta, footer, difference footer, and read-problem notice; document icons on SourceChips", () => {
     const fixture = bankruptcyC13Fixture("PRO");
     const { container } = render(
       <StudyReport
@@ -27,9 +27,9 @@ describe("HiveMark and source chips", () => {
     );
     const chips = screen.getAllByTestId("source-chip");
     expect(chips.length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('[data-testid="hive-mark"]')).toHaveLength(4 + chips.length);
+    expect(container.querySelectorAll('[data-testid="hive-mark"]')).toHaveLength(4);
     for (const chip of chips) {
-      expect(within(chip).getByTestId("hive-mark")).toBeTruthy();
+      expect(within(chip).getByTestId("source-ref").querySelector("svg")).toBeTruthy();
     }
     cleanup();
 

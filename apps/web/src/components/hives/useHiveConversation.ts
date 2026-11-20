@@ -75,18 +75,28 @@ export type HiveConversationTriggerContext = {
   hiveFirmId: string | null;
 };
 
+function resolveAssistantName(pageName: string | null | undefined, propName: string): string {
+  const fromPage = pageName?.trim();
+  if (fromPage) return fromPage;
+  const fromProp = propName.trim();
+  if (fromProp) return fromProp;
+  return "HiveForYou";
+}
+
 export function useHiveConversation({
   hiveId,
   initial,
   assistantTrigger,
   channel = "people",
   threadOwnerUserId = null,
+  assistantName: assistantNameProp = "HiveForYou",
 }: {
   hiveId: string;
   initial: ConversationLoad;
   assistantTrigger?: HiveConversationTriggerContext;
   channel?: "people" | "assistant";
   threadOwnerUserId?: string | null;
+  assistantName?: string;
 }) {
   const router = useRouter();
   const boardPath = hiveBoardPath(hiveId);
@@ -115,7 +125,9 @@ export function useHiveConversation({
   const [pendingAssistant, setPendingAssistant] = useState(initialPage?.pendingAssistant ?? false);
   const [assistantRepliesOn, setAssistantRepliesOn] = useState(initialPage?.assistantRepliesOn ?? true);
   const [assistantAvailable, setAssistantAvailable] = useState(initialPage?.assistantAvailable ?? false);
-  const [assistantName, setAssistantName] = useState(initialPage?.assistantName ?? "HiveForYou");
+  const [assistantName, setAssistantName] = useState(() =>
+    resolveAssistantName(initialPage?.assistantName, assistantNameProp),
+  );
   const [failedAssistantForMessageIds, setFailedAssistantForMessageIds] = useState<readonly string[]>(
     initialPage?.failedAssistantForMessageIds ?? [],
   );
@@ -196,7 +208,7 @@ export function useHiveConversation({
       setPendingAssistant(page.pendingAssistant ?? false);
       setAssistantRepliesOn(page.assistantRepliesOn ?? true);
       setAssistantAvailable(page.assistantAvailable ?? false);
-      if (page.assistantName) setAssistantName(page.assistantName);
+      setAssistantName(resolveAssistantName(page.assistantName, assistantNameProp));
       if (page.failedAssistantForMessageIds) setFailedAssistantForMessageIds(page.failedAssistantForMessageIds);
       if (page.assistantThreads) setAssistantThreads(page.assistantThreads);
       if (!page.pendingAssistant) {
@@ -218,7 +230,7 @@ export function useHiveConversation({
         bump("poll");
       }
     },
-    [bump, replaceMessages],
+    [assistantNameProp, bump, replaceMessages],
   );
 
   useEffect(() => {

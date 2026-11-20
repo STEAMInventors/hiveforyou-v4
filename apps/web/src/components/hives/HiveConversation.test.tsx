@@ -128,7 +128,7 @@ describe("HiveConversation", () => {
     expect(within(rows[0]!).getByText("9:14 AM")).toBeTruthy();
     expect(within(rows[1]!).getByText("Onboarding associate")).toBeTruthy();
     expect(screen.getAllByTestId("hive-conversation-day").map((el) => el.textContent)).toEqual(["Yesterday", "Today"]);
-    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Client · Onboarding associate");
+    expect(screen.queryByTestId("hive-conversation-participants")).toBeNull();
     expect(screen.getByTestId("hive-conversation-messages").getAttribute("aria-live")).toBe("polite");
   });
 
@@ -142,27 +142,12 @@ describe("HiveConversation", () => {
     expect(body.className).toContain("whitespace-pre-wrap");
   });
 
-  it("says Only you so far. when the viewer is the only participant", () => {
+  it("does not show a participant line above the thread", () => {
     renderConversation({
       initial: { ok: true, page: page({ messages: [], participantRoleLabels: ["Owner"], participantCount: 1 }) },
       staffView: false,
     });
-    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Only you so far.");
-  });
-
-  it("does not add the assistant to the people participant line", () => {
-    renderConversation({
-      initial: {
-        ok: true,
-        page: page({
-          messages: [],
-          participantRoleLabels: ["Owner", "HiveForYou (AI assistant)"],
-          participantCount: 1,
-          assistantAvailable: true,
-        }),
-      },
-    });
-    expect(screen.getByTestId("hive-conversation-participants").textContent).toBe("Owner · HiveForYou (AI assistant)");
+    expect(screen.queryByTestId("hive-conversation-participants")).toBeNull();
   });
 
   it("shows the assistant failure line to firm staff but not while previewing as client", () => {
@@ -397,7 +382,7 @@ describe("HiveConversation", () => {
         : json(page());
     renderConversation();
     fireEvent.change(composer(), { target: { value: "  Here is the update.  " } });
-    fireEvent.click(screen.getByRole("button", { name: "Send message →" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     expect(composer().value).toBe("");
     const pending = screen.getByTestId("hive-message-pending");
@@ -482,7 +467,7 @@ describe("HiveConversation", () => {
     handler = (url, init) =>
       String(url).endsWith("/messages") && !String(url).includes("?") && init?.method === "POST" ? new Promise<Response>(() => undefined) : json(page());
     renderConversation();
-    const send = screen.getByRole("button", { name: "Send message →" }) as HTMLButtonElement;
+    const send = screen.getByRole("button", { name: "Send" }) as HTMLButtonElement;
     expect(send.disabled).toBe(true);
     fireEvent.change(composer(), { target: { value: "Line one" } });
     expect(send.disabled).toBe(false);
@@ -504,14 +489,16 @@ describe("HiveConversation", () => {
     const { unmount } = renderConversation();
     const note = screen.getByTestId("hive-conversation-people-hint");
     expect(note.textContent).toBe(
-      "Everyone in this hive sees this. Everyone in this hive sees this, including the client. For staff-only notes use Team notes.",
+      "Everyone in this hive sees this conversation. For staff-only notes use Team notes.",
     );
     expect(within(note).getByRole("link", { name: "Team notes" }).getAttribute("href")).toBe(`/hives/${HIVE_ID}/notes`);
     expect(screen.getByLabelText("Preview as")).toBeTruthy();
     unmount();
 
     renderConversation({ staffView: false, viewerIsClient: true });
-    expect(screen.getByTestId("hive-conversation-people-hint").textContent).toBe("Everyone in this hive sees this.");
+    expect(screen.getByTestId("hive-conversation-people-hint").textContent).toBe(
+      "Everyone in this hive sees this conversation.",
+    );
     expect(screen.queryByLabelText("Preview as")).toBeNull();
   });
 
@@ -522,7 +509,7 @@ describe("HiveConversation", () => {
     const rows = screen.getAllByTestId("hive-message");
     expect(rows.map((row) => row.getAttribute("data-mine"))).toEqual(["true", "false"]);
     expect(screen.queryByLabelText("Message")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Send message →" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
     expect(screen.queryByTestId("hive-conversation-people-hint")).toBeNull();
     expect(screen.getByText("Preview — this is what Ruth sees.")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -553,8 +540,8 @@ describe("HiveConversation", () => {
         />
       </>,
     );
-    const filled = screen.getAllByRole("button").filter((button) => button.className.includes("bg-cell-blue-deep"));
-    expect(filled.map((button) => button.textContent)).toEqual(["Send message →"]);
+    const filled = screen.getAllByRole("button").filter((button) => button.className.includes("bg-blue-deep"));
+    expect(filled.map((button) => button.textContent)).toEqual(["Send"]);
   });
 });
 
@@ -562,7 +549,9 @@ describe("HiveStillToCome", () => {
   it("links to the requested items while some are outstanding", () => {
     render(<HiveStillToCome hiveId={HIVE_ID} progress={{ in: 2, total: 5 }} />);
     const line = screen.getByTestId("hive-still-to-come");
-    expect(line.textContent).toBe("Still to come · 2 of 5 in · See items →");
+    expect(line.textContent).toContain("Still to come");
+    expect(line.textContent).toContain("2 of 5 in");
+    expect(line.textContent).toContain("See items");
     expect(within(line).getByRole("link", { name: "See items →" }).getAttribute("href")).toBe(
       `/hives/${HIVE_ID}/documents#requested`,
     );

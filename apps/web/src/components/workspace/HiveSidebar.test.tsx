@@ -57,9 +57,9 @@ function renderRail(overrides: Partial<ComponentProps<typeof HiveSidebar>> = {})
 }
 
 describe("HiveSidebar", () => {
-  it("lists Your hive in order, with Findings carrying the to-review count", () => {
+  it("lists hive sections in order, with Findings carrying the to-review count", () => {
     renderRail();
-    expect(screen.getByText("Your hive")).toBeTruthy();
+    expect(screen.queryByText("Your hive")).toBeNull();
     const labels = screen.getAllByRole("link").map((link) => (link.textContent ?? "").replace(/\d+/g, "").trim());
     expect(labels).toEqual(["Hive board", "Documents", "Findings", "Reports", "Audit trail", "Team notes"]);
     expect(screen.getByLabelText("2 to review")).toBeTruthy();
@@ -120,23 +120,15 @@ describe("HiveSidebar", () => {
     expect(screen.queryByLabelText(/unread messages/)).toBeNull();
   });
 
-  it("keeps the uppercase group label as the only uppercase text in the rail", () => {
-    const { container } = renderRail();
-    const uppercase = Array.from(container.querySelectorAll<HTMLElement>("[class*='uppercase']"));
-    expect(uppercase.map((el) => el.textContent)).toEqual(["Your hive"]);
-    expect(uppercase[0]!.className).toContain("text-[11px]");
-  });
-
   it("shows the study footer on the desktop rail", () => {
     renderRail();
     const footer = screen.getByTestId("study-rail-footer");
-    const accepted = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(
+    const accepted = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
       new Date("2026-11-17T12:00:00.000Z"),
     );
-    expect(footer.textContent).toContain("Study revision");
-    expect(footer.textContent).toContain("v3");
-    expect(footer.textContent).toContain("Every finding links to its source page.");
-    expect(footer.textContent).toContain(`Accepted ${accepted}`);
+    expect(footer.textContent).toContain("Study v3");
+    expect(footer.textContent).toContain("Every finding opens its source page.");
+    expect(footer.textContent).toContain(`accepted ${accepted}`);
   });
 
   it("says there is no study yet when the summary loaded without one", () => {

@@ -221,11 +221,11 @@ describe("SourceChips + evidence viewer", () => {
       </EvidenceViewerProvider>,
     );
     const chips = screen.getAllByTestId("source-chip");
-    expect(chips[0]!.tagName).toBe("BUTTON");
-    expect(within(chips[0]!).getByTestId("hive-mark")).toBeTruthy();
+    expect(within(chips[0]!).getByTestId("source-ref").tagName).toBe("BUTTON");
+    expect(within(chips[0]!).getByTestId("source-ref").querySelector("svg")).toBeTruthy();
     expect(screen.queryByText(/02_plan\.pdf/)).toBeNull();
 
-    fireEvent.click(chips[0]!);
+    fireEvent.click(within(chips[0]!).getByTestId("source-ref"));
 
     await waitFor(() => {
       expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -256,7 +256,7 @@ describe("SourceChips + evidence viewer", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTestId("evidence-viewer")).toBeNull();
-    expect(document.activeElement).toBe(chips[0]);
+    expect(document.activeElement).toBe(within(chips[0]!).getByTestId("source-ref"));
   });
 
   it("shows not-found status for PDF when quote does not match persisted text", async () => {
@@ -275,7 +275,7 @@ describe("SourceChips + evidence viewer", () => {
         <SourceChips refs={[{ sourceDocumentId: DOC, pageNumber: 1, quote: "Not on page" }]} />
       </EvidenceViewerProvider>,
     );
-    fireEvent.click(screen.getByTestId("source-chip"));
+    fireEvent.click(within(screen.getByTestId("source-chip")).getByTestId("source-ref"));
     await waitFor(() => {
       expect(screen.getByTestId("evidence-highlight-status").textContent).toMatch(/Couldn't find this passage/);
     });
@@ -299,7 +299,7 @@ describe("SourceChips + evidence viewer", () => {
         />
       </EvidenceViewerProvider>,
     );
-    fireEvent.click(screen.getByTestId("source-chip"));
+    fireEvent.click(within(screen.getByTestId("source-chip")).getByTestId("source-ref"));
     await waitFor(() => {
       expect(document.querySelectorAll(".evidence-highlight").length).toBeGreaterThan(0);
     });

@@ -15,7 +15,7 @@ export type HiveBoardConversationProps = HiveConversationProps & {
   readonly documentPages?: Readonly<Record<string, number>>;
   readonly mode?: "people" | "assistant";
   readonly assistantName?: string;
-  readonly teamMemberFirstName?: string;
+  readonly teamMemberFirstName?: string | null;
   readonly firmless?: boolean;
   readonly readOnly?: boolean;
   readonly threadOwnerUserId?: string | null;

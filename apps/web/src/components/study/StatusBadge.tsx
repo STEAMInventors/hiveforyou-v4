@@ -1,6 +1,6 @@
 "use client";
 
-import { StatusDot } from "@/components/workspace/StatusDot";
+import { StatusDot } from "@/components/ui/StatusDot";
 import { useWorkspaceChrome } from "@/components/workspace/workspace-context";
 
 import {

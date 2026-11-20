@@ -64,7 +64,7 @@ describe("WorkspaceShell", () => {
     );
 
     expect(container.firstElementChild?.className).toContain("min-[900px]:grid");
-    expect(container.firstElementChild?.className).toContain("min-[900px]:grid-cols-[236px_minmax(0,1fr)]");
+    expect(container.firstElementChild?.className).toContain("min-[900px]:grid-cols-[240px_minmax(0,1fr)]");
     expect(screen.getByTestId("hive-sidebar-desktop")).toBeTruthy();
     expect(screen.queryByTestId("hive-sidebar-compact")).toBeNull();
   });

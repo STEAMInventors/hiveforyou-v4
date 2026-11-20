@@ -75,14 +75,30 @@ describe("Hive board page", () => {
       }),
     );
     const head = screen.getByTestId("hive-page-head");
-    expect(head.textContent).toBe("Hive board");
-    expect(screen.getByTestId("hive-still-to-come").textContent).toBe("Still to come · 1 of 3 in · See items →");
+    expect(head.textContent).toContain("Hive board");
+    expect(head.textContent).toContain("Your conversation with Ruth");
+    expect(head.textContent).toContain("Maya doesn't take part here");
+    const still = screen.getByTestId("hive-still-to-come");
+    expect(still.textContent).toContain("Still to come");
+    expect(still.textContent).toContain("1 of 3 in");
+    expect(still.textContent).toContain("See items");
     expect(screen.getByTestId("conversation-stub")).toBeTruthy();
     expect(screen.queryByText("Old headline")).toBeNull();
     expect(screen.queryByText("To review")).toBeNull();
     expect(screen.queryByText("Items")).toBeNull();
     expect(screen.queryByTestId("hive-board-three-pane")).toBeNull();
     expect(conversationProps[0]).toMatchObject({ staffView: true, clientName: "Ruth Ortiz", viewerIsClient: false });
+  });
+
+  it("passes null teamMemberFirstName when the hive has no assignee", async () => {
+    hive = { ...firmClientHive, assigneeDisplayName: null };
+    render(
+      await HiveBoardPage({
+        params: Promise.resolve({ hiveId: HIVE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(conversationProps[0]).toMatchObject({ teamMemberFirstName: null });
   });
 
   it("gives clients and individual hives no staff view", async () => {
