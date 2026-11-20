@@ -44,7 +44,7 @@ export function Composer({
         id={textareaId}
         ref={textareaRef}
         {...textareaProps}
-        className={`block max-h-40 min-h-[52px] w-full resize-none border-0 bg-transparent px-3.5 pb-1 pt-3 text-message text-ink outline-none placeholder:text-ink-3 ${textareaProps.className ?? ""}`.trim()}
+        className={`block max-h-40 min-h-[52px] w-full resize-none border-0 bg-transparent px-3.5 pb-1 pt-3 text-message text-ink outline-none focus:outline-none focus:ring-0 focus-visible:outline-none placeholder:text-ink-3 ${textareaProps.className ?? ""}`.trim()}
       />
       <div className="flex flex-wrap items-center justify-between gap-2.5 px-2 pb-2 pl-3.5 pt-1.5">
         {hint ? (

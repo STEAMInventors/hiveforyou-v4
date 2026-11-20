@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 
 import { AppShell } from "@/components/app-header";
+import { HivesRouteShell } from "@/components/hives/HivesRouteShell";
 import { accountMenuDetails } from "@/lib/account-shell";
 import { ClientsHomeLayoutBridge } from "@/lib/hives/clients-home-context";
 import { ClientsHomeProvider } from "@/lib/hives/clients-home-context";
@@ -21,7 +22,7 @@ export default async function HivesLayout({ children }: { children: ReactNode })
   return (
     <Suspense fallback={<AppShell account={account}>{children}</AppShell>}>
       <ClientsHomeLayoutBridge enabled>
-        <AppShell account={account}>{children}</AppShell>
+        <HivesRouteShell account={account}>{children}</HivesRouteShell>
       </ClientsHomeLayoutBridge>
     </Suspense>
   );

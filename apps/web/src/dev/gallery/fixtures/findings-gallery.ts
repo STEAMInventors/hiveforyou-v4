@@ -363,13 +363,30 @@ function cloneLarge(): GalleryFindingsProps {
 
 export const LARGE_FINDINGS: GalleryFindingsProps = cloneLarge();
 
-export const MEDICAID_EVIDENCE_LABELS = new Map(
-  ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9"].map((id, index) => [
-    id,
-    `Checking ${4421 + index} · 202${index % 5}`,
-  ]),
-);
+const EVIDENCE_LABEL_BY_DOC: Record<string, string> = {
+  m1: "Checking 4421 · 2020",
+  m2: "Checking 4422 · 2021",
+  m3: "Checking 4423 · 2022",
+  m4: "Checking 4424 · 2023",
+  m5: "Checking 4425 · 2024",
+  m6: "Checking 4426 · 2020",
+  m7: "Savings 3819 · 2023",
+  m8: "Pay stubs · 2022",
+  m9: "Agency letter · 2026",
+};
 
-export const MEDICAID_CHIP_LABELS = new Map(
-  ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9"].map((id) => [id, "Checking stmts"]),
-);
+export const MEDICAID_EVIDENCE_LABELS = new Map(Object.entries(EVIDENCE_LABEL_BY_DOC));
+
+const CHIP_LABEL_BY_DOC: Record<string, string> = {
+  m1: "Checking stmts",
+  m2: "Checking stmts",
+  m3: "Checking stmts",
+  m4: "Checking stmts",
+  m5: "Checking stmts",
+  m6: "Checking stmts",
+  m7: "Savings stmts",
+  m8: "Pay stubs",
+  m9: "Agency letter",
+};
+
+export const MEDICAID_CHIP_LABELS = new Map(Object.entries(CHIP_LABEL_BY_DOC));

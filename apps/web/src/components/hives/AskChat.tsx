@@ -670,7 +670,7 @@ export function AskChat({
                     value={draft}
                     maxLength={HIVE_MESSAGE_BODY_MAX}
                     placeholder={`Ask ${assistantName} about the documents…`}
-                    className="block max-h-40 min-h-[38px] w-full resize-none border-0 bg-transparent py-2 text-[14px] leading-[1.55] text-ink outline-none placeholder:text-ink-3"
+                    className="block max-h-40 min-h-[38px] w-full resize-none border-0 bg-transparent py-2 text-[14px] leading-[1.55] text-ink outline-none focus:outline-none focus:ring-0 focus-visible:outline-none placeholder:text-ink-3"
                     onChange={(event) => {
                       setDraft(event.target.value);
                       resizeComposer();

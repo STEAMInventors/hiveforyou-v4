@@ -40,6 +40,7 @@ describe("signed-out front page", () => {
     const signIn = screen.getByRole("link", { name: "Sign in" });
     expect(signIn.getAttribute("href")).toBe("/sign-in");
     expect(signIn.className).not.toContain("bg-blue-deep");
+    expect(signIn.className).toContain("text-ink-2");
     const filled = [...screen.getAllByRole("button"), ...screen.getAllByRole("link")].filter((el) =>
       el.className.includes("bg-blue-deep"),
     );
@@ -68,7 +69,7 @@ describe("signed-out front page", () => {
     withAreas(["Example intake review", "Example records review"]);
     const first = render(await LandingPage());
     expect(first.container.textContent).toContain(
-      "Built for example intake review and example records review.",
+      "Built for Example intake review and Example records review.",
     );
     first.unmount();
 

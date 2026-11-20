@@ -6,7 +6,7 @@ import { FrontStartButton } from "@/components/FrontStartButton";
 import { HiveMarkGraphic } from "@/components/HiveMarkGraphic";
 import { LandingStart } from "@/components/LandingStart";
 import { SignedOutBar } from "@/components/SignedOutBar";
-import { QUIET_LINK_CLASS } from "@/components/button-classes";
+import { SIGNED_OUT_SIGN_IN_CLASS } from "@/components/button-classes";
 import { FRONT_EXAMPLE, FRONT_PAGE_COPY, coveredAreasParagraph } from "@/content/front-page";
 import { loadPracticeAreaSetupOptions } from "@/server/firm/practice-area-options";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
@@ -25,7 +25,7 @@ export default async function LandingPage() {
   return (
     <div className="flex min-h-dvh flex-col bg-paper text-ink">
       <SignedOutBar>
-        <Link href="/sign-in" className={QUIET_LINK_CLASS}>
+        <Link href="/sign-in" className={SIGNED_OUT_SIGN_IN_CLASS}>
           {FRONT_PAGE_COPY.signIn}
         </Link>
       </SignedOutBar>

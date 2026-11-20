@@ -147,13 +147,6 @@ export const FRONT_PAGE_COPY = {
   disclaimer: "Not legal, financial or medical advice.",
 } as const;
 
-function lowerFirst(title: string): string {
-  const [first = "", second = ""] = title;
-  return second && second === second.toLowerCase() && first !== first.toLowerCase()
-    ? `${first.toLowerCase()}${title.slice(1)}`
-    : title;
-}
-
 function joinList(items: readonly string[]): string {
   if (items.length <= 1) return items[0] ?? "";
   return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
@@ -163,5 +156,5 @@ function joinList(items: readonly string[]): string {
 export function coveredAreasParagraph(areaTitles: readonly string[]): string | null {
   const titles = areaTitles.map((title) => title.trim()).filter(Boolean);
   if (titles.length === 0) return null;
-  return `Built for ${joinList(titles.map(lowerFirst))}. ${FRONT_PAGE_COPY.coversRulebook}`;
+  return `Built for ${joinList(titles)}. ${FRONT_PAGE_COPY.coversRulebook}`;
 }

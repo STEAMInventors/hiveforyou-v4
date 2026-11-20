@@ -17,6 +17,10 @@ export const TEXT_LINK_CLASS =
 export const QUIET_LINK_CLASS =
   "inline-flex min-h-11 items-center self-start rounded-control border-0 bg-transparent p-0 text-[15px] font-medium text-blue-deep no-underline hover:underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-45";
 
+/** Signed-out header "Sign in" (DESIGN §3): quiet ink-2, hover fill. */
+export const SIGNED_OUT_SIGN_IN_CLASS =
+  "inline-flex min-h-11 items-center justify-center rounded-control border-0 bg-transparent px-4 text-[15px] font-medium text-ink-2 no-underline transition-colors hover:bg-mist";
+
 export const QUIET_BUTTON_CLASS =
   "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-control border-0 bg-mist px-[22px] text-[15px] font-medium text-ink no-underline transition-colors hover:bg-line disabled:cursor-not-allowed disabled:opacity-45";
 

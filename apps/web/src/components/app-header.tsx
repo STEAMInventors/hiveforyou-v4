@@ -9,10 +9,11 @@ import { HiveBrandMark } from "@/components/HiveWordmark";
 import { ChatSheet } from "@/components/hives/ChatSheet";
 import { HiveOmni } from "@/components/hives/HiveOmni";
 import { HivesFindBox } from "@/components/hives/HivesFindBox";
-import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { OmniCatalogProvider } from "@/components/ui/omni-catalog";
-import { personFirstName } from "@/lib/hives/firm-board";
 import { HiveChatProvider, type HiveChatConfig } from "@/lib/hive-chat-context";
+import { buildHiveChatConfig } from "@/lib/build-hive-chat-config";
+
+export { buildHiveChatConfig };
 import { MY_HIVES_PATH, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import type { StartingView } from "@/lib/auth/profile";
 import type { HiveKind } from "@hiveforyou/contracts";
@@ -25,14 +26,7 @@ export type HiveHeaderWorkspace = {
   startingView?: StartingView;
   staffView?: boolean;
   assistantName?: string;
-  staffFirstName?: string | null;
-  clientName?: string | null;
-  currentUserId?: string | null;
-  firmId?: string | null;
-  firmless?: boolean;
-  initialAssistant?: ConversationLoad;
-  initialClientAssistant?: ConversationLoad | null;
-  documentCount?: number | null;
+  clientViewer?: boolean;
 };
 
 type HiveHeaderContextValue = {
@@ -48,52 +42,22 @@ export function useHiveHeaderWorkspace() {
 
 export type AppShellAccount = AccountMenuDetails;
 
-const CHAT_LOAD_FAILED: ConversationLoad = {
-  ok: false,
-  message: "Could not load the conversation. Try again.",
-  correlationId: null,
-  retryable: true,
-};
-
 function isClientViewer(workspace: HiveHeaderWorkspace): boolean {
-  return workspace.staffView === false && workspace.hiveKind === "client" && Boolean(workspace.firmId);
-}
-
-/** What the chat needs, taken from the workspace the hive page already published. */
-export function chatConfigFromWorkspace(
-  workspace: HiveHeaderWorkspace,
-  viewerDisplayName: string | null | undefined,
-): HiveChatConfig {
-  return {
-    hiveId: workspace.hiveId,
-    assistantName: workspace.assistantName?.trim() || "HiveForYou",
-    audience: isClientViewer(workspace) ? "client" : "staff",
-    viewerFirstName: viewerDisplayName?.trim() ? personFirstName(viewerDisplayName) : null,
-    staffFirstName: workspace.staffFirstName ?? null,
-    clientName: workspace.clientName ?? null,
-    currentUserId: workspace.currentUserId ?? null,
-    firmless: workspace.firmless ?? workspace.firmId == null,
-    firmId: workspace.firmId ?? null,
-    documentCount: workspace.documentCount ?? null,
-    initialAssistant: workspace.initialAssistant ?? CHAT_LOAD_FAILED,
-    initialClientAssistant: workspace.initialClientAssistant ?? null,
-  };
+  return workspace.clientViewer === true;
 }
 
 export function AppShell({
   children,
   account,
+  chatConfig = null,
 }: {
   children: ReactNode;
   account?: AppShellAccount;
+  /** When set (hive workspace), must match server render and first client render. */
+  chatConfig?: HiveChatConfig | null;
 }) {
   const [workspace, setWorkspace] = useState<HiveHeaderWorkspace | null>(null);
   const contextValue = useMemo(() => ({ workspace, setWorkspace }), [workspace]);
-  const viewerDisplayName = account?.displayName ?? null;
-  const chatConfig = useMemo(
-    () => (workspace ? chatConfigFromWorkspace(workspace, viewerDisplayName) : null),
-    [viewerDisplayName, workspace],
-  );
 
   return (
     <HiveHeaderContext.Provider value={contextValue}>

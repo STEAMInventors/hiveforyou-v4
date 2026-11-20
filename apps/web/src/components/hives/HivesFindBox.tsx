@@ -35,7 +35,7 @@ export function HivesFindBox() {
 
   return (
     <label
-      className="flex h-10 items-center gap-2.5 rounded-input border border-transparent bg-mist px-3.5 transition-[background,border-color,box-shadow] hover:bg-hover focus-within:border-line-strong focus-within:bg-paper focus-within:shadow-lift min-[760px]:h-[42px]"
+      className="flex h-10 items-center gap-2.5 rounded-input border border-line-strong bg-paper px-3.5 transition-[border-color,box-shadow] hover:border-ink-3 focus-within:border-ink-3 focus-within:shadow-lift min-[760px]:h-[42px]"
       data-testid="hives-find"
     >
       <SearchIcon />

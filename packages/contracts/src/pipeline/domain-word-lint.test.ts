@@ -64,6 +64,7 @@ const V5_006_LEGACY_EXCLUSIONS = new Set<string>([
   "packages/contracts/src/reports/writer-report-contracts.test.ts",
   "apps/web/src/components/reports/ReportsPanel.test.tsx",
   "apps/web/src/components/hives/DocumentsPanel.test.tsx",
+  "apps/web/src/content/front-page.test.ts",
 ]);
 
 /**

@@ -148,7 +148,7 @@ export const GALLERY_FIRM_SUMMARIES: Record<string, HiveSummary> = {
     { total: 8, received: 8 },
   ),
   "a1000000-0000-4000-8000-000000000006": summary({ openMissing: 3 }),
-  "a1000000-0000-4000-8000-000000000007": summary({ documentCount: 0 }),
+  "a1000000-0000-4000-8000-000000000007": summary({ documentCount: 0 }, { total: 9, received: 0 }),
   "a1000000-0000-4000-8000-000000000008": summary({ openChecked: 4 }),
   "a1000000-0000-4000-8000-000000000009": summary({ openChecked: 5 }),
 };

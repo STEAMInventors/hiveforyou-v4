@@ -8,7 +8,7 @@ import { FrontStartButton } from "@/components/FrontStartButton";
 import { HiveMarkGraphic } from "@/components/HiveMarkGraphic";
 import { LandingStart } from "@/components/LandingStart";
 import { SignedOutBar } from "@/components/SignedOutBar";
-import { PRIMARY_BUTTON_CLASS, QUIET_LINK_CLASS } from "@/components/button-classes";
+import { PRIMARY_BUTTON_CLASS, QUIET_LINK_CLASS, SIGNED_OUT_SIGN_IN_CLASS } from "@/components/button-classes";
 import { SignInFlow } from "@/components/auth/SignInFlow";
 import { SignInField, SignInHeading, SignInShell } from "@/components/auth/SignInShell";
 import { AppShell } from "@/components/app-header";
@@ -123,7 +123,7 @@ function LandingPageSections({ example }: { example?: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-paper text-ink">
       <SignedOutBar>
-        <Link href="/sign-in" className={QUIET_LINK_CLASS}>
+        <Link href="/sign-in" className={SIGNED_OUT_SIGN_IN_CLASS}>
           {FRONT_PAGE_COPY.signIn}
         </Link>
       </SignedOutBar>

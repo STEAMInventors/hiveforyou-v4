@@ -319,6 +319,18 @@ async function captureConceptState(page, state, width) {
   });
 }
 
+function attachGalleryDiagnostics(page, diagnostics, pageName, width) {
+  const tag = `gallery:${pageName}@${width}px`;
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      diagnostics.console.push(`${tag}: ${message.text()}`);
+    }
+  });
+  page.on("pageerror", (error) => {
+    diagnostics.pageErrors.push(`${tag}: ${error.message}`);
+  });
+}
+
 async function main() {
   let chromium;
   try {
@@ -331,6 +343,7 @@ async function main() {
   await mkdir(outDir, { recursive: true });
   const browser = await chromium.launch();
   const overflowPages = [];
+  const galleryDiagnostics = { console: [], pageErrors: [] };
 
   const skipGallery = process.env.UI_SHOTS_CONCEPT_ONLY === "1";
 
@@ -340,6 +353,7 @@ async function main() {
     for (const pageName of galleryPages) {
       for (const width of galleryWidths) {
         const page = await galleryContext.newPage();
+        attachGalleryDiagnostics(page, galleryDiagnostics, pageName, width);
         await page.setViewportSize({ width, height: 900 });
         await page.goto(galleryUrl(pageName), { waitUntil: "domcontentloaded", timeout: 120_000 });
         await afterGalleryLoad(page, pageName);
@@ -373,6 +387,22 @@ async function main() {
     for (const line of overflowPages) console.log(`  - ${line}`);
   } else if (!skipGallery) {
     console.log("No horizontal overflow on gallery pages.");
+  }
+
+  const reportWidths = new Set([390, 1280]);
+  const consoleAtKeyWidths = galleryDiagnostics.console.filter((line) =>
+    reportWidths.has(Number(/@(\d+)px/.exec(line)?.[1])),
+  );
+  const pageErrorsAtKeyWidths = galleryDiagnostics.pageErrors.filter((line) =>
+    reportWidths.has(Number(/@(\d+)px/.exec(line)?.[1])),
+  );
+
+  if (!skipGallery && (consoleAtKeyWidths.length > 0 || pageErrorsAtKeyWidths.length > 0)) {
+    console.error("Gallery console errors (390 and 1280px):");
+    for (const line of [...consoleAtKeyWidths, ...pageErrorsAtKeyWidths]) console.error(`  - ${line}`);
+    process.exit(1);
+  } else if (!skipGallery) {
+    console.log("No console errors on gallery pages at 390 and 1280px.");
   }
 }
 
