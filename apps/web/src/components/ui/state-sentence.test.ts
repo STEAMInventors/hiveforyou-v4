@@ -13,20 +13,9 @@ describe("buildStateSentence", () => {
         lastWrote: { name: "Ada", when: "today at 9:13 AM" },
       }),
     ).toEqual({
-      lead: "9 of 14 documents are in. 8 things to review, and 5 records are still to come.",
+      lead: "9 of 14 documents are in. 8 to review, and 5 records are still to come.",
       trailing: "Ada last wrote today at 9:13 AM.",
     });
-  });
-
-  it("uses the singular thing to review", () => {
-    expect(
-      buildStateSentence({
-        documentsIn: 4,
-        checklistSize: 6,
-        toReview: 1,
-        stillToCome: 0,
-      }).lead,
-    ).toBe("4 of 6 documents are in. 1 thing to review.");
   });
 
   it("omits zero parts and uses the no-checklist form", () => {

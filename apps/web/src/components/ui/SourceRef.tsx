@@ -4,8 +4,6 @@ import type { ChipRef } from "@/components/study/SourceChip";
 import { useEvidenceViewer } from "@/components/study/EvidenceViewer";
 import { truncateChipLabel } from "@/components/study/truncate-chip-label";
 
-import { SOURCE_REF_CLASS, SourceRefIcon } from "./source-ref-look";
-
 export type SourceRefProps = {
   chip: ChipRef;
   title?: string;
@@ -13,8 +11,28 @@ export type SourceRefProps = {
   inert?: boolean;
 };
 
-const REF_CLASS = SOURCE_REF_CLASS;
-const DocumentOutlineIcon = SourceRefIcon;
+function DocumentOutlineIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0 opacity-70"
+      aria-hidden
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
+  );
+}
+
+const REF_CLASS =
+  "inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-ref border border-line bg-paper px-2 text-[12px] font-medium text-ink-2 max-[759px]:min-h-10";
 
 export function SourceRef({ chip, title, inert = false }: SourceRefProps) {
   const viewer = useEvidenceViewer();

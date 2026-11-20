@@ -1,30 +1,26 @@
 import type { Hive, ListFirmResponse } from "@hiveforyou/contracts";
 import type { ReactNode } from "react";
 
-import type { AppShellAccount } from "@/components/app-header";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import type { StartingView } from "@/lib/auth/profile";
-import { buildHiveChatConfig } from "@/lib/build-hive-chat-config";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadTeamNotes } from "@/server/firm/load-firm-board";
 import { loadHiveConversation, loadUnreadMessageCount } from "@/server/hives/hive-conversation";
 import { loadHiveOverview, type HiveSummary } from "@/server/hives/hive-summary";
 import type { AuthenticatedSession } from "@/server/supabase/server-client";
 
-import { HivePageChrome } from "./HivePageChrome";
 import { sidebarCounts } from "./sidebar-counts";
+import { WorkspaceShell } from "./WorkspaceShell";
 
 export async function HiveWorkspaceFrame({
   hive,
   auth,
-  account,
   startingView,
   correlationId,
   children,
 }: {
   hive: Hive;
   auth: Extract<AuthenticatedSession, { ok: true }>;
-  account: AppShellAccount;
   startingView: StartingView;
   correlationId: string;
   children: ReactNode;
@@ -95,45 +91,28 @@ export async function HiveWorkspaceFrame({
     }
   }
 
-  const staffView = showsFirmThreePane(hive);
-  const documentCount = summary ? summary.documentCount : null;
-  const chatConfig = buildHiveChatConfig({
-    hive,
-    staffView,
-    assigneeLabel,
-    currentUserId: auth.userId,
-    assistantName,
-    initialAssistant,
-    initialClientAssistant,
-    documentCount,
-    viewerDisplayName: account.displayName,
-  });
-
   return (
-    <HivePageChrome
-      account={account}
-      chatConfig={chatConfig}
-      shellProps={{
-        hive,
-        startingView,
-        summaryFailedCorrelationId,
-        counts,
-        firm,
-        currentUserId: auth.userId,
-        assigneeLabel,
-        assigneeTitle,
-        assistantName,
-        initialAssistant,
-        initialClientAssistant,
-        studyRevision:
-          summary?.study
-            ? { revisionNumber: summary.study.revisionNumber, acceptedAt: summary.study.acceptedAt }
-            : null,
-        summaryLoaded: summaryFailedCorrelationId == null,
-        documentCount,
-      }}
+    <WorkspaceShell
+      hive={hive}
+      startingView={startingView}
+      summaryFailedCorrelationId={summaryFailedCorrelationId}
+      counts={counts}
+      firm={firm}
+      currentUserId={auth.userId}
+      assigneeLabel={assigneeLabel}
+      assigneeTitle={assigneeTitle}
+      assistantName={assistantName}
+      initialAssistant={initialAssistant}
+      initialClientAssistant={initialClientAssistant}
+      studyRevision={
+        summary?.study
+          ? { revisionNumber: summary.study.revisionNumber, acceptedAt: summary.study.acceptedAt }
+          : null
+      }
+      summaryLoaded={summaryFailedCorrelationId == null}
+      documentCount={summary ? summary.documentCount : null}
     >
       {children}
-    </HivePageChrome>
+    </WorkspaceShell>
   );
 }

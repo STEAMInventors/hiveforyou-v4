@@ -7,12 +7,13 @@ description: Use for any HiveForYou screen, component, style or layout change โ€
 
 Before writing or changing any UI:
 
-1. Read `docs/DESIGN.md` (v4) in full. It is the source of truth for tokens, type, spacing, components,
+1. Read `docs/DESIGN.md` (v3) in full. It is the source of truth for tokens, type, spacing, components,
    long-list rules, states and the "Never" list. Where a screen and this file disagree, this file wins.
-2. Open `prototype/new/HiveForYou-Concept-v5.html` and find the same state (see DESIGN.md ยง6
-   selectors: `[data-go=front|signin|hives|first]`, `[data-side=sarah|people]`, `#omni`, etc.).
-   Concept v5 supersedes v4; match layout, order, wording and behaviour unless DESIGN.md or the ticket
-   says otherwise.
+2. Open `prototype/new/HiveForYou-Concept-v4.html` and find the same state (`data-who` switches
+   staff/client, `data-tab` the tabs, `[data-ev]` opens the evidence view, focus `#omni` opens the box).
+   Match its layout, order, wording and behaviour unless DESIGN.md or the ticket says otherwise.
+   The v2 prototype (`prototype/new/HiveForYou-Complete-Prototype.html`) is only for screens the
+   concept does not draw (front page, My hives, sign-in), restyled with the v3 tokens.
 3. Use the shared components in `apps/web/src/components/ui/` (create them from DESIGN.md section 7 if
    they don't exist yet). Never restyle a one-off copy.
 4. Tokens only from `tailwind.config.ts` and globals. No new hex values, no new font sizes.

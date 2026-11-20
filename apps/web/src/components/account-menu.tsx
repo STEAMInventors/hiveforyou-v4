@@ -25,8 +25,6 @@ export type AccountMenuDetails = {
   email: string | null;
   startingView: StartingView | null;
   firmLine?: string | null;
-  /** The firm's name for the top bar on Your hives; not shown in the menu. */
-  firmName?: string | null;
 };
 
 export function AccountMenu({ initials, displayName, email, startingView, firmLine = null }: AccountMenuDetails) {

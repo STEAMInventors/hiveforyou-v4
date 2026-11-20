@@ -4,18 +4,10 @@ import { SignInFlow } from "@/components/auth/SignInFlow";
 import { authLinkErrorMessage } from "@/server/auth/messages";
 import { isNextNavigationError, safeNextPath } from "@/server/auth/redirects";
 import { fetchMyProfile } from "@/lib/auth/profile";
-import { isPlausibleEmail, normalizeEmail } from "@/lib/auth/validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type PageProps = {
-  searchParams: Promise<{
-    next?: string;
-    start?: string;
-    new?: string;
-    error?: string;
-    email?: string;
-    prefill?: string;
-  }>;
+  searchParams: Promise<{ next?: string; start?: string; new?: string; error?: string; email?: string }>;
 };
 
 export default async function SignInPage({ searchParams }: PageProps) {
@@ -44,10 +36,6 @@ export default async function SignInPage({ searchParams }: PageProps) {
       ? params.email.trim().toLowerCase()
       : undefined;
 
-  // `prefill` suggests an address (front page) and stays editable; an invitation's `email` locks and wins.
-  const suggested = typeof params.prefill === "string" ? normalizeEmail(params.prefill) : "";
-  const prefillEmail = isPlausibleEmail(suggested) ? suggested : undefined;
-
   return (
     <SignInFlow
       nextPath={next}
@@ -56,7 +44,6 @@ export default async function SignInPage({ searchParams }: PageProps) {
       linkError={linkError}
       initialEmail={inviteEmail}
       lockEmail={Boolean(inviteEmail)}
-      prefillEmail={prefillEmail}
     />
   );
 }

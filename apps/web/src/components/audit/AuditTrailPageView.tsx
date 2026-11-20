@@ -1,10 +1,7 @@
 "use client";
 
 import type { AuditTrailEntry, HiveBoardModel, StudyRevisionLine } from "@hiveforyou/contracts";
-import { useMemo, useState, type ReactNode } from "react";
-
-import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
-import { mergeOmniCatalog, omniStatementsFromAudit } from "@/lib/omni-catalog-build";
+import { useState, type ReactNode } from "react";
 
 import type { ChipRef } from "@/components/study/SourceChip";
 import { Section } from "@/components/ui/Section";
@@ -78,18 +75,6 @@ export function AuditTrailPageView({
   const [activityExpanded, setActivityExpanded] = useState(false);
 
   const activityRows = [...board.activity].reverse();
-  const omniCatalog = useMemo(
-    () =>
-      mergeOmniCatalog({
-        suggestions: EMPTY_OMNI_CATALOG.suggestions,
-        openItems: EMPTY_OMNI_CATALOG.openItems,
-        documents: EMPTY_OMNI_CATALOG.documents,
-        statements: omniStatementsFromAudit(entries),
-      }),
-    [entries],
-  );
-  useRegisterOmniCatalog(omniCatalog);
-
   const visibleChecks = checksExpanded ? entries : entries.slice(0, ROW_LIMIT);
   const visibleRevisions = revisionsExpanded ? revisions : revisions.slice(0, ROW_LIMIT);
   const visibleActivity = activityExpanded ? activityRows : activityRows.slice(0, ROW_LIMIT);

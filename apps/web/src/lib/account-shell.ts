@@ -14,6 +14,5 @@ export async function accountMenuDetails(session: Extract<AuthenticatedSession, 
     email: session.email ?? null,
     startingView: profile?.startingView ?? null,
     firmLine,
-    firmName: firm?.firm?.name?.trim() || null,
   };
 }

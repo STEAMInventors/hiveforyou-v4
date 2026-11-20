@@ -3,20 +3,7 @@ export type HiveKind = (typeof HIVE_KINDS)[number];
 
 export type HiveAttentionLevel = "needs_you" | "in_progress" | "ready";
 
-export type HiveAttentionReason =
-  | "no_documents"
-  | "unreadable"
-  | "run_failed"
-  | "reading"
-  | "not_in_study"
-  | "conflicts"
-  | "to_review"
-  | "missing"
-  | "no_study"
-  | "no_report"
-  | "ready";
-
-export type HiveAttentionCountKey = "needs" | "changed" | "missing" | "checked" | "unreadable";
+export type HiveAttentionCountKey = "needs" | "changed" | "missing" | "checked";
 
 export type HiveAttentionInput = {
   documentCount: number;
@@ -40,7 +27,6 @@ export type HiveAttentionCounts = Partial<Record<HiveAttentionCountKey, number>>
 export type HiveAttentionResult = {
   level: HiveAttentionLevel;
   sentence: string;
-  reason: HiveAttentionReason;
   counts: HiveAttentionCounts;
 };
 
@@ -49,8 +35,6 @@ export type RankedHiveRef = {
   level: HiveAttentionLevel;
   lastActivityAt: string;
 };
-
-export type HiveListGroup = "review" | "reading" | "waiting" | "done";
 
 function plural(count: number, singular: string, pluralForm: string): string {
   return `${count} ${count === 1 ? singular : pluralForm}`;
@@ -62,7 +46,6 @@ function nonZeroCounts(input: HiveAttentionInput): HiveAttentionCounts {
   if (input.openChanged > 0) counts.changed = input.openChanged;
   if (input.openMissing > 0) counts.missing = input.openMissing;
   if (input.openChecked > 0) counts.checked = input.openChecked;
-  if (input.unreadableDocumentCount > 0) counts.unreadable = input.unreadableDocumentCount;
   return counts;
 }
 
@@ -70,40 +53,33 @@ export function hiveAttention(input: HiveAttentionInput): HiveAttentionResult {
   const counts = nonZeroCounts(input);
 
   if (input.documentCount === 0) {
-    return { level: "needs_you", sentence: "No documents yet.", reason: "no_documents", counts };
+    return { level: "needs_you", sentence: "No documents yet.", counts };
   }
 
   if (input.unreadableDocumentCount > 0) {
     return {
       level: "needs_you",
       sentence: `${plural(input.unreadableDocumentCount, "document could", "documents could")} not be read.`,
-      reason: "unreadable",
       counts,
     };
   }
 
   if (input.processingRunFailed) {
-    return {
-      level: "needs_you",
-      sentence: "The last run did not finish.",
-      reason: "run_failed",
-      counts,
-    };
+    return { level: "needs_you", sentence: "The last run did not finish.", counts };
   }
 
   if (input.processingRunActive) {
-    return { level: "in_progress", sentence: "Reading the documents.", reason: "reading", counts };
+    return { level: "in_progress", sentence: "Reading the documents.", counts };
   }
 
   if (input.activeReadCount > 0 || input.documentsNotReadCount > 0) {
-    return { level: "in_progress", sentence: "Reading the documents.", reason: "reading", counts };
+    return { level: "in_progress", sentence: "Reading the documents.", counts };
   }
 
   if (input.documentsNotInStudyCount > 0) {
     return {
       level: "needs_you",
       sentence: `${plural(input.documentsNotInStudyCount, "document is", "documents are")} not yet in the study.`,
-      reason: "not_in_study",
       counts,
     };
   }
@@ -112,7 +88,6 @@ export function hiveAttention(input: HiveAttentionInput): HiveAttentionResult {
     return {
       level: "needs_you",
       sentence: `${plural(input.openConflicts, "conflict to review", "conflicts to review")}.`,
-      reason: "conflicts",
       counts,
     };
   }
@@ -122,7 +97,6 @@ export function hiveAttention(input: HiveAttentionInput): HiveAttentionResult {
     return {
       level: "needs_you",
       sentence: `${plural(needsYouItems, "item to review", "items to review")}.`,
-      reason: "to_review",
       counts,
     };
   }
@@ -131,32 +105,19 @@ export function hiveAttention(input: HiveAttentionInput): HiveAttentionResult {
     return {
       level: "needs_you",
       sentence: `${plural(input.openMissing, "item is", "items are")} missing.`,
-      reason: "missing",
       counts,
     };
   }
 
   if (!input.hasStudy) {
-    return { level: "needs_you", sentence: "No study yet.", reason: "no_study", counts };
+    return { level: "needs_you", sentence: "No study yet.", counts };
   }
 
   if (!input.hasReport) {
-    return { level: "needs_you", sentence: "No report yet.", reason: "no_report", counts };
+    return { level: "needs_you", sentence: "No report yet.", counts };
   }
 
-  return {
-    level: "ready",
-    sentence: "Everything is read and checked.",
-    reason: "ready",
-    counts,
-  };
-}
-
-export function hiveListGroup(result: Pick<HiveAttentionResult, "reason">): HiveListGroup {
-  if (result.reason === "reading") return "reading";
-  if (result.reason === "no_documents" || result.reason === "missing") return "waiting";
-  if (result.reason === "ready") return "done";
-  return "review";
+  return { level: "ready", sentence: "Everything is read and checked.", counts };
 }
 
 const LEVEL_RANK: Record<HiveAttentionLevel, number> = {

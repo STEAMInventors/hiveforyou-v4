@@ -13,9 +13,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { AskBar } from "@/components/hives/AskBar";
 import { HiveConversation } from "@/components/hives/HiveConversation";
-import { HiveHomeSidePanel } from "@/components/hives/HiveHomeSidePanel";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { FindingsCompareTable } from "@/components/findings/FindingsCompareTable";
 import { FindingsTimelineList } from "@/components/findings/FindingsTimelineList";
@@ -24,7 +22,6 @@ import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-m
 import type { ChipRef } from "@/components/study/SourceChip";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
-import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
 import { ProgressMeter } from "@/components/ui/ProgressMeter";
 import { Section } from "@/components/ui/Section";
 import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
@@ -35,18 +32,9 @@ import { Step } from "@/components/ui/Step";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { personFirstName } from "@/lib/hives/firm-board";
 import { EVIDENCE_COMPOSE_PARAM } from "@/lib/hive-compose-query";
-import { HIVE_CHAT_PANEL_MIN_WIDTH, useHiveChat, useMinWidth } from "@/lib/hive-chat-context";
-import { EVIDENCE_SOURCE_PARAM } from "@/lib/evidence-source-query";
-import { hiveDocumentsPath, hiveRequestedItemsPath } from "@/lib/hive-routes";
-import {
-  mergeOmniCatalog,
-  omniOpenItemsFromFindings,
-  omniStatementsFromTopics,
-} from "@/lib/omni-catalog-build";
+import { hiveDocumentsPath } from "@/lib/hive-routes";
 
-import { askSuggestions } from "./ask-suggestions";
 import {
-  findMissingRecordsTitle,
   missingRecordsDetail,
   missingRecordsTitle,
   requestComposerText,
@@ -151,9 +139,6 @@ function HiveHomeBody({
   loadError,
   conflicts,
   timeline,
-  openItems,
-  topics,
-  sources,
   initialPeople,
   currentUserId,
   staffView,
@@ -181,84 +166,47 @@ function HiveHomeBody({
   const showConversation = viewer !== "firmless";
   const staffBrief = viewer !== "client";
 
-  const chat = useHiveChat();
-  const wide = useMinWidth(HIVE_CHAT_PANEL_MIN_WIDTH);
-  const askOn = Boolean(chat?.assistantOn);
-  // Wide: the right column (tabs, or the chat alone on an own hive). Narrow: people under the brief + the Ask bar.
-  const showPanel = showConversation || (askOn && wide);
-  const showAskBar = askOn && !wide && viewer !== "client";
-  const evidenceOpen = Boolean(searchParams.get(EVIDENCE_SOURCE_PARAM)?.trim());
-  const omniCatalog = useMemo(
-    () =>
-      mergeOmniCatalog({
-        suggestions: askOn
-          ? askSuggestions({
-              viewer: viewer === "firmless" ? "own" : "staff",
-              toReview: content?.toReview ?? null,
-              stillToCome: content?.stillToCome.length ?? null,
-              documentsIn: content?.documentsIn ?? null,
-            })
-          : [],
-        documents: EMPTY_OMNI_CATALOG.documents,
-        statements: omniStatementsFromTopics(topics),
-        openItems: content
-          ? omniOpenItemsFromFindings(openItems, sources).concat(
-              content.stillToCome.map((title, index) => ({
-                id: `still-${index}`,
-                title,
-                kind: "missing" as const,
-                ref: null,
-              })),
-            )
-          : [],
-      }),
-    [askOn, content, openItems, sources, topics, viewer],
-  );
-  useRegisterOmniCatalog(omniCatalog, !evidenceOpen);
-
-  const steps = useMemoSteps(content, clientFirst, viewer);
+  const steps = useMemoSteps(content, clientFirst);
   const visibleSteps = stepsOpen ? steps : steps.slice(0, STEP_LIMIT);
 
-  const people = showConversation ? (
-    <HiveConversation
-      hiveId={hiveId}
-      initial={initialPeople}
-      staffView={staffView}
-      clientName={clientName}
-      viewerIsClient={viewerIsClient}
-      hiveFirmId={hiveFirmId}
-      mode="people"
-      assistantName={assistantName}
-      teamMemberFirstName={staffFirst}
-      currentUserId={currentUserId}
-      column={{
-        otherFirstName: other.first,
-        otherFullName: other.full,
-        otherKind: other.kind,
-        assistantName,
-      }}
-      fillDraft={fillDraft}
-    />
-  ) : null;
-
-  const conversation = showPanel ? (
-    <HiveHomeSidePanel
-      people={people}
-      other={showConversation ? { first: other.first, full: other.full, kind: other.kind } : null}
-      peopleDraftNonce={fillDraft?.nonce ?? null}
-    />
+  const conversation = showConversation ? (
+    <aside
+      aria-label="Conversation"
+      data-testid="hive-home-conversation"
+      className="flex min-h-0 flex-col border-t border-line py-6 min-[1100px]:sticky min-[1100px]:top-16 min-[1100px]:h-[calc(100vh-4rem)] min-[1100px]:border-l min-[1100px]:border-t-0 min-[1100px]:py-6 min-[1100px]:pl-7"
+    >
+      <HiveConversation
+        hiveId={hiveId}
+        initial={initialPeople}
+        staffView={staffView}
+        clientName={clientName}
+        viewerIsClient={viewerIsClient}
+        hiveFirmId={hiveFirmId}
+        mode="people"
+        assistantName={assistantName}
+        teamMemberFirstName={staffFirst}
+        currentUserId={currentUserId}
+        column={{
+          otherFirstName: other.first,
+          otherFullName: other.full,
+          otherKind: other.kind,
+          assistantName,
+        }}
+        fillDraft={fillDraft}
+      />
+    </aside>
   ) : null;
 
   return (
     <div
       data-testid="hive-home"
       className={
-        showPanel
-          ? "grid grid-cols-1 min-[1100px]:grid-cols-[minmax(0,1fr)_400px] min-[1100px]:gap-12"
-          : "mx-auto w-full max-w-col-read"
+        viewer === "firmless"
+          ? "mx-auto w-full max-w-col-read"
+          : "grid grid-cols-1 min-[1100px]:grid-cols-[minmax(0,1fr)_400px] min-[1100px]:gap-12"
       }
     >
-      <div className={`min-w-0 pt-8 ${showAskBar ? "pb-[120px]" : "pb-24"}`} data-testid="hive-home-brief">
+      <div className="min-w-0 pb-24 pt-8" data-testid="hive-home-brief">
         {loadError ? (
           <WorkspaceLoadError message={loadError.message} correlationId={loadError.correlationId} retryable={loadError.retryable} />
         ) : null}
@@ -279,7 +227,7 @@ function HiveHomeBody({
               checklistSize={content.checklistSize}
               toReview={content.toReview}
               stillToCome={content.stillToCome.length}
-              lastWrote={viewer === "firmless" ? null : content.lastWrote}
+              lastWrote={content.lastWrote}
             />
             {content.checklistSize != null ? (
               <ProgressMeter received={content.documentsIn} total={content.checklistSize} />
@@ -303,8 +251,8 @@ function HiveHomeBody({
                       action={
                         step.kind === "request" ? (
                           viewer === "firmless" ? (
-                            <Link href={hiveRequestedItemsPath(hiveId)} className={SECONDARY_LINK}>
-                              See the list
+                            <Link href={hiveDocumentsPath(hiveId)} className={SECONDARY_LINK}>
+                              Add documents
                             </Link>
                           ) : (
                             <Button
@@ -380,7 +328,6 @@ function HiveHomeBody({
         ) : null}
       </div>
       {conversation}
-      {showAskBar ? <AskBar /> : null}
     </div>
   );
 }
@@ -394,11 +341,7 @@ type HomeStep = {
   ref: ChipRef | null;
 };
 
-function useMemoSteps(
-  content: HiveHomeContent | null,
-  clientFirst: string | null,
-  viewer: HiveHomeViewer,
-): HomeStep[] {
+function useMemoSteps(content: HiveHomeContent | null, clientFirst: string | null): HomeStep[] {
   return useMemo(() => {
     if (!content?.hasStudy) return [];
     const steps: HomeStep[] = [];
@@ -406,10 +349,7 @@ function useMemoSteps(
       steps.push({
         id: "missing-records",
         kind: "request",
-        title:
-          viewer === "firmless"
-            ? findMissingRecordsTitle(content.stillToCome.length)
-            : missingRecordsTitle(content.stillToCome.length, clientFirst),
+        title: missingRecordsTitle(content.stillToCome.length, clientFirst),
         detail: missingRecordsDetail(content.stillToCome),
         dot: <StatusDot state="missing" label="Missing" />,
         ref: null,
@@ -426,7 +366,7 @@ function useMemoSteps(
       });
     }
     return steps;
-  }, [clientFirst, content, viewer]);
+  }, [content, clientFirst]);
 }
 
 function SupportingDetail({

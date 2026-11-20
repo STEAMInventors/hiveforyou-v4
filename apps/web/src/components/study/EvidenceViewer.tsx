@@ -31,16 +31,12 @@ import {
   parseEvidenceSource,
 } from "@/lib/evidence-source-query";
 import { documentPageTextPath, evidenceViewerOpenPath, postViewerOpenInit } from "@/lib/evidence-view-urls";
-import { useHiveChat } from "@/lib/hive-chat-context";
 import { hiveSectionFromPathname, preservedQuery } from "@/lib/hive-routes";
 import { isHttpOrHttpsUrlString, signedUrlShapeForLog } from "@/lib/signed-url-log-shape";
 
 import { type CitationContext, type SiblingPageTarget } from "./citation-context";
 import type { EvidenceHighlightStatus, EvidencePdfPageProps } from "./EvidencePdfPage";
-import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
-import { mergeOmniCatalog, omniStatementFromEvidence } from "@/lib/omni-catalog-build";
 import { loadEvidencePdfPage } from "./load-evidence-pdf-page";
-import { type EvidenceStatementModel } from "./evidence-statement-model";
 import { type ChipRef } from "./SourceChip";
 
 export type EvidenceOpenOptions = {
@@ -69,73 +65,8 @@ function viewerMimeCategory(mime: string | null): "pdf" | "image" | "other" {
 
 const EvidenceViewerContext = createContext<EvidenceViewerValue>(FALLBACK);
 
-function EvidenceOmniPublish({
-  chip,
-  statement,
-  docRole,
-}: {
-  chip: ChipRef;
-  statement: EvidenceStatementModel;
-  docRole: string;
-}) {
-  const catalog = useMemo(
-    () =>
-      mergeOmniCatalog({
-        suggestions: EMPTY_OMNI_CATALOG.suggestions,
-        openItems: EMPTY_OMNI_CATALOG.openItems,
-        documents: EMPTY_OMNI_CATALOG.documents,
-        statements: [
-          omniStatementFromEvidence({
-            id: `${chip.sourceDocumentId}-${chip.pageNumber}`,
-            text: statement.headline,
-            topic: docRole,
-            chip,
-          }),
-        ],
-      }),
-    [chip, docRole, statement.headline],
-  );
-  useRegisterOmniCatalog(catalog);
-  return null;
-}
-
 export function useEvidenceViewer(): EvidenceViewerValue {
   return useContext(EvidenceViewerContext);
-}
-
-/**
- * Opens a source page from a surface that sits outside the page's viewer (the top box, the chat sheet).
- * The viewer reads its page from the URL, so changing the URL is all it takes.
- */
-export function useOpenEvidenceByUrl(): (chip: ChipRef) => void {
-  const router = useRouter();
-  const pathname = usePathname() ?? "";
-  const searchParams = useSearchParams();
-  return useCallback(
-    (chip: ChipRef) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? "");
-      params.set(EVIDENCE_SOURCE_PARAM, formatEvidenceSource(chip));
-      params.delete(EVIDENCE_ITEM_PARAM);
-      router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    },
-    [pathname, router, searchParams],
-  );
-}
-
-/**
- * Lets a surface that sits outside the page's viewer (the chat sheet) open a page its own way.
- * The viewer already reads its page from the URL, so the sheet only has to change the URL.
- */
-export function EvidenceViewerOpenOverride({
-  open,
-  children,
-}: {
-  open: EvidenceViewerValue["open"];
-  children: ReactNode;
-}) {
-  const parent = useContext(EvidenceViewerContext);
-  const value = useMemo(() => ({ ...parent, open }), [open, parent]);
-  return <EvidenceViewerContext.Provider value={value}>{children}</EvidenceViewerContext.Provider>;
 }
 
 type EvidenceViewerProviderProps = {
@@ -341,14 +272,6 @@ export function EvidenceViewerProvider({
 
   const chip = state?.chip ?? null;
   const pageNumber = state?.pageNumber ?? 1;
-
-  // The view covers the whole page, Home's side panel included: the chat must open as the sheet meanwhile.
-  const holdPanelHidden = useHiveChat()?.holdPanelHidden;
-  const viewOpen = chip !== null;
-  useEffect(() => {
-    if (!viewOpen || !holdPanelHidden) return;
-    return holdPanelHidden();
-  }, [holdPanelHidden, viewOpen]);
   const totalPages = chip
     ? (() => {
         const n = pageCountFor(chip.sourceDocumentId);
@@ -416,8 +339,7 @@ export function EvidenceViewerProvider({
   useEffect(() => {
     if (!chip) return;
     const onKey = (event: KeyboardEvent) => {
-      // The chat sheet and the box close first (they mark the key handled); this closes the view last.
-      if (event.key === "Escape" && !event.defaultPrevented) close();
+      if (event.key === "Escape") close();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -576,9 +498,6 @@ export function EvidenceViewerProvider({
       <div className={chip ? "hidden" : undefined} aria-hidden={chip ? true : undefined}>
         {children}
       </div>
-      {chip && statement ? (
-        <EvidenceOmniPublish chip={chip} statement={statement} docRole={docLabel} />
-      ) : null}
       {chip && statement ? (
         <EvidenceViewPanel
           hiveId={hiveId}

@@ -4,7 +4,6 @@ import type { HiveMessage } from "@hiveforyou/contracts";
 
 import {
   buildHiveHomeContent,
-  findMissingRecordsTitle,
   lastWroteFromMessages,
   missingRecordsDetail,
   missingRecordsTitle,
@@ -41,8 +40,6 @@ describe("home model", () => {
   });
 
   it("builds the missing-records line from the first two titles", () => {
-    expect(findMissingRecordsTitle(1)).toBe("Find 1 missing record");
-    expect(findMissingRecordsTitle(4)).toBe("Find 4 missing records");
     expect(missingRecordsTitle(1, "Dana")).toBe("Ask Dana for 1 missing record");
     expect(missingRecordsTitle(3, null)).toBe("Ask the client for 3 missing records");
     expect(missingRecordsDetail(["Bank statements", "Tax return"])).toBe("Bank statements · Tax return");

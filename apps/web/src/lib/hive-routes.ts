@@ -10,13 +10,6 @@ export const MY_HIVES_CREATE_PATH = `${MY_HIVES_PATH}?${CREATE_HIVE_PARAM}=1`;
 
 export const CREATE_HIVE_AFTER_SIGN_UP_PATH = `/sign-in?next=${encodeURIComponent(MY_HIVES_CREATE_PATH)}`;
 
-/** Front page "For my clients" Start: sign-up for a professional, work email prefilled (editable) when given. */
-export function clientsSignInPath(email?: string): string {
-  const base = `/sign-in?start=clients&new=1&next=${encodeURIComponent(MY_HIVES_PATH)}`;
-  const trimmed = email?.trim();
-  return trimmed ? `${base}&prefill=${encodeURIComponent(trimmed)}` : base;
-}
-
 export type HiveWorkspaceSection = "board" | "documents" | "findings" | "reports" | "audit" | "notes";
 
 export const HIVE_SECTION_LABELS: Record<HiveWorkspaceSection, string> = {

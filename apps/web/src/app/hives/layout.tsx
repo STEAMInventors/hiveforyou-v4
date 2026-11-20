@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 
 import { AppShell } from "@/components/app-header";
-import { HivesRouteShell } from "@/components/hives/HivesRouteShell";
 import { accountMenuDetails } from "@/lib/account-shell";
 import { ClientsHomeLayoutBridge } from "@/lib/hives/clients-home-context";
 import { ClientsHomeProvider } from "@/lib/hives/clients-home-context";
@@ -18,11 +17,11 @@ export default async function HivesLayout({ children }: { children: ReactNode })
     );
   }
   const account = await accountMenuDetails(session);
-  // Everyone finds on Your hives, so the find state (and its `q` param) is on for every signed-in person.
+  const clientsHome = account.startingView === "clients";
   return (
     <Suspense fallback={<AppShell account={account}>{children}</AppShell>}>
-      <ClientsHomeLayoutBridge enabled>
-        <HivesRouteShell account={account}>{children}</HivesRouteShell>
+      <ClientsHomeLayoutBridge enabled={clientsHome}>
+        <AppShell account={account}>{children}</AppShell>
       </ClientsHomeLayoutBridge>
     </Suspense>
   );

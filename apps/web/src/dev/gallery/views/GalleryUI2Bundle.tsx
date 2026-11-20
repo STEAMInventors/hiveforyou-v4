@@ -8,15 +8,7 @@ import {
   type HiveBoardModel,
   type SourceDocument,
 } from "@hiveforyou/contracts";
-import { useEffect, useMemo } from "react";
-
-import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
-import {
-  mergeOmniCatalog,
-  omniDocumentsFromStudyRows,
-  omniOpenItemsFromFindings,
-  omniStatementsFromTopics,
-} from "@/lib/omni-catalog-build";
+import { useEffect } from "react";
 
 import { AuditTrailPageView } from "@/components/audit/AuditTrailPageView";
 import { DocumentsPanel } from "@/components/hives/DocumentsPanel";
@@ -50,22 +42,6 @@ import { GalleryFrame } from "./GalleryFrame";
 import { GalleryComponents } from "./GalleryComponents";
 
 const REPORT_PAPER = "rounded-paper border border-line bg-paper px-8 py-10 shadow-paper sm:px-14 sm:py-12";
-
-function GalleryOmniCatalog() {
-  const catalog = useMemo(() => {
-    const documents =
-      MEDICAID_FINDINGS.view?.blocks.find((block) => block.name === "documents")?.rows ??
-      [];
-    return mergeOmniCatalog({
-      suggestions: EMPTY_OMNI_CATALOG.suggestions,
-      statements: omniStatementsFromTopics(MEDICAID_FINDINGS.topics),
-      openItems: omniOpenItemsFromFindings(MEDICAID_FINDINGS.otherOpenItems, MEDICAID_FINDINGS.sources),
-      documents: omniDocumentsFromStudyRows(documents, (id) => MEDICAID_FINDINGS.documentPages?.[id] ?? 12),
-    });
-  }, []);
-  useRegisterOmniCatalog(catalog);
-  return null;
-}
 
 function OmniFocus({ query }: { query?: string }) {
   useEffect(() => {
@@ -200,7 +176,6 @@ export { GalleryComponents };
 export function GalleryOmniStaffEmpty() {
   return (
     <GalleryHiveChrome titleSlug="omni-staff-empty">
-      <GalleryOmniCatalog />
       <OmniFocus />
       <p className="sr-only">Omni staff empty</p>
     </GalleryHiveChrome>
@@ -210,7 +185,6 @@ export function GalleryOmniStaffEmpty() {
 export function GalleryOmniStaffResults() {
   return (
     <GalleryHiveChrome titleSlug="omni-staff-results">
-      <GalleryOmniCatalog />
       <OmniFocus query="2023" />
     </GalleryHiveChrome>
   );
@@ -506,6 +480,7 @@ export function GalleryMyHives() {
             },
           }}
           startingView="own"
+          greetingFirstName="Priya"
         />
       </AppShell>
     </GalleryFrame>
