@@ -59,7 +59,7 @@ export function ChecklistGapAddButton({
 
   if (revisionId == null || revisionId.trim() === "") {
     return (
-      <Button variant="secondary" type="button" className={showUploadIcon ? "gap-1.5 max-[759px]:h-11" : undefined} onClick={onAddFiles}>
+      <Button variant="secondary" type="button" className={showUploadIcon ? "h-11 gap-1.5" : undefined} onClick={onAddFiles}>
         {showUploadIcon ? <UploadIcon /> : null}
         {label}
       </Button>
@@ -82,7 +82,7 @@ export function ChecklistGapAddButton({
       <Button
         variant="secondary"
         type="button"
-        className={showUploadIcon ? "gap-1.5 max-[759px]:h-11" : undefined}
+        className={showUploadIcon ? "h-11 gap-1.5" : undefined}
         onClick={() => document.getElementById(inputId)?.click()}
       >
         {showUploadIcon ? <UploadIcon /> : null}

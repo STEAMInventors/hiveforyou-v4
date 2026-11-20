@@ -55,6 +55,42 @@ describe("ClientHome", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Ruth Ortiz" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Ask Rowan about your documents/ })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Your documents" }).getAttribute("href")).toBe(`/hives/${HIVE_ID}/documents`);
+    expect(screen.getByTestId("progress-meter")).toBeTruthy();
+    expect(screen.getByText("2 of 3 documents in")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: /Still to send/ })).toBeTruthy();
+    expect(screen.getByText("1 thing left to send. Everything else is in.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add" })).toBeTruthy();
+    expect(screen.getByText("Messages with Priya")).toBeTruthy();
     expect(screen.queryByTestId("hive-head")).toBeNull();
+  });
+
+  it("falls back to your team when staff name is missing", () => {
+    render(
+      <ClientHome
+        hiveId={HIVE_ID}
+        hiveTitle="Ruth Ortiz"
+        staffDisplayName={null}
+        staffTitle={null}
+        assistantName="Rowan"
+        checklist={[]}
+        progress={null}
+        openItems={[]}
+        initialDocuments={[]}
+        acceptedStudyRevisionId={null}
+        initialPeople={{ ok: true, page: { messages: [] } }}
+        currentUserId="user"
+        hiveFirmId="22222222-2222-4222-8222-222222222222"
+        loadError={null}
+        view={null}
+        sources={null}
+        canonicalStudy={null}
+        coverageGaps={[]}
+        topics={[]}
+      />,
+    );
+
+    expect(screen.getByText("your team")).toBeTruthy();
+    expect(screen.getByText("Everything we asked for is in. Your team will be in touch.")).toBeTruthy();
+    expect(screen.getByText(/Only you and your team can see this file/)).toBeTruthy();
   });
 });

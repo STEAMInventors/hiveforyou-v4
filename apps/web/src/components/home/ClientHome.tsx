@@ -80,6 +80,8 @@ function ClientHomeBody(props: ClientHomeProps) {
 
   const staffName = staffDisplayName?.trim() || "your team";
   const staffFirst = staffDisplayName?.trim() ? personFirstName(staffDisplayName) : "your team";
+  const teamVisibility =
+    staffDisplayName?.trim() ? `Only you and ${staffFirst}'s team` : "Only you and your team";
   const missingCount = stillToSendSectionCount(checklist);
   const lead = clientHomeLeadSentence(missingCount, staffDisplayName);
   const visibleChecklist = expandedStill ? checklist : checklist.slice(0, STILL_LIMIT);
@@ -204,7 +206,7 @@ function ClientHomeBody(props: ClientHomeProps) {
             otherKind: "staff",
             assistantName,
             header: "hidden",
-            peopleLockHint: `Only you and ${staffFirst}'s team`,
+            peopleLockHint: teamVisibility,
           }}
         />
       </section>
@@ -222,8 +224,8 @@ function ClientHomeBody(props: ClientHomeProps) {
       <p className="m-0 mt-[22px] flex gap-2 text-meta text-ink-3">
         <LockIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>
-          Only you and {staffFirst}&apos;s team can see this file. {assistantName} is an AI assistant that answers only
-          from your documents and never decides anything about your case.
+          {teamVisibility} can see this file. {assistantName} is an AI assistant that answers only from your documents
+          and never decides anything about your case.
         </span>
       </p>
 
