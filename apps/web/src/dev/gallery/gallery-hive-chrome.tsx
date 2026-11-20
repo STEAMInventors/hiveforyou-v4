@@ -39,6 +39,8 @@ export function GalleryHiveChrome({
   account = DEFAULT_ACCOUNT,
   unreadMessages = 2,
   documentCount = 9,
+  assistantRepliesOn = true,
+  initialClientAssistant = null,
 }: {
   titleSlug: string;
   children: ReactNode;
@@ -48,6 +50,8 @@ export function GalleryHiveChrome({
   account?: AppShellAccount;
   unreadMessages?: number;
   documentCount?: number;
+  assistantRepliesOn?: boolean;
+  initialClientAssistant?: ConversationLoad | null;
 }) {
   useGalleryTitle(titleSlug);
 
@@ -58,7 +62,10 @@ export function GalleryHiveChrome({
     : clientViewer
       ? { ...GALLERY_HIVE, membershipRole: "client" as const, isOwner: false }
       : GALLERY_HIVE;
-  const initialAssistant: ConversationLoad = { ok: true, page: assistantPage };
+  const initialAssistant: ConversationLoad = {
+    ok: true,
+    page: { ...assistantPage, assistantRepliesOn },
+  };
 
   return (
     <GalleryFrame>
@@ -95,6 +102,7 @@ export function GalleryHiveChrome({
           summaryLoaded
           documentCount={documentCount}
           initialAssistant={initialAssistant}
+          initialClientAssistant={initialClientAssistant}
         >
           <Suspense fallback={null}>{children}</Suspense>
         </WorkspaceShell>

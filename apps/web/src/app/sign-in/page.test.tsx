@@ -27,8 +27,21 @@ describe("/sign-in page", () => {
       searchParams: Promise.resolve({ next: "https://evil.example" }),
     });
     render(ui);
-    const nextInput = screen.getByRole("button", { name: "Next" }).closest("form")!
+    const nextInput = screen.getByRole("button", { name: "Send code" }).closest("form")!
       .querySelector<HTMLInputElement>('input[name="next"]');
     expect(nextInput?.value).toBe("/hives");
+  });
+
+  it("fills the email from a plausible prefill and ignores one that is not an address", async () => {
+    render(
+      await SignInPage({
+        searchParams: Promise.resolve({ start: "clients", new: "1", prefill: "Dana@Firm.example" }),
+      }),
+    );
+    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("dana@firm.example");
+    cleanup();
+
+    render(await SignInPage({ searchParams: Promise.resolve({ prefill: "not an email" }) }));
+    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("");
   });
 });

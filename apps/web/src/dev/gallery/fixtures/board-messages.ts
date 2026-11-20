@@ -66,6 +66,15 @@ export const GALLERY_PEOPLE_PAGE: HiveMessagePage = {
   nextCursor: null,
 };
 
+/** People thread as seen by the client (`isMine` on their rows). */
+export const GALLERY_PEOPLE_CLIENT_PAGE: HiveMessagePage = {
+  ...GALLERY_PEOPLE_PAGE,
+  messages: GALLERY_PEOPLE_PAGE.messages.map((row) => ({
+    ...row,
+    isMine: row.authorUserId === DANA_ID,
+  })),
+};
+
 export const GALLERY_ASK_CLIENT_PAGE: HiveMessagePage = {
   messages: [
     msg({
@@ -130,6 +139,46 @@ export const GALLERY_ASK_STAFF_READONLY_PAGE: HiveMessagePage = {
   messages: GALLERY_ASK_CLIENT_PAGE.messages.map((row) => ({ ...row, isMine: false })),
 };
 
+/** Staff viewer's ask thread with one question and a sourced answer (gallery Home Ask tab). */
+export const GALLERY_ASK_STAFF_PAGE: HiveMessagePage = {
+  messages: [
+    {
+      ...msg({
+        id: "00000000-0000-4000-8000-000000000020",
+        createdAt: "2026-10-28T15:00:00.000Z",
+        body: "Which 2023 transactions might affect Medicaid eligibility?",
+        isMine: true,
+      }),
+      authorRole: "staff",
+      authorUserId: PRIYA_ID,
+      authorDisplayName: "Priya Shah",
+      authorRoleLabel: "Onboarding associate",
+    },
+    {
+      ...msg({
+        id: "00000000-0000-4000-8000-000000000021",
+        createdAt: "2026-10-28T15:01:00.000Z",
+        body: "Three transfers over $1,000 appear in the checking statements. Each is flagged on the statements cited below.",
+      }),
+      authorKind: "assistant",
+      authorRole: "assistant",
+      authorUserId: null,
+      authorDisplayName: GALLERY_ASSISTANT_NAME,
+      authorRoleLabel: "",
+      triggerMessageId: "00000000-0000-4000-8000-000000000020",
+      sourceRefs: [
+        { sourceDocumentId: "doc-checking", pageNumber: 4, shortLabel: "Checking stmts", factId: "f1" },
+        { sourceDocumentId: "doc-checking", pageNumber: 7, shortLabel: "Checking stmts", factId: "f2" },
+      ],
+    },
+  ],
+  participantRoleLabels: [],
+  participantCount: 1,
+  viewerLastReadAt: null,
+  nextCursor: null,
+  assistantThreads: GALLERY_ASK_CLIENT_PAGE.assistantThreads,
+};
+
 export const GALLERY_ASK_EMPTY_PAGE: HiveMessagePage = {
   messages: [],
   participantRoleLabels: [],
@@ -183,7 +232,7 @@ export function longMessagePage(count: number): HiveMessagePage {
 export const GALLERY_HIVE: Hive = {
   id: GALLERY_HIVE_ID,
   hiveId: GALLERY_HIVE_ID,
-  name: "Mom's Medicaid application",
+  name: "Dana Ellis",
   description: "Five-year financial review for a Medicaid application",
   kind: "client",
   clientRequestId: "550e8400-e29b-41d4-a716-446655440001",

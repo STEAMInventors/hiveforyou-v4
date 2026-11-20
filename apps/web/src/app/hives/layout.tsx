@@ -17,10 +17,10 @@ export default async function HivesLayout({ children }: { children: ReactNode })
     );
   }
   const account = await accountMenuDetails(session);
-  const clientsHome = account.startingView === "clients";
+  // Everyone finds on Your hives, so the find state (and its `q` param) is on for every signed-in person.
   return (
     <Suspense fallback={<AppShell account={account}>{children}</AppShell>}>
-      <ClientsHomeLayoutBridge enabled={clientsHome}>
+      <ClientsHomeLayoutBridge enabled>
         <AppShell account={account}>{children}</AppShell>
       </ClientsHomeLayoutBridge>
     </Suspense>

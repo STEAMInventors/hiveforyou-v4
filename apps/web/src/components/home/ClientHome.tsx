@@ -19,16 +19,18 @@ import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { Avatar } from "@/components/ui/AvatarStack";
-import { HiveMark } from "@/components/study/HiveMark";
 import { LockIcon } from "@/components/ui/LockIcon";
+import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
 import { ProgressMeter } from "@/components/ui/ProgressMeter";
 import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { Toast } from "@/components/ui/Toast";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { personFirstName } from "@/lib/hives/firm-board";
+import { useHiveChat } from "@/lib/hive-chat-context";
 import { hiveDocumentsPath, hiveReportsPath } from "@/lib/hive-routes";
 
+import { askSuggestions } from "./ask-suggestions";
 import { clientHomeLeadSentence, rowWhyDetail, stillToSendSectionCount } from "./client-home-model";
 
 const STILL_LIMIT = 3;
@@ -87,6 +89,22 @@ function ClientHomeBody(props: ClientHomeProps) {
   const visibleChecklist = expandedStill ? checklist : checklist.slice(0, STILL_LIMIT);
   const hiddenStill = checklist.length - STILL_LIMIT;
 
+  const chat = useHiveChat();
+  const askOn = Boolean(chat?.assistantOn);
+  const suggestions = useMemo(
+    () =>
+      askOn
+        ? askSuggestions({
+            viewer: "client",
+            stillToCome: missingCount,
+            documentsIn: progress?.in ?? documents.length,
+          })
+        : [],
+    [askOn, documents.length, missingCount, progress?.in],
+  );
+  // The sheet shows the same starter questions.
+  useRegisterOmniCatalog({ ...EMPTY_OMNI_CATALOG, suggestions });
+
   const onAddFilesFallback = () => {
     window.location.href = hiveDocumentsPath(hiveId);
   };
@@ -113,6 +131,34 @@ function ClientHomeBody(props: ClientHomeProps) {
 
       {progress && progress.total > 0 ? (
         <ProgressMeter received={progress.in} total={progress.total} fullWidth labelled />
+      ) : null}
+
+      {askOn && chat ? (
+        <div className="mt-[22px]" data-testid="client-home-ask-block">
+          <button
+            type="button"
+            data-testid="client-home-ask"
+            className="flex h-[52px] w-full items-center gap-2.5 rounded-[14px] border border-line-strong bg-paper px-3.5 text-left text-[15px] text-ink-2 shadow-lift hover:border-ink-3"
+            onClick={() => chat.openChat()}
+          >
+            <Avatar person={{ id: "ai", name: assistantName, kind: "assistant" }} size="chat" />
+            <span className="min-w-0 truncate">Ask {assistantName} about your documents</span>
+          </button>
+          {suggestions.length > 0 ? (
+            <div className="mt-2.5 flex flex-wrap gap-2" data-testid="client-home-chips">
+              {suggestions.map((text) => (
+                <button
+                  key={text}
+                  type="button"
+                  className="inline-flex h-10 items-center rounded-[9px] border border-line bg-paper px-3 text-left text-[13px] text-ink hover:bg-blue-wash min-[760px]:h-8"
+                  onClick={() => chat.openChat({ send: text })}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {checklist.length > 0 ? (
@@ -168,22 +214,6 @@ function ClientHomeBody(props: ClientHomeProps) {
           </div>
         </section>
       ) : null}
-
-      <button
-        type="button"
-        data-testid="client-home-ask"
-        className="mt-[26px] flex h-[52px] w-full items-center gap-2.5 rounded-[14px] border border-line-strong bg-paper px-3.5 text-left text-[15px] text-ink-3 shadow-lift hover:border-ink-3"
-        onClick={() => {
-          const field = document.getElementById("omni");
-          field?.focus();
-          field?.scrollIntoView({ block: "nearest" });
-        }}
-      >
-        <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full bg-ink text-paper" aria-hidden>
-          <HiveMark className="h-[15px] w-3" />
-        </span>
-        <span>Ask {assistantName} about your documents</span>
-      </button>
 
       <section className="mt-[30px]" aria-labelledby="client-messages-heading">
         <h2 id="client-messages-heading" className="m-0 mb-1 text-[16px] font-semibold text-ink">

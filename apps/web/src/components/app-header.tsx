@@ -6,9 +6,13 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 
 import { AccountMenu, type AccountMenuDetails } from "@/components/account-menu";
 import { HiveBrandMark } from "@/components/HiveWordmark";
+import { ChatSheet } from "@/components/hives/ChatSheet";
 import { HiveOmni } from "@/components/hives/HiveOmni";
+import { HivesFindBox } from "@/components/hives/HivesFindBox";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { OmniCatalogProvider } from "@/components/ui/omni-catalog";
+import { personFirstName } from "@/lib/hives/firm-board";
+import { HiveChatProvider, type HiveChatConfig } from "@/lib/hive-chat-context";
 import { MY_HIVES_PATH, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import type { StartingView } from "@/lib/auth/profile";
 import type { HiveKind } from "@hiveforyou/contracts";
@@ -28,6 +32,7 @@ export type HiveHeaderWorkspace = {
   firmless?: boolean;
   initialAssistant?: ConversationLoad;
   initialClientAssistant?: ConversationLoad | null;
+  documentCount?: number | null;
 };
 
 type HiveHeaderContextValue = {
@@ -43,6 +48,38 @@ export function useHiveHeaderWorkspace() {
 
 export type AppShellAccount = AccountMenuDetails;
 
+const CHAT_LOAD_FAILED: ConversationLoad = {
+  ok: false,
+  message: "Could not load the conversation. Try again.",
+  correlationId: null,
+  retryable: true,
+};
+
+function isClientViewer(workspace: HiveHeaderWorkspace): boolean {
+  return workspace.staffView === false && workspace.hiveKind === "client" && Boolean(workspace.firmId);
+}
+
+/** What the chat needs, taken from the workspace the hive page already published. */
+export function chatConfigFromWorkspace(
+  workspace: HiveHeaderWorkspace,
+  viewerDisplayName: string | null | undefined,
+): HiveChatConfig {
+  return {
+    hiveId: workspace.hiveId,
+    assistantName: workspace.assistantName?.trim() || "HiveForYou",
+    audience: isClientViewer(workspace) ? "client" : "staff",
+    viewerFirstName: viewerDisplayName?.trim() ? personFirstName(viewerDisplayName) : null,
+    staffFirstName: workspace.staffFirstName ?? null,
+    clientName: workspace.clientName ?? null,
+    currentUserId: workspace.currentUserId ?? null,
+    firmless: workspace.firmless ?? workspace.firmId == null,
+    firmId: workspace.firmId ?? null,
+    documentCount: workspace.documentCount ?? null,
+    initialAssistant: workspace.initialAssistant ?? CHAT_LOAD_FAILED,
+    initialClientAssistant: workspace.initialClientAssistant ?? null,
+  };
+}
+
 export function AppShell({
   children,
   account,
@@ -52,29 +89,40 @@ export function AppShell({
 }) {
   const [workspace, setWorkspace] = useState<HiveHeaderWorkspace | null>(null);
   const contextValue = useMemo(() => ({ workspace, setWorkspace }), [workspace]);
+  const viewerDisplayName = account?.displayName ?? null;
+  const chatConfig = useMemo(
+    () => (workspace ? chatConfigFromWorkspace(workspace, viewerDisplayName) : null),
+    [viewerDisplayName, workspace],
+  );
 
   return (
     <HiveHeaderContext.Provider value={contextValue}>
       <OmniCatalogProvider>
-        <div className="flex min-h-dvh flex-col bg-paper text-ink">
-          <AppHeader
-            workspace={workspace}
-            account={{
-              initials: account?.initials ?? null,
-              displayName: account?.displayName ?? null,
-              email: account?.email ?? null,
-              startingView: account?.startingView ?? null,
-            }}
-          />
-          <main className="flex flex-1 flex-col">{children}</main>
-        </div>
+        <HiveChatProvider config={chatConfig}>
+          <div className="flex min-h-dvh flex-col bg-paper text-ink">
+            <AppHeader
+              workspace={workspace}
+              account={{
+                initials: account?.initials ?? null,
+                displayName: account?.displayName ?? null,
+                email: account?.email ?? null,
+                startingView: account?.startingView ?? null,
+                firmName: account?.firmName ?? null,
+              }}
+            />
+            <main className="flex flex-1 flex-col">{children}</main>
+            <ChatSheet />
+          </div>
+        </HiveChatProvider>
       </OmniCatalogProvider>
     </HiveHeaderContext.Provider>
   );
 }
 
+const GALLERY_HIVES_LIST = /^\/dev\/gallery\/hives-/;
+
 function isHiveListPath(pathname: string): boolean {
-  return pathname === MY_HIVES_PATH;
+  return pathname === MY_HIVES_PATH || GALLERY_HIVES_LIST.test(pathname);
 }
 
 function isInHivePath(pathname: string, hiveId: string): boolean {
@@ -90,9 +138,11 @@ export function AppHeader({
 }) {
   const pathname = usePathname() ?? "";
   const onHiveList = isHiveListPath(pathname);
-  const inHive = workspace !== null && isInHivePath(pathname, workspace.hiveId);
+  const inHive =
+    workspace !== null &&
+    (workspace.section != null || isInHivePath(pathname, workspace.hiveId));
   const staff = workspace?.staffView ?? workspace?.startingView === "clients";
-  const viewerIsClient = workspace?.staffView === false && workspace.hiveKind === "client" && Boolean(workspace.firmId);
+  const viewerIsClient = workspace ? isClientViewer(workspace) : false;
 
   return (
     <header
@@ -111,6 +161,15 @@ export function AppHeader({
             <span className="font-normal">ForYou</span>
           </span>
         </Link>
+        {onHiveList && account.firmName ? (
+          <span
+            className="hidden min-w-0 items-center gap-1.5 text-[13.5px] text-ink-3 min-[760px]:flex"
+            data-testid="header-firm"
+          >
+            <span aria-hidden className="text-line-strong">/</span>
+            <span className="truncate">{account.firmName}</span>
+          </span>
+        ) : null}
         {inHive && staff ? (
           <nav
             aria-label="Breadcrumb"
@@ -128,27 +187,18 @@ export function AppHeader({
       </div>
 
       <div className="min-w-0">
+        {onHiveList ? <HivesFindBox /> : null}
         {inHive && workspace ? (
           <HiveOmni
-            hiveId={workspace.hiveId}
             assistantName={workspace.assistantName?.trim() || "HiveForYou"}
             audience={viewerIsClient ? "client" : "staff"}
-            staffFirstName={workspace.staffFirstName ?? null}
-            clientName={workspace.clientName ?? null}
-            currentUserId={workspace.currentUserId ?? null}
-            firmless={workspace.firmless ?? workspace.firmId == null}
-            firmId={workspace.firmId ?? null}
-            initialAssistant={
-              workspace.initialAssistant ?? { ok: false, message: "Could not load the conversation. Try again.", correlationId: null, retryable: true }
-            }
-            initialClientAssistant={workspace.initialClientAssistant ?? null}
           />
         ) : null}
       </div>
 
       <div className={`flex items-center justify-end gap-2.5 ${inHive ? "max-[759px]:hidden" : ""}`}>
-        {!inHive ? (
-          <Link href={MY_HIVES_PATH} className={`text-[13.5px] font-medium text-ink-2 no-underline hover:text-ink ${onHiveList ? "max-[759px]:sr-only" : ""}`}>
+        {!inHive && !onHiveList ? (
+          <Link href={MY_HIVES_PATH} className="text-[13.5px] font-medium text-ink-2 no-underline hover:text-ink">
             My hives
           </Link>
         ) : null}

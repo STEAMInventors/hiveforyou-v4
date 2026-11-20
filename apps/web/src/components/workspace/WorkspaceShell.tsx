@@ -70,12 +70,14 @@ export function WorkspaceShell({
       firmless: hive.firmId == null,
       initialAssistant,
       initialClientAssistant,
+      documentCount,
     });
     return () => setWorkspace(null);
   }, [
     assistantName,
     assigneeLabel,
     currentUserId,
+    documentCount,
     hive.firmId,
     hive.id,
     hive.kind,

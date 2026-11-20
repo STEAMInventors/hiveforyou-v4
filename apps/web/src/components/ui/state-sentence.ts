@@ -23,7 +23,12 @@ function documentsClause(documentsIn: number, checklistSize: number | null): str
 }
 
 function waitingClause(toReview: number, stillToCome: number): string | null {
-  const review = toReview > 0 ? `${toReview} to review` : null;
+  const review =
+    toReview > 0
+      ? toReview === 1
+        ? "1 thing to review"
+        : `${toReview} things to review`
+      : null;
   const records =
     stillToCome > 0
       ? stillToCome === 1

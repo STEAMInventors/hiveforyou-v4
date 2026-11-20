@@ -114,7 +114,13 @@ const medicaidTopics: FindingsTopic[] = [
     uncertain: false,
     statements: [
       statement("s8", "$5,000.00 left Checking on September 5, 2023 and arrived in Savings the same day.", "m2", 11, "Sep 5, 2023"),
-      statement("s9", "chk_2025 (1).pdf is an exact copy of chk_2025.pdf and was set aside.", "m5", 1, "duplicate"),
+      statement(
+        "s9",
+        "A duplicate of the 2025 check scan was set aside as an exact copy of the first file.",
+        "m5",
+        1,
+        "duplicate",
+      ),
     ],
     openItems: [],
   },
@@ -168,9 +174,20 @@ const medicaidGlance: FindingsGlanceMetric[] = [
 ];
 
 function medicaidView(): StudyView {
+  const docTypes = [
+    "Checking account statements",
+    "Savings account statements",
+    "Brokerage statements",
+    "IRA statements",
+    "Credit card statements",
+    "Mortgage statements",
+    "Pay stubs",
+    "Tax return",
+    "Medicaid agency letter",
+  ];
   const docs = ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9"].map((id, index) => ({
     id,
-    typeInPlainWords: `Bank statements (${index + 1})`,
+    typeInPlainWords: docTypes[index] ?? "Document",
     date: "2022-01-15",
     asWritten: null,
     statement: null,

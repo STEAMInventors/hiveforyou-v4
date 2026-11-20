@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { FrontExample } from "@/components/FrontExample";
+import { FrontStartButton } from "@/components/FrontStartButton";
+import { HiveMarkGraphic } from "@/components/HiveMarkGraphic";
 import { LandingStart } from "@/components/LandingStart";
-import { HiveAppLogo } from "@/components/HiveWordmark";
-import { PILL_PRIMARY_BUTTON_CLASS, QUIET_LINK_CLASS } from "@/components/button-classes";
+import { SignedOutBar } from "@/components/SignedOutBar";
+import { QUIET_LINK_CLASS } from "@/components/button-classes";
+import { FRONT_EXAMPLE, FRONT_PAGE_COPY, coveredAreasParagraph } from "@/content/front-page";
+import { loadPracticeAreaSetupOptions } from "@/server/firm/practice-area-options";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
+
+const SECTION_TITLE = "m-0 font-brand text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] text-ink min-[760px]:text-[30px]";
+const WRAP = "mx-auto w-full max-w-[1120px] px-4 min-[760px]:px-6";
 
 export default async function LandingPage() {
   const auth = await requireAuthenticatedUser();
@@ -12,57 +20,106 @@ export default async function LandingPage() {
     redirect("/hives");
   }
 
+  const covers = coveredAreasParagraph(loadPracticeAreaSetupOptions().map((area) => area.label));
+
   return (
     <div className="flex min-h-dvh flex-col bg-paper text-ink">
-      <header className="flex items-center justify-end px-[clamp(16px,3vw,28px)] py-4">
-        <nav aria-label="Account" className="flex items-center gap-4">
-          <Link href="/sign-in" className={QUIET_LINK_CLASS}>
-            Sign in
-          </Link>
-          <Link href="/sign-in?new=1" className={PILL_PRIMARY_BUTTON_CLASS}>
-            Get started
-          </Link>
-        </nav>
-      </header>
+      <SignedOutBar>
+        <Link href="/sign-in" className={QUIET_LINK_CLASS}>
+          {FRONT_PAGE_COPY.signIn}
+        </Link>
+      </SignedOutBar>
 
       <main className="flex flex-1 flex-col">
-        <section className="mx-auto flex w-full max-w-[720px] flex-col items-center gap-[26px] px-5 pb-8 pt-[clamp(40px,10vh,112px)] text-center">
-          <HiveAppLogo display="lockup" size="landingMain" />
-          <p className="m-0 text-[21px] font-normal leading-[1.4] text-ink-2">
-            What are you working on?
-          </p>
-          <div className="w-full">
-            <LandingStart />
+        <section
+          aria-labelledby="front-title"
+          className="mx-auto flex w-full max-w-[720px] flex-col items-center px-4 pb-16 pt-12 text-center min-[760px]:px-6 min-[760px]:pb-[88px] min-[760px]:pt-[72px]"
+        >
+          <HiveMarkGraphic animate heightPx={64} />
+          <h1
+            id="front-title"
+            className="m-0 mt-6 font-brand text-[clamp(34px,5.4vw,52px)] font-semibold leading-[1.08] tracking-[-0.03em] text-ink"
+          >
+            {FRONT_PAGE_COPY.heroTitle}
+          </h1>
+          <p className="m-0 mt-4 max-w-[560px] text-[17px] leading-[1.55] text-ink-2">{FRONT_PAGE_COPY.heroLede}</p>
+          <LandingStart />
+        </section>
+
+        <section aria-labelledby="front-example-title" className="bg-mist py-[72px]">
+          <div className={WRAP}>
+            <h2 id="front-example-title" className={SECTION_TITLE}>
+              {FRONT_PAGE_COPY.exampleTitle}
+            </h2>
+            <p className="m-0 mt-2 text-[15px] text-ink-2">{FRONT_PAGE_COPY.exampleSub}</p>
+            <FrontExample example={FRONT_EXAMPLE} />
           </div>
         </section>
 
-        <section className="mx-auto grid w-full max-w-[1040px] grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-9 px-6 pb-14 pt-4">
-          <div className="flex flex-col gap-1.5 text-left">
-            <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Upload whatever you have</h2>
-            <p className="m-0 text-[15px] leading-[1.55] text-ink-2">
-              Letters, notices, statements, forms. Old, partial or out of order is fine.
-            </p>
+        <section aria-labelledby="front-how-title" className="pt-20">
+          <div className={WRAP}>
+            <h2 id="front-how-title" className={SECTION_TITLE}>
+              {FRONT_PAGE_COPY.howTitle}
+            </h2>
+            <div className="mt-6 grid gap-x-10 gap-y-8 min-[760px]:grid-cols-3">
+              {FRONT_PAGE_COPY.how.map((step) => (
+                <div key={step.title} className="border-t border-ink pt-4">
+                  <h3 className="m-0 font-brand text-[19px] font-semibold tracking-[-0.01em] text-ink">{step.title}</h3>
+                  <p className="m-0 mt-2 text-[15px] leading-[1.55] text-ink-2">{step.text}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5 text-left">
-            <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Every point opens its page</h2>
-            <p className="m-0 text-[15px] leading-[1.55] text-ink-2">
-              HiveForYou reads each page and ties every date, amount and finding to where it came from.
-            </p>
+        </section>
+
+        <section aria-labelledby="front-who-title" className="pt-20">
+          <div className={WRAP}>
+            <h2 id="front-who-title" className={SECTION_TITLE}>
+              {FRONT_PAGE_COPY.whoTitle}
+            </h2>
+            <div className="mt-5 border-t border-ink">
+              {FRONT_PAGE_COPY.who.map((row) => (
+                <div
+                  key={row.label}
+                  className="grid gap-x-6 gap-y-1 border-b border-line py-4 text-[15px] min-[760px]:grid-cols-[200px_minmax(0,1fr)]"
+                >
+                  <b className="font-semibold text-ink">{row.label}</b>
+                  <p className="m-0 text-ink-2">{row.text}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5 text-left">
-            <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">See what is missing</h2>
-            <p className="m-0 text-[15px] leading-[1.55] text-ink-2">
-              A plain report, the places where documents disagree, and what the records don&apos;t include.
-            </p>
+        </section>
+
+        {covers ? (
+          <section aria-labelledby="front-covers-title" className="pt-20">
+            <div className={WRAP}>
+              <h2 id="front-covers-title" className={SECTION_TITLE}>
+                {FRONT_PAGE_COPY.coversTitle}
+              </h2>
+              <p className="m-0 mt-3 max-w-[640px] text-[16px] leading-[1.6] text-ink-2">{covers}</p>
+            </div>
+          </section>
+        ) : null}
+
+        <section className="pb-[72px] pt-24">
+          <div className={WRAP}>
+            <div className="flex flex-wrap items-center justify-between gap-6 border-t border-line pt-10">
+              <div className="flex items-center gap-3.5 font-brand text-[26px] font-semibold tracking-[-0.02em] text-ink">
+                <HiveMarkGraphic heightPx={40} />
+                <span>{FRONT_PAGE_COPY.slogan}</span>
+              </div>
+              <FrontStartButton label={FRONT_PAGE_COPY.startAHive} />
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 bg-mist px-[clamp(16px,3vw,28px)] py-4 text-[14px] text-ink-2">
-        <span className="font-brand font-medium text-ink-2">The complicated, made simple.</span>
-        <span className="text-[12.5px] text-ink-3">
-          Your uploaded files stay private to your account. Not legal, financial or medical advice.
-        </span>
+      <footer className="border-t border-line">
+        <div className={`${WRAP} flex flex-wrap justify-between gap-3 py-6 text-[13px] text-ink-3`}>
+          <span>© {new Date().getFullYear()} HiveForYou</span>
+          <span>{FRONT_PAGE_COPY.disclaimer}</span>
+        </div>
       </footer>
     </div>
   );

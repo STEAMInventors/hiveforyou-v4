@@ -151,6 +151,14 @@ describe("clients-home-queue", () => {
     expect(rows[0]?.name).toBe("Ruth Ortiz");
   });
 
+  it("finds a hive by its title as well as the client's name", () => {
+    const ruth = hive({ name: "Ruth Ortiz", description: "Plan confirmation" });
+    const alex = hive({ id: "660e8400-e29b-41d4-a716-446655440001", name: "Alex Carter", description: "Intake" });
+    const summaries = { [ruth.id]: readySummary, [alex.id]: readySummary };
+    const rows = clientsHomeHivesForQueue([ruth, alex], summaries, "all", viewer, "PLAN conf");
+    expect(rows.map((row) => row.name)).toEqual(["Ruth Ortiz"]);
+  });
+
   it("excludes closed hives from mine", () => {
     const closed = hive({ firmId: "firm", assigneeUserId: viewer, stage: "closed" });
     expect(hiveMatchesClientsHomeQueue(closed, "mine", {}, viewer)).toBe(false);

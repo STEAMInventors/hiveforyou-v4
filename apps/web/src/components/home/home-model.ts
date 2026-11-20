@@ -70,6 +70,11 @@ export function missingRecordsTitle(count: number, clientFirstName: string | nul
   return `Ask ${who} for ${count} missing ${noun}`;
 }
 
+export function findMissingRecordsTitle(count: number): string {
+  const noun = count === 1 ? "record" : "records";
+  return `Find ${count} missing ${noun}`;
+}
+
 export function requestComposerText(titles: readonly string[]): string {
   return titles.map((title) => title.trim()).filter(Boolean).join("\n");
 }

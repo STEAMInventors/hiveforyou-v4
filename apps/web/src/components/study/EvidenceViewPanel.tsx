@@ -13,7 +13,9 @@ import {
 } from "@/components/study/evidence-statement-model";
 import { readProblemSentence, type ReadProblem } from "@/components/study/ReadProblemNotice";
 import { type ChipRef } from "@/components/study/SourceChip";
+import { Avatar } from "@/components/ui/AvatarStack";
 import { StatusDot } from "@/components/ui/StatusDot";
+import { useHiveChat } from "@/lib/hive-chat-context";
 import { hiveHomePath } from "@/lib/hive-routes";
 import { EVIDENCE_COMPOSE_PARAM } from "@/lib/hive-compose-query";
 
@@ -94,6 +96,7 @@ export function EvidenceViewPanel({
       ? `${hiveHomePath(hiveId)}?${EVIDENCE_COMPOSE_PARAM}=${encodeURIComponent(statement.askClientQuestion)}`
       : null;
   const clientLabel = clientFirstName?.trim() || "the client";
+  const chat = useHiveChat();
 
   return (
     <section data-testid="evidence-viewer" className="mt-2 flex w-full flex-col gap-0 border-t border-line pt-2 min-[1100px]:flex-row">
@@ -153,14 +156,29 @@ export function EvidenceViewPanel({
         {statement.gapText ? (
           <p className="m-0 rounded-input border border-line bg-mist px-3 py-3 text-small text-ink-2">{statement.gapText}</p>
         ) : null}
-        {askHref ? (
-          <Link
-            href={askHref}
-            className="inline-flex h-[34px] items-center text-[13.5px] font-semibold text-ink-2 no-underline hover:bg-hover max-[759px]:h-11"
-            onClick={onClose}
-          >
-            Ask {clientLabel} about it
-          </Link>
+        {askHref || chat?.assistantOn ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="evidence-ask-actions">
+            {askHref ? (
+              <Link
+                href={askHref}
+                className="inline-flex h-[34px] items-center text-[13.5px] font-semibold text-ink-2 no-underline hover:bg-hover max-[759px]:h-11"
+                onClick={onClose}
+              >
+                Ask {clientLabel} about it
+              </Link>
+            ) : null}
+            {chat?.assistantOn ? (
+              <button
+                type="button"
+                data-testid="evidence-ask-assistant"
+                className="inline-flex h-[34px] cursor-pointer items-center gap-2 rounded-button border-0 bg-transparent px-1.5 text-[13.5px] font-semibold text-ink-2 hover:bg-hover max-[759px]:h-11"
+                onClick={() => chat.openChat({ prefill: `About the ${docRole} page ${pageNumber}: ` })}
+              >
+                <Avatar person={{ id: "ai", name: chat.config.assistantName, kind: "assistant" }} size="xs" />
+                Ask {chat.config.assistantName} about this page
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-4 bg-mist px-4 py-6 min-[1100px]:px-8 min-[1100px]:py-8" aria-label="Source page">

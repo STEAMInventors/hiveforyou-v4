@@ -29,22 +29,47 @@ export function formatPeopleLine(names: readonly string[]): string {
   return `${clean.slice(0, -1).join(", ")} and ${clean[clean.length - 1]}`;
 }
 
+/** xs 22 (tabs) · sm 24 (rows) · chat 28 (beside messages) · md 30 · bar 32 (Ask bar) · head 40 (chat header) · lg 44 */
+export type AvatarSize = "xs" | "sm" | "chat" | "md" | "bar" | "head" | "lg";
+
+const BOX_CLASS: Record<AvatarSize, string> = {
+  xs: "h-[22px] w-[22px] text-[9.5px]",
+  sm: "h-6 w-6 text-[10px]",
+  chat: "h-7 w-7 text-[11px]",
+  md: "h-[30px] w-[30px] text-[11.5px]",
+  bar: "h-8 w-8 text-[12px]",
+  head: "h-10 w-10 text-[14px]",
+  lg: "h-11 w-11 text-[15px]",
+};
+
+const MARK_CLASS: Record<AvatarSize, string> = {
+  xs: "h-[11px] w-2.5",
+  sm: "h-3 w-2.5",
+  chat: "h-[14px] w-3",
+  md: "h-4 w-3",
+  bar: "h-[17px] w-[14px]",
+  head: "h-5 w-[18px]",
+  lg: "h-5 w-4",
+};
+
 export function Avatar({
   person,
   size = "md",
 }: {
   person: AvatarPerson;
-  size?: "sm" | "md" | "lg";
+  size?: AvatarSize;
 }) {
-  const box = size === "lg" ? "h-11 w-11 text-[15px]" : size === "sm" ? "h-6 w-6 text-[10px]" : "h-[30px] w-[30px] text-[11.5px]";
+  const box = BOX_CLASS[size];
   if (person.kind === "assistant") {
+    // The mark on a white circle with a line-strong ring, everywhere (DESIGN: Ask chat, Avatar).
     return (
       <span
-        className={`grid shrink-0 place-items-center rounded-full bg-ink text-paper ${box}`}
+        className={`grid shrink-0 place-items-center rounded-full bg-paper text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)] ${box}`}
         title={person.name}
+        data-avatar="assistant"
         aria-hidden
       >
-        <HiveMark className={size === "lg" ? "h-5 w-4" : size === "sm" ? "h-3 w-2.5" : "h-4 w-3"} />
+        <HiveMark className={MARK_CLASS[size]} />
       </span>
     );
   }

@@ -5,6 +5,7 @@
 :root {
   /* DESIGN.md §2 (v3) */
   --ink: #1f2328;
+  --ink-ring: rgb(31 35 40 / 0.55);
   --ink-2: #4a525c;
   --ink-3: #6b737d;
   --line: #e3e6ea;
@@ -180,6 +181,17 @@
   }
 }
 
+@keyframes hfy-settle {
+  from {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) rotate(-40deg) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @keyframes hfy-sheet {
   from {
     opacity: 0.6;
@@ -256,14 +268,6 @@
     opacity: 1;
   }
 
-  .hive-composer--pill {
-    border-radius: var(--r-pill);
-  }
-
-  .hive-composer--pill::before {
-    border-radius: var(--r-pill);
-  }
-
   .hive-drop-zone {
     position: relative;
     border-radius: 20px;
@@ -318,6 +322,94 @@
 
     .hive-drop-zone::before {
       transition: none;
+    }
+  }
+
+  /* Front page hero input: line-strong at rest; four-colour ring + lift on hover and focus-within. */
+  .ring-brand {
+    position: relative;
+    border-radius: 20px;
+    border: 1px solid var(--line-strong);
+    background: var(--paper);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  .ring-brand::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 22px;
+    padding: 2px;
+    background: conic-gradient(
+      from 200deg,
+      var(--color-blue),
+      var(--color-coral),
+      var(--color-honey),
+      var(--color-leaf),
+      var(--color-blue)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+
+  .ring-brand:hover,
+  .ring-brand:focus-within {
+    border-color: transparent;
+    box-shadow: var(--shadow-lift);
+  }
+
+  .ring-brand:hover::before,
+  .ring-brand:focus-within::before {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring-brand,
+    .ring-brand::before {
+      transition: none;
+    }
+  }
+
+  /* Front page mark (DESIGN §2 motion): cells arrive top, right, bottom, left, once per page load. */
+  .hero-mark polygon {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: hfy-settle 0.8s cubic-bezier(0.3, 0.9, 0.3, 1) both;
+  }
+
+  .hero-mark .c1 {
+    --dx: -14px;
+    --dy: -22px;
+    animation-delay: 0.05s;
+  }
+
+  .hero-mark .c2 {
+    --dx: 22px;
+    --dy: -6px;
+    animation-delay: 0.17s;
+  }
+
+  .hero-mark .c3 {
+    --dx: 10px;
+    --dy: 22px;
+    animation-delay: 0.29s;
+  }
+
+  .hero-mark .c4 {
+    --dx: -22px;
+    --dy: 8px;
+    animation-delay: 0.41s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-mark polygon {
+      animation: none;
     }
   }
 

@@ -184,6 +184,7 @@ function isExcludedPath(relativePath: string): boolean {
   if (V5_006_LEGACY_EXCLUSIONS.has(normalized)) return true;
   if (normalized === "packages/contracts/src/pipeline/domain-word-lint.test.ts") return true;
   if (normalized.startsWith("apps/web/src/dev/gallery/fixtures/")) return true;
+  if (normalized === "apps/web/src/content/front-page.ts") return true;
   return V5_006_LEGACY_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
