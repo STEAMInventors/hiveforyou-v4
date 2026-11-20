@@ -3,8 +3,10 @@
 import type { HiveMessagePage } from "@hiveforyou/contracts";
 import { Suspense, useEffect, type ReactNode } from "react";
 
-import { AppShell, type AppShellAccount } from "@/components/app-header";
-import { WorkspaceShell } from "@/components/workspace/WorkspaceShell";
+import type { AppShellAccount } from "@/components/app-header";
+import { HivePageChrome } from "@/components/workspace/HivePageChrome";
+import { buildHiveChatConfig } from "@/lib/build-hive-chat-config";
+import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 
 import { installGalleryBoardFetch } from "./gallery-board-fetch";
@@ -39,6 +41,8 @@ export function GalleryHiveChrome({
   account = DEFAULT_ACCOUNT,
   unreadMessages = 2,
   documentCount = 9,
+  assistantRepliesOn = true,
+  initialClientAssistant = null,
 }: {
   titleSlug: string;
   children: ReactNode;
@@ -48,6 +52,8 @@ export function GalleryHiveChrome({
   account?: AppShellAccount;
   unreadMessages?: number;
   documentCount?: number;
+  assistantRepliesOn?: boolean;
+  initialClientAssistant?: ConversationLoad | null;
 }) {
   useGalleryTitle(titleSlug);
 
@@ -58,47 +64,63 @@ export function GalleryHiveChrome({
     : clientViewer
       ? { ...GALLERY_HIVE, membershipRole: "client" as const, isOwner: false }
       : GALLERY_HIVE;
-  const initialAssistant: ConversationLoad = { ok: true, page: assistantPage };
+  const initialAssistant: ConversationLoad = {
+    ok: true,
+    page: { ...assistantPage, assistantRepliesOn },
+  };
+  const staffView = showsFirmThreePane(hive);
+  const chatConfig = buildHiveChatConfig({
+    hive,
+    staffView,
+    assigneeLabel: "Priya Shah",
+    currentUserId: GALLERY_STAFF_ID,
+    assistantName: GALLERY_ASSISTANT_NAME,
+    initialAssistant,
+    initialClientAssistant,
+    documentCount,
+    viewerDisplayName: account.displayName,
+  });
 
   return (
     <GalleryFrame>
-      <AppShell account={account}>
-        <WorkspaceShell
-          hive={hive}
-          startingView={account.startingView ?? "clients"}
-          counts={{
+      <HivePageChrome
+        account={account}
+        chatConfig={chatConfig}
+        shellProps={{
+          hive,
+          startingView: account.startingView ?? "clients",
+          counts: {
             toReviewCount: 8,
             documents: documentCount,
             reports: 2,
             teamNotes: 1,
             unreadMessages,
-          }}
-          firm={
-            firmless
-              ? null
-              : {
-                  firm: {
-                    firmId: GALLERY_HIVE.firmId!,
-                    name: "Example firm",
-                    assistantName: GALLERY_ASSISTANT_NAME,
-                    callerRole: "owner",
-                  },
-                  members: [],
-                  pendingInvitations: [],
-                }
-          }
-          currentUserId={GALLERY_STAFF_ID}
-          assigneeLabel="Priya Shah"
-          assigneeTitle="Onboarding associate"
-          assistantName={GALLERY_ASSISTANT_NAME}
-          studyRevision={{ revisionNumber: 3, acceptedAt: "2026-10-20T00:00:00.000Z" }}
-          summaryLoaded
-          documentCount={documentCount}
-          initialAssistant={initialAssistant}
-        >
-          <Suspense fallback={null}>{children}</Suspense>
-        </WorkspaceShell>
-      </AppShell>
+          },
+          firm: firmless
+            ? null
+            : {
+                firm: {
+                  firmId: GALLERY_HIVE.firmId!,
+                  name: "Example firm",
+                  assistantName: GALLERY_ASSISTANT_NAME,
+                  callerRole: "owner",
+                },
+                members: [],
+                pendingInvitations: [],
+              },
+          currentUserId: GALLERY_STAFF_ID,
+          assigneeLabel: "Priya Shah",
+          assigneeTitle: "Onboarding associate",
+          assistantName: GALLERY_ASSISTANT_NAME,
+          studyRevision: { revisionNumber: 3, acceptedAt: "2026-10-20T00:00:00.000Z" },
+          summaryLoaded: true,
+          documentCount,
+          initialAssistant,
+          initialClientAssistant,
+        }}
+      >
+        <Suspense fallback={null}>{children}</Suspense>
+      </HivePageChrome>
     </GalleryFrame>
   );
 }

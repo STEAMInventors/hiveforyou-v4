@@ -4,6 +4,7 @@ import { INTENT_AUDIENCE_MAX_LENGTH, INTENT_TEXT_MAX_LENGTH } from "@hiveforyou/
 import { useId, useState } from "react";
 
 import type { CreateHiveFailure } from "@/components/hives/create-hive-flow";
+import { PRIMARY_BUTTON_CLASS } from "@/components/button-classes";
 import { AddFilesButton, SelectedFileChips } from "@/components/hives/SourceFilePicker";
 import {
   MAX_FILES_PER_BATCH,
@@ -80,12 +81,8 @@ export function HiveComposer({
           }
         }}
       >
-        <div
-          className={`hive-composer hive-composer--pill box-border w-full bg-line p-0.5 shadow-[0_2px_12px_rgb(31_35_40/0.1)] ${
-            invalid ? "ring-2 ring-coral-deep ring-offset-0" : ""
-          }`}
-        >
-          <div className="flex min-h-14 items-center gap-2.5 rounded-pill bg-paper py-1 pl-[22px] pr-1.5">
+        <div className={`ring-brand w-full ${invalid ? "ring-2 ring-coral-deep ring-offset-0" : ""}`} data-front-start>
+          <div className="flex min-h-14 items-center gap-2.5 rounded-[14px] bg-paper py-1.5 pl-[18px] pr-1.5">
             <label htmlFor={inputId} className="sr-only">
               Describe your situation
             </label>
@@ -97,8 +94,8 @@ export function HiveComposer({
               maxLength={INTENT_TEXT_MAX_LENGTH}
               aria-invalid={intentError ? true : undefined}
               aria-describedby={describedBy || undefined}
-              className="min-h-11 min-w-0 flex-1 border-0 bg-transparent p-0 text-[17px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-0 focus-visible:outline-none"
-              placeholder="Describe your situation"
+              className="min-h-11 min-w-0 flex-1 border-0 bg-transparent p-0 text-[16px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-0 focus-visible:outline-none"
+              placeholder="Describe your situation, then add whatever documents you have"
               onChange={(event) => onIntentTextChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -107,12 +104,9 @@ export function HiveComposer({
                 }
               }}
             />
-            <AddFilesButton
-              label="Add documents"
-              disabled={!canAddFiles}
-              onAdd={onAddFiles}
-              className="flex h-11 w-11 min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-pill border-0 bg-mist text-ink transition-colors hover:bg-line disabled:cursor-not-allowed disabled:opacity-45"
-            />
+            <button type="submit" disabled={busy} className={`${PRIMARY_BUTTON_CLASS} shrink-0`}>
+              Start
+            </button>
           </div>
         </div>
         <SelectedFileChips files={files} onRemove={onRemoveFile} busy={busy} />

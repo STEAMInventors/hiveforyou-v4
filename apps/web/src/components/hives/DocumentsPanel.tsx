@@ -24,7 +24,13 @@ import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { shortDocumentLabels, shortTypeChipLabels } from "@/components/study/SourceChip";
 import { Button } from "@/components/ui/Button";
 import { MetaDot, MetaLine } from "@/components/ui/MetaLine";
+import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
 import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
+import {
+  mergeOmniCatalog,
+  omniDocumentsFromLibraryRows,
+  omniOpenItemsFromChecklist,
+} from "@/lib/omni-catalog-build";
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchSourceDocuments, fetchUploadQuota, startDocumentReads } from "@/lib/source-documents-client";
 
@@ -172,6 +178,18 @@ export function DocumentsPanel({
     (id: string) => readMetrics.pageCounts[id] ?? readMetrics.pageCounts[id.toLowerCase()],
     [readMetrics.pageCounts],
   );
+  const omniCatalog = useMemo(
+    () =>
+      mergeOmniCatalog({
+        statements: EMPTY_OMNI_CATALOG.statements,
+        suggestions: EMPTY_OMNI_CATALOG.suggestions,
+        documents: omniDocumentsFromLibraryRows(libraryRows),
+        openItems: omniOpenItemsFromChecklist(checklist),
+      }),
+    [checklist, libraryRows],
+  );
+  useRegisterOmniCatalog(omniCatalog);
+
   const chipModel = useMemo(() => {
     const labelled = documents.map((document) => ({
       sourceDocumentId: document.sourceDocumentId,

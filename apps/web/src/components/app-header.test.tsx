@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 let pathname = "/hives";
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock("@/server/auth/auth-actions", () => ({
   signOutAction: vi.fn(),
@@ -70,10 +70,10 @@ describe("AppHeader", () => {
     expect(crumb.textContent).toContain("Widget batch review");
   });
 
-  it("keeps the mark and a quiet My hives link outside a hive", () => {
-    pathname = "/hives";
+  it("keeps the mark and a quiet My hives link on pages that are not the list or a hive", () => {
+    pathname = "/account/firm";
     render(
-      <ClientsHomeProvider enabled={false}>
+      <ClientsHomeProvider enabled>
         <AppHeader workspace={null} account={{ ...account, startingView: "own" }} />
       </ClientsHomeProvider>,
     );
@@ -84,15 +84,43 @@ describe("AppHeader", () => {
     expect(screen.queryByTestId("header-find-client")).toBeNull();
   });
 
-  it("does not put Find a client in the top bar", () => {
+  it("puts the find box and the firm name in the top bar on Your hives, and no My hives link", () => {
     pathname = "/hives";
     render(
+      <ClientsHomeProvider enabled>
+        <AppHeader workspace={null} account={{ ...account, firmName: "Rivera Law" }} />
+      </ClientsHomeProvider>,
+    );
+    const find = screen.getByTestId("header-find-client") as HTMLInputElement;
+    expect(find.placeholder).toBe("Find a client or hive");
+    expect(screen.getByLabelText("Find a client or hive")).toBe(find);
+    expect(screen.getByTestId("header-firm").textContent).toContain("Rivera Law");
+    expect(screen.queryByRole("link", { name: "My hives" })).toBeNull();
+    expect(screen.queryByTestId("omni")).toBeNull();
+    fireEvent.change(find, { target: { value: "alex" } });
+    expect(find.value).toBe("alex");
+    fireEvent.keyDown(find, { key: "Escape" });
+    expect(find.value).toBe("");
+  });
+
+  it("leaves out the firm name when there is none, and the find box in a hive", () => {
+    pathname = "/hives";
+    const { unmount } = render(
       <ClientsHomeProvider enabled>
         <AppHeader workspace={null} account={account} />
       </ClientsHomeProvider>,
     );
-    expect(screen.queryByLabelText("Find a client")).toBeNull();
-    expect(screen.queryByTestId("omni")).toBeNull();
+    expect(screen.queryByTestId("header-firm")).toBeNull();
+    unmount();
+
+    pathname = `/hives/${HIVE_ID}/study`;
+    render(
+      <ClientsHomeProvider enabled>
+        <AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review", staffView: true }} account={account} />
+      </ClientsHomeProvider>,
+    );
+    expect(screen.queryByTestId("header-find-client")).toBeNull();
+    expect(screen.getByTestId("omni")).toBeTruthy();
   });
 
   it("puts All hives in the breadcrumb, not a filled button", () => {
@@ -127,7 +155,7 @@ describe("AppHeader", () => {
           startingView: "own",
           hiveKind: "client",
           staffView: false,
-          firmId: "22222222-2222-4222-8222-222222222222",
+          clientViewer: true,
         }}
         account={account}
       />,

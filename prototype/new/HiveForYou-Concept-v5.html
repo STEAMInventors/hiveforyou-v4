@@ -1,0 +1,1225 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HiveForYou — concept v5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Outfit:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+/* HiveForYou concept v5 — the whole flow: front page, sign-in, your hives, then the hive ("the file explains itself").
+   Brand guide v1.0 colours and faces. DESIGN.md v4 is the written spec; where they differ, DESIGN.md wins. */
+:root {
+  --ink: #1f2328; --ink-2: #4a525c; --ink-3: #6b737d;
+  --line: #e3e6ea; --line-2: #d3d8de; --mist: #f4f6f8; --paper: #fff; --hover: #eef1f4;
+  --blue: #3b7cf6; --blue-deep: #1a56c4; --blue-wash: #e8f0fe;
+  --coral: #ef5143; --coral-deep: #b33a2e; --coral-wash: #fdedeb;
+  --honey: #f6b826; --honey-deep: #7a5200; --honey-wash: #fef3d6;
+  --leaf: #2fa35a; --leaf-deep: #197040; --leaf-wash: #e6f4ea;
+  --display: "Outfit", system-ui, sans-serif; --body: "DM Sans", system-ui, sans-serif; --page: "Source Serif 4", Georgia, serif;
+  --lift: 0 1px 2px rgba(16,24,40,.05), 0 12px 32px -16px rgba(16,24,40,.18);
+  --pop: 0 2px 6px rgba(16,24,40,.06), 0 24px 56px -20px rgba(16,24,40,.28);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 14.5px/1.55 var(--body); -webkit-font-smoothing: antialiased; letter-spacing: -0.003em; }
+::selection { background: #cfe0fd; }
+* { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 6px; }
+h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacing: -0.02em; text-wrap: balance; }
+p { margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+.meta { font-size: 12.5px; color: var(--ink-3); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.icon { width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; padding: 0 13px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--paper); font-size: 13.5px; font-weight: 600; white-space: nowrap; transition: background .12s, border-color .12s; }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--blue-deep); border-color: var(--blue-deep); color: #fff; }
+.btn.primary:hover { background: #1647a3; }
+.btn.text { border-color: transparent; background: none; color: var(--blue-deep); padding: 0 6px; }
+.btn.text:hover { background: var(--blue-wash); }
+.btn.quiet { border-color: transparent; background: none; color: var(--ink-2); }
+.btn.quiet:hover { background: var(--hover); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* Status: dot + word */
+.dot { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.dot.coral { color: var(--coral-deep); } .dot.honey { color: var(--honey-deep); } .dot.honey::before { background: var(--honey); }
+.dot.blue { color: var(--blue-deep); } .dot.leaf { color: var(--leaf-deep); } .dot.grey { color: var(--ink-3); }
+
+/* Source reference */
+.ref { display: inline-flex; align-items: center; gap: 5px; height: 24px; max-width: 100%; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink-2); font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ref svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 1.8; fill: none; opacity: .7; flex: none; }
+.ref .pg { color: var(--ink-3); }
+.ref:hover { background: var(--blue-wash); border-color: #c9d9fb; color: var(--blue-deep); }
+.refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* Avatars */
+.av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; flex: none; }
+.av.client { background: var(--leaf-wash); color: var(--leaf-deep); box-shadow: inset 0 0 0 1px rgba(25,112,64,.18); }
+.av.staff { background: var(--blue-wash); color: var(--blue-deep); box-shadow: inset 0 0 0 1px rgba(26,86,196,.16); }
+.av.ai { background: var(--paper); box-shadow: inset 0 0 0 1px var(--line-2); }
+.av.ai svg { width: 14px; height: 18px; }
+.av.lg { width: 44px; height: 44px; font-size: 15px; }
+.stack { display: flex; }
+.stack .av { box-shadow: 0 0 0 2px var(--paper); }
+.stack .av + .av { margin-left: -6px; }
+
+/* ── Top bar with the one input ── */
+.top { position: sticky; top: 0; z-index: 40; display: grid; grid-template-columns: 1fr minmax(0, 600px) 1fr; align-items: center; gap: 16px; height: 64px; padding: 0 20px; background: rgba(255,255,255,.9); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
+.brand { display: inline-flex; align-items: center; gap: 9px; border: 0; background: none; padding: 0; font-family: var(--display); font-size: 18px; letter-spacing: -0.035em; }
+.brand b { font-weight: 600; } .brand span { font-weight: 400; }
+.brand svg { width: 21px; height: 26px; }
+.brand svg polygon { stroke: #fff; stroke-width: 2.5; stroke-linejoin: round; }
+.left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.path { display: flex; white-space: nowrap; align-items: center; gap: 6px; min-width: 0; font-size: 13.5px; color: var(--ink-3); }
+.path .sep { color: var(--line-2); }
+.path b { color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.viewas { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--mist); font-size: 12.5px; }
+.viewas button { height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font-weight: 500; }
+.viewas button[aria-pressed="true"] { background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(16,24,40,.06); }
+.me { width: 30px; height: 30px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; }
+
+.omni { position: relative; min-width: 0; }
+.omni-box { display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 8px 0 10px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line-2); transition: background .12s, border-color .12s, box-shadow .12s; }
+.omni-box:hover { border-color: var(--ink-3); }
+.omni-box > .av { width: 24px; height: 24px; }
+.omni-box > .av svg { width: 11px; height: 14px; }
+.omni.open .omni-box, .omni-box:focus-within { background: var(--paper); border-color: var(--line-2); box-shadow: var(--lift); }
+.omni-box input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; font-size: 14.5px; }
+.omni-box input::placeholder { color: var(--ink-3); }
+.omni-box .icon { color: var(--ink-3); }
+.kbd { font-size: 11.5px; color: var(--ink-3); border: 1px solid var(--line-2); border-radius: 5px; padding: 0 6px; line-height: 18px; background: var(--paper); }
+.omni-pop { position: absolute; left: 0; right: 0; top: calc(100% + 8px); background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--pop); max-height: min(70vh, 640px); overflow-y: auto; padding: 8px; animation: rise .18s cubic-bezier(.16,1,.3,1); }
+@keyframes rise { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.omni-group { padding: 6px 4px; }
+.omni-group + .omni-group { border-top: 1px solid var(--line); }
+.omni-group h4 { margin: 4px 8px 6px; font: 600 12px var(--body); color: var(--ink-3); }
+.hit { display: grid; grid-template-columns: 20px 1fr auto; gap: 10px; align-items: start; width: 100%; padding: 8px; border: 0; border-radius: 9px; background: none; text-align: left; font-size: 13.5px; line-height: 1.45; }
+.hit:hover, .hit[aria-selected="true"] { background: var(--mist); }
+.hit .icon { margin-top: 2px; color: var(--ink-3); }
+.hit small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 1px; }
+.hit mark { background: #fff1bf; color: inherit; border-radius: 2px; padding: 0 1px; }
+.hit.ask { grid-template-columns: 26px 1fr auto; align-items: center; }
+.hit.ask .av { width: 24px; height: 24px; }
+.hit.ask .av svg { width: 11px; height: 14px; }
+.answer { padding: 12px 10px 6px; }
+.answer .q { font-weight: 600; margin-bottom: 10px; }
+.answer .who { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); margin-bottom: 6px; }
+.answer .who b { color: var(--ink); font-size: 13.5px; }
+.tag { white-space: nowrap; font-size: 11px; font-weight: 600; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 5px; padding: 0 5px; line-height: 17px; }
+.answer .text { font-size: 14.5px; line-height: 1.6; }
+.answer .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.typing { display: inline-flex; gap: 3px; margin-left: 4px; }
+.typing i { width: 4px; height: 4px; border-radius: 50%; background: var(--ink-3); animation: blink 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+/* ── Hive header ── */
+.hivehead { max-width: 1240px; margin: 0 auto; padding: 28px 32px 0; }
+.hh-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.hh-row h1 { font-size: 28px; line-height: 1.15; }
+.hh-row .sub { margin-top: 6px; color: var(--ink-3); font-size: 14px; }
+.people { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-3); }
+.tabs { display: flex; gap: 26px; margin-top: 20px; border-bottom: 1px solid var(--line); }
+.tabs button { position: relative; height: 42px; padding: 0; border: 0; background: none; font-size: 14px; font-weight: 500; color: var(--ink-3); display: inline-flex; align-items: center; gap: 7px; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); font-weight: 600; }
+.tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: var(--ink); }
+.tabs .c { font-size: 11.5px; font-weight: 600; color: var(--ink-3); background: var(--mist); border-radius: 9px; padding: 1px 7px; }
+.tabs .lock { width: 13px; height: 13px; }
+
+/* ── Home ── */
+.home { max-width: 1240px; margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 48px; }
+.brief { padding: 32px 0 96px; min-width: 0; }
+.state { font-family: var(--display); font-size: 23px; line-height: 1.35; letter-spacing: -0.02em; font-weight: 500; color: var(--ink); max-width: 640px; }
+.state em { font-style: normal; color: var(--ink-3); }
+.meter { display: flex; gap: 3px; margin: 18px 0 8px; max-width: 420px; }
+.meter i { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+.meter i.on { background: var(--leaf); }
+.sec { margin-top: 40px; }
+.sec > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--ink); }
+.sec h2 { font-size: 17px; letter-spacing: -0.015em; }
+.step { display: grid; grid-template-columns: 1fr auto; gap: 4px 20px; align-items: start; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.step .t { font-weight: 600; font-size: 14.5px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.step .d { grid-column: 1; color: var(--ink-2); font-size: 13.5px; }
+.step .a { grid-row: 1 / span 2; grid-column: 2; }
+.topic { margin-top: 22px; }
+.topic h3 { font: 600 13.5px var(--body); color: var(--ink-3); margin-bottom: 4px; display: flex; gap: 10px; align-items: center; }
+.claim { display: block; cursor: pointer; text-align: left; padding: 10px 12px; margin: 0 -12px; border-radius: 10px; font-size: 14.5px; line-height: 1.55; transition: background .12s; }
+.claim:hover { background: var(--mist); }
+.claim:hover .go { opacity: 1; }
+.claim .go { opacity: 0; color: var(--blue-deep); font-size: 12.5px; font-weight: 600; margin-left: 6px; transition: opacity .12s; white-space: nowrap; }
+.claim .refs { margin-top: 6px; pointer-events: none; }
+.more { margin: 6px 0 0 -6px; }
+
+/* Conversation panel */
+.convo { position: sticky; top: 64px; align-self: start; height: calc(100vh - 64px); display: flex; flex-direction: column; border-left: 1px solid var(--line); padding: 24px 0 16px 28px; }
+.convo-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.convo-h h2 { font-size: 16px; }
+.convo-h p { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+.thread { flex: 1; overflow-y: auto; padding: 8px 4px 8px 0; }
+.msg { display: grid; grid-template-columns: 30px 1fr; gap: 11px; padding: 12px 0; }
+.by { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 12px; color: var(--ink-3); }
+.by b { font-size: 13.5px; color: var(--ink); font-weight: 600; }
+.msg .text { margin-top: 2px; font-size: 14px; line-height: 1.55; color: #2a2f35; white-space: pre-wrap; }
+.day { text-align: center; font-size: 11.5px; color: var(--ink-3); margin: 6px 0; }
+.composer { border: 1px solid var(--line-2); border-radius: 12px; background: var(--paper); box-shadow: 0 1px 2px rgba(16,24,40,.04); transition: border-color .12s, box-shadow .12s; }
+.composer:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,124,246,.14); }
+.composer textarea { display: block; width: 100%; min-height: 52px; max-height: 160px; resize: none; border: 0; outline: 0; background: none; padding: 12px 14px 4px; font-size: 14px; }
+.composer .bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px 8px 14px; }
+.composer .hint { font-size: 12px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; }
+.composer .hint .icon { width: 13px; height: 13px; }
+
+/* ── Evidence split ── */
+.split { display: grid; grid-template-columns: minmax(340px, 440px) minmax(0, 1fr); min-height: calc(100vh - 64px); }
+.claimside { padding: 28px 32px 64px; border-right: 1px solid var(--line); overflow-y: auto; }
+.back { margin-left: -8px; }
+.claimside .big { font-family: var(--display); font-size: 21px; line-height: 1.4; font-weight: 500; letter-spacing: -0.015em; margin: 18px 0 14px; }
+.claimside h4 { margin: 22px 0 6px; font: 600 12.5px var(--body); color: var(--ink-3); }
+.claimside .others { display: flex; flex-direction: column; gap: 6px; }
+.claimside .others button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); text-align: left; font-size: 13px; }
+.claimside .others button[aria-current="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.claimside .others button:hover { background: var(--mist); }
+.decide { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.decided { margin-top: 10px; }
+.viewer { background: var(--mist); padding: 28px 32px 64px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.vbar { width: 100%; max-width: 680px; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: var(--ink-2); }
+.vbar b { color: var(--ink); }
+.page { width: 100%; max-width: 680px; aspect-ratio: 8.5 / 11; background: #fffefb; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 18px 40px -22px rgba(0,0,0,.3); padding: 56px 60px; font-family: var(--page); color: #2a2a2a; font-size: 14.5px; line-height: 1.7; overflow: hidden; animation: pagein .35s cubic-bezier(.16,1,.3,1); }
+@keyframes pagein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.page .org { font-family: var(--body); font-size: 11.5px; letter-spacing: .02em; color: #8a8f96; display: flex; justify-content: space-between; border-bottom: 1px solid #ece9e2; padding-bottom: 10px; margin-bottom: 26px; }
+.page .ln { height: 9px; border-radius: 5px; background: #efece6; margin: 13px 0; }
+.page .hl { display: block; margin: 18px -10px; padding: 10px; border-radius: 4px; background: #fff1bf; box-shadow: 0 0 0 1px #f3d97a; font-size: 15.5px; color: #1f1f1f; }
+.page .unread { display: grid; place-items: center; height: 60%; color: #8a8f96; font-family: var(--body); font-size: 13.5px; text-align: center; filter: blur(0); }
+
+/* ── Documents / Report / Notes ── */
+.pagewrap { max-width: 1040px; margin: 0 auto; padding: 28px 32px 96px; }
+.pagewrap.read { max-width: 760px; }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th { text-align: left; font-size: 12px; font-weight: 500; color: var(--ink-3); padding: 10px 12px 10px 0; border-bottom: 1px solid var(--ink); }
+.table td { padding: 14px 12px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table .s { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+.table td.n, .table th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.table tbody tr { cursor: pointer; }
+.table tbody tr:hover td { background: #fafbfc; }
+.paper { margin-top: 20px; border: 1px solid var(--line); border-radius: 4px; padding: 48px 56px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 16px 40px -24px rgba(16,24,40,.22); }
+.paper h2 { font-size: 24px; margin: 10px 0 8px; }
+.paper h3 { font-size: 15px; margin: 26px 0 6px; }
+.paper p { margin: 6px 0; }
+.note { padding: 14px 0; border-bottom: 1px solid var(--line); }
+
+/* ── Client home (phone first) ── */
+.cl { max-width: 460px; margin: 0 auto; padding: 22px 20px 120px; }
+.cl-who { display: flex; align-items: center; gap: 12px; }
+.cl-who p { font-size: 13px; color: var(--ink-3); }
+.cl-who b { display: block; font-size: 14.5px; color: var(--ink); }
+.cl h1 { font-size: 26px; line-height: 1.2; margin: 22px 0 6px; }
+.cl .lead { color: var(--ink-2); font-size: 15px; }
+.cl .meter { max-width: none; margin-top: 16px; }
+.cl-sec { margin-top: 30px; }
+.cl-sec > h2 { font-size: 16px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: baseline; }
+.cl-sec > h2 span { font: 500 12.5px var(--body); color: var(--ink-3); }
+.ask-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.ask-row p { font-size: 14.5px; line-height: 1.45; }
+.ask-row small { display: block; font-size: 12.5px; color: var(--ink-3); margin-top: 3px; }
+.ask-row .btn { height: 44px; min-width: 76px; }
+.ask-row.done p { color: var(--ink-3); }
+.cl-ask { margin-top: 26px; display: flex; align-items: center; gap: 10px; width: 100%; height: 52px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--paper); text-align: left; color: var(--ink-3); font-size: 15px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.cl-ask .av { width: 26px; height: 26px; }
+.cl-ask .av svg { width: 12px; height: 15px; }
+.cl-ask:hover { border-color: var(--ink-3); }
+.cl .thread { overflow: visible; padding: 0; }
+.privacy { display: flex; gap: 8px; align-items: flex-start; margin-top: 22px; font-size: 12.5px; color: var(--ink-3); }
+.privacy .icon { width: 14px; height: 14px; margin-top: 2px; }
+.sheet-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(20,26,34,.32); }
+.sheet { position: fixed; z-index: 61; left: 50%; bottom: 0; transform: translateX(-50%); width: min(560px, 100vw); max-height: 88vh; display: flex; flex-direction: column; background: var(--paper); border-radius: 18px 18px 0 0; box-shadow: var(--pop); animation: up .26s cubic-bezier(.16,1,.3,1); }
+@keyframes up { from { transform: translate(-50%, 24px); opacity: .6; } to { transform: translate(-50%, 0); opacity: 1; } }
+.sheet header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
+.sheet header h2 { font-size: 16px; }
+.sheet .body { padding: 0 18px 12px; overflow-y: auto; }
+.sheet .foot { padding: 10px 14px 16px; border-top: 1px solid var(--line); }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 80; background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13.5px; box-shadow: var(--pop); }
+
+
+/* Honey graphics carry a thin ink edge (brand guide §5: honey is 1.8:1 on white) */
+.dot.honey::before { box-shadow: 0 0 0 1px rgba(31,35,40,.55); }
+
+/* ── Concept navigator (concept only — never in the app) ── */
+.cnav { position: fixed; left: 12px; bottom: 12px; z-index: 90; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; max-width: calc(100vw - 24px); padding: 4px; border-radius: 12px; background: rgba(31,35,40,.94); color: #fff; font-size: 12px; box-shadow: var(--pop); }
+.cnav > span { padding: 0 8px; color: #aeb4bb; font-weight: 600; }
+.cnav button { height: 28px; padding: 0 9px; border: 0; border-radius: 8px; background: none; color: #dfe3e8; font-weight: 500; }
+.cnav button:hover { background: rgba(255,255,255,.12); }
+.cnav button[aria-pressed="true"], .cnav button[aria-pressed="true"]:hover { background: #fff; color: var(--ink); font-weight: 600; }
+
+/* ── Signed-out top bar ── */
+.fp-top { position: sticky; top: 0; z-index: 40; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 24px; background: rgba(255,255,255,.9); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+/* ── Front page ── */
+.hero { max-width: 720px; margin: 0 auto; padding: 72px 24px 88px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.hero-mark { width: 45px; height: 64px; }
+.hero-mark.play polygon { transform-box: fill-box; transform-origin: center; animation: settle .8s cubic-bezier(.3,.9,.3,1) both; }
+.hero-mark.play .c1 { --dx: -14px; --dy: -22px; animation-delay: .05s; }
+.hero-mark.play .c2 { --dx: 22px; --dy: -6px; animation-delay: .17s; }
+.hero-mark.play .c3 { --dx: 10px; --dy: 22px; animation-delay: .29s; }
+.hero-mark.play .c4 { --dx: -22px; --dy: 8px; animation-delay: .41s; }
+@keyframes settle { from { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(-40deg) scale(.6); } to { opacity: 1; transform: none; } }
+.hero h1 { margin-top: 24px; font-size: clamp(34px, 5.4vw, 52px); line-height: 1.08; letter-spacing: -0.03em; }
+.hero .lede { margin-top: 16px; max-width: 560px; font-size: 17px; line-height: 1.55; color: var(--ink-2); }
+.seg { margin-top: 32px; display: inline-flex; gap: 4px; padding: 4px; background: var(--mist); border-radius: 11px; }
+.seg button { height: 40px; padding: 0 16px; border: 0; border-radius: 8px; background: none; color: var(--ink-3); font-size: 14px; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(16,24,40,.08); }
+.ring { margin-top: 16px; width: 100%; padding: 2px; border-radius: 16px; background: var(--line-2); transition: box-shadow .2s; }
+.ring:hover, .ring:focus-within { background: conic-gradient(from 200deg, var(--blue), var(--coral), var(--honey), var(--leaf), var(--blue)); box-shadow: var(--lift); }
+.ring-in { display: flex; align-items: center; gap: 10px; background: var(--paper); border-radius: 14px; padding: 8px 8px 8px 18px; text-align: left; }
+.ring-in input { flex: 1; min-width: 0; height: 44px; border: 0; outline: 0; background: none; font-size: 16px; }
+.ring-in input::placeholder { color: var(--ink-3); }
+.ring-in .btn { height: 44px; padding: 0 20px; font-size: 15px; }
+.ring-tools { margin-top: 12px; }
+.hero .small { margin-top: 12px; font-size: 13.5px; line-height: 1.5; color: var(--ink-3); max-width: 520px; }
+.hero .small + .small { margin-top: 4px; }
+.band { background: var(--mist); padding: 72px 0; }
+.fsec { padding-top: 80px; }
+.band h2, .fsec h2 { font-size: 30px; line-height: 1.2; }
+.band .sub2 { margin-top: 8px; font-size: 15px; color: var(--ink-2); }
+.ex { margin-top: 28px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.ex-h { padding: 14px 24px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font-size: 13px; color: var(--ink-3); }
+.ex-h b { color: var(--ink); font-weight: 600; }
+.ex-b { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+.ex-l { padding: 28px 24px; min-width: 0; }
+.ex-l .state { font-size: 22px; }
+.ex-r { background: var(--mist); border-left: 1px solid var(--line); padding: 20px 24px 28px; min-width: 0; }
+.ex .claim { width: calc(100% + 24px); border: 0; background: none; color: inherit; }
+.ex .claim.on { background: var(--blue-wash); }
+.ex .claim .tp { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-3); }
+.mrow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+.mini-page { max-width: 460px; margin: 14px auto 0; background: #fffefb; border-radius: 4px; box-shadow: 0 1px 3px rgba(16,24,40,.08), 0 16px 32px -18px rgba(16,24,40,.25); padding: 36px 36px 48px; font-family: var(--page); font-size: 13.5px; line-height: 1.6; color: #2a2f35; animation: pagein .35s cubic-bezier(.16,1,.3,1); }
+.mini-page .iss { font-weight: 600; font-size: 15px; }
+.mini-page .kind { color: #5b6168; }
+.mini-page .meta-l { margin-top: 14px; }
+.mini-page .lines { margin-top: 18px; border-top: 1px solid #d9d4c7; padding-top: 10px; }
+.mini-page .row { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; }
+.mini-page .row.hl { padding: 3px 6px; margin: 0 -6px; background: #fff1bf; box-shadow: 0 0 0 1px #f3d97a; border-radius: 3px; font-weight: 600; }
+.ex-r .vbar { max-width: 460px; margin: 0 auto; }
+.ex-r .ok { max-width: 460px; margin: 14px auto 0; }
+.cols3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 40px; margin-top: 24px; }
+.cols3 > div { border-top: 1px solid var(--ink); padding-top: 16px; }
+.cols3 h3 { font-size: 19px; letter-spacing: -0.01em; }
+.cols3 p { margin-top: 8px; font-size: 15px; color: var(--ink-2); }
+.rows2 { margin-top: 20px; border-top: 1px solid var(--ink); }
+.rows2 > div { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 4px 24px; padding: 16px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.rows2 b { font-weight: 600; }
+.rows2 p { color: var(--ink-2); }
+.fsec .para { margin-top: 12px; max-width: 640px; font-size: 16px; line-height: 1.6; color: var(--ink-2); }
+.closing { padding: 96px 0 72px; }
+.closing .in { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid var(--line); padding-top: 40px; }
+.closing .slogan { display: flex; align-items: center; gap: 14px; font-family: var(--display); font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+.closing .slogan svg { width: 31px; height: 40px; }
+.closing .btn { height: 44px; padding: 0 18px; font-size: 15px; }
+.foot { border-top: 1px solid var(--line); }
+.foot .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-top: 24px; padding-bottom: 24px; font-size: 13px; color: var(--ink-3); }
+.foot a { color: var(--ink-3); }
+
+/* ── Sign in ── */
+.auth { max-width: 400px; margin: 0 auto; padding: 72px 20px 96px; }
+.auth > svg { width: 31px; height: 40px; }
+.auth h1 { margin-top: 20px; font-size: 28px; line-height: 1.15; }
+.auth .lede { margin-top: 8px; color: var(--ink-2); font-size: 15px; }
+.field { margin-top: 24px; display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13.5px; font-weight: 600; }
+.field input { height: 44px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 10px; font-size: 16px; background: var(--paper); }
+.field input:focus { outline: 0; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,124,246,.14); }
+.field input.code { letter-spacing: .3em; font-variant-numeric: tabular-nums; }
+.field .err { font-size: 13px; color: var(--coral-deep); }
+.btn.wide { width: 100%; height: 44px; margin-top: 16px; font-size: 15px; }
+.auth .alt { margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+
+/* ── Your hives (signed-in landing) ── */
+.lp { max-width: 1040px; margin: 0 auto; padding: 40px 32px 96px; }
+.lp-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
+.lp-head > div { flex: 1 1 520px; min-width: 0; }
+.lp-head h1 { font-size: 28px; line-height: 1.15; }
+.lp-head .state { margin-top: 10px; font-size: 22px; }
+.lp .tabs { margin-top: 24px; }
+.hrow { display: grid; grid-template-columns: minmax(0, 1.6fr) 150px 170px minmax(0, 1fr); gap: 8px 20px; align-items: center; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; }
+.hrow:hover { background: var(--mist); box-shadow: -10px 0 0 var(--mist), 10px 0 0 var(--mist); }
+.hrow .who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sq { width: 36px; height: 36px; border-radius: 8px; background: var(--mist); color: var(--ink-2); font-size: 12.5px; font-weight: 600; display: grid; place-items: center; flex: none; }
+.hrow:hover .sq { background: var(--paper); }
+.hrow .nm { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hrow .pp { display: block; margin-top: 1px; font-size: 13px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.minimeter { display: flex; gap: 2px; width: 120px; }
+.minimeter i { flex: 1; height: 5px; border-radius: 3px; background: var(--line); }
+.minimeter i.on { background: var(--leaf); }
+.hrow .prog .meta { margin-top: 5px; display: block; }
+.hrow .sts { display: flex; flex-direction: column; gap: 3px; }
+.hrow .act { text-align: right; font-size: 13px; color: var(--ink-3); }
+.fv { max-width: 640px; margin: 0 auto; padding: 72px 24px 96px; }
+.fv h1 { font-size: 28px; line-height: 1.15; }
+.fv .state { margin-top: 12px; font-size: 22px; }
+.fv .acts { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.fv .acts .btn.primary { height: 44px; padding: 0 18px; font-size: 15px; }
+.fv .rows2 { margin-top: 56px; }
+.fv .rows2 > div { grid-template-columns: 130px minmax(0, 1fr); font-size: 14.5px; }
+.home.solo { grid-template-columns: minmax(0, 1fr); }
+.home.solo .brief { max-width: 820px; }
+
+/* ── Ask <assistant>: prominent entry points (all open the one box) ── */
+.askbar { margin-top: 22px; max-width: 640px; }
+.askbar-btn { display: flex; align-items: center; gap: 12px; width: 100%; height: 52px; padding: 0 12px 0 12px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--paper); color: var(--ink-2); font-size: 15px; text-align: left; box-shadow: 0 1px 2px rgba(16,24,40,.04); transition: border-color .12s, box-shadow .12s; }
+.askbar-btn:hover { border-color: var(--ink-3); box-shadow: var(--lift); }
+.askbar-btn .av { width: 28px; height: 28px; }
+.askbar-btn .av svg { width: 13px; height: 16px; }
+.askbar-btn b { color: var(--ink); font-weight: 600; }
+.askbar-btn .kbd { margin-left: auto; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chip { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); font-size: 13px; color: var(--ink-2); }
+.chip:hover { background: var(--blue-wash); border-color: #c9d9fb; color: var(--blue-deep); }
+.btn .av { width: 20px; height: 20px; }
+.btn .av svg { width: 9px; height: 12px; }
+
+/* ── Ask <assistant>: a chat (D23) ── */
+.convo.has-tabs { padding-top: 18px; }
+.ptabs { display: flex; gap: 4px; padding: 4px; background: var(--mist); border-radius: 11px; margin-bottom: 14px; }
+.ptabs button { flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; border: 0; border-radius: 8px; background: none; font-size: 13.5px; font-weight: 500; color: var(--ink-3); white-space: nowrap; }
+.ptabs button .av { width: 22px; height: 22px; font-size: 9.5px; }
+.ptabs button .av svg { width: 10px; height: 13px; }
+.ptabs button[aria-selected="true"] { background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(16,24,40,.08); }
+.bot-h { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.bot-h > div { flex: 1; min-width: 0; }
+.bot-h b { font-family: var(--display); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; margin-right: 6px; }
+.bot-h p { font-size: 12.5px; color: var(--ink-3); margin-top: 1px; }
+.bot-av { position: relative; flex: none; }
+.bot-av .av { width: 40px; height: 40px; }
+.bot-av .av svg { width: 17px; height: 22px; }
+.bot-av::after { content: ""; position: absolute; right: 0; bottom: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--leaf); box-shadow: 0 0 0 2px var(--paper); }
+.chat { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 4px 14px 0; display: flex; flex-direction: column; gap: 12px; }
+.bm { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 9px; align-items: end; margin-right: 24px; }
+.bm > .av { width: 28px; height: 28px; }
+.bm > .av svg { width: 12px; height: 16px; }
+.um { display: flex; justify-content: flex-end; margin-left: 52px; }
+.bubble { padding: 10px 13px; border-radius: 16px; font-size: 14px; line-height: 1.55; min-width: 0; }
+.bubble.bot { background: var(--mist); border-bottom-left-radius: 5px; color: #2a2f35; justify-self: start; }
+.bubble.mine { background: var(--blue-wash); border-bottom-right-radius: 5px; color: var(--ink); }
+.bubble .refs { margin-top: 8px; }
+.bubble .bfoot { margin-top: 10px; }
+.bubble .typing { margin: 4px 2px; }
+.chat .chips { margin: 0 0 0 37px; }
+.ro { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; margin-top: 12px; padding: 8px 6px 8px 12px; border-radius: 10px; background: var(--mist); font-size: 12.5px; color: var(--ink-2); }
+.ro .btn { height: 28px; }
+.composer.ai textarea { min-height: 46px; }
+.composer.ai .btn.primary { width: 38px; padding: 0; }
+.sarah-launch { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 50; display: flex; align-items: center; gap: 10px; width: min(560px, calc(100vw - 32px)); height: 54px; padding: 0 14px 0 10px; border: 1px solid var(--line-2); border-radius: 16px; background: var(--paper); box-shadow: var(--pop); font-size: 15px; color: var(--ink-2); text-align: left; }
+.sarah-launch .av { width: 32px; height: 32px; }
+.sarah-launch .av svg { width: 14px; height: 18px; }
+.sarah-launch b { color: var(--ink); font-weight: 600; }
+.home.narrow .brief { padding-bottom: 120px; }
+.chat-sheet { height: min(88vh, 780px); padding: 16px 18px 14px; }
+.chat-sheet .composer { flex: none; }
+
+@media (max-width: 1099px) {
+  .home { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .convo { position: static; height: auto; border-left: 0; border-top: 1px solid var(--line); padding: 24px 0 96px; }
+  .convo .thread { overflow: visible; }
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .claimside { border-right: 0; border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 760px) {
+  .top { grid-template-columns: auto 1fr auto; height: 60px; padding: 0 12px; gap: 10px; }
+  .path, .brand span, .kbd, .viewas .long { display: none; }
+  .viewas button { padding: 0 8px; }
+  .me { display: none; }
+  .hs-sm { display: none; }
+  .omni-box { height: 40px; }
+  .chip { height: 40px; }
+  .askbar-btn .kbd { display: none; }
+  .omni-pop { position: fixed; left: 8px; right: 8px; top: 64px; }
+  .hivehead, .home, .pagewrap { padding-left: 16px; padding-right: 16px; }
+  .hh-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .hh-row h1 { font-size: 24px; }
+  .tabs { gap: 20px; overflow-x: auto; scrollbar-width: none; }
+  .tabs button { flex: none; height: 44px; }
+  .state { font-size: 20px; }
+  .step { grid-template-columns: 1fr; }
+  .step .a { grid-row: auto; grid-column: 1; margin-top: 6px; }
+  .btn { height: 44px; }
+  .claimside, .viewer { padding: 20px 16px 40px; }
+  .page { padding: 28px 24px; aspect-ratio: auto; min-height: 420px; }
+  .paper { padding: 28px 20px; }
+  .table thead { display: none; }
+  .table tr { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .table td { display: block; padding: 0; border: 0; }
+  .table td.hs { display: none; }
+  .fp-top { padding: 0 16px; height: 60px; }
+  .wrap { padding: 0 16px; }
+  .hero { padding: 48px 16px 64px; }
+  .ring-in { padding-left: 14px; }
+  .ex-b { grid-template-columns: minmax(0, 1fr); }
+  .ex-r { border-left: 0; border-top: 1px solid var(--line); padding: 20px 16px 24px; }
+  .ex-l { padding: 24px 16px; }
+  .ex-h { padding: 12px 16px; }
+  .mini-page { padding: 24px 20px 32px; }
+  .band { padding: 56px 0; }
+  .fsec { padding-top: 56px; }
+  .band h2, .fsec h2 { font-size: 26px; }
+  .cols3 { grid-template-columns: minmax(0, 1fr); }
+  .rows2 > div, .fv .rows2 > div { grid-template-columns: minmax(0, 1fr); }
+  .closing { padding: 64px 0 48px; }
+  .closing .slogan { font-size: 21px; }
+  .auth { padding-top: 48px; }
+  .lp { padding: 28px 16px 96px; }
+  .lp-head .state, .fv .state { font-size: 20px; }
+  .hrow { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .hrow .who { grid-column: 1; grid-row: 1; }
+  .hrow .sts { grid-column: 2; grid-row: 1; align-items: flex-end; }
+  .hrow .prog { grid-column: 1; grid-row: 2; padding-left: 48px; }
+  .hrow .act { grid-column: 2; grid-row: 2; }
+  .fv { padding: 48px 16px 96px; }
+  .cnav > span { display: none; }
+  .cnav { top: 70px; bottom: auto; left: auto; right: 8px; }
+  .chat-sheet { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; padding: 12px 14px 12px; }
+  .bm { margin-right: 8px; }
+  .um { margin-left: 36px; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style></head><body><div id="app"></div>
+<script>
+// Synthetic demonstration data for the HiveForYou V4 prototype. Every value is invented.
+(function () {
+  const S = {};
+
+  S.medicaid = {
+    id: 'medicaid', label: 'Medicaid financial review',
+    hiveTitle: "Mom's Medicaid application",
+    purpose: 'Five-year financial review for a Medicaid application',
+    ask: "I need to understand five years of bank statements for my mother's Medicaid application.",
+    goal: 'Prepare a five-year financial review packet.',
+    deliverable: 'Evidence-backed financial review packet',
+    likelyWork: 'Document inventory, coverage checking, transaction reconciliation, exception review and packet preparation.',
+    lastActivity: 'Today, 9:42 AM', studyRev: 3,
+    studyRevs: [
+      { rev: 1, date: 'Oct 20', note: 'First Study built from 6 files' },
+      { rev: 2, date: 'Oct 21', note: 'Added 2026 statements and agency letter' },
+      { rev: 3, date: 'Oct 28', note: 'Added savings statements; duplicate set aside' }
+    ],
+    order: { understand: 3, plan: 1, compare: 2, exceptions: 1, timeline: 4, ops: 5 },
+    docs: [
+      { id: 'm1', file: 'chk4421_2022.pdf', role: 'Checking 4421 · 2022', type: 'Bank statements (12 monthly)', period: 'Jan–Dec 2022', pages: 24, cov: 100, org: 'Synthetic Community Bank', flags: [] },
+      { id: 'm2', file: 'chk4421_2023_partial.pdf', role: 'Checking 4421 · 2023', type: 'Bank statements (9 monthly)', period: 'Jan–Mar, Jul–Dec 2023', pages: 18, cov: 100, org: 'Synthetic Community Bank', flags: [{ k: 'missing', t: 'Apr–Jun not included' }] },
+      { id: 'm3', file: 'Scan_0042.pdf', role: 'Checking 4421 · 2024', type: 'Bank statements (12 monthly)', period: 'Jan–Dec 2024', pages: 24, cov: 96, org: 'Synthetic Community Bank', unreadable: [11], flags: [{ k: 'missing', t: 'p.11 unreadable' }] },
+      { id: 'm4', file: 'chk_2025.pdf', role: 'Checking 4421 · 2025', type: 'Bank statements (12 monthly)', period: 'Jan–Dec 2025', pages: 24, cov: 100, org: 'Synthetic Community Bank', flags: [] },
+      { id: 'm5', file: 'chk_2025 (1).pdf', role: 'Checking 4421 · 2025 (copy)', type: 'Duplicate', period: 'Jan–Dec 2025', pages: 24, cov: null, org: 'Synthetic Community Bank', dup: true, flags: [{ k: 'changed', t: 'Exact copy of chk_2025.pdf' }] },
+      { id: 'm6', file: 'chk4421_2026.pdf', role: 'Checking 4421 · 2026', type: 'Bank statements (6 monthly)', period: 'Jan–Jun 2026', pages: 12, cov: 100, org: 'Synthetic Community Bank', flags: [] },
+      { id: 'm7', file: 'savings_3819_2023-25.pdf', role: 'Savings 3819 · 2023–25', type: 'Bank statements (12 quarterly)', period: 'Jan 2023 – Dec 2025', pages: 36, cov: 100, org: 'Synthetic Community Bank', flags: [] },
+      { id: 'm8', file: 'savings_3819_Q1_2026.pdf', role: 'Savings 3819 · Q1 2026', type: 'Bank statement (quarterly)', period: 'Jan–Mar 2026', pages: 3, cov: 100, org: 'Synthetic Community Bank', flags: [] },
+      { id: 'm9', file: 'agency_letter.pdf', role: 'Agency checklist letter', type: 'Letter', period: 'Aug 4, 2026', pages: 2, cov: 100, org: 'County Department of Social Services (synthetic)', flags: [] }
+    ],
+    ev: {
+      e1: { doc: 'm9', page: 1, quote: 'Please provide statements for all accounts from January 2022 through August 2026.', supports: 'Review period: Jan 2022 – Aug 2026', status: 'verified' },
+      e2: { doc: 'm7', page: 14, quote: '03/14/2024   Transfer to acct ****7710   -12,000.00', supports: '$12,000.00 transfer to an outside account', status: 'verified', unc: 'No uploaded document identifies who holds account 7710.' },
+      e3: { doc: 'm4', page: 15, quote: '08/02/2025   Check 1184   R. Ellis   -8,500.00', supports: '$8,500.00 check to R. Ellis', status: 'verified', unc: 'These records don’t show who R. Ellis is or what the check was for.' },
+      e4: { doc: 'm2', page: 11, quote: '09/05/2023   Transfer to Savings ****3819   -5,000.00', supports: '$5,000.00 leaving Checking 4421', status: 'verified' },
+      e5: { doc: 'm7', page: 8, quote: '09/05/2023   Transfer from Checking ****4421   +5,000.00', supports: '$5,000.00 arriving in Savings 3819', status: 'verified' },
+      e6: { doc: 'm3', page: 21, quote: '11/20/2024   Branch withdrawal   -2,400.00', supports: '$2,400.00 withdrawal from Checking 4421', status: 'verified', unc: 'The withdrawal doesn’t say where the money went.' },
+      e7: { doc: 'm7', page: 23, quote: '11/22/2024   Branch deposit   +2,400.00', supports: '$2,400.00 deposit into Savings 3819', status: 'uncertain', unc: 'Same amount two days later, but the deposit doesn’t name its source.' },
+      e8: { doc: 'm3', page: 24, quote: 'Closing balance 12/31/2024   $14,212.40', supports: 'December 2024 closing balance', status: 'verified' },
+      e9: { doc: 'm4', page: 1, quote: 'Opening balance 01/01/2025   $14,012.40', supports: 'January 2025 opening balance', status: 'verified' },
+      e10: { doc: 'm2', page: 6, quote: 'Statement period 03/01/2023 – 03/31/2023', supports: 'Last checking statement before the gap', status: 'verified' },
+      e11: { doc: 'm2', page: 7, quote: 'Statement period 07/01/2023 – 07/31/2023', supports: 'First checking statement after the gap', status: 'verified' },
+      e12: { doc: 'm3', page: 11, quote: '(page too blurred to read)', supports: 'June 2024 checking statement, page 1', status: 'unreadable', unc: 'Hive could not read this page. Its transactions are not part of any check.' },
+      e13: { doc: 'm6', page: 12, quote: 'Statement period 06/01/2026 – 06/30/2026', supports: 'Latest checking statement provided', status: 'verified' },
+      e14: { doc: 'm8', page: 3, quote: 'Statement period 01/01/2026 – 03/31/2026', supports: 'Latest savings statement provided', status: 'verified' },
+      e15: { doc: 'm7', page: 1, quote: 'MARGARET ELLIS · Savings ****3819 · Statement period 01/01/2023 – 03/31/2023', supports: 'Earliest savings statement; account holder', status: 'verified' },
+      e16: { doc: 'm1', page: 1, quote: 'MARGARET ELLIS · Checking ****4421 · Statement period 01/01/2022 – 01/31/2022', supports: 'Earliest checking statement; account holder', status: 'verified' }
+    },
+    audit: [
+      { status: ["leaf", "Checked"], title: "Identified every file", text: "Read the first page of each file for issuer, account and statement period. 9 files: 8 sets of bank statements and 1 agency letter.", ev: ["e16", "e15", "e1"] },
+      { status: ["honey", "Duplicate"], title: "Found a second copy of the 2025 checking statements", text: "Compared the two files page by page. They match on all 24 pages, so the copy was set aside, not deleted.", ev: ["e9"] },
+      { status: ["coral", "Missing"], title: "Checked statement coverage against the agency letter", text: "Listed each statement period by account and compared it with January 2022 to August 2026. 4 gaps found.", ev: ["e1", "e10", "e11", "e13", "e14"] },
+      { status: ["coral", "Unreadable"], title: "Tried to read every page", text: "1 page could not be read: page 1 of the June 2024 checking statement. Its transactions are not part of any check.", ev: ["e12"] },
+      { status: ["leaf", "Checked"], title: "Matched transfers between the two accounts", text: "Paired withdrawals and deposits of the same amount within 3 days. 1 matched pair and 1 possible pair.", ev: ["e4", "e5", "e6", "e7"] },
+      { status: ["leaf", "Checked"], title: "Listed large transfers out", text: "Every outgoing item of $1,000.00 or more with no matching deposit in another uploaded account: 2 transfers, $20,500.00 in total.", ev: ["e2", "e3"] },
+      { status: ["honey", "Changed"], title: "Compared closing and opening balances", text: "Each closing balance against the next opening balance. 1 difference of $200.00 between December 31, 2024 and January 1, 2025.", ev: ["e8", "e9"] }
+    ],
+    understand: {
+      groups: [
+        { title: 'People and accounts', items: [
+          { text: 'Margaret Ellis is the account holder on Checking 4421 and Savings 3819.', ev: ['e16', 'e15'] },
+          { text: 'Account 7710 appears only as a transfer destination.', ev: ['e2'] },
+          { text: 'R. Ellis appears once, as the payee on check 1184.', ev: ['e3'] }
+        ] },
+        { title: 'Dates and periods', items: [
+          { text: 'The agency letter asks for statements from January 2022 through August 2026.', ev: ['e1'] },
+          { text: 'Checking statements run from January 2022 to June 2026, with April–June 2023 missing.', ev: ['e16', 'e13'] },
+          { text: 'Savings statements run from January 2023 to March 2026.', ev: ['e15', 'e14'] }
+        ] },
+        { title: 'Relationships', items: [
+          { text: '$5,000.00 left Checking on September 5, 2023 and arrived in Savings the same day.', ev: ['e4', 'e5'] },
+          { text: 'The 2025 checking statements were uploaded twice; the second copy matches on every page and was set aside.', ev: ['e9'] }
+        ] },
+        { title: 'Uncertain', unc: true, items: [
+          { text: 'The $2,400.00 deposit on November 22, 2024 may be the November 20 withdrawal. The deposit doesn’t name its source.', ev: ['e6', 'e7'] },
+          { text: 'These records don’t show who R. Ellis is.', ev: ['e3'] }
+        ] }
+      ]
+    },
+    exceptions: [
+      { id: 'x1', kind: 'needs', title: '$12,000.00 transfer to an outside account', detail: 'Savings 3819 sent $12,000.00 to account ending 7710 on March 14, 2024. No uploaded document identifies account 7710.', why: 'The packet needs an explanation for transfers out during the review period.', ev: ['e2'], acts: ['source', 'explain', 'na'] },
+      { id: 'x2', kind: 'needs', title: '$8,500.00 check to R. Ellis', detail: 'Check 1184 for $8,500.00 cleared on August 2, 2025. These records don’t show who R. Ellis is or what it was for.', why: 'The packet needs an explanation for transfers out during the review period.', ev: ['e3'], acts: ['source', 'explain', 'na'] },
+      { id: 'x3', kind: 'needs', title: 'Proposed match: $2,400.00 withdrawal and deposit', detail: '$2,400.00 left Checking on November 20, 2024 and $2,400.00 arrived in Savings on November 22. The deposit doesn’t name its source.', why: 'If they match, it’s an internal transfer. If not, the withdrawal joins the flagged transfers.', ev: ['e6', 'e7'], acts: ['source', 'accept', 'reject'], acceptLabel: 'Accept match', rejectLabel: 'Not a match' },
+      { id: 'x4', kind: 'missing', title: 'Three months of checking statements are missing', detail: 'These records don’t include Checking 4421 statements for April, May or June 2023.', why: 'The agency letter asks for every month from January 2022 through August 2026.', ev: ['e10', 'e11'], acts: ['coverage', 'source', 'request', 'na'], cell: [0, 1], request: 'Checking account ending 4421 — monthly statements for April, May and June 2023.' },
+      { id: 'x5', kind: 'missing', title: 'Checking statements after June 2026 aren’t included', detail: 'The latest checking statement ends June 30, 2026. July and August 2026 are in the review period.', why: 'The review period runs through August 2026.', ev: ['e13'], acts: ['coverage', 'source', 'request', 'na'], cell: [0, 4], request: 'Checking account ending 4421 — monthly statements for July and August 2026.' },
+      { id: 'x6', kind: 'missing', title: 'Savings statements after March 2026 aren’t included', detail: 'The latest savings statement ends March 31, 2026.', why: 'The review period runs through August 2026.', ev: ['e14'], acts: ['coverage', 'source', 'request', 'na'], cell: [1, 4], request: 'Savings account ending 3819 — statements covering April through August 2026.' },
+      { id: 'x7', kind: 'missing', title: 'No savings records for 2022', detail: 'The earliest savings statement begins January 1, 2023. These records don’t show whether the account was open in 2022.', why: 'If the account was open, 2022 statements are part of the review period.', ev: ['e15'], acts: ['coverage', 'request', 'na'], cell: [1, 0], request: 'Savings account ending 3819 — statements for 2022, or the date the account was opened.' },
+      { id: 'x8', kind: 'missing', title: 'Page 11 of the 2024 checking file is unreadable', detail: 'Page 1 of the June 2024 statement is too blurred to read. Its transactions aren’t part of any check.', why: 'Transactions on this page can’t be included until it’s readable.', ev: ['e12'], acts: ['coverage', 'source', 'request', 'na'], cell: [0, 2], request: 'Checking account ending 4421 — a clear copy of the June 2024 statement.' },
+      { id: 'x9', kind: 'changed', hidden: true, title: '$200.00 balance difference, Dec 2024 to Jan 2025', detail: 'The December 2024 statement closes at $14,212.40. The January 2025 statement opens at $14,012.40.', why: 'A balance that doesn’t carry over can point to a missing statement or a bank adjustment.', ev: ['e8', 'e9'], acts: ['source', 'explain', 'request'], request: 'Checking account ending 4421 — any adjustment notice or statement covering December 31, 2024 to January 1, 2025.' }
+    ]
+  };
+
+  window.HIVE_DATA = { S };
+})();
+
+</script>
+<script>
+const D = window.HIVE_DATA;
+const S = D.S.medicaid;
+const P = { client: "Dana Ellis", staff: "Priya Shah", staffTitle: "Onboarding associate", assistant: "Sarah" };
+
+const ICON = {
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
+  doc: '<path d="M7 3h7l4 4v14H7z"/>',
+  arrow: '<path d="M5 12h14m-6-6 6 6-6 6"/>',
+  back: '<path d="M19 12H5m6-6-6 6 6 6"/>',
+  send: '<path d="M5 12h13m-5-6 6 6-6 6"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  upload: '<path d="M12 15V4m-4 4 4-4 4 4M5 15v5h14v-5"/>',
+  check: '<path d="m5 12 5 5 9-10"/>',
+  flag: '<path d="M5 21V4h11l-2 4 2 4H5"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  enter: '<path d="M9 10 4 15l5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  print: '<path d="M7 9V3h10v6M7 17H5v-6h14v6h-2M7 14h10v7H7z"/>',
+};
+const icon = (n) => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+const MARK = `<svg viewBox="0 0 54 68" aria-hidden="true"><polygon fill="#3B7CF6" points="26,2 40,10 40,26 26,34 12,26 12,10"/><polygon fill="#EF5143" points="40,19 54,27 54,43 40,51 26,43 26,27" transform="translate(-1 0)"/><polygon fill="#F6B826" points="26,36 40,44 40,60 26,68 12,60 12,44"/><polygon fill="#2FA35A" points="12,19 26,27 26,43 12,51 -2,43 -2,27" transform="translate(1 0)"/></svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const ini = (n) => n.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+const first = (n) => n.split(" ")[0];
+const ev = (id) => S.ev[id];
+const doc = (id) => S.docs.find((d) => d.id === id);
+const $ = (q) => document.querySelector(q);
+
+const state = {
+  screen: "front", mode: "clients", desc: "", email: "", code: "", authFrom: null, signinStep: "email", authErr: "", exSel: 0, markPlayed: false,
+  lpQuery: "", lpQueue: "all", cnavMin: window.innerWidth < 760,
+  side: "sarah", sheet: false, sarahDraft: "", viewClientQs: false, scrollChat: false,
+  threads: {
+    staff: [], self: [],
+    client: [
+      { from: "me", text: "Why do you need the 2023 statements?" },
+      { from: "sarah", text: "The agency letter asks for statements from January 2022 through August 2026. The checking statements for April, May and June 2023 aren't in the documents yet.", ev: ["e1", "e10"] },
+      { from: "me", text: "Should I qualify for Medicaid?" },
+      { from: "sarah", text: "That's a question for Priya. I can only tell you what the documents say.", handoff: true }
+    ]
+  },
+  who: "staff", tab: "home", evidence: null, omni: "", omniOpen: false, omniSel: 0, answer: null,
+  decisions: {}, sent: {}, draft: "", toast: "", expanded: {}, noteDraft: "",
+  messages: [
+    { role: "staff", text: "Welcome. I'll help organize the documents for the financial review. Send what you have now, even if some statements are missing.", time: "9:05 AM" },
+    { role: "client", text: "I uploaded the bank statements I could find. I'm not sure whether the savings account was open in 2022.", time: "9:13 AM" },
+    { role: "staff", text: "Could you request the checking statements for April through June 2023? I'll keep that request open until they arrive.", time: "9:18 AM", ev: ["e10", "e11"] },
+  ],
+  notes: [
+    { who: "Priya Shah", when: "Oct 28", text: "Dana confirmed she has online access to the savings account; asked her for the 2022 statements by Friday." },
+    { who: "Leo Marsh", when: "Oct 29", text: "Attorney review can start once the April–June 2023 checking statements are in." },
+  ],
+};
+
+const missing = () => S.exceptions.filter((x) => x.kind === "missing" && !x.hidden && !state.sent[x.id]);
+const toDecide = () => S.exceptions.filter((x) => x.kind !== "missing" && !x.hidden && !state.decisions[x.id]);
+const totalAsked = () => S.docs.length + S.exceptions.filter((x) => x.kind === "missing" && !x.hidden).length;
+const inCount = () => S.docs.length + Object.keys(state.sent).length;
+
+const ref = (id) => {
+  const e = ev(id); if (!e) return "";
+  const d = doc(e.doc);
+  return `<button class="ref" data-ev="${id}" title="Open ${esc(d.role)}, page ${e.page}">${icon("doc")}${esc(d.role)} <span class="pg">p.${e.page}</span></button>`;
+};
+const refs = (ids) => (ids && ids.length ? `<div class="refs">${ids.map(ref).join("")}</div>` : "");
+const avatar = (role, extra = "") => role === "client" ? `<span class="av client ${extra}">${ini(P.client)}</span>` : role === "staff" ? `<span class="av staff ${extra}">${ini(P.staff)}</span>` : `<span class="av ai ${extra}">${MARK}</span>`;
+const meter = (n, of) => `<div class="meter" aria-label="${n} of ${of} in">${Array.from({ length: of }, (_, i) => `<i class="${i < n ? "on" : ""}"></i>`).join("")}</div>`;
+
+/* ───── Top bar + one input ───── */
+function topbar() {
+  const ph = state.who === "client" ? "Find in your documents" : "Find anything in this hive";
+  return `<header class="top">
+    <div class="left"><button class="brand" aria-label="HiveForYou${state.who === "staff" ? ", all hives" : ""}" ${state.who === "staff" ? 'data-go="hives"' : ""}>${MARK}<span><b>Hive</b><span>ForYou</span></span></button>
+      ${state.who === "staff" ? `<nav class="path" aria-label="Breadcrumb"><span class="sep">/</span><button class="btn quiet" style="height:28px;padding:0 6px;font-weight:500;color:var(--ink-3)" data-go="hives">All hives</button><span class="sep">/</span><b>${esc(S.hiveTitle)}</b></nav>` : ""}</div>
+    <div class="omni ${state.omniOpen ? "open" : ""}">
+      <label class="omni-box">${icon("search")}<span class="sr">${ph}</span><input id="omni" autocomplete="off" placeholder="${ph}" value="${esc(state.omni)}"><span class="kbd">/</span></label>
+      ${state.omniOpen ? omniPop() : ""}
+    </div>
+    <div class="right"><span class="me" title="Signed in">${state.who === "staff" ? "PS" : "DE"}</span></div>
+  </header>`;
+}
+
+function highlight(text, q) {
+  const t = esc(text); if (!q) return t;
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  return i < 0 ? t : esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
+}
+
+function searchHits(q) {
+  const ql = q.trim().toLowerCase();
+  if (!ql) return { claims: [], docs: [], items: [] };
+  const claims = []; S.understand.groups.forEach((g) => g.items.forEach((it) => { if (it.text.toLowerCase().includes(ql)) claims.push({ ...it, topic: g.title }); }));
+  const docs = S.docs.filter((d) => (d.role + " " + d.type + " " + d.period).toLowerCase().includes(ql));
+  const items = S.exceptions.filter((x) => !x.hidden && (x.title + " " + x.detail).toLowerCase().includes(ql));
+  return { claims: claims.slice(0, 4), docs: docs.slice(0, 3), items: items.slice(0, 3) };
+}
+
+function omniPop() {
+  const q = state.omni.trim();
+  if (!q) return `<div class="omni-pop" role="listbox"><p class="meta" style="padding:10px 12px">Type to find statements, open items and documents in this hive. To ask a question, use ${P.assistant}.</p></div>`;
+  const h = searchHits(q);
+  const group = (title, rows) => rows.length ? `<div class="omni-group"><h4>${title}</h4>${rows.join("")}</div>` : "";
+  const claimRows = h.claims.map((c) => `<button class="hit" data-ev="${c.ev[0]}">${icon("doc")}<span>${highlight(c.text, q)}<small>${esc(c.topic)}</small></span><span class="meta">p.${ev(c.ev[0])?.page ?? ""}</span></button>`);
+  const itemRows = h.items.map((x) => `<button class="hit" data-ev="${x.ev[0]}" data-item="${x.id}">${icon("flag")}<span>${highlight(x.title, q)}<small>${x.kind === "missing" ? "Still to come" : "To review"}</small></span><span></span></button>`);
+  const docRows = h.docs.map((d) => { const e = Object.entries(S.ev).find(([, v]) => v.doc === d.id); return `<button class="hit" ${e ? `data-ev="${e[0]}"` : ""}>${icon("doc")}<span>${highlight(d.role, q)}<small>${esc(d.type)} · ${esc(d.period)}</small></span><span class="meta num">${d.pages} pp</span></button>`; });
+  const found = group("In the documents", claimRows) + group("Open items", itemRows) + group("Documents", docRows);
+  const askRow = `<div class="omni-group"><button class="hit ask" data-act="ask">${avatar("ai")}<span>Ask ${P.assistant}: <b>${esc(q)}</b></span><span class="kbd">Enter</span></button></div>`;
+  return `<div class="omni-pop" role="listbox">${found || `<p class="meta" style="padding:8px 12px">Nothing in this hive matches “${esc(q)}”.</p>`}${askRow}</div>`;
+}
+
+function askSuggestions() {
+  return state.who === "client"
+    ? ["What's still missing?", "Why do you need the 2023 statements?", "Should I qualify for Medicaid?"]
+    : ["What's still missing?", "Which transfers left the accounts?", "Was the savings account open in 2022?"];
+}
+const chips = () => `<div class="chips" aria-label="Suggested questions">${askSuggestions().map((s) => `<button class="chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>`;
+const isWide = () => window.matchMedia("(min-width: 1100px)").matches;
+// Sarah lives in the right column on wide Home pages; everywhere else she opens as a chat sheet.
+const panelHasSarah = () => state.screen === "hive" && state.who !== "client" && !state.evidence && state.tab === "home" && isWide();
+
+function sarahIntro() {
+  if (state.who === "client") return `Hi ${first(P.client)}. I've read the documents you sent. Ask me anything about them and I'll show you the page each answer comes from. If I can't help, I'll pass your question to ${first(P.staff)}.`;
+  const me = state.who === "staff" ? first(P.staff) : first(P.client);
+  return `Hi ${me}. I've read the ${S.docs.length} documents in ${state.who === "staff" ? first(P.client) + "'s" : "your"} hive. Ask me anything about them and I'll show you the page each answer comes from.`;
+}
+function botMsg(m, i, readonly) {
+  const body = m.pending ? `<span class="typing" aria-label="${P.assistant} is typing"><i></i><i></i><i></i></span>` :
+    `<p>${esc(m.text)}</p>${refs(m.ev)}${m.handoff && state.who === "client" && !readonly ? (m.handedOff ? `<p class="bfoot"><span class="dot leaf">Sent to ${first(P.staff)}</span></p>` : `<div class="bfoot"><button class="btn" data-act="handoff" data-i="${i}">Ask ${first(P.staff)}</button></div>`) : ""}`;
+  return `<div class="bm">${avatar("ai")}<div class="bubble bot">${body}</div></div>`;
+}
+const userMsg = (m) => `<div class="um"><div class="bubble mine"><p>${esc(m.text)}</p></div></div>`;
+function sarahChat(where) {
+  const ro = state.who === "staff" && state.viewClientQs;
+  const thread = ro ? state.threads.client : state.threads[state.who];
+  const clientQs = state.threads.client.filter((m) => m.from === "me").length;
+  const head = `<div class="bot-h"><span class="bot-av">${avatar("ai")}</span><div><b>${P.assistant}</b><span class="tag">AI assistant</span><p>Answers only from the documents in this hive</p></div>${where === "sheet" ? `<button class="btn quiet" data-act="closesheet" aria-label="Close ${P.assistant}">${icon("x")}</button>` : ""}</div>`;
+  const banner = ro ? `<div class="ro"><span>${esc(first(P.client))} asked these. Only your team can see them.</span><button class="btn text" data-act="myqs">Back to your chat</button></div>`
+    : state.who === "staff" && clientQs ? `<div class="ro"><span>${esc(first(P.client))} has asked ${P.assistant} ${clientQs} ${clientQs === 1 ? "question" : "questions"}.</span><button class="btn text" data-act="clientqs">Read them</button></div>` : "";
+  const intro = ro ? "" : `<div class="bm">${avatar("ai")}<div class="bubble bot"><p>${esc(sarahIntro())}</p></div></div>`;
+  const quick = !ro && !thread.length ? `<div class="chips" aria-label="Suggested questions">${askSuggestions().map((s) => `<button class="chip" data-suggest="${esc(s)}">${esc(s)}</button>`).join("")}</div>` : "";
+  const msgs = thread.map((m, i) => (m.from === "me" ? userMsg(m) : botMsg(m, i, ro))).join("");
+  const comp = ro ? "" : `<div class="composer ai"><label class="sr" for="sarahDraft">Ask ${P.assistant}</label><textarea id="sarahDraft" rows="1" placeholder="Ask ${P.assistant} about the documents…">${esc(state.sarahDraft)}</textarea>
+      <div class="bar"><span class="hint">${icon("lock")}${state.who === "client" ? `${first(P.staff)}'s team can see your questions` : "Only you can see your questions"}</span><button class="btn primary" data-act="asksend" aria-label="Send to ${P.assistant}">${icon("send")}</button></div></div>`;
+  return `${head}${banner}<div class="chat" role="log" aria-label="Chat with ${P.assistant}">${intro}${quick}${msgs}</div>${comp}`;
+}
+function peopleBody() {
+  const other = state.who === "client" ? first(P.staff) : first(P.client);
+  return `<div class="convo-h"><div><h2>Conversation with ${other}</h2><p>People only. ${P.assistant} doesn't take part here.</p></div>${avatar(state.who === "client" ? "staff" : "client")}</div>
+    <div class="thread" id="thread"><p class="day">Today</p>${state.messages.map(msgRow).join("")}</div>
+    <div class="composer"><label class="sr" for="draft">Message</label><textarea id="draft" rows="2" placeholder="Write to ${other}…">${esc(state.draft)}</textarea>
+      <div class="bar"><span class="hint">${icon("lock")}Everyone in this hive sees this</span><button class="btn primary" data-act="send">Send ${icon("send")}</button></div></div>`;
+}
+function sidePanel() {
+  const own = state.who === "self";
+  if (!isWide()) return own ? "" : `<aside class="convo" aria-label="Conversation">${peopleBody()}</aside>`;
+  const tab = own ? "sarah" : state.side;
+  const tabs = own ? "" : `<div class="ptabs" role="tablist" aria-label="Who you're talking to"><button role="tab" data-side="sarah" aria-selected="${tab === "sarah"}">${avatar("ai")}Ask ${P.assistant}</button><button role="tab" data-side="people" aria-selected="${tab === "people"}">${avatar("client")}${esc(first(P.client))}</button></div>`;
+  return `<aside class="convo ${own ? "" : "has-tabs"}" aria-label="${tab === "sarah" ? "Ask " + P.assistant : "Conversation"}">${tabs}${tab === "sarah" ? sarahChat("panel") : peopleBody()}</aside>`;
+}
+const launcher = () => `<button class="sarah-launch" data-act="opensheet">${avatar("ai")}<span><b>Ask ${P.assistant}</b> about these documents</span></button>`;
+function askSarah(q) {
+  q = (q || "").trim(); if (!q) return;
+  state.viewClientQs = false;
+  const th = state.threads[state.who];
+  th.push({ from: "me", text: q });
+  const m = { from: "sarah", pending: true }; th.push(m);
+  if (panelHasSarah()) state.side = "sarah"; else state.sheet = true;
+  state.sarahDraft = ""; state.omni = ""; state.omniOpen = false; state.scrollChat = true;
+  render(); $("#sarahDraft")?.focus();
+  setTimeout(() => { Object.assign(m, reply(q), { pending: false }); state.scrollChat = true; render(); }, 1100);
+}
+
+function reply(q) {
+  const t = q.toLowerCase();
+  if (/eligible|qualify|should i|legal|advice|win/.test(t)) return { text: `That's a question for ${first(P.staff)}. I can only tell you what the documents say.`, handoff: true };
+  if (/missing|still|need|request|2023/.test(t)) { const m = missing(); return m.length ? { text: `${m.length} records are still to come. The first: ${m[0].detail}`, ev: m[0].ev } : { text: "Nothing requested is still missing." }; }
+  if (/transfer|left|money|7710|ellis/.test(t)) return { text: "Two transfers of $1,000.00 or more left the accounts with no matching deposit: $12,000.00 to account 7710 on March 14, 2024, and an $8,500.00 check to R. Ellis on August 2, 2025.", ev: ["e2", "e3"] };
+  if (/savings|2022|open/.test(t)) return { text: "The earliest savings statement starts in January 2023, so the documents don't show whether the account was open in 2022.", ev: ["e15"] };
+  return { text: "I couldn't find that in the documents.", handoff: true };
+}
+
+/* ───── Hive header ───── */
+function hivehead() {
+  const own = state.who === "self";
+  const tabs = [["home", "Home", ""], ["documents", "Documents", `<span class="c num">${S.docs.length}</span>`], ["report", "Report", ""], ["audit", "Audit trail", ""]];
+  if (!own) tabs.push(["notes", "Team notes", `<svg class="icon lock" viewBox="0 0 24 24">${ICON.lock}</svg>`]);
+  return `<div class="hivehead"><div class="hh-row"><div><h1>${esc(S.hiveTitle)}</h1><p class="sub">${esc(S.purpose)} · ${own ? "your hive" : "for " + esc(P.client)}</p></div>
+    <div class="people"><div class="stack">${own ? avatar("client") + avatar("ai") : avatar("client") + avatar("staff") + avatar("ai")}</div><span>${own ? `You and ${P.assistant}` : `${esc(P.client)}, ${esc(P.staff)} and ${P.assistant}`}</span></div></div>
+    <nav class="tabs" role="tablist">${tabs.map(([k, l, x]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k && !state.evidence}">${l}${x}</button>`).join("")}</nav></div>`;
+}
+
+/* ───── Staff home ───── */
+function stateSentence() {
+  const n = inCount(), of = totalAsked(), m = missing().length, d = toDecide().length;
+  const review = d ? `${d} ${d === 1 ? "thing" : "things"} to review` : "";
+  const come = m ? `${m} ${m === 1 ? "record is" : "records are"} still to come` : "";
+  const rest = review && come ? `${review}, and ${come}.` : review ? `${review}.` : come ? `${come[0].toUpperCase()}${come.slice(1)}.` : "Nothing is waiting on you.";
+  return `${n} of ${of} documents are in. ${rest}${state.who === "staff" ? ` <em>${esc(P.client)} last wrote today at 9:13 AM.</em>` : ""}`;
+}
+function nextSteps() {
+  const steps = [];
+  const m = missing();
+  const own = state.who === "self";
+  if (m.length) steps.push({ dot: ["Missing", "coral"], t: own ? `Find ${m.length} missing ${m.length === 1 ? "record" : "records"}` : `Ask ${first(P.client)} for ${m.length} missing ${m.length === 1 ? "record" : "records"}`, d: m.slice(0, 2).map((x) => x.request || x.title).join(" · ") + (m.length > 2 ? ` · ${m.length - 2} more` : ""), a: own ? `<button class="btn" data-tab="documents">See the list</button>` : `<button class="btn" data-act="request">Write the request</button>` });
+  toDecide().forEach((x) => steps.push({ dot: [x.kind === "changed" ? "Changed" : "To review", x.kind === "changed" ? "honey" : "blue"], t: x.title, d: x.detail, a: `<button class="btn" data-ev="${x.ev[0]}" data-item="${x.id}">Look at it</button>` }));
+  return steps;
+}
+function home() {
+  const n = inCount(), of = totalAsked();
+  const allSteps = nextSteps();
+  const steps = state.expanded.steps ? allSteps : allSteps.slice(0, 3);
+  const groups = S.understand.groups;
+  return `${hivehead()}<div class="home ${isWide() ? "" : "narrow"}"><div class="brief">
+      <p class="state">${stateSentence()}</p>
+      ${meter(n, of)}<p class="meta">Study v${S.studyRev}, accepted ${esc(S.studyRevs.at(-1).date)} · every statement below opens the page it comes from</p>
+      <section class="sec"><header><h2>Next steps</h2><span class="meta num">${allSteps.length}</span></header>
+        ${steps.map((s) => `<div class="step"><div class="t"><span class="dot ${s.dot[1]}">${s.dot[0]}</span>${esc(s.t)}</div><p class="d">${esc(s.d)}</p><div class="a">${s.a}</div></div>`).join("") || `<p class="meta" style="padding:14px 0">Nothing is waiting on you.</p>`}
+        ${allSteps.length > 3 ? `<button class="btn text more" data-expand="steps">${state.expanded.steps ? "Show fewer" : `Show all ${allSteps.length}`}</button>` : ""}
+      </section>
+      <section class="sec"><header><h2>What the documents show</h2><span class="meta num">${groups.reduce((n, g) => n + g.items.length, 0)} statements</span></header>
+        ${groups.map((g, gi) => {
+          const open = state.expanded["g" + gi]; const rows = open ? g.items : g.items.slice(0, 2);
+          return `<div class="topic"><h3>${esc(g.title)}${g.unc ? `<span class="dot honey">Uncertain</span>` : ""}</h3>
+            ${rows.map((it) => `<div class="claim" role="button" tabindex="0" ${it.ev[0] ? `data-ev="${it.ev[0]}"` : ""}>${esc(it.text)}${it.ev.length ? `<span class="go">See the page →</span>` : ""}${refs(it.ev)}</div>`).join("")}
+            ${g.items.length > 2 ? `<button class="btn text more" data-expand="g${gi}">${open ? "Show fewer" : `${g.items.length - 2} more`}</button>` : ""}</div>`;
+        }).join("")}
+      </section>
+    </div>${sidePanel()}</div>${isWide() ? "" : launcher()}`;
+}
+
+function msgRow(m) {
+  const mine = m.role === state.who;
+  const name = m.role === "client" ? P.client : m.role === "staff" ? P.staff : P.assistant;
+  const role = m.role === "client" ? "Client" : m.role === "staff" ? P.staffTitle : "";
+  return `<article class="msg">${avatar(m.role)}<div><div class="by"><b>${esc(name)}</b>${mine ? "<span>you</span>" : ""}${role ? `<span>${esc(role)}</span>` : `<span class="tag">AI assistant</span>`}<span class="num">${esc(m.time)}</span></div>
+    ${m.fromAsk ? `<p class="meta">Passed on from Ask ${P.assistant}</p>` : ""}<p class="text">${esc(m.text)}</p>${refs(m.ev)}</div></article>`;
+}
+/* ───── Evidence split ───── */
+function evidence() {
+  const id = state.evidence.ev, e = ev(id), d = doc(e.doc);
+  const item = state.evidence.item ? S.exceptions.find((x) => x.id === state.evidence.item) : null;
+  const ids = item ? item.ev : (S.understand.groups.flatMap((g) => g.items).find((it) => it.ev.includes(id))?.ev || [id]);
+  const claim = item ? item.title : (S.understand.groups.flatMap((g) => g.items).find((it) => it.ev.includes(id))?.text || e.supports);
+  const st = e.status === "verified" ? `<span class="dot leaf">Checked against the page</span>` : e.status === "unreadable" ? `<span class="dot coral">Page unreadable</span>` : `<span class="dot honey">Uncertain</span>`;
+  const lines = (n) => Array.from({ length: n }, (_, i) => `<div class="ln" style="width:${[96, 88, 92, 74, 98, 83, 90, 66][(i + e.page) % 8]}%"></div>`).join("");
+  return `${hivehead()}<div class="split">
+    <section class="claimside" aria-label="The statement">
+      <button class="btn quiet back" data-act="close">${icon("back")} Back to ${state.tab === "home" ? "Home" : "the list"}</button>
+      <p class="big">${esc(claim)}</p>${st}
+      ${item ? `<h4>Why it matters</h4><p>${esc(item.why)}</p>` : ""}
+      <h4>What this page supports</h4><p>${esc(e.supports)}</p>
+      ${e.unc ? `<h4>What the documents don't say</h4><p>${esc(e.unc)}</p>` : ""}
+      ${ids.length > 1 ? `<h4>Pages behind this</h4><div class="others">${ids.map((x) => { const v = ev(x), dd = doc(v.doc); return `<button data-ev="${x}" ${state.evidence.item ? `data-item="${state.evidence.item}"` : ""} aria-current="${x === id}"><span>${esc(dd.role)}</span><span class="meta num">p.${v.page}</span></button>`; }).join("")}</div>` : ""}
+      <div class="decide">${item && state.who === "staff" ? `<button class="btn" data-act="askclient" data-item="${item.id}">Ask ${first(P.client)} about it</button>` : ""}<button class="btn quiet" data-act="askpage" data-role="${esc(d.role)}" data-page="${e.page}">${avatar("ai")} Ask ${P.assistant} about this page</button></div>
+    </section>
+    <section class="viewer" aria-label="Source page"><div class="vbar"><span><b>${esc(d.role)}</b> · ${esc(d.org)}</span><span class="num">Page ${e.page} of ${d.pages}</span></div>
+      <div class="page" key="${id}"><div class="org"><span>${esc(d.org).toUpperCase()}</span><span>${esc(d.period)}</span></div>
+        ${e.status === "unreadable" ? `<div class="unread">This page is too blurred to read.<br>Its transactions aren't part of any check.</div>` : `${lines(5)}<span class="hl">${esc(e.quote)}</span>${lines(9)}`}
+      </div><p class="meta">Concept: the app shows the real page image here, with the cited line highlighted.</p></section>
+  </div>`;
+}
+
+/* ───── Documents / Report / Notes ───── */
+function documents() {
+  const read = (d) => d.dup ? `<span class="dot honey">Duplicate</span>` : d.cov === 100 ? `<span class="dot leaf">Read</span>` : `<span class="dot coral">${d.cov}% read</span>`;
+  const m = missing();
+  return `${hivehead()}<div class="pagewrap"><section class="sec" style="margin-top:8px"><header><h2>Still to come</h2><span class="meta num">${m.length} records</span></header>
+      ${m.map((x) => `<div class="step"><div class="t"><span class="dot coral">Missing</span>${esc(x.request)}</div><p class="d">${esc(x.detail)}</p><div class="a"><button class="btn" data-ev="${x.ev[0]}" data-item="${x.id}">Why</button></div></div>`).join("")}</section>
+    <section class="sec"><header><h2>Uploaded</h2><span class="meta num">${S.docs.length} files · ${S.docs.reduce((n, d) => n + d.pages, 0)} pages</span></header>
+    <table class="table"><thead><tr><th>Document</th><th>Period</th><th class="n">Pages</th><th>Read</th></tr></thead><tbody>
+    ${S.docs.map((d) => { const e = Object.entries(S.ev).find(([, v]) => v.doc === d.id); return `<tr ${e ? `data-ev="${e[0]}"` : ""}><td><b>${esc(d.role)}</b><div class="s">${esc(d.type)}${d.flags.length ? " · " + esc(d.flags.map((f) => f.t).join("; ")) : ""}</div></td><td class="num hs">${esc(d.period)}</td><td class="n hs">${d.pages}</td><td>${read(d)}</td></tr>`; }).join("")}
+    </tbody></table></section></div>`;
+}
+function report() {
+  const ex = S.exceptions.filter((x) => !x.hidden);
+  return `${hivehead()}<div class="pagewrap read"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:20px"><p class="meta">Written from Study v${S.studyRev}. Nothing new is analyzed.</p><button class="btn" data-act="print">${icon("print")} Save as PDF</button></div>
+    <article class="paper"><p class="meta">HiveForYou · prepared for ${esc(P.client)} · Study v${S.studyRev}</p><h2>${esc(S.deliverable)}</h2><p style="color:var(--ink-2)">${esc(S.goal)}</p>
+    <h3>What the documents show</h3>${S.understand.groups.filter((g) => !g.unc).map((g) => `<p><b>${esc(g.title)}.</b> ${g.items.map((i) => esc(i.text)).join(" ")}</p>`).join("")}
+    <h3>What still needs an answer</h3>${ex.map((x) => `<p><b>${esc(x.title)}.</b> ${esc(x.detail)}</p>`).join("")}
+    <p class="meta" style="margin-top:28px;padding-top:12px;border-top:1px solid var(--line)">Not legal, financial or medical advice. Every statement is cited to its page in the professional version.</p></article></div>`;
+}
+function notes() {
+  return `${hivehead()}<div class="pagewrap read"><p class="meta" style="margin:20px 0 6px">Only people at the firm see these. Never shown to ${esc(P.client)}.</p>
+    ${state.notes.map((n) => `<div class="note"><div class="by"><b>${esc(n.who)}</b><span>${esc(n.when)}</span></div><p class="text" style="margin-top:3px">${esc(n.text)}</p></div>`).join("")}
+    <div class="composer" style="margin-top:18px"><textarea id="note" placeholder="Add a note for the team…">${esc(state.noteDraft)}</textarea><div class="bar"><span class="hint">${icon("lock")}Staff only</span><button class="btn primary" data-act="note">Add note</button></div></div></div>`;
+}
+
+function audit() {
+  const ops = S.audit;
+  const open = state.expanded.audit;
+  const rows = open ? ops : ops.slice(0, 6);
+  return `${hivehead()}<div class="pagewrap read"><p class="meta" style="margin:20px 0 0">Every check HiveForYou ran on these documents, and what it found. Nothing here is a decision.</p>
+    <section class="sec" style="margin-top:16px"><header><h2>Checks</h2><span class="meta num">${ops.length}</span></header>
+    ${rows.map((o) => `<div class="step" style="grid-template-columns:1fr"><div class="t"><span class="dot ${o.status[0]}">${o.status[1]}</span>${esc(o.title)}</div><p class="d">${esc(o.text)}</p>${refs(o.ev.slice(0, 4))}</div>`).join("")}
+    ${ops.length > 6 ? `<button class="btn text more" data-expand="audit">${open ? "Show fewer" : `Show all ${ops.length}`}</button>` : ""}</section></div>`;
+}
+
+/* ───── Client home (phone first) ───── */
+function client() {
+  const all = S.exceptions.filter((x) => x.kind === "missing" && !x.hidden);
+  const left = missing();
+  const n = inCount(), of = totalAsked();
+  const open = state.expanded.cl;
+  const rows = open ? all : all.slice(0, 3);
+  return `<main class="cl">
+    <div class="cl-who">${avatar("staff", "lg")}<div><p>Your file with</p><b>${esc(P.staff)}</b><p>${esc(P.staffTitle)}</p></div></div>
+    <h1>${esc(S.hiveTitle)}</h1>
+    <p class="lead">${left.length ? `${left.length} ${left.length === 1 ? "thing" : "things"} left to send. Everything else is in.` : "Everything we asked for is in. Priya will be in touch."}</p>
+    ${meter(n, of)}<p class="meta num">${n} of ${of} documents in</p>
+    <button class="cl-ask" data-act="opensheet">${avatar("ai")}<span>Ask ${P.assistant} about your documents</span></button>${chips()}
+    <section class="cl-sec"><h2>Still to send <span class="num">${left.length}</span></h2>
+      ${rows.map((x) => state.sent[x.id] ? `<div class="ask-row done"><div><p>${esc(x.request)}</p><small><span class="dot leaf">Sent</span> · not read yet</small></div><span></span></div>` :
+        `<div class="ask-row"><div><p>${esc(x.request)}</p><small>${esc(x.why)}</small></div><button class="btn" data-add="${x.id}">${icon("upload")} Add</button></div>`).join("")}
+      ${all.length > 3 ? `<button class="btn text more" data-expand="cl">${open ? "Show fewer" : `${all.length - 3} more`}</button>` : ""}
+    </section>
+    <section class="cl-sec"><h2>Messages with ${first(P.staff)}</h2>
+      <div class="thread" id="thread">${state.messages.map(msgRow).join("")}</div>
+      <div class="composer" style="margin-top:10px"><label class="sr" for="draft">Message</label><textarea id="draft" rows="2" placeholder="Write to ${first(P.staff)}…">${esc(state.draft)}</textarea>
+        <div class="bar"><span class="hint">${icon("lock")}Only you and ${first(P.staff)}'s team</span><button class="btn primary" data-act="send">Send ${icon("send")}</button></div></div>
+    </section>
+    <p class="privacy">${icon("lock")}<span>Only you and ${first(P.staff)}'s team can see this file. ${P.assistant} is an AI assistant that answers only from your documents and never decides anything about your case.</span></p>
+  </main>`;
+}
+
+/* ───── v5 screens: front page, sign in, your hives, first visit ───── */
+const HEX = (cls) => `<svg class="${cls}" viewBox="-17.32 -25 34.64 50" aria-hidden="true"><polygon class="c1" fill="#3B7CF6" points="0,-24.3 8.05,-19.65 8.05,-10.35 0,-5.7 -8.05,-10.35 -8.05,-19.65"/><polygon class="c2" fill="#EF5143" points="8.66,-9.3 16.71,-4.65 16.71,4.65 8.66,9.3 0.61,4.65 0.61,-4.65"/><polygon class="c3" fill="#F6B826" points="0,5.7 8.05,10.35 8.05,19.65 0,24.3 -8.05,19.65 -8.05,10.35"/><polygon class="c4" fill="#2FA35A" points="-8.66,-9.3 -0.61,-4.65 -0.61,4.65 -8.66,9.3 -16.71,4.65 -16.71,-4.65"/></svg>`;
+
+// The front page's example hive. Synthetic, labelled as an example on the page.
+const EX = {
+  client: "Chris Morgan", purpose: "Chapter 7 intake",
+  docs: [
+    { role: "Pay stub", issuer: "Example Logistics Co.", kind: "Earnings statement", pages: 2,
+      meta: ["Employee: Chris Morgan", "Pay period 10/01/2026 – 10/14/2026", "Pay date 10/17/2026"],
+      lines: [["Regular hours", "80.00"], ["Gross pay", "$2,140.00"], ["Federal income tax", "$187.22"], ["Social Security", "$132.68"], ["Medicare", "$31.03"], ["Net pay", "$1,789.07"]], hl: 1 },
+    { role: "Bank statement", issuer: "Example Community Bank", kind: "Checking account statement", pages: 3,
+      meta: ["Account holder: Chris Morgan", "Statement period 09/01/2026 – 09/30/2026", "Account ending 0000"],
+      lines: [["Beginning balance", "$1,036.54"], ["Deposits and credits", "$3,578.14"], ["Withdrawals and debits", "$4,202.50"], ["Ending balance", "$412.18"]], hl: 3 },
+    { role: "Auto loan statement", issuer: "Example Auto Finance", kind: "Monthly loan statement", pages: 1,
+      meta: ["Borrower: Chris Morgan", "Statement date 10/05/2026", "Vehicle: 2019 sedan"],
+      lines: [["Payment due", "$386.00"], ["Due date", "10/25/2026"], ["Interest rate", "7.9%"], ["Principal balance", "$9,860.40"]], hl: 3 }
+  ],
+  stmts: [
+    { topic: "Income", text: "Gross pay is $2,140.00 for each two-week pay period.", doc: 0 },
+    { topic: "Accounts", text: "The checking account ended September with $412.18.", doc: 1 },
+    { topic: "Debts", text: "$9,860.40 is still owed on the car loan.", doc: 2 }
+  ],
+  missing: ["October pay stubs", "2025 tax return", "Credit card statements"]
+};
+
+function go(screen, top) {
+  state.screen = screen; state.evidence = null; state.omniOpen = false; state.answer = null;
+  if (screen === "signin" && !top) { state.signinStep = "email"; state.authErr = ""; }
+  render(); if (top !== false) scrollTo(0, 0);
+}
+
+function signedOutBar(right) {
+  return `<header class="fp-top"><button class="brand" data-go="front" aria-label="HiveForYou home">${MARK}<span><b>Hive</b><span>ForYou</span></span></button>${right}</header>`;
+}
+
+function frontPage() {
+  const clients = state.mode === "clients";
+  const play = !state.markPlayed;
+  if (play) setTimeout(() => { state.markPlayed = true; }, 1300);
+  const s = EX.stmts[state.exSel], d = EX.docs[s.doc];
+  return `${signedOutBar(`<button class="btn quiet" data-act="signin">Sign in</button>`)}
+  <main>
+    <section class="hero" aria-labelledby="fp-h">
+      ${HEX("hero-mark" + (play ? " play" : ""))}
+      <h1 id="fp-h">What are you working on?</h1>
+      <p class="lede">Upload the paperwork. HiveForYou reads every page, shows what's missing, and links every point to the page it came from.</p>
+      <div class="seg" role="group" aria-label="Who is this for"><button data-mode="clients" aria-pressed="${clients}">For my clients</button><button data-mode="self" aria-pressed="${!clients}">For myself</button></div>
+      <div class="ring"><label class="ring-in">${clients
+        ? `<span class="sr">Your work email</span><input id="fpEmail" type="email" autocomplete="email" placeholder="Your work email" value="${esc(state.email)}">`
+        : `<span class="sr">Describe your situation</span><input id="fpDesc" autocomplete="off" placeholder="Describe your situation, then add whatever documents you have" value="${esc(state.desc)}">`}
+        <button class="btn primary" data-act="start">Start</button></label></div>
+      ${clients ? "" : `<div class="ring-tools"><button class="btn quiet" data-act="addfiles">${icon("upload")} Add documents</button></div>`}
+      <p class="small">${clients ? "Set up your practice, then invite your first client. You sign in with a code sent to your email." : "You get your own hive. Old, partial or out of order is fine. You sign in with a code sent to your email."}</p>
+      <p class="small">Invited by your lawyer or advocate? Open the link in your invitation email.</p>
+    </section>
+
+    <section class="band" aria-labelledby="ex-h"><div class="wrap">
+      <h2 id="ex-h">What you get back</h2>
+      <p class="sub2">An example hive for a Chapter 7 intake. Click a statement to see the page it comes from.</p>
+      <div class="ex">
+        <div class="ex-h"><span><b>${EX.client}</b> · ${EX.purpose}</span><span>Example · synthetic documents</span></div>
+        <div class="ex-b">
+          <div class="ex-l">
+            <p class="state">11 of 14 documents are in. 3 things to review, and 3 records are still to come.</p>
+            ${meter(11, 14)}<p class="meta num">11 of 14 documents in</p>
+            <div class="topic"><h3>What the documents show</h3>
+              ${EX.stmts.map((x, i) => `<button class="claim ${i === state.exSel ? "on" : ""}" data-exsel="${i}" aria-pressed="${i === state.exSel}"><span class="tp">${esc(x.topic)}</span>${esc(x.text)}<span class="refs"><span class="ref">${icon("doc")}${esc(EX.docs[x.doc].role)} <span class="pg">p.1</span></span></span></button>`).join("")}
+            </div>
+            <div class="topic"><h3>Still to come</h3>${EX.missing.map((m) => `<div class="mrow"><span>${esc(m)}</span><span class="dot coral">Missing</span></div>`).join("")}</div>
+          </div>
+          <div class="ex-r" aria-live="polite">
+            <div class="vbar"><span><b>${esc(d.role)}</b> · ${esc(d.issuer)}</span><span class="num">Page 1 of ${d.pages}</span></div>
+            <div class="mini-page" data-k="${state.exSel}">
+              <div class="iss">${esc(d.issuer)}</div><div class="kind">${esc(d.kind)}</div>
+              <div class="meta-l">${d.meta.map((m) => `<div>${esc(m)}</div>`).join("")}</div>
+              <div class="lines">${d.lines.map((l, i) => `<div class="row ${i === d.hl ? "hl" : ""}"><span>${esc(l[0])}</span><span class="num">${esc(l[1])}</span></div>`).join("")}</div>
+            </div>
+            <p class="ok"><span class="dot leaf">Checked against the page</span></p>
+          </div>
+        </div>
+      </div>
+    </div></section>
+
+    <section class="fsec" aria-labelledby="how-h"><div class="wrap">
+      <h2 id="how-h">How it works</h2>
+      <div class="cols3">
+        <div><h3>Ask for the documents</h3><p>Your client gets a list of what to send, on their phone. Old, partial or out of order is fine.</p></div>
+        <div><h3>HiveForYou reads every page</h3><p>It says what the documents show, what changed, and what is still missing.</p></div>
+        <div><h3>Review from the page</h3><p>Every point opens the page it came from, highlighted. Talk with your client in the same place.</p></div>
+      </div>
+    </div></section>
+
+    <section class="fsec" aria-labelledby="who-h"><div class="wrap">
+      <h2 id="who-h">Who sees what</h2>
+      <div class="rows2">
+        <div><b>Your client</b><p>Their own documents, their report and their messages with your team.</p></div>
+        <div><b>Your team</b><p>Everything in the hive, including the questions your client asks the assistant. Team notes stay with your team.</p></div>
+        <div><b>The assistant</b><p>Answers only from the documents. It never decides anything about the case.</p></div>
+        <div><b>Anyone else</b><p>Nothing. A hive is visible only to the people invited to it.</p></div>
+      </div>
+    </div></section>
+
+    <section class="fsec" aria-labelledby="cov-h"><div class="wrap">
+      <h2 id="cov-h">What it covers</h2>
+      <p class="para">Built first for bankruptcy intake and Chapter 13 plan confirmation. It also reads special education (IEP) paperwork. Each area has its own rulebook for what to ask for and what to check.</p>
+    </div></section>
+
+    <section class="closing"><div class="wrap"><div class="in">
+      <div class="slogan">${HEX("")}<span>The complicated, made simple.</span></div>
+      <button class="btn" data-act="totop">Start a hive</button>
+    </div></div></section>
+  </main>
+  <footer class="foot"><div class="wrap"><span>© 2026 HiveForYou</span><span>Not legal, financial or medical advice.</span></div></footer>`;
+}
+
+function signIn() {
+  const code = state.signinStep === "code";
+  const creating = state.authFrom != null;
+  const err = state.authErr ? `<p class="err" role="alert">${esc(state.authErr)}</p>` : "";
+  return `${signedOutBar("<span></span>")}
+  <main class="auth">${HEX("")}
+    ${code ? `<h1>Check your email</h1><p class="lede">We sent a sign-in code to <b>${esc(state.email)}</b>. Enter it below.</p>
+      <div class="field"><label for="code">Code from the email</label><input id="code" class="code" inputmode="numeric" autocomplete="one-time-code" value="">${err}</div>
+      <button class="btn primary wide" data-act="verify">Sign in</button>
+      <div class="alt"><button class="btn text" data-act="otheremail">Use a different email</button><button class="btn text" data-act="resend">Send a new code</button></div>`
+    : `<h1>${creating ? "Create your account" : "Sign in"}</h1><p class="lede">${creating ? "Enter your email and we'll send you a code. No password needed." : "Use your email. New here? We'll set up your account. No password needed."}</p>
+      <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" value="${esc(state.email)}">${err}</div>
+      <button class="btn primary wide" data-act="sendcode">Send code</button>`}
+    <p class="privacy">${icon("lock")}<span>No password to remember. Each hive is visible only to the people invited to it.</span></p>
+  </main>`;
+}
+
+// Your hives: everything on a row comes from data the app already has (attention level and
+// counts, intake received of asked, assignee, last updated).
+function lpRows() {
+  const td = toDecide().length, mi = missing().length;
+  return [
+    { id: "dana", name: P.client, hive: S.hiveTitle, staff: "Priya", mine: true, got: inCount(), of: totalAsked(), group: td ? "review" : mi ? "waiting" : "done",
+      sts: [...(td ? [["blue", `${td} to review`]] : []), ...(mi ? [["coral", `${mi} missing`]] : []), ...(!td && !mi ? [["leaf", "Up to date"]] : [])], when: "Updated 2 hours ago" },
+    { id: "tran", name: "Kevin and Amy Tran", hive: "Chapter 7 intake", staff: "Leo", got: 6, of: 15, group: "review", sts: [["blue", "4 to review"], ["coral", "9 missing"]], when: "Updated Monday" },
+    { id: "bell", name: "Marcus Bell", hive: "Chapter 13 plan confirmation", staff: "Priya", mine: true, got: 8, of: 10, group: "review", sts: [["honey", "1 changed"], ["blue", "1 to review"]], when: "Updated yesterday" },
+    { id: "delgado", name: "Rosa Delgado", hive: "Chapter 7 intake", staff: null, got: 14, of: 14, group: "review", sts: [["coral", "1 unreadable"]], when: "Updated yesterday" },
+    { id: "okafor", name: "Sam Okafor", hive: "Chapter 7 intake", staff: "Leo", got: 3, of: 14, group: "reading", sts: [["grey", "Reading the documents"]], when: "Updated just now" },
+    { id: "mills", name: "Joanne Mills", hive: "Chapter 13 plan confirmation", staff: "Priya", mine: true, got: 5, of: 9, group: "waiting", sts: [["coral", "4 missing"]], when: "Updated Nov 15" },
+    { id: "fischer", name: "Leon Fischer", hive: "Chapter 7 intake", staff: "Leo", got: 0, of: 14, group: "waiting", sts: [["grey", "No documents yet"]], when: "Updated Nov 12" },
+    { id: "petrova", name: "Elena Petrova", hive: "Chapter 7 intake", staff: "Priya", mine: true, got: 14, of: 14, group: "done", sts: [["leaf", "Up to date"]], when: "Updated Nov 10" },
+    { id: "reyes", name: "Tom Reyes", hive: "Chapter 13 plan confirmation", staff: "Leo", got: 10, of: 10, group: "done", sts: [["leaf", "Up to date"]], when: "Updated Nov 6" }
+  ];
+}
+const LP_GROUPS = [["review", "To review"], ["reading", "Being read"], ["waiting", "Waiting on documents"], ["done", "Up to date"]];
+
+function landingSentence(rows) {
+  const n = (g) => rows.filter((r) => r.group === g).length;
+  const r = n("review"), w = n("waiting"), b = n("reading");
+  const parts = [];
+  if (r) parts.push(`${r} ${r === 1 ? "hive has" : "hives have"} things to review.`);
+  if (w) parts.push(`${w} ${w === 1 ? "is" : "are"} waiting on documents.`);
+  if (b) parts.push(`${b} ${b === 1 ? "is" : "are"} being read.`);
+  return parts.length ? parts.join(" ") : "Everything is up to date.";
+}
+
+function landing() {
+  const all = lpRows();
+  const queues = [["all", "All", all], ["mine", "Mine", all.filter((r) => r.mine)], ["unassigned", "Unassigned", all.filter((r) => !r.staff)]];
+  const inQueue = queues.find((q) => q[0] === state.lpQueue)[2];
+  const q = state.lpQuery.trim().toLowerCase();
+  const shown = q ? inQueue.filter((r) => (r.name + " " + r.hive).toLowerCase().includes(q)) : inQueue;
+  const row = (r) => `<button class="hrow" data-open="${r.id}">
+      <span class="who"><span class="sq">${ini(r.name)}</span><span style="min-width:0"><span class="nm">${esc(r.name)}</span><span class="pp">${esc(r.hive)} · ${r.staff ? "with " + esc(r.staff) : "unassigned"}</span></span></span>
+      <span class="prog"><span class="minimeter">${Array.from({ length: r.of }, (_, i) => `<i class="${i < r.got ? "on" : ""}"></i>`).join("")}</span><span class="meta num">${r.got} of ${r.of} documents in</span></span>
+      <span class="sts">${r.sts.map(([c, w]) => `<span class="dot ${c}">${esc(w)}</span>`).join("")}</span>
+      <span class="act">${esc(r.when)}</span></button>`;
+  return `<header class="top">
+      <div class="left"><button class="brand" data-go="hives" aria-label="HiveForYou, all hives">${MARK}<span><b>Hive</b><span>ForYou</span></span></button><span class="path"><span class="sep">/</span><span>Example Law Group</span></span></div>
+      <div class="omni"><label class="omni-box">${icon("search")}<span class="sr">Find a client or hive</span><input id="lpFind" autocomplete="off" placeholder="Find a client or hive" value="${esc(state.lpQuery)}"><span class="kbd">/</span></label></div>
+      <div class="right"><span class="me" title="Signed in">PS</span></div>
+    </header>
+    <main class="lp">
+      <div class="lp-head"><div><h1>Your hives</h1><p class="state">${landingSentence(inQueue)}</p></div>
+        <button class="btn primary" data-act="newhive">${icon("plus")} New hive</button></div>
+      <nav class="tabs" role="tablist" aria-label="Which hives">${queues.map(([k, l, list]) => `<button role="tab" data-queue="${k}" aria-selected="${state.lpQueue === k}">${l}<span class="c num">${list.length}</span></button>`).join("")}</nav>
+      ${q && !shown.length ? `<p class="meta" style="margin-top:32px;font-size:14.5px">No hive matches “${esc(state.lpQuery)}”. Try a client's first or last name.</p>` : ""}
+      ${LP_GROUPS.map(([g, title]) => { const rows = shown.filter((r) => r.group === g); return rows.length ? `<section class="sec"><header><h2>${title}</h2><span class="meta num">${rows.length}</span></header>${rows.map(row).join("")}</section>` : ""; }).join("")}
+    </main>`;
+}
+
+function firstVisit() {
+  return `<header class="top">
+      <div class="left"><button class="brand" aria-label="HiveForYou">${MARK}<span><b>Hive</b><span>ForYou</span></span></button></div><div></div>
+      <div class="right"><span class="me" title="Signed in">PS</span></div>
+    </header>
+    <main class="fv">
+      <h1>Your hives</h1>
+      <p class="state">Start with one client. <em>Add their name and email, and HiveForYou sends them a list of what to upload.</em></p>
+      <div class="acts"><button class="btn primary" data-act="newhive">${icon("plus")} New hive</button><button class="btn text" data-act="ownhive">Or start one for your own documents</button></div>
+      <div class="rows2">
+        <div><b>You set it up</b><p>Pick the matter type. The starting checklist comes from it, and you can change it before you send.</p></div>
+        <div><b>They upload</b><p>Your client opens the link on their phone. No account, no password.</p></div>
+        <div><b>You review</b><p>The hive lists what came in, what to review and what is still missing.</p></div>
+      </div>
+    </main>`;
+}
+
+function cnav() {
+  const cur = state.screen === "hive" ? "hive:" + state.who : state.screen;
+  if (state.cnavMin) return `<div class="cnav"><button data-act="cnav" aria-label="Show concept screens">Concept</button></div>`;
+  const items = [["front", "Front page"], ["signin", "Sign in"], ["hives", "Your hives"], ["first", "First visit"], ["hive:staff", "Hive · Priya"], ["hive:client", "Hive · Dana (client)"], ["hive:self", "Own hive"]];
+  return `<nav class="cnav" aria-label="Concept screens (not part of the app)"><span>Concept</span>${items.map(([k, l]) => `<button ${k.startsWith("hive:") ? `data-who="${k.slice(5)}"` : `data-go="${k}"`} aria-pressed="${k === cur}">${l}</button>`).join("")}<button data-act="cnav" aria-label="Hide concept screens">${icon("x")}</button></nav>`;
+}
+
+/* ───── Render + events ───── */
+function render() {
+  let page;
+  if (state.screen === "front") page = frontPage();
+  else if (state.screen === "signin") page = signIn();
+  else if (state.screen === "hives") page = landing();
+  else if (state.screen === "first") page = firstVisit();
+  else {
+    let body;
+    if (state.who === "client") body = state.evidence ? evidence() : client();
+    else body = state.evidence ? evidence() : ({ home, documents, report, audit, notes }[state.tab] || home)();
+    if (state.who === "client" && state.evidence) body = body.replace(hivehead(), "");
+    page = topbar() + body;
+  }
+  const focus = document.activeElement?.id; const pos = document.activeElement?.selectionStart;
+  const sheet = state.screen === "hive" && state.sheet ? `<div class="sheet-scrim" data-close-sheet></div><section class="sheet chat-sheet" role="dialog" aria-modal="true" aria-label="Ask ${P.assistant}">${sarahChat("sheet")}</section>` : "";
+  $("#app").innerHTML = page + sheet + cnav() + (state.toast ? `<div class="toast" role="status">${esc(state.toast)}</div>` : "");
+  if (focus) { const el = document.getElementById(focus); if (el) { el.focus(); if (pos != null && el.setSelectionRange) el.setSelectionRange(pos, pos); } }
+  if (state.scrollChat) { document.querySelectorAll(".chat").forEach((c) => { c.scrollTop = c.scrollHeight; }); state.scrollChat = false; }
+  const t = $("#thread"); if (t && state.scrollThread) { t.lastElementChild?.scrollIntoView({ block: "nearest" }); state.scrollThread = false; }
+}
+function toast(m) { state.toast = m; render(); setTimeout(() => { state.toast = ""; $(".toast")?.remove(); }, 2600); }
+function openEvidence(evId, item) { state.evidence = { ev: evId, item: item || null }; state.omniOpen = false; state.answer = null; render(); scrollTo(0, 0); }
+function ask(q) { askSarah(q); }
+let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (state.screen === "hive") render(); }, 150); });
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("button, tr[data-ev], .claim[data-ev]");
+  if (!t) {
+    if (e.target.closest("[data-close-sheet]")) { state.sheet = false; return render(); }
+    if (!e.target.closest(".omni") && state.omniOpen) { state.omniOpen = false; state.answer = null; render(); }
+    return;
+  }
+  const d = t.dataset;
+  if (d.side) { state.side = d.side; state.scrollChat = true; state.scrollThread = true; return render(); }
+  if (d.who) { state.sheet = false; state.viewClientQs = false; state.screen = "hive"; state.who = d.who; state.evidence = null; state.tab = "home"; state.omniOpen = false; state.answer = null; state.omni = ""; render(); return scrollTo(0, 0); }
+  if (d.go) return go(d.go);
+  if (d.mode) { state.mode = d.mode; return render(); }
+  if (d.exsel != null) { state.exSel = +d.exsel; return render(); }
+  if (d.queue) { state.lpQueue = d.queue; return render(); }
+  if (d.open) { if (d.open === "dana") { state.screen = "hive"; state.who = "staff"; state.tab = "home"; state.evidence = null; render(); return scrollTo(0, 0); } return toast("Concept: only Dana Ellis's hive is drawn."); }
+  if (d.tab) { state.tab = d.tab; state.evidence = null; return render(); }
+  if (d.ev) return openEvidence(d.ev, d.item);
+  if (d.expand) { state.expanded[d.expand] = !state.expanded[d.expand]; return render(); }
+  if (d.suggest) return askSarah(d.suggest);
+  if (d.add) { state.sent[d.add] = true; return toast("Added. Priya's team will see it in Documents."); }
+  switch (d.act) {
+    case "start": {
+      if (state.mode === "clients") { state.email = ($("#fpEmail")?.value || "").trim(); state.authFrom = "clients"; }
+      else { state.desc = ($("#fpDesc")?.value || "").trim(); state.authFrom = "self"; }
+      state.signinStep = "email"; state.authErr = ""; return go("signin", true);
+    }
+    case "signin": state.authFrom = null; state.signinStep = "email"; state.authErr = ""; return go("signin", true);
+    case "addfiles": return toast("Concept: files you pick here are kept until you sign in.");
+    case "sendcode": { const v = ($("#email")?.value || "").trim(); state.email = v; if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { state.authErr = "Enter an email address like name@example.com."; render(); return $("#email")?.focus(); } state.authErr = ""; state.signinStep = "code"; render(); return $("#code")?.focus(); }
+    case "verify": { const v = ($("#code")?.value || "").trim(); if (!v) { state.authErr = "Enter the code from the email."; render(); return $("#code")?.focus(); } state.authErr = ""; state.code = ""; if (state.authFrom === "clients") return go("first", true); if (state.authFrom === "self") { state.screen = "hive"; state.who = "self"; state.tab = "home"; state.evidence = null; render(); return scrollTo(0, 0); } return go("hives", true); }
+    case "otheremail": state.signinStep = "email"; state.authErr = ""; render(); return $("#email")?.focus();
+    case "resend": return toast("A new code is on its way.");
+    case "totop": scrollTo(0, 0); return (state.mode === "clients" ? $("#fpEmail") : $("#fpDesc"))?.focus();
+    case "newhive": return toast("Concept: New hive opens the New client screen (unchanged).");
+    case "ownhive": state.screen = "hive"; state.who = "self"; state.tab = "home"; state.evidence = null; render(); return scrollTo(0, 0);
+    case "cnav": state.cnavMin = !state.cnavMin; return render();
+    case "ask": return ask(state.omni);
+    case "newq": state.answer = null; state.omni = ""; render(); return $("#omni")?.focus();
+    case "close": state.evidence = null; return render();
+    case "focusomni": state.omniOpen = true; render(); return $("#omni")?.focus();
+    case "askpage": { state.sarahDraft = `About the ${d.role} page ${d.page}: `; state.viewClientQs = false; state.sheet = true; state.scrollChat = true; render(); const el = $("#sarahDraft"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } return; }
+    case "opensheet": state.sheet = true; state.scrollChat = true; render(); return $("#sarahDraft")?.focus();
+    case "closesheet": state.sheet = false; return render();
+    case "asksend": return askSarah($("#sarahDraft")?.value);
+    case "clientqs": state.viewClientQs = true; state.scrollChat = true; return render();
+    case "myqs": state.viewClientQs = false; state.scrollChat = true; return render();
+    case "handoff": { const th = state.threads.client; const i = +d.i; th[i].handedOff = true; state.messages.push({ role: "client", text: th[i - 1].text, time: "Just now", fromAsk: true }); state.scrollThread = true; return toast(`Sent to ${first(P.staff)} in your messages.`); }
+    case "request": { const m = missing(); state.draft = `Could you send these when you have a moment?\n` + m.map((x) => "• " + x.request).join("\n"); render(); return $("#draft")?.focus(); }
+    case "askclient": { const it = S.exceptions.find((x) => x.id === d.item); state.evidence = null; state.draft = it.question || `Could you tell me more about this: ${it.title}?`; render(); return $("#draft")?.focus(); }
+    case "send": { const v = $("#draft")?.value.trim(); if (!v) return $("#draft")?.focus(); state.messages.push({ role: state.who, text: v, time: "Just now" }); state.draft = ""; state.scrollThread = true; return render(); }
+    case "note": { const v = $("#note")?.value.trim(); if (!v) return; state.notes.push({ who: "Priya Shah", when: "Just now", text: v }); state.noteDraft = ""; return render(); }
+    case "print": return print();
+  }
+});
+document.addEventListener("focusin", (e) => { if (e.target.id === "omni" && !state.omniOpen) { state.omniOpen = true; render(); } });
+document.addEventListener("input", (e) => {
+  if (e.target.id === "omni") { state.omni = e.target.value; state.answer = null; state.omniOpen = true; render(); }
+  if (e.target.id === "draft") state.draft = e.target.value;
+  if (e.target.id === "sarahDraft") state.sarahDraft = e.target.value;
+  if (e.target.id === "lpFind") { state.lpQuery = e.target.value; render(); }
+  if (e.target.id === "fpEmail" || e.target.id === "email") state.email = e.target.value;
+  if (e.target.id === "fpDesc") state.desc = e.target.value;
+  if (e.target.id === "note") state.noteDraft = e.target.value;
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA" && ($("#omni") || $("#lpFind"))) { e.preventDefault(); ($("#omni") || $("#lpFind")).focus(); }
+  if (e.key === "Enter" && (e.target.id === "fpEmail" || e.target.id === "fpDesc")) { e.preventDefault(); $('[data-act="start"]')?.click(); }
+  if (e.key === "Enter" && e.target.id === "email") { e.preventDefault(); $('[data-act="sendcode"]')?.click(); }
+  if (e.key === "Enter" && e.target.id === "code") { e.preventDefault(); $('[data-act="verify"]')?.click(); }
+  if (e.key === "Escape" && state.sheet) { state.sheet = false; return render(); }
+  if (e.key === "Enter" && !e.shiftKey && e.target.id === "sarahDraft") { e.preventDefault(); return askSarah(e.target.value); }
+  if (e.key === "Escape") { if (state.omniOpen) { $("#omni")?.blur(); state.omniOpen = false; state.answer = null; render(); } else if (state.evidence) { state.evidence = null; render(); } }
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList?.contains("claim") && e.target.dataset.ev) { e.preventDefault(); openEvidence(e.target.dataset.ev); }
+  if (e.key === "Enter" && e.target.id === "omni" && state.omni.trim()) { e.preventDefault(); askSarah(state.omni); }
+  if (e.key === "Enter" && !e.shiftKey && e.target.id === "draft") { e.preventDefault(); $('[data-act="send"]')?.click(); }
+});
+render();
+</script></body></html>

@@ -36,10 +36,17 @@ export function galleryHomeProps(
   const documentCount = options.documentCount ?? 9;
   const checklist =
     options.checklist ??
-    Array.from({ length: 9 }, (_, index) => ({
-      title: `Record ${index + 1}`,
-      status: index < 6 ? "received" : "not_in",
-    }));
+    [
+      { title: "Checking statements Apr–Jun 2023", status: "not_in" },
+      { title: "Savings statements 2022", status: "not_in" },
+      { title: "Premium notice for 2023", status: "not_in" },
+      { title: "Checking statements Jan–Mar 2024", status: "in" },
+      { title: "Checking statements Apr–Jun 2024", status: "in" },
+      { title: "Savings statements 2023", status: "in" },
+      { title: "Checking statements 2025", status: "in" },
+      { title: "Agency checklist letter", status: "in" },
+      { title: "Transfer withdrawal records", status: "in" },
+    ];
   const progress = options.progress ?? { in: 6, total: 9 };
   const hasStudy = options.hasStudy ?? true;
 

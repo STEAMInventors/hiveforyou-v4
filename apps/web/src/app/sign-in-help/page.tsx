@@ -18,7 +18,7 @@ export default async function SignInHelpPage({ searchParams }: PageProps) {
   const nextQuery = encodeURIComponent(next);
 
   return (
-    <SignInShell splitPage={false}>
+    <SignInShell layout="plain">
       <SignInHeading title={SIGN_IN_HELP_TITLE} lede={SIGN_IN_HELP_BODY} />
       <p className="m-0 text-center text-sm leading-relaxed text-ink-2">
         <Link href={`/sign-in?next=${nextQuery}`} className={TEXT_LINK_CLASS}>

@@ -2,263 +2,180 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ConversationLoad } from "@/components/hives/useHiveConversation";
-import { OmniCatalogProvider } from "@/components/ui/omni-catalog";
-import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
-
+const push = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push, replace: vi.fn() }),
   usePathname: () => "/hives/11111111-1111-4111-8111-111111111111",
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import { HiveOmni, questionsFrom } from "./HiveOmni";
+import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog, type OmniCatalog } from "@/components/ui/omni-catalog";
 
-const HIVE_ID = "11111111-1111-4111-8111-111111111111";
-const USER_ID = "22222222-2222-4222-8222-222222222222";
+import { ChatSheet } from "./ChatSheet";
+import { HiveOmni } from "./HiveOmni";
+import { ChatWrap, chatConfig, installChatFetch, loadOf } from "./ask-chat-fixtures";
 
-function wrap(ui: React.ReactNode) {
-  return (
-    <OmniCatalogProvider>
-      <EvidenceViewerProvider hiveId={HIVE_ID} labels={new Map()} citationContexts={new Map()}>
-        {ui}
-      </EvidenceViewerProvider>
-    </OmniCatalogProvider>
+const CATALOG: OmniCatalog = {
+  ...EMPTY_OMNI_CATALOG,
+  suggestions: ["What is still to come?"],
+  statements: [
+    { id: "s1", text: "The monthly premium is $142.", topic: "Premiums", pageLabel: "p.2", ref: { sourceDocumentId: "doc-1", pageNumber: 2 } },
+  ],
+  openItems: [{ id: "i1", title: "Premium notice for 2023", kind: "missing", ref: null }],
+  documents: [{ id: "d1", role: "Premium statement", typeLabel: "PDF", period: "2023", pages: 4, ref: null }],
+};
+
+function Publish({ catalog }: { catalog: OmniCatalog }) {
+  useRegisterOmniCatalog(catalog);
+  return null;
+}
+
+function setup(options: { audience?: "staff" | "client"; off?: boolean; catalog?: OmniCatalog } = {}) {
+  const config = chatConfig({
+    audience: options.audience ?? "staff",
+    initialAssistant: loadOf([], { assistantRepliesOn: !options.off }),
+  });
+  return render(
+    <ChatWrap config={config}>
+      <Publish catalog={options.catalog ?? CATALOG} />
+      <HiveOmni assistantName="Rowan" audience={options.audience ?? "staff"} />
+      <ChatSheet />
+    </ChatWrap>,
   );
 }
 
-const priorQ = "What is the monthly premium?";
-const priorA = "The premium is $142.";
-const MSG1 = "c0a80101-0000-4000-8000-000000000001";
-const MSG2 = "c0a80101-0000-4000-8000-000000000002";
-const ASST1 = "c0a80101-0000-4000-8000-000000000003";
-
-function assistantLoad(): ConversationLoad {
-  return {
-    ok: true,
-    page: {
-      messages: [
-        {
-          id: MSG1,
-          body: priorQ,
-          authorKind: "person",
-          authorRole: "staff",
-          authorUserId: USER_ID,
-          authorDisplayName: "Staff",
-          authorRoleLabel: "Staff",
-          createdAt: "2026-11-18T14:05:00.123456+00:00",
-          isMine: true,
-          sourceRefs: [],
-          replyToMessageId: null,
-        },
-        {
-          id: ASST1,
-          body: priorA,
-          authorKind: "assistant",
-          authorRole: "assistant",
-          authorUserId: null,
-          authorDisplayName: "Dana",
-          authorRoleLabel: "AI assistant",
-          triggerMessageId: MSG1,
-          createdAt: "2026-11-18T14:05:05.123456+00:00",
-          isMine: false,
-          sourceRefs: [],
-          replyToMessageId: null,
-          handoffFromMessageId: null,
-        },
-      ],
-      participantRoleLabels: [],
-      participantCount: 1,
-      viewerLastReadAt: null,
-      nextCursor: null,
-      pendingAssistant: false,
-      assistantAvailable: true,
-      assistantRepliesOn: true,
-    },
-  };
-}
-
-function validPersonMessage(id: string, body: string) {
-  return {
-    id,
-    body,
-    authorKind: "person" as const,
-    authorRole: "staff" as const,
-    authorUserId: USER_ID,
-    authorDisplayName: "Staff",
-    authorRoleLabel: "Staff",
-    createdAt: "2026-11-18T14:06:00.123456+00:00",
-    isMine: true,
-    sourceRefs: [] as const,
-    replyToMessageId: null,
-  };
-}
-
-let fetchMock: ReturnType<typeof vi.fn>;
+const box = () => screen.getByRole("combobox");
 
 beforeEach(() => {
-  fetchMock = vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      messages: [],
-      participantRoleLabels: [],
-      participantCount: 0,
-      viewerLastReadAt: null,
-      nextCursor: null,
-    }),
-    headers: { get: () => null },
-  });
-  vi.stubGlobal("fetch", fetchMock);
+  push.mockClear();
+  installChatFetch();
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  vi.useRealTimers();
 });
 
-describe("HiveOmni", () => {
-  it("shows Your questions from the server-loaded assistant thread on first open", async () => {
-    const initial = assistantLoad();
-    render(
-      wrap(
-        <HiveOmni
-          hiveId={HIVE_ID}
-          assistantName="Dana"
-          audience="staff"
-          staffFirstName="Priya"
-          clientName="Client"
-          currentUserId={USER_ID}
-          firmless={false}
-          firmId="33333333-3333-4333-8333-333333333333"
-          initialAssistant={initial}
-        />,
-      ),
-    );
-
-    const input = screen.getByPlaceholderText(/find anything/i);
-    fireEvent.focus(input);
-
-    expect(screen.getByText("Your questions")).toBeTruthy();
-    expect(screen.getByText(priorQ)).toBeTruthy();
-    expect(questionsFrom(initial.ok ? initial.page.messages : []).map((q) => q.question)).toContain(priorQ);
+describe("HiveOmni (find only)", () => {
+  it("is labelled for finding, never for asking", () => {
+    setup();
+    expect(box().getAttribute("placeholder")).toBe("Find anything in this hive");
+    cleanup();
+    setup({ audience: "client" });
+    expect(box().getAttribute("placeholder")).toBe("Find in your documents");
   });
 
-  it("does not poll the assistant channel while the box is closed and idle", async () => {
-    vi.useFakeTimers();
-    const initial: ConversationLoad = {
-      ok: true,
-      page: {
-        messages: [],
-        participantRoleLabels: [],
-        participantCount: 0,
-        viewerLastReadAt: null,
-        nextCursor: null,
-      },
-    };
-    render(
-      wrap(
-        <HiveOmni
-          hiveId={HIVE_ID}
-          assistantName="Dana"
-          audience="staff"
-          staffFirstName="Priya"
-          clientName="Client"
-          currentUserId={USER_ID}
-          firmless={false}
-          firmId="33333333-3333-4333-8333-333333333333"
-          initialAssistant={initial}
-        />,
-      ),
+  it("opens to one line and no answers, question history or suggestions", () => {
+    setup();
+    fireEvent.focus(box());
+
+    expect(screen.getByTestId("omni-empty").textContent).toBe(
+      "Type to find statements, open items and documents in this hive. To ask a question, use Rowan.",
     );
-
-    const assistantFetches = () =>
-      fetchMock.mock.calls.filter((call) => String(call[0]).includes("channel=assistant"));
-
-    expect(assistantFetches().length).toBe(0);
-    await vi.advanceTimersByTimeAsync(25_000);
-    expect(assistantFetches().length).toBe(0);
+    expect(screen.queryByText("Your questions")).toBeNull();
+    expect(screen.queryByText("What is still to come?")).toBeNull();
+    expect(screen.queryByRole("button", { name: /New question/ })).toBeNull();
   });
 
-  it("shows typing for a duplicate question instead of the earlier answer", async () => {
-    const initial = assistantLoad();
-    fetchMock.mockImplementation(async (url: RequestInfo, init?: RequestInit) => {
-      const href = String(url);
-      if (href.includes("/messages") && init?.method === "POST") {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            message: validPersonMessage(MSG2, priorQ),
-            duplicate: false,
-          }),
-          headers: { get: () => null },
-        };
-      }
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          messages: [...(initial.ok ? initial.page.messages : []), validPersonMessage(MSG2, priorQ)],
-          participantRoleLabels: [],
-          participantCount: 1,
-          viewerLastReadAt: null,
-          nextCursor: null,
-          pendingAssistant: true,
-        }),
-        headers: { get: () => null },
-      };
-    });
+  it("shows the three result groups with the Ask row last", () => {
+    setup();
+    fireEvent.focus(box());
+    fireEvent.change(box(), { target: { value: "premium" } });
 
-    render(
-      wrap(
-        <HiveOmni
-          hiveId={HIVE_ID}
-          assistantName="Dana"
-          audience="staff"
-          staffFirstName="Priya"
-          clientName="Client"
-          currentUserId={USER_ID}
-          firmless={false}
-          firmId="33333333-3333-4333-8333-333333333333"
-          initialAssistant={initial}
-        />,
-      ),
-    );
-
-    const input = screen.getByPlaceholderText(/find anything/i);
-    fireEvent.focus(input);
-    fireEvent.change(input, { target: { value: priorQ } });
-    fireEvent.keyDown(input, { key: "Enter" });
-
-    await waitFor(() => {
-      expect(screen.getByTestId("omni-typing")).toBeTruthy();
-    });
-    expect(screen.queryByText(priorA)).toBeNull();
+    expect(screen.getByText("In the documents")).toBeTruthy();
+    expect(screen.getByText("Open items")).toBeTruthy();
+    expect(screen.getByText("Documents")).toBeTruthy();
+    expect(screen.getByText("Still to come")).toBeTruthy();
+    const options = screen.getAllByRole("option");
+    expect(options[options.length - 1]!.textContent).toContain("Ask Rowan: premium");
   });
 
-  it("shows client questions load error in the client group", async () => {
-    render(
-      wrap(
-        <HiveOmni
-          hiveId={HIVE_ID}
-          assistantName="Dana"
-          audience="staff"
-          staffFirstName="Priya"
-          clientName="Dana Ellis"
-          currentUserId={USER_ID}
-          firmless={false}
-          firmId="33333333-3333-4333-8333-333333333333"
-          initialAssistant={{ ok: true, page: { messages: [], participantRoleLabels: [], participantCount: 0, viewerLastReadAt: null, nextCursor: null } }}
-          initialClientAssistant={{ ok: false, message: "fail", correlationId: "abcd1234-5678-90ab-cdef-1234567890ab", retryable: true }}
-        />,
-      ),
-    );
+  it("says nothing matches above the Ask row", () => {
+    setup();
+    fireEvent.focus(box());
+    fireEvent.change(box(), { target: { value: "zzzz" } });
+    expect(screen.getByTestId("omni-no-matches").textContent).toBe("Nothing in this hive matches “zzzz”.");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+  });
 
-    fireEvent.focus(screen.getByPlaceholderText(/find anything/i));
-    expect(screen.getByTestId("omni-client-questions-error")).toBeTruthy();
-    expect(screen.getByText(/Couldn't load Dana's questions/i)).toBeTruthy();
-    expect(screen.getByText(/abcd1234/)).toBeTruthy();
+  it("opens the page behind a result", () => {
+    setup();
+    fireEvent.focus(box());
+    fireEvent.change(box(), { target: { value: "monthly" } });
+    fireEvent.click(screen.getAllByRole("option")[0]!);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(String(push.mock.calls[0]![0])).toContain("source=");
+    expect(screen.queryByTestId("omni-pop")).toBeNull();
+  });
+
+  it("posts the Ask row's text into the thread and opens the chat", async () => {
+    const { state } = installChatFetch();
+    setup();
+    fireEvent.focus(box());
+    fireEvent.change(box(), { target: { value: "What is the premium?" } });
+
+    fireEvent.click(screen.getByRole("option", { name: /Ask Rowan: What is the premium\?/ }));
+
+    await waitFor(() => expect(state.posts).toHaveLength(1));
+    expect(state.posts[0]).toMatchObject({ channel: "assistant", body: "What is the premium?" });
+    expect(screen.getByRole("dialog", { name: "Ask Rowan" })).toBeTruthy();
+    expect(screen.queryByTestId("omni-pop")).toBeNull();
+    expect((box() as HTMLInputElement).value).toBe("");
+  });
+
+  it("asks on Enter for a typed query when no result is highlighted", async () => {
+    const { state } = installChatFetch();
+    setup();
+    fireEvent.focus(box());
+    fireEvent.change(box(), { target: { value: "Where is page 2?" } });
+    fireEvent.keyDown(box(), { key: "Enter" });
+
+    await waitFor(() => expect(state.posts).toHaveLength(1));
+    expect(state.posts[0]!.body).toBe("Where is page 2?");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("does not ask on Enter with nothing typed", () => {
+    const { state } = installChatFetch();
+    setup();
+    fireEvent.focus(box());
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(state.posts).toHaveLength(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("closes on Escape without reopening", () => {
+    setup();
+    box().focus();
+    fireEvent.focus(box());
+    expect(screen.getByTestId("omni-pop")).toBeTruthy();
+
+    fireEvent.keyDown(box(), { key: "Escape" });
+
+    expect(screen.queryByTestId("omni-pop")).toBeNull();
+    expect(document.activeElement).not.toBe(box());
+  });
+
+  it("opens the chat for an older ?ask=1 link", async () => {
+    const original = window.location.href;
+    window.history.pushState({}, "", "/hives/x?ask=1");
+    setup();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Ask Rowan" })).toBeTruthy());
+    window.history.pushState({}, "", original);
+  });
+
+  it("with the assistant off: no mention of it, no Ask row, nothing opens", () => {
+    const { state } = installChatFetch();
+    setup({ off: true });
+    fireEvent.focus(box());
+    expect(screen.getByTestId("omni-empty").textContent).toBe(
+      "Type to find statements, open items and documents in this hive.",
+    );
+    fireEvent.change(box(), { target: { value: "premium" } });
+    expect(screen.queryByRole("option", { name: /Ask Rowan/ })).toBeNull();
+
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(state.posts).toHaveLength(0);
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
