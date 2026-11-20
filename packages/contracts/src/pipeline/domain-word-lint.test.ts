@@ -64,8 +64,6 @@ const V5_006_LEGACY_EXCLUSIONS = new Set<string>([
   "packages/contracts/src/reports/writer-report-contracts.test.ts",
   "apps/web/src/components/reports/ReportsPanel.test.tsx",
   "apps/web/src/components/hives/DocumentsPanel.test.tsx",
-  /** Dev gallery board fixtures mirror the prototype Medicaid sample hive. */
-  "apps/web/src/dev/gallery/fixtures/board-messages.ts",
 ]);
 
 /**
@@ -185,6 +183,7 @@ function isExcludedPath(relativePath: string): boolean {
   const normalized = relativePath.replace(/\\/g, "/");
   if (V5_006_LEGACY_EXCLUSIONS.has(normalized)) return true;
   if (normalized === "packages/contracts/src/pipeline/domain-word-lint.test.ts") return true;
+  if (normalized.startsWith("apps/web/src/dev/gallery/fixtures/")) return true;
   return V5_006_LEGACY_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 

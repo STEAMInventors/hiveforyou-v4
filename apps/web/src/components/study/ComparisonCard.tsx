@@ -112,20 +112,38 @@ function SideLabel({ side, date }: { side: ComparisonSide; date: string | null |
 type ComparisonCardProps = {
   row: StudyViewRow;
   documentDate: (sourceDocumentId: string) => string | null | undefined;
+  flat?: boolean;
 };
 
-export function ComparisonCard({ row, documentDate }: ComparisonCardProps) {
+export function ComparisonCard({ row, documentDate, flat = false }: ComparisonCardProps) {
   const sides = conflictSides(row);
   const difference = sidesDifference(sides);
   return (
-    <article className="overflow-hidden rounded-input border border-line bg-paper" data-row-id={row.id} data-testid="comparison-card">
-      <header className="flex flex-wrap items-start gap-3 border-b border-line bg-mist px-5 py-4 sm:px-7">
+    <article
+      className={
+        flat
+          ? "border-b border-line py-5 last:border-b-0"
+          : "overflow-hidden rounded-input border border-line bg-paper"
+      }
+      data-row-id={row.id}
+      data-testid="comparison-card"
+    >
+      <header
+        className={`flex flex-wrap items-start gap-3 ${flat ? "pb-3" : "border-b border-line bg-mist px-5 py-4 sm:px-7"}`}
+      >
         <StatusBadge state="needs" />
         <p className="m-0 max-w-prose flex-1 text-body font-medium text-ink">{row.statement}</p>
       </header>
-      <div className="flex flex-wrap gap-px bg-line">
+      <div className={flat ? "flex flex-col gap-4 sm:flex-row sm:gap-6" : "flex flex-wrap gap-px bg-line"}>
         {sides.map((side) => (
-          <section key={side.sourceDocumentId} className="flex min-w-0 flex-[1_1_280px] flex-col gap-2 bg-paper px-5 py-5 sm:px-7">
+          <section
+            key={side.sourceDocumentId}
+            className={
+              flat
+                ? "flex min-w-0 flex-1 flex-col gap-2"
+                : "flex min-w-0 flex-[1_1_280px] flex-col gap-2 bg-paper px-5 py-5 sm:px-7"
+            }
+          >
             <SideLabel side={side} date={documentDate(side.sourceDocumentId)} />
             {side.values.map((value) => (
               <p key={value.text} className="m-0 break-words font-quote text-[32px] leading-[1.15] text-ink" data-testid="comparison-value">
@@ -145,7 +163,10 @@ export function ComparisonCard({ row, documentDate }: ComparisonCardProps) {
       </div>
       {/* TODO(cleanup item 1): add a "Worth asking:" line once hive-write/1 returns one per conflict. */}
       {difference ? (
-        <footer className="border-t border-line px-5 py-4 text-small text-ink-2 sm:px-7" data-testid="comparison-difference">
+        <footer
+          className={`text-small text-ink-2 ${flat ? "pt-3" : "border-t border-line px-5 py-4 sm:px-7"}`}
+          data-testid="comparison-difference"
+        >
           <span className="inline-flex flex-wrap items-center gap-2">
             <HiveMark />
             <span>

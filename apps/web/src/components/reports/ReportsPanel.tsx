@@ -267,6 +267,7 @@ export function ReportsPanel({
             canonicalStudy={canonicalStudy}
             controls={controls}
             status={status}
+            flatInPaper
           />
         </article>
       ) : (

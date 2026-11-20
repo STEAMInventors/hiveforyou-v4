@@ -30,7 +30,6 @@ import { ClientsHomeFirstVisit } from "./ClientsHomeFirstVisit";
 import { ClientsHomeSidebar } from "./ClientsHomeSidebar";
 import { CreateHiveModal } from "./CreateHiveModal";
 import { DeleteHiveModal } from "./DeleteHiveModal";
-import { HiveList } from "./HiveCard";
 import { NameHiveDialog } from "./NameHiveDialog";
 import { useCreateHive, useHiveComposer } from "./useCreateHive";
 
@@ -354,22 +353,78 @@ export function MyHivesPanel({
 
   const ownRanked = rankSubset(hives.filter((hive) => hive.kind === "own"), summaries);
   const countLine =
-    ownRanked.length > 0 ? (ownRanked.length === 1 ? "Your hive" : `Your hives · ${ownRanked.length}`) : null;
+    ownRanked.length === 1 ? "1 hive" : ownRanked.length > 0 ? `${ownRanked.length} hives` : null;
+
+  if (ownRanked.length === 0) {
+    return (
+      <div className="mx-auto flex w-full max-w-[680px] flex-col items-center gap-5 px-5 pb-16 pt-[clamp(32px,8vh,88px)]">
+        <HiveAppLogo display="lockup" size="landingMain" />
+        <p className="m-0 text-[19px] text-ink-2" data-testid="hives-greeting">
+          {greetingLine(greetingFirstName)}
+        </p>
+
+        <MotionComposerLanding composer={inlineComposer} createBusy={createFlow.submitBusy} onOpenModal={() => openModal()} />
+
+        {listError ? (
+          <div role="alert" className="flex w-full flex-col items-start gap-2 text-left">
+            <p className="m-0 text-body text-ink">{listError.message}</p>
+            {listError.correlationId ? (
+              <p className="m-0 font-mono text-[12px] text-ink-3">Support reference: {listError.correlationId}</p>
+            ) : null}
+            <button
+              type="button"
+              className={`${SECONDARY_BUTTON_CLASS} mt-2`}
+              disabled={refreshing}
+              onClick={() => void handleRefresh()}
+            >
+              {refreshing ? "Loading…" : "Try again"}
+            </button>
+          </div>
+        ) : null}
+
+        <CreateHiveModal {...createFlow.modalProps} />
+        <NameHiveDialog {...createFlow.namingDialogProps} />
+        <DeleteHiveModal
+          hiveName={hivePendingDelete?.name ?? ""}
+          open={hivePendingDelete !== null}
+          busy={deleteBusy}
+          errorMessage={deleteError}
+          onCancel={() => {
+            if (!deleteBusy) {
+              setHivePendingDelete(null);
+              setDeleteError(null);
+            }
+          }}
+          onConfirm={() => {
+            void handleDeleteConfirm();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-[680px] flex-col items-center gap-5 px-5 pb-16 pt-[clamp(32px,8vh,88px)]">
-      <HiveAppLogo display="lockup" size="landingMain" />
-      <p className="m-0 text-[19px] text-ink-2" data-testid="hives-greeting">
-        {greetingLine(greetingFirstName)}
-      </p>
-
-      <MotionComposerLanding composer={inlineComposer} createBusy={createFlow.submitBusy} onOpenModal={() => openModal()} />
+    <div className="mx-auto flex w-full max-w-col-wide flex-col px-4 py-6 min-[900px]:px-8 min-[900px]:pb-16">
+      <header className="mb-4 flex flex-col gap-1">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="m-0 text-small text-ink-2" data-testid="hives-greeting">
+              {greetingLine(greetingFirstName)}
+            </p>
+            <h1 className="m-0 font-brand text-section font-semibold text-ink">My hives</h1>
+          </div>
+          <button type="button" className={WORKSPACE_PRIMARY} onClick={() => openModal()} data-testid="new-hive">
+            New hive
+          </button>
+        </div>
+        {countLine ? <p className="m-0 text-small text-ink-3">{countLine}</p> : null}
+      </header>
 
       {listError ? (
-        <div role="alert" className="flex w-full flex-col items-start gap-2 text-left">
+        <div role="alert" className="mb-4 flex flex-col items-start gap-2 text-left">
           <p className="m-0 text-body text-ink">{listError.message}</p>
           {listError.correlationId ? (
-            <p className="m-0 font-mono text-[12px] text-ink-3">Support reference: {listError.correlationId}</p>
+            <p className="m-0 font-mono text-caption text-ink-3">Support reference: {listError.correlationId}</p>
           ) : null}
           <button
             type="button"
@@ -382,18 +437,13 @@ export function MyHivesPanel({
         </div>
       ) : null}
 
-      {ownRanked.length > 0 ? (
-        <div className="w-full">
-          {countLine ? <p className="m-0 mb-4 text-left text-[14px] text-ink-3">{countLine}</p> : null}
-          <HiveList
-            hives={ownRanked}
-            summaries={summaries}
-            onRequestDelete={setHivePendingDelete}
-            onRetryDeletion={handleRetryDeletion}
-            onKindChanged={handleRefresh}
-          />
-        </div>
-      ) : null}
+      <ClientsHomeClientList
+        hives={ownRanked}
+        summaries={summaries}
+        viewerUserId={viewerUserId}
+        onRequestDelete={setHivePendingDelete}
+        onKindChanged={handleRefresh}
+      />
 
       <CreateHiveModal {...createFlow.modalProps} />
       <NameHiveDialog {...createFlow.namingDialogProps} />

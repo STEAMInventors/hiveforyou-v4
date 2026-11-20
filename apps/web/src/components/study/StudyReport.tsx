@@ -70,6 +70,8 @@ type StudyReportProps = {
   workspaceSurface?: StudyWorkspaceSurface;
   /** Accepted canonical study for merging document type labels into chips when a stored view omits them. */
   canonicalStudy?: CanonicalStudy | null;
+  /** Report tab paper: no nested bordered cards (DESIGN report paper). */
+  flatInPaper?: boolean;
 };
 
 const SECTION_IDS = STUDY_SECTION_IDS;
@@ -127,6 +129,7 @@ export function StudyReport({
   showStateBar = true,
   canonicalStudy = null,
   workspaceSurface,
+  flatInPaper = false,
 }: StudyReportProps) {
   const customer = header.kind === "report" && header.audience === "CUSTOMER";
   const isReport = header.kind === "report";
@@ -312,9 +315,16 @@ export function StudyReport({
 
   const pageGap = customer ? "gap-6" : "gap-4";
   const cardGap = customer ? "gap-5" : "gap-4";
+  const sectionShell = (gap: string) => (flatInPaper ? `flex flex-col ${gap}` : `${CARD} ${gap}`);
+  const sectionGap = flatInPaper ? "mt-8 gap-4 first:mt-0" : "";
 
   const establishCard = hasEstablish ? (
-    <section id={SECTION_IDS.establish} tabIndex={-1} aria-labelledby={`${SECTION_IDS.establish}-h`} className={`${CARD} ${cardGap}`}>
+    <section
+      id={SECTION_IDS.establish}
+      tabIndex={-1}
+      aria-labelledby={`${SECTION_IDS.establish}-h`}
+      className={`${sectionShell(cardGap)} ${sectionGap}`}
+    >
       <h3 id={`${SECTION_IDS.establish}-h`} className={SECTION_HEADING}>
         What the documents establish
       </h3>
@@ -339,7 +349,12 @@ export function StudyReport({
 
   const timelineCard =
     model.timeline.length > 0 ? (
-      <section id={SECTION_IDS.timeline} tabIndex={-1} aria-labelledby={`${SECTION_IDS.timeline}-h`} className={`${CARD} ${cardGap}`}>
+      <section
+        id={SECTION_IDS.timeline}
+        tabIndex={-1}
+        aria-labelledby={`${SECTION_IDS.timeline}-h`}
+        className={`${sectionShell(cardGap)} ${sectionGap}`}
+      >
         <h3 id={`${SECTION_IDS.timeline}-h`} className={SECTION_HEADING}>
           Timeline
         </h3>
@@ -349,7 +364,12 @@ export function StudyReport({
 
   const documentsCard =
     model.documents.length > 0 ? (
-      <section id={SECTION_IDS.documents} tabIndex={-1} aria-labelledby={`${SECTION_IDS.documents}-h`} className={`${CARD} ${cardGap}`}>
+      <section
+        id={SECTION_IDS.documents}
+        tabIndex={-1}
+        aria-labelledby={`${SECTION_IDS.documents}-h`}
+        className={`${sectionShell(cardGap)} ${sectionGap}`}
+      >
         <h3 id={`${SECTION_IDS.documents}-h`} className={SECTION_HEADING}>
           Documents
         </h3>
@@ -381,7 +401,7 @@ export function StudyReport({
       <div className="flex flex-wrap items-start gap-6" data-testid="study-view" data-audience={isReport ? header.audience : "STUDY"}>
         <div className={`flex min-w-0 flex-[999_1_640px] flex-col ${pageGap}`}>
           {!workspaceSurface ? (
-          <header className={`${CARD} gap-4`} data-testid="report-header">
+          <header className={flatInPaper ? "mb-2 flex flex-col gap-4" : `${CARD} gap-4`} data-testid="report-header">
             {controls ? <div className="flex flex-wrap items-center justify-between gap-3">{controls}</div> : null}
             <div className="flex flex-col gap-1.5">
               <h2 className="m-0 font-brand text-title font-semibold text-ink">{title}</h2>
@@ -424,7 +444,7 @@ export function StudyReport({
           {showFacts ? <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} /> : null}
 
           {!isReport && !showReview && model.personaCoverageCard.length > 0 ? (
-            <section className={`${CARD} ${cardGap}`} data-testid="persona-coverage-card">
+            <section className={`${sectionShell(cardGap)} ${sectionGap}`} data-testid="persona-coverage-card">
               <h3 className={SECTION_HEADING}>What each reader needs</h3>
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {model.personaCoverageCard.map((row) => (
@@ -440,7 +460,7 @@ export function StudyReport({
           ) : null}
 
           {!isReport && !showReview && model.checklist.length > 0 ? (
-            <section className={`${CARD} ${cardGap}`} data-testid="pack-checklist">
+            <section className={`${sectionShell(cardGap)} ${sectionGap}`} data-testid="pack-checklist">
               <h3 className={SECTION_HEADING}>Checklist</h3>
               <EstablishTable
                 rows={model.checklist.map((row) => ({
@@ -455,7 +475,12 @@ export function StudyReport({
           ) : null}
 
           {showFacts && glanceRows.length > 0 ? (
-            <section id={SECTION_IDS.glance} tabIndex={-1} aria-labelledby={`${SECTION_IDS.glance}-h`} className={`${CARD} ${cardGap}`}>
+            <section
+              id={SECTION_IDS.glance}
+              tabIndex={-1}
+              aria-labelledby={`${SECTION_IDS.glance}-h`}
+              className={`${sectionShell(cardGap)} ${sectionGap}`}
+            >
               <h3 id={`${SECTION_IDS.glance}-h`} className={SECTION_HEADING}>
                 At a glance
               </h3>
@@ -487,7 +512,7 @@ export function StudyReport({
               key={`narrative-${sectionIndex + 1}`}
               id={`narrative-${sectionIndex + 1}`}
               tabIndex={-1}
-              className={`${CARD} ${customer ? "gap-4" : "gap-3"}`}
+              className={`${sectionShell(customer ? "gap-4" : "gap-3")} ${sectionGap}`}
               data-testid="study-view-section"
             >
               <h3 className={SECTION_HEADING}>{section.heading}</h3>
@@ -515,7 +540,7 @@ export function StudyReport({
                 Where the documents disagree
               </h3>
               {model.conflicts.map((row) => (
-                <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} />
+                <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} flat={flatInPaper} />
               ))}
             </section>
           ) : null}
@@ -532,7 +557,12 @@ export function StudyReport({
           ) : null}
 
           {showMissing && !packSections && workspaceSurface !== "missing" && hasAskSection ? (
-            <section id={SECTION_IDS.missing} tabIndex={-1} aria-labelledby={`${SECTION_IDS.missing}-h`} className={`${CARD} ${cardGap}`}>
+            <section
+              id={SECTION_IDS.missing}
+              tabIndex={-1}
+              aria-labelledby={`${SECTION_IDS.missing}-h`}
+              className={`${sectionShell(cardGap)} ${sectionGap}`}
+            >
               <h3 id={`${SECTION_IDS.missing}-h`} className={SECTION_HEADING}>
                 Missing documents
               </h3>
@@ -551,7 +581,11 @@ export function StudyReport({
                   aria-expanded={detailsOpen}
                   aria-controls={detailsId}
                   onClick={() => setDetailsOpen((open) => !open)}
-                  className="inline-flex min-h-12 w-full items-center justify-center rounded-control border border-line bg-paper px-4 text-body font-medium text-ink hover:bg-mist"
+                  className={
+                    flatInPaper
+                      ? "inline-flex min-h-11 w-full items-center justify-start px-0 text-body font-semibold text-blue-deep hover:underline"
+                      : "inline-flex min-h-12 w-full items-center justify-center rounded-control border border-line bg-paper px-4 text-body font-medium text-ink hover:bg-mist"
+                  }
                   data-testid="see-details"
                 >
                   {detailsOpen ? "Hide the details" : "See the details"}
@@ -578,12 +612,12 @@ export function StudyReport({
             ) : (
               <>
                 {reviewSpine.length > 0 ? (
-                  <section className={`${CARD} ${cardGap}`} data-testid="findings-review-items">
+                  <section className={`${sectionShell(cardGap)} ${sectionGap}`} data-testid="findings-review-items">
                     <EstablishTable rows={reviewSpine} compact={false} observations={model.observations} />
                   </section>
                 ) : null}
                 {reviewConflicts.map((row) => (
-                  <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} />
+                  <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} flat={flatInPaper} />
                 ))}
               </>
             )
@@ -594,7 +628,7 @@ export function StudyReport({
 
         {!workspaceSurface && toc.length > 1 ? (
           <aside className="flex-[1_1_240px] md:sticky md:top-[88px]" aria-label="On this page">
-            <nav className={`${CARD} gap-3`}>
+            <nav className={flatInPaper ? "flex flex-col gap-3" : `${CARD} gap-3`}>
               <h2 className="m-0 text-caption font-semibold text-ink-3">On this page</h2>
               <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                 {toc.map((item) => (
