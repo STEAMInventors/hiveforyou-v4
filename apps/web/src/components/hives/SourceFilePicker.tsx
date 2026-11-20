@@ -78,6 +78,7 @@ type AddFilesButtonProps = {
   describedBy?: string;
   /** Replaces the labelled button's styling. */
   className?: string;
+  "data-documents-add"?: string;
 };
 
 export function AddFilesButton({
@@ -87,6 +88,7 @@ export function AddFilesButton({
   showLabel = false,
   describedBy,
   className,
+  "data-documents-add": dataDocumentsAdd,
 }: AddFilesButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -110,6 +112,7 @@ export function AddFilesButton({
       <button
         type="button"
         disabled={disabled}
+        data-documents-add={dataDocumentsAdd}
         aria-label={showLabel ? undefined : label}
         aria-describedby={describedBy}
         className={

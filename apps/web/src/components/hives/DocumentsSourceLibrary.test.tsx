@@ -10,7 +10,7 @@ import { buildDocumentsLibraryReadMetrics } from "./documents-library-metrics";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => "/hives/test-hive/findings",
+  usePathname: () => "/hives/test-hive/documents",
   useSearchParams: () => new URLSearchParams(),
 }));
 
@@ -66,7 +66,6 @@ function renderLibrary(
   options: {
     readingInProgress?: boolean;
     onRetry?: () => void;
-    onAdd?: () => void;
   } = {},
 ) {
   const metrics = buildDocumentsLibraryReadMetrics(
@@ -90,8 +89,6 @@ function renderLibrary(
         studyView={studyView}
         metrics={metrics}
         readingInProgress={options.readingInProgress ?? false}
-        addDisabled={false}
-        onAddFiles={options.onAdd ?? (() => undefined)}
         onRetryRead={options.onRetry}
       />
     </EvidenceViewerProvider>,
@@ -99,7 +96,7 @@ function renderLibrary(
 }
 
 describe("DocumentsSourceLibrary", () => {
-  it("renders each read-state variant, duplicate detection, filter, and empty state", () => {
+  it("renders each read-state variant, duplicate detection, and uploaded heading", () => {
     const docs = [
       document(1, { readStatus: "SUCCEEDED", fileName: "first.pdf" }),
       document(2, { readStatus: "SUCCEEDED", fileName: "dupe.pdf" }),
@@ -109,28 +106,40 @@ describe("DocumentsSourceLibrary", () => {
       document(6, { readStatus: "PENDING" }),
     ];
     renderLibrary(docs, { readingInProgress: true });
+    expect(screen.getByRole("heading", { name: /Uploaded/i })).toBeTruthy();
     const table = screen.getByTestId("source-library-table");
-    expect(within(table).getByText("Pages read")).toBeTruthy();
+    expect(within(table).getAllByText("Read").length).toBeGreaterThan(0);
     expect(within(table).getByText("Duplicate")).toBeTruthy();
     expect(within(table).getByText(/% read/)).toBeTruthy();
-    expect(within(table).getAllByText("Couldn't read").length).toBeGreaterThanOrEqual(2);
+    expect(within(table).getAllByText("Not read yet").length).toBeGreaterThanOrEqual(2);
     expect(within(table).getByText("Reading…")).toBeTruthy();
-    fireEvent.change(screen.getByTestId("documents-library-filter"), { target: { value: "read" } });
-    expect(screen.getAllByTestId("source-library-row")).toHaveLength(1);
-    fireEvent.change(screen.getByTestId("documents-library-filter"), { target: { value: "to-review" } });
-    expect(screen.getAllByTestId("source-library-row").length).toBeGreaterThanOrEqual(3);
     cleanup();
     renderLibrary([]);
     expect(screen.queryByTestId("source-library-table")).toBeNull();
-    expect(screen.getByTestId("source-library-notice")).toBeTruthy();
+    expect(screen.queryByTestId("source-library-notice")).toBeNull();
   });
 
-  it("keeps Add files secondary and wires retry", () => {
+  it("opens the evidence viewer when a row is activated and wires retry", () => {
     const onRetry = vi.fn();
-    renderLibrary([document(1, { readStatus: "FAILED" })], { onRetry });
-    const add = screen.getByRole("button", { name: "Add files" });
-    expect(add.className).not.toMatch(/bg-cell-blue-deep/);
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    const open = vi.fn();
+    render(
+      <EvidenceViewerProvider hiveId={HIVE_ID} labels={new Map()} readCoverageLines={new Map()}>
+        <DocumentsSourceLibrary
+          documents={[document(1, { readStatus: "FAILED" })]}
+          documentMeta={{}}
+          studyView={studyView}
+          metrics={buildDocumentsLibraryReadMetrics(
+            [{ sourceDocumentId: document(1).sourceDocumentId, totalPhysicalPages: 4, verifiedPageCount: 0, missingPageNumbers: [] }],
+            [],
+          )}
+          readingInProgress={false}
+          onRetryRead={onRetry}
+        />
+      </EvidenceViewerProvider>,
+    );
+    const table = screen.getByTestId("source-library-table");
+    fireEvent.click(within(table).getByText("Try again"));
     expect(onRetry).toHaveBeenCalled();
+    void open;
   });
 });
