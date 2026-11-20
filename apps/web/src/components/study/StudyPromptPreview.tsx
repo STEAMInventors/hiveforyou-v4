@@ -38,7 +38,7 @@ const CHIP_CLASS =
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3 rounded-card border border-line bg-paper px-6 py-6 sm:px-8">
+    <section aria-labelledby={id} className="flex flex-col gap-3 rounded-input border border-line bg-paper px-6 py-6 sm:px-8">
       <h2 id={id} className="m-0 font-brand text-[21px] font-medium text-ink">
         {title}
       </h2>
@@ -67,8 +67,8 @@ function TextList({ label, items }: { label: string; items: string[] }) {
   if (items.length === 0) return null;
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">{label}</span>
-      <ul className="m-0 flex list-disc flex-col gap-0.5 pl-5 text-[14.5px] leading-[1.5] text-ink-muted">
+      <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-3">{label}</span>
+      <ul className="m-0 flex list-disc flex-col gap-0.5 pl-5 text-[14.5px] leading-[1.5] text-ink-2">
         {items.map((item, index) => (
           <li key={index}>{item}</li>
         ))}
@@ -91,11 +91,11 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
   return (
     <div className="flex flex-col gap-5" data-testid="study-prompt-preview">
       <header className="flex flex-col gap-2">
-        <span className="w-fit rounded-full bg-mist px-3 py-1 text-[12.5px] font-medium text-ink-muted">
+        <span className="w-fit rounded-full bg-mist px-3 py-1 text-[12.5px] font-medium text-ink-2">
           Prepared — Canonical Study not yet executed
         </span>
         <h1 className="m-0 font-brand text-[30px] font-semibold text-ink">Study prompt</h1>
-        <p className="m-0 text-[13px] text-ink-subtle">
+        <p className="m-0 text-[13px] text-ink-3">
           Prepared {new Date(preview.createdAt).toUTCString()} · {preview.promptId}
         </p>
       </header>
@@ -127,20 +127,20 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
         <div className="flex flex-col gap-1">
           <p className="m-0 text-[17px] font-semibold text-ink">
             {domain.primary.label}
-            {domain.primary.subdomain ? <span className="font-normal text-ink-muted"> — {domain.primary.subdomain}</span> : null}
+            {domain.primary.subdomain ? <span className="font-normal text-ink-2"> — {domain.primary.subdomain}</span> : null}
           </p>
-          <p className="m-0 text-[13px] text-ink-subtle">
+          <p className="m-0 text-[13px] text-ink-3">
             Model confidence: {domain.primary.confidence.toLowerCase()} (advisory, not proof)
             {domain.unknownDomain ? " · domain unclear" : ""}
             {domain.mixedDomain ? " · several domains" : ""}
             {domain.ambiguous ? " · ambiguous" : ""}
           </p>
         </div>
-        <p className="m-0 text-[14.5px] leading-[1.55] text-ink-muted">{domain.primary.reasoning}</p>
+        <p className="m-0 text-[14.5px] leading-[1.55] text-ink-2">{domain.primary.reasoning}</p>
         <PageChips refs={domain.primary.supportingRefs} fileNames={fileNames} />
         {domain.alternatives.length > 0 ? (
           <div className="flex flex-col gap-2">
-            <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">Also possible</span>
+            <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-3">Also possible</span>
             <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
               {domain.alternatives.map((alternative, index) => (
                 <li key={index} className="flex flex-col gap-1">
@@ -148,7 +148,7 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
                     {alternative.label}
                     {alternative.subdomain ? ` — ${alternative.subdomain}` : ""}
                   </span>
-                  <span className="text-[14px] text-ink-muted">{alternative.reasoning}</span>
+                  <span className="text-[14px] text-ink-2">{alternative.reasoning}</span>
                   <PageChips refs={alternative.supportingRefs} fileNames={fileNames} />
                 </li>
               ))}
@@ -167,20 +167,20 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
             return (
               <li key={goal.goalId} className="flex flex-col gap-3 border-t border-line pt-4 first:border-t-0 first:pt-0">
                 <div className="flex flex-col gap-1">
-                  <span className="font-mono text-[12px] text-ink-subtle">{goal.goalId}</span>
+                  <span className="font-mono text-[12px] text-ink-3">{goal.goalId}</span>
                   <span className="text-[16px] font-semibold text-ink">{goal.goal}</span>
-                  <span className="text-[14px] italic text-ink-muted">&ldquo;{goal.statedAs}&rdquo;</span>
+                  <span className="text-[14px] italic text-ink-2">&ldquo;{goal.statedAs}&rdquo;</span>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">
+                  <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-3">
                     What you asked, broken down
                   </span>
                   <ul className="m-0 flex list-none flex-col gap-1 p-0">
                     {goal.questions.map((question) => (
                       <li key={question.questionId} className="text-[14.5px] leading-[1.5] text-ink">
-                        <span className="font-mono text-[12px] text-ink-subtle">{question.questionId}</span> {question.question}
+                        <span className="font-mono text-[12px] text-ink-3">{question.questionId}</span> {question.question}
                         {question.needsJudgment ? (
-                          <span className="ml-2 text-[12px] text-ink-subtle">(needs assessment)</span>
+                          <span className="ml-2 text-[12px] text-ink-3">(needs assessment)</span>
                         ) : null}
                       </li>
                     ))}
@@ -197,22 +197,22 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
                 ) : null}
                 {specialist.length > 0 ? (
                   <div className="flex flex-col gap-2" data-testid={`specialist-questions-${goal.goalId}`}>
-                    <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">
+                    <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-3">
                       What a specialist would ask
                     </span>
                     <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
                       {specialist.map((question) => (
                         <li key={question.id} className="flex flex-col gap-1">
                           <span className="text-[14.5px] font-medium leading-[1.5] text-ink">
-                            <span className="font-mono text-[12px] text-ink-subtle">{question.id}</span> {question.question}
+                            <span className="font-mono text-[12px] text-ink-3">{question.id}</span> {question.question}
                           </span>
-                          <span className="text-[14px] leading-[1.5] text-ink-muted">{question.whyItMatters}</span>
-                          <span className="text-[12.5px] text-ink-subtle">
+                          <span className="text-[14px] leading-[1.5] text-ink-2">{question.whyItMatters}</span>
+                          <span className="text-[12.5px] text-ink-3">
                             Supports: {question.supportsOutcome}
                             {question.dependsOn.length > 0 ? ` · after ${question.dependsOn.join(", ")}` : ""}
                           </span>
                           {question.requiresJudgment ? (
-                            <span className="w-fit rounded-md border border-line px-2 py-0.5 text-[12.5px] text-ink-muted">
+                            <span className="w-fit rounded-md border border-line px-2 py-0.5 text-[12.5px] text-ink-2">
                               Needs an assessment{question.judgmentBasis ? `: ${question.judgmentBasis}` : ""}
                             </span>
                           ) : null}
@@ -224,28 +224,28 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
                 ) : null}
                 {planQuestions.length > 0 ? (
                   <div className="flex flex-col gap-2">
-                    <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-subtle">
+                    <span className="text-[12.5px] font-semibold uppercase tracking-[0.04em] text-ink-3">
                       Investigation questions
                     </span>
                     <ul className="m-0 flex list-none flex-col gap-3 p-0">
                       {planQuestions.map((question) => (
                         <li key={question.id} className="flex flex-col gap-1.5 rounded-[12px] bg-mist px-4 py-3">
                           <span className="text-[14.5px] font-medium leading-[1.5] text-ink">
-                            <span className="font-mono text-[12px] text-ink-subtle">{question.id}</span> {question.establish}
+                            <span className="font-mono text-[12px] text-ink-3">{question.id}</span> {question.establish}
                           </span>
-                          <span className="text-[12.5px] text-ink-subtle">
+                          <span className="text-[12.5px] text-ink-3">
                             {ANSWER_TYPE_LABEL[question.answerType]}
                             {question.specialistQuestionIds?.length ? ` · answers ${question.specialistQuestionIds.join(", ")}` : ""}
                             {question.dependsOn.length > 0 ? ` · after ${question.dependsOn.join(", ")}` : ""}
                           </span>
                           <TextList label="Evidence needed" items={question.requiredEvidence} />
                           <TextList label="Depends on records" items={question.sourceDependencies ?? []} />
-                          {question.comparison ? <p className="m-0 text-[14px] text-ink-muted">Compare: {question.comparison}</p> : null}
-                          {question.chronology ? <p className="m-0 text-[14px] text-ink-muted">Timeline: {question.chronology}</p> : null}
-                          {question.calculation ? <p className="m-0 text-[14px] text-ink-muted">Calculate: {question.calculation}</p> : null}
-                          {question.evaluation ? <p className="m-0 text-[14px] text-ink-muted">Assess: {question.evaluation}</p> : null}
+                          {question.comparison ? <p className="m-0 text-[14px] text-ink-2">Compare: {question.comparison}</p> : null}
+                          {question.chronology ? <p className="m-0 text-[14px] text-ink-2">Timeline: {question.chronology}</p> : null}
+                          {question.calculation ? <p className="m-0 text-[14px] text-ink-2">Calculate: {question.calculation}</p> : null}
+                          {question.evaluation ? <p className="m-0 text-[14px] text-ink-2">Assess: {question.evaluation}</p> : null}
                           <TextList label="If evidence is missing" items={question.missingEvidenceConditions} />
-                          <p className="m-0 text-[14px] text-ink-muted">Answer shape: {question.deliverable}</p>
+                          <p className="m-0 text-[14px] text-ink-2">Answer shape: {question.deliverable}</p>
                           <PageChips refs={question.domainConsiderationRefs} fileNames={fileNames} />
                         </li>
                       ))}
@@ -267,7 +267,7 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
       </Section>
 
       <Section id="study-coverage" title="Document coverage">
-        <p className="m-0 text-[14.5px] text-ink-muted">
+        <p className="m-0 text-[14.5px] text-ink-2">
           {sourceSnapshot.documents.length} document{sourceSnapshot.documents.length === 1 ? "" : "s"}, {totalPages} page
           {totalPages === 1 ? "" : "s"} included
           {preview.coverageComplete ? "." : " — some content is missing and was acknowledged before analysis."}
@@ -282,7 +282,7 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
                 <span className="truncate text-[14.5px] font-medium text-ink" title={doc.fileName}>
                   {doc.fileName}
                 </span>
-                <span className="text-[13px] text-ink-subtle">
+                <span className="text-[13px] text-ink-3">
                   {doc.verifiedPageCount} of {doc.totalPhysicalPages} pages read
                   {doc.missingPageNumbers.length > 0 ? ` · missing ${doc.missingPageNumbers.join(", ")}` : ""}
                   {doc.emptyPageNumbers.length > 0 ? ` · no text on ${doc.emptyPageNumbers.join(", ")}` : ""}
@@ -293,7 +293,7 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
           })}
           {sourceSnapshot.excluded.map((doc) => (
             <li key={doc.sourceDocumentId} className="flex flex-col gap-0.5 border-b border-line px-4 py-3 last:border-b-0">
-              <span className="truncate text-[14.5px] font-medium text-ink-muted" title={doc.fileName}>
+              <span className="truncate text-[14.5px] font-medium text-ink-2" title={doc.fileName}>
                 {doc.fileName}
               </span>
               <span className="text-[13px] text-coral-deep">Not included</span>
@@ -304,7 +304,7 @@ export function StudyPromptPreview({ preview, staleness, activeRun }: StudyPromp
 
       <Section id="study-prompt" title="Full prompt">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="break-all font-mono text-[11px] text-ink-subtle">{preview.promptDigest}</span>
+          <span className="break-all font-mono text-[11px] text-ink-3">{preview.promptDigest}</span>
           <CopyPromptButton text={preview.promptText} />
         </div>
         <pre

@@ -3,8 +3,7 @@
 import type { Hive } from "@hiveforyou/contracts";
 import { useState } from "react";
 
-import { WORKSPACE_PRIMARY } from "@/components/button-classes";
-import { Card } from "@/components/workspace/Card";
+import { Composer } from "@/components/ui/Composer";
 import { useWorkspaceAction } from "@/components/workspace/useWorkspaceAction";
 import type { FirmTeamNote } from "@/server/firm/load-firm-board";
 
@@ -33,42 +32,35 @@ export function HiveTeamNotesPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card title="Notes" testId="team-notes-list">
-        {notes.length === 0 ? (
-          <p className="m-0 text-small text-graphite">No team notes yet.</p>
-        ) : (
-          <ul className="m-0 flex list-none flex-col gap-3 p-0">
-            {notes.map((note) => (
-              <li key={note.teamNoteId} className="border-t border-line pt-3 first:border-0 first:pt-0">
-                <p className="m-0 text-caption text-quiet">
-                  {note.authorDisplayName ?? "Team member"} · {note.createdAt}
-                </p>
-                <p className="m-0 mt-1 text-small text-ink">{note.body}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-      <Card title="Add a note">
-        <label htmlFor="team-note-input" className="sr-only">
-          Team note
-        </label>
-        <textarea
-          id="team-note-input"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          rows={4}
-          className="w-full rounded-control border border-line px-3 py-2 text-small"
-        />
+    <div className="mx-auto flex w-full max-w-col-read flex-col gap-8" data-testid="team-notes-panel">
+      {notes.length === 0 ? (
+        <p className="m-0 text-body text-ink-2" data-testid="team-notes-list">
+          No team notes yet.
+        </p>
+      ) : (
+        <ul className="m-0 flex list-none flex-col gap-0 p-0" data-testid="team-notes-list">
+          {notes.map((note) => (
+            <li key={note.teamNoteId} className="border-b border-line py-4 first:pt-0">
+              <p className="m-0 text-meta text-ink-3">
+                <span className="font-semibold text-ink">{note.authorDisplayName ?? "Team member"}</span>
+                {" · "}
+                {note.createdAt}
+              </p>
+              <p className="m-0 mt-1.5 text-body text-ink">{note.body}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-col gap-2">
         {action.inlineError ? (
-          <p role="alert" className="m-0 mt-2 text-caption text-coral-deep">
+          <p role="alert" className="m-0 text-meta text-coral-deep">
             {action.inlineError.message}
             {action.inlineError.reference ? ` Reference ${action.inlineError.reference}.` : ""}
             {action.inlineError.retryable ? (
               <button
                 type="button"
-                className="ml-1 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
+                className="ml-1 border-0 bg-transparent p-0 font-semibold text-blue-deep"
                 onClick={() =>
                   void action.retrySameKey({
                     url: `/api/v1/hives/${hive.id}/team-notes`,
@@ -82,15 +74,22 @@ export function HiveTeamNotesPanel({
             ) : null}
           </p>
         ) : null}
-        <button
-          type="button"
-          className={`${WORKSPACE_PRIMARY} mt-3`}
-          disabled={action.pending || !draft.trim()}
-          onClick={() => void save()}
-        >
-          {action.pending ? "Saving…" : "Save note"}
-        </button>
-      </Card>
+        <Composer
+          textareaId="team-note-input"
+          textareaLabel="Team note"
+          hint="Staff only"
+          lock
+          primaryLabel={action.pending ? "Adding…" : "Add note"}
+          onPrimary={() => void save()}
+          primaryDisabled={action.pending || !draft.trim()}
+          textareaProps={{
+            value: draft,
+            onChange: (event) => setDraft(event.target.value),
+            rows: 4,
+            placeholder: "Write a note only your team will see…",
+          }}
+        />
+      </div>
     </div>
   );
 }

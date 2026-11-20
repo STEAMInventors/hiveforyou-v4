@@ -7,6 +7,8 @@ const routerMock = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
+  usePathname: () => "/hives/11111111-1111-4111-8111-111111111111/study",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import { DOCUMENT_READ_POLL_INTERVAL_MS } from "@/components/hives/document-read-progress";

@@ -72,7 +72,7 @@ export function InviteAcceptPanel(props: InviteAcceptPanelProps) {
     return (
       <div className="mx-auto flex max-w-[480px] flex-col gap-4 px-5 py-16 text-center">
         <h1 className="m-0 font-brand text-[28px] font-semibold text-ink">This link cannot be used</h1>
-        <p className="m-0 text-body text-graphite">Ask the person who sent it to send you a new invitation.</p>
+        <p className="m-0 text-body text-ink-2">Ask the person who sent it to send you a new invitation.</p>
         <Link href="/" className={QUIET_LINK_CLASS}>
           Back to HiveForYou
         </Link>
@@ -84,7 +84,7 @@ export function InviteAcceptPanel(props: InviteAcceptPanelProps) {
     return (
       <div className="mx-auto flex max-w-[480px] flex-col gap-4 px-5 py-16 text-center">
         <h1 className="m-0 font-brand text-[28px] font-semibold text-ink">Wrong account</h1>
-        <p className="m-0 text-body text-graphite">
+        <p className="m-0 text-body text-ink-2">
           This invitation is for <strong>{props.invitedEmail}</strong>. You are signed in as {props.sessionEmail}.
         </p>
         <form action={signOutAction} className="m-0">
@@ -152,26 +152,26 @@ export function InviteAcceptPanel(props: InviteAcceptPanelProps) {
     <div className="mx-auto flex w-full max-w-[420px] flex-col gap-5 px-5 pb-16 pt-[clamp(32px,8vh,80px)]">
       {isClient ? (
         <>
-          <p className="m-0 text-center text-body text-graphite">
+          <p className="m-0 text-center text-body text-ink-2">
             {welcome?.inviterDisplayName
               ? `${welcome.inviterDisplayName} invited you to upload documents.`
               : "You were invited to upload documents."}
           </p>
           {typeof welcome?.requestedItemCount === "number" && welcome.requestedItemCount > 0 ? (
-            <p className="m-0 text-center text-small text-graphite">
+            <p className="m-0 text-center text-small text-ink-2">
               {welcome.requestedItemCount} requested item{welcome.requestedItemCount === 1 ? "" : "s"}
             </p>
           ) : null}
           <h1 className="m-0 text-center font-brand text-[30px] font-semibold leading-tight text-ink">
             Send what you have from your phone
           </h1>
-          <ul className="m-0 flex list-none flex-col gap-3 p-0 text-body text-graphite">
+          <ul className="m-0 flex list-none flex-col gap-3 p-0 text-body text-ink-2">
             <li>Photos or files you already have</li>
             <li>Old, partial or out of order is fine</li>
             <li>You can stop and come back anytime</li>
           </ul>
           <label htmlFor={firstNameId} className="flex flex-col gap-1.5 text-[14px] font-medium text-ink">
-            Your first name <span className="font-normal text-quiet">(optional)</span>
+            Your first name <span className="font-normal text-ink-3">(optional)</span>
             <input
               id={firstNameId}
               name="firstName"
@@ -183,24 +183,24 @@ export function InviteAcceptPanel(props: InviteAcceptPanelProps) {
           <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={busy} onClick={() => void accept()}>
             {busy ? "Starting…" : "Start"}
           </button>
-          <p className="m-0 text-center text-small text-quiet">
+          <p className="m-0 text-center text-small text-ink-3">
             Old, partial or out of order is fine. You can stop and come back.
           </p>
         </>
       ) : (
         <>
-          <p className="m-0 text-center text-body text-graphite">
+          <p className="m-0 text-center text-body text-ink-2">
             {welcome?.inviterDisplayName
               ? `${welcome.inviterDisplayName} shared ${lookup.hiveName ?? "a hive"} with you`
               : `${lookup.hiveName ?? "A hive"} was shared with you`}
           </p>
           {welcome?.documentsReadLabel ? (
-            <p className="m-0 text-center text-small text-graphite">{welcome.documentsReadLabel}</p>
+            <p className="m-0 text-center text-small text-ink-2">{welcome.documentsReadLabel}</p>
           ) : null}
           <h1 className="m-0 text-center font-brand text-[30px] font-semibold leading-tight text-ink">
             Read the summary when you are ready
           </h1>
-          <p className="m-0 text-center text-body text-graphite">
+          <p className="m-0 text-center text-body text-ink-2">
             Reading doesn&apos;t take it on. The owner is told only what you decide.
           </p>
           <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={busy} onClick={() => void accept()}>

@@ -23,7 +23,7 @@ export function Card({ title, subtitle, headerRight, children, className = "", t
         <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             {title ? <h2 className="m-0 text-body font-semibold text-ink">{title}</h2> : null}
-            {subtitle ? <p className="m-0 mt-0.5 text-caption text-graphite">{subtitle}</p> : null}
+            {subtitle ? <p className="m-0 mt-0.5 text-caption text-ink-2">{subtitle}</p> : null}
           </div>
           {headerRight ? <div className="shrink-0">{headerRight}</div> : null}
         </header>

@@ -21,7 +21,7 @@ function QueueCount({ count, needsBlueBadge }: { count: number; needsBlueBadge?:
   return (
     <span
       className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-pill px-1.5 py-0.5 text-[11px] font-semibold ${
-        needsBlueBadge ? "bg-cell-blue-wash text-cell-blue-deep" : "bg-mist text-graphite"
+        needsBlueBadge ? "bg-blue-wash text-blue-deep" : "bg-mist text-ink-2"
       }`}
     >
       {count}
@@ -41,7 +41,7 @@ function QueueButton({
   onSelect: (queue: ClientsHomeQueue) => void;
 }) {
   const shared = `inline-flex min-h-11 items-center gap-2.5 text-small font-medium ${
-    active ? "bg-cell-blue-wash text-cell-blue-deep" : "text-graphite hover:bg-mist hover:text-ink"
+    active ? "bg-blue-wash text-blue-deep" : "text-ink-2 hover:bg-mist hover:text-ink"
   }`;
 
   if (compact) {
@@ -50,7 +50,7 @@ function QueueButton({
         type="button"
         aria-current={active ? "page" : undefined}
         onClick={() => onSelect(item.queue)}
-        className={`${shared} shrink-0 rounded-control border px-3 ${active ? "border-cell-blue-wash" : "border-line bg-paper"}`}
+        className={`${shared} shrink-0 rounded-control border px-3 ${active ? "border-blue-wash" : "border-line bg-paper"}`}
       >
         <ClientsHomeQueueIcon queue={item.queue} />
         {item.label}
@@ -78,7 +78,7 @@ function QueueButton({
 function GroupLabel({ label, compact }: { label: string; compact: boolean }) {
   if (compact) return null;
   return (
-    <p className="mb-1 mt-3 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-quiet first:mt-0">{label}</p>
+    <p className="mb-1 mt-3 px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 first:mt-0">{label}</p>
   );
 }
 

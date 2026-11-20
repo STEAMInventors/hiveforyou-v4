@@ -7,7 +7,9 @@ import { OmniCatalogProvider } from "@/components/ui/omni-catalog";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/hives/11111111-1111-4111-8111-111111111111",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import { HiveOmni, questionsFrom } from "./HiveOmni";

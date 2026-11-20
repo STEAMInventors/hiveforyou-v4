@@ -3,7 +3,6 @@ export type { AvatarKind, AvatarPerson } from "./AvatarStack";
 export { Button } from "./Button";
 export { Composer } from "./Composer";
 export { Disclosure } from "./Disclosure";
-export { Drawer } from "./Drawer";
 export { GlanceRow } from "./GlanceRow";
 export type { GlanceEntry } from "./GlanceRow";
 export { ItemRow } from "./ItemRow";

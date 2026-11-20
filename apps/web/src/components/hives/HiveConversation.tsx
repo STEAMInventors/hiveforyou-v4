@@ -108,7 +108,7 @@ type ConversationPreviewSelectProps = {
 export function ConversationPreviewSelect({ id, value, onChange }: ConversationPreviewSelectProps) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <label htmlFor={id} className="text-[13px] text-quiet">
+      <label htmlFor={id} className="text-[13px] text-ink-3">
         Preview as
       </label>
       <select
@@ -281,14 +281,14 @@ function PendingRow({
     <article className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 py-3" data-testid="hive-message-pending" data-status={item.status}>
       <Avatar name={ownName} className={ownAvatarClass} />
       <div className="min-w-0">
-        <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 text-[12px] text-quiet">
+        <p className="m-0 flex flex-wrap items-baseline gap-x-1.5 text-[12px] text-ink-3">
           <strong className="text-[13px] font-semibold text-ink">{ownName}</strong>
           <span aria-hidden="true">·</span>
           <span>{failed ? "Not sent" : "Sending…"}</span>
         </p>
         <p className={BODY_CLASS}>{item.body}</p>
         {failed && item.failure ? (
-          <div className="mt-2.5 border-t border-cell-blue-tint pt-2.5">
+          <div className="mt-2.5 border-t border-blue-tint pt-2.5">
             <p role="alert" className="m-0 text-caption text-ink">
               {item.failure.message}
               {item.failure.reference ? (
@@ -557,7 +557,7 @@ export function HiveConversation({
               </button>
             </label>
           ) : (
-            <p className="m-0 max-w-xs text-[12px] text-quiet" data-testid="hive-assistant-unavailable-note">
+            <p className="m-0 max-w-xs text-[12px] text-ink-3" data-testid="hive-assistant-unavailable-note">
               The AI assistant answers only on hives with test documents for now.
             </p>
           )}
@@ -648,7 +648,7 @@ export function HiveConversation({
                     </p>
                   </div>
                 ) : (
-                  <p className="m-auto max-w-[420px] text-center text-small text-graphite">{CONVERSATION_EMPTY}</p>
+                  <p className="m-auto max-w-[420px] text-center text-small text-ink-2">{CONVERSATION_EMPTY}</p>
                 )
               ) : null}
               {messages.map((message) => {
@@ -674,11 +674,11 @@ export function HiveConversation({
                         role="separator"
                         aria-label="New messages"
                         data-new-divider=""
-                        className="flex items-center gap-3 text-caption font-semibold text-cell-blue-deep"
+                        className="flex items-center gap-3 text-caption font-semibold text-blue-deep"
                       >
-                        <span className="h-px flex-1 bg-cell-blue-tint" aria-hidden="true" />
+                        <span className="h-px flex-1 bg-blue-wash" aria-hidden="true" />
                         New
-                        <span className="h-px flex-1 bg-cell-blue-tint" aria-hidden="true" />
+                        <span className="h-px flex-1 bg-blue-wash" aria-hidden="true" />
                       </div>
                     ) : null}
                     <MessageRow
@@ -725,7 +725,7 @@ export function HiveConversation({
                     !viewerIsClient &&
                     message.authorKind === "person" &&
                     conversation.failedAssistantForMessageIds.includes(message.id) ? (
-                      <p className="m-0 ms-11 text-[12px] text-quiet" data-testid="hive-assistant-failed-line">
+                      <p className="m-0 ms-11 text-[12px] text-ink-3" data-testid="hive-assistant-failed-line">
                         {displayAssistantName} couldn&apos;t answer this one.
                       </p>
                     ) : null}
@@ -758,7 +758,7 @@ export function HiveConversation({
             ) : null}
           </div>
           {preview ? (
-            <p className="m-0 border-t border-line px-5 py-4 text-small text-graphite max-[649px]:p-[15px]">
+            <p className="m-0 border-t border-line px-5 py-4 text-small text-ink-2 max-[649px]:p-[15px]">
               Preview — this is what {clientFirst} sees.
             </p>
           ) : readOnly ? null : (

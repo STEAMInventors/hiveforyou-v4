@@ -76,7 +76,7 @@ const SECTION_IDS = STUDY_SECTION_IDS;
 
 const DETAIL_SECTION_IDS: ReadonlySet<string> = new Set([SECTION_IDS.establish, SECTION_IDS.timeline, SECTION_IDS.documents]);
 
-const CARD = "flex flex-col rounded-card border border-line bg-paper p-5 sm:p-7";
+const CARD = "flex flex-col rounded-input border border-line bg-paper p-5 sm:p-7";
 const SECTION_HEADING = "m-0 font-brand text-section font-semibold text-ink";
 
 const writtenFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -238,7 +238,7 @@ export function StudyReport({
           </span>
         </span>
         {header.currentRevisionNumber != null && header.revisionNumber !== header.currentRevisionNumber ? (
-          <span className="text-caption text-quiet">As of revision {header.revisionNumber}</span>
+          <span className="text-caption text-ink-3">As of revision {header.revisionNumber}</span>
         ) : null}
       </span>
     ) : header.revisionNumber !== null ? (
@@ -280,7 +280,7 @@ export function StudyReport({
       content: (
         <>
           <span className="font-semibold">{model.needsRows.length}</span>
-          <ul className="m-0 mt-1 flex list-disc flex-col gap-0.5 pl-5 marker:text-quiet">
+          <ul className="m-0 mt-1 flex list-disc flex-col gap-0.5 pl-5 marker:text-ink-3">
             {model.needsRows.map((row) => (
               <li key={row.id}>{row.label}</li>
             ))}
@@ -318,7 +318,7 @@ export function StudyReport({
       <h3 id={`${SECTION_IDS.establish}-h`} className={SECTION_HEADING}>
         What the documents establish
       </h3>
-      {model.structuralNote ? <p className="m-0 max-w-prose text-body text-graphite">{model.structuralNote}</p> : null}
+      {model.structuralNote ? <p className="m-0 max-w-prose text-body text-ink-2">{model.structuralNote}</p> : null}
       {model.spine.length > 0 ? (
         <EstablishTable rows={model.spine} compact={!customer} observations={model.observations} />
       ) : null}
@@ -386,13 +386,13 @@ export function StudyReport({
             <div className="flex flex-col gap-1.5">
               <h2 className="m-0 font-brand text-title font-semibold text-ink">{title}</h2>
               {view.writtenFor ? (
-                <p className="m-0 text-small text-quiet" data-testid="written-for">
+                <p className="m-0 text-small text-ink-3" data-testid="written-for">
                   Written for: {view.writtenFor}
                 </p>
               ) : null}
               {model.packMeta ? (
                 <p
-                  className="m-0 text-small text-quiet"
+                  className="m-0 text-small text-ink-3"
                   title={model.packMeta.verified}
                   data-testid="pack-reviewed-with"
                 >
@@ -401,13 +401,13 @@ export function StudyReport({
               ) : null}
               {meta || revisionActions ? (
                 <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                  {meta ? <p className="m-0 text-small text-quiet">{meta}</p> : null}
+                  {meta ? <p className="m-0 text-small text-ink-3">{meta}</p> : null}
                   {revisionActions}
                 </div>
               ) : null}
             </div>
             {view.intent ? (
-              <p className="m-0 max-w-prose text-body text-graphite">
+              <p className="m-0 max-w-prose text-body text-ink-2">
                 <span className="font-medium text-ink">You asked:</span>{" "}
                 <span className="font-quote italic">{view.intent}</span>
               </p>
@@ -429,9 +429,9 @@ export function StudyReport({
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {model.personaCoverageCard.map((row) => (
                   <li key={`${row.audience}-${row.questionId}`} className="flex flex-col gap-1 border-b border-line pb-2 last:border-0">
-                    <span className="text-caption uppercase tracking-wide text-quiet">{row.audience}</span>
+                    <span className="text-caption uppercase tracking-wide text-ink-3">{row.audience}</span>
                     <span className="text-body text-ink">{row.questionText}</span>
-                    <span className="text-small text-quiet">{row.status}</span>
+                    <span className="text-small text-ink-3">{row.status}</span>
                     {row.values.length > 0 ? <SourceChips refs={row.values.map((v) => refChip(v.factId, v.sourceRef))} /> : null}
                   </li>
                 ))}
@@ -462,7 +462,7 @@ export function StudyReport({
               <dl className="m-0 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-[180px_minmax(0,1fr)]">
                 {glanceRows.map((row) => (
                   <div key={row.label} className="contents">
-                    <dt className="text-small text-quiet">{row.label}</dt>
+                    <dt className="text-small text-ink-3">{row.label}</dt>
                     <dd className="m-0 max-w-prose text-body text-ink max-sm:-mt-3">{row.content}</dd>
                   </div>
                 ))}
@@ -572,7 +572,7 @@ export function StudyReport({
 
           {showReview ? (
             reviewSpine.length === 0 && reviewConflicts.length === 0 ? (
-              <p className="m-0 text-small text-graphite" data-testid="findings-review-empty">
+              <p className="m-0 text-small text-ink-2" data-testid="findings-review-empty">
                 Nothing to review right now.
               </p>
             ) : (
@@ -595,13 +595,13 @@ export function StudyReport({
         {!workspaceSurface && toc.length > 1 ? (
           <aside className="flex-[1_1_240px] md:sticky md:top-[88px]" aria-label="On this page">
             <nav className={`${CARD} gap-3`}>
-              <h2 className="m-0 text-caption font-semibold text-quiet">On this page</h2>
+              <h2 className="m-0 text-caption font-semibold text-ink-3">On this page</h2>
               <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
                 {toc.map((item) => (
                   <li key={item.id}>
                     <a
                       href={`#${item.id}`}
-                      className="flex min-h-9 items-center rounded-chip px-2 text-small text-graphite no-underline hover:bg-mist hover:text-ink max-sm:min-h-[44px]"
+                      className="flex min-h-9 items-center rounded-chip px-2 text-small text-ink-2 no-underline hover:bg-mist hover:text-ink max-sm:min-h-[44px]"
                       onClick={(event) => {
                         event.preventDefault();
                         navigate(item.id);

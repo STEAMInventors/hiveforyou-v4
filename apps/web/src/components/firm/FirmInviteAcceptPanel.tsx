@@ -25,7 +25,7 @@ export function FirmInviteAcceptPanel(props: FirmInviteAcceptPanelProps) {
       return (
         <div className="mx-auto flex max-w-[480px] flex-col gap-4 px-5 py-16 text-center" data-testid="firm-invite-wrong-email">
           <h1 className="m-0 font-brand text-[28px] font-semibold text-ink">Wrong account</h1>
-          <p className="m-0 text-body text-graphite">
+          <p className="m-0 text-body text-ink-2">
             This invitation is for <strong>{props.invitedEmail}</strong>. You are signed in as {props.sessionEmail}.
           </p>
           <form action={signOutAction} className="m-0">
@@ -39,7 +39,7 @@ export function FirmInviteAcceptPanel(props: FirmInviteAcceptPanelProps) {
     return (
       <div className="mx-auto flex max-w-[480px] flex-col gap-4 px-5 py-16 text-center" data-testid={`firm-invite-${props.mode}`}>
         <h1 className="m-0 font-brand text-[28px] font-semibold text-ink">This link cannot be used</h1>
-        <p className="m-0 text-body text-graphite">Ask the person who sent it to send you a new invitation.</p>
+        <p className="m-0 text-body text-ink-2">Ask the person who sent it to send you a new invitation.</p>
         <Link href="/" className={QUIET_LINK_CLASS}>
           Back to HiveForYou
         </Link>
@@ -84,11 +84,11 @@ export function FirmInviteAcceptPanel(props: FirmInviteAcceptPanelProps) {
       <h1 className="m-0 text-center font-brand text-[30px] font-semibold leading-tight text-ink">
         You were added to {firmName}
       </h1>
-      <p className="m-0 text-center text-body text-graphite">
+      <p className="m-0 text-center text-body text-ink-2">
         {lookup.title ? `${lookup.title} on HiveForYou.` : "Join the team on HiveForYou."} No password.
       </p>
       <label htmlFor={firstNameId} className="flex flex-col gap-1.5 text-[14px] font-medium text-ink">
-        Your first name <span className="font-normal text-quiet">(optional)</span>
+        Your first name <span className="font-normal text-ink-3">(optional)</span>
         <input
           id={firstNameId}
           value={firstName}

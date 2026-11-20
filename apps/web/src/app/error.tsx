@@ -12,16 +12,16 @@ export default function GlobalError({
     <div className="flex min-h-dvh flex-col items-center bg-paper px-4 py-12 text-ink">
       <section
         role="alert"
-        className="w-full max-w-md rounded-card border border-line bg-paper p-8 text-center"
+        className="w-full max-w-md rounded-input border border-line bg-paper p-8 text-center"
       >
         <h1 className="m-0 font-brand text-[21px] font-medium text-ink">
           Something went wrong
         </h1>
-        <p className="mb-0 mt-2 text-[15px] leading-[1.55] text-ink-muted">
+        <p className="mb-0 mt-2 text-[15px] leading-[1.55] text-ink-2">
           We could not load this page. Your documents and Study are not changed
           by this error.
         </p>
-        <p className="mb-0 mt-2 text-[12.5px] text-ink-subtle">
+        <p className="mb-0 mt-2 text-[12.5px] text-ink-3">
           If this keeps happening, note the time and contact support. Technical
           details are not shown here.
         </p>

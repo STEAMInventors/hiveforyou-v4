@@ -53,19 +53,10 @@
   --font-quote: "Source Serif 4", Georgia, serif;
   --font-ref: "JetBrains Mono", ui-monospace, monospace;
 
-  /* Legacy aliases (remove in UI-2 Part H) */
-  --canvas: var(--mist);
   --r-control: var(--r-button);
   --r-surface: var(--r-input);
   --r-chip: var(--r-ref);
-  --r-paper: var(--r-page);
-  --r-card: var(--r-input);
-  --shadow-composer: var(--shadow-lift);
   --shadow-paper: 0 1px 2px rgba(16, 24, 40, 0.04), 0 16px 40px -24px rgba(16, 24, 40, 0.22);
-  --cell-blue: var(--blue);
-  --cell-blue-deep: var(--blue-deep);
-  --graphite: var(--ink-2);
-  --quiet: var(--ink-3);
   --needs-bg: var(--blue-wash);
   --needs-fg: var(--blue-deep);
   --changed-bg: var(--honey-wash);
@@ -81,12 +72,9 @@
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
-  --color-ink-muted: var(--ink-2);
-  --color-ink-subtle: var(--ink-3);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-paper: var(--paper);
-  --color-canvas: var(--canvas);
   --color-hover: var(--hover);
   --color-page-warm: var(--page-warm);
   --color-cite: var(--cite);
@@ -108,13 +96,7 @@
   --color-leaf: var(--leaf);
   --color-leaf-deep: var(--leaf-deep);
   --color-leaf-wash: var(--leaf-wash);
-  --color-cell-blue: var(--blue);
-  --color-cell-blue-deep: var(--blue-deep);
-  --color-cell-blue-hover: #164aa8;
-  --color-cell-blue-wash: var(--blue-wash);
-  --color-cell-blue-tint: #f4f8ff;
   --color-mist: var(--mist);
-  --color-surface-hover: #fafbfc;
 }
 
 @layer base {
@@ -250,11 +232,11 @@
     padding: 2px;
     background: conic-gradient(
       from 200deg,
-      var(--color-cell-blue),
+      var(--color-blue),
       var(--color-coral),
       var(--color-honey),
       var(--color-leaf),
-      var(--color-cell-blue)
+      var(--color-blue)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -298,11 +280,11 @@
     padding: 2px;
     background: conic-gradient(
       from 200deg,
-      var(--color-cell-blue),
+      var(--color-blue),
       var(--color-coral),
       var(--color-honey),
       var(--color-leaf),
-      var(--color-cell-blue)
+      var(--color-blue)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -353,11 +335,11 @@
     padding: 2px;
     background: conic-gradient(
       from 200deg,
-      var(--color-cell-blue),
+      var(--color-blue),
       var(--color-coral),
       var(--color-honey),
       var(--color-leaf),
-      var(--color-cell-blue)
+      var(--color-blue)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -446,7 +428,7 @@
     }
     30% {
       transform: scale(1.14);
-      color: var(--lh-pulse, var(--color-cell-blue));
+      color: var(--lh-pulse, var(--color-blue));
     }
   }
 
@@ -456,5 +438,25 @@
     box-shadow: 0 0 0 1px var(--cite-ring);
     color: transparent;
     mix-blend-mode: multiply;
+  }
+
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    [data-print="report"],
+    [data-print="report"] * {
+      visibility: visible;
+    }
+    [data-print="report"] {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      box-shadow: none !important;
+    }
+    .no-print {
+      display: none !important;
+    }
   }
 }

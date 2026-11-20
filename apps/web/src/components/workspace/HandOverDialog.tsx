@@ -141,13 +141,13 @@ export function HandOverDialog({
           </select>
         </label>
         {unassigned ? (
-          <p className="m-0 text-caption text-graphite">
+          <p className="m-0 text-caption text-ink-2">
             An unassigned hive keeps no handover note. Assign someone to leave a note for them.
           </p>
         ) : (
           <label className="flex flex-col gap-1.5 text-small font-medium text-ink" htmlFor={noteId}>
             Note for the next person
-            <span className="text-caption font-normal text-graphite">Optional</span>
+            <span className="text-caption font-normal text-ink-2">Optional</span>
             <textarea
               id={noteId}
               value={note}
@@ -156,7 +156,7 @@ export function HandOverDialog({
               onChange={(event) => setNote(event.target.value)}
               className="w-full rounded-control border border-line px-3 py-2 text-small font-normal"
             />
-            <span className="text-caption font-normal text-quiet">
+            <span className="text-caption font-normal text-ink-3">
               {note.length}/{NOTE_MAX}
             </span>
           </label>
@@ -173,7 +173,7 @@ export function HandOverDialog({
             {action.inlineError.retryable ? (
               <button
                 type="button"
-                className="ml-2 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
+                className="ml-2 border-0 bg-transparent p-0 font-semibold text-blue-deep"
                 onClick={() => void action.retrySameKey({
                   url: `/api/v1/hives/${hive.id}/assignment`,
                   body: {

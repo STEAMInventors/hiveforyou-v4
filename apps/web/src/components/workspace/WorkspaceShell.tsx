@@ -11,10 +11,9 @@ import { useHiveHeaderWorkspace } from "@/components/app-header";
 
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 
-import type { StudyRailRevision } from "./HiveSidebar";
 import { HiveHead } from "./HiveHead";
 import { WorkspaceChromeProvider } from "./workspace-context";
-import type { HiveSidebarCounts } from "./sidebar-counts";
+import type { HiveSidebarCounts, StudyRailRevision } from "./sidebar-counts";
 
 export type WorkspaceShellProps = {
   hive: Hive;

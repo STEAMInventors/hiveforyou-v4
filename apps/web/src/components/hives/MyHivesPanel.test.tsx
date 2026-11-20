@@ -163,7 +163,7 @@ describe("MyHivesPanel", () => {
       </ClientsHomeProvider>,
     );
     const row = screen.getByTestId("clients-home-row");
-    expect(within(row).getByText("3 of 3 in")).toBeTruthy();
+    expect(within(row).getByText("3 documents")).toBeTruthy();
     expect(screen.queryByText("Alex Carter")).toBeNull();
   });
 

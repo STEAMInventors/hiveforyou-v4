@@ -34,7 +34,7 @@ export function ScenarioExplorerView({ scenario, verifiedInputs, refs }: Scenari
     <section className={CARD_CLASS} data-component="ScenarioExplorer">
       <div className="flex flex-col gap-1">
         <h3 className={HEADING_CLASS}>{scenario.title}</h3>
-        <p className="m-0 text-[14.5px] leading-[1.55] text-ink-muted">{scenario.question}</p>
+        <p className="m-0 text-[14.5px] leading-[1.55] text-ink-2">{scenario.question}</p>
       </div>
       <ul className="m-0 flex list-none flex-col gap-2.5 p-0" aria-label="Inputs">
         {scenario.parameters.map((parameter) => {
@@ -46,7 +46,7 @@ export function ScenarioExplorerView({ scenario, verifiedInputs, refs }: Scenari
             <li key={parameter.name} className="flex flex-wrap items-center gap-2">
               <label htmlFor={inputId} className="min-w-[160px] flex-1 text-[14px] text-ink">
                 {parameter.label}
-                <span className="ml-1.5 text-[12px] text-ink-subtle">{editable ? "assumption" : "from your documents"}</span>
+                <span className="ml-1.5 text-[12px] text-ink-3">{editable ? "assumption" : "from your documents"}</span>
               </label>
               <input
                 id={inputId}
@@ -56,10 +56,10 @@ export function ScenarioExplorerView({ scenario, verifiedInputs, refs }: Scenari
                 value={value}
                 onChange={(event) => setOverrides((current) => ({ ...current, [parameter.name]: event.target.value }))}
                 className={`w-32 rounded-control border px-2.5 py-1.5 font-mono text-[13.5px] ${
-                  editable ? "border-line-strong bg-paper text-ink" : "border-line bg-mist text-ink-muted"
+                  editable ? "border-line-strong bg-paper text-ink" : "border-line bg-mist text-ink-2"
                 } ${invalid ? "border-coral" : ""}`}
               />
-              {parameter.unit ? <span className="text-[13px] text-ink-subtle">{parameter.unit}</span> : null}
+              {parameter.unit ? <span className="text-[13px] text-ink-3">{parameter.unit}</span> : null}
             </li>
           );
         })}
@@ -78,7 +78,7 @@ export function ScenarioExplorerView({ scenario, verifiedInputs, refs }: Scenari
       {changed ? (
         <button
           type="button"
-          className="self-start text-[13px] font-medium text-cell-blue-deep underline"
+          className="self-start text-[13px] font-medium text-blue-deep underline"
           onClick={() => setOverrides({})}
         >
           Reset assumptions

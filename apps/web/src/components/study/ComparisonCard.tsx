@@ -97,7 +97,7 @@ function SideLabel({ side, date }: { side: ComparisonSide; date: string | null |
   const label = useDocumentLabel(side.sourceDocumentId);
   const when = formatDocumentDate(date);
   return (
-    <p className="m-0 text-caption text-quiet">
+    <p className="m-0 text-caption text-ink-3">
       {label}
       {when ? (
         <>
@@ -118,7 +118,7 @@ export function ComparisonCard({ row, documentDate }: ComparisonCardProps) {
   const sides = conflictSides(row);
   const difference = sidesDifference(sides);
   return (
-    <article className="overflow-hidden rounded-card border border-line bg-paper" data-row-id={row.id} data-testid="comparison-card">
+    <article className="overflow-hidden rounded-input border border-line bg-paper" data-row-id={row.id} data-testid="comparison-card">
       <header className="flex flex-wrap items-start gap-3 border-b border-line bg-mist px-5 py-4 sm:px-7">
         <StatusBadge state="needs" />
         <p className="m-0 max-w-prose flex-1 text-body font-medium text-ink">{row.statement}</p>
@@ -133,7 +133,7 @@ export function ComparisonCard({ row, documentDate }: ComparisonCardProps) {
               </p>
             ))}
             {side.quotes.map((quote) => (
-              <p key={quote} className="m-0 font-quote text-small text-graphite">
+              <p key={quote} className="m-0 font-quote text-small text-ink-2">
                 “{quote}”
               </p>
             ))}
@@ -145,7 +145,7 @@ export function ComparisonCard({ row, documentDate }: ComparisonCardProps) {
       </div>
       {/* TODO(cleanup item 1): add a "Worth asking:" line once hive-write/1 returns one per conflict. */}
       {difference ? (
-        <footer className="border-t border-line px-5 py-4 text-small text-graphite sm:px-7" data-testid="comparison-difference">
+        <footer className="border-t border-line px-5 py-4 text-small text-ink-2 sm:px-7" data-testid="comparison-difference">
           <span className="inline-flex flex-wrap items-center gap-2">
             <HiveMark />
             <span>

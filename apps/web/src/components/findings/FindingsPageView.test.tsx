@@ -122,17 +122,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("FindingsPageView layout", () => {
-  it("places the question card after topics without Ask or magnifier styling", () => {
-    renderFindingsPage();
-    expect(screen.getByTestId("hive-ask-findings")).toBeTruthy();
-    expect(screen.queryByTestId("hive-ask")).toBeNull();
-    const topics = screen.getByTestId("findings-topics");
-    const question = screen.getByTestId("findings-question-card");
-  expect(topics.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-});
-
 describe("FindingsPageView evidence flow", () => {
   it("opens the evidence view with spine context and comparison for conflicts", () => {
     const { openItems } = renderFindingsPage();

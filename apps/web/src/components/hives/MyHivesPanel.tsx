@@ -237,7 +237,7 @@ export function MyHivesPanel({
     );
 
     return (
-      <div className="flex min-h-full flex-1 flex-col bg-canvas min-[900px]:grid min-[900px]:grid-cols-[236px_minmax(0,1fr)]">
+      <div className="flex min-h-full flex-1 flex-col bg-mist min-[900px]:grid min-[900px]:grid-cols-[236px_minmax(0,1fr)]">
         {compactNav ? (
           <div className="border-b border-line bg-paper px-3 py-2 min-[900px]:hidden">{sidebar}</div>
         ) : (
@@ -245,12 +245,19 @@ export function MyHivesPanel({
         )}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="mx-auto flex w-full max-w-workspace flex-1 flex-col gap-4 px-4 py-6 min-[900px]:px-8 min-[900px]:pb-16">
+          <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-6 min-[900px]:px-8 min-[900px]:pb-16">
             <header className="flex flex-col gap-1">
-              <p className="m-0 text-small text-graphite" data-testid="hives-greeting">
-                {greetingLine(greetingFirstName)}
-              </p>
-              <h1 className="m-0 font-brand text-section font-semibold text-ink">{title}</h1>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="m-0 text-small text-ink-2" data-testid="hives-greeting">
+                    {greetingLine(greetingFirstName)}
+                  </p>
+                  <h1 className="m-0 font-brand text-section font-semibold text-ink">{title}</h1>
+                </div>
+                <button type="button" className={WORKSPACE_PRIMARY} onClick={() => openModal()} data-testid="new-hive">
+                  New hive
+                </button>
+              </div>
               {clientsHome?.enabled ? (
                 <label className="mt-3 flex h-11 items-center gap-2 rounded-input bg-mist px-3.5">
                   <span className="sr-only">Find a client</span>
@@ -265,14 +272,14 @@ export function MyHivesPanel({
                   />
                 </label>
               ) : null}
-              {!searchTrimmed && queue !== "own" ? <p className="m-0 text-small text-quiet">{countLine}</p> : null}
+              {!searchTrimmed && queue !== "own" ? <p className="m-0 text-small text-ink-3">{countLine}</p> : null}
             </header>
 
             {listError ? (
               <div role="alert" className="flex flex-col items-start gap-2 text-left">
                 <p className="m-0 text-body text-ink">{listError.message}</p>
                 {listError.correlationId ? (
-                  <p className="m-0 font-mono text-caption text-quiet">Support reference: {listError.correlationId}</p>
+                  <p className="m-0 font-mono text-caption text-ink-3">Support reference: {listError.correlationId}</p>
                 ) : null}
                 <button
                   type="button"
@@ -352,7 +359,7 @@ export function MyHivesPanel({
   return (
     <div className="mx-auto flex w-full max-w-[680px] flex-col items-center gap-5 px-5 pb-16 pt-[clamp(32px,8vh,88px)]">
       <HiveAppLogo display="lockup" size="landingMain" />
-      <p className="m-0 text-[19px] text-graphite" data-testid="hives-greeting">
+      <p className="m-0 text-[19px] text-ink-2" data-testid="hives-greeting">
         {greetingLine(greetingFirstName)}
       </p>
 
@@ -362,7 +369,7 @@ export function MyHivesPanel({
         <div role="alert" className="flex w-full flex-col items-start gap-2 text-left">
           <p className="m-0 text-body text-ink">{listError.message}</p>
           {listError.correlationId ? (
-            <p className="m-0 font-mono text-[12px] text-quiet">Support reference: {listError.correlationId}</p>
+            <p className="m-0 font-mono text-[12px] text-ink-3">Support reference: {listError.correlationId}</p>
           ) : null}
           <button
             type="button"
@@ -377,7 +384,7 @@ export function MyHivesPanel({
 
       {ownRanked.length > 0 ? (
         <div className="w-full">
-          {countLine ? <p className="m-0 mb-4 text-left text-[14px] text-quiet">{countLine}</p> : null}
+          {countLine ? <p className="m-0 mb-4 text-left text-[14px] text-ink-3">{countLine}</p> : null}
           <HiveList
             hives={ownRanked}
             summaries={summaries}

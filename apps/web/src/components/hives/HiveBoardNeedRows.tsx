@@ -91,7 +91,7 @@ export function HiveBoardNeedRows({
                 >
                   {showKind ? <StatusDot state={needKindState(need.kind)} label={need.kindLabel} /> : null}
                   <p className="m-0 text-small font-semibold text-ink">{need.title}</p>
-                  <p className="m-0 truncate text-small text-graphite" title={need.detail}>
+                  <p className="m-0 truncate text-small text-ink-2" title={need.detail}>
                     {need.detail}
                   </p>
                   {need.sourceChips.length > 0 ? <SourceChips refs={need.sourceChips} /> : null}
@@ -109,7 +109,7 @@ export function HiveBoardNeedRows({
         ) : board.next?.action ? (
           <div className="flex flex-col gap-2">
             <p className="m-0 text-small font-semibold text-ink">{board.next.title}</p>
-            <p className="m-0 text-small text-graphite">{board.next.detail}</p>
+            <p className="m-0 text-small text-ink-2">{board.next.detail}</p>
             <BoardNeedAction
               hiveId={hiveId}
               action={board.next.action}

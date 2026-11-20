@@ -65,7 +65,7 @@ describe("LandingStart", () => {
   it("does not show a filled create button on the landing composer", () => {
     render(<LandingStart />);
     const form = screen.getByRole("form", { name: "Start a Hive" });
-    const filled = within(form).queryAllByRole("button").filter((btn) => btn.className.includes("bg-cell-blue-deep"));
+    const filled = within(form).queryAllByRole("button").filter((btn) => btn.className.includes("bg-blue-deep"));
     expect(filled).toHaveLength(0);
   });
 });

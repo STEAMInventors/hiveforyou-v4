@@ -25,10 +25,10 @@ export function HiveHandoverBanner({ handover, visible }: HiveHandoverBannerProp
     <div
       role="status"
       data-testid="hive-handover-banner"
-      className="border-b border-line bg-cell-blue-wash px-4 py-3 text-small text-ink min-[900px]:px-6"
+      className="border-b border-line bg-blue-wash px-4 py-3 text-small text-ink min-[900px]:px-6"
     >
       <p className="m-0 font-semibold">{head}</p>
-      <p className="m-0 mt-1 text-graphite">{text}</p>
+      <p className="m-0 mt-1 text-ink-2">{text}</p>
     </div>
   );
 }

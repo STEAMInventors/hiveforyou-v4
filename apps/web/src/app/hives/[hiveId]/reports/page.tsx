@@ -58,8 +58,7 @@ export default async function ReportsPage({ params, searchParams }: ReportsPageP
   const load = await loadReports(hive.id, correlationId);
 
   return (
-    <>
-      <p className="m-0 mb-4 text-meta text-ink-3">Customer and professional reports from the accepted study.</p>
+    <div className="mx-auto w-full max-w-col-read">
       {load.ok ? (
         <ReportsPanel
           hiveId={hive.id}
@@ -72,6 +71,6 @@ export default async function ReportsPage({ params, searchParams }: ReportsPageP
       ) : (
         <WorkspaceError message={load.message} correlationId={correlationId} />
       )}
-    </>
+    </div>
   );
 }

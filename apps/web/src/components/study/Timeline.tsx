@@ -56,7 +56,7 @@ export function Timeline({ rows, upcomingId }: { rows: readonly StudyViewRow[]; 
             <span
               aria-hidden
               className={`relative mt-[5px] h-3 w-3 shrink-0 rounded-pill border-2 ${
-                upcoming ? "border-cell-blue bg-cell-blue" : "border-quiet bg-paper"
+                upcoming ? "border-blue bg-blue" : "border-ink-3 bg-paper"
               }`}
             />
             <div className="flex min-w-0 flex-col gap-1">

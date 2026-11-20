@@ -1,74 +1,69 @@
 "use client";
 
-import type { AuditTrailEntry, StudyRevisionLine } from "@hiveforyou/contracts";
+import type { AuditTrailEntry } from "@hiveforyou/contracts";
+import { useState } from "react";
 
-import { SourceChips } from "@/components/study/SourceChip";
-import type { HiveBoardModel } from "@hiveforyou/contracts";
+import type { ChipRef } from "@/components/study/SourceChip";
+import { Section } from "@/components/ui/Section";
+import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
+import { SourceRefs } from "@/components/ui/SourceRefs";
+import { StatusDot } from "@/components/ui/StatusDot";
 
-const CARD = "rounded-[14px] border border-line bg-paper p-[22px]";
+const ROW_LIMIT = 6;
 
-export function AuditTrailPageView({
-  entries,
-  revisions,
-  board,
-  assistantName,
-}: {
-  entries: readonly AuditTrailEntry[];
-  revisions: readonly StudyRevisionLine[];
-  board: HiveBoardModel;
-  assistantName: string;
-}) {
+function entryDetail(entry: AuditTrailEntry): string {
+  return `${entry.method} ${entry.result}`.trim();
+}
+
+function toChipRefs(chips: AuditTrailEntry["chips"]): ChipRef[] {
+  return chips.map((chip) => ({
+    sourceDocumentId: chip.sourceDocumentId,
+    pageNumber: chip.pageNumber,
+    quote: chip.quote,
+    factIds: "factIds" in chip && chip.factIds ? [...chip.factIds] : [],
+  }));
+}
+
+export function AuditTrailPageView({ entries }: { entries: readonly AuditTrailEntry[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (entries.length === 0) {
+    return (
+      <p className="m-0 text-body text-ink-2" data-testid="audit-empty">
+        Checks will appear here after a study is accepted.
+      </p>
+    );
+  }
+
+  const visible = expanded ? entries : entries.slice(0, ROW_LIMIT);
+  const hidden = entries.length - ROW_LIMIT;
+
   return (
-    <div className="grid grid-cols-1 gap-5 min-[1100px]:grid-cols-[2fr_1fr]">
-      <section className={`${CARD} flex flex-col gap-4`} data-testid="audit-checks">
-        <div>
-          <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Checks and methods</h2>
-          <p className="m-0 mt-1 text-small text-graphite">
-            A readable description of how HiveForYou reached its findings.
-          </p>
-        </div>
-        {entries.map((entry) => (
-          <div key={entry.id} className="border-t border-line pt-4 first:border-t-0 first:pt-0">
-            <h3 className="m-0 text-[15px] font-semibold text-ink">{entry.title}</h3>
-            <p className="m-0 mt-2 text-small text-ink">
-              <span className="font-semibold">Method:</span> {entry.method}
-            </p>
-            <p className="m-0 mt-1 text-small text-ink">
-              <span className="font-semibold">Result:</span> {entry.result}
-            </p>
-            {entry.chips.length > 0 ? (
-              <div className="mt-2">
-                <SourceChips refs={entry.chips} />
+    <div className="mx-auto w-full max-w-col-read" data-testid="audit-trail">
+      <Section title="Checks and methods" headingRight={entries.length}>
+        {visible.map((entry) => (
+          <div
+            key={entry.id}
+            className="flex flex-col gap-1 border-b border-line py-4 first:pt-0"
+            data-testid="audit-check-row"
+          >
+            <div className="flex flex-wrap items-start gap-2.5">
+              <StatusDot state="checked" label="Checked" />
+              <div className="min-w-0 flex-1">
+                <p className="m-0 text-item font-semibold text-ink">{entry.title}</p>
+                <p className="m-0 mt-1 text-meta text-ink-2">{entryDetail(entry)}</p>
+                <SourceRefs refs={toChipRefs(entry.chips)} inert />
               </div>
-            ) : null}
+            </div>
           </div>
         ))}
-      </section>
-      <aside className="flex flex-col gap-4">
-        <section className={`${CARD} flex flex-col gap-3`} data-testid="audit-revisions">
-          <h2 className="m-0 font-brand text-[20px] font-semibold text-ink">Study revisions</h2>
-          {revisions.map((revision) => (
-            <div key={revision.revisionNumber} className="border-t border-line pt-3 first:border-t-0 first:pt-0">
-              <p className="m-0 text-small font-semibold text-ink">
-                v{revision.revisionNumber} ·{" "}
-                {new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(revision.acceptedAt))}
-              </p>
-              <p className="m-0 text-small text-graphite">{revision.summary}</p>
-            </div>
-          ))}
-        </section>
-        <details className={CARD} data-testid="audit-activity">
-          <summary className="cursor-pointer font-brand text-[20px] font-semibold text-ink">Activity log</summary>
-          <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
-            {[...board.activity].reverse().map((event) => (
-              <li key={`${event.at}-${event.text}`} className="border-t border-line pt-2 text-small text-graphite first:border-t-0">
-                <span className="text-quiet">{event.atLabel}</span> ·{" "}
-                <span className={event.actor === assistantName ? "text-cell-blue-deep" : ""}>{event.actor}</span> {event.text}
-              </li>
-            ))}
-          </ul>
-        </details>
-      </aside>
+        {entries.length > ROW_LIMIT ? (
+          expanded ? (
+            <ShowFewer label="Show fewer" onClick={() => setExpanded(false)} />
+          ) : (
+            <ShowMore label={`Show all ${entries.length}`} onClick={() => setExpanded(true)} />
+          )
+        ) : null}
+      </Section>
     </div>
   );
 }

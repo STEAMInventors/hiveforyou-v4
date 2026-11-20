@@ -15,7 +15,6 @@ import type {
 import { useMemo, useState } from "react";
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
-import { HiveAskInput } from "@/components/hive-ask-input";
 import { ComparisonCard } from "@/components/study/ComparisonCard";
 import { EvidenceViewerProvider, useEvidenceViewer } from "@/components/study/EvidenceViewer";
 import { groupMissing } from "@/components/study/MissingList";
@@ -47,7 +46,7 @@ type FindingsPageViewProps = {
 
 const CARD = "rounded-[14px] border border-line bg-paper p-[22px]";
 const DETAILS =
-  "group rounded-[14px] border border-line bg-paper [&_summary]:flex [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:items-center [&_summary]:justify-between [&_summary]:gap-3 [&_summary]:rounded-[14px] [&_summary]:px-[22px] [&_summary]:py-4 [&_summary]:font-medium [&_summary]:text-ink [&_summary]:outline-none [&_summary]:focus-visible:ring-2 [&_summary]:focus-visible:ring-cell-blue-deep";
+  "group rounded-[14px] border border-line bg-paper [&_summary]:flex [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:items-center [&_summary]:justify-between [&_summary]:gap-3 [&_summary]:rounded-[14px] [&_summary]:px-[22px] [&_summary]:py-4 [&_summary]:font-medium [&_summary]:text-ink [&_summary]:outline-none [&_summary]:focus-visible:ring-2 [&_summary]:focus-visible:ring-blue-deep";
 
 function openItemBadge(kind: FindingsOpenItem["kind"]): { label: string; className: string } {
   switch (kind) {
@@ -56,7 +55,7 @@ function openItemBadge(kind: FindingsOpenItem["kind"]): { label: string; classNa
     case "difference":
       return { label: "Difference", className: "bg-honey-wash text-honey-deep" };
     default:
-      return { label: "Needs clarification", className: "bg-cell-blue-wash text-cell-blue-deep" };
+      return { label: "Needs clarification", className: "bg-blue-wash text-blue-deep" };
   }
 }
 
@@ -116,7 +115,7 @@ function FindingsOpenItemCard({ item, sources }: { item: FindingsOpenItem; sourc
         <span className={`rounded-pill px-2 py-0.5 text-[12px] font-semibold ${badge.className}`}>{badge.label}</span>
         <span className="text-[14px] font-semibold text-ink">{item.title}</span>
       </div>
-      <p className="m-0 text-[14px] leading-relaxed text-graphite">{item.question}</p>
+      <p className="m-0 text-[14px] leading-relaxed text-ink-2">{item.question}</p>
       {chips.length > 0 ? (
         <div className="mt-2">
           <SourceChips refs={chips} />
@@ -213,13 +212,13 @@ export function FindingsPageView({
     >
       <div className="flex flex-col gap-5">
         {awaitingAck ? (
-          <p className="m-0 text-small text-graphite" data-testid="findings-pending-decision">
+          <p className="m-0 text-small text-ink-2" data-testid="findings-pending-decision">
             Review material gaps and accept the Study when you are ready.
           </p>
         ) : null}
 
         <div
-          className={`${CARD} border border-cell-blue-tint bg-cell-blue-wash text-[14px] text-ink`}
+          className={`${CARD} border border-blue-tint bg-blue-wash text-[14px] text-ink`}
           data-testid="findings-notice"
         >
           Accepted Study v{revisionNumber} · Findings describe what the documents say; they are not independent verification of
@@ -228,9 +227,9 @@ export function FindingsPageView({
 
         <section className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
           <div>
-            <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-cell-blue-deep">The picture so far</p>
+            <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-blue-deep">The picture so far</p>
             <h2 className="m-0 mt-1 font-brand text-[25px] font-semibold text-ink">What we learned from these documents</h2>
-            <p className="m-0 mt-1 text-small text-graphite">
+            <p className="m-0 mt-1 text-small text-ink-2">
               Organized by topic, with original page references next to every supported statement.
             </p>
           </div>
@@ -253,9 +252,9 @@ export function FindingsPageView({
           >
             {glanceMetrics.map((metric) => (
               <div key={metric.id} className={`${CARD} flex min-w-0 flex-col gap-1`}>
-                <span className="text-[12px] text-quiet">{metric.label}</span>
+                <span className="text-[12px] text-ink-3">{metric.label}</span>
                 <span className="font-brand text-[23px] font-semibold text-ink">{metric.value}</span>
-                {metric.sub ? <span className="text-[12.5px] text-quiet">{metric.sub}</span> : null}
+                {metric.sub ? <span className="text-[12.5px] text-ink-3">{metric.sub}</span> : null}
                 {metric.values.length > 0 ? (
                   <div className="max-w-full">
                     <SourceChips
@@ -328,28 +327,24 @@ export function FindingsPageView({
         {otherOpenItems.length > 0 ? (
           <section className={`${CARD} flex flex-col gap-3`} id={FINDINGS_ANCHORS.openItems}>
             <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Other items to clarify</h3>
-            <p className="m-0 text-small text-graphite">Open questions that are not tied to a single topic yet.</p>
+            <p className="m-0 text-small text-ink-2">Open questions that are not tied to a single topic yet.</p>
             {otherOpenItems.map((item) => (
               <FindingsOpenItemCard key={item.id} item={item} sources={sources} />
             ))}
           </section>
         ) : null}
 
-        <section className={`${CARD} min-w-0`} data-testid="findings-question-card">
-          <HiveAskInput hiveId={hiveId} variant="findings" />
-        </section>
-
         <section className="flex flex-col gap-3">
           <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Explore supporting detail</h3>
-          <p className="m-0 text-small text-graphite">Open a section when you need to examine the underlying analysis.</p>
+          <p className="m-0 text-small text-ink-2">Open a section when you need to examine the underlying analysis.</p>
           <details className={DETAILS} data-testid="findings-detail-compare">
             <summary>
               Compare information across documents
-              <span className="text-small font-normal text-quiet">Where records disagree</span>
+              <span className="text-small font-normal text-ink-3">Where records disagree</span>
             </summary>
             <div className="flex flex-col gap-5 border-t border-line px-[22px] py-4">
               {model.conflicts.length === 0 ? (
-                <p className="m-0 text-small text-graphite">No disagreements recorded in this Study.</p>
+                <p className="m-0 text-small text-ink-2">No disagreements recorded in this Study.</p>
               ) : (
                 model.conflicts.map((row) => (
                   <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} />
@@ -367,8 +362,8 @@ export function FindingsPageView({
                         {section.links.map((link) => (
                           <li key={link.linkLabel} className="min-w-0 text-[14px] text-ink">
                             <span className="font-medium">{link.linkLabel}</span>
-                            {link.valueText ? <span className="text-graphite"> — {link.valueText}</span> : null}
-                            <span className="ml-1 text-[12.5px] text-quiet">({link.statusLabel})</span>
+                            {link.valueText ? <span className="text-ink-2"> — {link.valueText}</span> : null}
+                            <span className="ml-1 text-[12.5px] text-ink-3">({link.statusLabel})</span>
                             {link.values.length > 0 ? (
                               <span className="mt-1 block max-w-full">
                                 <SourceChips
@@ -393,7 +388,7 @@ export function FindingsPageView({
           <details className={DETAILS} id={FINDINGS_ANCHORS.timeline} data-testid="findings-detail-timeline">
             <summary>
               See events in date order
-              <span className="text-small font-normal text-quiet">Document-backed timeline</span>
+              <span className="text-small font-normal text-ink-3">Document-backed timeline</span>
             </summary>
             <div className="border-t border-line px-[22px] py-4">
               <Timeline rows={model.timeline} upcomingId={null} />
@@ -402,7 +397,7 @@ export function FindingsPageView({
           <details className={DETAILS} data-testid="findings-detail-coverage">
             <summary>
               Check document coverage
-              <span className="text-small font-normal text-quiet">Missing list and requests</span>
+              <span className="text-small font-normal text-ink-3">Missing list and requests</span>
             </summary>
             <div className="flex flex-col gap-4 border-t border-line px-[22px] py-4">
               <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} />
@@ -442,7 +437,7 @@ export function FindingsPageView({
                     <h3 id="findings-calculation-title" className="m-0 font-brand text-section font-semibold text-ink">
                       {def.label.trim() || def.id}
                     </h3>
-                    <p className="m-0 mt-3 text-small text-graphite">
+                    <p className="m-0 mt-3 text-small text-ink-2">
                       {def.op.trim()} · {def.inputs.trim()}
                       {def.per.trim() ? ` · per ${def.per.trim()}` : ""}
                     </p>

@@ -103,18 +103,14 @@ vi.mock("@/server/hives/hive-conversation", () => ({
   loadUnreadMessageCount: vi.fn(async () => null),
 }));
 
-vi.mock("@/components/hives/HiveBoardThreePane", () => ({ HiveBoardThreePane: () => null }));
-vi.mock("@/components/hives/HiveBoardPanel", () => ({ HiveBoardPanel: () => null }));
 vi.mock("@/components/hives/HiveConversation", () => ({ HiveConversation: () => null }));
 vi.mock("@/components/hives/HiveStillToCome", () => ({ HiveStillToCome: () => null }));
-vi.mock("@/components/hives/HiveBoardChecklistCard", () => ({ HiveBoardChecklistCard: () => null }));
 vi.mock("@/components/workspace/HiveHandoverBanner", () => ({ HiveHandoverBanner: () => null }));
 vi.mock("@/components/hives/DocumentsPanel", () => ({ DocumentsPanel: () => null }));
 vi.mock("@/components/hives/HiveTeamNotesPanel", () => ({ HiveTeamNotesPanel: () => null }));
 vi.mock("@/components/hives/HiveActivityPanel", () => ({ HiveActivityPanel: () => null }));
 vi.mock("@/components/reports/ReportsPanel", () => ({ ReportsPanel: () => null }));
 vi.mock("@/components/workspace/HivePageHead", () => ({ HivePageHead: () => null }));
-vi.mock("@/components/hive-ask-input", () => ({ HiveAskInput: () => null }));
 vi.mock("@/components/study/StudyTabPanel", () => ({ StudyTabPanel: () => null }));
 vi.mock("@/components/study/StudyView", () => ({ StudyView: () => null }));
 vi.mock("@/components/study/StudyPromptPreview", () => ({ StudyPromptPreview: () => null }));

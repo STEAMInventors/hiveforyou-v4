@@ -26,7 +26,7 @@ describe("white page background", () => {
     expect(workspace).toContain("bg-paper");
     expect(workspace).not.toMatch(/flex flex-1 flex-col bg-mist/);
     expect(landing).toContain("bg-paper");
-    expect(newClient).toContain("bg-canvas");
+    expect(newClient).toContain("bg-mist");
     expect(newClient).not.toMatch(/flex flex-1 flex-col bg-mist/);
   });
 });

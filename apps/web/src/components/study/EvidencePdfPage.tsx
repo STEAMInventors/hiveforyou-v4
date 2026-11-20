@@ -253,7 +253,7 @@ export function EvidencePdfPage({
   if (pdfLoadError) {
     const originalHref = originalPageHref?.trim() ? originalPageHref : fileUrl;
     return (
-      <div className="flex flex-col gap-2 rounded-card border border-line bg-mist px-4 py-4">
+      <div className="flex flex-col gap-2 rounded-input border border-line bg-mist px-4 py-4">
         <p className="m-0 text-small text-coral-deep" data-testid="evidence-pdf-load-error">
           {pdfLoadError}
         </p>
@@ -261,7 +261,7 @@ export function EvidencePdfPage({
           href={originalHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-small text-graphite underline decoration-quiet underline-offset-2 hover:text-ink"
+          className="text-small text-ink-2 underline decoration-ink-3 underline-offset-2 hover:text-ink"
           data-testid="evidence-pdf-open-original"
         >
           Open the original
@@ -271,7 +271,7 @@ export function EvidencePdfPage({
   }
 
   return (
-    <div ref={wrapRef} className="relative max-h-[min(70vh,720px)] overflow-auto rounded-card border border-line bg-mist">
+    <div ref={wrapRef} className="relative max-h-[min(70vh,720px)] overflow-auto rounded-input border border-line bg-mist">
       <Document file={file} onLoadSuccess={handlePdfLoadSuccess} onLoadError={handlePdfLoadError} loading={null}>
         {numPages !== null && pageNumber >= 1 && pageNumber <= numPages ? (
           <Page
