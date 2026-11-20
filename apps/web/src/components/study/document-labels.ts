@@ -1,3 +1,5 @@
+import { truncateChipLabel } from "./truncate-chip-label";
+
 export type LabelledDocument = {
   readonly sourceDocumentId: string;
   readonly typeInPlainWords?: string | null;
@@ -128,14 +130,11 @@ export function shortDocumentLabels(documents: readonly LabelledDocument[]): Map
 /**
  * Chip line: short type (≤3 words) per document; when two share the same short type, number them in list order.
  */
-const FINDINGS_CHIP_MAX = 24;
-
 /** Full document role line for Findings chips (type in plain words, truncated). */
 export function findingsChipLabel(typeInPlainWords: string | null | undefined): string {
   const trimmed = (typeInPlainWords ?? "").trim();
   const base = trimmed === "" ? FALLBACK_LABEL : trimmed;
-  if (base.length <= FINDINGS_CHIP_MAX) return base;
-  return `${base.slice(0, FINDINGS_CHIP_MAX - 1)}…`;
+  return truncateChipLabel(base);
 }
 
 export function findingsChipLabels(documents: readonly LabelledDocument[]): Map<string, string> {

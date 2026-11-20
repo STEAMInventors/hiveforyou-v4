@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { FindingsPageView } from "@/components/findings/FindingsPageView";
-import { WORKSPACE_SECONDARY } from "@/components/button-classes";
+import { Button } from "@/components/ui/Button";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import {
@@ -20,7 +20,8 @@ import { emitStructuredEvent } from "@/server/observability/logger";
 import { createServerSupabaseClient } from "@/server/supabase/server-client";
 import { permanentRedirect } from "next/navigation";
 
-const PAGE_SUBTITLE = "Explore what the documents show, the timeline, and items to review.";
+const PAGE_SUBTITLE =
+  "What the documents show, organized by topic. Every statement opens the page it comes from.";
 
 function loadFailure(error: unknown): { message: string; retryable: boolean; errorCode: string } {
   const record =
@@ -57,9 +58,18 @@ export default async function FindingsPage({
   const correlationId = await requestCorrelationId();
 
   let overview: Awaited<ReturnType<typeof loadHiveOverview>>;
+  let assistantName = "HiveForYou";
   try {
     const client = await createServerSupabaseClient();
-    overview = await loadHiveOverview(client, { hiveId: hive.id, correlationId, includePreview: true });
+  const [overviewResult, firmRow] = await Promise.all([
+      loadHiveOverview(client, { hiveId: hive.id, correlationId, includePreview: true }),
+      hive.firmId
+        ? client.schema("hive").from("firms").select("assistant_name").eq("id", hive.firmId).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    overview = overviewResult;
+    const raw = (firmRow.data as { assistant_name?: string } | null)?.assistant_name;
+    if (typeof raw === "string" && raw.trim() !== "") assistantName = raw.trim();
   } catch (error) {
     const failure = loadFailure(error);
     emitStructuredEvent({
@@ -75,10 +85,10 @@ export default async function FindingsPage({
       exceptionType: error instanceof Error ? error.name : "Unknown",
     });
     return (
-      <>
+      <div className="mx-auto w-full max-w-col-read">
         <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
         <WorkspaceLoadError message={failure.message} correlationId={correlationId} retryable={failure.retryable} />
-      </>
+      </div>
     );
   }
 
@@ -86,15 +96,15 @@ export default async function FindingsPage({
   const built = overview.studyTab;
   if (!revision || !built?.view) {
     return (
-      <>
+      <div className="mx-auto w-full max-w-col-read">
         <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
-        <div className="rounded-[14px] border border-line bg-paper p-[22px]">
-          <h2 className="m-0 font-brand text-section font-semibold text-ink">Your Study builds once documents are read</h2>
-          <Link href={hiveDocumentsPath(hive.id)} className={`${WORKSPACE_SECONDARY} mt-4`}>
+        <p className="m-0 text-body text-ink-2">Your Study builds once documents are read.</p>
+        <Link href={hiveDocumentsPath(hive.id)} className="mt-3 inline-block">
+          <Button variant="secondary" type="button">
             Go to Documents
-          </Link>
-        </div>
-      </>
+          </Button>
+        </Link>
+      </div>
     );
   }
 
@@ -111,11 +121,15 @@ export default async function FindingsPage({
   });
 
   return (
-    <>
-      <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
+    <div className="mx-auto flex w-full flex-col gap-3">
+      <div className="w-full max-w-col-read">
+        <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
+      </div>
       <FindingsPageView
         hiveId={hive.id}
         revisionNumber={revision.revisionNumber}
+        acceptedAt={revision.createdAt}
+        assistantName={assistantName}
         view={built.view}
         sources={built.sources}
         canonicalStudy={overview.canonicalStudy}
@@ -139,6 +153,6 @@ export default async function FindingsPage({
         documentPages={documentPageCounts(overview.preparation)}
         preparation={overview.preparation}
       />
-    </>
+    </div>
   );
 }

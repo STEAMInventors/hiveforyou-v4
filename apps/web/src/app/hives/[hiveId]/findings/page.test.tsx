@@ -148,6 +148,8 @@ describe("Findings page", () => {
     loadHiveOverviewMock.mockResolvedValue(loadedOverview());
     await renderPage();
     expect(screen.getByTestId("findings-page-view")).toBeTruthy();
-    expect(screen.getByText("Explore what the documents show, the timeline, and items to review.")).toBeTruthy();
+    expect(
+      screen.getByText("What the documents show, organized by topic. Every statement opens the page it comes from."),
+    ).toBeTruthy();
   });
 });

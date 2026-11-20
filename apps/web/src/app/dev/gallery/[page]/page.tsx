@@ -8,6 +8,9 @@ import { GalleryBoardFirmless } from "@/dev/gallery/views/GalleryBoardFirmless";
 import { GalleryBoardLong } from "@/dev/gallery/views/GalleryBoardLong";
 import { GalleryBoardPeople } from "@/dev/gallery/views/GalleryBoardPeople";
 import { GalleryComponents } from "@/dev/gallery/views/GalleryComponents";
+import { GalleryFindingsEmpty } from "@/dev/gallery/views/GalleryFindingsEmpty";
+import { GalleryFindingsLarge } from "@/dev/gallery/views/GalleryFindingsLarge";
+import { GalleryFindingsMedicaid } from "@/dev/gallery/views/GalleryFindingsMedicaid";
 import { GalleryShell } from "@/dev/gallery/views/GalleryShell";
 
 const PAGES = {
@@ -19,6 +22,9 @@ const PAGES = {
   "board-firmless": GalleryBoardFirmless,
   "board-empty": GalleryBoardEmpty,
   "board-long": GalleryBoardLong,
+  "findings-medicaid": GalleryFindingsMedicaid,
+  "findings-large": GalleryFindingsLarge,
+  "findings-empty": GalleryFindingsEmpty,
 } as const;
 
 type GalleryPageKey = keyof typeof PAGES;

@@ -24,6 +24,8 @@ export type WorkspaceShellProps = {
   assistantName: string;
   studyRevision?: StudyRailRevision | null;
   summaryLoaded?: boolean;
+  /** Gallery and dev previews can pin the rail highlight when the URL is not a hive route. */
+  sectionOverride?: HiveWorkspaceSection | null;
   children: ReactNode;
 };
 
@@ -39,10 +41,12 @@ export function WorkspaceShell({
   assistantName,
   studyRevision = null,
   summaryLoaded = false,
+  sectionOverride = null,
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() ?? "";
-  const section: HiveWorkspaceSection = hiveSectionFromPathname(pathname, hive.id) ?? "board";
+  const section: HiveWorkspaceSection =
+    sectionOverride ?? hiveSectionFromPathname(pathname, hive.id) ?? "board";
   const setWorkspace = useHiveHeaderWorkspace()?.setWorkspace;
   const [compactNav, setCompactNav] = useState(false);
 

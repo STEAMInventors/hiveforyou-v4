@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 
-import { Card } from "./Card";
 
 export type WorkspaceErrorProps = {
   message: string;
@@ -29,8 +28,8 @@ export function WorkspaceError({
   const refText = correlationId ? referenceSnippet(correlationId) : null;
 
   return (
-    <Card testId="workspace-error">
-      <p role="alert" className="m-0 text-small text-ink">
+    <div className="border-b border-line py-4" data-testid="workspace-error">
+      <p role="alert" className="m-0 text-body text-ink">
         {message}
       </p>
       {refText ? (
@@ -68,6 +67,6 @@ export function WorkspaceError({
           </button>
         </div>
       ) : null}
-    </Card>
+    </div>
   );
 }

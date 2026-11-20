@@ -6,31 +6,45 @@ import type {
   FindingsChainEvidenceSection,
   FindingsGlanceMetric,
   FindingsOpenItem,
+  FindingsOpenItemKind,
   FindingsTopic,
   GetStudyPreparationResponse,
   Pack,
   StudyView,
   StudyViewSources,
 } from "@hiveforyou/contracts";
+import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { WORKSPACE_SECONDARY } from "@/components/button-classes";
-import { HiveAskInput } from "@/components/hive-ask-input";
-import { ComparisonCard } from "@/components/study/ComparisonCard";
+import { Button } from "@/components/ui/Button";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { GlanceRow, type GlanceEntry } from "@/components/ui/GlanceRow";
+import { ItemRow } from "@/components/ui/ItemRow";
+import { MetaDot, MetaLine } from "@/components/ui/MetaLine";
+import { Section } from "@/components/ui/Section";
+import { Segmented } from "@/components/ui/Segmented";
+import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
+import { Statement, StatementTopic } from "@/components/ui/Statement";
+import type { ChipRef } from "@/components/study/SourceChip";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { groupMissing } from "@/components/study/MissingList";
 import { MissingStudyItems } from "@/components/study/MissingStudyItems";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
-import { shortDocumentLabels, SourceChips } from "@/components/study/SourceChip";
-import { Timeline } from "@/components/study/Timeline";
 import { ReadProblemNotice, readProblemsFromCoverage } from "@/components/study/ReadProblemNotice";
-import { hiveDocumentsPath, FINDINGS_ANCHORS } from "@/lib/hive-routes";
+import type { DisplayState } from "@/components/study/status-state";
+import { hiveBoardPath, hiveDocumentsPath } from "@/lib/hive-routes";
 import { FindingsReviewDrawer } from "@/components/findings/FindingsReviewDrawer";
 import { DOCUMENT_REQUEST_LIST_COMPONENT, documentRequestListHasContent } from "@hiveforyou/contracts";
+
+import { FindingsChainEvidenceBlock, FindingsCompareTable } from "./FindingsCompareTable";
+import { FindingsFindBar, FindingsOnThisPage, useFindingsScrollSpy, type FindingsTocEntry } from "./FindingsPageToc";
+import { FindingsTimelineList } from "./FindingsTimelineList";
 
 type FindingsPageViewProps = {
   hiveId: string;
   revisionNumber: number;
+  acceptedAt?: string | null;
+  assistantName?: string;
   view: StudyView;
   sources: StudyViewSources | null;
   canonicalStudy: CanonicalStudy | null;
@@ -45,67 +59,71 @@ type FindingsPageViewProps = {
   preparation: GetStudyPreparationResponse | null;
 };
 
-const CARD = "rounded-[14px] border border-line bg-paper p-[22px]";
-const DETAILS =
-  "group rounded-[14px] border border-line bg-paper [&_summary]:flex [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:items-center [&_summary]:justify-between [&_summary]:gap-3 [&_summary]:rounded-[14px] [&_summary]:px-[22px] [&_summary]:py-4 [&_summary]:font-medium [&_summary]:text-ink [&_summary]:outline-none [&_summary]:focus-visible:ring-2 [&_summary]:focus-visible:ring-cell-blue-deep";
+const LIMIT_ITEMS = 5;
+const LIMIT_STATEMENTS = 3;
+const LIMIT_TIMELINE = 6;
+const FIND_BAR_THRESHOLD = 30;
 
-function openItemBadge(kind: FindingsOpenItem["kind"]): { label: string; className: string } {
-  switch (kind) {
-    case "missing":
-      return { label: "Missing", className: "bg-coral-wash text-coral-deep" };
-    case "difference":
-      return { label: "Difference", className: "bg-honey-wash text-honey-deep" };
-    default:
-      return { label: "Needs clarification", className: "bg-cell-blue-wash text-cell-blue-deep" };
-  }
+const SECTION_REVIEW = "findings-review";
+const SECTION_TOPICS = "findings-topics";
+const SECTION_MORE = "findings-more";
+
+type KindFilter = "all" | FindingsOpenItemKind;
+
+function openItemState(kind: FindingsOpenItemKind): DisplayState {
+  if (kind === "missing") return "missing";
+  if (kind === "difference") return "changed";
+  return "needs";
 }
 
-function FindingsOpenItemCard({
-  item,
-  sources,
-  onReview,
-}: {
-  item: FindingsOpenItem;
-  sources: StudyViewSources | null;
-  onReview: (trigger: HTMLButtonElement) => void;
-}) {
-  const badge = openItemBadge(item.kind);
-  const chips =
-    item.factIds.length > 0
-      ? item.factIds.flatMap((factId) => {
-          const ref = sources?.facts[factId];
-          return ref
-            ? [{ sourceDocumentId: ref.sourceDocumentId, pageNumber: ref.pageNumber, quote: ref.quote, factIds: [factId] }]
-            : [];
-        })
+function formatAcceptedDay(iso: string | null | undefined): string | null {
+  if (!iso?.trim()) return null;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(parsed);
+}
+
+function matchesFilter(needle: string, parts: readonly (string | null | undefined)[]): boolean {
+  const q = needle.trim().toLowerCase();
+  if (q === "") return true;
+  return parts.some((part) => (part ?? "").toLowerCase().includes(q));
+}
+
+function itemRefs(item: FindingsOpenItem, sources: StudyViewSources | null): ChipRef[] {
+  if (item.factIds.length === 0) return [];
+  return item.factIds.flatMap((factId) => {
+    const ref = sources?.facts[factId];
+    return ref
+      ? [
+          {
+            sourceDocumentId: ref.sourceDocumentId,
+            pageNumber: ref.pageNumber,
+            quote: ref.quote,
+            factIds: [factId],
+          },
+        ]
       : [];
-  return (
-    <div className="border-l-[3px] border-honey-deep bg-gradient-to-r from-honey-wash/40 to-transparent py-3 pl-3 pr-1">
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span className={`rounded-pill px-2 py-0.5 text-[12px] font-semibold ${badge.className}`}>{badge.label}</span>
-        <span className="text-[14px] font-semibold text-ink">{item.title}</span>
-      </div>
-      <p className="m-0 text-[14px] leading-relaxed text-graphite">{item.question}</p>
-      {chips.length > 0 ? (
-        <div className="mt-2">
-          <SourceChips refs={chips} />
-        </div>
-      ) : null}
-      <button
-        type="button"
-        className={`${WORKSPACE_SECONDARY} mt-3 min-h-9 px-3 text-[13px]`}
-        data-review-id={item.id}
-        onClick={(event) => onReview(event.currentTarget)}
-      >
-        Review context
-      </button>
-    </div>
-  );
+  });
+}
+
+function statementRefs(statement: FindingsTopic["statements"][number]): ChipRef[] {
+  return statement.values.map((value) => ({
+    sourceDocumentId: value.sourceRef.sourceDocumentId,
+    pageNumber: value.sourceRef.pageNumber,
+    quote: value.sourceRef.quote,
+    factIds: [value.factId],
+  }));
+}
+
+function roleTexts(refs: readonly ChipRef[], roleFor: (id: string) => string): string[] {
+  return [...new Set(refs.map((ref) => roleFor(ref.sourceDocumentId)))];
 }
 
 export function FindingsPageView({
   hiveId,
   revisionNumber,
+  acceptedAt = null,
+  assistantName = "HiveForYou",
   view,
   sources,
   canonicalStudy,
@@ -121,6 +139,9 @@ export function FindingsPageView({
 }: FindingsPageViewProps) {
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [calculationId, setCalculationId] = useState<string | null>(null);
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [findQuery, setFindQuery] = useState("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const reviewTriggerRef = useRef<HTMLButtonElement | null>(null);
   const pageCountFor = (id: string) => documentPages?.[id] ?? documentPages?.[id.toLowerCase()];
 
@@ -148,12 +169,6 @@ export function FindingsPageView({
         if (!typeByDoc.get(key)) typeByDoc.set(key, document.typeInPlainWords.trim() || null);
       }
     }
-    const labelled = [...typeByDoc.entries()].map(([sourceDocumentId, typeInPlainWords]) => ({
-      sourceDocumentId,
-      typeInPlainWords,
-      date: documents.find((row) => row.id.toLowerCase() === sourceDocumentId)?.date ?? null,
-    }));
-    const shortLabels = shortDocumentLabels(labelled);
     const evidence = buildHiveEvidenceViewerModel({
       view,
       sources,
@@ -161,7 +176,7 @@ export function FindingsPageView({
       coverageGaps,
       documentPages,
     });
-    const readProblems = readProblemsFromCoverage(coverageGaps, (id) => shortLabels.get(id), pageCountFor);
+    const readProblems = readProblemsFromCoverage(coverageGaps, (id) => evidence?.labels.get(id), pageCountFor);
     return {
       documents,
       labels: evidence?.labels ?? new Map(),
@@ -174,14 +189,175 @@ export function FindingsPageView({
         view.components?.find((component) => component.name === DOCUMENT_REQUEST_LIST_COMPONENT) ?? null,
       documentDate: (id: string) => documents.find((row) => row.id === id)?.date ?? null,
       citationContexts: evidence?.citationContexts ?? new Map(),
+      roleFor: (id: string) => evidence?.chipLabels.get(id) ?? evidence?.labels.get(id) ?? "",
     };
   }, [view, sources, canonicalStudy, coverageGaps, documentPages]);
+
+  const allOpenItems = useMemo(
+    () => [...topics.flatMap((topic) => topic.openItems), ...otherOpenItems],
+    [topics, otherOpenItems],
+  );
+
+  const statementCount = useMemo(
+    () => topics.reduce((total, topic) => total + topic.statements.length, 0),
+    [topics],
+  );
+
+  const documentCount = model.documents.length;
+  const acceptedLabel = formatAcceptedDay(acceptedAt ?? preparation?.studyRevision?.createdAt ?? null);
+  const filtering = findQuery.trim() !== "";
+
+  const kindCounts = useMemo(() => {
+    const counts = { missing: 0, difference: 0, needs: 0 } as Record<FindingsOpenItemKind, number>;
+    for (const item of allOpenItems) counts[item.kind] += 1;
+    return counts;
+  }, [allOpenItems]);
+
+  const presentKinds = (["missing", "difference", "needs"] as const).filter((kind) => kindCounts[kind] > 0);
+
+  const filteredOpenItems = useMemo(() => {
+    return allOpenItems.filter((item) => {
+      if (kindFilter !== "all" && item.kind !== kindFilter) return false;
+      const refs = itemRefs(item, sources);
+      return matchesFilter(findQuery, [
+        item.title,
+        item.question,
+        ...roleTexts(refs, (id) => model.roleFor(id)),
+      ]);
+    });
+  }, [allOpenItems, kindFilter, findQuery, sources, model]);
+
+  const filteredTopics = useMemo(() => {
+    if (!filtering) return topics;
+    return topics
+      .map((topic) => ({
+        ...topic,
+        statements: topic.statements.filter((statement) =>
+          matchesFilter(findQuery, [
+            topic.title,
+            statement.text,
+            ...roleTexts(statementRefs(statement), (id) => model.roleFor(id)),
+          ]),
+        ),
+      }))
+      .filter((topic) => topic.statements.length > 0);
+  }, [topics, filtering, findQuery, model]);
+
+  const filteredStatementCount = filteredTopics.reduce((total, topic) => total + topic.statements.length, 0);
+
+  const filteredConflicts = useMemo(() => {
+    if (!filtering) return model.conflicts;
+    return model.conflicts.filter((row) =>
+      matchesFilter(findQuery, [
+        row.statement,
+        ...row.values.map((value) => value.valueAsWritten),
+        ...roleTexts(
+          row.values.map((value) => ({
+            sourceDocumentId: value.sourceRef.sourceDocumentId,
+            pageNumber: value.sourceRef.pageNumber,
+            quote: value.sourceRef.quote,
+          })),
+          (id) => model.roleFor(id),
+        ),
+      ]),
+    );
+  }, [model.conflicts, filtering, findQuery, model]);
+
+  const filteredTimeline = useMemo(() => {
+    if (!filtering) return model.timeline;
+    return model.timeline.filter((row) =>
+      matchesFilter(findQuery, [
+        row.statement,
+        row.asWritten,
+        ...roleTexts(rowChipsFromRow(row), (id) => model.roleFor(id)),
+      ]),
+    );
+  }, [model.timeline, filtering, findQuery, model]);
+
+  function rowChipsFromRow(row: (typeof model.timeline)[number]): ChipRef[] {
+    return row.values.map((value) => ({
+      sourceDocumentId: value.sourceRef.sourceDocumentId,
+      pageNumber: value.sourceRef.pageNumber,
+      quote: value.sourceRef.quote,
+      factIds: [value.factId],
+    }));
+  }
+
+  const totalRows =
+    allOpenItems.length + statementCount + model.conflicts.length + model.timeline.length;
+  const showFindBar = totalRows > FIND_BAR_THRESHOLD;
+
+  const toc: FindingsTocEntry[] = useMemo(
+    () => [
+      { id: SECTION_REVIEW, label: "To review", count: filteredOpenItems.length },
+      ...filteredTopics.map((topic) => ({ id: topic.id, label: topic.title, count: topic.statements.length })),
+      { id: SECTION_MORE, label: "Supporting detail", count: null },
+    ],
+    [filteredOpenItems.length, filteredTopics],
+  );
+
+  const activeSection = useFindingsScrollSpy(toc.map((entry) => entry.id));
+
+  const jumpTo = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const awaitingAck =
     preparation?.processingRun?.status === "AWAITING_ACKNOWLEDGEMENT" ||
     preparation?.studyRevision?.coverageAcknowledgement === "PENDING";
 
-  const reviewItem = [...topics.flatMap((topic) => topic.openItems), ...otherOpenItems].find((item) => item.id === reviewId);
+  const reviewItem = allOpenItems.find((item) => item.id === reviewId);
+
+  const glanceEntries: GlanceEntry[] = glanceMetrics.slice(0, 4).map((metric) => ({
+    id: metric.id,
+    label: metric.label,
+    value: metric.value,
+    sub: metric.sub ?? undefined,
+    refs:
+      metric.values.length > 0
+        ? metric.values.map((value) => ({
+            sourceDocumentId: value.sourceRef.sourceDocumentId,
+            pageNumber: value.sourceRef.pageNumber,
+            quote: value.sourceRef.quote,
+            factIds: [value.factId],
+          }))
+        : undefined,
+    onHowCalculated:
+      metric.calculationId && pack ? () => setCalculationId(metric.calculationId) : undefined,
+  }));
+
+  const kindSegmented =
+    presentKinds.length > 1 ? (
+      <Segmented
+        ariaLabel="Filter open items"
+        testId="findings-kind-filter"
+        value={kindFilter}
+        onChange={setKindFilter}
+        options={[
+          { id: "all", label: "All", count: allOpenItems.length },
+          ...presentKinds.map((kind) => ({
+            id: kind,
+            label: kind === "missing" ? "Missing" : kind === "difference" ? "Changed" : "To review",
+            count: kindCounts[kind],
+          })),
+        ]}
+      />
+    ) : null;
+
+  const showReviewList = !expanded[SECTION_REVIEW] && !filtering ? filteredOpenItems.slice(0, LIMIT_ITEMS) : filteredOpenItems;
+  const hiddenReview = !filtering && !expanded[SECTION_REVIEW] ? Math.max(0, filteredOpenItems.length - LIMIT_ITEMS) : 0;
+
+  const timelineShown = !filtering && !expanded.timeline ? filteredTimeline.slice(0, LIMIT_TIMELINE) : filteredTimeline;
+  const hiddenTimeline = !filtering && !expanded.timeline ? Math.max(0, filteredTimeline.length - LIMIT_TIMELINE) : 0;
+
+  const filterStatus =
+    filtering && (filteredOpenItems.length > 0 || filteredStatementCount > 0)
+      ? `${filteredOpenItems.length} ${filteredOpenItems.length === 1 ? "item" : "items"} and ${filteredStatementCount} ${
+          filteredStatementCount === 1 ? "statement" : "statements"
+        } match “${findQuery.trim()}”.`
+      : filtering
+        ? `No items or statements match “${findQuery.trim()}”.`
+        : null;
 
   return (
     <EvidenceViewerProvider
@@ -191,276 +367,235 @@ export function FindingsPageView({
       pageCountFor={pageCountFor}
       citationContexts={model.citationContexts}
     >
-      <div className="flex flex-col gap-5">
-        {awaitingAck ? (
-          <p className="m-0 text-small text-graphite" data-testid="findings-pending-decision">
-            Review material gaps and accept the Study when you are ready.
-          </p>
-        ) : null}
-
-        <div
-          className={`${CARD} border border-cell-blue-tint bg-cell-blue-wash text-[14px] text-ink`}
-          data-testid="findings-notice"
-        >
-          Accepted Study v{revisionNumber} · Findings describe what the documents say; they are not independent verification of
-          real-world events.
-        </div>
-
-        <section className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
-          <div>
-            <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-cell-blue-deep">The picture so far</p>
-            <h2 className="m-0 mt-1 font-brand text-[25px] font-semibold text-ink">What we learned from these documents</h2>
-            <p className="m-0 mt-1 text-small text-graphite">
-              Organized by topic, with original page references next to every supported statement.
+      <div className="mx-auto flex w-full max-w-col-read flex-col gap-0 overflow-x-clip min-[1280px]:max-w-none min-[1280px]:flex-row min-[1280px]:items-start min-[1280px]:gap-10">
+        <div className="min-w-0 max-w-full flex-1 min-[1280px]:max-w-col-read">
+          {awaitingAck ? (
+            <p className="m-0 mb-3 text-meta text-ink-2" data-testid="findings-pending-decision">
+              Review material gaps and accept the Study when you are ready.
             </p>
-          </div>
-          <span
-            className={`inline-flex shrink-0 items-center rounded-pill px-3 py-1.5 text-small font-semibold ${
-              openItemCount > 0 ? "bg-coral-wash text-coral-deep" : "bg-leaf-wash text-leaf-deep"
-            }`}
-            data-testid="findings-open-count"
-            aria-label={openItemCount > 0 ? `${openItemCount} to review` : "Nothing to review"}
-          >
-            {openItemCount > 0 ? `${openItemCount} to review` : "Nothing to review"}
-          </span>
-        </section>
+          ) : null}
 
-        {glanceMetrics.length > 0 ? (
-          <div
-            className="grid gap-[13px]"
-            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))" }}
-            data-testid="findings-metrics"
-          >
-            {glanceMetrics.map((metric) => (
-              <div key={metric.id} className={`${CARD} flex min-w-0 flex-col gap-1`}>
-                <span className="text-[12px] text-quiet">{metric.label}</span>
-                <span className="font-brand text-[23px] font-semibold text-ink">{metric.value}</span>
-                {metric.sub ? <span className="text-[12.5px] text-quiet">{metric.sub}</span> : null}
-                {metric.values.length > 0 ? (
-                  <div className="max-w-full">
-                    <SourceChips
-                      refs={metric.values.map((value) => ({
-                        sourceDocumentId: value.sourceRef.sourceDocumentId,
-                        pageNumber: value.sourceRef.pageNumber,
-                        quote: value.sourceRef.quote,
-                        factIds: [value.factId],
-                      }))}
-                    />
-                  </div>
-                ) : null}
-                {metric.calculationId && pack ? (
-                  <button
-                    type="button"
-                    className={`${WORKSPACE_SECONDARY} mt-1 self-start px-3 text-[13px]`}
-                    onClick={() => setCalculationId(metric.calculationId)}
-                  >
-                    See calculation
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
+          <MetaLine>
+            <span>
+              Study v{revisionNumber}
+              {acceptedLabel ? `, accepted ${acceptedLabel}` : ""}
+            </span>
+            <MetaDot />
+            <span className="tabular-nums">{documentCount} documents</span>
+            <MetaDot />
+            <span className="tabular-nums">{openItemCount} to review</span>
+            <MetaDot />
+            <span className="tabular-nums">{statementCount} statements</span>
+          </MetaLine>
+          <p className="m-0 mt-1 text-meta text-ink-2">
+            Findings describe what the documents say. They aren&apos;t independent verification.
+          </p>
 
-        <div
-          id={FINDINGS_ANCHORS.topics}
-          className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-2"
-          data-testid="findings-topics"
-        >
-          {topics.map((topic) => (
-            <section key={topic.id} className={`${CARD} flex min-w-0 flex-col gap-4`}>
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">{topic.title}</h3>
-                {topic.uncertain ? (
-                  <span className="rounded-pill bg-honey-wash px-2 py-0.5 text-[12px] font-semibold text-honey-deep">
-                    Uncertain
-                  </span>
+          {glanceEntries.length > 0 ? (
+            <div className="mt-5" data-testid="findings-metrics">
+              <GlanceRow entries={glanceEntries} />
+            </div>
+          ) : null}
+
+          <FindingsFindBar
+            visible={showFindBar}
+            query={findQuery}
+            onQueryChange={setFindQuery}
+            onClear={() => setFindQuery("")}
+            matchSummary={filterStatus}
+            toc={toc}
+            jumpTo={jumpTo}
+          />
+
+          <Section
+            id={SECTION_REVIEW}
+            title={`To review ${filteredOpenItems.length}`}
+            headingRight={kindSegmented}
+            className="mt-6"
+          >
+            {filteredOpenItems.length === 0 ? (
+              <p className="m-0 border-b border-line py-3.5 text-small text-ink-2" data-testid="findings-review-empty">
+                {filtering ? "No items match." : "Everything has been reviewed."}
+              </p>
+            ) : (
+              <>
+                {showReviewList.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    state={openItemState(item.kind)}
+                    title={item.title}
+                    detail={item.question}
+                    refs={itemRefs(item, sources)}
+                    action={
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        type="button"
+                        data-review-id={item.id}
+                        onClick={(event) => openReview(item.id, event.currentTarget)}
+                      >
+                        Review
+                      </Button>
+                    }
+                  />
+                ))}
+                {hiddenReview > 0 ? (
+                  <ShowMore
+                    label={`Show all ${filteredOpenItems.length}`}
+                    onClick={() => setExpanded((value) => ({ ...value, [SECTION_REVIEW]: true }))}
+                  />
                 ) : null}
-              </div>
-              <hr className="m-0 border-line" />
-              {topic.statements.map((statement) => (
-                <div key={statement.id} className="border-b border-line pb-3 last:border-b-0">
-                  <p className="m-0 text-[14px] leading-[1.6] text-ink">{statement.text}</p>
-                  <div className="mt-2 max-w-full min-w-0">
-                    <SourceChips
-                      refs={statement.values.map((value) => ({
-                        sourceDocumentId: value.sourceRef.sourceDocumentId,
-                        pageNumber: value.sourceRef.pageNumber,
-                        quote: value.sourceRef.quote,
-                        factIds: [value.factId],
-                      }))}
-                    />
-                  </div>
-                </div>
-              ))}
-              {topic.openItems.length > 0 ? (
-                <div id={FINDINGS_ANCHORS.openItems} className="flex flex-col gap-3">
-                  <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-honey-deep">To clarify</p>
-                  {topic.openItems.map((item) => (
-                    <FindingsOpenItemCard
-                      key={item.id}
-                      item={item}
-                      sources={sources}
-                      onReview={(trigger) => openReview(item.id, trigger)}
-                    />
-                  ))}
-                </div>
+                {!filtering && expanded[SECTION_REVIEW] && filteredOpenItems.length > LIMIT_ITEMS ? (
+                  <ShowFewer
+                    label="Show fewer"
+                    onClick={() => setExpanded((value) => ({ ...value, [SECTION_REVIEW]: false }))}
+                  />
+                ) : null}
+              </>
+            )}
+            <div className="mt-4 border-t border-line pt-3">
+              <Link
+                href={`${hiveBoardPath(hiveId)}?view=ask`}
+                className="text-meta font-medium text-blue-deep no-underline hover:underline"
+                data-testid="findings-ask-link"
+              >
+                Ask {assistantName} about these documents
+              </Link>
+            </div>
+          </Section>
+
+          <Section
+            id={SECTION_TOPICS}
+            title="What the documents show"
+            headingRight={`${filteredTopics.length} topics · ${filteredStatementCount} statements`}
+          >
+            <div data-testid="findings-topics">
+              {filteredTopics.length === 0 ? (
+                <p className="m-0 text-small text-ink-2">{filtering ? "No statements match." : "No statements yet."}</p>
+              ) : (
+                filteredTopics.map((topic) => {
+                  const limitKey = `topic-${topic.id}`;
+                  const statements =
+                    !filtering && !expanded[limitKey] ? topic.statements.slice(0, LIMIT_STATEMENTS) : topic.statements;
+                  const hidden = !filtering && !expanded[limitKey] ? Math.max(0, topic.statements.length - LIMIT_STATEMENTS) : 0;
+                  return (
+                    <StatementTopic
+                      key={topic.id}
+                      title={topic.title}
+                      count={topic.statements.length}
+                      uncertain={topic.uncertain}
+                    >
+                      <div id={topic.id}>
+                        {statements.map((statement) => (
+                          <Statement key={statement.id} body={statement.text} refs={statementRefs(statement)} />
+                        ))}
+                        {hidden > 0 ? (
+                          <ShowMore
+                            label={`${hidden} more in ${topic.title}`}
+                            onClick={() => setExpanded((value) => ({ ...value, [limitKey]: true }))}
+                          />
+                        ) : null}
+                        {!filtering && expanded[limitKey] && topic.statements.length > LIMIT_STATEMENTS ? (
+                          <ShowFewer
+                            label="Show fewer"
+                            onClick={() => setExpanded((value) => ({ ...value, [limitKey]: false }))}
+                          />
+                        ) : null}
+                      </div>
+                    </StatementTopic>
+                  );
+                })
+              )}
+            </div>
+          </Section>
+
+          <Section id={SECTION_MORE} title="Supporting detail">
+            <Disclosure title="Compare across documents" hint="Where records disagree">
+              <FindingsCompareTable rows={filteredConflicts} />
+              <FindingsChainEvidenceBlock sections={chainEvidence} />
+            </Disclosure>
+            <Disclosure
+              title="Events in date order"
+              hint={`${model.timeline.length} dated events`}
+            >
+              <FindingsTimelineList rows={timelineShown} />
+              {hiddenTimeline > 0 ? (
+                <ShowMore
+                  label={`Show all ${filteredTimeline.length}`}
+                  onClick={() => setExpanded((value) => ({ ...value, timeline: true }))}
+                />
               ) : null}
-            </section>
-          ))}
+              {!filtering && expanded.timeline && filteredTimeline.length > LIMIT_TIMELINE ? (
+                <ShowFewer label="Show fewer" onClick={() => setExpanded((value) => ({ ...value, timeline: false }))} />
+              ) : null}
+            </Disclosure>
+            <Disclosure title="Document coverage" hint="What's complete and what's missing">
+              <div className="flex flex-col gap-4">
+                <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} />
+                <MissingStudyItems
+                  conflicts={model.conflicts}
+                  missing={model.missing}
+                  documentRequestList={
+                    model.documentRequestList && documentRequestListHasContent(model.documentRequestList)
+                      ? model.documentRequestList
+                      : null
+                  }
+                  documentDate={model.documentDate}
+                />
+              </div>
+            </Disclosure>
+          </Section>
         </div>
 
-        {otherOpenItems.length > 0 ? (
-          <section className={`${CARD} flex flex-col gap-3`} id={FINDINGS_ANCHORS.openItems}>
-            <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Other items to clarify</h3>
-            <p className="m-0 text-small text-graphite">Open questions that are not tied to a single topic yet.</p>
-            {otherOpenItems.map((item) => (
-              <FindingsOpenItemCard
-                key={item.id}
-                item={item}
-                sources={sources}
-                onReview={(trigger) => openReview(item.id, trigger)}
-              />
-            ))}
-          </section>
-        ) : null}
-
-        <section className={`${CARD} min-w-0`} data-testid="findings-question-card">
-          <HiveAskInput hiveId={hiveId} variant="findings" />
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <h3 className="m-0 font-brand text-[20px] font-semibold text-ink">Explore supporting detail</h3>
-          <p className="m-0 text-small text-graphite">Open a section when you need to examine the underlying analysis.</p>
-          <details className={DETAILS} data-testid="findings-detail-compare">
-            <summary>
-              Compare information across documents
-              <span className="text-small font-normal text-quiet">Where records disagree</span>
-            </summary>
-            <div className="flex flex-col gap-5 border-t border-line px-[22px] py-4">
-              {model.conflicts.length === 0 ? (
-                <p className="m-0 text-small text-graphite">No disagreements recorded in this Study.</p>
-              ) : (
-                model.conflicts.map((row) => (
-                  <ComparisonCard key={row.id} row={row} documentDate={model.documentDate} />
-                ))
-              )}
-              {chainEvidence.length > 0 ? (
-                <div className="flex flex-col gap-3" data-testid="findings-chain-evidence">
-                  <h4 className="m-0 text-[14px] font-semibold text-ink">How the evidence connects</h4>
-                  {chainEvidence.map((section) => (
-                    <div key={`${section.chainLabel}:${section.rowLabel}`} className="flex flex-col gap-2">
-                      <p className="m-0 text-[14px] font-semibold text-ink">
-                        {section.chainLabel}: {section.rowLabel}
-                      </p>
-                      <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                        {section.links.map((link) => (
-                          <li key={link.linkLabel} className="min-w-0 text-[14px] text-ink">
-                            <span className="font-medium">{link.linkLabel}</span>
-                            {link.valueText ? <span className="text-graphite"> — {link.valueText}</span> : null}
-                            <span className="ml-1 text-[12.5px] text-quiet">({link.statusLabel})</span>
-                            {link.values.length > 0 ? (
-                              <span className="mt-1 block max-w-full">
-                                <SourceChips
-                                  refs={link.values.map((value) => ({
-                                    sourceDocumentId: value.sourceRef.sourceDocumentId,
-                                    pageNumber: value.sourceRef.pageNumber,
-                                    quote: value.sourceRef.quote,
-                                    factIds: [value.factId],
-                                  }))}
-                                />
-                              </span>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </details>
-          <details className={DETAILS} id={FINDINGS_ANCHORS.timeline} data-testid="findings-detail-timeline">
-            <summary>
-              See events in date order
-              <span className="text-small font-normal text-quiet">Document-backed timeline</span>
-            </summary>
-            <div className="border-t border-line px-[22px] py-4">
-              <Timeline rows={model.timeline} upcomingId={null} />
-            </div>
-          </details>
-          <details className={DETAILS} data-testid="findings-detail-coverage">
-            <summary>
-              Check document coverage
-              <span className="text-small font-normal text-quiet">Missing list and requests</span>
-            </summary>
-            <div className="flex flex-col gap-4 border-t border-line px-[22px] py-4">
-              <ReadProblemNotice problems={model.readProblems} documentsHref={hiveDocumentsPath(hiveId)} />
-              <MissingStudyItems
-                conflicts={model.conflicts}
-                missing={model.missing}
-                documentRequestList={
-                  model.documentRequestList && documentRequestListHasContent(model.documentRequestList)
-                    ? model.documentRequestList
-                    : null
-                }
-                documentDate={model.documentDate}
-              />
-            </div>
-          </details>
-        </section>
-
-        {calculationId && pack ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4"
-            role="presentation"
-            onClick={() => setCalculationId(null)}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="findings-calculation-title"
-              className={`${CARD} max-w-md shadow-lg`}
-              data-testid="findings-calculation-dialog"
-              onClick={(event) => event.stopPropagation()}
-            >
-              {(() => {
-                const def = pack.computedValues.find((entry) => entry.id === calculationId);
-                if (!def) return null;
-                return (
-                  <>
-                    <h3 id="findings-calculation-title" className="m-0 font-brand text-section font-semibold text-ink">
-                      {def.label.trim() || def.id}
-                    </h3>
-                    <p className="m-0 mt-3 text-small text-graphite">
-                      {def.op.trim()} · {def.inputs.trim()}
-                      {def.per.trim() ? ` · per ${def.per.trim()}` : ""}
-                    </p>
-                    <button
-                      type="button"
-                      className={`${WORKSPACE_SECONDARY} mt-4`}
-                      onClick={() => setCalculationId(null)}
-                    >
-                      Close
-                    </button>
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        ) : null}
-
-        {reviewItem ? (
-          <FindingsReviewDrawer
-            item={reviewItem}
-            view={view}
-            sources={sources}
-            canonicalStudy={canonicalStudy}
-            documentDate={model.documentDate}
-            onClose={closeReview}
-          />
-        ) : null}
+        <FindingsOnThisPage toc={toc} activeId={activeSection} onNavigate={jumpTo} />
       </div>
+
+      {calculationId && pack ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-4"
+          role="presentation"
+          onClick={() => setCalculationId(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="findings-calculation-title"
+            className="max-w-md rounded-card border border-line bg-paper p-[22px] shadow-lg"
+            data-testid="findings-calculation-dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {(() => {
+              const def = pack.computedValues.find((entry) => entry.id === calculationId);
+              if (!def) return null;
+              return (
+                <>
+                  <h3 id="findings-calculation-title" className="m-0 font-brand text-section font-semibold text-ink">
+                    {def.label.trim() || def.id}
+                  </h3>
+                  <p className="m-0 mt-3 text-small text-ink-2">
+                    {def.op.trim()} · {def.inputs.trim()}
+                    {def.per.trim() ? ` · per ${def.per.trim()}` : ""}
+                  </p>
+                  <Button variant="secondary" type="button" className="mt-4" onClick={() => setCalculationId(null)}>
+                    Close
+                  </Button>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      ) : null}
+
+      {reviewItem ? (
+        <FindingsReviewDrawer
+          item={reviewItem}
+          view={view}
+          sources={sources}
+          canonicalStudy={canonicalStudy}
+          documentDate={model.documentDate}
+          onClose={closeReview}
+        />
+      ) : null}
     </EvidenceViewerProvider>
   );
 }

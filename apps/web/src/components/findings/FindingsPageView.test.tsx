@@ -107,6 +107,14 @@ function renderFindingsPage() {
 
 beforeEach(() => {
   vi.stubGlobal(
+    "IntersectionObserver",
+    vi.fn(() => ({
+      observe: vi.fn(),
+      disconnect: vi.fn(),
+      unobserve: vi.fn(),
+    })),
+  );
+  vi.stubGlobal(
     "fetch",
     vi.fn(async () =>
       new Response(JSON.stringify({ signedUrl: "https://example.com/page.pdf", mimeType: "application/pdf" }), {
@@ -123,13 +131,12 @@ afterEach(() => {
 });
 
 describe("FindingsPageView layout", () => {
-  it("places the question card after topics without Ask or magnifier styling", () => {
+  it("links to the board Ask tab instead of an inline Ask card", () => {
     renderFindingsPage();
-    expect(screen.getByTestId("hive-ask-findings")).toBeTruthy();
-    expect(screen.queryByTestId("hive-ask")).toBeNull();
-    const topics = screen.getByTestId("findings-topics");
-    const question = screen.getByTestId("findings-question-card");
-  expect(topics.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId("hive-ask-findings")).toBeNull();
+    expect(screen.getByTestId("findings-ask-link")).toBeTruthy();
+    expect(screen.getByTestId("findings-topics")).toBeTruthy();
+    expect(screen.getByTestId("meta-line")).toBeTruthy();
   });
 });
 
@@ -158,14 +165,14 @@ describe("FindingsPageView review flow", () => {
 
   it("closes from the footer Close control without changing the server open count", async () => {
     const { openItemCount } = renderFindingsPage();
-    const reviewButton = screen.getAllByRole("button", { name: "Review context" })[0]!;
+    const reviewButton = screen.getAllByRole("button", { name: "Review" })[0]!;
     fireEvent.click(reviewButton);
 
     const drawer = screen.getByTestId("findings-review-drawer");
     fireEvent.click(within(drawer).getByRole("button", { name: "Close review" }));
 
     expect(screen.queryByTestId("findings-review-drawer")).toBeNull();
-    expect(screen.getByTestId("findings-open-count").textContent).toBe(`${openItemCount} to review`);
+    expect(screen.getByTestId("meta-line").textContent).toContain(`${openItemCount} to review`);
     expect(sessionStorage.length).toBe(0);
     await waitFor(() => {
       expect(document.activeElement).toBe(reviewButton);
@@ -174,7 +181,7 @@ describe("FindingsPageView review flow", () => {
 
   it("closes on Escape and returns focus to the review trigger", async () => {
     renderFindingsPage();
-    const reviewButton = screen.getAllByRole("button", { name: "Review context" })[0]!;
+    const reviewButton = screen.getAllByRole("button", { name: "Review" })[0]!;
     fireEvent.click(reviewButton);
     expect(screen.getByTestId("findings-review-drawer")).toBeTruthy();
 
@@ -189,7 +196,7 @@ describe("FindingsPageView review flow", () => {
 
   it("closes when the backdrop is clicked", async () => {
     renderFindingsPage();
-    const reviewButton = screen.getAllByRole("button", { name: "Review context" })[0]!;
+    const reviewButton = screen.getAllByRole("button", { name: "Review" })[0]!;
     fireEvent.click(reviewButton);
 
     fireEvent.click(screen.getByTestId("findings-review-backdrop"));

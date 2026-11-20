@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChipRef } from "@/components/study/SourceChip";
+import { truncateChipLabel } from "@/components/study/truncate-chip-label";
 import { useEvidenceViewer } from "@/components/study/EvidenceViewer";
 
 export type SourceRefProps = {
@@ -32,8 +33,7 @@ export function SourceRef({ chip, title }: SourceRefProps) {
   const viewer = useEvidenceViewer();
   const chipLabel = chip.shortLabel?.trim() || viewer.chipLabelFor(chip.sourceDocumentId);
   const fullLabel = chip.shortLabel?.trim() || viewer.labelFor(chip.sourceDocumentId);
-  const display =
-    chipLabel.length > 24 ? `${chipLabel.slice(0, 21)}…` : chipLabel;
+  const display = truncateChipLabel(chipLabel);
   return (
     <button
       type="button"

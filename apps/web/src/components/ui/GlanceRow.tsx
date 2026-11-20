@@ -1,12 +1,14 @@
-import type { ReactNode } from "react";
+import type { ChipRef } from "@/components/study/SourceChip";
 
 import { Button } from "./Button";
+import { SourceRefs } from "./SourceRefs";
 
 export type GlanceEntry = {
   id: string;
   label: string;
   value: string;
   sub?: string;
+  refs?: readonly ChipRef[];
   onHowCalculated?: () => void;
 };
 
@@ -26,6 +28,7 @@ export function GlanceRow({ entries }: { entries: readonly GlanceEntry[] }) {
           <dt className="text-label text-ink-3">{entry.label}</dt>
           <dd className="m-0 font-brand text-glance font-semibold tabular-nums text-ink">{entry.value}</dd>
           {entry.sub ? <p className="m-0 mt-0.5 text-label text-ink-3">{entry.sub}</p> : null}
+          {entry.refs?.length ? <SourceRefs refs={entry.refs} /> : null}
           {entry.onHowCalculated ? (
             <Button variant="text" size="small" type="button" className="!mt-1 !min-h-8 !text-label" onClick={entry.onHowCalculated}>
               How it&apos;s calculated

@@ -16,6 +16,9 @@ const galleryPages = [
   "board-firmless",
   "board-empty",
   "board-long",
+  "findings-medicaid",
+  "findings-large",
+  "findings-empty",
 ];
 const baseUrl = process.env.UI_SHOTS_BASE_URL ?? "http://127.0.0.1:3000";
 const prototypeUrl = `file:///${path.join(root, "prototype/new/HiveForYou-Complete-Prototype.html").replace(/\\/g, "/")}`;
@@ -73,6 +76,9 @@ async function main() {
       if (pageName === "board-ask" || pageName === "board-long") {
         await page.waitForSelector('[data-testid="hive-message"]', { timeout: 30_000 }).catch(() => undefined);
       }
+      if (pageName.startsWith("findings-") && pageName !== "findings-empty") {
+        await page.waitForSelector('[data-testid="findings-topics"]', { timeout: 30_000 }).catch(() => undefined);
+      }
       await page.waitForTimeout(pageName === "board-ask" ? 2500 : 1500);
       if (await pageOverflows(page)) {
         overflowPages.push(`gallery:${pageName}@${width}px`);
@@ -116,6 +122,44 @@ async function main() {
     await page.waitForTimeout(1500);
     await page.screenshot({ path: path.join(outDir, `prototype-board-ask-client-${width}.png`), fullPage: true });
     await page.close();
+  }
+
+  async function openPrototypeFindings(page, large) {
+    await page.goto(prototypeUrl, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await page.waitForTimeout(300);
+    if (large) {
+      await page.locator('[data-action="library"]').first().click();
+      await page.waitForTimeout(300);
+      await page.locator('[data-open="large"]').click();
+      await page.waitForTimeout(400);
+    } else {
+      const medicaid = page.locator('[data-scenario="medicaid"]');
+      await medicaid.waitFor({ state: "visible", timeout: 30_000 });
+      await medicaid.click();
+      await page.waitForTimeout(300);
+    }
+    await page.locator('[data-tab="findings"]').click();
+    await page.waitForTimeout(500);
+  }
+
+  for (const [slug, large] of [
+    ["medicaid", false],
+    ["large", true],
+  ]) {
+    for (const width of [390, 1280]) {
+      const page = await protoContext.newPage();
+      await page.setViewportSize({ width, height: 900 });
+      await openPrototypeFindings(page, large);
+      await page.waitForTimeout(300);
+      if (await pageOverflows(page)) {
+        overflowPages.push(`prototype:findings-${slug}@${width}px`);
+      }
+      await page.screenshot({
+        path: path.join(outDir, `prototype-findings-${slug}-${width}.png`),
+        fullPage: true,
+      });
+      await page.close();
+    }
   }
 
   await protoContext.close();
