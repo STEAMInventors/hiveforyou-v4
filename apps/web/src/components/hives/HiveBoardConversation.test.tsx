@@ -12,6 +12,8 @@ const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/hives/11111111-1111-4111-8111-111111111111",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 beforeEach(() => {

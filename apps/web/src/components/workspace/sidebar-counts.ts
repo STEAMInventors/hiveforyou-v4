@@ -1,5 +1,10 @@
 import type { HiveSummary } from "@/server/hives/hive-summary";
 
+export type StudyRailRevision = {
+  revisionNumber: number;
+  acceptedAt: string;
+};
+
 export type HiveSidebarCounts = {
   toReviewCount: number | null;
   documents: number | null;

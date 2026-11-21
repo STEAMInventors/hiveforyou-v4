@@ -25,7 +25,7 @@ export function FirmTeamPanel({ initial, practiceAreaOptions = [] }: FirmTeamPan
       <div className="flex max-w-xl flex-col gap-6" data-testid="firm-team-panel">
         <div>
           <h1 className="m-0 font-brand text-[30px] font-semibold text-ink">{initial.firm.name}</h1>
-          <p className="m-0 mt-1 text-body text-graphite">
+          <p className="m-0 mt-1 text-body text-ink-2">
             {initial.firm.callerRole === "owner" ? "You own this firm." : "You are on this team."}
           </p>
         </div>
@@ -36,9 +36,9 @@ export function FirmTeamPanel({ initial, practiceAreaOptions = [] }: FirmTeamPan
           <h2 className="m-0 mb-2 text-[18px] font-semibold text-ink">People</h2>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {initial.members.map((member) => (
-              <li key={`${member.email}-${member.role}`} className="rounded-card border border-line px-4 py-3">
+              <li key={`${member.email}-${member.role}`} className="rounded-input border border-line px-4 py-3">
                 <p className="m-0 text-body font-medium text-ink">{member.displayName?.trim() || member.email}</p>
-                <p className="m-0 text-small text-graphite">
+                <p className="m-0 text-small text-ink-2">
                   {member.title} · {member.role}
                 </p>
               </li>
@@ -50,7 +50,7 @@ export function FirmTeamPanel({ initial, practiceAreaOptions = [] }: FirmTeamPan
             <h2 className="m-0 mb-2 text-[18px] font-semibold text-ink">Pending invitations</h2>
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {initial.pendingInvitations.map((invite) => (
-                <li key={invite.invitationId} className="rounded-card border border-line px-4 py-3 text-body text-graphite">
+                <li key={invite.invitationId} className="rounded-input border border-line px-4 py-3 text-body text-ink-2">
                   {invite.email} · {invite.title}
                 </li>
               ))}
@@ -71,23 +71,23 @@ export function FirmTeamPanel({ initial, practiceAreaOptions = [] }: FirmTeamPan
       }}
     >
       <h1 className="m-0 font-brand text-[30px] font-semibold text-ink">Create your firm</h1>
-      <p className="m-0 text-body text-graphite">
+      <p className="m-0 text-body text-ink-2">
         Add a firm when you want a second seat to assign client hives and leave team notes.
       </p>
-      <label className="flex flex-col gap-1 text-small text-graphite">
+      <label className="flex flex-col gap-1 text-small text-ink-2">
         Firm name
         <input
-          className="rounded-card border border-line bg-paper px-3 py-2 text-body text-ink"
+          className="rounded-input border border-line bg-paper px-3 py-2 text-body text-ink"
           value={firmName}
           onChange={(event) => setFirmName(event.target.value)}
           maxLength={100}
           required
         />
       </label>
-      <label className="flex flex-col gap-1 text-small text-graphite">
+      <label className="flex flex-col gap-1 text-small text-ink-2">
         Assistant name (client-facing)
         <input
-          className="rounded-card border border-line bg-paper px-3 py-2 text-body text-ink"
+          className="rounded-input border border-line bg-paper px-3 py-2 text-body text-ink"
           value={assistantName}
           onChange={(event) => setAssistantName(event.target.value)}
           maxLength={40}

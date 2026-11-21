@@ -36,7 +36,7 @@ export function ProgressCountdown(props: { estimate: ProgressEstimate | null | u
   const remainingSeconds = Math.ceil((targetMs - nowMs) / 1000);
   if (remainingSeconds <= 0) {
     return (
-      <p className="m-0 text-[13px] text-ink-muted" data-testid="progress-countdown-late">
+      <p className="m-0 text-[13px] text-ink-2" data-testid="progress-countdown-late">
         Taking a little longer than usual…
       </p>
     );
@@ -47,7 +47,7 @@ export function ProgressCountdown(props: { estimate: ProgressEstimate | null | u
       <p className="m-0 font-mono text-[15px] tabular-nums text-ink" aria-live="polite">
         {formatCountdown(remainingSeconds)}
       </p>
-      <p className="m-0 text-[12px] text-ink-muted">
+      <p className="m-0 text-[12px] text-ink-2">
         {formatProgressEstimateRangeLabel(targetMs, nowMs)}
       </p>
     </div>

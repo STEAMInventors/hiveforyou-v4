@@ -80,7 +80,7 @@ export function NameHiveDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 w-full max-w-[420px] rounded-t-card border border-line bg-paper px-6 pb-6 pt-7 shadow-[0_24px_80px_rgba(0,0,0,0.2)] sm:rounded-card"
+        className="relative z-10 w-full max-w-[420px] rounded-t-card border border-line bg-paper px-6 pb-6 pt-7 shadow-[0_24px_80px_rgba(0,0,0,0.2)] sm:rounded-input"
       >
         <h2
           id={titleId}
@@ -88,7 +88,7 @@ export function NameHiveDialog({
         >
           Name your Hive
         </h2>
-        <p className="mb-4 mt-2 text-[14px] leading-[1.5] text-ink-muted">
+        <p className="mb-4 mt-2 text-[14px] leading-[1.5] text-ink-2">
           You can change this anytime. We suggested a short label from what you wrote.
         </p>
 
@@ -129,7 +129,7 @@ export function NameHiveDialog({
               disabled={busy}
               aria-invalid={nameError ? true : undefined}
               aria-describedby={nameError ? errorId : undefined}
-              className="box-border w-full rounded-button border border-line bg-paper px-3.5 py-2.5 text-[16px] text-ink placeholder:text-ink-subtle focus:border-cell-blue focus:outline-none focus:ring-2 focus:ring-cell-blue/25 disabled:opacity-60"
+              className="box-border w-full rounded-button border border-line bg-paper px-3.5 py-2.5 text-[16px] text-ink placeholder:text-ink-3 focus:border-blue focus:outline-none focus:ring-2 focus:ring-blue/25 disabled:opacity-60"
               onChange={(event) => onHiveNameChange(event.target.value)}
             />
             {nameError ? (
@@ -150,7 +150,7 @@ export function NameHiveDialog({
             <button
               type="submit"
               disabled={busy}
-              className="h-10 cursor-pointer rounded-button border-0 bg-cell-blue px-5 text-[14px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+              className="h-10 cursor-pointer rounded-button border-0 bg-blue px-5 text-[14px] font-semibold text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
             >
               {busy ? "Creating…" : "Create Hive"}
             </button>

@@ -91,13 +91,13 @@ export function FirmSetupForm({
       <img src="/brand/hiveforyou-mark.svg" alt="" className="h-10 w-10" width={40} height={40} />
       <div className="flex flex-col gap-1.5">
         <h1 className="m-0 font-brand text-[26px] font-semibold leading-tight text-ink">Set up your practice</h1>
-        <p className="m-0 text-body leading-normal text-graphite">
+        <p className="m-0 text-body leading-normal text-ink-2">
           Three quick things, so HiveForYou asks your clients for the right documents. You can change these later in
           Firm settings.
         </p>
       </div>
 
-      <section className="flex flex-col gap-[18px] rounded-card border border-line bg-paper p-[22px]">
+      <section className="flex flex-col gap-[18px] rounded-input border border-line bg-paper p-[22px]">
         <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
           Your first name
           <input
@@ -123,7 +123,7 @@ export function FirmSetupForm({
             autoComplete="organization"
             className="h-11 rounded-control border border-line-strong px-3 text-[15px] font-normal text-ink"
           />
-          <span className="text-[12.5px] font-normal text-quiet">
+          <span className="text-[12.5px] font-normal text-ink-3">
             Your clients see it in emails: “{firmPreview} needs 9 items from you.” Working alone? Use your own name.
           </span>
         </label>
@@ -131,7 +131,7 @@ export function FirmSetupForm({
         <div role="group" aria-labelledby="firm-practice-areas" className="flex flex-col gap-2.5">
           <span id="firm-practice-areas" className="text-sm font-semibold text-ink">
             What do you handle?{" "}
-            <span className="font-normal text-quiet">· choose all that apply</span>
+            <span className="font-normal text-ink-3">· choose all that apply</span>
           </span>
           {practiceAreaOptions.map((area) => {
             const on = selectedAreas.includes(area.packId);
@@ -143,20 +143,20 @@ export function FirmSetupForm({
                 aria-pressed={on}
                 onClick={() => toggleArea(area.packId)}
                 className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-control border px-3.5 py-3 text-left ${
-                  on ? "border-cell-blue-deep bg-cell-blue-wash" : "border-line bg-paper"
+                  on ? "border-blue-deep bg-blue-wash" : "border-line bg-paper"
                 }`}
               >
                 <span
                   aria-hidden
                   className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border text-[13px] ${
-                    on ? "border-cell-blue-deep bg-cell-blue-deep text-paper" : "border-line-strong bg-paper text-transparent"
+                    on ? "border-blue-deep bg-blue-deep text-paper" : "border-line-strong bg-paper text-transparent"
                   }`}
                 >
                   ✓
                 </span>
                 <span className="flex flex-col gap-0.5">
                   <span className="text-[15px] font-semibold text-ink">{area.label}</span>
-                  <span className="text-[13px] text-graphite">{area.description}</span>
+                  <span className="text-[13px] text-ink-2">{area.description}</span>
                 </span>
               </button>
             );
@@ -165,13 +165,13 @@ export function FirmSetupForm({
           {!askOpen ? (
             <button
               type="button"
-              className="self-start border-0 bg-transparent p-0 text-sm font-medium text-cell-blue-deep"
+              className="self-start border-0 bg-transparent p-0 text-sm font-medium text-blue-deep"
               onClick={() => setAskOpen(true)}
             >
               Don’t see what you handle?
             </button>
           ) : (
-            <label className="flex flex-col gap-1.5 rounded-control bg-canvas p-3.5 text-sm font-semibold text-ink">
+            <label className="flex flex-col gap-1.5 rounded-control bg-mist p-3.5 text-sm font-semibold text-ink">
               Tell us what you handle
               <textarea
                 value={requestText}
@@ -184,7 +184,7 @@ export function FirmSetupForm({
                 placeholder="Planning for elderly clients; probate"
                 className="resize-y rounded-control border border-line-strong bg-paper px-3 py-2.5 text-[15px] font-normal text-ink"
               />
-              <span className="text-[12.5px] font-normal leading-snug text-graphite">
+              <span className="text-[12.5px] font-normal leading-snug text-ink-2">
                 We read every request and will email you when HiveForYou covers it. Meanwhile you can still add clients:
                 HiveForYou reads their documents and tells you what’s missing, without a starting checklist.
               </span>
@@ -197,7 +197,7 @@ export function FirmSetupForm({
                   {requestAction.inlineError.retryable ? (
                     <button
                       type="button"
-                      className="ml-1 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
+                      className="ml-1 border-0 bg-transparent p-0 font-semibold text-blue-deep"
                       onClick={() =>
                         void requestAction.retrySameKey({
                           url: "/api/v1/firm/practice-area-requests",
@@ -231,14 +231,14 @@ export function FirmSetupForm({
             {firmAction.inlineError.errorCode === "IDEMPOTENCY_CONFLICT" ? (
               <>
                 {" "}
-                <Link href="/hives" className="font-semibold text-cell-blue-deep">
+                <Link href="/hives" className="font-semibold text-blue-deep">
                   Go to your hives
                 </Link>
               </>
             ) : firmAction.inlineError.retryable ? (
               <button
                 type="button"
-                className="ml-1 border-0 bg-transparent p-0 font-semibold text-cell-blue-deep"
+                className="ml-1 border-0 bg-transparent p-0 font-semibold text-blue-deep"
                 onClick={() => void firmAction.retrySameKey({
                   url: "/api/v1/firm",
                   body: { name: name.trim(), practiceAreas: selectedAreas },
@@ -262,7 +262,7 @@ export function FirmSetupForm({
         </button>
       </section>
 
-      <p className="m-0 text-[12.5px] leading-normal text-quiet">
+      <p className="m-0 text-[12.5px] leading-normal text-ink-3">
         Adding your team and naming your intake assistant come later, when you need them.
       </p>
     </div>

@@ -93,7 +93,7 @@ export function DocumentDropZone({ onAdd, disabled = false, quotaText }: Documen
           <p className="m-0 text-[15px] font-medium text-ink">Drop documents here, or choose files</p>
         </div>
       </div>
-      <p id={quotaId} className="m-0 text-[13px] text-quiet">
+      <p id={quotaId} className="m-0 text-[13px] text-ink-3">
         {quotaText}
       </p>
     </div>

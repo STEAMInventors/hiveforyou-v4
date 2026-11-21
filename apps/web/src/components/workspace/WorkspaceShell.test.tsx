@@ -12,13 +12,24 @@ vi.mock("@/components/app-header", () => ({
   useHiveHeaderWorkspace: () => ({ setWorkspace: vi.fn() }),
 }));
 
-vi.mock("./HiveSidebar", () => ({
-  HiveSidebar: ({ compact }: { compact?: boolean }) => (
-    <div data-testid={compact ? "hive-sidebar-compact" : "hive-sidebar-desktop"} />
-  ),
+vi.mock("./HiveHead", () => ({
+  HiveHead: () => <header data-testid="hive-head">Hive head</header>,
 }));
 
+import type { ConversationLoad } from "@/components/hives/useHiveConversation";
+
 import { WorkspaceShell } from "./WorkspaceShell";
+
+const EMPTY_ASSISTANT_LOAD: ConversationLoad = {
+  ok: true,
+  page: {
+    messages: [],
+    participantRoleLabels: [],
+    participantCount: 0,
+    viewerLastReadAt: null,
+    nextCursor: null,
+  },
+};
 
 const hive: Hive = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -36,14 +47,8 @@ afterEach(() => {
 });
 
 describe("WorkspaceShell", () => {
-  it("uses the desktop grid from 900px and hides compact nav at that breakpoint", () => {
-    vi.stubGlobal("matchMedia", vi.fn().mockImplementation(() => ({
-      matches: false,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })));
-
-    const { container } = render(
+  it("renders the hive head and no rail", () => {
+    render(
       <WorkspaceShell
         hive={hive}
         startingView="clients"
@@ -52,46 +57,43 @@ describe("WorkspaceShell", () => {
           documents: 2,
           reports: null,
           teamNotes: null,
+          unreadMessages: null,
         }}
         firm={null}
         currentUserId="user"
         assigneeLabel={null}
         assigneeTitle={null}
         assistantName="HiveForYou"
+        initialAssistant={EMPTY_ASSISTANT_LOAD}
       >
         <p>Workspace body</p>
       </WorkspaceShell>,
     );
 
-    expect(container.firstElementChild?.className).toContain("min-[900px]:grid");
-    expect(container.firstElementChild?.className).toContain("min-[900px]:grid-cols-[240px_minmax(0,1fr)]");
-    expect(screen.getByTestId("hive-sidebar-desktop")).toBeTruthy();
+    expect(screen.getByTestId("hive-head")).toBeTruthy();
+    expect(screen.getByText("Workspace body")).toBeTruthy();
+    expect(screen.queryByTestId("hive-sidebar-desktop")).toBeNull();
     expect(screen.queryByTestId("hive-sidebar-compact")).toBeNull();
   });
 
-  it("renders compact nav below 900px", () => {
-    vi.stubGlobal("matchMedia", vi.fn().mockImplementation(() => ({
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })));
-
+  it("hides the hive head for a firm client on client home", () => {
     render(
       <WorkspaceShell
-        hive={hive}
-        startingView="clients"
-        counts={{ toReviewCount: 0, documents: 0, reports: null, teamNotes: null }}
+        hive={{ ...hive, firmId: "22222222-2222-4222-8222-222222222222", membershipRole: "client" }}
+        startingView="own"
+        counts={{ toReviewCount: 0, documents: 0, reports: null, teamNotes: null, unreadMessages: null }}
         firm={null}
         currentUserId="user"
         assigneeLabel={null}
         assigneeTitle={null}
         assistantName="HiveForYou"
+        initialAssistant={EMPTY_ASSISTANT_LOAD}
       >
-        <p>Workspace body</p>
+        <p>Client body</p>
       </WorkspaceShell>,
     );
 
-    expect(screen.getByTestId("hive-sidebar-compact")).toBeTruthy();
-    expect(screen.queryByTestId("hive-sidebar-desktop")).toBeNull();
+    expect(screen.queryByTestId("hive-head")).toBeNull();
+    expect(screen.getByText("Client body")).toBeTruthy();
   });
 });

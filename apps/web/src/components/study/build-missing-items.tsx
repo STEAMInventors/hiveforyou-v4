@@ -93,10 +93,10 @@ export function buildMissingItemRows(input: {
             <StatusDot state={state} />
             <p className="m-0 font-medium text-ink">{item.title}</p>
             {item.why.trim() && item.why.trim() !== item.title.trim() ? (
-              <p className="m-0 text-small text-graphite">{item.why}</p>
+              <p className="m-0 text-small text-ink-2">{item.why}</p>
             ) : null}
             {"basis" in item && item.basis.type === "MENTIONED" ? (
-              <span className="text-small text-quiet">
+              <span className="text-small text-ink-3">
                 Mentioned in{" "}
                 <SourceChips
                   refs={item.basis.sourceRefs.map((ref) => ({

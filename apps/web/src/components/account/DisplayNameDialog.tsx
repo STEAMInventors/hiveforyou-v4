@@ -81,7 +81,7 @@ export function DisplayNameDialog({
         ref={dialogRef}
         role="dialog"
         aria-labelledby={titleId}
-        className="relative z-10 flex w-full max-w-md flex-col gap-4 rounded-card border border-line bg-paper p-6 shadow-[0_12px_32px_rgba(31,35,40,0.14)]"
+        className="relative z-10 flex w-full max-w-md flex-col gap-4 rounded-input border border-line bg-paper p-6 shadow-[0_12px_32px_rgba(31,35,40,0.14)]"
       >
         <h2 id={titleId} className="m-0 font-brand text-section font-semibold text-ink">
           Your first name

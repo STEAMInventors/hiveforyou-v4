@@ -1,12 +1,17 @@
 "use client";
 
 import {
+  buildDocumentsLibraryRows,
   type CanonicalStudy,
   type CoverageGap,
   formatStudyRevisionAcceptanceDetail,
+  type FindingsOpenItem,
+  type FindingsTopic,
+  type HiveBoardChecklistItem,
   type SourceDocument,
   type StudyView,
   type StudyViewReferencedDocument,
+  type StudyViewSources,
   type UploadQuota,
 } from "@hiveforyou/contracts";
 import Link from "next/link";
@@ -14,29 +19,28 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { QUIET_LINK_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
-import type { DisplayState } from "@/components/study/StatusBadge";
-import { StatusBadge } from "@/components/study/StatusBadge";
-import { STATE_LABEL } from "@/components/study/status-state";
-import type { StudyDocumentMeta } from "@/components/study/study-summary";
+import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { shortDocumentLabels, shortTypeChipLabels } from "@/components/study/SourceChip";
+import { Button } from "@/components/ui/Button";
+import { MetaDot, MetaLine } from "@/components/ui/MetaLine";
 import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
 import { HiveClientError } from "@/lib/hives-client";
 import { fetchSourceDocuments, fetchUploadQuota, startDocumentReads } from "@/lib/source-documents-client";
 
-import { MissingDocumentsCard } from "./MissingDocumentsCard";
 import {
   DocumentsSourceLibrary,
   libraryEvidenceCoverageLines,
 } from "./DocumentsSourceLibrary";
 import { buildDocumentsLibraryReadMetrics } from "./documents-library-metrics";
+import { buildDocumentsSummaryParts } from "./documents-page-model";
+import { DocumentsStillToCome } from "./DocumentsStillToCome";
 import { AnalyzeModal } from "./AnalyzeModal";
 import { analyzeHint, rebuildHint } from "./study-preparation-progress";
-import { DocumentDropZone } from "./DocumentDropZone";
+import { AddFilesButton } from "./SourceFilePicker";
 import { SelectedFileList } from "./SourceFilePicker";
 import {
   MAX_FILES_PER_BATCH,
-  rejectionMessage,
   toSelectedSourceFiles,
   uploadSelectedSourceFiles,
   type SelectedSourceFile,
@@ -45,59 +49,27 @@ import { useStudyPreparation } from "./useStudyPreparation";
 
 type LoadError = { message: string; correlationId: string | null };
 
-import type { StateCounts } from "@/components/study/state-counts";
-import { StatusDot } from "@/components/workspace/StatusDot";
-
 type DocumentsPanelProps = {
   hiveId: string;
   initialDocuments: SourceDocument[];
   initialError?: LoadError | null;
   onNavigateToReports?: () => void;
-  /** What the current study says each document is, keyed by lowercase source document id. */
-  documentMeta?: Readonly<Record<string, StudyDocumentMeta>>;
+  documentMeta?: Readonly<Record<string, import("@/components/study/study-summary").StudyDocumentMeta>>;
   studyView?: StudyView | null;
+  sources?: StudyViewSources | null;
   canonicalStudy?: CanonicalStudy | null;
   referencedDocuments?: readonly StudyViewReferencedDocument[];
-  summaryCounts?: StateCounts | null;
   coverageGaps?: readonly CoverageGap[];
+  checklist?: readonly HiveBoardChecklistItem[];
+  openItems?: readonly FindingsOpenItem[];
+  topics?: readonly FindingsTopic[];
 };
-
-const READ_STATUS_DETAIL: Record<SourceDocument["readStatus"], string> = {
-  PENDING: "Not read yet. Analyze reads it first.",
-  SUCCEEDED: "Every page is saved and checked.",
-  PARTIAL: "Some pages had no readable text.",
-  UNREADABLE: "No readable text was found.",
-  FAILED: "Reading didn't finish. Analyze tries again.",
-};
-
-type RowStatus = { state: DisplayState | "neutral"; label: string; detail: string };
-
-/** Upload and read states in brand states; work in progress is neutral, never a brand colour. */
-export function documentRowStatus(document: SourceDocument, reading: boolean): RowStatus {
-  if (document.status === "REJECTED") return { state: "missing", label: "Not accepted", detail: rejectionMessage(document) };
-  if (document.status === "PENDING") {
-  }
-  switch (document.readStatus) {
-    case "PENDING":
-      return reading
-        ? { state: "neutral", label: "Reading", detail: "Reading your documents. This usually takes a few minutes." }
-        : { state: "neutral", label: "Not read yet", detail: READ_STATUS_DETAIL.PENDING };
-    case "SUCCEEDED":
-      return { state: "checked", label: "Checked", detail: READ_STATUS_DETAIL.SUCCEEDED };
-    case "PARTIAL":
-    case "FAILED":
-    case "UNREADABLE":
-      return { state: "missing", label: "Missing", detail: READ_STATUS_DETAIL.UNREADABLE };
-  }
-}
 
 function toLoadError(error: unknown, fallback: string): LoadError {
   return error instanceof HiveClientError
     ? { message: error.message, correlationId: error.correlationId || null }
     : { message: fallback, correlationId: null };
 }
-
-const CARD = "flex flex-col gap-3 bg-paper";
 
 export function DocumentsPanel({
   hiveId,
@@ -106,10 +78,13 @@ export function DocumentsPanel({
   onNavigateToReports,
   documentMeta = {},
   studyView = null,
+  sources = null,
   canonicalStudy = null,
-  referencedDocuments = [],
-  summaryCounts = null,
+  referencedDocuments: _referencedDocuments = [],
   coverageGaps = [],
+  checklist = [],
+  openItems = [],
+  topics = [],
 }: DocumentsPanelProps) {
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
@@ -128,10 +103,7 @@ export function DocumentsPanel({
 
   const refresh = useCallback(async () => {
     try {
-      const [list, quotaResponse] = await Promise.all([
-        fetchSourceDocuments(hiveId),
-        fetchUploadQuota(),
-      ]);
+      const [list, quotaResponse] = await Promise.all([fetchSourceDocuments(hiveId), fetchUploadQuota()]);
       setDocuments(list.sourceDocuments);
       setQuota(quotaResponse.quota);
       setLoadError(null);
@@ -166,6 +138,36 @@ export function DocumentsPanel({
     () => buildDocumentsLibraryReadMetrics(eligibilityDocuments, coverageGaps),
     [eligibilityDocuments, coverageGaps],
   );
+  const libraryRows = useMemo(
+    () =>
+      buildDocumentsLibraryRows({
+        documents,
+        documentMeta,
+        studyView,
+        pageCounts: readMetrics.pageCounts,
+        verifiedPages: readMetrics.verifiedPages,
+        unreadableFirstPage: readMetrics.unreadableFirstPage,
+        readingInProgress: analysis.active,
+      }),
+    [analysis.active, documentMeta, documents, readMetrics, studyView],
+  );
+  const summaryParts = useMemo(
+    () => buildDocumentsSummaryParts(documents, libraryRows, readMetrics),
+    [documents, libraryRows, readMetrics],
+  );
+
+  const evidenceModel = useMemo(
+    () =>
+      buildHiveEvidenceViewerModel({
+        view: studyView,
+        sources,
+        canonicalStudy,
+        coverageGaps,
+        documentPages: readMetrics.pageCounts,
+      }),
+    [studyView, sources, canonicalStudy, coverageGaps, readMetrics.pageCounts],
+  );
+
   const pageCountFor = useCallback(
     (id: string) => readMetrics.pageCounts[id] ?? readMetrics.pageCounts[id.toLowerCase()],
     [readMetrics.pageCounts],
@@ -177,11 +179,11 @@ export function DocumentsPanel({
       date: documentMeta[document.sourceDocumentId.toLowerCase()]?.date ?? null,
     }));
     return {
-      labels: shortDocumentLabels(labelled),
-      chipLabels: shortTypeChipLabels(labelled),
+      labels: evidenceModel?.labels ?? shortDocumentLabels(labelled),
+      chipLabels: evidenceModel?.chipLabels ?? shortTypeChipLabels(labelled),
       coverageLines: libraryEvidenceCoverageLines(documents, readMetrics),
     };
-  }, [documents, documentMeta, readMetrics]);
+  }, [documents, documentMeta, evidenceModel, readMetrics]);
 
   const retryRead = useCallback(
     async (sourceDocumentId: string) => {
@@ -220,6 +222,8 @@ export function DocumentsPanel({
       : remaining === 0
         ? "You've used this month's free uploads. Your allowance resets on the 1st (UTC)."
         : `PDF, PNG, JPG or DOCX, up to 25 MB each. ${remaining} of ${quota?.limit} free uploads left this month.`;
+
+  const acceptedRevisionId = analysis.state?.studyRevision?.id ?? null;
 
   const analyzeToolbar =
     documents.length > 0 ? (
@@ -268,55 +272,87 @@ export function DocumentsPanel({
       </>
     ) : null;
 
-  return (
-    <EvidenceViewerProvider
-      hiveId={hiveId}
-      labels={chipModel.labels}
-      chipLabels={chipModel.chipLabels}
-      pageCountFor={pageCountFor}
-      readCoverageLines={chipModel.coverageLines}
-    >
-    <section aria-labelledby="documents-title" className="flex flex-col gap-5">
+  const openAddPicker = () => {
+    const button = document.querySelector<HTMLButtonElement>('[data-documents-add="1"]');
+    button?.click();
+  };
+
+  const panelBody = (
+    <section aria-labelledby="documents-title" className="mx-auto flex w-full max-w-col-wide flex-col gap-6">
       <h2 id="documents-title" className="sr-only">
         Documents
       </h2>
 
-      {summaryCounts ? (
-        <div className="flex flex-wrap gap-2" data-testid="documents-state-row">
-          {summaryCounts.needs > 0 ? <StatusDot state="needs" label={`${summaryCounts.needs} To review`} /> : null}
-          {summaryCounts.changed > 0 ? <StatusDot state="changed" label={`${summaryCounts.changed} Changed`} /> : null}
-          {summaryCounts.missing > 0 ? <StatusDot state="missing" label={`${summaryCounts.missing} Missing`} /> : null}
-          {summaryCounts.checked > 0 ? <StatusDot state="checked" label={`${summaryCounts.checked} Checked`} /> : null}
-        </div>
+      {documents.length > 0 ? (
+        <header className="flex flex-col gap-3 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+          <MetaLine>
+            <span data-testid="documents-meta-files">
+              {summaryParts.fileCount} {summaryParts.fileCount === 1 ? "file" : "files"}
+            </span>
+            {summaryParts.pageCount > 0 ? (
+              <>
+                <MetaDot />
+                <span>{summaryParts.pageCount} pages</span>
+              </>
+            ) : null}
+            {summaryParts.unreadableFiles > 0 ? (
+              <>
+                <MetaDot />
+                <span>
+                  {summaryParts.unreadableFiles} with unreadable {summaryParts.unreadableFiles === 1 ? "page" : "pages"}
+                </span>
+              </>
+            ) : null}
+            {summaryParts.duplicateSets > 0 ? (
+              <>
+                <MetaDot />
+                <span>
+                  {summaryParts.duplicateSets} duplicate {summaryParts.duplicateSets === 1 ? "set" : "sets"} aside
+                </span>
+              </>
+            ) : null}
+          </MetaLine>
+          <AddFilesButton
+            showLabel
+            label="Add documents"
+            disabled={addDisabled}
+            describedBy="documents-quota"
+            data-documents-add="1"
+            className="inline-flex h-[34px] cursor-pointer items-center gap-2 rounded-button border border-blue-deep bg-blue-deep px-[13px] text-[13.5px] font-semibold text-paper hover:bg-blue-press disabled:cursor-not-allowed disabled:opacity-50 max-[759px]:h-11"
+            onAdd={(picked) => void addFiles(picked)}
+          />
+        </header>
       ) : null}
 
-      {canonicalStudy ? (
-        <MissingDocumentsCard
-          hiveId={hiveId}
-          study={canonicalStudy}
-          acceptedStudyRevisionId={analysis.state?.studyRevision?.id ?? null}
-          acceptedStudyRevisionAcceptedAt={analysis.state?.studyRevision?.createdAt ?? null}
-          referencedDocuments={referencedDocuments}
-          documents={documents}
-          onDocumentsChange={setDocuments}
-        />
-      ) : null}
+      <DocumentsStillToCome
+        hiveId={hiveId}
+        checklist={checklist}
+        openItems={openItems}
+        sources={sources}
+        documents={documents}
+        acceptedStudyRevisionId={acceptedRevisionId}
+        onDocumentsChange={setDocuments}
+        onAddFiles={openAddPicker}
+      />
 
-      <div id="upload" className="scroll-mt-4" />
       {documents.length === 0 && !loadError ? (
         <div className="flex flex-col gap-3" data-testid="documents-empty-state">
-          <p className="m-0 max-w-prose text-body text-graphite">
+          <p className="m-0 text-body text-ink-2">
             Upload whatever you have. Old, partial or out of order is fine.
           </p>
-          <DocumentDropZone
+          <AddFilesButton
+            showLabel
+            label="Add documents"
             disabled={addDisabled}
-            quotaText={quotaText}
+            describedBy="documents-quota"
+            className="inline-flex h-[34px] w-fit cursor-pointer items-center gap-2 rounded-button border border-blue-deep bg-blue-deep px-[13px] text-[13.5px] font-semibold text-paper hover:bg-blue-press disabled:cursor-not-allowed disabled:opacity-50 max-[759px]:h-11"
             onAdd={(picked) => void addFiles(picked)}
+            data-documents-add="1"
           />
         </div>
       ) : null}
 
-      <p id="documents-quota" className="m-0 text-[13px] text-quiet" aria-live="polite">
+      <p id="documents-quota" className="m-0 text-meta text-ink-3" aria-live="polite">
         {quotaText}
       </p>
 
@@ -328,11 +364,9 @@ export function DocumentsPanel({
       />
 
       {acceptedRebuild ? (
-        <div role="status" data-testid="rebuild-study-status" className={`${CARD} gap-1 text-small text-ink`}>
+        <div role="status" data-testid="rebuild-study-status" className="flex flex-col gap-1 text-meta text-ink">
           <p className="m-0 font-medium">Study revision {acceptedRebuild.revisionNumber} accepted.</p>
-          <p className="m-0 text-graphite">
-            {formatStudyRevisionAcceptanceDetail(acceptedRebuild)}
-          </p>
+          <p className="m-0 text-ink-2">{formatStudyRevisionAcceptanceDetail(acceptedRebuild)}</p>
           <Link href={hiveStudyPath(hiveId)} className={QUIET_LINK_CLASS} data-testid="rebuild-study-link">
             Open study revision {acceptedRebuild.revisionNumber}
           </Link>
@@ -340,25 +374,23 @@ export function DocumentsPanel({
       ) : null}
 
       {analysis.startError && !analysis.modalMode ? (
-        <div role="alert" className={`${CARD} gap-1 text-small text-missing-fg`}>
+        <div role="alert" className="flex flex-col gap-1 text-meta text-coral-deep">
           {analysis.startError.message}
           {analysis.startError.correlationId ? (
-            <span className="block font-mono text-[12px] text-quiet">
-              Support reference: {analysis.startError.correlationId}
-            </span>
+            <span className="block font-mono text-meta text-ink-3">Support reference: {analysis.startError.correlationId}</span>
           ) : null}
         </div>
       ) : null}
 
       {loadError ? (
-        <div role="alert" className={`${CARD} items-start gap-2`}>
+        <div role="alert" className="flex flex-col items-start gap-2">
           <p className="m-0 text-body text-ink">{loadError.message}</p>
           {loadError.correlationId ? (
-            <p className="m-0 font-mono text-[12px] text-quiet">Support reference: {loadError.correlationId}</p>
+            <p className="m-0 font-mono text-meta text-ink-3">Support reference: {loadError.correlationId}</p>
           ) : null}
-          <button type="button" className={`${SECONDARY_BUTTON_CLASS} mt-2`} onClick={() => void refresh()}>
+          <Button variant="secondary" type="button" onClick={() => void refresh()}>
             Try again
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -370,13 +402,10 @@ export function DocumentsPanel({
             studyView={studyView}
             metrics={readMetrics}
             readingInProgress={analysis.active}
-            addDisabled={addDisabled}
-            addDescribedBy="documents-quota"
-            onAddFiles={(picked) => void addFiles(picked)}
             onRetryRead={(sourceDocumentId) => void retryRead(sourceDocumentId)}
             toolbar={analyzeToolbar}
           />
-          <p id="documents-read-hint" className="m-0 text-small text-graphite" aria-live="polite">
+          <p id="documents-read-hint" className="m-0 text-meta text-ink-2" aria-live="polite">
             {analysis.active && toRead > 0
               ? "Reading your documents. This usually takes a few minutes."
               : toRead > 0
@@ -414,6 +443,24 @@ export function DocumentsPanel({
         onRetry={analysis.retry}
       />
     </section>
+  );
+
+  return (
+    <EvidenceViewerProvider
+      hiveId={hiveId}
+      labels={chipModel.labels}
+      chipLabels={chipModel.chipLabels}
+      pageCountFor={pageCountFor}
+      citationContexts={evidenceModel?.citationContexts}
+      readCoverageLines={chipModel.coverageLines}
+      view={studyView}
+      sources={sources}
+      canonicalStudy={canonicalStudy}
+      openItems={openItems}
+      topics={topics}
+      coverageGaps={coverageGaps}
+    >
+      {panelBody}
     </EvidenceViewerProvider>
   );
 }
