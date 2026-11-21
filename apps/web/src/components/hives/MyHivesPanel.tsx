@@ -1,35 +1,42 @@
 "use client";
 
 import type { Hive } from "@hiveforyou/contracts";
-import { rankHives } from "@hiveforyou/contracts";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Card } from "@/components/workspace/Card";
 import { HiveAppLogo } from "@/components/HiveWordmark";
 import { HiveComposer } from "@/components/HiveComposer";
-import { QUIET_BUTTON_CLASS, SECONDARY_BUTTON_CLASS, WORKSPACE_PRIMARY } from "@/components/button-classes";
+import {
+  QUIET_BUTTON_CLASS,
+  QUIET_LINK_CLASS,
+  SECONDARY_BUTTON_CLASS,
+  WORKSPACE_PRIMARY,
+} from "@/components/button-classes";
 import type { StartingView } from "@/lib/auth/profile";
 import { AddFilesButton } from "@/components/hives/SourceFilePicker";
+import { Section } from "@/components/ui/Section";
+import { Tabs, type TabOption } from "@/components/ui/Tabs";
 import { loadGuestDraft } from "@/lib/guest-draft";
 import { useClientsHomeSearch } from "@/lib/hives/clients-home-context";
 import {
   clientsHomeHivesForQueue,
   clientsHomeQueueCounts,
-  clientsHomeQueueTitle,
+  hiveLastActivity,
   parseClientsHomeQueue,
   type ClientsHomeQueue,
 } from "@/lib/hives/clients-home-queue";
-import { greetingLine } from "@/lib/hives/greeting";
+import { hiveListSentence } from "@/lib/hives/hive-list-copy";
+import { groupHivesForList } from "@/lib/hives/hive-list-groups";
 import { HiveClientError, deleteHive, fetchMyHives } from "@/lib/hives-client";
-import { CREATE_HIVE_PARAM, MY_HIVES_PATH, hiveDocumentsPath } from "@/lib/hive-routes";
+import { MY_HIVES_PATH, NEW_CLIENT_HIVE_PATH, hiveDocumentsPath } from "@/lib/hive-routes";
 import type { HiveSummary } from "@/server/hives/hive-summary";
 
-import { ClientsHomeClientList } from "./ClientsHomeClientList";
-import { ClientsHomeFirstVisit } from "./ClientsHomeFirstVisit";
-import { ClientsHomeSidebar } from "./ClientsHomeSidebar";
 import { CreateHiveModal } from "./CreateHiveModal";
 import { DeleteHiveModal } from "./DeleteHiveModal";
+import { HivesFirstVisit, PlusIcon } from "./HivesFirstVisit";
+import { HivesListRow } from "./HivesListRow";
+import { HivesListSkeleton } from "./HivesListSkeleton";
 import { NameHiveDialog } from "./NameHiveDialog";
 import { useCreateHive, useHiveComposer } from "./useCreateHive";
 
@@ -44,37 +51,9 @@ type MyHivesPanelProps = {
   openCreateOnLoad?: boolean;
   summaries?: Readonly<Record<string, HiveSummary>>;
   startingView: StartingView;
-  greetingFirstName: string | null;
   showFirmRail?: boolean;
   viewerUserId?: string | null;
 };
-
-function hiveLastActivity(hive: Hive, summary: HiveSummary | undefined): string {
-  const candidates = [hive.updatedAt, summary?.study?.acceptedAt].filter((value): value is string => !!value);
-  return candidates.reduce<string>(
-    (best, value) => (new Date(value).getTime() > new Date(best).getTime() ? value : best),
-    hive.updatedAt,
-  );
-}
-
-function attentionLevel(hiveId: string, summaries: Readonly<Record<string, HiveSummary>>) {
-  return summaries[hiveId]?.attention.level ?? "needs_you";
-}
-
-function rankSubset(
-  hives: Hive[],
-  summaries: Readonly<Record<string, HiveSummary>>,
-): Hive[] {
-  const ranked = rankHives(
-    hives.map((hive) => ({
-      id: hive.id,
-      level: attentionLevel(hive.id, summaries),
-      lastActivityAt: hiveLastActivity(hive, summaries[hive.id]),
-    })),
-  );
-  const byId = new Map(hives.map((hive) => [hive.id, hive]));
-  return ranked.map((row) => byId.get(row.id)).filter((hive): hive is Hive => hive !== undefined);
-}
 
 export function MyHivesPanel({
   initialHives,
@@ -82,7 +61,6 @@ export function MyHivesPanel({
   openCreateOnLoad = false,
   summaries = {},
   startingView,
-  greetingFirstName,
   showFirmRail = false,
   viewerUserId = null,
 }: MyHivesPanelProps) {
@@ -90,9 +68,8 @@ export function MyHivesPanel({
   const searchParams = useSearchParams();
   const clientsHome = useClientsHomeSearch();
   const findQuery = clientsHome?.findQuery ?? "";
-  const legacyView = searchParams.get("view");
-  const queue = parseClientsHomeQueue(searchParams.get("queue") ?? legacyView ?? undefined);
-  const [compactNav, setCompactNav] = useState(false);
+  const searchTrimmed = findQuery.trim();
+  const requestedQueue = parseClientsHomeQueue(searchParams.get("queue") ?? searchParams.get("view") ?? undefined);
 
   const [hives, setHives] = useState<Hive[]>(initialHives);
   const [listError, setListError] = useState<ListError | null>(initialError);
@@ -117,15 +94,6 @@ export function MyHivesPanel({
     },
     [clientsHome, router, searchParams],
   );
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia("(max-width: 899px)");
-    const apply = () => setCompactNav(query.matches);
-    apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
-  }, []);
 
   const handleCreated = useCallback(
     (hive: Hive) => {
@@ -181,11 +149,6 @@ export function MyHivesPanel({
     }
   }, [hivePendingDelete]);
 
-  const handleRetryDeletion = useCallback(async (hiveId: string) => {
-    await deleteHive(hiveId);
-    setHives((current) => current.filter((hive) => hive.id !== hiveId));
-  }, []);
-
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     setListError(null);
@@ -207,244 +170,44 @@ export function MyHivesPanel({
     () => clientsHomeQueueCounts(hives, summaries, viewerUserId),
     [hives, summaries, viewerUserId],
   );
+  const hasClientHives = queueCounts.all > 0;
+  const hasOwnHives = queueCounts.own > 0;
 
-  const displayedHives = useMemo(
-    () => clientsHomeHivesForQueue(hives, summaries, queue, viewerUserId, findQuery),
-    [findQuery, hives, queue, summaries, viewerUserId],
+  // Queues that exist for this person. "All" shows own hives when there are no client hives.
+  const tabOptions = useMemo(() => {
+    const options: TabOption<ClientsHomeQueue>[] = [
+      { id: "all", label: "All", count: hasClientHives ? queueCounts.all : queueCounts.own },
+    ];
+    if (showFirmRail) {
+      options.push({ id: "mine", label: "Mine", count: queueCounts.mine });
+      options.push({ id: "unassigned", label: "Unassigned", count: queueCounts.unassigned });
+    }
+    if (hasOwnHives && hasClientHives) {
+      options.push({ id: "own", label: "Your own", count: queueCounts.own });
+    }
+    return options;
+  }, [hasClientHives, hasOwnHives, queueCounts, showFirmRail]);
+
+  const queue: ClientsHomeQueue = tabOptions.some((option) => option.id === requestedQueue) ? requestedQueue : "all";
+  const queueForRows: ClientsHomeQueue = queue === "all" && !hasClientHives && hasOwnHives ? "own" : queue;
+
+  const queueHives = useMemo(
+    () => clientsHomeHivesForQueue(hives, summaries, queueForRows, viewerUserId, ""),
+    [hives, queueForRows, summaries, viewerUserId],
   );
+  const displayedHives = useMemo(
+    () => (searchTrimmed ? clientsHomeHivesForQueue(hives, summaries, queueForRows, viewerUserId, searchTrimmed) : queueHives),
+    [hives, queueForRows, queueHives, searchTrimmed, summaries, viewerUserId],
+  );
+  // Find looks across every hive, so a match is never hidden by the queue.
+  const list = useMemo(() => groupHivesForList(displayedHives, summaries), [displayedHives, summaries]);
+  const sentence = useMemo(() => {
+    const { counts } = groupHivesForList(queueHives, summaries);
+    return queueHives.some((hive) => summaries[hive.id]) ? hiveListSentence(counts) : null;
+  }, [queueHives, summaries]);
 
-  if (startingView === "clients") {
-    const title = clientsHomeQueueTitle(queue, findQuery);
-    const clientsEmpty = queueCounts.all === 0 && !findQuery.trim() && !listError;
-    const noRows = displayedHives.length === 0 && !listError;
-    const countLine =
-      displayedHives.length === 1
-        ? "1 client, the ones with something to review first"
-        : `${displayedHives.length} clients, the ones with something to review first`;
-    const searchTrimmed = findQuery.trim();
-
-    const sidebar = (
-      <ClientsHomeSidebar
-        queue={queue}
-        counts={queueCounts}
-        showFirmRail={showFirmRail}
-        hasOwnHives={queueCounts.own > 0}
-        searchActive={Boolean(searchTrimmed)}
-        compact={compactNav}
-        onSelectQueue={setQueue}
-      />
-    );
-
-    return (
-      <div className="flex min-h-full flex-1 flex-col bg-mist min-[900px]:grid min-[900px]:grid-cols-[236px_minmax(0,1fr)]">
-        {compactNav ? (
-          <div className="border-b border-line bg-paper px-3 py-2 min-[900px]:hidden">{sidebar}</div>
-        ) : (
-          <div className="hidden min-[900px]:block min-[900px]:border-r min-[900px]:border-line">{sidebar}</div>
-        )}
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-6 min-[900px]:px-8 min-[900px]:pb-16">
-            <header className="flex flex-col gap-1">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="m-0 text-small text-ink-2" data-testid="hives-greeting">
-                    {greetingLine(greetingFirstName)}
-                  </p>
-                  <h1 className="m-0 font-brand text-section font-semibold text-ink">{title}</h1>
-                </div>
-                <button type="button" className={WORKSPACE_PRIMARY} onClick={() => openModal()} data-testid="new-hive">
-                  New hive
-                </button>
-              </div>
-              {clientsHome?.enabled ? (
-                <label className="mt-3 flex h-11 items-center gap-2 rounded-input bg-mist px-3.5">
-                  <span className="sr-only">Find a client</span>
-                  <input
-                    type="search"
-                    value={clientsHome.findQuery}
-                    onChange={(event) => clientsHome.setFindQuery(event.target.value)}
-                    placeholder="Find a client"
-                    aria-label="Find a client"
-                    data-testid="header-find-client"
-                    className="h-full w-full border-0 bg-transparent text-body text-ink outline-none"
-                  />
-                </label>
-              ) : null}
-              {!searchTrimmed && queue !== "own" ? <p className="m-0 text-small text-ink-3">{countLine}</p> : null}
-            </header>
-
-            {listError ? (
-              <div role="alert" className="flex flex-col items-start gap-2 text-left">
-                <p className="m-0 text-body text-ink">{listError.message}</p>
-                {listError.correlationId ? (
-                  <p className="m-0 font-mono text-caption text-ink-3">Support reference: {listError.correlationId}</p>
-                ) : null}
-                <button
-                  type="button"
-                  className={`${SECONDARY_BUTTON_CLASS} mt-2`}
-                  disabled={refreshing}
-                  onClick={() => void handleRefresh()}
-                >
-                  {refreshing ? "Loading…" : "Try again"}
-                </button>
-              </div>
-            ) : null}
-
-            {clientsEmpty ? (
-              <Card className="overflow-hidden px-0 py-0">
-                <ClientsHomeFirstVisit firstName={greetingFirstName} />
-              </Card>
-            ) : null}
-
-            {noRows && !clientsEmpty ? (
-              <section className="flex flex-col items-start gap-3">
-                <p className="m-0 text-body text-ink">
-                  {searchTrimmed
-                    ? `No client matches “${searchTrimmed}”.`
-                    : "Nothing here right now."}
-                </p>
-                {searchTrimmed ? (
-                  <button
-                    type="button"
-                    className={WORKSPACE_PRIMARY}
-                    onClick={() => {
-                      router.push(`/hives/new-client?name=${encodeURIComponent(searchTrimmed)}`);
-                    }}
-                  >
-                    New client named {searchTrimmed}
-                  </button>
-                ) : null}
-              </section>
-            ) : null}
-
-            {displayedHives.length > 0 ? (
-              <ClientsHomeClientList
-                hives={displayedHives}
-                summaries={summaries}
-                viewerUserId={viewerUserId}
-                onRequestDelete={setHivePendingDelete}
-                onKindChanged={handleRefresh}
-              />
-            ) : null}
-          </div>
-        </div>
-
-        <CreateHiveModal {...createFlow.modalProps} />
-        <NameHiveDialog {...createFlow.namingDialogProps} />
-        <DeleteHiveModal
-          hiveName={hivePendingDelete?.name ?? ""}
-          open={hivePendingDelete !== null}
-          busy={deleteBusy}
-          errorMessage={deleteError}
-          onCancel={() => {
-            if (!deleteBusy) {
-              setHivePendingDelete(null);
-              setDeleteError(null);
-            }
-          }}
-          onConfirm={() => {
-            void handleDeleteConfirm();
-          }}
-        />
-      </div>
-    );
-  }
-
-  const ownRanked = rankSubset(hives.filter((hive) => hive.kind === "own"), summaries);
-  const countLine =
-    ownRanked.length === 1 ? "1 hive" : ownRanked.length > 0 ? `${ownRanked.length} hives` : null;
-
-  if (ownRanked.length === 0) {
-    return (
-      <div className="mx-auto flex w-full max-w-[680px] flex-col items-center gap-5 px-5 pb-16 pt-[clamp(32px,8vh,88px)]">
-        <HiveAppLogo display="lockup" size="landingMain" />
-        <p className="m-0 text-[19px] text-ink-2" data-testid="hives-greeting">
-          {greetingLine(greetingFirstName)}
-        </p>
-
-        <MotionComposerLanding composer={inlineComposer} createBusy={createFlow.submitBusy} onOpenModal={() => openModal()} />
-
-        {listError ? (
-          <div role="alert" className="flex w-full flex-col items-start gap-2 text-left">
-            <p className="m-0 text-body text-ink">{listError.message}</p>
-            {listError.correlationId ? (
-              <p className="m-0 font-mono text-[12px] text-ink-3">Support reference: {listError.correlationId}</p>
-            ) : null}
-            <button
-              type="button"
-              className={`${SECONDARY_BUTTON_CLASS} mt-2`}
-              disabled={refreshing}
-              onClick={() => void handleRefresh()}
-            >
-              {refreshing ? "Loading…" : "Try again"}
-            </button>
-          </div>
-        ) : null}
-
-        <CreateHiveModal {...createFlow.modalProps} />
-        <NameHiveDialog {...createFlow.namingDialogProps} />
-        <DeleteHiveModal
-          hiveName={hivePendingDelete?.name ?? ""}
-          open={hivePendingDelete !== null}
-          busy={deleteBusy}
-          errorMessage={deleteError}
-          onCancel={() => {
-            if (!deleteBusy) {
-              setHivePendingDelete(null);
-              setDeleteError(null);
-            }
-          }}
-          onConfirm={() => {
-            void handleDeleteConfirm();
-          }}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto flex w-full max-w-col-wide flex-col px-4 py-6 min-[900px]:px-8 min-[900px]:pb-16">
-      <header className="mb-4 flex flex-col gap-1">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <p className="m-0 text-small text-ink-2" data-testid="hives-greeting">
-              {greetingLine(greetingFirstName)}
-            </p>
-            <h1 className="m-0 font-brand text-section font-semibold text-ink">My hives</h1>
-          </div>
-          <button type="button" className={WORKSPACE_PRIMARY} onClick={() => openModal()} data-testid="new-hive">
-            New hive
-          </button>
-        </div>
-        {countLine ? <p className="m-0 text-small text-ink-3">{countLine}</p> : null}
-      </header>
-
-      {listError ? (
-        <div role="alert" className="mb-4 flex flex-col items-start gap-2 text-left">
-          <p className="m-0 text-body text-ink">{listError.message}</p>
-          {listError.correlationId ? (
-            <p className="m-0 font-mono text-caption text-ink-3">Support reference: {listError.correlationId}</p>
-          ) : null}
-          <button
-            type="button"
-            className={`${SECONDARY_BUTTON_CLASS} mt-2`}
-            disabled={refreshing}
-            onClick={() => void handleRefresh()}
-          >
-            {refreshing ? "Loading…" : "Try again"}
-          </button>
-        </div>
-      ) : null}
-
-      <ClientsHomeClientList
-        hives={ownRanked}
-        summaries={summaries}
-        viewerUserId={viewerUserId}
-        onRequestDelete={setHivePendingDelete}
-        onKindChanged={handleRefresh}
-      />
-
+  const modals = (
+    <>
       <CreateHiveModal {...createFlow.modalProps} />
       <NameHiveDialog {...createFlow.namingDialogProps} />
       <DeleteHiveModal
@@ -462,6 +225,132 @@ export function MyHivesPanel({
           void handleDeleteConfirm();
         }}
       />
+    </>
+  );
+
+  const errorBlock = listError ? (
+    <div role="alert" className="mt-6 flex flex-col items-start gap-1 text-left">
+      <p className="m-0 text-body text-ink">{listError.message}</p>
+      {listError.correlationId ? (
+        <p className="m-0 text-meta text-ink-3">
+          Reference <span className="tabular-nums">{listError.correlationId.slice(0, 8)}</span>
+        </p>
+      ) : null}
+      <button
+        type="button"
+        className={`${SECONDARY_BUTTON_CLASS} mt-2`}
+        disabled={refreshing}
+        onClick={() => void handleRefresh()}
+      >
+        {refreshing ? "Loading…" : "Try again"}
+      </button>
+    </div>
+  ) : null;
+
+  // A person who has no hives yet. Professionals get the first visit; individuals get the composer.
+  if (hives.length === 0 && !searchTrimmed && !listError) {
+    if (startingView === "clients") {
+      return (
+        <>
+          <HivesFirstVisit newHiveHref={NEW_CLIENT_HIVE_PATH} onStartOwn={() => openModal()} />
+          {modals}
+        </>
+      );
+    }
+    return (
+      <div className="mx-auto flex w-full max-w-[680px] flex-col items-center gap-5 px-5 pb-16 pt-[clamp(32px,8vh,88px)]">
+        <HiveAppLogo display="lockup" size="landingMain" />
+        <MotionComposerLanding composer={inlineComposer} createBusy={createFlow.submitBusy} onOpenModal={() => openModal()} />
+        {modals}
+      </div>
+    );
+  }
+
+  const newHiveControl =
+    startingView === "clients" ? (
+      <Link href={NEW_CLIENT_HIVE_PATH} className={WORKSPACE_PRIMARY} data-testid="new-hive">
+        <PlusIcon />
+        New hive
+      </Link>
+    ) : (
+      <button type="button" className={WORKSPACE_PRIMARY} onClick={() => openModal()} data-testid="new-hive">
+        <PlusIcon />
+        New hive
+      </button>
+    );
+
+  const noRows = displayedHives.length === 0 && !listError && !refreshing;
+
+  return (
+    <div className="mx-auto w-full max-w-col-wide px-4 pb-24 pt-8 min-[760px]:px-8 min-[760px]:pt-10">
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+        <div className="min-w-0 flex-1 basis-[320px] min-[760px]:basis-[520px]">
+          <h1 className="m-0 font-brand text-title-sm font-semibold text-ink min-[760px]:text-title">Your hives</h1>
+          {sentence ? (
+            <p className="m-0 mt-2.5 font-brand text-[20px] font-medium leading-[1.35] tracking-[-0.02em] text-ink min-[760px]:text-[22px]">
+              {sentence}
+            </p>
+          ) : null}
+        </div>
+        {newHiveControl}
+      </header>
+
+      {tabOptions.length > 1 ? (
+        <Tabs options={tabOptions} value={queue} onChange={setQueue} ariaLabel="Which hives" className="mt-6" />
+      ) : null}
+
+      {errorBlock}
+
+      {refreshing ? (
+        <div className="mt-6">
+          <HivesListSkeleton />
+        </div>
+      ) : null}
+
+      {noRows ? (
+        <section className="mt-8 flex flex-col items-start gap-1">
+          <p className="m-0 text-[14.5px] text-ink-3">
+            {searchTrimmed
+              ? `No hive matches “${searchTrimmed}”. Try a client's first or last name.`
+              : "Nothing here right now."}
+          </p>
+          {searchTrimmed && startingView === "clients" ? (
+            <button
+              type="button"
+              className={QUIET_LINK_CLASS}
+              onClick={() => {
+                router.push(`${NEW_CLIENT_HIVE_PATH}?name=${encodeURIComponent(searchTrimmed)}`);
+              }}
+            >
+              New client named {searchTrimmed}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+
+      {!refreshing && list.groups.length > 0 ? (
+        <div className="mt-8" data-testid="clients-home-list">
+          {list.groups.map((group) => (
+            <Section key={group.key} title={group.title} headingRight={group.hives.length}>
+              <ul className="m-0 flex list-none flex-col p-0">
+                {group.hives.map((hive) => (
+                  <HivesListRow
+                    key={hive.id}
+                    hive={hive}
+                    summary={summaries[hive.id]}
+                    viewerUserId={viewerUserId}
+                    lastActivityAt={hiveLastActivity(hive, summaries[hive.id])}
+                    onRequestDelete={setHivePendingDelete}
+                    onKindChanged={handleRefresh}
+                  />
+                ))}
+              </ul>
+            </Section>
+          ))}
+        </div>
+      ) : null}
+
+      {modals}
     </div>
   );
 }

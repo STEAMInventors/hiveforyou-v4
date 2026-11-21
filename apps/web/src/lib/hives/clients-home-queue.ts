@@ -5,6 +5,8 @@ import { STATE_LABEL } from "@/components/study/status-state";
 
 import type { HiveSummary } from "@/server/hives/hive-summary";
 
+import { hivePurposeLine } from "./hive-row-copy";
+
 export type ClientsHomeQueue = "all" | "needs" | "ready" | "own" | "mine" | "unassigned";
 
 export function parseClientsHomeQueue(raw: string | null | undefined): ClientsHomeQueue {
@@ -30,7 +32,7 @@ function attentionLevel(hiveId: string, summaries: Readonly<Record<string, HiveS
   return summaries[hiveId]?.attention.level ?? "needs_you";
 }
 
-function hiveLastActivity(hive: Hive, summary: HiveSummary | undefined): string {
+export function hiveLastActivity(hive: Hive, summary: HiveSummary | undefined): string {
   const candidates = [hive.updatedAt, summary?.study?.acceptedAt].filter((value): value is string => !!value);
   return candidates.reduce<string>(
     (best, value) => (new Date(value).getTime() > new Date(best).getTime() ? value : best),
@@ -103,7 +105,7 @@ export function clientsHomeHivesForQueue(
 ): Hive[] {
   const query = searchQuery.trim().toLowerCase();
   const pool = query
-    ? hives.filter((hive) => hive.name.toLowerCase().includes(query))
+    ? hives.filter((hive) => `${hive.name} ${hivePurposeLine(hive) ?? ""}`.toLowerCase().includes(query))
     : hives.filter((hive) => hiveMatchesClientsHomeQueue(hive, queue, summaries, viewerUserId));
 
   const ranked = rankHives(

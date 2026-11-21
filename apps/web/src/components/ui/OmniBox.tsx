@@ -5,8 +5,6 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type R
 import type { ChipRef } from "@/components/study/SourceChip";
 
 import { Avatar } from "./AvatarStack";
-import { Button } from "./Button";
-import { SourceRefs } from "./SourceRefs";
 import {
   highlightPieces,
   omniHasMatches,
@@ -14,35 +12,19 @@ import {
   type OmniCatalog,
   type OmniHit,
 } from "./omni-catalog";
-import { AssistantReplyBody } from "@/components/hives/assistant-reply-body";
-
-export type OmniAnswer = {
-  question: string;
-  pending: boolean;
-  longWait: boolean;
-  text: string | null;
-  refs: readonly ChipRef[];
-  handoff: boolean;
-  readonlyNote: string | null;
-  sendError?: { message: string; reference: string | null; retryable: boolean } | null;
-  onRetrySend?: (() => void) | null;
-};
 
 export type OmniBoxProps = {
-  assistantName: string;
+  /** The assistant's name, or null when the assistant is off for this hive (no Ask row). */
+  assistantName: string | null;
   audience: "staff" | "client";
   catalog: OmniCatalog;
-  staffFirstName?: string | null;
   query: string;
   onQueryChange: (value: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  answer: OmniAnswer | null;
+  /** Sends the typed text to the chat. */
   onAsk: (question: string) => void;
-  onOpenQuestion: (hit: Extract<OmniHit, { kind: "question" }>) => void;
   onOpenChip: (chip: ChipRef) => void;
-  onHandoff: () => void;
-  onNewQuestion: () => void;
   inputId?: string;
 };
 
@@ -71,35 +53,40 @@ function Marked({ text, query }: { text: string; query: string }) {
   );
 }
 
+type Row = { kind: "hit"; hit: OmniHit } | { kind: "ask" };
+
+/**
+ * The box is find-only (DESIGN "The box"): statements, open items and documents, filtered client-side,
+ * with "Ask <assistant>: <query>" last. It never calls a model. Questions live in the chat.
+ */
 export function OmniBox({
   assistantName,
   audience,
   catalog,
-  staffFirstName,
   query,
   onQueryChange,
   open,
   onOpenChange,
-  answer,
   onAsk,
-  onOpenQuestion,
   onOpenChip,
-  onHandoff,
-  onNewQuestion,
   inputId = "omni",
 }: OmniBoxProps) {
   const listId = useId();
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const hits = useMemo(() => omniHits(catalog, query), [catalog, query]);
-  const placeholder =
-    audience === "client"
-      ? `Ask ${assistantName} about your documents`
-      : `Ask ${assistantName} or find anything in this hive`;
+  const trimmed = query.trim();
+  const canAsk = assistantName !== null && trimmed !== "";
+  const rows = useMemo<Row[]>(() => {
+    const list: Row[] = hits.map((hit) => ({ kind: "hit", hit }));
+    if (canAsk) list.push({ kind: "ask" });
+    return list;
+  }, [canAsk, hits]);
+  const placeholder = audience === "client" ? "Find in your documents" : "Find anything in this hive";
 
   useEffect(() => {
-    setActive(0);
-  }, [query, open, answer]);
+    setActive(-1);
+  }, [query, open]);
 
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => {
@@ -110,30 +97,31 @@ export function OmniBox({
         inputRef.current?.focus();
         onOpenChange(true);
       }
-      if (event.key === "Escape" && open) {
-        event.preventDefault();
-        onOpenChange(false);
-        inputRef.current?.blur();
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [onOpenChange]);
+
+  useEffect(() => {
+    if (!open) return;
+    // Capture phase, and the key is marked handled, so the evidence view (Escape order: sheet, box, view)
+    // does not also close. Blur first: closing re-renders, and a focused input would open the box again.
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      inputRef.current?.blur();
+      onOpenChange(false);
+    };
+    document.addEventListener("keydown", onEscape, true);
+    return () => document.removeEventListener("keydown", onEscape, true);
   }, [onOpenChange, open]);
 
-  const activate = (hit: OmniHit) => {
-    if (hit.kind === "ask") {
-      onAsk(query);
+  const activate = (row: Row) => {
+    if (row.kind === "ask") {
+      onAsk(trimmed);
       return;
     }
-    if (hit.kind === "suggestion") {
-      onQueryChange(hit.text);
-      onAsk(hit.text);
-      return;
-    }
-    if (hit.kind === "question") {
-      onOpenQuestion(hit);
-      return;
-    }
+    const hit = row.hit;
     const chip = hit.kind === "statement" ? hit.statement.ref : hit.kind === "item" ? hit.item.ref : hit.document.ref;
     if (chip) onOpenChip(chip);
   };
@@ -142,28 +130,34 @@ export function OmniBox({
     if (!open) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActive((index) => Math.min(hits.length - 1, index + 1));
+      setActive((index) => Math.min(rows.length - 1, index + 1));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActive((index) => Math.max(0, index - 1));
+      setActive((index) => Math.max(-1, index - 1));
     } else if (event.key === "Enter") {
       event.preventDefault();
-      const hit = hits[active] ?? hits[0];
-      if (hit) activate(hit);
+      const row = active >= 0 ? rows[active] : undefined;
+      if (row) activate(row);
+      else if (canAsk) onAsk(trimmed);
     }
   };
 
-  const activeId = hits[active] ? `${listId}-${hits[active].id}` : undefined;
-  const privacy =
-    audience === "client"
-      ? `Only you and ${staffFirstName || "your team"}'s team can see your questions.`
-      : "Only you can see your questions.";
+  const rowId = (row: Row) => `${listId}-${row.kind === "ask" ? "ask" : row.hit.id}`;
+  const activeId = active >= 0 && rows[active] ? rowId(rows[active]!) : undefined;
+  const askIndex = canAsk ? rows.length - 1 : -1;
+
+  const statements = hits.filter((hit): hit is Extract<OmniHit, { kind: "statement" }> => hit.kind === "statement");
+  const items = hits.filter((hit): hit is Extract<OmniHit, { kind: "item" }> => hit.kind === "item");
+  const documents = hits.filter((hit): hit is Extract<OmniHit, { kind: "document" }> => hit.kind === "document");
+  const indexOfHit = (hit: OmniHit) => rows.findIndex((row) => row.kind === "hit" && row.hit === hit);
 
   return (
     <div className={`relative min-w-0 ${open ? "open" : ""}`} data-testid="omni">
       <label
-        className={`flex h-10 items-center gap-2.5 rounded-input border border-transparent bg-mist px-3.5 transition-[background,border-color,box-shadow] hover:bg-hover min-[760px]:h-[42px] ${
-          open ? "border-line-strong bg-paper shadow-lift" : ""
+        className={`flex h-10 items-center gap-2.5 rounded-input border bg-paper px-3.5 transition-[background,border-color,box-shadow] min-[760px]:h-[42px] ${
+          open
+            ? "border-line-strong shadow-lift"
+            : "border-line-strong hover:border-ink-3 focus-within:border-ink-3 focus-within:shadow-lift"
         }`}
       >
         <SearchIcon />
@@ -173,8 +167,8 @@ export function OmniBox({
           ref={inputRef}
           role="combobox"
           aria-expanded={open}
-          aria-controls={open && !answer ? listId : undefined}
-          aria-activedescendant={open && !answer ? activeId : undefined}
+          aria-controls={open ? listId : undefined}
+          aria-activedescendant={open ? activeId : undefined}
           aria-autocomplete="list"
           autoComplete="off"
           placeholder={placeholder}
@@ -194,108 +188,85 @@ export function OmniBox({
           className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-[min(70vh,640px)] overflow-y-auto rounded-popover border border-line bg-paper p-2 shadow-pop motion-safe:animate-[hfy-rise_180ms_cubic-bezier(.16,1,.3,1)] max-[759px]:fixed max-[759px]:left-2 max-[759px]:right-2 max-[759px]:top-16"
           data-testid="omni-pop"
         >
-          {answer ? (
-            <div role="dialog" aria-label={`${assistantName}'s answer`} className="px-2.5 pb-1.5 pt-3">
-              {answer.readonlyNote ? <p className="m-0 mb-2 text-meta text-ink-2">{answer.readonlyNote}</p> : null}
-              <p className="m-0 mb-2.5 font-semibold text-ink">{answer.question}</p>
-              <div className="mb-1.5 flex items-center gap-2 text-meta text-ink-3">
-                <Avatar person={{ id: "ai", name: assistantName, kind: "assistant" }} size="sm" />
-                <b className="text-[13.5px] text-ink">{assistantName}</b>
-                <span className="rounded-tag border border-line-strong px-[5px] text-[11px] font-semibold leading-[17px] text-ink-2">
-                  AI assistant
-                </span>
-                <span>answers only from the documents</span>
+          <div id={listId} role="listbox" aria-label="Find in this hive">
+            {!trimmed ? (
+              <p className="m-0 px-3 py-2.5 text-meta text-ink-3" data-testid="omni-empty">
+                Type to find statements, open items and documents in this hive.
+                {assistantName ? ` To ask a question, use ${assistantName}.` : ""}
+              </p>
+            ) : null}
+            {statements.length ? <GroupTitle>In the documents</GroupTitle> : null}
+            {statements.map((hit) => {
+              const index = indexOfHit(hit);
+              return (
+                <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => setActive(index)} onChoose={() => activate(rows[index]!)}>
+                  <span />
+                  <span>
+                    <Marked text={hit.statement.text} query={trimmed} />
+                    <small className="mt-px block text-[12px] text-ink-3">{hit.statement.topic}</small>
+                  </span>
+                  <span className="text-meta tabular-nums text-ink-3">{hit.statement.pageLabel}</span>
+                </HitRow>
+              );
+            })}
+            {items.length ? <GroupTitle>Open items</GroupTitle> : null}
+            {items.map((hit) => {
+              const index = indexOfHit(hit);
+              return (
+                <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => setActive(index)} onChoose={() => activate(rows[index]!)}>
+                  <span />
+                  <span>
+                    <Marked text={hit.item.title} query={trimmed} />
+                    <small className="mt-px block text-[12px] text-ink-3">
+                      {hit.item.kind === "missing" ? "Still to come" : "To review"}
+                    </small>
+                  </span>
+                  <span />
+                </HitRow>
+              );
+            })}
+            {documents.length ? <GroupTitle>Documents</GroupTitle> : null}
+            {documents.map((hit) => {
+              const index = indexOfHit(hit);
+              return (
+                <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => setActive(index)} onChoose={() => activate(rows[index]!)}>
+                  <span />
+                  <span>
+                    <Marked text={hit.document.role} query={trimmed} />
+                    <small className="mt-px block text-[12px] text-ink-3">
+                      {hit.document.typeLabel}
+                      {hit.document.period ? ` · ${hit.document.period}` : ""}
+                    </small>
+                  </span>
+                  <span className="text-meta tabular-nums text-ink-3">{hit.document.pages}</span>
+                </HitRow>
+              );
+            })}
+            {trimmed && !omniHasMatches(hits) ? (
+              <p className="m-0 px-3 py-2 text-meta text-ink-3" data-testid="omni-no-matches">
+                Nothing in this hive matches “{trimmed}”.
+              </p>
+            ) : null}
+            {canAsk && assistantName ? (
+              <div className={omniHasMatches(hits) ? "mt-1 border-t border-line pt-1" : ""}>
+                <HitRow
+                  id={`${listId}-ask`}
+                  selected={active === askIndex}
+                  onHover={() => setActive(askIndex)}
+                  onChoose={() => onAsk(trimmed)}
+                >
+                  <Avatar person={{ id: "ai", name: assistantName, kind: "assistant" }} size="sm" />
+                  <span>
+                    Ask {assistantName}: <b>{trimmed}</b>
+                  </span>
+                  <span className="text-[11.5px] text-ink-3">Enter</span>
+                </HitRow>
               </div>
-              {answer.sendError ? (
-                <div className="text-body text-ink" data-testid="omni-send-error">
-                  <p role="alert" className="m-0">
-                    {answer.sendError.message}
-                    {answer.sendError.reference ? (
-                      <>
-                        {" "}
-                        Reference <span className="tabular-nums">{answer.sendError.reference}</span>.
-                      </>
-                    ) : null}
-                  </p>
-                  {answer.sendError.retryable && answer.onRetrySend ? (
-                    <Button variant="secondary" type="button" className="mt-2" onClick={answer.onRetrySend}>
-                      Try again
-                    </Button>
-                  ) : null}
-                </div>
-              ) : answer.pending ? (
-                <p role="status" className="m-0 text-body text-ink-3" data-testid="omni-typing">
-                  {answer.longWait ? "…still working on it…" : "Looking through the documents"}
-                  {answer.longWait ? null : <TypingDots />}
-                </p>
-              ) : (
-                <div className="text-body leading-[1.6] text-ink">
-                  <AssistantReplyBody text={answer.text ?? ""} />
-                  {answer.refs.length ? <SourceRefs refs={answer.refs} /> : null}
-                </div>
-              )}
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2.5">
-                <p className="m-0 text-meta text-ink-3">{privacy}</p>
-                {answer.handoff && !answer.pending ? (
-                  <Button variant="secondary" type="button" onClick={onHandoff}>
-                    Ask {staffFirstName || "your team"}
-                  </Button>
-                ) : (
-                  <Button variant="quiet" type="button" onClick={onNewQuestion}>
-                    New question
-                  </Button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div id={listId} role="listbox" aria-label="Find or ask">
-              <HitRow
-                id={`${listId}-ask`}
-                selected={active === 0}
-                onHover={() => setActive(0)}
-                onChoose={() => activate(hits[0]!)}
-              >
-                <Avatar person={{ id: "ai", name: assistantName, kind: "assistant" }} size="sm" />
-                <span>
-                  {query.trim() ? (
-                    <>
-                      Ask {assistantName}: <b>{query.trim()}</b>
-                    </>
-                  ) : (
-                    <>Ask {assistantName} a question about the documents</>
-                  )}
-                </span>
-                <span className="text-[11.5px] text-ink-3">{query.trim() ? "Enter" : ""}</span>
-              </HitRow>
-              <Groups
-                catalog={catalog}
-                query={query}
-                hits={hits}
-                active={active}
-                listId={listId}
-                onHover={setActive}
-                onChoose={activate}
-              />
-              {query.trim() && !omniHasMatches(hits) ? (
-                <p className="px-3 py-2 text-meta text-ink-3">
-                  Nothing in this hive matches “{query.trim()}”. Press Enter to ask {assistantName}.
-                </p>
-              ) : null}
-            </div>
-          )}
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>
-  );
-}
-
-function TypingDots() {
-  return (
-    <span className="hive-assistant-typing-dots ms-1 inline-flex gap-[3px]" aria-hidden>
-      <span />
-      <span />
-      <span />
-    </span>
   );
 }
 
@@ -326,133 +297,6 @@ function HitRow({
     >
       {children}
     </button>
-  );
-}
-
-function Groups({
-  catalog,
-  query,
-  hits,
-  active,
-  listId,
-  onHover,
-  onChoose,
-}: {
-  catalog: OmniCatalog;
-  query: string;
-  hits: OmniHit[];
-  active: number;
-  listId: string;
-  onHover: (index: number) => void;
-  onChoose: (hit: OmniHit) => void;
-}) {
-  const trimmed = query.trim();
-  if (!trimmed) {
-    const suggestions = hits.filter((hit): hit is Extract<OmniHit, { kind: "suggestion" }> => hit.kind === "suggestion");
-    const yours = hits.filter((hit): hit is Extract<OmniHit, { kind: "question" }> => hit.kind === "question" && hit.audience === "yours");
-    const clients = hits.filter((hit): hit is Extract<OmniHit, { kind: "question" }> => hit.kind === "question" && hit.audience === "client");
-    return (
-      <>
-        {suggestions.map((hit) => {
-          const index = hits.indexOf(hit);
-          return (
-            <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => onHover(index)} onChoose={() => onChoose(hit)}>
-              <span />
-              <span>{hit.text}</span>
-              <span />
-            </HitRow>
-          );
-        })}
-        {yours.length ? <GroupTitle>Your questions</GroupTitle> : null}
-        {yours.map((hit) => {
-          const index = hits.indexOf(hit);
-          return (
-            <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => onHover(index)} onChoose={() => onChoose(hit)}>
-              <span />
-              <span>{hit.question.question}</span>
-              <span />
-            </HitRow>
-          );
-        })}
-        {clients.length ? (
-          <GroupTitle>
-            {catalog.clientName || "Client"}&apos;s questions <span className="tabular-nums">{catalog.clientQuestions.length}</span>
-          </GroupTitle>
-        ) : null}
-        {clients.map((hit) => {
-          const index = hits.indexOf(hit);
-          return (
-            <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => onHover(index)} onChoose={() => onChoose(hit)}>
-              <span />
-              <span>{hit.question.question}</span>
-              <span />
-            </HitRow>
-          );
-        })}
-        {catalog.clientQuestionsLoadError ? (
-          <p role="alert" className="mx-2 mt-1 px-0 text-meta text-ink-2" data-testid="omni-client-questions-error">
-            {catalog.clientQuestionsLoadError.message}
-            {catalog.clientQuestionsLoadError.reference ? (
-              <>
-                {" "}
-                Reference <span className="tabular-nums">{catalog.clientQuestionsLoadError.reference}</span>.
-              </>
-            ) : null}
-          </p>
-        ) : null}
-      </>
-    );
-  }
-  const statements = hits.filter((hit): hit is Extract<OmniHit, { kind: "statement" }> => hit.kind === "statement");
-  const items = hits.filter((hit): hit is Extract<OmniHit, { kind: "item" }> => hit.kind === "item");
-  const documents = hits.filter((hit): hit is Extract<OmniHit, { kind: "document" }> => hit.kind === "document");
-  return (
-    <>
-      {statements.length ? <GroupTitle>In the documents</GroupTitle> : null}
-      {statements.map((hit) => {
-        const index = hits.indexOf(hit);
-        return (
-          <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => onHover(index)} onChoose={() => onChoose(hit)}>
-            <span />
-            <span>
-              <Marked text={hit.statement.text} query={trimmed} />
-              <small className="mt-px block text-[12px] text-ink-3">{hit.statement.topic}</small>
-            </span>
-            <span className="text-meta tabular-nums text-ink-3">{hit.statement.pageLabel}</span>
-          </HitRow>
-        );
-      })}
-      {items.length ? <GroupTitle>Open items</GroupTitle> : null}
-      {items.map((hit) => {
-        const index = hits.indexOf(hit);
-        return (
-          <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => onHover(index)} onChoose={() => onChoose(hit)}>
-            <span />
-            <span>
-              <Marked text={hit.item.title} query={trimmed} />
-            </span>
-            <span />
-          </HitRow>
-        );
-      })}
-      {documents.length ? <GroupTitle>Documents</GroupTitle> : null}
-      {documents.map((hit) => {
-        const index = hits.indexOf(hit);
-        return (
-          <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => onHover(index)} onChoose={() => onChoose(hit)}>
-            <span />
-            <span>
-              <Marked text={hit.document.role} query={trimmed} />
-              <small className="mt-px block text-[12px] text-ink-3">
-                {hit.document.typeLabel}
-                {hit.document.period ? ` · ${hit.document.period}` : ""}
-              </small>
-            </span>
-            <span className="text-meta tabular-nums text-ink-3">{hit.document.pages}</span>
-          </HitRow>
-        );
-      })}
-    </>
   );
 }
 

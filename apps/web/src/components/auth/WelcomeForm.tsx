@@ -59,7 +59,7 @@ export function WelcomeForm({
 
   if (firmSetup) {
     return (
-      <SignInShell>
+      <SignInShell layout="split">
         <FirmSetupForm
           defaultFirstName={firstName.trim()}
           practiceAreaOptions={practiceAreaOptions}
@@ -78,7 +78,7 @@ export function WelcomeForm({
   }
 
   return (
-    <SignInShell>
+    <SignInShell layout="split">
       <h1 className="m-0 font-brand text-[32px] font-semibold leading-[1.15] text-ink">
         Welcome to HiveForYou
       </h1>

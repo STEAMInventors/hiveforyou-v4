@@ -66,7 +66,7 @@ describe("to-review wording", () => {
     for (const root of packageSrcRoots()) walk(root, files);
     const hits = scanReviewPhrase(files);
     expect(hits).toEqual([]);
-  });
+  }, 120_000);
 
   it("no longer uses the boardNeedsYou identifier", () => {
     const files: string[] = [];

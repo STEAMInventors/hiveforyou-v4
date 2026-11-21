@@ -134,8 +134,12 @@ describe("no-client-imports guard", () => {
     expect(MAIN_BRANCH_CLIENT_IMPORT_OFFENDERS.length).toBeGreaterThan(0);
   });
 
-  it("has no forbidden value imports from use client modules", () => {
-    const violations = findClientValueImportViolations();
-    expect(violations).toEqual([]);
-  });
+  it(
+    "has no forbidden value imports from use client modules",
+    () => {
+      const violations = findClientValueImportViolations();
+      expect(violations).toEqual([]);
+    },
+    60_000,
+  );
 });

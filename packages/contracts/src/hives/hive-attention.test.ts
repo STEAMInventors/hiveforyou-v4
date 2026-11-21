@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   hiveAttention,
+  hiveListGroup,
   rankHives,
   type HiveAttentionInput,
   type RankedHiveRef,
@@ -71,13 +72,46 @@ describe("hiveAttention", () => {
     expect(hiveAttention(base)).toEqual({
       level: "ready",
       sentence: "Everything is read and checked.",
+      reason: "ready",
       counts: { checked: 2 },
     });
+  });
+
+  it("sets reason on every branch", () => {
+    expect(hiveAttention({ ...base, documentCount: 0 }).reason).toBe("no_documents");
+    expect(hiveAttention({ ...base, unreadableDocumentCount: 1 }).reason).toBe("unreadable");
+    expect(hiveAttention({ ...base, processingRunFailed: true }).reason).toBe("run_failed");
+    expect(hiveAttention({ ...base, activeReadCount: 1 }).reason).toBe("reading");
+    expect(hiveAttention({ ...base, documentsNotReadCount: 2 }).reason).toBe("reading");
+    expect(hiveAttention({ ...base, documentsNotInStudyCount: 2 }).reason).toBe("not_in_study");
+    expect(hiveAttention({ ...base, openConflicts: 1 }).reason).toBe("conflicts");
+    expect(hiveAttention({ ...base, openNeeds: 2 }).reason).toBe("to_review");
+    expect(hiveAttention({ ...base, openMissing: 1 }).reason).toBe("missing");
+    expect(hiveAttention({ ...base, hasStudy: false }).reason).toBe("no_study");
+    expect(hiveAttention({ ...base, hasReport: false }).reason).toBe("no_report");
+    expect(hiveAttention(base).reason).toBe("ready");
+  });
+
+  it("includes unreadable in counts when unreadable", () => {
+    const result = hiveAttention({ ...base, unreadableDocumentCount: 2 });
+    expect(result.counts.unreadable).toBe(2);
   });
 
   it("omits zero counts and keeps state-bar order", () => {
     const result = hiveAttention({ ...base, openNeeds: 1, openChanged: 0, openMissing: 2 });
     expect(result.counts).toEqual({ needs: 1, missing: 2, checked: 2 });
+  });
+});
+
+describe("hiveListGroup", () => {
+  it("maps reasons to list groups", () => {
+    expect(hiveListGroup({ reason: "reading" })).toBe("reading");
+    expect(hiveListGroup({ reason: "no_documents" })).toBe("waiting");
+    expect(hiveListGroup({ reason: "missing" })).toBe("waiting");
+    expect(hiveListGroup({ reason: "ready" })).toBe("done");
+    expect(hiveListGroup({ reason: "to_review" })).toBe("review");
+    expect(hiveListGroup({ reason: "unreadable" })).toBe("review");
+    expect(hiveListGroup({ reason: "run_failed" })).toBe("review");
   });
 });
 

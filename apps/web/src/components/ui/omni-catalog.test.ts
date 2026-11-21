@@ -14,29 +14,23 @@ const catalog: OmniCatalog = {
   documents: [
     { id: "d1", role: "Account statement", typeLabel: "PDF", period: "2023", pages: 4, ref: null },
   ],
-  yourQuestions: [
-    { id: "q1", question: "Earlier question", answer: "Earlier answer", refs: [] },
-  ],
-  clientQuestions: [
-    { id: "c1", question: "Client question", answer: "Client answer", refs: [] },
-  ],
-  clientName: "Ada",
 };
 
 describe("omniHits", () => {
-  it("leads with ask, then suggestions and questions, when the query is empty", () => {
-    const hits = omniHits(catalog, "  ");
-    expect(hits[0]).toEqual({ kind: "ask", id: "ask" });
-    expect(hits.filter((hit) => hit.kind === "suggestion")).toHaveLength(3);
-    expect(hits.some((hit) => hit.kind === "question" && hit.audience === "yours")).toBe(true);
-    expect(hits.some((hit) => hit.kind === "question" && hit.audience === "client")).toBe(true);
+  it("finds nothing for an empty query: the box only finds, the chat holds suggestions", () => {
+    expect(omniHits(catalog, "  ")).toEqual([]);
+    expect(omniHasMatches(omniHits(catalog, ""))).toBe(false);
   });
 
   it("filters statements, open items and documents and caps each group", () => {
     const hits = omniHits(catalog, "2023");
-    expect(hits.map((hit) => hit.kind)).toEqual(["ask", "statement", "item", "document"]);
+    expect(hits.map((hit) => hit.kind)).toEqual(["statement", "item", "document"]);
     expect(omniHasMatches(hits)).toBe(true);
     expect(omniHasMatches(omniHits({ ...catalog, statements: [], openItems: [], documents: [] }, "zzzz"))).toBe(false);
+  });
+
+  it("never matches the chat's suggestions", () => {
+    expect(omniHits(catalog, "still to come").map((hit) => hit.kind)).toEqual(["item"]);
   });
 });
 

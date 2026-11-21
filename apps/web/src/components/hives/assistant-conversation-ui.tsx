@@ -82,7 +82,7 @@ export function AssistantTypingRow({
     >
       <span
         aria-hidden="true"
-        className="grid h-[22px] w-[22px] place-items-center rounded-pill bg-ink text-paper"
+        className="grid h-[22px] w-[22px] place-items-center rounded-pill bg-paper text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]"
       >
         <HiveMark className="h-[11px] w-[11px]" />
       </span>

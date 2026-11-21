@@ -114,7 +114,13 @@ const medicaidTopics: FindingsTopic[] = [
     uncertain: false,
     statements: [
       statement("s8", "$5,000.00 left Checking on September 5, 2023 and arrived in Savings the same day.", "m2", 11, "Sep 5, 2023"),
-      statement("s9", "chk_2025 (1).pdf is an exact copy of chk_2025.pdf and was set aside.", "m5", 1, "duplicate"),
+      statement(
+        "s9",
+        "A duplicate of the 2025 check scan was set aside as an exact copy of the first file.",
+        "m5",
+        1,
+        "duplicate",
+      ),
     ],
     openItems: [],
   },
@@ -168,9 +174,20 @@ const medicaidGlance: FindingsGlanceMetric[] = [
 ];
 
 function medicaidView(): StudyView {
+  const docTypes = [
+    "Checking account statements",
+    "Savings account statements",
+    "Brokerage statements",
+    "IRA statements",
+    "Credit card statements",
+    "Mortgage statements",
+    "Pay stubs",
+    "Tax return",
+    "Medicaid agency letter",
+  ];
   const docs = ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9"].map((id, index) => ({
     id,
-    typeInPlainWords: `Bank statements (${index + 1})`,
+    typeInPlainWords: docTypes[index] ?? "Document",
     date: "2022-01-15",
     asWritten: null,
     statement: null,
@@ -346,13 +363,30 @@ function cloneLarge(): GalleryFindingsProps {
 
 export const LARGE_FINDINGS: GalleryFindingsProps = cloneLarge();
 
-export const MEDICAID_EVIDENCE_LABELS = new Map(
-  ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9"].map((id, index) => [
-    id,
-    `Checking ${4421 + index} · 202${index % 5}`,
-  ]),
-);
+const EVIDENCE_LABEL_BY_DOC: Record<string, string> = {
+  m1: "Checking 4421 · 2020",
+  m2: "Checking 4422 · 2021",
+  m3: "Checking 4423 · 2022",
+  m4: "Checking 4424 · 2023",
+  m5: "Checking 4425 · 2024",
+  m6: "Checking 4426 · 2020",
+  m7: "Savings 3819 · 2023",
+  m8: "Pay stubs · 2022",
+  m9: "Agency letter · 2026",
+};
 
-export const MEDICAID_CHIP_LABELS = new Map(
-  ["m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8", "m9"].map((id) => [id, "Checking stmts"]),
-);
+export const MEDICAID_EVIDENCE_LABELS = new Map(Object.entries(EVIDENCE_LABEL_BY_DOC));
+
+const CHIP_LABEL_BY_DOC: Record<string, string> = {
+  m1: "Checking stmts",
+  m2: "Checking stmts",
+  m3: "Checking stmts",
+  m4: "Checking stmts",
+  m5: "Checking stmts",
+  m6: "Checking stmts",
+  m7: "Savings stmts",
+  m8: "Pay stubs",
+  m9: "Agency letter",
+};
+
+export const MEDICAID_CHIP_LABELS = new Map(Object.entries(CHIP_LABEL_BY_DOC));
