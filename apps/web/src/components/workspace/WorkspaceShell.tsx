@@ -6,16 +6,17 @@ import { useEffect, useMemo, type ReactNode } from "react";
 
 import type { StartingView } from "@/lib/auth/profile";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
-import { hiveSectionFromPathname } from "@/lib/hive-routes";
+import { hiveSectionFromPathname, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import { useHiveHeaderWorkspace } from "@/components/app-header";
 import { HiveChatProvider, type HiveChatConfig } from "@/lib/hive-chat-context";
 import { buildHiveChatConfig } from "@/lib/build-hive-chat-config";
 
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 
-import { HiveHead } from "./HiveHead";
+import { HiveSidebar, type StudyRailRevision } from "./HiveSidebar";
+import { HiveWorkspaceHead } from "./HiveWorkspaceHead";
 import { WorkspaceChromeProvider } from "./workspace-context";
-import type { HiveSidebarCounts, StudyRailRevision } from "./sidebar-counts";
+import type { HiveSidebarCounts } from "./sidebar-counts";
 
 export type WorkspaceShellProps = {
   hive: Hive;
@@ -53,7 +54,7 @@ export function WorkspaceShell({
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() ?? "";
-  const section = hiveSectionFromPathname(pathname, hive.id) ?? "board";
+  const section: HiveWorkspaceSection = hiveSectionFromPathname(pathname, hive.id) ?? "board";
   const setWorkspace = useHiveHeaderWorkspace()?.setWorkspace;
   const staffView = showsFirmThreePane(hive);
   const clientFirmHive =
@@ -118,26 +119,43 @@ export function WorkspaceShell({
     }
   }, [hive.id, summaryFailedCorrelationId]);
 
+  if (clientFirmHive) {
+    return (
+      <HiveChatProvider config={chatConfig}>
+        <WorkspaceChromeProvider>
+          <div className="flex min-h-full flex-1 flex-col bg-paper">
+            <div className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-5 pb-[120px] pt-[22px]">
+              {children}
+            </div>
+          </div>
+        </WorkspaceChromeProvider>
+      </HiveChatProvider>
+    );
+  }
+
   return (
     <HiveChatProvider config={chatConfig}>
       <WorkspaceChromeProvider>
-        <div className="flex min-h-full flex-1 flex-col bg-paper">
-          <div
-            className={
-              clientFirmHive
-                ? "mx-auto flex w-full max-w-[460px] flex-1 flex-col px-5 pb-[120px] pt-[22px]"
-                : "mx-auto flex w-full max-w-content flex-1 flex-col px-4 min-[760px]:px-8"
-            }
-          >
-            {!clientFirmHive ? (
-              <HiveHead
+        <div className="hv flex min-h-full flex-1 flex-col bg-canvas min-[1100px]:grid min-[1100px]:grid-cols-[232px_minmax(0,1fr)]">
+          <HiveSidebar
+            hive={hive}
+            startingView={startingView}
+            active={section}
+            counts={counts}
+            assigneeLabel={assigneeLabel}
+            assistantName={assistantName}
+          />
+          <div className="hv-main flex min-w-0 flex-1 flex-col bg-paper">
+            <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-5 min-[1100px]:px-8 min-[1100px]:py-7 min-[1100px]:pb-16">
+              <HiveWorkspaceHead
                 hive={hive}
+                active={section}
+                counts={counts}
+                assigneeLabel={assigneeLabel}
                 assistantName={assistantName}
-                documentCount={documentCount}
-                unreadMessages={counts.unreadMessages}
               />
-            ) : null}
-            {children}
+              {children}
+            </div>
           </div>
         </div>
       </WorkspaceChromeProvider>

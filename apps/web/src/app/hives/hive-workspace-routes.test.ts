@@ -83,6 +83,7 @@ vi.mock("@/server/hives/hive-summary", () => ({
     canonicalStudy: null,
     referencedDocuments: [],
     summary: { study: null },
+    studyLoadError: null,
   })),
   documentPageCounts: vi.fn(() => ({})),
 }));

@@ -1,4 +1,5 @@
 apps/web/.ui-shots/
+ui-shots-log.txt
 node_modules/
 .next/
 out/

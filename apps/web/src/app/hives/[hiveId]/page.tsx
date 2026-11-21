@@ -11,6 +11,7 @@ import { ClientHome } from "@/components/home/ClientHome";
 import { HiveHome, type HiveHomeViewer } from "@/components/home/HiveHome";
 import { buildHiveHomeContent } from "@/components/home/home-model";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
+import { studyAvailability } from "@/lib/hives/study-availability";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
@@ -108,6 +109,13 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
     ? buildFindingsTopics({ view, canonicalStudy, pack, openItems }).topics
     : [];
   const revision = overview?.preparation.studyRevision ?? null;
+  const availability = overview
+    ? studyAvailability({
+        revision,
+        hasCanonicalView: view != null,
+        studyLoadError: overview.studyLoadError,
+      })
+    : null;
   const content = overview
     ? buildHiveHomeContent({
         documentCount: overview.summary.documentCount,
@@ -171,6 +179,9 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
         currentUserId={auth.userId}
         hiveFirmId={hive.firmId ?? null}
         loadError={loadError}
+        studyLoadError={overview?.studyLoadError ?? null}
+        studyAvailability={availability}
+        initialPreparation={overview?.preparation}
         view={view}
         sources={sources}
         canonicalStudy={canonicalStudy}
@@ -190,6 +201,9 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       assistantName={assistantName}
       content={content}
       loadError={loadError}
+      studyLoadError={overview?.studyLoadError ?? null}
+      studyAvailability={availability}
+      initialPreparation={overview?.preparation}
       conflicts={view?.blocks.find((block) => block.name === "conflicts")?.rows ?? []}
       timeline={view?.blocks.find((block) => block.name === "timeline")?.rows ?? []}
       view={view}

@@ -5,6 +5,7 @@ import type {
   CoverageGap,
   FindingsOpenItem,
   FindingsTopic,
+  GetStudyPreparationResponse,
   StudyView,
   StudyViewRow,
   StudyViewSources,
@@ -14,6 +15,8 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { AskBar } from "@/components/hives/AskBar";
+import { CanonicalStudyNotice } from "@/components/hives/CanonicalStudyNotice";
+import { HiveStudyRebuildAction } from "@/components/hives/HiveStudyRebuildAction";
 import { HiveConversation } from "@/components/hives/HiveConversation";
 import { HiveHomeSidePanel } from "@/components/hives/HiveHomeSidePanel";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
@@ -34,6 +37,8 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { Step } from "@/components/ui/Step";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { personFirstName } from "@/lib/hives/firm-board";
+import type { StudyAvailability } from "@/lib/hives/study-availability";
+import type { StudyLoadError } from "@/server/hives/hive-summary";
 import { EVIDENCE_COMPOSE_PARAM } from "@/lib/hive-compose-query";
 import { HIVE_CHAT_PANEL_MIN_WIDTH, useHiveChat, useMinWidth } from "@/lib/hive-chat-context";
 import { EVIDENCE_SOURCE_PARAM } from "@/lib/evidence-source-query";
@@ -70,6 +75,9 @@ export type HiveHomeProps = {
   assistantName: string;
   content: HiveHomeContent | null;
   loadError: { message: string; correlationId: string; retryable: boolean } | null;
+  studyLoadError: StudyLoadError | null;
+  studyAvailability: StudyAvailability | null;
+  initialPreparation?: GetStudyPreparationResponse;
   conflicts: readonly StudyViewRow[];
   timeline: readonly StudyViewRow[];
   view: StudyView | null;
@@ -149,6 +157,9 @@ function HiveHomeBody({
   assistantName,
   content,
   loadError,
+  studyLoadError,
+  studyAvailability,
+  initialPreparation,
   conflicts,
   timeline,
   openItems,
@@ -180,6 +191,8 @@ function HiveHomeBody({
 
   const showConversation = viewer !== "firmless";
   const staffBrief = viewer !== "client";
+  const canonicalView = studyAvailability?.kind === "canonical";
+  const olderStudy = studyAvailability?.kind === "older";
 
   const chat = useHiveChat();
   const wide = useMinWidth(HIVE_CHAT_PANEL_MIN_WIDTH);
@@ -263,9 +276,9 @@ function HiveHomeBody({
           <WorkspaceLoadError message={loadError.message} correlationId={loadError.correlationId} retryable={loadError.retryable} />
         ) : null}
         {content && !content.hasStudy ? (
-          <div className="mt-2">
+          <div className="mt-2" data-testid="home-no-study">
             <p className="m-0 max-w-[640px] font-brand text-[20px] font-medium leading-[1.35] tracking-[-0.02em] text-ink">
-              Your Study builds once documents are read.
+              Your study builds once documents are read.
             </p>
             <Link href={hiveDocumentsPath(hiveId)} className={`${SECONDARY_LINK} mt-4`}>
               Go to Documents
@@ -284,17 +297,33 @@ function HiveHomeBody({
             {content.checklistSize != null ? (
               <ProgressMeter received={content.documentsIn} total={content.checklistSize} />
             ) : null}
-            {content.study ? (
+            {studyLoadError ? (
+              <div className="mt-4" data-testid="home-study-error">
+                <WorkspaceLoadError
+                  message={studyLoadError.message}
+                  correlationId={studyLoadError.correlationId}
+                  retryable={studyLoadError.retryable}
+                />
+              </div>
+            ) : null}
+            {olderStudy ? (
+              <div className="mt-4 flex flex-col items-start gap-3" data-testid="home-older-study">
+                <CanonicalStudyNotice />
+                <HiveStudyRebuildAction hiveId={hiveId} initialPreparation={initialPreparation} focusDocuments />
+              </div>
+            ) : null}
+            {content.study && canonicalView ? (
               <p className="m-0 mt-3 text-meta text-ink-3">
                 Study v{content.study.revisionNumber}
                 {content.study.acceptedLabel ? `, accepted ${content.study.acceptedLabel}` : ""} · every statement below
                 opens the page it comes from
               </p>
             ) : null}
-            {steps.length > 0 ? (
+            {canonicalView ? (
               <Section title="Next steps" headingRight={steps.length} className="mt-10">
                 <div data-testid="hive-next-steps">
-                  {visibleSteps.map((step) => (
+                  {steps.length > 0 ? (
+                    visibleSteps.map((step) => (
                     <Step
                       key={step.id}
                       status={step.dot}
@@ -322,7 +351,10 @@ function HiveHomeBody({
                         ) : null
                       }
                     />
-                  ))}
+                  ))
+                  ) : (
+                    <p className="m-0 py-3.5 text-body text-ink-2">Nothing is waiting on you.</p>
+                  )}
                   {steps.length > STEP_LIMIT ? (
                     stepsOpen ? (
                       <ShowFewer label="Show fewer" onClick={() => setStepsOpen(false)} />
@@ -333,9 +365,24 @@ function HiveHomeBody({
                 </div>
               </Section>
             ) : null}
-            {content.statementCount > 0 ? (
-              <Section id="show" title="What the documents show" headingRight={content.statementCount === 1 ? "1 statement" : `${content.statementCount} statements`}>
-                {content.topics.map((topic) => {
+            {canonicalView ? (
+              <Section
+                id="show"
+                title="What the documents show"
+                headingRight={
+                  content.statementCount === 0
+                    ? "0 statements"
+                    : content.statementCount === 1
+                      ? "1 statement"
+                      : `${content.statementCount} statements`
+                }
+              >
+                {content.statementCount === 0 ? (
+                  <p className="m-0 py-3.5 text-body text-ink-2" data-testid="home-no-statements">
+                    No statements in this study yet.
+                  </p>
+                ) : (
+                content.topics.map((topic) => {
                   const open = topicsOpen.has(topic.id);
                   const rows = open ? topic.statements : topic.statements.slice(0, STATEMENT_LIMIT);
                   const hidden = topic.statements.length - STATEMENT_LIMIT;
@@ -365,17 +412,20 @@ function HiveHomeBody({
                       ) : null}
                     </StatementTopic>
                   );
-                })}
+                })
+                )}
               </Section>
             ) : null}
-            <SupportingDetail
-              conflicts={conflicts}
-              timeline={timeline}
-              timelineOpen={timelineOpen}
-              onToggleTimeline={() => setTimelineOpen((open) => !open)}
-              coverage={content.coverage}
-              calculations={content.calculations}
-            />
+            {canonicalView ? (
+              <SupportingDetail
+                conflicts={conflicts}
+                timeline={timeline}
+                timelineOpen={timelineOpen}
+                onToggleTimeline={() => setTimelineOpen((open) => !open)}
+                coverage={content.coverage}
+                calculations={content.calculations}
+              />
+            ) : null}
           </>
         ) : null}
       </div>

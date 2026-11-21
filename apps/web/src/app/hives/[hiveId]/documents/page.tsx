@@ -4,6 +4,7 @@ import {
 } from "@hiveforyou/contracts";
 
 import { DocumentsPanel } from "@/components/hives/DocumentsPanel";
+import { StudyDependentAlerts } from "@/components/hives/StudyDependentAlerts";
 import { studyDocumentMeta } from "@/components/study/study-summary";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { type HiveOverview, loadHiveOverview } from "@/server/hives/hive-summary";
@@ -66,7 +67,9 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
   const topics = view ? buildFindingsTopics({ view, canonicalStudy, pack, openItems }).topics : [];
 
   return (
-    <DocumentsPanel
+    <>
+      <StudyDependentAlerts hiveId={hive.id} overview={overview} />
+      <DocumentsPanel
       hiveId={hive.id}
       initialDocuments={initialDocuments}
       initialError={initialError}
@@ -86,5 +89,6 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
       openItems={openItems}
       topics={topics}
     />
+    </>
   );
 }

@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -160,5 +160,11 @@ describe("ClientHome", () => {
     expect(screen.queryByTestId("client-home-ask")).toBeNull();
     expect(screen.queryByTestId("client-home-chips")).toBeNull();
     expect(screen.queryByRole("button", { name: /Ask Rowan/ })).toBeNull();
+  });
+
+  it("shows the older-study notice and rebuild link", () => {
+    renderHome(clientChat(), { studyAvailability: { kind: "older", revisionNumber: 4 } });
+    expect(screen.getByTestId("client-home-older-study")).toBeTruthy();
+    expect(screen.getByTestId("canonical-study-notice")).toBeTruthy();
   });
 });

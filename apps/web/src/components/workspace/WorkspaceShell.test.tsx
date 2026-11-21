@@ -1,4 +1,5 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
+import type { ReactNode } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,24 +13,23 @@ vi.mock("@/components/app-header", () => ({
   useHiveHeaderWorkspace: () => ({ setWorkspace: vi.fn() }),
 }));
 
-vi.mock("./HiveHead", () => ({
-  HiveHead: () => <header data-testid="hive-head">Hive head</header>,
+vi.mock("@/lib/use-left-menu-wide", () => ({
+  useLeftMenuWide: () => true,
 }));
 
-import type { ConversationLoad } from "@/components/hives/useHiveConversation";
+vi.mock("./HiveSidebar", () => ({
+  HiveSidebar: () => <div data-testid="hive-left-menu" />,
+}));
+
+vi.mock("./HiveWorkspaceHead", () => ({
+  HiveWorkspaceHead: () => <div data-testid="hive-workspace-head" />,
+}));
+
+vi.mock("@/lib/hive-chat-context", () => ({
+  HiveChatProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 
 import { WorkspaceShell } from "./WorkspaceShell";
-
-const EMPTY_ASSISTANT_LOAD: ConversationLoad = {
-  ok: true,
-  page: {
-    messages: [],
-    participantRoleLabels: [],
-    participantCount: 0,
-    viewerLastReadAt: null,
-    nextCursor: null,
-  },
-};
 
 const hive: Hive = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -47,8 +47,8 @@ afterEach(() => {
 });
 
 describe("WorkspaceShell", () => {
-  it("renders the hive head and no rail", () => {
-    render(
+  it("uses a 232px left column from 1100px", () => {
+    const { container } = render(
       <WorkspaceShell
         hive={hive}
         startingView="clients"
@@ -64,36 +64,15 @@ describe("WorkspaceShell", () => {
         assigneeLabel={null}
         assigneeTitle={null}
         assistantName="HiveForYou"
-        initialAssistant={EMPTY_ASSISTANT_LOAD}
+        initialAssistant={{ ok: true, page: { messages: [], nextCursor: null, participantCount: 0, participantRoleLabels: [], viewerLastReadAt: null, pendingAssistant: false, assistantRepliesOn: true, assistantAvailable: true, assistantName: "HiveForYou", failedAssistantForMessageIds: [], assistantThreads: [] } }}
       >
         <p>Workspace body</p>
       </WorkspaceShell>,
     );
 
-    expect(screen.getByTestId("hive-head")).toBeTruthy();
-    expect(screen.getByText("Workspace body")).toBeTruthy();
-    expect(screen.queryByTestId("hive-sidebar-desktop")).toBeNull();
-    expect(screen.queryByTestId("hive-sidebar-compact")).toBeNull();
-  });
-
-  it("hides the hive head for a firm client on client home", () => {
-    render(
-      <WorkspaceShell
-        hive={{ ...hive, firmId: "22222222-2222-4222-8222-222222222222", membershipRole: "client" }}
-        startingView="own"
-        counts={{ toReviewCount: 0, documents: 0, reports: null, teamNotes: null, unreadMessages: null }}
-        firm={null}
-        currentUserId="user"
-        assigneeLabel={null}
-        assigneeTitle={null}
-        assistantName="HiveForYou"
-        initialAssistant={EMPTY_ASSISTANT_LOAD}
-      >
-        <p>Client body</p>
-      </WorkspaceShell>,
-    );
-
-    expect(screen.queryByTestId("hive-head")).toBeNull();
-    expect(screen.getByText("Client body")).toBeTruthy();
+    expect(container.firstElementChild?.className).toContain("min-[1100px]:grid");
+    expect(container.firstElementChild?.className).toContain("min-[1100px]:grid-cols-[232px_minmax(0,1fr)]");
+    expect(screen.getByTestId("hive-left-menu")).toBeTruthy();
+    expect(screen.getByTestId("hive-workspace-head")).toBeTruthy();
   });
 });

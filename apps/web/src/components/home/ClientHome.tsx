@@ -5,6 +5,7 @@ import type {
   CoverageGap,
   FindingsOpenItem,
   FindingsTopic,
+  GetStudyPreparationResponse,
   HiveBoardChecklistItem,
   SourceDocument,
   StudyView,
@@ -13,8 +14,10 @@ import type {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { CanonicalStudyNotice } from "@/components/hives/CanonicalStudyNotice";
 import { HiveConversation } from "@/components/hives/HiveConversation";
 import { ChecklistGapAddButton } from "@/components/hives/ChecklistGapAddButton";
+import { HiveStudyRebuildAction } from "@/components/hives/HiveStudyRebuildAction";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
@@ -27,6 +30,8 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { Toast } from "@/components/ui/Toast";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { personFirstName } from "@/lib/hives/firm-board";
+import type { StudyAvailability } from "@/lib/hives/study-availability";
+import type { StudyLoadError } from "@/server/hives/hive-summary";
 import { useHiveChat } from "@/lib/hive-chat-context";
 import { hiveDocumentsPath, hiveReportsPath } from "@/lib/hive-routes";
 
@@ -50,6 +55,9 @@ export type ClientHomeProps = {
   currentUserId: string | null;
   hiveFirmId: string | null;
   loadError: { message: string; correlationId: string; retryable: boolean } | null;
+  studyLoadError?: StudyLoadError | null;
+  studyAvailability?: StudyAvailability | null;
+  initialPreparation?: GetStudyPreparationResponse;
   view: StudyView | null;
   sources: StudyViewSources | null;
   canonicalStudy: CanonicalStudy | null;
@@ -74,6 +82,9 @@ function ClientHomeBody(props: ClientHomeProps) {
     currentUserId,
     hiveFirmId,
     loadError,
+    studyLoadError,
+    studyAvailability,
+    initialPreparation,
   } = props;
 
   const [documents, setDocuments] = useState<SourceDocument[]>(() => [...initialDocuments]);
@@ -113,6 +124,21 @@ function ClientHomeBody(props: ClientHomeProps) {
     <main className="min-w-0" data-testid="client-home">
       {loadError ? (
         <WorkspaceLoadError message={loadError.message} correlationId={loadError.correlationId} retryable={loadError.retryable} />
+      ) : null}
+      {studyLoadError ? (
+        <div className="mt-4" data-testid="client-home-study-error">
+          <WorkspaceLoadError
+            message={studyLoadError.message}
+            correlationId={studyLoadError.correlationId}
+            retryable={studyLoadError.retryable}
+          />
+        </div>
+      ) : null}
+      {studyAvailability?.kind === "older" ? (
+        <div className="mt-4 flex flex-col items-start gap-3" data-testid="client-home-older-study">
+          <CanonicalStudyNotice />
+          <HiveStudyRebuildAction hiveId={hiveId} initialPreparation={initialPreparation} focusDocuments />
+        </div>
       ) : null}
 
       <div className="flex items-center gap-3" data-testid="client-home-staff-card">

@@ -38,7 +38,9 @@ import { HivesFirstVisit, PlusIcon } from "./HivesFirstVisit";
 import { HivesListRow } from "./HivesListRow";
 import { HivesListSkeleton } from "./HivesListSkeleton";
 import { NameHiveDialog } from "./NameHiveDialog";
+import { HivesLeftMenu } from "./HivesLeftMenu";
 import { useCreateHive, useHiveComposer } from "./useCreateHive";
+import { useLeftMenuWide } from "@/lib/use-left-menu-wide";
 
 type ListError = {
   message: string;
@@ -53,6 +55,8 @@ type MyHivesPanelProps = {
   startingView: StartingView;
   showFirmRail?: boolean;
   viewerUserId?: string | null;
+  firmName?: string | null;
+  personLine?: string | null;
 };
 
 export function MyHivesPanel({
@@ -63,7 +67,10 @@ export function MyHivesPanel({
   startingView,
   showFirmRail = false,
   viewerUserId = null,
+  firmName = null,
+  personLine = null,
 }: MyHivesPanelProps) {
+  const wideMenu = useLeftMenuWide();
   const router = useRouter();
   const searchParams = useSearchParams();
   const clientsHome = useClientsHomeSearch();
@@ -280,9 +287,24 @@ export function MyHivesPanel({
     );
 
   const noRows = displayedHives.length === 0 && !listError && !refreshing;
+  const showYourOwn = hasOwnHives && hasClientHives;
 
   return (
-    <div className="mx-auto w-full max-w-col-wide px-4 pb-24 pt-8 min-[760px]:px-8 min-[760px]:pt-10">
+    <div className="hv flex min-h-full flex-1 flex-col bg-canvas min-[1100px]:grid min-[1100px]:grid-cols-[232px_minmax(0,1fr)]">
+      {startingView === "clients" ? (
+        <HivesLeftMenu
+          firmName={firmName}
+          personLine={personLine}
+          queue={queue}
+          counts={queueCounts}
+          showMine={showFirmRail}
+          showUnassigned={showFirmRail}
+          showYourOwn={showYourOwn}
+          searchActive={Boolean(searchTrimmed)}
+          onSelectQueue={setQueue}
+        />
+      ) : null}
+      <div className="hv-main mx-auto w-full max-w-col-wide px-4 pb-24 pt-8 min-[760px]:px-8 min-[760px]:pt-10">
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0 flex-1 basis-[320px] min-[760px]:basis-[520px]">
           <h1 className="m-0 font-brand text-title-sm font-semibold text-ink min-[760px]:text-title">Your hives</h1>
@@ -295,7 +317,7 @@ export function MyHivesPanel({
         {newHiveControl}
       </header>
 
-      {tabOptions.length > 1 ? (
+      {tabOptions.length > 1 && !wideMenu ? (
         <Tabs options={tabOptions} value={queue} onChange={setQueue} ariaLabel="Which hives" className="mt-6" />
       ) : null}
 
@@ -351,6 +373,7 @@ export function MyHivesPanel({
       ) : null}
 
       {modals}
+      </div>
     </div>
   );
 }

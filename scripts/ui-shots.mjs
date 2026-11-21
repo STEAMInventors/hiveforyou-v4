@@ -30,6 +30,12 @@ const galleryPages = [
   "chat-sheet-client",
   "evidence-ask-page",
   "home-assistant-off",
+  // UI-3b home states and left menu
+  "home-older-study",
+  "home-study-error",
+  "client-home-older-study",
+  "home-staff-menu",
+  "hives-firm-menu",
   // UI-2 hive workspace pages still used for comparison
   "components",
   "shell",
