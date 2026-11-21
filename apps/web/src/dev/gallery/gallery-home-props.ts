@@ -1,10 +1,12 @@
 ﻿import type { FindingsOpenItem, FindingsTopic, GetStudyPreparationResponse } from "@hiveforyou/contracts";
 
 import { buildHiveHomeContent } from "@/components/home/home-model";
+import type { ClientHomeProps } from "@/components/home/ClientHome";
 import type { HiveHomeProps } from "@/components/home/HiveHome";
 
 import {
   GALLERY_ASSISTANT_NAME,
+  GALLERY_CLIENT_ID,
   GALLERY_HIVE,
   GALLERY_HIVE_ID,
   GALLERY_PEOPLE_PAGE,
@@ -165,3 +167,29 @@ export const galleryClientOlderStudyHome = () => ({
   viewerIsClient: true,
   staffView: false,
 });
+
+export function galleryClientOlderStudyClientHome(): ClientHomeProps {
+  return {
+    hiveId: GALLERY_HIVE_ID,
+    hiveTitle: "Dana Ellis",
+    staffDisplayName: "Priya Shah",
+    staffTitle: "Onboarding associate",
+    assistantName: GALLERY_ASSISTANT_NAME,
+    checklist: [],
+    progress: { in: 6, total: 9 },
+    openItems: [],
+    initialDocuments: [],
+    acceptedStudyRevisionId: "rev-gallery",
+    initialPeople: { ok: true, page: GALLERY_PEOPLE_PAGE },
+    currentUserId: GALLERY_CLIENT_ID,
+    hiveFirmId: GALLERY_HIVE.firmId ?? null,
+    loadError: null,
+    studyAvailability: { kind: "older", revisionNumber: 6 },
+    initialPreparation: GALLERY_STUDY_PREPARATION,
+    view: null,
+    sources: null,
+    canonicalStudy: null,
+    coverageGaps: [],
+    topics: [],
+  };
+}

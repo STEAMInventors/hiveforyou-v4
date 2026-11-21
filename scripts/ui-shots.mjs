@@ -34,7 +34,6 @@ const galleryPages = [
   "home-older-study",
   "home-study-error",
   "client-home-older-study",
-  "home-staff-menu",
   "hives-firm-menu",
   // UI-2 hive workspace pages still used for comparison
   "components",

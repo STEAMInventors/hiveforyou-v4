@@ -6,15 +6,21 @@ import { studyAvailability } from "@/lib/hives/study-availability";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 import type { HiveOverview } from "@/server/hives/hive-summary";
 
+import { clientHomeOlderStudyLine } from "@/components/home/client-home-model";
+
 import { CanonicalStudyNotice } from "./CanonicalStudyNotice";
 import { HiveStudyRebuildAction } from "./HiveStudyRebuildAction";
 
 export function StudyDependentAlerts({
   hiveId,
   overview,
+  viewerIsClient = false,
+  staffDisplayName = null,
 }: {
   hiveId: string;
   overview: HiveOverview | null;
+  viewerIsClient?: boolean;
+  staffDisplayName?: string | null;
 }) {
   if (!overview) return null;
   const revision = overview.preparation.studyRevision;
@@ -48,6 +54,13 @@ export function StudyDependentAlerts({
   }
 
   if (availability.kind === "older") {
+    if (viewerIsClient) {
+      return (
+        <p className="mb-6 m-0 text-body text-ink-2" data-testid="study-dependent-older-client">
+          {clientHomeOlderStudyLine(staffDisplayName)}
+        </p>
+      );
+    }
     return (
       <div className="mb-6 flex flex-col items-start gap-3" data-testid="study-dependent-older">
         <CanonicalStudyNotice />

@@ -204,14 +204,15 @@ function HiveHomeBody({
   const omniCatalog = useMemo(
     () =>
       mergeOmniCatalog({
-        suggestions: askOn
-          ? askSuggestions({
-              viewer: viewer === "firmless" ? "own" : "staff",
-              toReview: content?.toReview ?? null,
-              stillToCome: content?.stillToCome.length ?? null,
-              documentsIn: content?.documentsIn ?? null,
-            })
-          : [],
+        suggestions:
+          askOn && (content?.statementCount ?? 0) > 0
+            ? askSuggestions({
+                viewer: viewer === "firmless" ? "own" : "staff",
+                toReview: content?.toReview ?? null,
+                stillToCome: content?.stillToCome.length ?? null,
+                documentsIn: content?.documentsIn ?? null,
+              })
+            : [],
         documents: EMPTY_OMNI_CATALOG.documents,
         statements: omniStatementsFromTopics(topics),
         openItems: content

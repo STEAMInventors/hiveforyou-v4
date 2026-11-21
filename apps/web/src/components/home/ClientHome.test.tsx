@@ -64,7 +64,7 @@ function props(over: Partial<ClientHomeProps> = {}): ClientHomeProps {
     sources: null,
     canonicalStudy: null,
     coverageGaps: [],
-    topics: [],
+    topics: [{ id: "t1", title: "Topic", uncertain: false, statements: [{ id: "s1", text: "A fact.", refs: [] }] }],
     ...over,
   } as ClientHomeProps;
 }
@@ -162,9 +162,28 @@ describe("ClientHome", () => {
     expect(screen.queryByRole("button", { name: /Ask Rowan/ })).toBeNull();
   });
 
-  it("shows the older-study notice and rebuild link", () => {
-    renderHome(clientChat(), { studyAvailability: { kind: "older", revisionNumber: 4 } });
-    expect(screen.getByTestId("client-home-older-study")).toBeTruthy();
-    expect(screen.getByTestId("canonical-study-notice")).toBeTruthy();
+  it("shows the older-study calm line without staff rebuild UI", () => {
+    renderHome(clientChat(), { studyAvailability: { kind: "older", revisionNumber: 4 }, topics: [] });
+    expect(screen.getByTestId("client-home-older-study").textContent).toBe(
+      "Priya's team is still reviewing your documents.",
+    );
+    expect(screen.queryByTestId("canonical-study-notice")).toBeNull();
+    expect(screen.queryByTestId("rebuild-study-button-home")).toBeNull();
+    expect(screen.queryByTestId("rebuild-study-link-documents")).toBeNull();
+  });
+
+  it("does not use the all-in lead when the meter is short", () => {
+    renderHome(clientChat(), {
+      checklist: [],
+      progress: { in: 6, total: 9 },
+    });
+    expect(screen.getByText("3 things left to send. Everything else is in.")).toBeTruthy();
+    expect(screen.queryByText(/Everything we asked for is in/)).toBeNull();
+  });
+
+  it("hides suggestion chips when the study has no statements", () => {
+    renderHome(clientChat(), { topics: [] });
+    expect(screen.getByTestId("client-home-ask")).toBeTruthy();
+    expect(screen.queryByTestId("client-home-chips")).toBeNull();
   });
 });

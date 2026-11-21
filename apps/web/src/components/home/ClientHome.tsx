@@ -14,10 +14,8 @@ import type {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { CanonicalStudyNotice } from "@/components/hives/CanonicalStudyNotice";
 import { HiveConversation } from "@/components/hives/HiveConversation";
 import { ChecklistGapAddButton } from "@/components/hives/ChecklistGapAddButton";
-import { HiveStudyRebuildAction } from "@/components/hives/HiveStudyRebuildAction";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
@@ -36,7 +34,13 @@ import { useHiveChat } from "@/lib/hive-chat-context";
 import { hiveDocumentsPath, hiveReportsPath } from "@/lib/hive-routes";
 
 import { askSuggestions } from "./ask-suggestions";
-import { clientHomeLeadSentence, rowWhyDetail, stillToSendSectionCount } from "./client-home-model";
+import {
+  clientHomeLeadSentence,
+  clientHomeOlderStudyLine,
+  hiveStatementCount,
+  rowWhyDetail,
+  stillToSendSectionCount,
+} from "./client-home-model";
 
 const STILL_LIMIT = 3;
 
@@ -84,7 +88,7 @@ function ClientHomeBody(props: ClientHomeProps) {
     loadError,
     studyLoadError,
     studyAvailability,
-    initialPreparation,
+    topics,
   } = props;
 
   const [documents, setDocuments] = useState<SourceDocument[]>(() => [...initialDocuments]);
@@ -96,7 +100,8 @@ function ClientHomeBody(props: ClientHomeProps) {
   const teamVisibility =
     staffDisplayName?.trim() ? `Only you and ${staffFirst}'s team` : "Only you and your team";
   const missingCount = stillToSendSectionCount(checklist);
-  const lead = clientHomeLeadSentence(missingCount, staffDisplayName);
+  const lead = clientHomeLeadSentence(progress, missingCount, staffDisplayName);
+  const statementCount = useMemo(() => hiveStatementCount(topics), [topics]);
   const visibleChecklist = expandedStill ? checklist : checklist.slice(0, STILL_LIMIT);
   const hiddenStill = checklist.length - STILL_LIMIT;
 
@@ -104,14 +109,14 @@ function ClientHomeBody(props: ClientHomeProps) {
   const askOn = Boolean(chat?.assistantOn);
   const suggestions = useMemo(
     () =>
-      askOn
+      askOn && statementCount > 0
         ? askSuggestions({
             viewer: "client",
             stillToCome: missingCount,
             documentsIn: progress?.in ?? documents.length,
           })
         : [],
-    [askOn, documents.length, missingCount, progress?.in],
+    [askOn, documents.length, missingCount, progress?.in, statementCount],
   );
   // The sheet shows the same starter questions.
   useRegisterOmniCatalog({ ...EMPTY_OMNI_CATALOG, suggestions });
@@ -135,10 +140,9 @@ function ClientHomeBody(props: ClientHomeProps) {
         </div>
       ) : null}
       {studyAvailability?.kind === "older" ? (
-        <div className="mt-4 flex flex-col items-start gap-3" data-testid="client-home-older-study">
-          <CanonicalStudyNotice />
-          <HiveStudyRebuildAction hiveId={hiveId} initialPreparation={initialPreparation} focusDocuments />
-        </div>
+        <p className="m-0 mt-4 text-[15px] text-ink-2" data-testid="client-home-older-study">
+          {clientHomeOlderStudyLine(staffDisplayName)}
+        </p>
       ) : null}
 
       <div className="flex items-center gap-3" data-testid="client-home-staff-card">

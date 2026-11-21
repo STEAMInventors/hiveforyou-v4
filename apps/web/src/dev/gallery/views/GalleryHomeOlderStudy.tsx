@@ -1,9 +1,14 @@
 ﻿"use client";
 
+import { HiveHome } from "@/components/home/HiveHome";
+
+import { GalleryHiveChrome } from "../gallery-hive-chrome";
 import { galleryOlderStudyHome } from "../gallery-home-props";
 
-import { GalleryHomeShell } from "./GalleryHomeShell";
-
 export function GalleryHomeOlderStudy() {
-  return <GalleryHomeShell titleSlug="home-older-study" props={galleryOlderStudyHome()} />;
+  return (
+    <GalleryHiveChrome titleSlug="home-older-study">
+      <HiveHome {...galleryOlderStudyHome()} />
+    </GalleryHiveChrome>
+  );
 }

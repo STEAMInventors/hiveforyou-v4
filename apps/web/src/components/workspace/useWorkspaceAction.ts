@@ -4,6 +4,7 @@ import type { PublicErrorBody } from "@hiveforyou/contracts";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 
+import { isDevGalleryPath } from "@/lib/dev-gallery-path";
 import { CORRELATION_HEADER_NAME } from "@/lib/hives-client";
 
 export type WorkspaceActionFailure = {
@@ -102,7 +103,7 @@ export function useWorkspaceAction(signInNextPath?: string) {
           body = null;
         }
 
-        if (response.status === 401 && typeof window !== "undefined") {
+        if (response.status === 401 && typeof window !== "undefined" && !isDevGalleryPath()) {
           window.location.href = signInHref();
           return null;
         }

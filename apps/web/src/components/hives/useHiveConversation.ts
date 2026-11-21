@@ -23,6 +23,7 @@ import {
 } from "@/components/hives/hive-board-poll";
 import { firstUnreadMessageId, mergeMessages } from "@/components/hives/hive-conversation-view";
 import { useWorkspaceAction, type WorkspaceActionFailure } from "@/components/workspace/useWorkspaceAction";
+import { isDevGalleryPath } from "@/lib/dev-gallery-path";
 import { hiveHomePath } from "@/lib/hive-routes";
 import { CORRELATION_HEADER_NAME } from "@/lib/hives-client";
 
@@ -175,7 +176,9 @@ export function useHiveConversation({
         return { ok: false, status: 0, error: { message: CONVERSATION_LOAD_FAILED, correlationId: null, retryable: true } };
       }
       if (response.status === 401) {
-        window.location.assign(`/sign-in?next=${encodeURIComponent(boardPath)}`);
+        if (!isDevGalleryPath()) {
+          window.location.assign(`/sign-in?next=${encodeURIComponent(boardPath)}`);
+        }
         return { ok: false, status: 401, error: { message: CONVERSATION_LOAD_FAILED, correlationId: null, retryable: false } };
       }
       let body: unknown = null;

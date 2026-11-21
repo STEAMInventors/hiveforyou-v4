@@ -98,6 +98,9 @@ function TypingDots() {
   );
 }
 
+/** Indent for content under the greeting so chips line up with the bubble (28px avatar + 8px gap). */
+const ASK_GREETING_FOLLOW_INDENT = "pl-9";
+
 function AssistantRow({ assistantName, children }: { assistantName: string; children: ReactNode }) {
   return (
     <div className="flex max-w-[92%] items-end gap-2" data-testid="ask-assistant-row">
@@ -522,12 +525,17 @@ export function AskChat({
             {conversation.earlierError}
           </p>
         ) : null}
-        <AssistantRow assistantName={assistantName}>
-          <div className={ASSISTANT_BUBBLE} data-testid="ask-greeting">
-            {greeting}
-          </div>
+        <div className="max-w-[92%]">
+          <AssistantRow assistantName={assistantName}>
+            <div className={ASSISTANT_BUBBLE} data-testid="ask-greeting">
+              {greeting}
+            </div>
+          </AssistantRow>
           {chips.length > 0 ? (
-            <div className="mt-2.5 flex flex-wrap gap-2" data-testid="ask-chips">
+            <div
+              className={`mt-2.5 flex flex-wrap gap-2 ${ASK_GREETING_FOLLOW_INDENT}`}
+              data-testid="ask-chips"
+            >
               {chips.map((text) => (
                 <button
                   key={text}
@@ -540,7 +548,7 @@ export function AskChat({
               ))}
             </div>
           ) : null}
-        </AssistantRow>
+        </div>
         {messages.map((message) => {
           if (message.authorKind === "person") {
             return (

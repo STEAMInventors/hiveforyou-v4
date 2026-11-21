@@ -68,7 +68,12 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
 
   return (
     <>
-      <StudyDependentAlerts hiveId={hive.id} overview={overview} />
+      <StudyDependentAlerts
+        hiveId={hive.id}
+        overview={overview}
+        viewerIsClient={hive.membershipRole === "client"}
+        staffDisplayName={hive.assigneeDisplayName?.trim() || null}
+      />
       <DocumentsPanel
       hiveId={hive.id}
       initialDocuments={initialDocuments}

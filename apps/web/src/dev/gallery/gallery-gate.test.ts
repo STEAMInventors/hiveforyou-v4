@@ -21,7 +21,7 @@ describe("isDevGalleryEnabled", () => {
 describe("dev gallery D24 fixtures", () => {
   it("registers home and menu gallery routes", () => {
     const routes = [
-      "home-staff-menu",
+      "home-staff",
       "hives-firm-menu",
       "home-older-study",
       "home-no-study",

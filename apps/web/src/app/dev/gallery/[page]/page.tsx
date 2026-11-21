@@ -50,7 +50,6 @@ import {
 import { GalleryClientHomeOlderStudy } from "@/dev/gallery/views/GalleryClientHomeOlderStudy";
 import { GalleryHivesFirmMenu } from "@/dev/gallery/views/GalleryHivesFirmMenu";
 import { GalleryHomeOlderStudy } from "@/dev/gallery/views/GalleryHomeOlderStudy";
-import { GalleryHomeStaffMenu } from "@/dev/gallery/views/GalleryHomeStaffMenu";
 import { GalleryHomeStudyError } from "@/dev/gallery/views/GalleryHomeStudyError";
 
 const PAGES = {
@@ -99,7 +98,6 @@ const PAGES = {
   "home-older-study": GalleryHomeOlderStudy,
   "home-study-error": GalleryHomeStudyError,
   "client-home-older-study": GalleryClientHomeOlderStudy,
-  "home-staff-menu": GalleryHomeStaffMenu,
   "hives-firm-menu": GalleryHivesFirmMenu,
 } as const;
 
