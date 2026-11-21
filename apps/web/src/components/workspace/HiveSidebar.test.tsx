@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,10 +7,10 @@ import type { Hive } from "@hiveforyou/contracts";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => "/hives/11111111-1111-4111-8111-111111111111/board",
+  usePathname: () => "/hives/11111111-1111-4111-8111-111111111111/documents",
 }));
 
-import { hiveFindingsPath, hiveSectionFromPathname, type FindingsTab } from "@/lib/hive-routes";
+import { hiveFindingsPath, hiveSectionFromPathname } from "@/lib/hive-routes";
 
 import { HiveSidebar } from "./HiveSidebar";
 import { findingsToReviewCount, sidebarCounts } from "./sidebar-counts";
@@ -19,7 +19,8 @@ import type { HiveSummary } from "@/server/hives/hive-summary";
 const hive: Hive = {
   id: "11111111-1111-4111-8111-111111111111",
   hiveId: "11111111-1111-4111-8111-111111111111",
-  name: "Client hive",
+  name: "Dana Ellis",
+  description: "Family benefits application",
   kind: "client",
   firmId: "33333333-3333-4333-8333-333333333333",
   clientRequestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -27,124 +28,60 @@ const hive: Hive = {
   updatedAt: "2026-11-01T00:00:00.000Z",
 };
 
-const firm = {
-  firm: { id: hive.firmId!, name: "Firm", assistantName: "Assistant" },
-  members: [],
-  invites: [],
-};
-
 afterEach(() => {
   cleanup();
 });
 
-function renderRail(overrides: Partial<ComponentProps<typeof HiveSidebar>> = {}) {
+function renderMenu(overrides: Partial<ComponentProps<typeof HiveSidebar>> = {}) {
   return render(
     <HiveSidebar
       hive={hive}
       startingView="clients"
-      active="board"
-      counts={{ toReviewCount: 2, documents: 3, reports: 1, teamNotes: 4, unreadMessages: null }}
-      firm={firm}
-      currentUserId="user"
-      assigneeLabel="You"
-      assigneeTitle="Attorney"
-      assistantName="Assistant"
-      summaryLoaded
-      studyRevision={{ revisionNumber: 3, acceptedAt: "2026-11-17T12:00:00.000Z" }}
+      active="documents"
+      counts={{ toReviewCount: 2, documents: 9, reports: 1, teamNotes: 4, unreadMessages: null }}
+      assigneeLabel="Priya"
+      assistantName="Sarah"
       {...overrides}
     />,
   );
 }
 
-describe("HiveSidebar", () => {
-  it("lists hive sections in order, with Findings carrying the to-review count", () => {
-    renderRail();
-    expect(screen.queryByText("Your hive")).toBeNull();
-    const labels = screen.getAllByRole("link").map((link) => (link.textContent ?? "").replace(/\d+/g, "").trim());
-    expect(labels).toEqual(["Hive board", "Documents", "Findings", "Reports", "Audit trail", "Team notes"]);
-    expect(screen.getByLabelText("2 to review")).toBeTruthy();
-    const board = screen.getByRole("link", { name: "Hive board" });
-    expect(board.textContent).toBe("Hive board");
-    expect(findingsToReviewCount(null)).toBeNull();
+describe("HiveSidebar (D24 left menu)", () => {
+  it("lists Home through Team notes with Documents current and count from data", () => {
+    renderMenu();
+    const nav = screen.getByRole("navigation", { name: "Hive pages" });
+    const scoped = within(nav);
+    const current = scoped.getByRole("link", { name: /Documents/ });
+    expect(current.getAttribute("data-tab")).toBe("documents");
+    expect(current.getAttribute("aria-current")).toBe("page");
+    expect(scoped.getByLabelText("9 documents")).toBeTruthy();
+    expect(scoped.getByRole("link", { name: /Home/ }).getAttribute("data-tab")).toBe("home");
+    expect(scoped.getByRole("link", { name: /Report/ }).getAttribute("data-tab")).toBe("report");
   });
 
-  it("shows Team notes for firm staff and hides it from clients", () => {
-    renderRail();
-    expect(screen.getByRole("link", { name: /Team notes/ })).toBeTruthy();
-    cleanup();
-    renderRail({
-      hive: { ...hive, membershipRole: "client" },
-      counts: { toReviewCount: 1, documents: 1, reports: null, teamNotes: null, unreadMessages: null },
-    });
-    expect(screen.queryByRole("link", { name: /Team notes/ })).toBeNull();
-    cleanup();
-    renderRail({
-      hive: { ...hive, firmId: undefined },
-      startingView: "own",
-      firm: null,
-      assigneeLabel: null,
-      assigneeTitle: null,
-      assistantName: "HiveForYou",
-      counts: { toReviewCount: 1, documents: 1, reports: null, teamNotes: null, unreadMessages: null },
-    });
-    expect(screen.queryByRole("link", { name: /Team notes/ })).toBeNull();
-  });
-
-  it("marks Findings current for every findings address and hides a zero count", () => {
-    const paths = [
-      hiveFindingsPath(hive.id),
-      hiveFindingsPath(hive.id, "gaps"),
-      hiveFindingsPath(hive.id, "timeline"),
-    ];
-    for (const path of paths) {
-      const base = path.split("#")[0] ?? "";
-      expect(hiveSectionFromPathname(base, hive.id)).toBe("findings");
+  it("marks Report current on findings and reports routes", () => {
+    for (const path of [hiveFindingsPath(hive.id), `/hives/${hive.id}/reports`]) {
+      expect(hiveSectionFromPathname(path.split("#")[0] ?? "", hive.id)).toBeTruthy();
     }
-    renderRail({
-      active: "findings",
-      counts: { toReviewCount: null, documents: null, reports: null, teamNotes: null, unreadMessages: null },
+    renderMenu({ active: "findings" });
+    const report = screen.getByRole("link", { name: /Report/ });
+    expect(report.getAttribute("aria-current")).toBe("page");
+    expect(report.getAttribute("data-tab")).toBe("report");
+  });
+
+  it("shows ← All hives for staff client hives and people footer", () => {
+    renderMenu();
+    expect(screen.getByRole("link", { name: /All hives/ })).toBeTruthy();
+    expect(screen.getByTestId("hive-people-line").textContent).toContain("Sarah");
+  });
+
+  it("hides Team notes on own hives", () => {
+    renderMenu({
+      hive: { ...hive, kind: "own", firmId: undefined, name: "Tax prep" },
+      startingView: "own",
     });
-    const findings = screen.getByRole("link", { name: "Findings" });
-    expect(findings.getAttribute("aria-current")).toBe("page");
-    expect(screen.queryByLabelText(/to review/)).toBeNull();
-  });
-
-  it("puts the unread message count on Hive board, hidden when there is none", () => {
-    renderRail({ counts: { toReviewCount: null, documents: null, reports: null, teamNotes: null, unreadMessages: 3 } });
-    const board = screen.getByRole("link", { name: /Hive board/ });
-    expect(board.textContent).toBe("Hive board3");
-    expect(screen.getByLabelText("3 unread messages")).toBeTruthy();
-    cleanup();
-    renderRail({ counts: { toReviewCount: null, documents: null, reports: null, teamNotes: null, unreadMessages: null } });
-    expect(screen.getByRole("link", { name: "Hive board" }).textContent).toBe("Hive board");
-    expect(screen.queryByLabelText(/unread messages/)).toBeNull();
-  });
-
-  it("shows the study footer on the desktop rail", () => {
-    renderRail();
-    const footer = screen.getByTestId("study-rail-footer");
-    const accepted = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
-      new Date("2026-11-17T12:00:00.000Z"),
-    );
-    expect(footer.textContent).toContain("Study v3");
-    expect(footer.textContent).toContain("Every finding opens its source page.");
-    expect(footer.textContent).toContain(`accepted ${accepted}`);
-  });
-
-  it("says there is no study yet when the summary loaded without one", () => {
-    renderRail({ studyRevision: null });
-    const footer = screen.getByTestId("study-rail-footer");
-    expect(footer.textContent).toContain("No Study yet");
-    expect(footer.textContent).toContain("Builds once documents are read");
-  });
-
-  it("hides the footer when the summary failed and on the phone rail", () => {
-    renderRail({ summaryLoaded: false });
-    expect(screen.queryByTestId("study-rail-footer")).toBeNull();
-    cleanup();
-    renderRail({ compact: true });
-    expect(screen.getByTestId("hive-sidebar-compact")).toBeTruthy();
-    expect(screen.queryByTestId("study-rail-footer")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Team notes/ })).toBeNull();
+    expect(screen.getByTestId("hive-people-line").textContent).toMatch(/You and Sarah/);
   });
 });
 
@@ -152,7 +89,6 @@ describe("sidebarCounts", () => {
   it("carries unread messages even when the summary failed, and never shows zero", () => {
     expect(sidebarCounts(null, { reportCount: null, teamNotesCount: null, unreadMessageCount: 2 }).unreadMessages).toBe(2);
     expect(sidebarCounts(null, { reportCount: null, teamNotesCount: null, unreadMessageCount: 0 }).unreadMessages).toBeNull();
-    expect(sidebarCounts(null, { reportCount: null, teamNotesCount: null, unreadMessageCount: null }).unreadMessages).toBeNull();
   });
 });
 

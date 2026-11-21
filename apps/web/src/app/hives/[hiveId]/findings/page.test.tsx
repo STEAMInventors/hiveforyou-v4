@@ -140,7 +140,7 @@ describe("Findings page", () => {
       canonicalStudy: null,
     });
     await renderPage();
-    expect(screen.getByText("Your Study builds once documents are read")).toBeTruthy();
+    expect(screen.getByText("Your study builds once documents are read.")).toBeTruthy();
     expect(screen.queryByTestId("findings-page-view")).toBeNull();
   });
 

@@ -144,6 +144,10 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   }, [refresh]);
 
   useEffect(() => {
+    if (initialPreparation) {
+      if (isWorking(initialPreparation)) startPolling();
+      return () => stopPolling();
+    }
     let cancelled = false;
     void fetchStudyPreparation(hiveId)
       .then((result) => {
@@ -159,7 +163,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
       cancelled = true;
       stopPolling();
     };
-  }, [hiveId, startPolling, stopPolling]);
+  }, [hiveId, initialPreparation, startPolling, stopPolling]);
 
   useEffect(() => {
     const onVisible = () => {

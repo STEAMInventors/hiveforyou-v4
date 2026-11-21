@@ -8,6 +8,12 @@ import { GalleryBoardFirmless } from "@/dev/gallery/views/GalleryBoardFirmless";
 import { GalleryBoardLong } from "@/dev/gallery/views/GalleryBoardLong";
 import { GalleryBoardPeople } from "@/dev/gallery/views/GalleryBoardPeople";
 import { GalleryComponents } from "@/dev/gallery/views/GalleryComponents";
+import { GalleryHivesFirmMenu } from "@/dev/gallery/views/GalleryHivesFirmMenu";
+import { GalleryClientHomeOlderStudy } from "@/dev/gallery/views/GalleryClientHomeOlderStudy";
+import { GalleryHomeNoStudy } from "@/dev/gallery/views/GalleryHomeNoStudy";
+import { GalleryHomeOlderStudy } from "@/dev/gallery/views/GalleryHomeOlderStudy";
+import { GalleryHomeStaffMenu } from "@/dev/gallery/views/GalleryHomeStaffMenu";
+import { GalleryHomeStudyError } from "@/dev/gallery/views/GalleryHomeStudyError";
 import { GalleryShell } from "@/dev/gallery/views/GalleryShell";
 
 const PAGES = {
@@ -19,6 +25,12 @@ const PAGES = {
   "board-firmless": GalleryBoardFirmless,
   "board-empty": GalleryBoardEmpty,
   "board-long": GalleryBoardLong,
+  "home-staff-menu": GalleryHomeStaffMenu,
+  "hives-firm-menu": GalleryHivesFirmMenu,
+  "home-older-study": GalleryHomeOlderStudy,
+  "home-no-study": GalleryHomeNoStudy,
+  "home-study-error": GalleryHomeStudyError,
+  "client-home-older-study": GalleryClientHomeOlderStudy,
 } as const;
 
 type GalleryPageKey = keyof typeof PAGES;

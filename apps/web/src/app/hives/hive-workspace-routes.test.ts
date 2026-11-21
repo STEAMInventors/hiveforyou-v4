@@ -80,6 +80,7 @@ vi.mock("@/server/hives/hive-summary", () => ({
     canonicalStudy: null,
     referencedDocuments: [],
     summary: { study: null },
+    studyLoadError: null,
   })),
   documentPageCounts: vi.fn(() => ({})),
 }));
@@ -173,10 +174,15 @@ describe("hive workspace section pages", () => {
     "loadOwnedHiveOrNotFound for %s with matching returnPath",
     async ({ section, page }) => {
       const mod = await page();
-      await mod.default({
+      const run = mod.default({
         params: Promise.resolve({ hiveId: HIVE_ID }),
         ...((section === "reports" || section === "board") ? { searchParams: Promise.resolve({}) } : {}),
       });
+      if (section === "board") {
+        await expect(run).rejects.toThrow(/REDIRECT:/);
+      } else {
+        await run;
+      }
       expect(loadOwnedHiveOrNotFoundMock).toHaveBeenCalledWith(HIVE_ID, `/hives/${HIVE_ID}/${section}`);
     },
     20_000,

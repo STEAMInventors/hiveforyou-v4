@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { loadHiveBoardMock } = vi.hoisted(() => ({ loadHiveBoardMock: vi.fn() }));
@@ -40,13 +40,11 @@ describe("Documents page", () => {
     loadHiveBoardMock.mockReset();
   });
 
-  it("puts What we asked for below the panel, as the #requested target", async () => {
-    loadHiveBoardMock.mockResolvedValue({ board });
-    const { container } = render(await DocumentsPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
-    const card = container.querySelector("#requested") as HTMLElement;
-    expect(within(card).getByRole("heading", { name: "What we asked for" })).toBeTruthy();
-    const panel = screen.getByTestId("documents-panel");
-    expect(panel.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  it("renders study-dependent alerts above the documents panel", async () => {
+    loadHiveBoardMock.mockResolvedValue({ board, overview: { preparation: { studyRevision: null }, studyTab: null, studyLoadError: null } });
+    render(await DocumentsPage({ params: Promise.resolve({ hiveId: HIVE_ID }) }));
+    expect(screen.getByTestId("study-dependent-no-study")).toBeTruthy();
+    expect(screen.getByTestId("documents-panel")).toBeTruthy();
   });
 
   it("leaves the page as it was when there is no checklist or it fails to load", async () => {

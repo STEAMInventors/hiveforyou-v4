@@ -25,9 +25,10 @@ const ICONS: Record<ClientsHomeQueue, () => ReactNode> = {
   ),
   all: () => (
     <IconBase>
-      <circle cx="9" cy="9" r="3.2" />
-      <circle cx="17" cy="9" r="3.2" />
-      <path d="M4.5 19c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5M15 14.5c2.2 0 4 1.8 4 4" />
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <rect x="13" y="13" width="7" height="7" rx="1.5" />
     </IconBase>
   ),
   own: () => (

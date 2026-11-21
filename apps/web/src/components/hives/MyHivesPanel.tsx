@@ -16,7 +16,6 @@ import { useClientsHomeSearch } from "@/lib/hives/clients-home-context";
 import {
   clientsHomeHivesForQueue,
   clientsHomeQueueCounts,
-  clientsHomeQueueTitle,
   parseClientsHomeQueue,
   type ClientsHomeQueue,
 } from "@/lib/hives/clients-home-queue";
@@ -27,7 +26,8 @@ import type { HiveSummary } from "@/server/hives/hive-summary";
 
 import { ClientsHomeClientList } from "./ClientsHomeClientList";
 import { ClientsHomeFirstVisit } from "./ClientsHomeFirstVisit";
-import { ClientsHomeSidebar } from "./ClientsHomeSidebar";
+import { HivesLeftMenu } from "./HivesLeftMenu";
+import { HivesQueueTabs } from "./HivesQueueTabs";
 import { CreateHiveModal } from "./CreateHiveModal";
 import { DeleteHiveModal } from "./DeleteHiveModal";
 import { HiveList } from "./HiveCard";
@@ -48,6 +48,7 @@ type MyHivesPanelProps = {
   greetingFirstName: string | null;
   showFirmRail?: boolean;
   viewerUserId?: string | null;
+  firmName?: string | null;
 };
 
 function hiveLastActivity(hive: Hive, summary: HiveSummary | undefined): string {
@@ -86,6 +87,7 @@ export function MyHivesPanel({
   greetingFirstName,
   showFirmRail = false,
   viewerUserId = null,
+  firmName = null,
 }: MyHivesPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -93,7 +95,6 @@ export function MyHivesPanel({
   const findQuery = clientsHome?.findQuery ?? "";
   const legacyView = searchParams.get("view");
   const queue = parseClientsHomeQueue(searchParams.get("queue") ?? legacyView ?? undefined);
-  const [compactNav, setCompactNav] = useState(false);
 
   const [hives, setHives] = useState<Hive[]>(initialHives);
   const [listError, setListError] = useState<ListError | null>(initialError);
@@ -118,15 +119,6 @@ export function MyHivesPanel({
     },
     [clientsHome, router, searchParams],
   );
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia("(max-width: 899px)");
-    const apply = () => setCompactNav(query.matches);
-    apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
-  }, []);
 
   const handleCreated = useCallback(
     (hive: Hive) => {
@@ -215,7 +207,6 @@ export function MyHivesPanel({
   );
 
   if (startingView === "clients") {
-    const title = clientsHomeQueueTitle(queue, findQuery);
     const clientsEmpty = queueCounts.all === 0 && !findQuery.trim() && !listError;
     const noRows = displayedHives.length === 0 && !listError;
     const countLine =
@@ -224,35 +215,38 @@ export function MyHivesPanel({
         : `${displayedHives.length} clients, the ones with something to review first`;
     const searchTrimmed = findQuery.trim();
 
-    const sidebar = (
-      <ClientsHomeSidebar
-        queue={queue}
-        counts={queueCounts}
-        showFirmRail={showFirmRail}
-        hasOwnHives={queueCounts.own > 0}
-        searchActive={Boolean(searchTrimmed)}
-        compact={compactNav}
-        onSelectQueue={setQueue}
-      />
-    );
+    const personLine = greetingFirstName?.trim() ?? null;
+    const showYourOwn = queueCounts.own > 0;
 
     return (
-      <div className="flex min-h-full flex-1 flex-col bg-canvas min-[900px]:grid min-[900px]:grid-cols-[236px_minmax(0,1fr)]">
-        {compactNav ? (
-          <div className="border-b border-line bg-paper px-3 py-2 min-[900px]:hidden">{sidebar}</div>
-        ) : (
-          <div className="hidden min-[900px]:block min-[900px]:border-r min-[900px]:border-line">{sidebar}</div>
-        )}
+      <div className="hv flex min-h-full flex-1 flex-col bg-canvas min-[1100px]:grid min-[1100px]:grid-cols-[232px_minmax(0,1fr)]">
+        <HivesLeftMenu
+          firmName={firmName}
+          personLine={personLine}
+          queue={queue}
+          counts={queueCounts}
+          showMine={showFirmRail}
+          showUnassigned={showFirmRail}
+          showYourOwn={showYourOwn}
+          searchActive={Boolean(searchTrimmed)}
+          onSelectQueue={setQueue}
+        />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="mx-auto flex w-full max-w-workspace flex-1 flex-col gap-4 px-4 py-6 min-[900px]:px-8 min-[900px]:pb-16">
-            <header className="flex flex-col gap-1">
-              <p className="m-0 text-small text-graphite" data-testid="hives-greeting">
-                {greetingLine(greetingFirstName)}
-              </p>
-              <h1 className="m-0 font-brand text-section font-semibold text-ink">{title}</h1>
+        <div className="hv-main flex min-w-0 flex-1 flex-col">
+          <div className="mx-auto flex w-full max-w-workspace flex-1 flex-col gap-4 px-4 py-6 min-[1100px]:px-8 min-[1100px]:pb-16">
+            <header className="lp-head flex flex-col gap-1">
+              <h1 className="m-0 font-brand text-section font-semibold text-ink">Your hives</h1>
               {!searchTrimmed && queue !== "own" ? <p className="m-0 text-small text-quiet">{countLine}</p> : null}
             </header>
+            <HivesQueueTabs
+              queue={queue}
+              counts={queueCounts}
+              showMine={showFirmRail}
+              showUnassigned={showFirmRail}
+              showYourOwn={showYourOwn}
+              searchActive={Boolean(searchTrimmed)}
+              onSelectQueue={setQueue}
+            />
 
             {listError ? (
               <div role="alert" className="flex flex-col items-start gap-2 text-left">

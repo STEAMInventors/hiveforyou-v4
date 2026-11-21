@@ -1,24 +1,35 @@
 "use client";
 
-import type { Hive, ListFirmResponse } from "@hiveforyou/contracts";
+import type { Hive } from "@hiveforyou/contracts";
 import Link from "next/link";
 
 import { hiveListBackLink } from "@/lib/hives/hive-list-back";
+import { hiveBadgeInitials } from "@/lib/hives/hive-badge-initials";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
-import {
-  HIVE_SECTION_LABELS,
-  hiveSectionPath,
-  type HiveWorkspaceSection,
-} from "@/lib/hive-routes";
+import { hiveMenuNavForHive, hiveMenuTabForSection } from "@/lib/hive-menu-tabs";
+import { hiveSectionPath, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import type { StartingView } from "@/lib/auth/profile";
 
 import { TEXT_LINK_CLASS } from "@/components/button-classes";
 
-import { HiveSidebarCard } from "./HiveSidebarCard";
+import { HivePeopleLine } from "./HivePeopleLine";
 import { countAccessibleLabel, type HiveSidebarCounts } from "./sidebar-counts";
-import { WORKSPACE_NAV_ICONS } from "./workspace-nav-icons";
+import {
+  NavIconAudit,
+  NavIconFile,
+  NavIconFindings,
+  NavIconHome,
+  NavIconLock,
+  NavIconNote,
+} from "./workspace-nav-icons";
 
-const RAIL: readonly HiveWorkspaceSection[] = ["board", "documents", "findings", "reports", "audit", "notes"];
+const MENU_ICONS = {
+  home: NavIconHome,
+  documents: NavIconFile,
+  report: NavIconFindings,
+  audit: NavIconAudit,
+  notes: NavIconNote,
+} as const;
 
 export type StudyRailRevision = {
   revisionNumber: number;
@@ -30,131 +41,83 @@ type HiveSidebarProps = {
   startingView: StartingView;
   active: HiveWorkspaceSection;
   counts: HiveSidebarCounts;
-  compact?: boolean;
-  firm: ListFirmResponse | null;
-  currentUserId: string | null;
   assigneeLabel: string | null;
-  assigneeTitle: string | null;
   assistantName: string;
-  /** Null when the hive has no accepted Study. */
-  studyRevision?: StudyRailRevision | null;
-  /** False when the summary failed to load. The footer stays hidden so it cannot show a wrong state. */
-  summaryLoaded?: boolean;
 };
 
-function formatAcceptedDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+function menuCount(section: HiveWorkspaceSection, counts: HiveSidebarCounts): number | null {
+  switch (section) {
+    case "documents":
+      return counts.documents;
+    case "findings":
+      return counts.toReviewCount;
+    default:
+      return null;
+  }
 }
 
-function NavCount({
-  count,
-  ariaLabel,
-  tone = "neutral",
-}: {
-  count: number | null;
-  ariaLabel: string;
-  tone?: "neutral" | "coral";
-}) {
-  if (count === null) return null;
-  const toneClass = tone === "coral" ? "text-coral-deep" : "text-ink-3";
+function countLabel(section: HiveWorkspaceSection): string | undefined {
+  if (section === "documents") return "documents";
+  if (section === "findings") return "to review";
+  return undefined;
+}
+
+function identityLines(hive: Hive, ownHive: boolean): { primary: string; secondary: string } {
+  if (ownHive) {
+    return { primary: hive.name, secondary: "Your hive" };
+  }
+  const title = hive.description?.trim() || hive.name;
+  return { primary: hive.name, secondary: title };
+}
+
+function MenuCount({ count, ariaLabel, active }: { count: number; ariaLabel: string; active: boolean }) {
   return (
-    <span className={`ms-auto text-label font-semibold tabular-nums ${toneClass}`} aria-label={ariaLabel}>
+    <span
+      className={`ms-auto rounded-[9px] px-[7px] py-px text-[11.5px] font-semibold tabular-nums text-ink-3 ${
+        active ? "bg-paper" : "bg-mist"
+      }`}
+      aria-label={ariaLabel}
+    >
       {count}
     </span>
   );
 }
 
-function NavItem({
+function SideNavItem({
   hiveId,
+  tab,
   section,
+  label,
   active,
   count,
-  countLabel,
-  countTone = "neutral",
-  compact,
+  countLabelText,
+  showLock,
 }: {
   hiveId: string;
+  tab: string;
   section: HiveWorkspaceSection;
-  active: HiveWorkspaceSection;
+  label: string;
+  active: boolean;
   count: number | null;
-  countLabel?: string;
-  countTone?: "neutral" | "coral";
-  compact?: boolean;
+  countLabelText?: string;
+  showLock?: boolean;
 }) {
   const href = hiveSectionPath(hiveId, section);
-  const isActive = active === section;
-  const Icon = WORKSPACE_NAV_ICONS[section];
-  const label = HIVE_SECTION_LABELS[section];
-  const ariaCount = count !== null && countLabel ? countAccessibleLabel(count, countLabel) : undefined;
-
-  if (compact) {
-    return (
-      <Link
-        href={href}
-        aria-current={isActive ? "page" : undefined}
-        className={`inline-flex h-9 min-h-10 shrink-0 items-center gap-1.5 rounded-control px-2.5 text-small no-underline ${
-          isActive
-            ? "bg-paper font-semibold text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgba(20,30,50,0.04)]"
-            : "font-medium text-ink-2 hover:bg-hover hover:text-ink"
-        }`}
-      >
-        <span>{label}</span>
-        {count !== null ? (
-          <span className="font-semibold tabular-nums text-ink-3" aria-label={ariaCount}>
-            {count}
-          </span>
-        ) : null}
-      </Link>
-    );
-  }
+  const Icon = MENU_ICONS[tab as keyof typeof MENU_ICONS];
+  const ariaCount = count !== null && countLabelText ? countAccessibleLabel(count, countLabelText) : undefined;
 
   return (
-    <li className="list-none">
-      <Link
-        href={href}
-        aria-current={isActive ? "page" : undefined}
-        className={`flex h-9 items-center gap-2.5 rounded-control px-2.5 text-small no-underline ${
-          isActive
-            ? "bg-paper font-semibold text-ink shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgba(20,30,50,0.04)]"
-            : "font-medium text-ink-2 hover:bg-hover hover:text-ink"
-        }`}
-      >
-        {Icon ? <Icon /> : null}
-        <span className="min-w-0 flex-1 truncate">{label}</span>
-        <NavCount count={count} ariaLabel={ariaCount ?? label} tone={countTone} />
-      </Link>
-    </li>
-  );
-}
-
-function StudyRailFooter({
-  studyRevision,
-  summaryLoaded,
-}: {
-  studyRevision: StudyRailRevision | null;
-  summaryLoaded: boolean;
-}) {
-  if (!summaryLoaded) return null;
-  const accepted = studyRevision ? formatAcceptedDate(studyRevision.acceptedAt) : "";
-  return (
-    <div className="mt-auto px-2.5 pt-4 text-caption text-graphite" data-testid="study-rail-footer">
-      {studyRevision ? (
-        <>
-          <p className="m-0">
-            Study v{studyRevision.revisionNumber}
-            {accepted ? ` · accepted ${accepted}` : null}
-          </p>
-          <p className="m-0 pt-1.5">Every finding opens its source page.</p>
-        </>
-      ) : (
-        <>
-          <p className="m-0">No Study yet</p>
-          <p className="m-0">Builds once documents are read</p>
-        </>
-      )}
-    </div>
+    <Link
+      href={href}
+      data-tab={tab}
+      aria-current={active ? "page" : undefined}
+      className="hive-side-link flex h-[38px] items-center gap-2.5 rounded-[9px] px-2.5 text-small font-medium text-ink-2 no-underline hover:bg-hover hover:text-ink aria-[current=page]:bg-mist aria-[current=page]:font-semibold aria-[current=page]:text-ink"
+    >
+      <span className="text-ink-3 aria-[current=page]:text-ink">{Icon ? <Icon /> : null}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {showLock ? <NavIconLock className="h-3.5 w-3.5 shrink-0 text-ink-3" /> : null}
+      {count !== null ? <MenuCount active={active} count={count} ariaLabel={ariaCount ?? label} /> : null}
+    </Link>
   );
 }
 
@@ -163,96 +126,70 @@ export function HiveSidebar({
   startingView,
   active,
   counts,
-  compact = false,
-  firm,
-  currentUserId,
   assigneeLabel,
-  assigneeTitle,
   assistantName,
-  studyRevision = null,
-  summaryLoaded = false,
 }: HiveSidebarProps) {
+  const ownHive = hive.kind === "own" || !hive.firmId;
+  const staffClientHive = showsFirmThreePane(hive);
+  const items = hiveMenuNavForHive(staffClientHive);
+  const activeTab = hiveMenuTabForSection(active);
   const back = hiveListBackLink(startingView, hive.kind);
-  const firmClient = showsFirmThreePane(hive);
-  const sections = RAIL.filter((section) => (section === "notes" ? firmClient : true));
+  const showStaffBack = startingView === "clients" && hive.kind === "client";
+  const { primary, secondary } = identityLines(hive, ownHive);
 
-  const countFor = (section: HiveWorkspaceSection): number | null => {
-    switch (section) {
-      case "board":
-        return counts.unreadMessages;
-      case "documents":
-        return counts.documents;
-      case "findings":
-        return counts.toReviewCount;
-      case "reports":
-        return counts.reports;
-      case "notes":
-        return firmClient ? counts.teamNotes : null;
-      default:
-        return null;
-    }
-  };
-
-  const countLabelFor = (section: HiveWorkspaceSection): string | undefined => {
-    if (section === "board") return "unread messages";
-    if (section === "findings") return "to review";
-    if (section === "documents") return "documents";
-    if (section === "reports") return "reports";
-    if (section === "notes") return "team notes";
-    return undefined;
-  };
-
-  if (compact) {
-    return (
-      <nav aria-label="Hive sections" className="flex gap-2 overflow-x-auto pb-1" data-testid="hive-sidebar-compact">
+  return (
+    <aside
+      className="side hidden w-[232px] shrink-0 flex-col bg-paper px-3 pb-[18px] pt-4 min-[1100px]:sticky min-[1100px]:top-[var(--app-header-height,64px)] min-[1100px]:flex min-[1100px]:max-h-[calc(100dvh-var(--app-header-height,64px))] min-[1100px]:overflow-y-auto min-[1100px]:border-r min-[1100px]:border-line"
+      aria-label="Hive menu"
+      data-testid="hive-left-menu"
+    >
+      {showStaffBack ? (
         <Link
           href={back.href}
-          className={`${TEXT_LINK_CLASS} inline-flex min-h-10 shrink-0 items-center border-0 bg-transparent px-1 text-small no-underline`}
+          className={`${TEXT_LINK_CLASS} mb-1.5 inline-flex h-8 items-center gap-2 self-start rounded-control px-2 text-[13px] font-medium text-ink-3 no-underline hover:bg-hover hover:text-ink`}
         >
-          {back.label}
+          <span aria-hidden>←</span>
+          All hives
         </Link>
-        {sections.map((section) => (
-          <NavItem
-            key={section}
+      ) : null}
+
+      <div className="mb-2 flex items-center gap-2.5 border-b border-line px-2 pb-3.5 pt-1.5">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-mist text-caption font-bold text-ink"
+          aria-hidden
+        >
+          {hiveBadgeInitials(primary)}
+        </span>
+        <div className="min-w-0">
+          <p className="m-0 truncate text-small font-semibold text-ink">{primary}</p>
+          <p className="m-0 truncate text-caption text-ink-3">{secondary}</p>
+        </div>
+      </div>
+
+      <nav className="side-nav flex min-h-0 flex-1 flex-col gap-0.5" aria-label="Hive pages">
+        {items.map((item) => (
+          <SideNavItem
+            key={item.tab}
             hiveId={hive.id}
-            section={section}
-            active={active}
-            count={countFor(section)}
-            countLabel={countLabelFor(section)}
-            countTone={section === "findings" ? "coral" : "neutral"}
-            compact
+            tab={item.tab}
+            section={item.section}
+            label={item.label}
+            active={item.tab === activeTab}
+            count={menuCount(item.section, counts)}
+            countLabelText={countLabel(item.section)}
+            showLock={item.tab === "notes"}
           />
         ))}
       </nav>
-    );
-  }
 
-  return (
-    <aside className="flex min-h-0 flex-col gap-4 overflow-hidden bg-paper px-3 py-4 min-[900px]:sticky min-[900px]:top-[var(--app-header-height,57px)] min-[900px]:h-[calc(100dvh-var(--app-header-height,57px))] min-[900px]:max-h-[calc(100dvh-var(--app-header-height,57px))]">
-      <HiveSidebarCard
-        hive={hive}
-        currentUserId={currentUserId}
-        firm={firm}
-        assigneeLabel={assigneeLabel}
-        assigneeTitle={assigneeTitle}
-        assistantName={assistantName}
-      />
-      <nav aria-label="Hive sections" className="min-h-0 flex-1 overflow-y-auto" data-testid="hive-sidebar">
-        <ul className="m-0 flex flex-col gap-0.5 p-0">
-          {sections.map((section) => (
-            <NavItem
-              key={section}
-              hiveId={hive.id}
-              section={section}
-              active={active}
-              count={countFor(section)}
-              countLabel={countLabelFor(section)}
-              countTone={section === "findings" ? "coral" : "neutral"}
-            />
-          ))}
-        </ul>
-      </nav>
-      <StudyRailFooter studyRevision={studyRevision} summaryLoaded={summaryLoaded} />
+      <div className="side-foot mt-auto border-t border-line px-2 pt-3.5">
+        <HivePeopleLine
+          ownHive={ownHive}
+          clientName={ownHive ? null : hive.name}
+          staffLabel={ownHive ? null : assigneeLabel}
+          assistantName={assistantName}
+        />
+      </div>
     </aside>
   );
 }

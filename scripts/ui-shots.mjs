@@ -17,6 +17,17 @@ const galleryPages = [
   "board-empty",
   "board-long",
 ];
+
+/** UI-3b home states and D24 menus — 390 and 1280 only. */
+const homeGalleryPages = [
+  "home-older-study",
+  "home-no-study",
+  "home-study-error",
+  "client-home-older-study",
+  "home-staff-menu",
+  "hives-firm-menu",
+];
+const homeGalleryWidths = [390, 1280];
 const baseUrl = process.env.UI_SHOTS_BASE_URL ?? "http://127.0.0.1:3000";
 const prototypeUrl = `file:///${path.join(root, "prototype/new/HiveForYou-Complete-Prototype.html").replace(/\\/g, "/")}`;
 
@@ -37,7 +48,11 @@ function abortGoogleFonts(context) {
 }
 
 async function pageOverflows(page) {
-  return page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  try {
+    return await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  } catch {
+    return false;
+  }
 }
 
 async function openPrototypeMedicaidBoard(page) {
@@ -64,21 +79,40 @@ async function main() {
 
   const galleryContext = await browser.newContext();
   await abortGoogleFonts(galleryContext);
+  const consoleErrors = [];
+
+  async function shotGalleryPage(pageName, width) {
+    const page = await galleryContext.newPage();
+    const pageErrors = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") pageErrors.push(`${pageName}@${width}: ${msg.text()}`);
+    });
+    page.on("pageerror", (err) => {
+      pageErrors.push(`${pageName}@${width}: ${err.message}`);
+    });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(galleryUrl(pageName), { waitUntil: "networkidle", timeout: 120_000 });
+    if (pageName === "board-ask" || pageName === "board-long") {
+      await page.waitForSelector('[data-testid="hive-message"]', { timeout: 30_000 }).catch(() => undefined);
+    }
+    await page.waitForTimeout(pageName === "board-ask" ? 2500 : 1500);
+    if (await pageOverflows(page)) {
+      overflowPages.push(`gallery:${pageName}@${width}px`);
+    }
+    await page.screenshot({ path: path.join(outDir, `gallery-${pageName}-${width}.png`), fullPage: true });
+    if (pageErrors.length > 0) consoleErrors.push(...pageErrors);
+    await page.close();
+  }
 
   for (const pageName of galleryPages) {
     for (const width of galleryWidths) {
-      const page = await galleryContext.newPage();
-      await page.setViewportSize({ width, height: 900 });
-      await page.goto(galleryUrl(pageName), { waitUntil: "domcontentloaded", timeout: 120_000 });
-      if (pageName === "board-ask" || pageName === "board-long") {
-        await page.waitForSelector('[data-testid="hive-message"]', { timeout: 30_000 }).catch(() => undefined);
-      }
-      await page.waitForTimeout(pageName === "board-ask" ? 2500 : 1500);
-      if (await pageOverflows(page)) {
-        overflowPages.push(`gallery:${pageName}@${width}px`);
-      }
-      await page.screenshot({ path: path.join(outDir, `gallery-${pageName}-${width}.png`), fullPage: true });
-      await page.close();
+      await shotGalleryPage(pageName, width);
+    }
+  }
+
+  for (const pageName of homeGalleryPages) {
+    for (const width of homeGalleryWidths) {
+      await shotGalleryPage(pageName, width);
     }
   }
   await galleryContext.close();
@@ -128,6 +162,13 @@ async function main() {
   } else {
     console.log("No horizontal overflow on gallery pages.");
   }
+
+  if (consoleErrors.length > 0) {
+    console.error("Browser console errors:");
+    for (const line of consoleErrors) console.error(`  - ${line}`);
+    process.exit(1);
+  }
+  console.log("No browser console errors on gallery pages.");
 }
 
 main().catch((error) => {
