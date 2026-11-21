@@ -69,7 +69,7 @@ const AVATAR_CLASS: Record<HiveMessageAuthorRole, string> = {
   owner: "bg-blue-wash text-blue-deep",
   professional: "bg-blue-wash text-blue-deep",
   former: "bg-blue-wash text-blue-deep",
-  assistant: "bg-ink text-paper",
+  assistant: "bg-paper text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)]",
 };
 
 export function avatarClassFor(role: HiveMessageAuthorRole): string {

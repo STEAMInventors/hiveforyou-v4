@@ -1,4 +1,5 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
+import type { ReactNode } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,10 +13,20 @@ vi.mock("@/components/app-header", () => ({
   useHiveHeaderWorkspace: () => ({ setWorkspace: vi.fn() }),
 }));
 
+vi.mock("@/lib/use-left-menu-wide", () => ({
+  useLeftMenuWide: () => true,
+}));
+
 vi.mock("./HiveSidebar", () => ({
-  HiveSidebar: ({ compact }: { compact?: boolean }) => (
-    <div data-testid={compact ? "hive-sidebar-compact" : "hive-sidebar-desktop"} />
-  ),
+  HiveSidebar: () => <div data-testid="hive-left-menu" />,
+}));
+
+vi.mock("./HiveWorkspaceHead", () => ({
+  HiveWorkspaceHead: () => <div data-testid="hive-workspace-head" />,
+}));
+
+vi.mock("@/lib/hive-chat-context", () => ({
+  HiveChatProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 import { WorkspaceShell } from "./WorkspaceShell";
@@ -36,13 +47,7 @@ afterEach(() => {
 });
 
 describe("WorkspaceShell", () => {
-  it("uses the desktop grid from 900px and hides compact nav at that breakpoint", () => {
-    vi.stubGlobal("matchMedia", vi.fn().mockImplementation(() => ({
-      matches: false,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })));
-
+  it("uses a 232px left column from 1100px", () => {
     const { container } = render(
       <WorkspaceShell
         hive={hive}
@@ -52,46 +57,22 @@ describe("WorkspaceShell", () => {
           documents: 2,
           reports: null,
           teamNotes: null,
+          unreadMessages: null,
         }}
         firm={null}
         currentUserId="user"
         assigneeLabel={null}
         assigneeTitle={null}
         assistantName="HiveForYou"
+        initialAssistant={{ ok: true, page: { messages: [], nextCursor: null, participantCount: 0, participantRoleLabels: [], viewerLastReadAt: null, pendingAssistant: false, assistantRepliesOn: true, assistantAvailable: true, assistantName: "HiveForYou", failedAssistantForMessageIds: [], assistantThreads: [] } }}
       >
         <p>Workspace body</p>
       </WorkspaceShell>,
     );
 
-    expect(container.firstElementChild?.className).toContain("min-[900px]:grid");
-    expect(container.firstElementChild?.className).toContain("min-[900px]:grid-cols-[240px_minmax(0,1fr)]");
-    expect(screen.getByTestId("hive-sidebar-desktop")).toBeTruthy();
-    expect(screen.queryByTestId("hive-sidebar-compact")).toBeNull();
-  });
-
-  it("renders compact nav below 900px", () => {
-    vi.stubGlobal("matchMedia", vi.fn().mockImplementation(() => ({
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })));
-
-    render(
-      <WorkspaceShell
-        hive={hive}
-        startingView="clients"
-        counts={{ toReviewCount: 0, documents: 0, reports: null, teamNotes: null }}
-        firm={null}
-        currentUserId="user"
-        assigneeLabel={null}
-        assigneeTitle={null}
-        assistantName="HiveForYou"
-      >
-        <p>Workspace body</p>
-      </WorkspaceShell>,
-    );
-
-    expect(screen.getByTestId("hive-sidebar-compact")).toBeTruthy();
-    expect(screen.queryByTestId("hive-sidebar-desktop")).toBeNull();
+    expect(container.firstElementChild?.className).toContain("min-[1100px]:grid");
+    expect(container.firstElementChild?.className).toContain("min-[1100px]:grid-cols-[232px_minmax(0,1fr)]");
+    expect(screen.getByTestId("hive-left-menu")).toBeTruthy();
+    expect(screen.getByTestId("hive-workspace-head")).toBeTruthy();
   });
 });

@@ -23,10 +23,10 @@ describe("white page background", () => {
     const workspace = readFileSync(path.join(__dirname, "workspace/WorkspaceShell.tsx"), "utf8");
     const landing = readFileSync(path.join(__dirname, "../app/page.tsx"), "utf8");
     const newClient = readFileSync(path.join(__dirname, "hives/NewClientHiveForm.tsx"), "utf8");
-    expect(workspace).toContain("bg-canvas");
+    expect(workspace).toContain("bg-paper");
     expect(workspace).not.toMatch(/flex flex-1 flex-col bg-mist/);
     expect(landing).toContain("bg-paper");
-    expect(newClient).toContain("bg-canvas");
+    expect(newClient).toContain("bg-mist");
     expect(newClient).not.toMatch(/flex flex-1 flex-col bg-mist/);
   });
 });

@@ -107,7 +107,7 @@ export function ReadProblemNotice({ problems, documentsHref }: { problems: reado
       <div>
         <Link
           href={documentsHref}
-          className="inline-flex h-11 items-center justify-center rounded-control bg-cell-blue-deep px-4 text-small font-medium text-paper no-underline hover:bg-cell-blue-hover"
+          className="inline-flex h-11 items-center justify-center rounded-control bg-blue-deep px-4 text-small font-medium text-paper no-underline hover:bg-blue-press"
         >
           Upload a clearer copy
         </Link>

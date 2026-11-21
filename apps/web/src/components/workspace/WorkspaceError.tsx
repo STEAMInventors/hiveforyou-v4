@@ -34,7 +34,7 @@ export function WorkspaceError({
         {message}
       </p>
       {refText ? (
-        <p className="m-0 mt-3 flex flex-wrap items-center gap-2 text-caption text-graphite">
+        <p className="m-0 mt-3 flex flex-wrap items-center gap-2 text-caption text-ink-2">
           <span>
             Reference <span className="font-mono text-ink">{refText}</span>
           </span>
@@ -57,7 +57,7 @@ export function WorkspaceError({
           ) : null}
         </p>
       ) : errorDigest ? (
-        <p className="m-0 mt-3 text-caption text-graphite">
+        <p className="m-0 mt-3 text-caption text-ink-2">
           Error code <span className="font-mono text-ink">{errorDigest}</span>
         </p>
       ) : null}

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useId, useState } from "react";
 
 import { PRIMARY_BUTTON_CLASS, QUIET_LINK_CLASS } from "@/components/button-classes";
+import { LockIcon } from "@/components/ui/LockIcon";
 import {
   requestSignInCodeAction,
   verifySignInCodeAction,
@@ -22,13 +23,18 @@ const EMAIL_STEP_LEDE =
 const CREATE_ACCOUNT_LEDE =
   "Enter your email and we'll send you a code. No password needed.";
 
+const PRIVACY_LINE = "No password to remember. Each hive is visible only to the people invited to it.";
+
 type SignInFlowProps = {
   nextPath: string;
   startClients: boolean;
   createAccount: boolean;
   linkError?: string | null;
+  /** An invitation's address. Fills the field; with `lockEmail` it cannot be changed. */
   initialEmail?: string;
   lockEmail?: boolean;
+  /** A suggested address (front page). Fills the field, stays editable, and loses to `initialEmail`. */
+  prefillEmail?: string;
 };
 
 function AuthFlowQueryFields({
@@ -46,6 +52,15 @@ function AuthFlowQueryFields({
   );
 }
 
+function PrivacyLine() {
+  return (
+    <p className="m-0 flex items-start gap-2 text-[13px] leading-[1.5] text-ink-3">
+      <LockIcon className="mt-0.5 h-[13px] w-[13px] shrink-0" />
+      <span>{PRIVACY_LINE}</span>
+    </p>
+  );
+}
+
 export function SignInFlow({
   nextPath,
   startClients,
@@ -53,9 +68,10 @@ export function SignInFlow({
   linkError,
   initialEmail,
   lockEmail,
+  prefillEmail,
 }: SignInFlowProps) {
   const safeNext = safeNextPath(nextPath, "/hives");
-  const emailStepTitle = createAccount ? "Create your account" : "Sign in or create your account";
+  const emailStepTitle = createAccount ? "Create your account" : "Sign in";
   const [requestState, requestAction, requestPending] = useActionState(
     requestSignInCodeAction,
     initialState,
@@ -66,7 +82,9 @@ export function SignInFlow({
   );
 
   const [step, setStep] = useState<"email" | "code">("email");
-  const [email, setEmail] = useState(initialEmail?.trim().toLowerCase() ?? "");
+  const [email, setEmail] = useState(
+    (initialEmail?.trim() || prefillEmail?.trim() || "").toLowerCase(),
+  );
   const [resendReadyIn, setResendReadyIn] = useState(0);
   const emailId = useId();
   const codeId = useId();
@@ -97,7 +115,11 @@ export function SignInFlow({
       <>
         <SignInHeading
           title="Check your email"
-          lede={`We sent a 6-digit code to ${email}. It works once, for one hour.`}
+          lede={
+            <>
+              We sent a sign-in code to <b className="font-semibold text-ink">{email}</b>. Enter it below.
+            </>
+          }
         />
         <form action={verifyAction} className="flex flex-col gap-4">
           <input type="hidden" name="email" value={email} />
@@ -105,7 +127,7 @@ export function SignInFlow({
           <AuthFlowQueryFields startClients={startClients} createAccount={createAccount} />
           <SignInField
             id={codeId}
-            label="Sign-in code"
+            label="Code from the email"
             name="token"
             inputMode="numeric"
             autoComplete="one-time-code"
@@ -113,32 +135,36 @@ export function SignInFlow({
             maxLength={6}
             required
             error={codeError}
+            inputClassName="tracking-[0.3em] tabular-nums"
           />
-          <button type="submit" disabled={verifyPending} className={PRIMARY_BUTTON_CLASS}>
+          <button type="submit" disabled={verifyPending} className={`${PRIMARY_BUTTON_CLASS} w-full`}>
             {verifyPending ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        <button
-          type="button"
-          className={QUIET_LINK_CLASS}
-          onClick={() => {
-            setStep("email");
-          }}
-        >
-          Use a different email
-        </button>
-        <form action={requestAction} className="m-0">
-          <input type="hidden" name="email" value={email} />
-          <input type="hidden" name="next" value={safeNext} />
-          <AuthFlowQueryFields startClients={startClients} createAccount={createAccount} />
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <button
-            type="submit"
+            type="button"
             className={QUIET_LINK_CLASS}
-            disabled={requestPending || resendReadyIn > 0}
+            onClick={() => {
+              setStep("email");
+            }}
           >
-            {resendReadyIn > 0 ? `Send a new code (${resendReadyIn}s)` : "Send a new code"}
+            Use a different email
           </button>
-        </form>
+          <form action={requestAction} className="m-0">
+            <input type="hidden" name="email" value={email} />
+            <input type="hidden" name="next" value={safeNext} />
+            <AuthFlowQueryFields startClients={startClients} createAccount={createAccount} />
+            <button
+              type="submit"
+              className={QUIET_LINK_CLASS}
+              disabled={requestPending || resendReadyIn > 0}
+            >
+              {resendReadyIn > 0 ? `Send a new code (${resendReadyIn}s)` : "Send a new code"}
+            </button>
+          </form>
+        </div>
+        <PrivacyLine />
       </>
     ) : (
       <>
@@ -166,10 +192,11 @@ export function SignInFlow({
             onChange={lockEmail ? undefined : (event) => setEmail(event.target.value)}
             error={emailError}
           />
-          <button type="submit" disabled={requestPending} className={PRIMARY_BUTTON_CLASS}>
-            {requestPending ? "Sending…" : "Next"}
+          <button type="submit" disabled={requestPending} className={`${PRIMARY_BUTTON_CLASS} w-full`}>
+            {requestPending ? "Sending…" : "Send code"}
           </button>
         </form>
+        <PrivacyLine />
       </>
     );
 

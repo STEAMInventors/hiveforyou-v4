@@ -26,7 +26,7 @@ export function CopyPromptButton({ text }: { text: string }) {
 
   return (
     <div className="flex items-center gap-3">
-      <span className="text-[13px] text-ink-subtle" aria-live="polite">
+      <span className="text-[13px] text-ink-3" aria-live="polite">
         {state === "copied" ? "Copied" : state === "failed" ? "Copy failed — select the text instead" : ""}
       </span>
       <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={() => void copy()} data-testid="copy-prompt">

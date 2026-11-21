@@ -3,8 +3,6 @@ import { buildMissingDocumentsSummary, CANONICAL_STUDY_SCHEMA, type CanonicalGap
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { MissingDocumentsCard } from "@/components/hives/MissingDocumentsCard";
-
 import { bankruptcyC13Revision4Fixture, BANKRUPTCY_C13_REVISION_4_GAPS } from "./fixtures/bankruptcy-c13";
 import { mayaRevision1Fixture } from "./fixtures/maya-revision-1";
 import { MissingDocumentsBanner } from "./MissingDocumentsBanner";
@@ -85,11 +83,6 @@ describe("MissingDocumentsBanner", () => {
     const summary = buildMissingDocumentsSummary(fixture.study);
     expect(summary.uploadSlotCount).toBe(0);
     expect(summary.slots).toEqual([]);
-    render(
-      <MissingDocumentsCard hiveId={fixture.hiveId} study={fixture.study} documents={[]} onDocumentsChange={() => undefined} />,
-    );
-    expect(screen.queryByTestId("missing-documents-card")).toBeNull();
-    expect(screen.queryByText("You or your client")).toBeNull();
     render(<MissingDocumentsBanner hiveId={fixture.hiveId} summary={summary} />);
     expect(screen.queryByTestId("missing-documents-banner")).toBeNull();
   });

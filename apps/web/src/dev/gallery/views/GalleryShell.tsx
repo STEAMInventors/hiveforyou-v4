@@ -49,6 +49,10 @@ export function GalleryShell() {
           assistantName={GALLERY_ASSISTANT_NAME}
           studyRevision={{ revisionNumber: 2, acceptedAt: "2026-10-20T00:00:00.000Z" }}
           summaryLoaded
+          initialAssistant={{
+            ok: true,
+            page: { messages: [], participantRoleLabels: [], participantCount: 0, viewerLastReadAt: null, nextCursor: null },
+          }}
         >
           <HivePageHead
             title="Hive board"

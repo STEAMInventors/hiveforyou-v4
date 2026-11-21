@@ -52,14 +52,14 @@ type AnalyzeModalProps = {
 
 const STEP_BAR: Record<string, string> = {
   done: "bg-leaf",
-  active: "bg-cell-blue",
+  active: "bg-blue",
   stopped: "bg-line-strong",
   pending: "bg-line",
 };
 
 const REPORT_BADGE: Record<ReportRowState, string> = {
-  pending: "bg-mist text-ink-muted",
-  active: "bg-cell-blue-wash text-cell-blue-deep",
+  pending: "bg-mist text-ink-2",
+  active: "bg-blue-wash text-blue-deep",
   retrying: "bg-honey-wash text-honey-deep",
   ready: "bg-leaf-wash text-leaf-deep",
   failed: "bg-coral-wash text-coral-deep",
@@ -82,7 +82,7 @@ function GapList({ label, gaps, testId }: { label: string; gaps: readonly Covera
           <span className="truncate text-[14.5px] font-medium text-ink" title={gap.fileName}>
             {gap.fileName}
           </span>
-          <span className={`text-[13px] ${gap.material ? "text-coral-deep" : "text-ink-muted"}`}>{coverageGapText(gap)}</span>
+          <span className={`text-[13px] ${gap.material ? "text-coral-deep" : "text-ink-2"}`}>{coverageGapText(gap)}</span>
         </li>
       ))}
     </ul>
@@ -197,7 +197,7 @@ function AnalyzeDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative z-[71] flex max-h-[92vh] w-full max-w-[520px] flex-col overflow-hidden rounded-card bg-paper shadow-[0_24px_64px_rgba(31,35,40,0.18)] outline-none"
+        className="relative z-[71] flex max-h-[92vh] w-full max-w-[520px] flex-col overflow-hidden rounded-input bg-paper shadow-[0_24px_64px_rgba(31,35,40,0.18)] outline-none"
         data-testid="analyze-modal"
         data-outcome={confirming ? "confirm" : outcome}
       >
@@ -214,7 +214,7 @@ function AnalyzeDialog({
             <h2 id={titleId} className="m-0 font-brand text-[28px] font-semibold leading-[1.15] text-ink">
               {copy.title}
             </h2>
-            <p className="m-0 text-base leading-[1.55] text-ink-muted">{copy.sub}</p>
+            <p className="m-0 text-base leading-[1.55] text-ink-2">{copy.sub}</p>
             {active && run ? (
               <ProgressElapsed
                 startedAt={run.startedAt ?? run.createdAt}
@@ -238,7 +238,7 @@ function AnalyzeDialog({
                       <span className="truncate text-[14.5px] font-medium text-ink" title={document.fileName}>
                         {document.fileName}
                       </span>
-                      <span className="text-[13px] text-ink-muted">
+                      <span className="text-[13px] text-ink-2">
                         {document.reason === "READ_ACTIVE" ? "Being read now." : "Will be read before the analysis."}
                       </span>
                     </li>
@@ -263,7 +263,7 @@ function AnalyzeDialog({
                   data-state={step.state}
                 >
                   <span className={`h-[3px] rounded-[2px] ${STEP_BAR[step.state]}`} aria-hidden />
-                  <span className={`text-[13px] leading-[1.3] ${step.state === "pending" ? "font-medium text-ink-subtle" : "font-semibold text-ink"}`}>
+                  <span className={`text-[13px] leading-[1.3] ${step.state === "pending" ? "font-medium text-ink-3" : "font-semibold text-ink"}`}>
                     {step.label}
                     <span className="sr-only">
                       {step.state === "done" ? " (done)" : step.state === "active" ? " (in progress)" : step.state === "stopped" ? " (stopped)" : ""}
@@ -277,7 +277,7 @@ function AnalyzeDialog({
           {acceptedRebuild ? (
             <div className="flex flex-col gap-1.5 rounded-[12px] bg-mist px-4 py-3.5" role="status" data-testid="rebuild-study-result">
               <span className="text-[14.5px] font-semibold text-ink">Revision {acceptedRebuild.revisionNumber}</span>
-              <span className="text-[14.5px] leading-[1.55] text-ink-muted">
+              <span className="text-[14.5px] leading-[1.55] text-ink-2">
                 {formatStudyRevisionAcceptanceDetail(acceptedRebuild)}
               </span>
             </div>
@@ -288,7 +288,7 @@ function AnalyzeDialog({
                 <li key={row.audience} className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0" data-state={row.state}>
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="text-[14.5px] font-medium text-ink">{row.label}</span>
-                    <span className="text-[13px] text-ink-muted">{row.detail}</span>
+                    <span className="text-[13px] text-ink-2">{row.detail}</span>
                   </div>
                   <span className={`inline-flex h-6 shrink-0 items-center rounded-full px-2.5 text-[12px] font-medium ${REPORT_BADGE[row.state]}`}>
                     {REPORT_BADGE_TEXT[row.state]}
@@ -313,12 +313,12 @@ function AnalyzeDialog({
           {outcome === "failed" && run ? (
             <div className="flex flex-col gap-1.5 rounded-[12px] bg-mist px-4 py-3.5" role="alert">
               <span className="text-[14.5px] font-semibold text-ink">What you can do</span>
-              <span className="text-[14.5px] leading-[1.55] text-ink-muted">
+              <span className="text-[14.5px] leading-[1.55] text-ink-2">
                 {run.retryable === false
                   ? "Contact support with the reference below."
                   : "Try again. Your documents and earlier results stay in your Hive."}
               </span>
-              <span className="font-mono text-[11px] text-ink-subtle">Support reference: {run.correlationId}</span>
+              <span className="font-mono text-[11px] text-ink-3">Support reference: {run.correlationId}</span>
             </div>
           ) : null}
           {startError ? (
@@ -355,7 +355,7 @@ function AnalyzeDialog({
               </>
             ) : active ? (
               <>
-                <span className="min-w-[200px] flex-1 self-center text-[13.5px] leading-[1.45] text-ink-subtle">
+                <span className="min-w-[200px] flex-1 self-center text-[13.5px] leading-[1.45] text-ink-3">
                   You can close this. HiveForYou keeps working.
                 </span>
                 <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={close}>

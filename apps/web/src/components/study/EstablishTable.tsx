@@ -15,7 +15,7 @@ function AsWritten({ row }: { row: StudyViewRow }) {
     return <ChangedValue before={before} after={after} />;
   }
   const values = distinctValues(row.values);
-  if (values.length === 0) return <span className="text-small text-quiet">No value in the documents</span>;
+  if (values.length === 0) return <span className="text-small text-ink-3">No value in the documents</span>;
   return (
     <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
       {values.map((value) => (
@@ -41,7 +41,7 @@ export function EstablishTable({
   const observationFor = (spineId: string) =>
     observations.filter((observation) => observation.relatedSpineIds.includes(spineId)).map((observation) => observation.text);
   const cell = `border-b border-line px-3 align-top first:pl-0 last:pr-0 ${compact ? "py-2.5" : "py-4"}`;
-  const head = "border-b border-line px-3 pb-2 text-left text-caption font-semibold text-quiet first:pl-0 last:pr-0";
+  const head = "border-b border-line px-3 pb-2 text-left text-caption font-semibold text-ink-3 first:pl-0 last:pr-0";
   const showStateColumn = statusMode === "spine" || statusMode === "checklist";
   const stateColumnLabel = statusMode === "checklist" ? "Status" : "State";
   return (
@@ -85,12 +85,12 @@ export function EstablishTable({
                     <span className="mt-1 block text-small text-coral-deep">Missing: {row.missing.join("; ")}</span>
                   ) : null}
                   {issueLines.map((text) => (
-                    <span key={text} className="mt-1 block text-small text-graphite" data-spine-issue="true">
+                    <span key={text} className="mt-1 block text-small text-ink-2" data-spine-issue="true">
                       {text}
                     </span>
                   ))}
                   {notes.map((text) => (
-                    <span key={text} className="mt-1 block text-small text-graphite" data-observation="true">
+                    <span key={text} className="mt-1 block text-small text-ink-2" data-observation="true">
                       {text}
                     </span>
                   ))}

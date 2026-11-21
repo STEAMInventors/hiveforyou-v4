@@ -27,7 +27,14 @@ import type { DisplayState } from "@/components/study/status-state";
 import { studyDocumentRequestCount, studyStateCounts, studyStateTargets } from "@/components/study/study-summary";
 import { getHiveReports } from "@/server/reports/reports";
 import { loadPackById, logPinnedPackNotFound } from "@/server/pipeline/pack-loader";
+import { emitStructuredEvent } from "@/server/observability/logger";
 import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation/study-preparation";
+
+export type StudyLoadError = {
+  message: string;
+  correlationId: string;
+  retryable: boolean;
+};
 
 /** What the Hive page header and the My hives card show about a Hive. */
 export type HiveIntakeCounts = {
@@ -128,6 +135,8 @@ export type HiveOverview = {
   canonicalStudy: CanonicalStudy | null;
   referencedDocuments: readonly StudyViewReferencedDocument[];
   summary: HiveSummary;
+  /** Set when `getStudyTabView` fails for a canonical-study-1 revision. */
+  studyLoadError: StudyLoadError | null;
 };
 
 /** The study view of the current revision: the Customer report's view first, else the Pro one. */
@@ -222,6 +231,7 @@ export async function loadHiveOverview(
   let studyTab: HiveOverview["studyTab"] = null;
   let canonicalStudy: CanonicalStudy | null = null;
   let referencedDocuments: readonly StudyViewReferencedDocument[] = [];
+  let studyLoadError: StudyLoadError | null = null;
   if (preparation.studyRevision?.format === "canonical-study-1") {
     try {
       const raw = await getStudyTabView(client, { hiveId: input.hiveId, correlationId: input.correlationId });
@@ -250,9 +260,48 @@ export async function loadHiveOverview(
         });
       }
       const built = buildStudyTabViewFromRpc(raw, fileNames, pack);
-      if (built.ok) studyTab = { view: built.view, sources: built.sources };
-    } catch {
+      if (built.ok) {
+        studyTab = { view: built.view, sources: built.sources };
+      } else {
+        studyLoadError = {
+          message: "We couldn't load the study for this hive.",
+          correlationId: input.correlationId,
+          retryable: true,
+        };
+        emitStructuredEvent({
+          eventName: "hive.study_tab.failed",
+          severity: "ERROR",
+          timestamp: new Date().toISOString(),
+          component: "hive-summary",
+          operation: "build_study_tab_view",
+          correlationId: input.correlationId,
+          hiveId: input.hiveId,
+          retryable: true,
+          errorCode: "INTERNAL_ERROR",
+          diagnosticReason: "unexpected_exception",
+          exceptionType: "StudyTabBuildFailed",
+        });
+      }
+    } catch (error) {
       studyTab = null;
+      studyLoadError = {
+        message: "We couldn't load the study for this hive.",
+        correlationId: input.correlationId,
+        retryable: true,
+      };
+      emitStructuredEvent({
+        eventName: "hive.study_tab.failed",
+        severity: "ERROR",
+        timestamp: new Date().toISOString(),
+        component: "hive-summary",
+        operation: "get_study_tab_view",
+        correlationId: input.correlationId,
+        hiveId: input.hiveId,
+        retryable: true,
+        errorCode: "INTERNAL_ERROR",
+        diagnosticReason: "unexpected_exception",
+        exceptionType: error instanceof Error ? error.name : "Unknown",
+      });
     }
   }
 
@@ -273,5 +322,6 @@ export async function loadHiveOverview(
     canonicalStudy,
     referencedDocuments,
     summary: summarizeHive(preparation, reports, studyTab, canonicalStudy, boardMissingContext),
+    studyLoadError,
   };
 }

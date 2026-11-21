@@ -59,7 +59,7 @@ export function WelcomeForm({
 
   if (firmSetup) {
     return (
-      <SignInShell>
+      <SignInShell layout="split">
         <FirmSetupForm
           defaultFirstName={firstName.trim()}
           practiceAreaOptions={practiceAreaOptions}
@@ -78,7 +78,7 @@ export function WelcomeForm({
   }
 
   return (
-    <SignInShell>
+    <SignInShell layout="split">
       <h1 className="m-0 font-brand text-[32px] font-semibold leading-[1.15] text-ink">
         Welcome to HiveForYou
       </h1>
@@ -116,14 +116,14 @@ export function WelcomeForm({
                 setSelected(choice.view);
                 setChooseError(false);
               }}
-              className={`flex min-h-11 cursor-pointer flex-col gap-1 rounded-card border px-[18px] py-4 text-left transition-colors ${
+              className={`flex min-h-11 cursor-pointer flex-col gap-1 rounded-input border px-[18px] py-4 text-left transition-colors ${
                 pressed
-                  ? "border-cell-blue bg-cell-blue-wash"
+                  ? "border-blue bg-blue-wash"
                   : "border-line bg-paper hover:border-line-strong"
               }`}
             >
               <span className="text-[17px] font-semibold text-ink">{choice.title}</span>
-              <span className="text-sm leading-[1.5] text-ink-muted">{choice.description}</span>
+              <span className="text-sm leading-[1.5] text-ink-2">{choice.description}</span>
             </button>
           );
         })}

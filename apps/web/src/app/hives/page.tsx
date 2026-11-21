@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { MyHivesPanel } from "@/components/hives/MyHivesPanel";
 import { fetchMyProfile } from "@/lib/auth/profile";
-import { CREATE_HIVE_PARAM } from "@/lib/hive-routes";
+import { CREATE_HIVE_PARAM, hiveHomePath } from "@/lib/hive-routes";
 import { isHiveDeletionPending } from "@/lib/hives/hive-deletion-state";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
@@ -61,8 +61,20 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
     ).filter((entry): entry is readonly [string, HiveSummary] => entry !== null),
   );
 
-  const greetingFirstName = profile.displayName?.trim().split(/\s+/)[0] ?? null;
   const firm = profile.startingView === "clients" ? await loadFirm(auth.client) : null;
+
+  // One person, one own hive, no firm: the list adds nothing, so open the hive. `?all=1` shows the list.
+  const onlyHive = hives.length === 1 ? hives[0] : null;
+  if (
+    onlyHive &&
+    !initialError &&
+    !firm?.firm &&
+    onlyHive.kind === "own" &&
+    !isHiveDeletionPending(onlyHive) &&
+    params.all !== "1"
+  ) {
+    redirect(hiveHomePath(onlyHive.id));
+  }
 
   return (
     <MyHivesPanel
@@ -71,9 +83,10 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
       summaries={summaries}
       openCreateOnLoad={params[CREATE_HIVE_PARAM] === "1"}
       startingView={profile.startingView}
-      greetingFirstName={greetingFirstName}
       showFirmRail={(firm?.members.filter((member) => member.joined).length ?? 0) > 1}
       viewerUserId={auth.userId}
+      firmName={firm?.firm?.name?.trim() ?? null}
+      personLine={profile.displayName?.trim().split(/\s+/)[0] ?? null}
     />
   );
 }

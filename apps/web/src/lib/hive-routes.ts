@@ -10,6 +10,13 @@ export const MY_HIVES_CREATE_PATH = `${MY_HIVES_PATH}?${CREATE_HIVE_PARAM}=1`;
 
 export const CREATE_HIVE_AFTER_SIGN_UP_PATH = `/sign-in?next=${encodeURIComponent(MY_HIVES_CREATE_PATH)}`;
 
+/** Front page "For my clients" Start: sign-up for a professional, work email prefilled (editable) when given. */
+export function clientsSignInPath(email?: string): string {
+  const base = `/sign-in?start=clients&new=1&next=${encodeURIComponent(MY_HIVES_PATH)}`;
+  const trimmed = email?.trim();
+  return trimmed ? `${base}&prefill=${encodeURIComponent(trimmed)}` : base;
+}
+
 export type HiveWorkspaceSection = "board" | "documents" | "findings" | "reports" | "audit" | "notes";
 
 export const HIVE_SECTION_LABELS: Record<HiveWorkspaceSection, string> = {
@@ -38,6 +45,19 @@ export function hivePath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}`;
 }
 
+/** Staff and firmless Home. Zero-document hives still open on Documents. */
+export function hiveHomePath(hiveId: string): string {
+  return hivePath(hiveId);
+}
+
+/** What the documents show, on Home. */
+export const HOME_SHOW_ANCHOR = "show";
+
+export function hiveHomeShowPath(hiveId: string): string {
+  return `${hiveHomePath(hiveId)}#${HOME_SHOW_ANCHOR}`;
+}
+
+/** Legacy board URL. The page redirects to Home so older links, including emails, still land. */
 export function hiveBoardPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/board`;
 }
@@ -98,7 +118,7 @@ export function parseFindingsTab(value: string | string[] | undefined): Findings
 export function hiveSectionPath(hiveId: string, section: HiveWorkspaceSection): string {
   switch (section) {
     case "board":
-      return hiveBoardPath(hiveId);
+      return hiveHomePath(hiveId);
     case "documents":
       return hiveDocumentsPath(hiveId);
     case "findings":
@@ -135,16 +155,9 @@ export function hiveSectionFromPathname(pathname: string, hiveId: string): HiveW
   return null;
 }
 
-/** Maps legacy `/study` hash anchors onto Findings tabs. */
-export function mapStudyLegacyHash(hiveId: string, hash: string): string {
-  const key = hash.replace(/^#/, "").trim().toLowerCase();
-  if (key === "missing" || key === "disagree" || key === "where-documents-disagree" || key === "missing-documents") {
-    return `${hiveFindingsPath(hiveId)}#${mapLegacyFindingsTab("gaps")}`;
-  }
-  if (key === "timeline") {
-    return `${hiveFindingsPath(hiveId)}#${mapLegacyFindingsTab("timeline")}`;
-  }
-  return hiveFindingsPath(hiveId);
+/** Maps legacy `/study` hashes onto Home. Findings now lives at `#show`. */
+export function mapStudyLegacyHash(hiveId: string, _hash: string): string {
+  return hiveHomeShowPath(hiveId);
 }
 
 /**

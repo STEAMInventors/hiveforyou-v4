@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 let pathname = "/hives";
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock("@/server/auth/auth-actions", () => ({
   signOutAction: vi.fn(),
@@ -39,57 +39,91 @@ afterEach(() => {
   pathname = "/hives";
 });
 
-const OVERFLOW = /(^|\s)overflow(-[a-z]+)+/;
-const FIXED_HEIGHT = /(^|\s)(h-(\d|\[)|max-h-)/;
+vi.mock("@/components/hives/HiveOmni", () => ({
+  HiveOmni: ({ audience }: { audience: "staff" | "client" }) => (
+    <div data-testid="omni">
+      <input
+        placeholder={audience === "client" ? "Ask HiveForYou about your documents" : "Ask HiveForYou or find anything in this hive"}
+      />
+    </div>
+  ),
+}));
 
 const classOf = (element: Element) => element.getAttribute("class") ?? "";
 
 describe("AppHeader", () => {
-  it("has no fixed height on the header and no overflow anywhere in it", () => {
+  it("uses the top bar height and has one hive box inside a hive", () => {
     pathname = `/hives/${HIVE_ID}/study`;
-    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} account={account} />);
+    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review", staffView: true }} account={account} />);
     const header = screen.getByTestId("app-header");
     expect(header.tagName).toBe("HEADER");
-    const row = header.firstElementChild!;
-    expect(classOf(header)).not.toMatch(FIXED_HEIGHT);
-    expect(classOf(row)).not.toMatch(FIXED_HEIGHT);
-    const overflowing = [header, ...header.querySelectorAll("*")].map(classOf).filter((name) => OVERFLOW.test(name));
-    expect(overflowing).toEqual([]);
+    expect(classOf(header)).toMatch(/h-top|h-\[60px\]/);
+    expect(screen.getByTestId("omni")).toBeTruthy();
+    expect(header.querySelector(".bg-blue-deep")).toBeNull();
   });
 
-  it("does not render a breadcrumb", () => {
+  it("shows the staff breadcrumb inside a hive", () => {
     pathname = `/hives/${HIVE_ID}/documents`;
-    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review" }} account={account} />);
-    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
+    render(<AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review", staffView: true }} account={account} />);
+    const crumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(crumb.textContent).toContain("All hives");
+    expect(crumb.textContent).toContain("Widget batch review");
   });
 
-  it("keeps the header logo hidden on the hive list for the own view", () => {
-    pathname = "/hives";
+  it("keeps the mark and a quiet My hives link on pages that are not the list or a hive", () => {
+    pathname = "/account/firm";
     render(
-      <ClientsHomeProvider enabled={false}>
+      <ClientsHomeProvider enabled>
         <AppHeader workspace={null} account={{ ...account, startingView: "own" }} />
       </ClientsHomeProvider>,
     );
     const home = screen.getByRole("link", { name: "HiveForYou, my hives" });
-    expect(home.className).toContain("invisible");
     expect(home.getAttribute("href")).toBe("/hives");
+    expect(screen.getByRole("link", { name: "My hives" }).getAttribute("href")).toBe("/hives");
+    expect(screen.queryByTestId("omni")).toBeNull();
     expect(screen.queryByTestId("header-find-client")).toBeNull();
   });
 
-  it("shows the header logo and Find a client on the clients hive list", () => {
+  it("puts the find box and the firm name in the top bar on Your hives, and no My hives link", () => {
     pathname = "/hives";
     render(
+      <ClientsHomeProvider enabled>
+        <AppHeader workspace={null} account={{ ...account, firmName: "Rivera Law" }} />
+      </ClientsHomeProvider>,
+    );
+    const find = screen.getByTestId("header-find-client") as HTMLInputElement;
+    expect(find.placeholder).toBe("Find a client or hive");
+    expect(screen.getByLabelText("Find a client or hive")).toBe(find);
+    expect(screen.getByTestId("header-firm").textContent).toContain("Rivera Law");
+    expect(screen.queryByRole("link", { name: "My hives" })).toBeNull();
+    expect(screen.queryByTestId("omni")).toBeNull();
+    fireEvent.change(find, { target: { value: "alex" } });
+    expect(find.value).toBe("alex");
+    fireEvent.keyDown(find, { key: "Escape" });
+    expect(find.value).toBe("");
+  });
+
+  it("leaves out the firm name when there is none, and the find box in a hive", () => {
+    pathname = "/hives";
+    const { unmount } = render(
       <ClientsHomeProvider enabled>
         <AppHeader workspace={null} account={account} />
       </ClientsHomeProvider>,
     );
-    const home = screen.getByRole("link", { name: "HiveForYou, my hives" });
-    expect(home.className).not.toContain("invisible");
-    expect(screen.getByTestId("header-find-client")).toBeTruthy();
-    expect(screen.getByLabelText("Find a client")).toBeTruthy();
+    expect(screen.queryByTestId("header-firm")).toBeNull();
+    unmount();
+
+    pathname = `/hives/${HIVE_ID}/study`;
+    render(
+      <ClientsHomeProvider enabled>
+        <AppHeader workspace={{ hiveId: HIVE_ID, hiveName: "Widget batch review", staffView: true }} account={account} />
+      </ClientsHomeProvider>,
+    );
+    expect(screen.queryByTestId("header-find-client")).toBeNull();
+    expect(screen.getByTestId("omni")).toBeTruthy();
   });
 
-  it("shows a quiet All hives link in the hive workspace", () => {
+  it("puts All hives in the breadcrumb, not a filled button", () => {
     pathname = `/hives/${HIVE_ID}/board`;
     render(
       <AppHeader
@@ -99,17 +133,18 @@ describe("AppHeader", () => {
           section: "board",
           startingView: "clients",
           hiveKind: "client",
+          staffView: true,
         }}
         account={account}
       />,
     );
-    const link = screen.getByTestId("header-all-hives");
-    expect(link.textContent).toBe("All hives");
+    const link = screen.getByRole("link", { name: "All hives" });
     expect(link.getAttribute("href")).toBe("/hives");
-    expect(link.className).not.toMatch(/\bbg-cell-blue/);
+    expect(link.className).not.toMatch(/\bbg-blue-deep/);
+    expect(screen.queryByTestId("header-all-hives")).toBeNull();
   });
 
-  it("does not show a workspace breadcrumb when a hive section is active", () => {
+  it("hides the breadcrumb from a client", () => {
     pathname = `/hives/${HIVE_ID}/findings`;
     render(
       <AppHeader
@@ -117,14 +152,16 @@ describe("AppHeader", () => {
           hiveId: HIVE_ID,
           hiveName: "Widget batch review",
           section: "findings",
-          startingView: "clients",
+          startingView: "own",
           hiveKind: "client",
+          staffView: false,
+          clientViewer: true,
         }}
         account={account}
       />,
     );
     expect(screen.queryByTestId("workspace-breadcrumb")).toBeNull();
-    expect(screen.queryByTestId("hive-header-ask-pill")).toBeNull();
+    expect(screen.getByPlaceholderText(/about your documents/)).toBeTruthy();
   });
 
   it("opens an accessible account menu from the keyboard and returns focus on Escape", () => {

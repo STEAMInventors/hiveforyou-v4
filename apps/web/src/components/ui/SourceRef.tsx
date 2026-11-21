@@ -2,51 +2,51 @@
 
 import type { ChipRef } from "@/components/study/SourceChip";
 import { useEvidenceViewer } from "@/components/study/EvidenceViewer";
+import { truncateChipLabel } from "@/components/study/truncate-chip-label";
+
+import { SOURCE_REF_CLASS, SourceRefIcon } from "./source-ref-look";
 
 export type SourceRefProps = {
   chip: ChipRef;
   title?: string;
+  /** Visual only, for use inside a parent button. */
+  inert?: boolean;
 };
 
-function DocumentOutlineIcon() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0 opacity-70"
-      aria-hidden
-    >
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-    </svg>
-  );
-}
+const REF_CLASS = SOURCE_REF_CLASS;
+const DocumentOutlineIcon = SourceRefIcon;
 
-export function SourceRef({ chip, title }: SourceRefProps) {
+export function SourceRef({ chip, title, inert = false }: SourceRefProps) {
   const viewer = useEvidenceViewer();
   const chipLabel = chip.shortLabel?.trim() || viewer.chipLabelFor(chip.sourceDocumentId);
   const fullLabel = chip.shortLabel?.trim() || viewer.labelFor(chip.sourceDocumentId);
-  const display =
-    chipLabel.length > 24 ? `${chipLabel.slice(0, 21)}…` : chipLabel;
+  const display = truncateChipLabel(chipLabel);
+  const fullTitle = title ?? `${fullLabel} · p.${chip.pageNumber}`;
+  const body = (
+    <>
+      <DocumentOutlineIcon />
+      <span className="min-w-0 truncate">
+        {display} · <span className="text-ink-3">p.{chip.pageNumber}</span>
+      </span>
+    </>
+  );
+  if (inert) {
+    return (
+      <span className={REF_CLASS} title={fullTitle} data-testid="source-ref">
+        {body}
+      </span>
+    );
+  }
   return (
     <button
       type="button"
-      className="inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-chip border border-line bg-paper px-1.5 text-label font-medium text-ink-2 hover:border-line-strong hover:bg-blue-wash hover:text-blue-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue max-sm:min-h-10 max-sm:py-2"
-      title={title ?? `${fullLabel} · p.${chip.pageNumber}`}
+      className={`${REF_CLASS} hover:border-blue hover:bg-blue-wash hover:text-blue-deep focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue`}
+      title={fullTitle}
       aria-label={`Open ${fullLabel}, page ${chip.pageNumber}`}
       data-testid="source-ref"
       onClick={(event) => viewer.open(chip, event.currentTarget)}
     >
-      <DocumentOutlineIcon />
-      <span className="truncate">
-        {display} · <span className="text-ink-3">p.{chip.pageNumber}</span>
-      </span>
+      {body}
     </button>
   );
 }
