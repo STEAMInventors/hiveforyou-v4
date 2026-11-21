@@ -122,29 +122,24 @@ describe("MyHivesPanel", () => {
         />
       </ClientsHomeProvider>,
     );
-    expect(screen.getByRole("heading", { name: "Your hives" })).toBeTruthy();
-    const nav = within(screen.getByTestId("hives-queue-tabs"));
-    const allTab = nav.getByRole("tab", { name: /All/ });
-    expect(allTab.textContent).toMatch(/2/);
+    expect(screen.getByRole("link", { name: /New client/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "All clients" })).toBeTruthy();
+    const nav = screen.getByRole("navigation", { name: "Clients" });
+    const needsButton = within(nav).getByRole("button", { name: /To review/ });
+    expect(within(needsButton).getByText("1")).toBeTruthy();
+    expect(within(nav).getByRole("button", { name: /Ready for review/ }).textContent).toMatch(/1/);
     expect(screen.queryByText("0")).toBeNull();
+    expect(screen.queryByRole("button", { name: /need you/i })).toBeNull();
   });
 
   it("keeps the selected queue in the URL", () => {
-    const viewer = "11111111-1111-4111-8111-111111111111";
     render(
       <ClientsHomeProvider enabled initialQuery="">
-        <MyHivesPanel
-          initialHives={[hive({ firmId: "33333333-3333-4333-8333-333333333333", assigneeUserId: viewer, stage: "open" })]}
-          startingView="clients"
-          greetingFirstName="Sam"
-          showFirmRail
-          viewerUserId={viewer}
-          summaries={{ [HIVE_ID]: summary(readyAttention) }}
-        />
+        <MyHivesPanel initialHives={[hive()]} startingView="clients" greetingFirstName="Sam" summaries={{ [HIVE_ID]: summary(readyAttention) }} />
       </ClientsHomeProvider>,
     );
-    fireEvent.click(within(screen.getByTestId("hives-queue-tabs")).getByRole("tab", { name: /Mine/ }));
-    expect(replace).toHaveBeenCalledWith("/hives?queue=mine", { scroll: false });
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Clients" })).getByRole("button", { name: /Ready for review/ }));
+    expect(replace).toHaveBeenCalledWith("/hives?queue=ready", { scroll: false });
   });
 
   it("filters rows by queue and shows intake from summary", () => {
@@ -215,16 +210,16 @@ describe("MyHivesPanel", () => {
         />
       </ClientsHomeProvider>,
     );
-    const nav = within(screen.getByTestId("hives-left-menu")).getByRole("navigation", { name: "Which hives" });
+    const nav = screen.getByRole("navigation", { name: "Clients" });
     const labels = within(nav)
       .getAllByRole("button")
       .map((button) => button.textContent ?? "");
-    const allAt = labels.findIndex((label) => label.startsWith("All"));
     const mineAt = labels.findIndex((label) => label.startsWith("Mine"));
     const unassignedAt = labels.findIndex((label) => label.startsWith("Unassigned"));
-    expect(allAt).toBe(0);
-    expect(mineAt).toBe(1);
-    expect(unassignedAt).toBe(2);
+    const needsAt = labels.findIndex((label) => label.startsWith("To review"));
+    expect(mineAt).toBeGreaterThanOrEqual(0);
+    expect(unassignedAt).toBeGreaterThan(mineAt);
+    expect(needsAt).toBeGreaterThan(unassignedAt);
   });
 
   it("keeps the individual home unchanged", () => {

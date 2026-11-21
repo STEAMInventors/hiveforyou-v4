@@ -66,7 +66,6 @@ const V5_006_LEGACY_EXCLUSIONS = new Set<string>([
   "apps/web/src/components/hives/DocumentsPanel.test.tsx",
   /** Dev gallery board fixtures mirror the prototype Medicaid sample hive. */
   "apps/web/src/dev/gallery/fixtures/board-messages.ts",
-  "apps/web/src/dev/gallery/fixtures/findings-gallery.ts",
 ]);
 
 /**

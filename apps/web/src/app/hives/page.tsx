@@ -74,7 +74,6 @@ export default async function MyHivesPage({ searchParams }: MyHivesPageProps) {
       greetingFirstName={greetingFirstName}
       showFirmRail={(firm?.members.filter((member) => member.joined).length ?? 0) > 1}
       viewerUserId={auth.userId}
-      firmName={firm?.firm?.name?.trim() ?? null}
     />
   );
 }

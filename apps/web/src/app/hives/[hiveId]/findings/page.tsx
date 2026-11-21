@@ -1,6 +1,7 @@
+import Link from "next/link";
+
 import { FindingsPageView } from "@/components/findings/FindingsPageView";
-import { StudyDependentAlerts } from "@/components/hives/StudyDependentAlerts";
-import { studyAvailability } from "@/lib/hives/study-availability";
+import { WORKSPACE_SECONDARY } from "@/components/button-classes";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import {
@@ -10,7 +11,7 @@ import {
   buildFindingsTopics,
   findingsOpenItemCount,
 } from "@hiveforyou/contracts";
-import { hiveFindingsPath, hiveFindingsRedirectPath, parseFindingsTab, preservedQuery } from "@/lib/hive-routes";
+import { hiveDocumentsPath, hiveFindingsPath, hiveFindingsRedirectPath, parseFindingsTab, preservedQuery } from "@/lib/hive-routes";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { documentPageCounts, loadHiveOverview } from "@/server/hives/hive-summary";
@@ -83,29 +84,27 @@ export default async function FindingsPage({
 
   const revision = overview.preparation.studyRevision;
   const built = overview.studyTab;
-  const availability = studyAvailability({
-    revision,
-    hasCanonicalView: built?.view != null,
-    studyLoadError: overview.studyLoadError,
-  });
-  if (availability.kind !== "canonical") {
+  if (!revision || !built?.view) {
     return (
       <>
         <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
-        <StudyDependentAlerts hiveId={hive.id} overview={overview} />
+        <div className="rounded-[14px] border border-line bg-paper p-[22px]">
+          <h2 className="m-0 font-brand text-section font-semibold text-ink">Your Study builds once documents are read</h2>
+          <Link href={hiveDocumentsPath(hive.id)} className={`${WORKSPACE_SECONDARY} mt-4`}>
+            Go to Documents
+          </Link>
+        </div>
       </>
     );
   }
 
-  const revisionCanonical = revision!;
-  const builtCanonical = built!;
   const pack =
     overview.canonicalStudy?.packRef != null
       ? loadPackById(overview.canonicalStudy.packRef.id, overview.canonicalStudy.packRef.version)
       : null;
-  const openItems = buildFindingsOpenItems(builtCanonical.view, overview.canonicalStudy);
+  const openItems = buildFindingsOpenItems(built.view, overview.canonicalStudy);
   const topicBundle = buildFindingsTopics({
-    view: builtCanonical.view,
+    view: built.view,
     canonicalStudy: overview.canonicalStudy,
     pack,
     openItems,
@@ -116,27 +115,27 @@ export default async function FindingsPage({
       <HivePageHead title="Findings" subtitle={PAGE_SUBTITLE} />
       <FindingsPageView
         hiveId={hive.id}
-        revisionNumber={revisionCanonical.revisionNumber}
-        view={builtCanonical.view}
-        sources={builtCanonical.sources}
+        revisionNumber={revision.revisionNumber}
+        view={built.view}
+        sources={built.sources}
         canonicalStudy={overview.canonicalStudy}
         pack={pack}
         topics={topicBundle.topics}
         otherOpenItems={topicBundle.otherOpenItems}
         glanceMetrics={buildFindingsGlanceMetrics({
-          view: builtCanonical.view,
+          view: built.view,
           pack,
           canonicalStudy: overview.canonicalStudy,
           snapshotDocuments: overview.preparation.eligibility.documents,
-          coverageGaps: revisionCanonical.coverageGaps,
+          coverageGaps: revision.coverageGaps,
         })}
         chainEvidence={
           overview.canonicalStudy
-            ? buildFindingsChainEvidence(overview.canonicalStudy, pack, builtCanonical.view)
+            ? buildFindingsChainEvidence(overview.canonicalStudy, pack, built.view)
             : []
         }
         openItemCount={findingsOpenItemCount(openItems)}
-        coverageGaps={revisionCanonical.coverageGaps}
+        coverageGaps={revision.coverageGaps}
         documentPages={documentPageCounts(overview.preparation)}
         preparation={overview.preparation}
       />

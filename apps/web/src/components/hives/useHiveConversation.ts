@@ -90,7 +90,6 @@ export function useHiveConversation({
   channel = "people",
   threadOwnerUserId = null,
   assistantName: assistantNameProp = "HiveForYou",
-  liveRefresh = true,
 }: {
   hiveId: string;
   initial: ConversationLoad;
@@ -98,8 +97,6 @@ export function useHiveConversation({
   channel?: "people" | "assistant";
   threadOwnerUserId?: string | null;
   assistantName?: string;
-  /** When false, use `initial` only (dev gallery and other static previews). */
-  liveRefresh?: boolean;
 }) {
   const router = useRouter();
   const boardPath = hiveBoardPath(hiveId);
@@ -252,7 +249,7 @@ export function useHiveConversation({
   }, [localAssistantWait]);
 
   const scheduleMarkRead = useCallback(() => {
-    if (!liveRefresh || channel !== "people") return;
+    if (channel !== "people") return;
     const newest = messagesRef.current[messagesRef.current.length - 1];
     if (!newest || newest.isMine) return;
     const marked = markedUpToRef.current;
@@ -275,7 +272,7 @@ export function useHiveConversation({
         })
         .catch(() => undefined);
     }, MARK_READ_DEBOUNCE_MS);
-  }, [channel, hiveId, liveRefresh, router]);
+  }, [channel, hiveId, router]);
 
   useEffect(
     () => () => {
@@ -287,7 +284,7 @@ export function useHiveConversation({
   const loaded = loadError === null;
 
   useEffect(() => {
-    if (!liveRefresh || !loaded || unavailable) return;
+    if (!loaded || unavailable) return;
     let timer: number | null = null;
     let cancelled = false;
     const pollOnce = async () => {
@@ -332,7 +329,7 @@ export function useHiveConversation({
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [applyLatest, fetchPage, liveRefresh, loaded, effectivePendingAssistant, unavailable]);
+  }, [applyLatest, fetchPage, loaded, effectivePendingAssistant, unavailable]);
 
   const retryLoad = useCallback(async () => {
     setRetryingLoad(true);

@@ -5,7 +5,6 @@ import {
   HIVE_SECTION_LABELS,
   hiveAuditPath,
   hiveFindingsPath,
-  hiveHomeShowPath,
   hiveSectionFromPathname,
   hiveSectionPath,
   mapStudyLegacyHash,
@@ -29,7 +28,7 @@ describe("hive section paths and labels", () => {
       "Team notes",
     ]);
     expect(order.map((section) => hiveSectionPath(HIVE, section))).toEqual([
-      `/hives/${HIVE}`,
+      `/hives/${HIVE}/board`,
       `/hives/${HIVE}/documents`,
       `/hives/${HIVE}/findings`,
       `/hives/${HIVE}/reports`,
@@ -80,13 +79,18 @@ describe("parseFindingsTab", () => {
 });
 
 describe("mapStudyLegacyHash", () => {
-  it("sends every legacy hash to Home (#show)", () => {
-    const target = hiveHomeShowPath(HIVE);
-    expect(mapStudyLegacyHash(HIVE, "missing")).toBe(target);
-    expect(mapStudyLegacyHash(HIVE, "#disagree")).toBe(target);
-    expect(mapStudyLegacyHash(HIVE, "timeline")).toBe(target);
-    expect(mapStudyLegacyHash(HIVE, "establish")).toBe(target);
-    expect(mapStudyLegacyHash(HIVE, "")).toBe(target);
+  it("maps disagree and missing hashes to gaps", () => {
+    expect(mapStudyLegacyHash(HIVE, "missing")).toBe(hiveFindingsPath(HIVE, "gaps"));
+    expect(mapStudyLegacyHash(HIVE, "#disagree")).toBe(hiveFindingsPath(HIVE, "gaps"));
+  });
+
+  it("maps timeline to the timeline tab", () => {
+    expect(mapStudyLegacyHash(HIVE, "timeline")).toBe(hiveFindingsPath(HIVE, "timeline"));
+  });
+
+  it("maps everything else to findings", () => {
+    expect(mapStudyLegacyHash(HIVE, "establish")).toBe(hiveFindingsPath(HIVE));
+    expect(mapStudyLegacyHash(HIVE, "")).toBe(hiveFindingsPath(HIVE));
   });
 });
 

@@ -78,7 +78,6 @@ export type HiveConversationProps = {
   clientThreadFirstName?: string | null;
   currentUserId?: string | null;
   onSwitchToConversation?: () => void;
-  liveRefresh?: boolean;
 };
 
 const noopSubscribe = () => () => undefined;
@@ -325,7 +324,6 @@ export function HiveConversation({
   clientThreadFirstName = null,
   currentUserId = null,
   onSwitchToConversation,
-  liveRefresh = true,
 }: HiveConversationProps) {
   const conversation = useHiveConversation({
     hiveId,
@@ -334,7 +332,6 @@ export function HiveConversation({
     threadOwnerUserId: mode === "assistant" ? threadOwnerUserId : null,
     assistantTrigger: mode === "assistant" ? { staffView, viewerIsClient, hiveFirmId } : undefined,
     assistantName: assistantNameProp,
-    liveRefresh,
   });
   const assistantTypingLongWait = useAssistantTypingPhase(
     conversation.pendingAssistant,

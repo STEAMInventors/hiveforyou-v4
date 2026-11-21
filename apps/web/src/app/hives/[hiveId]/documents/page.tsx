@@ -1,5 +1,8 @@
+import type { HiveBoardModel } from "@hiveforyou/contracts";
+
 import { DocumentsPanel } from "@/components/hives/DocumentsPanel";
-import { StudyDependentAlerts } from "@/components/hives/StudyDependentAlerts";
+import { HiveBoardChecklistCard } from "@/components/hives/HiveBoardChecklistCard";
+import { HivePageHead } from "@/components/workspace/HivePageHead";
 import { studyDocumentMeta } from "@/components/study/study-summary";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { type HiveOverview, loadHiveOverview } from "@/server/hives/hive-summary";
@@ -21,6 +24,8 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
   >["sourceDocuments"] = [];
   let initialError: { message: string; correlationId: string | null } | null = null;
   let overview: HiveOverview | null = null;
+  let requested: HiveBoardModel | null = null;
+
   const auth = await requireAuthenticatedUser();
   if (auth.ok) {
     const correlationId = crypto.randomUUID();
@@ -38,38 +43,41 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
         correlationId: null,
       };
     }
-
-    try {
-      const boardLoad = await loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId });
-      overview = boardLoad.overview;
-    } catch {
-      overview = await loadHiveOverview(auth.client, { hiveId: hive.id, correlationId }).catch(() => null);
-    }
+    overview = await loadHiveOverview(auth.client, { hiveId: hive.id, correlationId }).catch(() => null);
+    requested = await loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId })
+      .then((loaded) => loaded.board)
+      .catch(() => null);
   }
-
-  const view = overview?.studyTab?.view ?? overview?.studyView?.view ?? null;
-  const canonicalStudy = overview?.canonicalStudy ?? null;
 
   return (
     <>
-      <StudyDependentAlerts hiveId={hive.id} overview={overview} />
+      <HivePageHead
+        title="Documents"
+        subtitle="Upload, organize, and inspect source documents."
+        primaryAction={{ label: "Add documents", href: `#upload`, testId: "documents-add-primary" }}
+      />
       <DocumentsPanel
-      hiveId={hive.id}
-      initialDocuments={initialDocuments}
-      initialError={initialError}
-      documentMeta={
-        overview?.studyTab?.view
-          ? studyDocumentMeta(overview.studyTab.view)
-          : overview?.studyView
-            ? studyDocumentMeta(overview.studyView.view)
-            : undefined
-      }
-      studyView={view}
-      canonicalStudy={canonicalStudy}
-      referencedDocuments={overview?.referencedDocuments ?? []}
-      coverageGaps={overview?.preparation?.studyRevision?.coverageGaps ?? []}
-      summaryCounts={overview?.summary?.study?.counts ?? null}
-    />
+        hiveId={hive.id}
+        initialDocuments={initialDocuments}
+        initialError={initialError}
+        documentMeta={
+          overview?.studyTab?.view
+            ? studyDocumentMeta(overview.studyTab.view)
+            : overview?.studyView
+              ? studyDocumentMeta(overview.studyView.view)
+              : undefined
+        }
+        studyView={overview?.studyTab?.view ?? overview?.studyView?.view ?? null}
+        canonicalStudy={overview?.canonicalStudy ?? null}
+        referencedDocuments={overview?.referencedDocuments ?? []}
+        summaryCounts={overview?.summary?.study?.counts ?? null}
+        coverageGaps={overview?.preparation?.studyRevision?.coverageGaps ?? []}
+      />
+      {requested && requested.checklist.length > 0 ? (
+        <div className="mt-6" id="requested">
+          <HiveBoardChecklistCard board={requested} />
+        </div>
+      ) : null}
     </>
   );
 }

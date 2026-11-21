@@ -38,19 +38,6 @@ export function hivePath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}`;
 }
 
-/** Staff and firmless Home. Zero-document hives still open on Documents. */
-export function hiveHomePath(hiveId: string): string {
-  return hivePath(hiveId);
-}
-
-/** What the documents show, on Home. */
-export const HOME_SHOW_ANCHOR = "show";
-
-export function hiveHomeShowPath(hiveId: string): string {
-  return `${hiveHomePath(hiveId)}#${HOME_SHOW_ANCHOR}`;
-}
-
-/** Legacy board URL. The page redirects to Home so older links, including emails, still land. */
 export function hiveBoardPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/board`;
 }
@@ -111,7 +98,7 @@ export function parseFindingsTab(value: string | string[] | undefined): Findings
 export function hiveSectionPath(hiveId: string, section: HiveWorkspaceSection): string {
   switch (section) {
     case "board":
-      return hiveHomePath(hiveId);
+      return hiveBoardPath(hiveId);
     case "documents":
       return hiveDocumentsPath(hiveId);
     case "findings":
@@ -148,9 +135,16 @@ export function hiveSectionFromPathname(pathname: string, hiveId: string): HiveW
   return null;
 }
 
-/** Maps legacy `/study` hashes onto Home. Findings now lives at `#show`. */
-export function mapStudyLegacyHash(hiveId: string, _hash: string): string {
-  return hiveHomeShowPath(hiveId);
+/** Maps legacy `/study` hash anchors onto Findings tabs. */
+export function mapStudyLegacyHash(hiveId: string, hash: string): string {
+  const key = hash.replace(/^#/, "").trim().toLowerCase();
+  if (key === "missing" || key === "disagree" || key === "where-documents-disagree" || key === "missing-documents") {
+    return `${hiveFindingsPath(hiveId)}#${mapLegacyFindingsTab("gaps")}`;
+  }
+  if (key === "timeline") {
+    return `${hiveFindingsPath(hiveId)}#${mapLegacyFindingsTab("timeline")}`;
+  }
+  return hiveFindingsPath(hiveId);
 }
 
 /**

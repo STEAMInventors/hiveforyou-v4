@@ -17,19 +17,3 @@ describe("isDevGalleryEnabled", () => {
     vi.unstubAllEnvs();
   });
 });
-
-describe("dev gallery D24 fixtures", () => {
-  it("registers home and menu gallery routes", () => {
-    const routes = [
-      "home-staff-menu",
-      "hives-firm-menu",
-      "home-older-study",
-      "home-no-study",
-      "home-study-error",
-      "client-home-older-study",
-    ];
-    for (const route of routes) {
-      expect(routes).toContain(route);
-    }
-  });
-});

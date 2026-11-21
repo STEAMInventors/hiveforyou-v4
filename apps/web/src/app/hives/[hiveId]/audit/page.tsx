@@ -1,12 +1,10 @@
 import { AuditTrailPageView } from "@/components/audit/AuditTrailPageView";
-import { StudyDependentAlerts } from "@/components/hives/StudyDependentAlerts";
 import { HivePageHead } from "@/components/workspace/HivePageHead";
-import { studyAvailability } from "@/lib/hives/study-availability";
 import { buildAuditTrailEntries, valuesToSourceRefs } from "@hiveforyou/contracts";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
-import { documentPageCounts } from "@/server/hives/hive-summary";
+import { documentPageCounts, loadHiveOverview } from "@/server/hives/hive-summary";
 import { loadStudyRevisionHistory } from "@/server/hives/load-study-revision-history";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { loadPackById } from "@/server/pipeline/pack-loader";
@@ -21,7 +19,8 @@ export default async function AuditPage({ params }: { params: Promise<{ hiveId: 
   const loaded = await loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId });
   const firm = await loadFirm(auth.client);
   const assistantName = firm?.firm?.assistantName?.trim() || "HiveForYou";
-  const { overview } = loaded;
+
+  const overview = loaded.overview;
   const pack =
     overview.canonicalStudy?.packRef != null
       ? loadPackById(overview.canonicalStudy.packRef.id, overview.canonicalStudy.packRef.version)
@@ -69,22 +68,11 @@ export default async function AuditPage({ params }: { params: Promise<{ hiveId: 
       : [];
 
   const revisions = await loadStudyRevisionHistory(auth.client, hive.id);
-  const availability = studyAvailability({
-    revision: overview.preparation.studyRevision,
-    hasCanonicalView: overview.studyTab?.view != null,
-    studyLoadError: overview.studyLoadError,
-  });
 
   return (
     <>
       <HivePageHead title="Audit trail" subtitle="How HiveForYou reached its findings: each check, its method and result." />
-      {availability.kind !== "canonical" ? <StudyDependentAlerts hiveId={hive.id} overview={overview} /> : null}
-      <AuditTrailPageView
-        entries={entries}
-        revisions={revisions}
-        board={loaded.board}
-        assistantName={assistantName}
-      />
+      <AuditTrailPageView entries={entries} revisions={revisions} board={loaded.board} assistantName={assistantName} />
     </>
   );
 }
