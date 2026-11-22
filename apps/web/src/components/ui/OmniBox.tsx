@@ -228,6 +228,10 @@ export function OmniBox({
             {documents.length ? <GroupTitle>Documents</GroupTitle> : null}
             {documents.map((hit) => {
               const index = indexOfHit(hit);
+              const fileName = hit.document.fileName?.trim() ?? "";
+              const showFileName =
+                fileName !== "" &&
+                fileName.toLowerCase() !== hit.document.role.trim().toLowerCase();
               return (
                 <HitRow key={hit.id} id={`${listId}-${hit.id}`} selected={active === index} onHover={() => setActive(index)} onChoose={() => activate(rows[index]!)}>
                   <span />
@@ -236,9 +240,17 @@ export function OmniBox({
                     <small className="mt-px block text-[12px] text-ink-3">
                       {hit.document.typeLabel}
                       {hit.document.period ? ` · ${hit.document.period}` : ""}
+                      {showFileName ? (
+                        <>
+                          {" · "}
+                          <Marked text={fileName} query={trimmed} />
+                        </>
+                      ) : null}
                     </small>
                   </span>
-                  <span className="text-meta tabular-nums text-ink-3">{hit.document.pages}</span>
+                  <span className="text-meta tabular-nums text-ink-3">
+                    {hit.document.pages > 0 ? hit.document.pages : ""}
+                  </span>
                 </HitRow>
               );
             })}

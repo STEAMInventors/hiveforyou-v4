@@ -8,7 +8,7 @@ import type { StartingView } from "@/lib/auth/profile";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { hiveSectionFromPathname, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import { useHiveHeaderWorkspace } from "@/components/app-header";
-import { HiveChatProvider, type HiveChatConfig } from "@/lib/hive-chat-context";
+import { HiveChatProvider, useHiveChat, type HiveChatConfig } from "@/lib/hive-chat-context";
 import { buildHiveChatConfig } from "@/lib/build-hive-chat-config";
 
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
@@ -119,46 +119,47 @@ export function WorkspaceShell({
     }
   }, [hive.id, summaryFailedCorrelationId]);
 
+  const parentChat = useHiveChat();
+  const hasParentChatForHive = parentChat?.config.hiveId === hive.id;
+  const wrapChat = (node: ReactNode) =>
+    hasParentChatForHive ? node : <HiveChatProvider config={chatConfig}>{node}</HiveChatProvider>;
+
   if (clientFirmHive) {
-    return (
-      <HiveChatProvider config={chatConfig}>
-        <WorkspaceChromeProvider>
-          <div className="flex min-h-full flex-1 flex-col bg-paper">
-            <div className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-5 pb-[120px] pt-[22px]">
-              {children}
-            </div>
+    return wrapChat(
+      <WorkspaceChromeProvider>
+        <div className="flex min-h-full flex-1 flex-col bg-paper">
+          <div className="mx-auto flex w-full max-w-[460px] flex-1 flex-col px-5 pb-[120px] pt-[22px]">
+            {children}
           </div>
-        </WorkspaceChromeProvider>
-      </HiveChatProvider>
+        </div>
+      </WorkspaceChromeProvider>,
     );
   }
 
-  return (
-    <HiveChatProvider config={chatConfig}>
-      <WorkspaceChromeProvider>
-        <div className="hv flex min-h-full flex-1 flex-col bg-canvas min-[1100px]:grid min-[1100px]:grid-cols-[232px_minmax(0,1fr)]">
-          <HiveSidebar
-            hive={hive}
-            startingView={startingView}
-            active={section}
-            counts={counts}
-            assigneeLabel={assigneeLabel}
-            assistantName={assistantName}
-          />
-          <div className="hv-main flex min-w-0 flex-1 flex-col bg-paper">
-            <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-5 min-[1100px]:px-8 min-[1100px]:py-7 min-[1100px]:pb-16">
-              <HiveWorkspaceHead
-                hive={hive}
-                active={section}
-                counts={counts}
-                assigneeLabel={assigneeLabel}
-                assistantName={assistantName}
-              />
-              {children}
-            </div>
+  return wrapChat(
+    <WorkspaceChromeProvider>
+      <div className="hv flex min-h-full flex-1 flex-col bg-canvas min-[1100px]:grid min-[1100px]:grid-cols-[232px_minmax(0,1fr)]">
+        <HiveSidebar
+          hive={hive}
+          startingView={startingView}
+          active={section}
+          counts={counts}
+          assigneeLabel={assigneeLabel}
+          assistantName={assistantName}
+        />
+        <div className="hv-main flex min-w-0 flex-1 flex-col bg-paper">
+          <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-5 min-[1100px]:px-8 min-[1100px]:py-7 min-[1100px]:pb-16">
+            <HiveWorkspaceHead
+              hive={hive}
+              active={section}
+              counts={counts}
+              assigneeLabel={assigneeLabel}
+              assistantName={assistantName}
+            />
+            {children}
           </div>
         </div>
-      </WorkspaceChromeProvider>
-    </HiveChatProvider>
+      </div>
+    </WorkspaceChromeProvider>,
   );
 }

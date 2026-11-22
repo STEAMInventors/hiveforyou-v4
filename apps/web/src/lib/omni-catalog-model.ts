@@ -23,6 +23,8 @@ export type OmniDocumentHit = {
   period: string;
   pages: number;
   ref: ChipRef | null;
+  /** Authorized file name for client-side document-name search (never triggers a model call). */
+  fileName?: string;
 };
 
 /** What the box finds in (statements, open items, documents) plus the chat's starter questions. */

@@ -1,4 +1,11 @@
-import type { CanonicalStudy, CoverageGap, StudyView, StudyViewRow, StudyViewSources } from "@hiveforyou/contracts";
+import type {
+  CanonicalStudy,
+  CoverageGap,
+  LegacyHomeProjection,
+  StudyView,
+  StudyViewRow,
+  StudyViewSources,
+} from "@hiveforyou/contracts";
 
 import {
   buildCitationContextMap,
@@ -24,6 +31,7 @@ function documentTypeMap(input: {
   readonly sources: StudyViewSources | null;
   readonly canonicalStudy: CanonicalStudy | null;
   readonly projectedTimeline?: readonly StudyViewRow[];
+  readonly legacyHome?: LegacyHomeProjection | null;
   readonly workspaceDocuments?: readonly HiveWorkspaceDocument[];
 }): Map<string, string | null> {
   const typeByDoc = new Map<string, string | null>();
@@ -69,6 +77,27 @@ function documentTypeMap(input: {
       }
     }
   }
+  if (input.legacyHome) {
+    const harvestRef = (ref: { readonly sourceDocumentId: string; readonly fileName: string }) => {
+      const key = ref.sourceDocumentId.toLowerCase();
+      if (!typeByDoc.has(key)) {
+        typeByDoc.set(key, ref.fileName.trim() || null);
+      }
+    };
+    for (const topic of input.legacyHome.topics) {
+      for (const statement of topic.statements) {
+        statement.refs.forEach(harvestRef);
+      }
+    }
+    for (const item of input.legacyHome.openItems) {
+      item.refs.forEach(harvestRef);
+    }
+    for (const comparison of input.legacyHome.comparisons) {
+      for (const item of comparison.items) {
+        item.refs.forEach(harvestRef);
+      }
+    }
+  }
   return typeByDoc;
 }
 
@@ -78,6 +107,7 @@ function evidenceFromTypeMap(
     readonly view: StudyView | null;
     readonly sources: StudyViewSources | null;
     readonly projectedTimeline?: readonly StudyViewRow[];
+    readonly legacyHome?: LegacyHomeProjection | null;
     readonly documentPages?: Readonly<Record<string, number>>;
   },
 ): HiveEvidenceViewerModel {
@@ -98,7 +128,7 @@ function evidenceFromTypeMap(
   const pageCountFor = (id: string) => input.documentPages?.[id] ?? input.documentPages?.[id.toLowerCase()];
   const citationContexts = input.view
     ? buildCitationContextMap(input.view, input.sources)
-    : buildProjectedTimelineCitationContextMap(input.projectedTimeline ?? []);
+    : buildProjectedTimelineCitationContextMap(input.projectedTimeline ?? [], input.legacyHome);
 
   return {
     labels: fullLabels,
@@ -117,13 +147,18 @@ export function buildHiveEvidenceViewerModel(input: {
   readonly documentPages?: Readonly<Record<string, number>>;
   /** Legacy saved-report timeline rows when no hive.study-view/1 is loaded. */
   readonly projectedTimeline?: readonly StudyViewRow[];
+  /** Legacy saved-report Home projection when no hive.study-view/1 is loaded. */
+  readonly legacyHome?: LegacyHomeProjection | null;
   readonly workspaceDocuments?: readonly HiveWorkspaceDocument[];
 }): HiveEvidenceViewerModel | null {
-  if (input.view) {
+  const hasLegacyHome =
+    !!input.legacyHome &&
+    (input.legacyHome.statementCount > 0 ||
+      input.legacyHome.openItems.length > 0 ||
+      input.legacyHome.comparisons.length > 0);
+  if (input.view || input.projectedTimeline?.length || hasLegacyHome || input.workspaceDocuments?.length) {
     const typeByDoc = documentTypeMap(input);
     return evidenceFromTypeMap(typeByDoc, input);
   }
-  if (!input.projectedTimeline?.length) return null;
-  const typeByDoc = documentTypeMap(input);
-  return evidenceFromTypeMap(typeByDoc, input);
+  return null;
 }

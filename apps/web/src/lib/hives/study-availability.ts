@@ -1,4 +1,8 @@
-﻿import type { StudyRevisionFormat, TimelineReportAttribution } from "@hiveforyou/contracts";
+﻿import type {
+  LegacyHomeReportAttribution,
+  StudyRevisionFormat,
+  TimelineReportAttribution,
+} from "@hiveforyou/contracts";
 
 import type { StudyLoadError } from "@/server/hives/hive-summary";
 
@@ -65,6 +69,24 @@ export function legacySavedReportTimelineNotice(
 
 export function legacySavedReportTimelineEmpty(revisionNumber: number): string {
   return `No dated events in the saved Study v${revisionNumber} report.`;
+}
+
+/** Provenance line on Home when rendering source-backed findings from a saved legacy report. */
+export function legacySavedReportHomeMeta(
+  revisionNumber: number,
+  report?: LegacyHomeReportAttribution | null,
+): string {
+  if (!report) {
+    return `Study v${revisionNumber} · showing source-backed details from saved reports · every citation opens the page it comes from`;
+  }
+  const audience = reportAudienceLabel(report.audience);
+  const title = report.title.trim();
+  const savedDate = formatReportSavedDate(report.createdAt);
+  const details: string[] = [];
+  if (title) details.push(`“${title}”`);
+  if (savedDate) details.push(`saved ${savedDate}`);
+  const detailSuffix = details.length > 0 ? ` (${details.join(", ")})` : "";
+  return `Study v${report.revisionNumber} · from saved ${audience} report${detailSuffix} · every statement below opens the page it comes from`;
 }
 
 /**

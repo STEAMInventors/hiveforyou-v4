@@ -123,7 +123,7 @@ function ChatHeader({
   onClose?: (() => void) | undefined;
 }) {
   return (
-    <header className="flex items-center gap-3 border-b border-line px-4 py-3.5" data-testid="ask-chat-header">
+    <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3.5" data-testid="ask-chat-header">
       <span className="relative inline-flex shrink-0">
         <Avatar person={{ id: "ai", name: assistantName, kind: "assistant" }} size="head" />
         <span
@@ -638,12 +638,12 @@ export function AskChat({
       aria-label={`Ask ${assistantName}`}
       data-testid="ask-chat"
       data-variant={variant}
-      className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-paper"
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-paper"
     >
       <ChatHeader assistantName={assistantName} onClose={variant === "sheet" ? onClose : undefined} />
       {clientThread && !reading ? (
         <div
-          className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-mist px-4 py-2"
+          className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-mist px-4 py-2"
           data-testid="ask-client-questions-row"
         >
           <p className="m-0 text-[12.5px] text-ink-2">
@@ -665,7 +665,12 @@ export function AskChat({
         <>
           {thread}
           {!conversation.unavailable && !conversation.loadError ? (
-            <div className="border-t border-line px-3 pb-3 pt-2.5" data-testid="ask-composer">
+            <div
+              className={`shrink-0 border-t border-line px-3 pt-2.5 ${
+                variant === "sheet" ? "pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "pb-3"
+              }`}
+              data-testid="ask-composer"
+            >
               <div className="rounded-input border border-line-strong bg-paper shadow-rest transition-[border-color,box-shadow] focus-within:border-blue focus-within:shadow-focus">
                 <label htmlFor={composerId} className="sr-only">
                   Question for {assistantName}

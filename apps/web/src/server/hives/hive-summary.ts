@@ -13,9 +13,11 @@ import {
   isActiveReportRunStatus,
   isStudyViewReport,
   normalizeGetStudyTabViewResponse,
+  resolveLegacyHomeProjection,
   resolveWorkspaceTimelineWithHistory,
   type HiveAttentionInput,
   type HiveAttentionResult,
+  type LegacyHomeProjection,
   type ResolvedWorkspaceTimeline,
   type StudyView,
   type StudyViewReferencedDocument,
@@ -233,6 +235,25 @@ export async function loadWorkspaceTimeline(
         return null;
       }
     },
+  });
+}
+
+/**
+ * Resolves source-backed Home findings, open items, and comparisons for an accepted legacy study
+ * from same-revision authenticated `hive-application-view/1` reports. Always empty for canonical studies.
+ */
+export function resolveWorkspaceLegacyHome(
+  overview: Pick<HiveOverview, "preparation" | "reports" | "studyTab" | "studyView">,
+): LegacyHomeProjection {
+  const { view } = workspaceStudyView(overview);
+  const acceptedStudyRevisionId =
+    overview.preparation.studyRevision?.id ?? overview.reports?.studyRevision?.id ?? null;
+  return resolveLegacyHomeProjection({
+    studyView: view,
+    reports: overview.reports?.latest ?? null,
+    acceptedStudyRevisionId,
+    authorizedSourceDocumentIds: authorizedSourceDocumentIds(overview.preparation),
+    authorizedDocumentPages: documentPageCounts(overview.preparation),
   });
 }
 

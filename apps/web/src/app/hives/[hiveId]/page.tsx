@@ -18,10 +18,12 @@ import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadHiveConversation } from "@/server/hives/hive-conversation";
 import {
+  authorizedSourceDocumentIds,
   documentPageCounts,
   hiveWorkspaceDocuments,
   loadHiveOverview,
   loadWorkspaceTimeline,
+  resolveWorkspaceLegacyHome,
   workspaceStudyView,
   type HiveOverview,
 } from "@/server/hives/hive-summary";
@@ -133,6 +135,22 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       })
     : null;
   const timeline = resolvedTimeline?.rows ?? [];
+  const legacyHome = overview && !view ? resolveWorkspaceLegacyHome(overview) : null;
+  const legacyDocuments =
+    overview && !view
+      ? (() => {
+          const allowed = new Set(
+            authorizedSourceDocumentIds(overview.preparation).map((id) => id.toLowerCase()),
+          );
+          return overview.preparation.eligibility.documents
+            .filter((doc) => allowed.has(doc.sourceDocumentId.toLowerCase()))
+            .map((doc) => ({
+              sourceDocumentId: doc.sourceDocumentId,
+              fileName: doc.fileName,
+              eligible: true,
+            }));
+        })()
+      : undefined;
   const content = overview
     ? buildHiveHomeContent({
         documentCount: overview.summary.documentCount,
@@ -146,6 +164,8 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
         study: revision ? { revisionNumber: revision.revisionNumber, acceptedAt: revision.createdAt } : null,
         documentRows: view?.blocks.find((block) => block.name === "documents")?.rows ?? [],
         calculations: pack?.computedValues ?? [],
+        legacyHome,
+        legacyDocuments,
       })
     : null;
 
@@ -225,6 +245,8 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       initialPreparation={overview?.preparation}
       conflicts={view?.blocks.find((block) => block.name === "conflicts")?.rows ?? []}
       timeline={timeline}
+      timelineReport={resolvedTimeline?.report ?? null}
+      legacyHome={legacyHome}
       view={view}
       sources={sources}
       canonicalStudy={canonicalStudy}

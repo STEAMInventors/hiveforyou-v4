@@ -3,7 +3,7 @@ import { buildAuditTrailEntries, valuesToSourceRefs } from "@hiveforyou/contract
 import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoardResilient } from "@/server/hives/hive-board-loader";
-import { documentPageCounts, workspaceStudyView } from "@/server/hives/hive-summary";
+import { documentPageCounts, hiveWorkspaceDocuments, workspaceStudyView } from "@/server/hives/hive-summary";
 import { loadStudyRevisionHistory } from "@/server/hives/load-study-revision-history";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { loadPackById } from "@/server/pipeline/pack-loader";
@@ -73,10 +73,18 @@ export default async function AuditPage({ params }: { params: Promise<{ hiveId: 
         How HiveForYou reached its findings: each check, its method and result.
       </p>
       <AuditTrailPageView
+        hiveId={hive.id}
         entries={entries}
         revisions={revisions}
         board={loaded.board}
         assistantName={assistantName}
+        view={workspaceView.view}
+        sources={workspaceView.sources}
+        canonicalStudy={overview.canonicalStudy}
+        workspaceDocuments={hiveWorkspaceDocuments(overview.preparation)}
+        studyDocumentRows={workspaceView.view?.blocks.find((block) => block.name === "documents")?.rows}
+        documentPages={documentPageCounts(overview.preparation)}
+        sourcesDocuments={workspaceView.sources?.documents}
       />
     </>
   );

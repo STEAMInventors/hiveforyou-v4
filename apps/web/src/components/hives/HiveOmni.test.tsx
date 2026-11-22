@@ -178,4 +178,41 @@ describe("HiveOmni (find only)", () => {
     expect(state.posts).toHaveLength(0);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("matches authorized documents by fileName without calling the AI, while preserving the separate Ask row", () => {
+    const { state } = installChatFetch();
+    setup({
+      catalog: {
+        ...EMPTY_OMNI_CATALOG,
+        documents: [
+          {
+            id: "doc-maya",
+            role: "Annual progress report",
+            typeLabel: "PDF",
+            period: "Nov 2025",
+            pages: 4,
+            fileName: "maya_progress_nov_2025.pdf",
+            ref: { sourceDocumentId: "doc-maya", pageNumber: 1 },
+          },
+        ],
+      },
+    });
+
+    fireEvent.focus(box());
+    fireEvent.change(box(), { target: { value: "maya_progress" } });
+
+    expect(screen.getByText("Documents")).toBeTruthy();
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(2);
+    expect(options[0]!.textContent).toContain("Annual progress report");
+    expect(options[0]!.textContent).toContain("maya_progress_nov_2025.pdf");
+    expect(options[1]!.textContent).toContain("Ask Rowan: maya_progress");
+    expect(state.posts).toHaveLength(0);
+
+    // Selecting the document hit opens the source page instead of posting to the assistant.
+    fireEvent.click(options[0]!);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(String(push.mock.calls[0]![0])).toContain("doc-maya");
+    expect(state.posts).toHaveLength(0);
+  });
 });

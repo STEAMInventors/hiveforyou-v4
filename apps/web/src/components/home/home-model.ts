@@ -1,4 +1,12 @@
-import type { FindingsOpenItem, FindingsTopic, HiveMessage, StudyViewRow, StudyViewSources, StudyViewValue } from "@hiveforyou/contracts";
+import type {
+  FindingsOpenItem,
+  FindingsTopic,
+  HiveMessage,
+  LegacyHomeProjection,
+  StudyViewRow,
+  StudyViewSources,
+  StudyViewValue,
+} from "@hiveforyou/contracts";
 
 import { compareMessages } from "@/components/hives/hive-conversation-view";
 import { messageDayLabel, messageTimeLabel } from "@/components/hives/hive-conversation-view";
@@ -138,6 +146,12 @@ function coverageLabel(row: StudyViewRow): string {
   return "Document";
 }
 
+function legacyDocumentLabel(fileName: string): string {
+  const trimmed = fileName.trim();
+  if (!trimmed) return "Document";
+  return trimmed.replace(/\.[^./\\]+$/, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim() || trimmed;
+}
+
 export function calculationLines(
   values: readonly { id: string; label: string; op: string; inputs: string; per: string }[],
 ): HomeCalculation[] {
@@ -165,27 +179,79 @@ export function buildHiveHomeContent(input: {
   study: { revisionNumber: number; acceptedAt: string } | null;
   documentRows: readonly StudyViewRow[];
   calculations: readonly { id: string; label: string; op: string; inputs: string; per: string }[];
+  legacyHome?: LegacyHomeProjection | null;
+  legacyDocuments?: readonly { sourceDocumentId: string; fileName: string; eligible: boolean }[];
 }): HiveHomeContent {
   const checklist = input.checklist ?? [];
   const checklistSize = input.progress && input.progress.total > 0 ? input.progress.total : null;
   const documentsIn = checklistSize != null ? input.progress!.in : input.documentCount;
   const stillToCome = stillToComeTitles(checklist);
-  const topics: HomeTopicModel[] = input.topics.map((topic) => ({
-    id: topic.id,
-    title: topic.title,
-    uncertain: topic.uncertain,
-    statements: topic.statements.map((statement) => ({
-      id: statement.id,
-      text: statement.text,
-      refs: statement.values.map(chipFromValue),
-    })),
-  }));
+  const useLegacyTopics = input.topics.length === 0 && (input.legacyHome?.topics.length ?? 0) > 0;
+  const topics: HomeTopicModel[] = useLegacyTopics
+    ? input.legacyHome!.topics.map((topic) => ({
+        id: topic.id,
+        title: topic.title,
+        uncertain: topic.uncertain,
+        statements: topic.statements.map((statement) => ({
+          id: statement.id,
+          text: statement.text,
+          refs: statement.refs.map((ref) => ({
+            sourceDocumentId: ref.sourceDocumentId,
+            pageNumber: ref.pageNumber,
+            quote: ref.quote || undefined,
+            factIds: [ref.factId],
+          })),
+        })),
+      }))
+    : input.topics.map((topic) => ({
+        id: topic.id,
+        title: topic.title,
+        uncertain: topic.uncertain,
+        statements: topic.statements.map((statement) => ({
+          id: statement.id,
+          text: statement.text,
+          refs: statement.values.map(chipFromValue),
+        })),
+      }));
+  const useLegacyOpenItems = input.openItems.length === 0 && (input.legacyHome?.openItems.length ?? 0) > 0;
+  const reviewSteps: HomeReviewStep[] = useLegacyOpenItems
+    ? input.legacyHome!.openItems.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        title: item.title,
+        detail: item.detail,
+        refs: item.refs.map((ref) => ({
+          sourceDocumentId: ref.sourceDocumentId,
+          pageNumber: ref.pageNumber,
+          quote: ref.quote || undefined,
+          factIds: [ref.factId],
+        })),
+      }))
+    : input.openItems.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        title: item.title,
+        detail: item.question,
+        refs: chipsForFacts(item.factIds, input.sources),
+      }));
+  const coverage: HomeCoverageRow[] =
+    input.documentRows.length > 0
+      ? input.documentRows.map((row) => ({
+          id: row.id,
+          label: coverageLabel(row),
+          state: statusToState(row.status),
+        }))
+      : (input.legacyDocuments ?? []).map((doc) => ({
+          id: doc.sourceDocumentId,
+          label: legacyDocumentLabel(doc.fileName),
+          state: doc.eligible ? ("checked" as const) : ("missing" as const),
+        }));
   const statementCount = topics.reduce((sum, topic) => sum + topic.statements.length, 0);
   return {
     hasStudy: input.study != null,
     documentsIn,
     checklistSize,
-    toReview: input.openItems.length,
+    toReview: reviewSteps.length,
     stillToCome,
     lastWrote: lastWroteFromMessages(input.messages, input.now),
     study:
@@ -194,20 +260,10 @@ export function buildHiveHomeContent(input: {
         : input.study
           ? { revisionNumber: input.study.revisionNumber, acceptedLabel: "" }
           : null,
-    reviewSteps: input.openItems.map((item) => ({
-      id: item.id,
-      kind: item.kind,
-      title: item.title,
-      detail: item.question,
-      refs: chipsForFacts(item.factIds, input.sources),
-    })),
+    reviewSteps,
     topics,
     statementCount,
-    coverage: input.documentRows.map((row) => ({
-      id: row.id,
-      label: coverageLabel(row),
-      state: statusToState(row.status),
-    })),
+    coverage,
     calculations: calculationLines(input.calculations),
   };
 }

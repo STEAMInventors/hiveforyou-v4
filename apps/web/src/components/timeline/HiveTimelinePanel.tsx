@@ -18,6 +18,7 @@ import { CanonicalStudyNotice } from "@/components/hives/CanonicalStudyNotice";
 import { HiveStudyRebuildAction } from "@/components/hives/HiveStudyRebuildAction";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
+import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import type { StudyAvailability } from "@/lib/hives/study-availability";
 import {
@@ -26,6 +27,11 @@ import {
   timelineOlderStudyIdleLine,
 } from "@/lib/hives/study-availability";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
+import {
+  mergeOmniCatalog,
+  omniDocumentsFromWorkspace,
+  omniStatementsFromTimeline,
+} from "@/lib/omni-catalog-build";
 import type { StudyLoadError } from "@/server/hives/hive-summary";
 
 const SECONDARY_LINK =
@@ -182,6 +188,26 @@ export function HiveTimelinePanel(props: HiveTimelinePanelProps) {
       }),
     [props.view, props.sources, props.canonicalStudy, props.documentPages, props.timeline, props.workspaceDocuments],
   );
+  const studyDocumentRows = useMemo(
+    () => props.view?.blocks.find((block) => block.name === "documents")?.rows ?? [],
+    [props.view],
+  );
+  const omniCatalog = useMemo(
+    () =>
+      mergeOmniCatalog({
+        suggestions: EMPTY_OMNI_CATALOG.suggestions,
+        openItems: EMPTY_OMNI_CATALOG.openItems,
+        documents: omniDocumentsFromWorkspace({
+          workspaceDocuments: props.workspaceDocuments,
+          studyDocumentRows,
+          documentPages: props.documentPages,
+          sourcesDocuments: props.sources?.documents,
+        }),
+        statements: omniStatementsFromTimeline(props.timeline),
+      }),
+    [props.documentPages, props.sources?.documents, props.timeline, props.workspaceDocuments, studyDocumentRows],
+  );
+  useRegisterOmniCatalog(omniCatalog);
 
   const body = (
     <div className="mt-6">
