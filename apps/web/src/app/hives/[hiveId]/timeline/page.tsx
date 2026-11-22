@@ -22,7 +22,7 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
   const revision = overview.preparation.studyRevision ?? null;
   const availability = studyAvailability({
     revision,
-    hasCanonicalView: view != null,
+    hasCanonicalView: overview.studyTab?.view != null,
     studyLoadError: overview.studyLoadError,
   });
   const timeline = view?.blocks.find((block) => block.name === "timeline")?.rows ?? [];

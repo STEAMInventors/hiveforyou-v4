@@ -13,11 +13,15 @@ import { useMemo } from "react";
 import { FindingsTimelineList } from "@/components/findings/FindingsTimelineList";
 import { CanonicalStudyNotice } from "@/components/hives/CanonicalStudyNotice";
 import { HiveStudyRebuildAction } from "@/components/hives/HiveStudyRebuildAction";
-import { clientHomeOlderStudyLine } from "@/components/home/client-home-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import type { StudyAvailability } from "@/lib/hives/study-availability";
+import {
+  legacySavedReportTimelineEmpty,
+  legacySavedReportTimelineNotice,
+  timelineOlderStudyIdleLine,
+} from "@/lib/hives/study-availability";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 import type { StudyLoadError } from "@/server/hives/hive-summary";
 
@@ -88,16 +92,49 @@ function HiveTimelineBody({
   }
 
   if (olderStudy) {
+    const revisionNumber = studyAvailability.revisionNumber;
+    const staffRebuild = staffView && !viewerIsClient ? (
+      <div className="mb-4 flex flex-col items-start gap-3">
+        <CanonicalStudyNotice />
+        <HiveStudyRebuildAction hiveId={hiveId} initialPreparation={initialPreparation} focusDocuments />
+      </div>
+    ) : null;
+    const idleLine = timelineOlderStudyIdleLine({ staffView, viewerIsClient, staffDisplayName });
+
+    if (timeline.length > 0) {
+      return (
+        <div data-testid="timeline-legacy-events">
+          <p className="m-0 mb-4 text-meta text-ink-3" data-testid="timeline-legacy-notice">
+            {legacySavedReportTimelineNotice(revisionNumber)}
+          </p>
+          {staffRebuild}
+          {!staffView && !viewerIsClient && idleLine ? (
+            <p className="m-0 mb-4 text-[15px] text-ink-2" data-testid="timeline-older-own-hive">
+              {idleLine}
+            </p>
+          ) : null}
+          <p className="m-0 mb-4 text-meta text-ink-3">Each row opens its source page from the saved report.</p>
+          <FindingsTimelineList rows={timeline} />
+        </div>
+      );
+    }
+
     return (
       <div data-testid="timeline-older-study">
-        {staffView && !viewerIsClient ? (
-          <div className="flex flex-col items-start gap-3">
-            <CanonicalStudyNotice />
-            <HiveStudyRebuildAction hiveId={hiveId} initialPreparation={initialPreparation} focusDocuments />
-          </div>
-        ) : (
-          <p className="m-0 text-[15px] text-ink-2">{clientHomeOlderStudyLine(staffDisplayName)}</p>
-        )}
+        {staffRebuild}
+        {viewerIsClient && idleLine ? (
+          <p className="m-0 mb-3 text-[15px] text-ink-2" data-testid="timeline-older-client">
+            {idleLine}
+          </p>
+        ) : null}
+        {!staffView && !viewerIsClient && idleLine ? (
+          <p className="m-0 mb-3 text-[15px] text-ink-2" data-testid="timeline-older-own-hive">
+            {idleLine}
+          </p>
+        ) : null}
+        <p className="m-0 py-3.5 text-body text-ink-2" data-testid="timeline-empty">
+          {legacySavedReportTimelineEmpty(revisionNumber)}
+        </p>
       </div>
     );
   }

@@ -65,7 +65,7 @@ describe("HiveTimelinePanel", () => {
     expect(screen.getByTestId("rebuild-study-link-documents")).toBeTruthy();
   });
 
-  it("shows the calm client line for an older study", () => {
+  it("shows the calm client line for an older study without timeline rows", () => {
     render(
       <HiveTimelinePanel
         hiveId={HIVE_ID}
@@ -81,8 +81,57 @@ describe("HiveTimelinePanel", () => {
       />,
     );
 
-    expect(screen.getByTestId("timeline-older-study").textContent).toContain("Priya's team is still reviewing");
+    expect(screen.getByTestId("timeline-older-client").textContent).toContain("Priya's team is still reviewing");
+    expect(screen.getByTestId("timeline-empty").textContent).toContain("Study v3");
     expect(screen.queryByTestId("canonical-study-notice")).toBeNull();
+  });
+
+  it("lists legacy timeline rows with a saved-report notice and source refs", () => {
+    const timeline = MEDICAID_FINDINGS.view.blocks.find((block) => block.name === "timeline")?.rows ?? [];
+    render(
+      <HiveTimelinePanel
+        hiveId={HIVE_ID}
+        staffDisplayName="Priya"
+        staffView
+        viewerIsClient={false}
+        studyAvailability={{ kind: "older", revisionNumber: 6 }}
+        studyLoadError={null}
+        timeline={timeline}
+        view={MEDICAID_FINDINGS.view}
+        sources={MEDICAID_FINDINGS.sources}
+        canonicalStudy={null}
+        documentPages={MEDICAID_FINDINGS.documentPages}
+      />,
+    );
+
+    expect(screen.getByTestId("timeline-legacy-events")).toBeTruthy();
+    expect(screen.getByTestId("timeline-legacy-notice").textContent).toContain("Study v6");
+    expect(screen.getByTestId("timeline-legacy-notice").textContent).toContain("canonical study");
+    expect(screen.getByTestId("findings-timeline-list").children.length).toBe(timeline.length);
+    expect(screen.getByTestId("canonical-study-notice")).toBeTruthy();
+  });
+
+  it("does not tell a personal owner that a team is reviewing", () => {
+    const timeline = MEDICAID_FINDINGS.view.blocks.find((block) => block.name === "timeline")?.rows ?? [];
+    render(
+      <HiveTimelinePanel
+        hiveId={HIVE_ID}
+        staffDisplayName={null}
+        staffView={false}
+        viewerIsClient={false}
+        studyAvailability={{ kind: "older", revisionNumber: 6 }}
+        studyLoadError={null}
+        timeline={timeline}
+        view={MEDICAID_FINDINGS.view}
+        sources={MEDICAID_FINDINGS.sources}
+        canonicalStudy={null}
+        documentPages={MEDICAID_FINDINGS.documentPages}
+      />,
+    );
+
+    const own = screen.getByTestId("timeline-older-own-hive");
+    expect(own.textContent?.toLowerCase()).not.toContain("team");
+    expect(screen.getByTestId("timeline-legacy-notice")).toBeTruthy();
   });
 
   it("explains when no study exists yet", () => {
