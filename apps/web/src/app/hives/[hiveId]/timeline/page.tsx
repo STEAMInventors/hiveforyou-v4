@@ -1,15 +1,47 @@
-import { permanentRedirect } from "next/navigation";
+import { HiveTimelinePanel } from "@/components/timeline/HiveTimelinePanel";
+import { showsFirmThreePane } from "@/lib/hives/firm-board";
+import { studyAvailability } from "@/lib/hives/study-availability";
+import { requestCorrelationId } from "@/server/auth/action-support";
+import { documentPageCounts, loadHiveOverview } from "@/server/hives/hive-summary";
+import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
+import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
-import { HOME_SHOW_ANCHOR, hiveHomePath, preservedQuery } from "@/lib/hive-routes";
-
-export default async function TimelineRedirectPage({
-  params,
-  searchParams,
-}: {
+type TimelinePageProps = {
   params: Promise<{ hiveId: string }>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
+};
+
+export default async function TimelinePage({ params }: TimelinePageProps) {
   const { hiveId } = await params;
-  const query = searchParams ? await searchParams : {};
-  permanentRedirect(`${hiveHomePath(hiveId)}${preservedQuery(query, { tab: null })}#${HOME_SHOW_ANCHOR}`);
+  const hive = await loadOwnedHiveOrNotFound(hiveId, `/hives/${hiveId}/timeline`);
+  const auth = await requireAuthenticatedUser();
+  if (!auth.ok) return null;
+
+  const correlationId = await requestCorrelationId();
+  const overview = await loadHiveOverview(auth.client, { hiveId: hive.id, correlationId });
+  const view = overview.studyTab?.view ?? null;
+  const sources = overview.studyTab?.sources ?? null;
+  const revision = overview.preparation.studyRevision ?? null;
+  const availability = studyAvailability({
+    revision,
+    hasCanonicalView: view != null,
+    studyLoadError: overview.studyLoadError,
+  });
+  const timeline = view?.blocks.find((block) => block.name === "timeline")?.rows ?? [];
+
+  return (
+    <HiveTimelinePanel
+      hiveId={hive.id}
+      staffDisplayName={hive.assigneeDisplayName?.trim() || null}
+      staffView={showsFirmThreePane(hive)}
+      viewerIsClient={hive.membershipRole === "client"}
+      studyAvailability={availability}
+      studyLoadError={overview.studyLoadError}
+      timeline={timeline}
+      view={view}
+      sources={sources}
+      canonicalStudy={overview.canonicalStudy}
+      documentPages={documentPageCounts(overview.preparation)}
+      initialPreparation={overview.preparation}
+    />
+  );
 }

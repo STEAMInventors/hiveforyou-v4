@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/hives/11111111-1111-4111-8111-111111111111/documents",
 }));
 
-import { hiveFindingsPath, hiveSectionFromPathname } from "@/lib/hive-routes";
+import { hiveSectionFromPathname } from "@/lib/hive-routes";
 
 import { HiveSidebar } from "./HiveSidebar";
 import { findingsToReviewCount, sidebarCounts } from "./sidebar-counts";
@@ -56,17 +56,17 @@ describe("HiveSidebar (D24 left menu)", () => {
     expect(current.getAttribute("aria-current")).toBe("page");
     expect(scoped.getByLabelText("9 documents")).toBeTruthy();
     expect(scoped.getByRole("link", { name: /Home/ }).getAttribute("data-tab")).toBe("home");
-    expect(scoped.getByRole("link", { name: /Report/ }).getAttribute("data-tab")).toBe("report");
+    expect(scoped.getByRole("link", { name: /Report/ }).getAttribute("href")).toBe(`/hives/${hive.id}/reports`);
+    expect(scoped.getByRole("link", { name: /Timeline/ }).getAttribute("data-tab")).toBe("timeline");
   });
 
-  it("marks Report current on findings and reports routes", () => {
-    for (const path of [hiveFindingsPath(hive.id), `/hives/${hive.id}/reports`]) {
-      expect(hiveSectionFromPathname(path.split("#")[0] ?? "", hive.id)).toBeTruthy();
-    }
-    renderMenu({ active: "findings" });
+  it("marks Report current on the reports route", () => {
+    expect(hiveSectionFromPathname(`/hives/${hive.id}/reports`, hive.id)).toBe("reports");
+    renderMenu({ active: "reports" });
     const report = screen.getByRole("link", { name: /Report/ });
     expect(report.getAttribute("aria-current")).toBe("page");
     expect(report.getAttribute("data-tab")).toBe("report");
+    expect(report.getAttribute("href")).toBe(`/hives/${hive.id}/reports`);
   });
 
   it("shows ← All hives for staff client hives and people footer", () => {

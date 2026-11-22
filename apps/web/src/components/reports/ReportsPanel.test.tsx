@@ -149,6 +149,23 @@ describe("ReportsPanel", () => {
     expect(screen.getByTestId("reports-empty").textContent).toContain("Analyze your documents");
   });
 
+  it("lists existing generated reports from history", () => {
+    const older = {
+      ...report("CUSTOMER", "eeeeeeee-0000-4000-8000-000000000099", "2026-10-01T10:00:00.000Z"),
+      title: "Earlier customer brief",
+    };
+    const latest = report("CUSTOMER", "eeeeeeee-0000-4000-8000-000000000001");
+    render(
+      <ReportsPanel
+        hiveId={HIVE_ID}
+        initial={state({ latest: [latest], history: [latest, older] })}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: /Earlier versions/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Earlier customer brief/ })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /Maya's reading and services/ }).length).toBeGreaterThanOrEqual(1);
+  });
+
   it("renders the Customer report with sources and value statuses", () => {
     render(<ReportsPanel hiveId={HIVE_ID} initial={state()} />);
     const view = screen.getByTestId("report-view");

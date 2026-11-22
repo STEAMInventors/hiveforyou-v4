@@ -163,6 +163,7 @@ function chipMapKey(sourceDocumentId: string, pageNumber: number): string {
 function backTabLabel(pathname: string, hiveId: string): string {
   const section = hiveSectionFromPathname(pathname, hiveId);
   if (section === "documents") return "Documents";
+  if (section === "timeline") return "Timeline";
   if (section === "reports") return "Report";
   if (section === "audit") return "Audit trail";
   if (section === "notes") return "Team notes";

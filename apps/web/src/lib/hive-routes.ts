@@ -17,12 +17,13 @@ export function clientsSignInPath(email?: string): string {
   return trimmed ? `${base}&prefill=${encodeURIComponent(trimmed)}` : base;
 }
 
-export type HiveWorkspaceSection = "board" | "documents" | "findings" | "reports" | "audit" | "notes";
+export type HiveWorkspaceSection = "board" | "documents" | "findings" | "timeline" | "reports" | "audit" | "notes";
 
 export const HIVE_SECTION_LABELS: Record<HiveWorkspaceSection, string> = {
   board: "Hive board",
   documents: "Documents",
   findings: "Findings",
+  timeline: "Timeline",
   reports: "Reports",
   audit: "Audit trail",
   notes: "Team notes",
@@ -104,6 +105,10 @@ export function hiveNotesPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/notes`;
 }
 
+export function hiveTimelinePath(hiveId: string): string {
+  return `${MY_HIVES_PATH}/${hiveId}/timeline`;
+}
+
 export function hiveReportsPath(hiveId: string): string {
   return `${MY_HIVES_PATH}/${hiveId}/reports`;
 }
@@ -123,6 +128,8 @@ export function hiveSectionPath(hiveId: string, section: HiveWorkspaceSection): 
       return hiveDocumentsPath(hiveId);
     case "findings":
       return hiveFindingsPath(hiveId);
+    case "timeline":
+      return hiveTimelinePath(hiveId);
     case "reports":
       return hiveReportsPath(hiveId);
     case "audit":
@@ -140,11 +147,11 @@ export function hiveSectionFromPathname(pathname: string, hiveId: string): HiveW
   const base = `/hives/${hiveId}`;
   if (pathname === `${base}/board` || pathname === base) return "board";
   if (pathname.startsWith(`${base}/documents`)) return "documents";
+  if (pathname.startsWith(`${base}/timeline`)) return "timeline";
   if (
     pathname.startsWith(`${base}/findings`) ||
     pathname.startsWith(`${base}/facts`) ||
     pathname.startsWith(`${base}/missing`) ||
-    pathname.startsWith(`${base}/timeline`) ||
     pathname.startsWith(`${base}/study`)
   ) {
     return "findings";

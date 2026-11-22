@@ -34,6 +34,7 @@ describe("HiveSectionTabs", () => {
     expect(tabs.map((tab) => tab.getAttribute("data-tab"))).toEqual([
       "home",
       "documents",
+      "timeline",
       "report",
       "audit",
       "notes",

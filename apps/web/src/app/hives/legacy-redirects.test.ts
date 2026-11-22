@@ -16,8 +16,6 @@ vi.mock("@/server/hives/load-owned-hive", () => ({
 import ActivityPage from "./[hiveId]/activity/page";
 import FactsPage from "./[hiveId]/facts/page";
 import MissingPage from "./[hiveId]/missing/page";
-import TimelinePage from "./[hiveId]/timeline/page";
-
 const HIVE_ID = "550e8400-e29b-41d4-a716-446655440000";
 
 function redirectedPath(error: unknown): string {
@@ -53,19 +51,6 @@ describe("legacy hive routes", () => {
     expect(url.pathname).toBe(`/hives/${HIVE_ID}`);
     expect(url.hash).toBe("#show");
     expect(url.searchParams.get("keep")).toBe("1");
-  });
-
-  it("sends timeline to the timeline tab and keeps other query params", async () => {
-    await expect(
-      TimelinePage({
-        params: Promise.resolve({ hiveId: HIVE_ID }),
-        searchParams: Promise.resolve({ ref: "2" }),
-      }),
-    ).rejects.toThrow(/REDIRECT:/);
-    const url = new URL(redirectedPath(permanentRedirectMock.mock.calls.at(-1)?.[0]), "http://local");
-    expect(url.pathname).toBe(`/hives/${HIVE_ID}`);
-    expect(url.hash).toBe("#show");
-    expect(url.searchParams.get("ref")).toBe("2");
   });
 
   it("sends activity to the audit trail and keeps the query", async () => {

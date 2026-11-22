@@ -18,11 +18,12 @@ const HIVE = "11111111-1111-4111-8111-111111111111";
 
 describe("hive section paths and labels", () => {
   it("names the rail in order and builds each path", () => {
-    const order: HiveWorkspaceSection[] = ["board", "documents", "findings", "reports", "audit", "notes"];
+    const order: HiveWorkspaceSection[] = ["board", "documents", "findings", "timeline", "reports", "audit", "notes"];
     expect(order.map((section) => HIVE_SECTION_LABELS[section])).toEqual([
       "Hive board",
       "Documents",
       "Findings",
+      "Timeline",
       "Reports",
       "Audit trail",
       "Team notes",
@@ -31,6 +32,7 @@ describe("hive section paths and labels", () => {
       `/hives/${HIVE}`,
       `/hives/${HIVE}/documents`,
       `/hives/${HIVE}/findings`,
+      `/hives/${HIVE}/timeline`,
       `/hives/${HIVE}/reports`,
       `/hives/${HIVE}/audit`,
       `/hives/${HIVE}/notes`,
@@ -54,6 +56,8 @@ describe("hive section paths and labels", () => {
 
   it("treats every findings address as the findings section", () => {
     expect(hiveSectionFromPathname(`/hives/${HIVE}/findings`, HIVE)).toBe("findings");
+    expect(hiveSectionFromPathname(`/hives/${HIVE}/timeline`, HIVE)).toBe("timeline");
+    expect(hiveSectionFromPathname(`/hives/${HIVE}/reports`, HIVE)).toBe("reports");
     expect(hiveSectionFromPathname(`/hives/${HIVE}/audit`, HIVE)).toBe("audit");
     for (const tab of ["known", "gaps", "timeline", "review"] as const) {
       const path = hiveFindingsPath(HIVE, tab).split("?")[0] ?? "";

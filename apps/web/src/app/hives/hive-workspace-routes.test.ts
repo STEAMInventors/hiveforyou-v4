@@ -153,8 +153,11 @@ type SectionPage = () => Promise<{
   }) => Promise<unknown>;
 }>;
 
+vi.mock("@/components/timeline/HiveTimelinePanel", () => ({ HiveTimelinePanel: () => null }));
+
 const SECTIONS: readonly { section: HiveWorkspaceSection; page: SectionPage }[] = [
   { section: "documents", page: () => import("./[hiveId]/documents/page") },
+  { section: "timeline", page: () => import("./[hiveId]/timeline/page") },
   { section: "reports", page: () => import("./[hiveId]/reports/page") },
   { section: "audit", page: () => import("./[hiveId]/audit/page") },
   { section: "notes", page: () => import("./[hiveId]/notes/page") },

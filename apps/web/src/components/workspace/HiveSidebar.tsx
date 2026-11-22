@@ -16,17 +16,19 @@ import { HivePeopleLine } from "./HivePeopleLine";
 import { countAccessibleLabel, type HiveSidebarCounts } from "./sidebar-counts";
 import {
   NavIconAudit,
+  NavIconBarChart,
   NavIconFile,
-  NavIconFindings,
   NavIconHome,
   NavIconLock,
   NavIconNote,
+  NavIconTimeline,
 } from "./workspace-nav-icons";
 
 const MENU_ICONS = {
   home: NavIconHome,
   documents: NavIconFile,
-  report: NavIconFindings,
+  timeline: NavIconTimeline,
+  report: NavIconBarChart,
   audit: NavIconAudit,
   notes: NavIconNote,
 } as const;
