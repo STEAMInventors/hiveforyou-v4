@@ -1,3 +1,16 @@
+import {
+  CANONICAL_STUDY_SCHEMA,
+  verifyStudyInvestigation,
+  type AssistantBriefing,
+  type CanonicalStudy,
+} from "@hiveforyou/contracts";
+import {
+  MAYA_DOCS,
+  MAYA_REVISION_6_PAGES,
+  MAYA_REVISION_6_PLAN_QUESTION_IDS,
+  MAYA_RUN_ID,
+  mayaRevision6StudyOutput,
+} from "@hiveforyou/contracts/testing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -380,6 +393,568 @@ describe("maybeScheduleHiveAssistantReply pack and prompt", () => {
         eventName: "hive.assistant.failed",
         errorCode: "prompt_unavailable",
         diagnosticField: "prompt_unavailable:Error",
+      }),
+    );
+  });
+});
+
+describe("maybeScheduleHiveAssistantReply — P0.5-B legacy investigation-1 and canonical parity", () => {
+  const CANONICAL_STUDY_ID = "33333333-3333-4333-8333-333333333333";
+  const MAYA_V6_REV_ID = "44444444-4444-4444-8444-444444444446";
+  const MAYA_V7_REV_ID = "44444444-4444-4444-8444-444444444447";
+  const MAYA_1105_REV_ID = "44444444-4444-4444-8444-444444441105";
+  const MAYA_DOC_IDS = [
+    MAYA_DOCS.iep2024,
+    MAYA_DOCS.iep2025,
+    MAYA_DOCS.progressNov,
+    MAYA_DOCS.progressJan,
+    MAYA_DOCS.serviceLog,
+    MAYA_DOCS.evaluation,
+    MAYA_DOCS.meetingNotice,
+  ] as const;
+
+  function verifiedMayaV6() {
+    const verified = verifyStudyInvestigation(mayaRevision6StudyOutput(), {
+      processingRunId: MAYA_RUN_ID,
+      planQuestionIds: MAYA_REVISION_6_PLAN_QUESTION_IDS,
+      pages: new Map(Object.entries(MAYA_REVISION_6_PAGES)),
+    });
+    if (!verified.ok) throw new Error(verified.message);
+    return verified.value;
+  }
+
+  function mayaV6Preparation() {
+    return {
+      studyRevision: {
+        id: MAYA_V6_REV_ID,
+        canonicalStudyId: CANONICAL_STUDY_ID,
+        revisionNumber: 6,
+        predecessorRevisionId: null,
+        processingRunId: MAYA_RUN_ID,
+        format: "investigation-1" as const,
+        coverageComplete: true,
+        coverageStatus: "COMPLETE",
+        coverageGaps: [],
+        coverageAcknowledgement: "NOT_REQUIRED",
+        createdAt: "2026-11-02T00:00:00.000Z",
+      },
+      processingRun: null,
+      reportRuns: [],
+      eligibility: {
+        documents: MAYA_DOC_IDS.map((sourceDocumentId, idx) => ({
+          sourceDocumentId,
+          fileName: `maya-doc-${idx + 1}.pdf`,
+          totalPhysicalPages: 1,
+          readStatus: "SUCCEEDED",
+        })),
+        excluded: [],
+        coverageComplete: true,
+      },
+    };
+  }
+
+  function buildUserClientWithLegacyTables(
+    message: typeof triggerMessage,
+    overrides?: {
+      currentRevisionId?: string;
+      runStatus?: string;
+      verification?: unknown;
+      investigation?: unknown;
+      schemaSpy?: ReturnType<typeof vi.fn>;
+    },
+  ): SupabaseClient {
+    const verified = verifiedMayaV6();
+    const fromMock = vi.fn((table: string) => {
+      let result: { data: unknown; error: unknown } = { data: null, error: null };
+      if (table === "canonical_studies") {
+        result = {
+          data: {
+            id: CANONICAL_STUDY_ID,
+            hive_id: HIVE_ID,
+            current_revision_id: overrides?.currentRevisionId ?? MAYA_V6_REV_ID,
+          },
+          error: null,
+        };
+      } else if (table === "study_revisions") {
+        result = {
+          data: {
+            id: MAYA_V6_REV_ID,
+            canonical_study_id: CANONICAL_STUDY_ID,
+            hive_id: HIVE_ID,
+            revision_number: 6,
+            processing_run_id: MAYA_RUN_ID,
+            format: "investigation-1",
+            investigation: overrides?.investigation !== undefined ? overrides.investigation : verified.investigation,
+            verification: overrides?.verification !== undefined ? overrides.verification : verified.verification,
+          },
+          error: null,
+        };
+      } else if (table === "processing_runs") {
+        result = {
+          data: {
+            id: MAYA_RUN_ID,
+            hive_id: HIVE_ID,
+            status: overrides?.runStatus ?? "SUCCEEDED",
+            authorized_source_document_ids: [...MAYA_DOC_IDS],
+            source_snapshot: {
+              documents: MAYA_DOC_IDS.map((id) => ({
+                sourceDocumentId: id,
+                totalPhysicalPages: 1,
+                missingPageNumbers: [],
+                emptyPageNumbers: [],
+              })),
+            },
+          },
+          error: null,
+        };
+      }
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue(result),
+      };
+    });
+
+    const schemaFn = overrides?.schemaSpy ?? vi.fn((name: string) => {
+      if (name !== "hive") throw new Error(`unexpected schema ${name}`);
+      return { from: fromMock };
+    });
+
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "list_requests") return { data: { requests: [] }, error: null };
+      if (name === "list_hive_messages") {
+        return {
+          data: {
+            messages: [message],
+            participantRoleLabels: ["Owner"],
+            participantCount: 1,
+            viewerLastReadAt: null,
+            nextCursor: null,
+          },
+          error: null,
+        };
+      }
+      throw new Error(`unexpected user rpc ${name}`);
+    });
+    return { rpc, schema: schemaFn } as unknown as SupabaseClient;
+  }
+
+  beforeEach(() => {
+    emitStructuredEventMock.mockReset();
+    getStudyPreparationMock.mockReset();
+    loadHiveOverviewMock.mockReset();
+    getStudyTabViewMock.mockReset();
+    createSupabaseAdminClientMock.mockReset();
+    finishRunRpcMock.mockReset();
+    loadPackByIdMock.mockReset();
+    loadHiveAssistantReplyPromptMock.mockReset();
+    loadHiveAssistantReplyPromptMock.mockReturnValue({
+      task: "assistant_reply",
+      id: "hive-assistant-reply/3",
+      digest: "sha256:00",
+      systemPrompt: "system",
+    });
+
+    finishRunRpcMock.mockImplementation(async (name: string) => {
+      if (name === "claim_assistant_run") return { data: { runId: RUN_ID, claimed: true }, error: null };
+      if (name === "finish_assistant_run") return { data: null, error: null };
+      throw new Error(`unexpected admin rpc ${name}`);
+    });
+    createSupabaseAdminClientMock.mockReturnValue(buildAdminClient());
+  });
+
+  it("answers a supported Maya Study v6 plan question with clickable document/page citations and zero record text in telemetry", async () => {
+    const prep = mayaV6Preparation();
+    getStudyPreparationMock.mockResolvedValue(prep);
+    loadHiveOverviewMock.mockResolvedValue({ ...overviewPayload, preparation: prep });
+    getStudyTabViewMock.mockResolvedValue({
+      revision: { id: MAYA_V6_REV_ID, revisionNumber: 6, format: "investigation-1" },
+      canonicalStudy: null,
+      facts: [],
+    });
+
+    const questionMessage = {
+      ...triggerMessage,
+      authorRole: "owner" as const,
+      body: "How many speech therapy minutes were delivered?",
+    };
+    const userClient = buildUserClientWithLegacyTables(questionMessage);
+
+    const runModel = vi.fn(async () => ({
+      ok: true as const,
+      output: {
+        intent: "answer",
+        reply: "360 speech therapy minutes were delivered between September and November 2025.",
+        claims: [
+          {
+            text: "360 speech therapy minutes were delivered between September and November 2025.",
+            factIds: ["P3.F0"],
+          },
+        ],
+      },
+      modelId: "harvester",
+      latencyMs: 35,
+    }));
+
+    await maybeScheduleHiveAssistantReply(
+      {
+        hiveId: HIVE_ID,
+        triggerMessage: questionMessage,
+        authorRole: "owner",
+        correlationId: CORRELATION_ID,
+        userClient,
+      },
+      runModel,
+    );
+
+    expect(runModel).toHaveBeenCalledTimes(1);
+    const sentBriefing = runModel.mock.calls[0]?.[0]?.briefing as unknown as AssistantBriefing;
+    expect(sentBriefing.study.facts.length).toBeGreaterThanOrEqual(14);
+    expect(sentBriefing.study.facts.some((f) => f.id === "P3.F0")).toBe(true);
+    // No raw quotation or .pdf filename transmitted in briefing
+    expect(JSON.stringify(sentBriefing)).not.toContain("Speech therapy minutes delivered September to November 2025: 360 minutes.");
+    expect(JSON.stringify(sentBriefing).toLowerCase()).not.toContain(".pdf");
+
+    expect(finishRunRpcMock).toHaveBeenCalledWith(
+      "finish_assistant_run",
+      expect.objectContaining({
+        p_run_id: RUN_ID,
+        p_status: "answered",
+        p_study_revision_id: MAYA_V6_REV_ID,
+        p_error_code: null,
+        p_source_refs: [
+          expect.objectContaining({
+            sourceDocumentId: MAYA_DOCS.serviceLog,
+            pageNumber: 1,
+            factId: "P3.F0",
+            studyRevisionId: MAYA_V6_REV_ID,
+          }),
+        ],
+      }),
+    );
+
+    // Telemetry must NEVER contain raw record text, quotations, or fact statements
+    const telemetryJson = JSON.stringify(emitStructuredEventMock.mock.calls);
+    expect(telemetryJson).not.toContain("360 speech therapy minutes");
+    expect(telemetryJson).not.toContain("Speech therapy minutes delivered");
+    expect(telemetryJson).not.toContain("62 words correct per minute");
+    expect(telemetryJson).not.toContain("Individualized Education Program");
+  });
+
+  it("refuses factual claims for an unsupported question on Maya Study v6", async () => {
+    const prep = mayaV6Preparation();
+    getStudyPreparationMock.mockResolvedValue(prep);
+    loadHiveOverviewMock.mockResolvedValue({ ...overviewPayload, preparation: prep });
+    getStudyTabViewMock.mockResolvedValue({ canonicalStudy: null });
+
+    const questionMessage = {
+      ...triggerMessage,
+      authorRole: "owner" as const,
+      body: "What allergy medication does Maya take?",
+    };
+    const userClient = buildUserClientWithLegacyTables(questionMessage);
+
+    const runModel = vi.fn(async () => ({
+      ok: true as const,
+      output: {
+        intent: "answer",
+        reply: "Maya takes 10 mg daily allergy medication.",
+        claims: [{ text: "Maya takes 10 mg daily allergy medication.", factIds: ["P99.F0"] }],
+      },
+      modelId: "harvester",
+      latencyMs: 20,
+    }));
+
+    await maybeScheduleHiveAssistantReply(
+      {
+        hiveId: HIVE_ID,
+        triggerMessage: questionMessage,
+        authorRole: "owner",
+        correlationId: CORRELATION_ID,
+        userClient,
+      },
+      runModel,
+    );
+
+    const finishCall = finishRunRpcMock.mock.calls.find(([name]) => name === "finish_assistant_run")?.[1] as {
+      p_body: string;
+      p_source_refs: unknown[];
+    };
+    expect(finishCall.p_source_refs).toEqual([]);
+    expect(finishCall.p_body).toContain("couldn't find that in the documents");
+    expect(finishCall.p_body).not.toContain("10 mg");
+  });
+
+  it("does not allow older or rejected revisions to supply facts", async () => {
+    const prep = mayaV6Preparation();
+    getStudyPreparationMock.mockResolvedValue(prep);
+    loadHiveOverviewMock.mockResolvedValue({ ...overviewPayload, preparation: prep });
+    getStudyTabViewMock.mockResolvedValue({ canonicalStudy: null });
+
+    const questionMessage = {
+      ...triggerMessage,
+      authorRole: "owner" as const,
+      body: "How many speech therapy minutes were delivered?",
+    };
+    // Older revision: canonical_studies.current_revision_id points to v7 instead of v6
+    const userClient = buildUserClientWithLegacyTables(questionMessage, {
+      currentRevisionId: MAYA_V7_REV_ID,
+    });
+
+    const runModel = vi.fn(async () => ({
+      ok: true as const,
+      output: {
+        intent: "answer",
+        reply: "360 speech therapy minutes were delivered.",
+        claims: [{ text: "360 speech therapy minutes were delivered.", factIds: ["P3.F0"] }],
+      },
+      modelId: "harvester",
+      latencyMs: 15,
+    }));
+
+    await maybeScheduleHiveAssistantReply(
+      {
+        hiveId: HIVE_ID,
+        triggerMessage: questionMessage,
+        authorRole: "owner",
+        correlationId: CORRELATION_ID,
+        userClient,
+      },
+      runModel,
+    );
+
+    const sentBriefing = runModel.mock.calls[0]?.[0]?.briefing as unknown as AssistantBriefing;
+    expect(sentBriefing.study.facts).toEqual([]);
+    const finishCall = finishRunRpcMock.mock.calls.find(([name]) => name === "finish_assistant_run")?.[1] as {
+      p_source_refs: unknown[];
+      p_body: string;
+    };
+    expect(finishCall.p_source_refs).toEqual([]);
+    expect(finishCall.p_body).toContain("couldn't find that in the documents");
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.legacy_evidence_unavailable",
+        errorCode: "revision_not_current",
+      }),
+    );
+  });
+
+  it("keeps canonical Maya's Hive 11/05 strictly canonical without touching legacy investigation tables", async () => {
+    const canonical: CanonicalStudy = {
+      schema: CANONICAL_STUDY_SCHEMA,
+      domainLabel: "Records review",
+      spineSource: "ANCHOR",
+      documents: [
+        {
+          sourceDocumentId: MAYA_DOCS.iep2025,
+          role: "ANCHOR",
+          typeInPlainWords: "2025 Plan Amendment",
+          date: "2025-03-04",
+          version: null,
+          chainPosition: 1,
+        },
+      ],
+      spine: [],
+      outsideSpine: [{ id: "O1", statement: "Annual reading target is 90 words per minute", factIds: ["CF1"] }],
+      conflicts: [],
+      timeline: [],
+      gaps: [],
+    };
+    const canonicalPrep = {
+      studyRevision: {
+        id: MAYA_1105_REV_ID,
+        canonicalStudyId: CANONICAL_STUDY_ID,
+        revisionNumber: 1,
+        predecessorRevisionId: null,
+        processingRunId: MAYA_RUN_ID,
+        format: "canonical-study-1" as const,
+        coverageComplete: true,
+        coverageStatus: "COMPLETE",
+        coverageGaps: [],
+        coverageAcknowledgement: "NOT_REQUIRED",
+        createdAt: "2026-11-05T00:00:00.000Z",
+      },
+      processingRun: null,
+      reportRuns: [],
+      eligibility: {
+        documents: [
+          {
+            sourceDocumentId: MAYA_DOCS.iep2025,
+            fileName: "maya-plan-2025.pdf",
+            totalPhysicalPages: 1,
+            readStatus: "SUCCEEDED",
+          },
+        ],
+        excluded: [],
+        coverageComplete: true,
+      },
+    };
+    getStudyPreparationMock.mockResolvedValue(canonicalPrep);
+    loadHiveOverviewMock.mockResolvedValue({
+      ...overviewPayload,
+      preparation: canonicalPrep,
+      canonicalStudy: canonical,
+      studyTab: {
+        view: { schema: "hive.study-view/1", blocks: [], sections: [] },
+        sources: {
+          documents: {},
+          facts: {
+            CF1: {
+              sourceDocumentId: MAYA_DOCS.iep2025,
+              pageNumber: 1,
+              quote: "90 words correct per minute",
+            },
+          },
+        },
+      },
+    });
+    getStudyTabViewMock.mockResolvedValue({ canonicalStudy: canonical });
+
+    const schemaSpy = vi.fn(() => {
+      throw new Error("canonical hive must not query legacy investigation tables");
+    });
+    const questionMessage = {
+      ...triggerMessage,
+      authorRole: "owner" as const,
+      body: "What is the annual reading target?",
+    };
+    const userClient = buildUserClientWithLegacyTables(questionMessage, { schemaSpy });
+
+    const runModel = vi.fn(async () => ({
+      ok: true as const,
+      output: {
+        intent: "answer",
+        reply: "The annual reading target is 90 words per minute.",
+        claims: [{ text: "The annual reading target is 90 words per minute.", factIds: ["CF1"] }],
+      },
+      modelId: "harvester",
+      latencyMs: 18,
+    }));
+
+    await maybeScheduleHiveAssistantReply(
+      {
+        hiveId: HIVE_ID,
+        triggerMessage: questionMessage,
+        authorRole: "owner",
+        correlationId: CORRELATION_ID,
+        userClient,
+      },
+      runModel,
+    );
+
+    expect(schemaSpy).not.toHaveBeenCalled();
+    const sentBriefing = runModel.mock.calls[0]?.[0]?.briefing as unknown as AssistantBriefing;
+    expect(sentBriefing.study.facts.map((f) => f.id)).toEqual(["CF1"]);
+    expect(finishRunRpcMock).toHaveBeenCalledWith(
+      "finish_assistant_run",
+      expect.objectContaining({
+        p_status: "answered",
+        p_study_revision_id: MAYA_1105_REV_ID,
+        p_source_refs: [
+          expect.objectContaining({
+            sourceDocumentId: MAYA_DOCS.iep2025,
+            pageNumber: 1,
+            shortLabel: "2025 Plan Amendment",
+            factId: "CF1",
+            studyRevisionId: MAYA_1105_REV_ID,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("answers navigation questions without citations on legacy Maya Study v6", async () => {
+    const prep = mayaV6Preparation();
+    getStudyPreparationMock.mockResolvedValue(prep);
+    loadHiveOverviewMock.mockResolvedValue({ ...overviewPayload, preparation: prep });
+    getStudyTabViewMock.mockResolvedValue({ canonicalStudy: null });
+
+    const navMessage = {
+      ...triggerMessage,
+      authorRole: "owner" as const,
+      body: "Where are my documents?",
+    };
+    const userClient = buildUserClientWithLegacyTables(navMessage);
+
+    const runModel = vi.fn(async () => ({
+      ok: true as const,
+      output: { intent: "route_to_team", reply: "", claims: [] },
+      modelId: "harvester",
+      latencyMs: 10,
+    }));
+
+    await maybeScheduleHiveAssistantReply(
+      {
+        hiveId: HIVE_ID,
+        triggerMessage: navMessage,
+        authorRole: "owner",
+        correlationId: CORRELATION_ID,
+        userClient,
+      },
+      runModel,
+    );
+
+    expect(finishRunRpcMock).toHaveBeenCalledWith(
+      "finish_assistant_run",
+      expect.objectContaining({
+        p_status: "answered",
+        p_body: expect.stringContaining("Open Documents in the left menu"),
+        p_source_refs: [],
+      }),
+    );
+  });
+
+  it("preserves private model-routing policy by skipping non-synthetic legacy hives without calling the model", async () => {
+    createSupabaseAdminClientMock.mockReturnValue({
+      rpc: finishRunRpcMock,
+      schema: vi.fn(() => ({
+        from: vi.fn((table: string) => {
+          if (table === "hives") {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  content_class: "real",
+                  assistant_replies_on: true,
+                  name: "Private Legacy Hive",
+                  stage: null,
+                  firm_id: null,
+                },
+                error: null,
+              }),
+            };
+          }
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
+          };
+        }),
+      })),
+    } as unknown as SupabaseClient);
+
+    const schemaSpy = vi.fn();
+    const userClient = buildUserClientWithLegacyTables(triggerMessage, { schemaSpy });
+    const runModel = vi.fn();
+
+    await maybeScheduleHiveAssistantReply(
+      {
+        hiveId: HIVE_ID,
+        triggerMessage,
+        authorRole: "owner",
+        correlationId: CORRELATION_ID,
+        userClient,
+      },
+      runModel,
+    );
+
+    expect(runModel).not.toHaveBeenCalled();
+    expect(schemaSpy).not.toHaveBeenCalled();
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.skipped",
+        errorCode: "not_synthetic",
       }),
     );
   });

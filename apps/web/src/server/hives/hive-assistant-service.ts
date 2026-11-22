@@ -6,6 +6,7 @@ import {
   canonicalStudyDocumentRoleLabel,
   buildUnexpectedExceptionDiagnostics,
   HIVE_MESSAGE_PAGE_SIZE,
+  mapLegacyAssistantFactRefs,
   normalizeGetStudyTabViewResponse,
   normalizeHiveMessagePage,
   normalizeListRequestsResponse,
@@ -13,6 +14,7 @@ import {
   validateAssistantReply,
   type AssistantBriefingAskerRole,
   type HiveMessage,
+  type LegacyAssistantEvidence,
 } from "@hiveforyou/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -28,6 +30,7 @@ import {
   type AssistantSkipReason,
 } from "./hive-assistant-trigger";
 import { loadHiveOverview } from "./hive-summary";
+import { loadAcceptedLegacyAssistantEvidence } from "./load-legacy-assistant-evidence";
 
 type RunInput = {
   hiveId: string;
@@ -142,6 +145,16 @@ function logAssistantPackUnavailable(input: RunInput, runId: string, cause: unkn
     errorCode: "pack_unavailable",
     diagnosticField: `pack_unavailable:${name}`,
     errorDetail,
+  });
+}
+
+function logAssistantLegacyEvidenceUnavailable(input: RunInput, runId: string, reason: string): void {
+  emitStructuredEvent({
+    ...assistantLogBase(input, runId),
+    eventName: "hive.assistant.legacy_evidence_unavailable",
+    severity: "INFO",
+    status: "OK",
+    errorCode: reason,
   });
 }
 
@@ -381,6 +394,30 @@ export async function maybeScheduleHiveAssistantReply(
     }
   }
 
+  const isCanonicalStudy =
+    overview.canonicalStudy != null || preparation.studyRevision?.format === "canonical-study-1";
+  let legacyEvidence: LegacyAssistantEvidence | null = null;
+  if (!isCanonicalStudy && preparation.studyRevision != null) {
+    try {
+      const loaded = await loadAcceptedLegacyAssistantEvidence(userClient, {
+        hiveId: input.hiveId,
+        expectedRevision: preparation.studyRevision,
+        activeEligibleDocuments: preparation.eligibility.documents.map((doc) => ({
+          sourceDocumentId: doc.sourceDocumentId,
+          totalPhysicalPages: doc.totalPhysicalPages,
+        })),
+      });
+      if (loaded.ok) {
+        legacyEvidence = loaded.evidence;
+      } else {
+        logAssistantLegacyEvidenceUnavailable(input, runId, loaded.reason);
+      }
+    } catch {
+      legacyEvidence = null;
+      logAssistantLegacyEvidenceUnavailable(input, runId, "load_failed");
+    }
+  }
+
   let briefing: ReturnType<typeof buildAssistantBriefing>;
   try {
     briefing = buildAssistantBriefing({
@@ -402,13 +439,14 @@ export async function maybeScheduleHiveAssistantReply(
         revisionNumber: preparation.studyRevision?.revisionNumber ?? null,
         canonical: overview.canonicalStudy,
         sources: overview.studyTab?.sources ?? null,
+        legacyFacts: legacyEvidence?.briefingFacts ?? null,
       },
       documents: preparation.eligibility.documents.map((doc, index) => ({
         label: overview.canonicalStudy
           ? canonicalStudyDocumentRoleLabel(overview.canonicalStudy, doc.sourceDocumentId, {
               sources: overview.studyTab?.sources ?? null,
             })
-          : `Document ${index + 1}`,
+          : legacyEvidence?.documentLabels[doc.sourceDocumentId.toLowerCase()] ?? `Document ${index + 1}`,
         pages: doc.totalPhysicalPages ?? null,
         readState: doc.readStatus,
         unreadablePages: [],
@@ -455,16 +493,22 @@ export async function maybeScheduleHiveAssistantReply(
       {
         revisionId,
         mapFact: (fact) => {
-          const sources = overview.studyTab?.sources;
-          const ref = sources?.facts[fact.id];
-          if (!ref) return null;
-          return {
-            sourceDocumentId: ref.sourceDocumentId,
-            pageNumber: ref.pageNumber,
-            shortLabel: fact.sourceLabel,
-            factId: fact.id,
-            studyRevisionId: revisionId,
-          };
+          if (overview.canonicalStudy) {
+            const sources = overview.studyTab?.sources;
+            const ref = sources?.facts[fact.id];
+            if (!ref) return null;
+            return {
+              sourceDocumentId: ref.sourceDocumentId,
+              pageNumber: ref.pageNumber,
+              shortLabel: fact.sourceLabel,
+              factId: fact.id,
+              studyRevisionId: revisionId,
+            };
+          }
+          if (legacyEvidence) {
+            return mapLegacyAssistantFactRefs(legacyEvidence, fact.id, revisionId);
+          }
+          return null;
         },
       },
       replyFallback,

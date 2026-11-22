@@ -225,12 +225,79 @@ export function sanitizeTeamMentionsInReply(reply: string, fallback: AssistantRe
     .trim();
 }
 
+export type AssistantFactMapper = (
+  fact: AssistantBriefingFact,
+) => Omit<AssistantSourceRef, "itemKey"> | readonly Omit<AssistantSourceRef, "itemKey">[] | null;
+
+function stripRejectedClaimText(reply: string, claimText: string): string {
+  if (claimText === "" || !reply.includes(claimText)) return reply;
+  const cleaned = reply
+    .split(claimText)
+    .join("")
+    .replace(/([.!?])\s*[.,;!?]+/g, "$1")
+    .replace(/(^|\n)\s*[.,;!?]+\s*/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return /^[.,;!?]+$/.test(cleaned) ? "" : cleaned;
+}
+
+function appendMappedRefs(
+  fact: AssistantBriefingFact,
+  mapped: ReturnType<AssistantFactMapper>,
+  revisionId: string,
+  usedFactIds: Set<string>,
+  sourceRefs: AssistantSourceRef[],
+): boolean {
+  const normalizedRevisionId = typeof revisionId === "string" ? revisionId.trim().toLowerCase() : "";
+  if (!isValidUuid(normalizedRevisionId)) return false;
+  if (!mapped) return false;
+  const list = Array.isArray(mapped) ? mapped : [mapped];
+  let added = false;
+  for (const ref of list) {
+    if (!ref || typeof ref !== "object" || Array.isArray(ref)) continue;
+    const docId = typeof ref.sourceDocumentId === "string" ? ref.sourceDocumentId.trim().toLowerCase() : "";
+    const shortLabel = typeof ref.shortLabel === "string" ? ref.shortLabel.trim() : "";
+    const refFactId = typeof ref.factId === "string" ? ref.factId.trim() : "";
+    const refRevisionId = typeof ref.studyRevisionId === "string" ? ref.studyRevisionId.trim().toLowerCase() : "";
+    if (
+      !isValidUuid(docId) ||
+      typeof ref.pageNumber !== "number" ||
+      !Number.isInteger(ref.pageNumber) ||
+      ref.pageNumber < 1 ||
+      shortLabel === "" ||
+      refFactId !== fact.id ||
+      refRevisionId !== normalizedRevisionId
+    ) {
+      continue;
+    }
+    const alreadyPresent = sourceRefs.some(
+      (existing) =>
+        existing.sourceDocumentId === docId &&
+        existing.pageNumber === ref.pageNumber &&
+        existing.factId === fact.id &&
+        existing.studyRevisionId === normalizedRevisionId,
+    );
+    if (!alreadyPresent) {
+      sourceRefs.push({
+        sourceDocumentId: docId,
+        pageNumber: ref.pageNumber,
+        shortLabel,
+        factId: fact.id,
+        studyRevisionId: normalizedRevisionId,
+      });
+    }
+    added = true;
+  }
+  if (added) usedFactIds.add(fact.id);
+  return added;
+}
+
 function enforceReplyFactCitations(
   reply: string,
   facts: readonly AssistantBriefingFact[],
   usedFactIds: Set<string>,
   sourceRefs: AssistantSourceRef[],
-  mapFact: (fact: AssistantBriefingFact) => Omit<AssistantSourceRef, "itemKey"> | null,
+  mapFact: AssistantFactMapper,
   revisionId: string,
 ): { reply: string; keptFactual: boolean } {
   const kept: string[] = [];
@@ -239,16 +306,23 @@ function enforceReplyFactCitations(
     const needsCitation = sentenceNeedsCitation(segment, facts);
     const matches = needsCitation ? matchingFactsForSentence(segment, facts) : [];
     if (needsCitation && matches.length === 0) continue;
-    kept.push(segment);
     if (matches.length > 0) {
-      keptFactual = true;
-      for (const fact of matches) {
-        if (usedFactIds.has(fact.id)) continue;
-        const mapped = mapFact(fact);
-        if (!mapped) continue;
-        usedFactIds.add(fact.id);
-        sourceRefs.push({ ...mapped, factId: fact.id, studyRevisionId: revisionId });
+      if (matches.some((fact) => usedFactIds.has(fact.id))) {
+        kept.push(segment);
+        keptFactual = true;
+        continue;
       }
+      let resolved = false;
+      for (const fact of matches) {
+        if (appendMappedRefs(fact, mapFact(fact), revisionId, usedFactIds, sourceRefs)) {
+          resolved = true;
+        }
+      }
+      if (!resolved) continue;
+      kept.push(segment);
+      keptFactual = true;
+    } else {
+      kept.push(segment);
     }
   }
   const rebuilt = kept.join(" ").replace(/\s{2,}/g, " ").trim();
@@ -260,7 +334,7 @@ export function validateAssistantReply(
   briefing: AssistantBriefing,
   sourceRefsInput: {
     revisionId: string;
-    mapFact: (fact: AssistantBriefingFact) => Omit<AssistantSourceRef, "itemKey"> | null;
+    mapFact: AssistantFactMapper;
   },
   fallback: AssistantReplyFallbackInput,
 ): ValidatedAssistantReply {
@@ -298,20 +372,25 @@ export function validateAssistantReply(
       ? claim.factIds.filter((id): id is string => typeof id === "string" && facts.has(id))
       : [];
     if (text === "" || ids.length === 0) {
-      if (text !== "" && reply.includes(text)) {
-        reply = reply.replace(text, "").replace(/\s{2,}/g, " ").trim();
+      reply = stripRejectedClaimText(reply, text);
+      continue;
+    }
+    let claimResolved = false;
+    for (const id of ids) {
+      if (usedFactIds.has(id)) {
+        claimResolved = true;
+        continue;
       }
+      const fact = facts.get(id)!;
+      if (appendMappedRefs(fact, sourceRefsInput.mapFact(fact), sourceRefsInput.revisionId, usedFactIds, sourceRefs)) {
+        claimResolved = true;
+      }
+    }
+    if (!claimResolved) {
+      reply = stripRejectedClaimText(reply, text);
       continue;
     }
     keptClaims.push(text);
-    for (const id of ids) {
-      if (usedFactIds.has(id)) continue;
-      const fact = facts.get(id)!;
-      const mapped = sourceRefsInput.mapFact(fact);
-      if (!mapped) continue;
-      usedFactIds.add(id);
-      sourceRefs.push({ ...mapped, factId: id, studyRevisionId: sourceRefsInput.revisionId });
-    }
   }
 
   let itemKey: string | null = typeof record.itemKey === "string" ? record.itemKey.trim() : null;
@@ -328,15 +407,15 @@ export function validateAssistantReply(
   reply = enforced.reply;
   reply = sanitizeTeamMentionsInReply(reply, fallback);
 
-  const hasDocumentSupport = sourceRefs.length > 0 || enforced.keptFactual || keptClaims.length > 0;
-
-  if (intent === "answer" && !hasDocumentSupport && !reply) {
-    intent = "route_to_team";
-    reply = assistantAnswerNotFoundFallback(fallback);
-  }
+  const hasDocumentSupport =
+    sourceRefs.length > 0 && (enforced.keptFactual || keptClaims.length > 0) && reply !== "";
 
   if (intent === "answer" && !hasDocumentSupport) {
-    if (VERDICT_QUESTION_PATTERN.test(briefing.question)) {
+    sourceRefs.length = 0;
+    if (!reply) {
+      intent = "route_to_team";
+      reply = assistantAnswerNotFoundFallback(fallback);
+    } else if (VERDICT_QUESTION_PATTERN.test(briefing.question)) {
       intent = "route_to_team";
       reply = assistantRouteFallback(fallback);
     } else {
