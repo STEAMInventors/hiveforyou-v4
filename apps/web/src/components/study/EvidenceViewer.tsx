@@ -157,7 +157,7 @@ type EvidenceViewerProviderProps = {
 };
 
 function chipMapKey(sourceDocumentId: string, pageNumber: number): string {
-  return `${sourceDocumentId}:${pageNumber}`;
+  return `${sourceDocumentId.toLowerCase()}:${pageNumber}`;
 }
 
 function backTabLabel(pathname: string, hiveId: string): string {
@@ -180,7 +180,8 @@ function chipFromUrl(
   }
   const match = Object.entries(sources.facts).find(
     ([, ref]) =>
-      ref.sourceDocumentId === parsed.sourceDocumentId && ref.pageNumber === parsed.pageNumber,
+      ref.sourceDocumentId.toLowerCase() === parsed.sourceDocumentId.toLowerCase() &&
+      ref.pageNumber === parsed.pageNumber,
   );
   if (!match) {
     return { sourceDocumentId: parsed.sourceDocumentId, pageNumber: parsed.pageNumber };

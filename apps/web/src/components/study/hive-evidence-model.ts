@@ -30,6 +30,19 @@ export function buildHiveEvidenceViewerModel(input: {
       if (!typeByDoc.get(key)) typeByDoc.set(key, document.typeInPlainWords.trim() || null);
     }
   }
+  if (input.sources?.documents) {
+    for (const [id, entry] of Object.entries(input.sources.documents)) {
+      const fromSource = entry.typeInPlainWords?.trim() || entry.fileName?.trim() || null;
+      const key = id.toLowerCase();
+      if (!typeByDoc.get(key) && fromSource) typeByDoc.set(key, fromSource);
+    }
+  }
+  if (input.sources?.facts) {
+    for (const ref of Object.values(input.sources.facts)) {
+      const key = ref.sourceDocumentId.toLowerCase();
+      if (!typeByDoc.has(key)) typeByDoc.set(key, null);
+    }
+  }
   const labelled = [...typeByDoc.entries()].map(([sourceDocumentId, typeInPlainWords]) => ({
     sourceDocumentId,
     typeInPlainWords,

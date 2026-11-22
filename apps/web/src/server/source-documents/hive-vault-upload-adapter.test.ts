@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
   completeHiveSourceDocumentUpload,
   createIntentRequestForOwnedHive,
+  createLiveHiveVaultUploadAdapterDeps,
   getUploadQuotaWithV3Vault,
   InMemoryClientRequestRegistry,
   listHiveSourceDocumentsWithV3Vault,
@@ -23,6 +24,7 @@ import {
   type HashScanner,
   type HiveVaultUploadAdapterDeps,
 } from "./hive-vault-upload-adapter";
+import { VaultAdminConfigError } from "./v3-vault/persistence/vault-admin-config-error";
 
 const USER_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -438,6 +440,27 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
       { ownerUserId: USER_A, hiveId: HIVE_A, correlationId: CORR_ID },
     );
     expect(listed.sourceDocuments).toEqual([]);
+  });
+
+  it("defers vault admin env until a signed read is requested", () => {
+    const priorUrl = process.env.SUPABASE_URL;
+    const priorSecret = process.env.SUPABASE_SECRET_KEY;
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SECRET_KEY;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    try {
+      const deps = createLiveHiveVaultUploadAdapterDeps(
+        { rpc: async () => ({ data: null, error: null }) },
+        CORR_ID,
+      );
+      expect(() => deps.vault).toThrow(VaultAdminConfigError);
+      expect(() => deps.store).toThrow(VaultAdminConfigError);
+    } finally {
+      if (priorUrl !== undefined) process.env.SUPABASE_URL = priorUrl;
+      else delete process.env.SUPABASE_URL;
+      if (priorSecret !== undefined) process.env.SUPABASE_SECRET_KEY = priorSecret;
+      else delete process.env.SUPABASE_SECRET_KEY;
+    }
   });
 
   it("opens a source page for the owner as a 60-second signed link to the original file at that page", async () => {

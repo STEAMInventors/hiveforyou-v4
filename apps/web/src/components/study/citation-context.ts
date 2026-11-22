@@ -16,7 +16,7 @@ export type SiblingPageTarget = {
 };
 
 function chipKey(sourceDocumentId: string, pageNumber: number): string {
-  return `${sourceDocumentId}:${pageNumber}`;
+  return `${sourceDocumentId.toLowerCase()}:${pageNumber}`;
 }
 
 function valueAsWrittenForFact(view: StudyView, factId: string): string | null {
