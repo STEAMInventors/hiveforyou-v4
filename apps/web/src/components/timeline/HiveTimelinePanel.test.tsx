@@ -227,6 +227,91 @@ describe("HiveTimelinePanel", () => {
     });
   });
 
+  it("opens the evidence viewer to the exact original PDF page for Maya v6 historical Pro timeline events", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes(`/source-documents/${DOC_A}/pages/4/text`)) {
+        return Response.json({
+          pageText: "Annual reading fluency goal set at 90 words per minute.",
+          mimeType: "application/pdf",
+          pageCount: 10,
+          extractionMethod: "pdf_native",
+          pageNumber: 4,
+        });
+      }
+      if (url.includes(`/source-documents/${DOC_A}/viewer-open`)) {
+        return Response.json({ signedUrl: "https://storage.example/signed-plan.pdf", mimeType: "application/pdf" });
+      }
+      return Response.json({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const mayaEightEvents = Array.from({ length: 8 }, (_, index) => ({
+      id: `AV-tl-maya-E${index + 1}`,
+      date: `2025-0${index + 1}-04`,
+      asWritten: `2025-0${index + 1}-04`,
+      statement: index === 0 ? "Annual reading fluency goal set at 90 words per minute" : `Maya event ${index + 1}`,
+      values: [
+        {
+          factId: `AV-T0-E${index}:r0`,
+          valueAsWritten: "Annual_Plan_2025.pdf",
+          sourceRef: { sourceDocumentId: DOC_A, pageNumber: index === 0 ? 4 : index + 1, quote: "" },
+        },
+      ],
+    }));
+
+    render(
+      <HiveTimelinePanel
+        hiveId={HIVE_ID}
+        staffDisplayName={null}
+        staffView={false}
+        viewerIsClient={false}
+        studyAvailability={{ kind: "older", revisionNumber: 6 }}
+        studyLoadError={null}
+        timeline={mayaEightEvents}
+        timelineReport={{
+          reportId: "44444444-4444-4444-8444-444444444444",
+          studyRevisionId: "66666666-6666-4666-8666-666666666666",
+          revisionNumber: 6,
+          audience: "PRO",
+          title: "Maya Advocate Brief",
+          createdAt: "2026-11-01T18:00:00.000Z",
+          fromHistory: true,
+        }}
+        view={null}
+        sources={null}
+        canonicalStudy={null}
+        documentPages={{ [DOC_A]: 10 }}
+        workspaceDocuments={[{ sourceDocumentId: DOC_A, fileName: "Annual_Plan_2025.pdf" }]}
+      />,
+    );
+
+    expect(screen.getByTestId("findings-timeline-list").children.length).toBe(8);
+    const notice = screen.getByTestId("timeline-legacy-notice");
+    expect(notice.getAttribute("data-historical")).toBe("true");
+    expect(notice.getAttribute("data-report-id")).toBe("44444444-4444-4444-8444-444444444444");
+    expect(notice.textContent).toContain("earlier saved Study v6 Pro report");
+    expect(notice.textContent).toContain("Maya Advocate Brief");
+    expect(notice.textContent).toContain("Nov 1, 2026");
+
+    const refs = screen.getAllByTestId("source-ref");
+    expect(refs).toHaveLength(8);
+    fireEvent.click(refs[0]!);
+
+    await waitFor(() => {
+      expect(routerPush).toHaveBeenCalled();
+    });
+    const pushedUrl = decodeURIComponent(String(routerPush.mock.calls[0]?.[0]));
+    expect(pushedUrl).toContain(`${DOC_A}:4`);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("evidence-viewer")).toBeTruthy();
+    });
+    const calledUrls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(calledUrls.some((url) => url.includes(`/source-documents/${DOC_A}/pages/4/text`))).toBe(true);
+    expect(calledUrls.some((url) => url.includes(`/source-documents/${DOC_A}/viewer-open`))).toBe(true);
+  });
+
   it("surfaces study load errors", () => {
     render(
       <HiveTimelinePanel

@@ -94,6 +94,9 @@ vi.mock("@/server/hives/hive-summary", () => ({
     sources: overview.studyTab?.sources ?? null,
   }),
   documentPageCounts: vi.fn(() => ({})),
+  hiveWorkspaceDocuments: vi.fn(() => []),
+  authorizedSourceDocumentIds: vi.fn(() => []),
+  loadWorkspaceTimeline: vi.fn(async () => ({ rows: [], source: "none", report: null })),
 }));
 
 vi.mock("@/server/hives/load-study-revision-history", () => ({

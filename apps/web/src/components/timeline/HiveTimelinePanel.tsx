@@ -6,6 +6,7 @@ import type {
   StudyView,
   StudyViewRow,
   StudyViewSources,
+  TimelineReportAttribution,
 } from "@hiveforyou/contracts";
 
 import type { HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
@@ -38,6 +39,7 @@ export type HiveTimelinePanelProps = {
   studyAvailability: StudyAvailability | null;
   studyLoadError: StudyLoadError | null;
   timeline: readonly StudyViewRow[];
+  timelineReport?: TimelineReportAttribution | null;
   view: StudyView | null;
   sources: StudyViewSources | null;
   canonicalStudy: CanonicalStudy | null;
@@ -54,6 +56,7 @@ function HiveTimelineBody({
   studyAvailability,
   studyLoadError,
   timeline,
+  timelineReport,
   initialPreparation,
 }: Pick<
   HiveTimelinePanelProps,
@@ -64,6 +67,7 @@ function HiveTimelineBody({
   | "studyAvailability"
   | "studyLoadError"
   | "timeline"
+  | "timelineReport"
   | "initialPreparation"
 >) {
   const olderStudy = studyAvailability?.kind === "older";
@@ -107,8 +111,13 @@ function HiveTimelineBody({
     if (timeline.length > 0) {
       return (
         <div data-testid="timeline-legacy-events">
-          <p className="m-0 mb-4 text-meta text-ink-3" data-testid="timeline-legacy-notice">
-            {legacySavedReportTimelineNotice(revisionNumber)}
+          <p
+            className="m-0 mb-4 text-meta text-ink-3"
+            data-testid="timeline-legacy-notice"
+            data-report-id={timelineReport?.reportId}
+            data-historical={timelineReport?.fromHistory ? "true" : undefined}
+          >
+            {legacySavedReportTimelineNotice(revisionNumber, timelineReport)}
           </p>
           {staffRebuild}
           {!staffView && !viewerIsClient && idleLine ? (
@@ -184,6 +193,7 @@ export function HiveTimelinePanel(props: HiveTimelinePanelProps) {
         studyAvailability={props.studyAvailability}
         studyLoadError={props.studyLoadError}
         timeline={props.timeline}
+        timelineReport={props.timelineReport}
         initialPreparation={props.initialPreparation}
       />
     </div>
@@ -196,6 +206,7 @@ export function HiveTimelinePanel(props: HiveTimelinePanelProps) {
         <EvidenceViewerProvider
           hiveId={props.hiveId}
           labels={evidence.labels}
+          chipLabels={evidence.chipLabels}
           pageCountFor={evidence.pageCountFor}
           citationContexts={evidence.citationContexts}
         >

@@ -1,14 +1,12 @@
-import { resolveWorkspaceTimelineRows } from "@hiveforyou/contracts";
-
 import { HiveTimelinePanel } from "@/components/timeline/HiveTimelinePanel";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { studyAvailability } from "@/lib/hives/study-availability";
 import { requestCorrelationId } from "@/server/auth/action-support";
 import {
-  authorizedSourceDocumentIds,
   documentPageCounts,
   hiveWorkspaceDocuments,
   loadHiveOverview,
+  loadWorkspaceTimeline,
   workspaceStudyView,
 } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
@@ -33,10 +31,10 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
     hasCanonicalView: overview.studyTab?.view != null,
     studyLoadError: overview.studyLoadError,
   });
-  const timeline = resolveWorkspaceTimelineRows({
-    studyView: view,
-    reports: overview.reports?.latest ?? null,
-    authorizedSourceDocumentIds: authorizedSourceDocumentIds(overview.preparation),
+  const resolvedTimeline = await loadWorkspaceTimeline(auth.client, {
+    hiveId: hive.id,
+    overview,
+    correlationId,
   });
 
   return (
@@ -47,7 +45,8 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
       viewerIsClient={hive.membershipRole === "client"}
       studyAvailability={availability}
       studyLoadError={overview.studyLoadError}
-      timeline={timeline}
+      timeline={resolvedTimeline.rows}
+      timelineReport={resolvedTimeline.report}
       view={view}
       sources={sources}
       canonicalStudy={overview.canonicalStudy}

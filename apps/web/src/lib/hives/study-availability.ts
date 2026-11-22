@@ -1,4 +1,4 @@
-﻿import type { StudyRevisionFormat } from "@hiveforyou/contracts";
+﻿import type { StudyRevisionFormat, TimelineReportAttribution } from "@hiveforyou/contracts";
 
 import type { StudyLoadError } from "@/server/hives/hive-summary";
 
@@ -25,9 +25,42 @@ export function studyAvailability(input: {
 export const OLDER_STUDY_NOTICE =
   "This hive was read with an earlier version of HiveForYou. Rebuild the study to see what the documents show and what is still missing.";
 
+const REPORT_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+function formatReportSavedDate(createdAt: string): string | null {
+  const ms = Date.parse(createdAt);
+  if (!Number.isFinite(ms)) return null;
+  return REPORT_DATE_FORMAT.format(new Date(ms));
+}
+
+function reportAudienceLabel(audience: TimelineReportAttribution["audience"]): string {
+  return audience === "PRO" ? "Pro" : "Customer";
+}
+
 /** Shown above timeline rows pinned to a saved report on a non-canonical revision. */
-export function legacySavedReportTimelineNotice(revisionNumber: number): string {
-  return `These dates are from your saved Study v${revisionNumber} report. They are not from the current canonical study view.`;
+export function legacySavedReportTimelineNotice(
+  revisionNumber: number,
+  report?: TimelineReportAttribution | null,
+): string {
+  if (!report) {
+    return `These dates are from your saved Study v${revisionNumber} report. They are not from the current canonical study view.`;
+  }
+  const audience = reportAudienceLabel(report.audience);
+  const title = report.title.trim();
+  const savedDate = formatReportSavedDate(report.createdAt);
+  const details: string[] = [];
+  if (title) details.push(`“${title}”`);
+  if (savedDate) details.push(`saved ${savedDate}`);
+  const detailSuffix = details.length > 0 ? ` (${details.join(", ")})` : "";
+  if (report.fromHistory) {
+    return `Showing dates from an earlier saved Study v${report.revisionNumber} ${audience} report${detailSuffix} because the latest reports for this revision do not include a timeline. They are not from the current canonical study view.`;
+  }
+  return `These dates are from your saved Study v${report.revisionNumber} ${audience} report${detailSuffix}. They are not from the current canonical study view.`;
 }
 
 export function legacySavedReportTimelineEmpty(revisionNumber: number): string {

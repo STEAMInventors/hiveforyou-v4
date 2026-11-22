@@ -35,6 +35,38 @@ describe("legacy timeline copy", () => {
     expect(legacySavedReportTimelineEmpty(6)).toContain("Study v6");
   });
 
+  it("identifies an earlier historical report with audience, title, and saved date", () => {
+    const notice = legacySavedReportTimelineNotice(6, {
+      reportId: "11111111-1111-4111-8111-111111111111",
+      studyRevisionId: "66666666-6666-4666-8666-666666666666",
+      revisionNumber: 6,
+      audience: "PRO",
+      title: "Maya Advocate Brief",
+      createdAt: "2026-11-02T14:30:00.000Z",
+      fromHistory: true,
+    });
+    expect(notice).toContain("earlier saved Study v6 Pro report");
+    expect(notice).toContain("Maya Advocate Brief");
+    expect(notice).toContain("Nov 2, 2026");
+    expect(notice).toContain("canonical study");
+  });
+
+  it("identifies a latest saved Pro report when not loaded from history", () => {
+    const notice = legacySavedReportTimelineNotice(6, {
+      reportId: "22222222-2222-4222-8222-222222222222",
+      studyRevisionId: "66666666-6666-4666-8666-666666666666",
+      revisionNumber: 6,
+      audience: "PRO",
+      title: "Maya Pro Brief",
+      createdAt: "2026-11-03T00:00:00.000Z",
+      fromHistory: false,
+    });
+    expect(notice).toContain("saved Study v6 Pro report");
+    expect(notice).not.toContain("earlier saved");
+    expect(notice).toContain("Maya Pro Brief");
+    expect(notice).toContain("Nov 3, 2026");
+  });
+
   it("does not mention a team on a personal owner hive", () => {
     const line = timelineOlderStudyIdleLine({
       staffView: false,
