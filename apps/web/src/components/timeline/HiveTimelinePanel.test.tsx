@@ -1,21 +1,32 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MEDICAID_FINDINGS } from "@/dev/gallery/fixtures/findings-gallery";
 
 import { HiveTimelinePanel } from "./HiveTimelinePanel";
 
+const routerPush = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: routerPush, replace: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/hives/11111111-1111-4111-8111-111111111111/timeline",
   useSearchParams: () => new URLSearchParams(),
 }));
 
+vi.mock("react-pdf", () => ({
+  pdfjs: { GlobalWorkerOptions: { workerSrc: "" }, version: "5.0.0" },
+  Document: ({ children }: { children?: unknown }) => <div data-testid="pdf-doc">{children}</div>,
+  Page: () => null,
+}));
+
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
+const DOC_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 afterEach(() => {
   cleanup();
+  routerPush.mockClear();
+  vi.unstubAllGlobals();
 });
 
 describe("HiveTimelinePanel", () => {
@@ -152,6 +163,68 @@ describe("HiveTimelinePanel", () => {
 
     expect(screen.getByTestId("timeline-no-study").textContent).toContain("Your study builds once documents are read");
     expect(screen.getByRole("link", { name: /Go to Documents/ }).getAttribute("href")).toBe(`/hives/${HIVE_ID}/documents`);
+  });
+
+  it("opens the evidence viewer when a legacy projected timeline source ref is clicked", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/pages/3/text")) {
+          return Response.json({
+            pageText: "Goal set on this page.",
+            mimeType: "application/pdf",
+            pageCount: 5,
+            extractionMethod: "pdf_native",
+            pageNumber: 3,
+          });
+        }
+        if (url.includes("/viewer-open")) {
+          return Response.json({ signedUrl: "https://storage.example/signed", mimeType: "application/pdf" });
+        }
+        return Response.json({});
+      }),
+    );
+    const timeline = [
+      {
+        id: "AV-tl-E1",
+        date: "2025-03-04",
+        statement: "Goal set",
+        values: [
+          {
+            factId: "AV-T0-E0:r0",
+            valueAsWritten: "Anchor plan.pdf",
+            sourceRef: { sourceDocumentId: DOC_A, pageNumber: 3, quote: "" },
+          },
+        ],
+      },
+    ];
+    render(
+      <HiveTimelinePanel
+        hiveId={HIVE_ID}
+        staffDisplayName="Priya"
+        staffView
+        viewerIsClient={false}
+        studyAvailability={{ kind: "older", revisionNumber: 6 }}
+        studyLoadError={null}
+        timeline={timeline}
+        view={null}
+        sources={null}
+        canonicalStudy={null}
+        documentPages={{ [DOC_A]: 5 }}
+        workspaceDocuments={[{ sourceDocumentId: DOC_A, fileName: "Anchor plan.pdf" }]}
+      />,
+    );
+    const ref = screen.getByTestId("source-ref");
+    expect(ref.tagName).toBe("BUTTON");
+    fireEvent.click(ref);
+    await waitFor(() => {
+      expect(routerPush).toHaveBeenCalled();
+    });
+    expect(String(routerPush.mock.calls[0]?.[0])).toMatch(/evidenceSource=|source=/);
+    await waitFor(() => {
+      expect(screen.getByTestId("evidence-viewer")).toBeTruthy();
+    });
   });
 
   it("surfaces study load errors", () => {

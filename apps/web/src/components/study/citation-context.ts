@@ -1,4 +1,4 @@
-import type { StudyView, StudyViewSources } from "@hiveforyou/contracts";
+import type { StudyView, StudyViewRow, StudyViewSources } from "@hiveforyou/contracts";
 
 export type CitationContext = {
   /** Sentence or row statement (or conflict row statement). */
@@ -145,5 +145,39 @@ export function buildCitationContextMap(
     }
   }
 
+  return map;
+}
+
+/** Citation context for legacy application-view timeline rows (no study-view facts). */
+export function buildProjectedTimelineCitationContextMap(
+  rows: readonly StudyViewRow[],
+): ReadonlyMap<string, readonly { context: CitationContext; siblings: readonly SiblingPageTarget[] }[]> {
+  const map = new Map<string, { context: CitationContext; siblings: SiblingPageTarget[] }[]>();
+  for (const row of rows) {
+    const line = row.statement?.trim() ?? "";
+    if (line === "") continue;
+    for (const value of row.values) {
+      const ref = value.sourceRef;
+      const key = chipKey(ref.sourceDocumentId, ref.pageNumber);
+      const siblings: SiblingPageTarget[] = [];
+      for (const other of row.values) {
+        if (other.sourceRef.sourceDocumentId !== ref.sourceDocumentId) continue;
+        if (other.sourceRef.pageNumber === ref.pageNumber) continue;
+        if (siblings.some((s) => s.pageNumber === other.sourceRef.pageNumber)) continue;
+        siblings.push({ pageNumber: other.sourceRef.pageNumber, label: `Page ${other.sourceRef.pageNumber}` });
+      }
+      const list = map.get(key) ?? [];
+      list.push({
+        context: {
+          supportingText: line,
+          valueAsWritten: value.valueAsWritten.trim() || null,
+          verifiedQuote: ref.quote,
+          factId: value.factId,
+        },
+        siblings,
+      });
+      map.set(key, list);
+    }
+  }
   return map;
 }

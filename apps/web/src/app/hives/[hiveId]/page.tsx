@@ -2,6 +2,7 @@ import {
   buildFindingsOpenItems,
   buildFindingsTopics,
   isValidUuid,
+  resolveWorkspaceTimelineRows,
 } from "@hiveforyou/contracts";
 import { notFound, redirect } from "next/navigation";
 
@@ -17,7 +18,14 @@ import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadHiveConversation } from "@/server/hives/hive-conversation";
-import { documentPageCounts, loadHiveOverview, workspaceStudyView, type HiveOverview } from "@/server/hives/hive-summary";
+import {
+  authorizedSourceDocumentIds,
+  documentPageCounts,
+  hiveWorkspaceDocuments,
+  loadHiveOverview,
+  workspaceStudyView,
+  type HiveOverview,
+} from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { loadPackById } from "@/server/pipeline/pack-loader";
 import { createLiveHiveVaultUploadAdapterDeps, listHiveSourceDocumentsWithV3Vault } from "@/server/source-documents/hive-vault-upload-adapter";
@@ -110,6 +118,8 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
     ? buildFindingsTopics({ view, canonicalStudy, pack, openItems }).topics
     : [];
   const revision = overview?.preparation.studyRevision ?? null;
+  const workspaceDocuments = overview ? hiveWorkspaceDocuments(overview.preparation) : undefined;
+  const timelineAuthorizedIds = overview ? authorizedSourceDocumentIds(overview.preparation) : undefined;
   const availability = overview
     ? studyAvailability({
         revision,
@@ -117,6 +127,13 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
         studyLoadError: overview.studyLoadError,
       })
     : null;
+  const timeline = overview
+    ? resolveWorkspaceTimelineRows({
+        studyView: view,
+        reports: overview.reports?.latest ?? null,
+        authorizedSourceDocumentIds: timelineAuthorizedIds,
+      })
+    : [];
   const content = overview
     ? buildHiveHomeContent({
         documentCount: overview.summary.documentCount,
@@ -189,6 +206,8 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
         coverageGaps={revision?.coverageGaps ?? []}
         topics={topics}
         documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
+        workspaceDocuments={workspaceDocuments}
+        timeline={timeline}
       />
     );
   }
@@ -206,7 +225,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       studyAvailability={availability}
       initialPreparation={overview?.preparation}
       conflicts={view?.blocks.find((block) => block.name === "conflicts")?.rows ?? []}
-      timeline={view?.blocks.find((block) => block.name === "timeline")?.rows ?? []}
+      timeline={timeline}
       view={view}
       sources={sources}
       canonicalStudy={canonicalStudy}
@@ -214,6 +233,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       openItems={openItems}
       topics={topics}
       documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
+      workspaceDocuments={workspaceDocuments}
       initialPeople={people}
       currentUserId={auth.userId}
       staffView={showsFirmThreePane(hive)}

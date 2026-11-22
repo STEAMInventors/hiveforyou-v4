@@ -21,6 +21,7 @@ export * from "./hives/assistant-briefing";
 export * from "./hives/assistant-reply";
 export * from "./hives/hive-assistant-trigger";
 export * from "./hives/findings-page-model";
+export * from "./hives/timeline-projection";
 export * from "./hives/audit-trail-model";
 export * from "./hives/documents-library-model";
 export * from "./source-documents/source-document-contracts";

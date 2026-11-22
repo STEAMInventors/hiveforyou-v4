@@ -7,6 +7,8 @@ import type {
   StudyViewRow,
   StudyViewSources,
 } from "@hiveforyou/contracts";
+
+import type { HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
 import Link from "next/link";
 import { useMemo } from "react";
 
@@ -40,6 +42,7 @@ export type HiveTimelinePanelProps = {
   sources: StudyViewSources | null;
   canonicalStudy: CanonicalStudy | null;
   documentPages?: Readonly<Record<string, number>>;
+  workspaceDocuments?: readonly HiveWorkspaceDocument[];
   initialPreparation?: GetStudyPreparationResponse;
 };
 
@@ -165,8 +168,10 @@ export function HiveTimelinePanel(props: HiveTimelinePanelProps) {
         sources: props.sources,
         canonicalStudy: props.canonicalStudy,
         documentPages: props.documentPages,
+        projectedTimeline: props.view ? undefined : props.timeline,
+        workspaceDocuments: props.workspaceDocuments,
       }),
-    [props.view, props.sources, props.canonicalStudy, props.documentPages],
+    [props.view, props.sources, props.canonicalStudy, props.documentPages, props.timeline, props.workspaceDocuments],
   );
 
   const body = (

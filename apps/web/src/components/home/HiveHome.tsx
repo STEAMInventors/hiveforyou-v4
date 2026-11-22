@@ -23,7 +23,7 @@ import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { FindingsCompareTable } from "@/components/findings/FindingsCompareTable";
 import { FindingsTimelineList } from "@/components/findings/FindingsTimelineList";
 import { EvidenceViewerProvider, useEvidenceViewer } from "@/components/study/EvidenceViewer";
-import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
+import { buildHiveEvidenceViewerModel, type HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
 import type { ChipRef } from "@/components/study/SourceChip";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
@@ -87,6 +87,7 @@ export type HiveHomeProps = {
   openItems: readonly FindingsOpenItem[];
   topics: readonly FindingsTopic[];
   documentPages?: Readonly<Record<string, number>>;
+  workspaceDocuments?: readonly HiveWorkspaceDocument[];
   initialPeople: ConversationLoad;
   currentUserId: string | null;
   staffView: boolean;
@@ -122,8 +123,18 @@ export function HiveHome(props: HiveHomeProps) {
         canonicalStudy: props.canonicalStudy,
         coverageGaps: props.coverageGaps,
         documentPages: props.documentPages,
+        projectedTimeline: props.view ? undefined : props.timeline,
+        workspaceDocuments: props.workspaceDocuments,
       }),
-    [props.view, props.sources, props.canonicalStudy, props.coverageGaps, props.documentPages],
+    [
+      props.view,
+      props.sources,
+      props.canonicalStudy,
+      props.coverageGaps,
+      props.documentPages,
+      props.timeline,
+      props.workspaceDocuments,
+    ],
   );
   const pageCountFor = (id: string) => props.documentPages?.[id] ?? props.documentPages?.[id.toLowerCase()];
   const body = <HiveHomeBody {...props} />;

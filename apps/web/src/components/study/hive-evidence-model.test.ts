@@ -75,6 +75,35 @@ describe("buildHiveEvidenceViewerModel", () => {
     expect(buildHiveEvidenceViewerModel({ view: null, sources: null, canonicalStudy: null })).toBeNull();
   });
 
+  it("builds a minimal evidence model for projected application-view timeline rows", () => {
+    const model = buildHiveEvidenceViewerModel({
+      view: null,
+      sources: null,
+      canonicalStudy: null,
+      projectedTimeline: [
+        {
+          id: "AV-tl-E1",
+          date: "2025-03-04",
+          statement: "Goal set",
+          values: [
+            {
+              factId: "AV-T0-E0:r0",
+              valueAsWritten: "Anchor plan.pdf",
+              sourceRef: { sourceDocumentId: DOC_A, pageNumber: 2, quote: "" },
+            },
+          ],
+        },
+      ],
+      workspaceDocuments: [{ sourceDocumentId: DOC_A, fileName: "Anchor plan.pdf" }],
+      documentPages: { [DOC_A]: 5 },
+    });
+    expect(model).not.toBeNull();
+    expect(model!.labels.get(DOC_A)).toMatch(/anchor plan/i);
+    expect(model!.pageCountFor(DOC_A)).toBe(5);
+    const key = `${DOC_A.toLowerCase()}:2`;
+    expect(model!.citationContexts.get(key)?.[0]?.context.supportingText).toBe("Goal set");
+  });
+
   it("includes fact-only document ids in label numbering", () => {
     const sources = buildStudyViewSources(
       {

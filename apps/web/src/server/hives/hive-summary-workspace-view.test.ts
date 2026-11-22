@@ -1,4 +1,5 @@
-import type { GetHiveReportsResponse, StudyView, StudyViewSources } from "@hiveforyou/contracts";
+import type { ApplicationView, GetHiveReportsResponse, StudyView, StudyViewSources } from "@hiveforyou/contracts";
+import { APPLICATION_VIEW_SCHEMA } from "@hiveforyou/contracts";
 import { describe, expect, it } from "vitest";
 
 import { latestStudyView, workspaceStudyView, type HiveOverview } from "./hive-summary";
@@ -40,6 +41,43 @@ describe("workspaceStudyView", () => {
 });
 
 describe("latestStudyView", () => {
+  it("ignores investigation-1 application-view reports (Maya v6 Timeline has no study-view fallback)", () => {
+    const appView: ApplicationView = {
+      schema: APPLICATION_VIEW_SCHEMA,
+      audience: "CUSTOMER",
+      layout: "PROPOSED",
+      components: [
+        {
+          component: "Timeline",
+          title: "Key dates",
+          events: [{ date: "March 4, 2025", text: "Goal set", refs: [] }],
+        },
+      ],
+    };
+    const reports = {
+      studyRevision: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", revisionNumber: 6, format: "investigation-1" },
+      reportRuns: [],
+      latest: [
+        {
+          id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          reportRunId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          studyRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          revisionNumber: 6,
+          audience: "CUSTOMER",
+          title: "Maya review",
+          createdAt: "2026-11-02T00:00:00.000Z",
+          view: appView,
+          scenarioAnalysis: { schema: "hive.scenario-analysis/1", scenarios: [] },
+          modelAlias: null,
+        },
+      ],
+      history: [],
+    } as unknown as GetHiveReportsResponse;
+    expect(latestStudyView(reports)).toBeNull();
+    const overview = { studyTab: null, studyView: null } as unknown as HiveOverview;
+    expect(workspaceStudyView(overview).view).toBeNull();
+  });
+
   it("uses latest per-audience reports from get_hive_reports (current revision only on server)", () => {
     const reports = {
       studyRevision: { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", revisionNumber: 6, format: "canonical-study-1" },

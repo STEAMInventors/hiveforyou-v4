@@ -1,8 +1,16 @@
+import { resolveWorkspaceTimelineRows } from "@hiveforyou/contracts";
+
 import { HiveTimelinePanel } from "@/components/timeline/HiveTimelinePanel";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { studyAvailability } from "@/lib/hives/study-availability";
 import { requestCorrelationId } from "@/server/auth/action-support";
-import { documentPageCounts, loadHiveOverview, workspaceStudyView } from "@/server/hives/hive-summary";
+import {
+  authorizedSourceDocumentIds,
+  documentPageCounts,
+  hiveWorkspaceDocuments,
+  loadHiveOverview,
+  workspaceStudyView,
+} from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
@@ -25,7 +33,11 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
     hasCanonicalView: overview.studyTab?.view != null,
     studyLoadError: overview.studyLoadError,
   });
-  const timeline = view?.blocks.find((block) => block.name === "timeline")?.rows ?? [];
+  const timeline = resolveWorkspaceTimelineRows({
+    studyView: view,
+    reports: overview.reports?.latest ?? null,
+    authorizedSourceDocumentIds: authorizedSourceDocumentIds(overview.preparation),
+  });
 
   return (
     <HiveTimelinePanel
@@ -40,6 +52,7 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
       sources={sources}
       canonicalStudy={overview.canonicalStudy}
       documentPages={documentPageCounts(overview.preparation)}
+      workspaceDocuments={hiveWorkspaceDocuments(overview.preparation)}
       initialPreparation={overview.preparation}
     />
   );

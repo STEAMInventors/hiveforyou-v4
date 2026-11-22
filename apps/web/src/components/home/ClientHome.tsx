@@ -9,6 +9,7 @@ import type {
   HiveBoardChecklistItem,
   SourceDocument,
   StudyView,
+  StudyViewRow,
   StudyViewSources,
 } from "@hiveforyou/contracts";
 import Link from "next/link";
@@ -17,7 +18,7 @@ import { useMemo, useState } from "react";
 import { HiveConversation } from "@/components/hives/HiveConversation";
 import { ChecklistGapAddButton } from "@/components/hives/ChecklistGapAddButton";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
-import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
+import { buildHiveEvidenceViewerModel, type HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { Avatar } from "@/components/ui/AvatarStack";
 import { LockIcon } from "@/components/ui/LockIcon";
@@ -68,6 +69,8 @@ export type ClientHomeProps = {
   coverageGaps: readonly CoverageGap[];
   topics: readonly FindingsTopic[];
   documentPages?: Readonly<Record<string, number>>;
+  workspaceDocuments?: readonly HiveWorkspaceDocument[];
+  timeline?: readonly StudyViewRow[];
 };
 
 function ClientHomeBody(props: ClientHomeProps) {
@@ -303,8 +306,18 @@ export function ClientHome(props: ClientHomeProps) {
         canonicalStudy: props.canonicalStudy,
         coverageGaps: props.coverageGaps,
         documentPages: props.documentPages,
+        projectedTimeline: props.view ? undefined : props.timeline,
+        workspaceDocuments: props.workspaceDocuments,
       }),
-    [props.view, props.sources, props.canonicalStudy, props.coverageGaps, props.documentPages],
+    [
+      props.view,
+      props.sources,
+      props.canonicalStudy,
+      props.coverageGaps,
+      props.documentPages,
+      props.timeline,
+      props.workspaceDocuments,
+    ],
   );
   const pageCountFor = (id: string) => props.documentPages?.[id] ?? props.documentPages?.[id.toLowerCase()];
   const body = <ClientHomeBody {...props} />;

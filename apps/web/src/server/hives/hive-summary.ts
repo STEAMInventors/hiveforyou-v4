@@ -165,6 +165,25 @@ export function documentPageCounts(preparation: GetStudyPreparationResponse): Re
   );
 }
 
+/** Document labels for evidence chips when only a saved application-view is available. */
+export function hiveWorkspaceDocuments(
+  preparation: GetStudyPreparationResponse,
+): { sourceDocumentId: string; fileName: string }[] {
+  return preparation.eligibility.documents.map((document) => ({
+    sourceDocumentId: document.sourceDocumentId,
+    fileName: document.fileName,
+  }));
+}
+
+/** Source document IDs authorized on the current study revision snapshot (for timeline ref resolution). */
+export function authorizedSourceDocumentIds(preparation: GetStudyPreparationResponse): string[] {
+  const fromEligibility = preparation.eligibility.documents.map((document) => document.sourceDocumentId);
+  const fromRun = preparation.processingRun?.authorizedSourceDocumentIds ?? [];
+  if (fromRun.length === 0) return fromEligibility;
+  const allowed = new Set(fromRun.map((id) => id.toLowerCase()));
+  return fromEligibility.filter((id) => allowed.has(id.toLowerCase()));
+}
+
 export function hiveIntakeCounts(
   preparation: GetStudyPreparationResponse,
   studyTab: HiveOverview["studyTab"],
