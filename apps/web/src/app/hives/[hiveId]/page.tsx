@@ -17,7 +17,7 @@ import { requestCorrelationId } from "@/server/auth/action-support";
 import { loadFirm } from "@/server/firm/load-firm";
 import { loadHiveBoard } from "@/server/hives/hive-board-loader";
 import { loadHiveConversation } from "@/server/hives/hive-conversation";
-import { documentPageCounts, loadHiveOverview, type HiveOverview } from "@/server/hives/hive-summary";
+import { documentPageCounts, loadHiveOverview, workspaceStudyView, type HiveOverview } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { loadPackById } from "@/server/pipeline/pack-loader";
 import { createLiveHiveVaultUploadAdapterDeps, listHiveSourceDocumentsWithV3Vault } from "@/server/source-documents/hive-vault-upload-adapter";
@@ -97,8 +97,9 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       ? (firmRow.data as { assistant_name: string }).assistant_name.trim() || "HiveForYou"
       : "HiveForYou";
 
-  const view = overview?.studyTab?.view ?? null;
-  const sources = overview?.studyTab?.sources ?? null;
+  const workspaceView = overview ? workspaceStudyView(overview) : { view: null, sources: null };
+  const view = workspaceView.view;
+  const sources = workspaceView.sources;
   const canonicalStudy = overview?.canonicalStudy ?? null;
   const pack =
     canonicalStudy?.packRef != null

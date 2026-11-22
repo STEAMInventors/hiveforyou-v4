@@ -30,6 +30,35 @@ const ELIGIBILITY_GUARD_PHRASES = [
 const VERDICT_QUESTION_PATTERN = /eligib|qualif|approve|deny|win|lose|should i|must i/i;
 const LEADING_YES_NO = /^(yes|no)\b[!.:,]?\s*/i;
 
+const HIVE_NAVIGATION_QUESTION =
+  /\b(where|how)\b.*\b(documents?|uploads?|files?|report|timeline|audit|messages?|team notes?)\b/i;
+
+/** Product navigation — not answered from study facts; avoids evidence-based refusal. */
+export function assistantHiveNavigationAnswer(question: string): string | null {
+  const trimmed = question.trim();
+  if (trimmed === "") return null;
+  if (!HIVE_NAVIGATION_QUESTION.test(trimmed)) return null;
+  if (/\bdocuments?\b|\buploads?\b|\bfiles?\b/i.test(trimmed)) {
+    return "Open Documents in the left menu to see what is uploaded, what is still to come, and to add files.";
+  }
+  if (/\breport\b/i.test(trimmed)) {
+    return "Open Report in the left menu for the written report from the accepted study.";
+  }
+  if (/\btimeline\b/i.test(trimmed)) {
+    return "Open Timeline in the left menu for events in date order.";
+  }
+  if (/\baudit\b/i.test(trimmed)) {
+    return "Open Audit trail in the left menu for the checks HiveForYou ran on these documents.";
+  }
+  if (/\bmessages?\b/i.test(trimmed)) {
+    return "Open Home and use the conversation panel to message your team or the assistant.";
+  }
+  if (/\bteam notes?\b/i.test(trimmed)) {
+    return "Open Team notes in the left menu for internal notes visible only to your firm.";
+  }
+  return null;
+}
+
 export type AssistantReplyIntent = "answer" | "ask_for_item" | "route_to_team";
 
 export type AssistantReplyModelOutput = {
@@ -235,6 +264,17 @@ export function validateAssistantReply(
   },
   fallback: AssistantReplyFallbackInput,
 ): ValidatedAssistantReply {
+  const navigationAnswer = assistantHiveNavigationAnswer(briefing.question);
+  if (navigationAnswer) {
+    return {
+      intent: "answer",
+      reply: navigationAnswer,
+      sourceRefs: [],
+      itemKey: null,
+      routedOnly: false,
+    };
+  }
+
   const record = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as AssistantReplyModelOutput) : {};
   let intent = parseIntent(record.intent);
   let reply = typeof record.reply === "string" ? record.reply.trim() : "";

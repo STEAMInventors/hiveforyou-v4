@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildAssistantBriefing } from "./assistant-briefing";
 import {
   assistantAnswerNotFoundFallback,
+  assistantHiveNavigationAnswer,
   assistantRouteFallback,
   ASSISTANT_ROUTE_GUARD_PHRASES,
   validateAssistantReply,
@@ -53,6 +54,26 @@ describe("assistant fallbacks without a firm team", () => {
     expect(assistantRouteFallback(solo)).toBe(
       "That's a question for a professional. I can only tell you what your documents say.",
     );
+  });
+});
+
+describe("assistantHiveNavigationAnswer", () => {
+  it("answers only allowlisted navigation patterns", () => {
+    expect(assistantHiveNavigationAnswer("How do I open the audit trail?")).toContain("Audit trail");
+    expect(assistantHiveNavigationAnswer("What does the notice say about pay?")).toBeNull();
+  });
+
+  it("points document location questions to Documents without citing study facts", () => {
+    expect(assistantHiveNavigationAnswer("Where are my documents?")).toContain("Documents");
+    const validated = validateAssistantReply(
+      { intent: "route_to_team", reply: "", claims: [] },
+      { ...briefing, question: "Where are my uploaded files?" },
+      { revisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", mapFact: () => null },
+      { teamFirstName: "Alex" },
+    );
+    expect(validated.intent).toBe("answer");
+    expect(validated.reply).toContain("Documents");
+    expect(validated.sourceRefs).toHaveLength(0);
   });
 });
 

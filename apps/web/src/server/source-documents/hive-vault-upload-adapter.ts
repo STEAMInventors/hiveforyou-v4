@@ -1107,15 +1107,25 @@ export function createLiveHiveVaultUploadAdapterDeps(
   userClient: RpcCapableClient,
   correlationId: string,
 ): HiveVaultUploadAdapterDeps {
-  const adminEnv = loadSupabaseAdminEnv(process.env);
-  const adminClient = createSupabaseAdminClient(adminEnv);
   const cid = correlationId as CorrelationId;
-  const vault = new SupabaseVaultRepositories(adminClient, cid);
-  const store = new SupabaseEvidenceObjectStore(adminClient, cid);
+  let adminClient: ReturnType<typeof createSupabaseAdminClient> | null = null;
+  let vaultRepo: SupabaseVaultRepositories | null = null;
+  let storeRepo: SupabaseEvidenceObjectStore | null = null;
 
-  return {
-    vault,
-    store,
+  const requireAdminClient = () => {
+    adminClient ??= createSupabaseAdminClient(loadSupabaseAdminEnv(process.env));
+    return adminClient;
+  };
+
+  const deps: HiveVaultUploadAdapterDeps = {
+    get vault() {
+      vaultRepo ??= new SupabaseVaultRepositories(requireAdminClient(), cid);
+      return vaultRepo;
+    },
+    get store() {
+      storeRepo ??= new SupabaseEvidenceObjectStore(requireAdminClient(), cid);
+      return storeRepo;
+    },
     sourceBucket: DEFAULT_HIVE_SOURCE_BUCKET,
     scanHash: defaultHashScanner,
     userClient,
@@ -1133,7 +1143,9 @@ export function createLiveHiveVaultUploadAdapterDeps(
           }
         }
       }
-      return computeVaultUploadQuota(vault, ownerUserId);
+      return computeVaultUploadQuota(deps.vault, ownerUserId);
     },
   };
+
+  return deps;
 }

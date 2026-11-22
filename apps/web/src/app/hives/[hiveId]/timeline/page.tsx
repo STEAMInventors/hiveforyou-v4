@@ -2,7 +2,7 @@ import { HiveTimelinePanel } from "@/components/timeline/HiveTimelinePanel";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { studyAvailability } from "@/lib/hives/study-availability";
 import { requestCorrelationId } from "@/server/auth/action-support";
-import { documentPageCounts, loadHiveOverview } from "@/server/hives/hive-summary";
+import { documentPageCounts, loadHiveOverview, workspaceStudyView } from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
@@ -18,8 +18,7 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
 
   const correlationId = await requestCorrelationId();
   const overview = await loadHiveOverview(auth.client, { hiveId: hive.id, correlationId });
-  const view = overview.studyTab?.view ?? null;
-  const sources = overview.studyTab?.sources ?? null;
+  const { view, sources } = workspaceStudyView(overview);
   const revision = overview.preparation.studyRevision ?? null;
   const availability = studyAvailability({
     revision,

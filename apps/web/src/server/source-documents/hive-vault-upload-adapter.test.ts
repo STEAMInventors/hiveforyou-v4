@@ -398,6 +398,48 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
     expect(calls[1]).not.toHaveProperty("p_audience");
   });
 
+  it("rejects listing for a hive the caller does not own before any vault fallback", async () => {
+    const { deps } = createTestHarness();
+    await expect(
+      listHiveSourceDocumentsWithV3Vault(deps, {
+        ownerUserId: USER_B,
+        hiveId: HIVE_A,
+        correlationId: CORR_ID,
+      }),
+    ).rejects.toMatchObject({ errorCode: "NOT_FOUND" });
+  });
+
+  it("lists documents through list_hive_source_documents without opening the vault admin path", async () => {
+    const hive: Hive = {
+      id: HIVE_A,
+      hiveId: HIVE_A,
+      name: "March Records",
+      description: null,
+      clientRequestId: "44444444-4444-4444-8444-444444444444",
+      createdAt: "2026-10-30T15:00:00.000Z",
+      updatedAt: "2026-10-30T15:00:00.000Z",
+    };
+  const listed = await listHiveSourceDocumentsWithV3Vault(
+      {
+        get vault() {
+          throw new Error("vault must not load when RPC list succeeds");
+        },
+        get store() {
+          throw new Error("store must not load when RPC list succeeds");
+        },
+        userClient: {
+          rpc: async (fn: string) =>
+            fn === "list_hive_source_documents"
+              ? { data: { sourceDocuments: [] }, error: null }
+              : { data: null, error: null },
+        },
+        loadOwnedHive: async () => hive,
+      },
+      { ownerUserId: USER_A, hiveId: HIVE_A, correlationId: CORR_ID },
+    );
+    expect(listed.sourceDocuments).toEqual([]);
+  });
+
   it("opens a source page for the owner as a 60-second signed link to the original file at that page", async () => {
     const { deps } = createTestHarness();
     const uploaded = await uploadHiveSourceDocumentWithV3Vault(deps, {

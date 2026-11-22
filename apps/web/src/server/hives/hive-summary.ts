@@ -145,6 +145,20 @@ export function latestStudyView(reports: GetHiveReportsResponse | null): StudyVi
   return views.find((report) => report.audience === "CUSTOMER") ?? views[0] ?? null;
 }
 
+/** Canonical tab view when available; otherwise the pinned report study view for read-only legacy revisions. */
+export function workspaceStudyView(
+  overview: Pick<HiveOverview, "studyTab" | "studyView">,
+): { view: StudyView | null; sources: StudyViewSources | null } {
+  if (overview.studyTab?.view) {
+    return { view: overview.studyTab.view, sources: overview.studyTab.sources };
+  }
+  const fromReport = overview.studyView;
+  if (fromReport) {
+    return { view: fromReport.view, sources: fromReport.studyViewSources };
+  }
+  return { view: null, sources: null };
+}
+
 export function documentPageCounts(preparation: GetStudyPreparationResponse): Record<string, number> {
   return Object.fromEntries(
     preparation.eligibility.documents.map((document) => [document.sourceDocumentId, document.totalPhysicalPages]),

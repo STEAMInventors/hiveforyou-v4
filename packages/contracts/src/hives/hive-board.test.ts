@@ -79,6 +79,17 @@ describe("buildHiveBoard headlines", () => {
     );
   });
 
+  it("marks unavailable document listing separately from confirmed zero documents", () => {
+    const unavailable = buildHiveBoard(
+      baseInput({ documentCount: 0, canonicalStudy: null, sourceDocumentListUnavailable: true }),
+      "2026-11-15",
+    );
+    expect(unavailable.headline).toBe("Documents unavailable");
+    expect(unavailable.next?.title).toBe("Documents could not be loaded");
+    expect(unavailable.readiness.find((line) => line.label === "Documents")?.value).toBe("Unavailable right now");
+    expect(buildHiveBoard(baseInput({ documentCount: 0 }), "2026-11-15").headline).toBe("Nothing is in yet");
+  });
+
   it("covers idle, reading, checklist, and all-clear headlines", () => {
     expect(buildHiveBoard(baseInput({ documentCount: 0 }), "2026-11-15").headline).toBe("Nothing is in yet");
     expect(buildHiveBoard(baseInput({ readingInProgress: true }), "2026-11-15").headline).toBe("Reading the documents");
