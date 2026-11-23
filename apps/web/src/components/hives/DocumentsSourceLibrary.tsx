@@ -136,6 +136,7 @@ export function DocumentsSourceLibrary({
 
   return (
     <Section
+      tone="blue"
       title="Uploaded"
       headingRight={
         <>

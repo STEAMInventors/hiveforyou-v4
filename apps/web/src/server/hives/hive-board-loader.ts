@@ -37,6 +37,7 @@ export function isRecoverableHiveBoardDocumentListFailure(error: unknown): boole
 export type HiveBoardUpload = {
   sourceDocumentId: string;
   fileName: string;
+  createdAt: string;
   canonicalGapId: string | null;
   canonicalGapTitle: string | null;
 };
@@ -277,6 +278,7 @@ async function assembleHiveBoardLoad(
       : documents.map((document) => ({
           sourceDocumentId: document.sourceDocumentId,
           fileName: document.fileName,
+          createdAt: document.createdAt,
           canonicalGapId: document.canonicalGapId ?? null,
           canonicalGapTitle: document.canonicalGapTitle ?? null,
         })),

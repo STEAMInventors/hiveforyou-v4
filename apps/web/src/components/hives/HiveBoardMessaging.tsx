@@ -7,9 +7,10 @@ import { HiveBoardConversation } from "@/components/hives/HiveBoardConversation"
 import { ConversationPreviewSelect, type HiveConversationProps } from "@/components/hives/HiveConversation";
 import type { ConversationViewer } from "@/components/hives/hive-conversation-view";
 import { Tabs } from "@/components/ui/Tabs";
+import { WorkspaceSurface } from "@/components/ui/WorkspaceSurface";
 import { personFirstName } from "@/lib/hives/firm-board";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useId, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState, type ReactNode } from "react";
 
 export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"> & {
   readonly firmless: boolean;
@@ -25,6 +26,8 @@ export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"
   readonly peopleHint?: string | null;
   /** Pending professional: Join sits in place of the shared composer. */
   readonly joinRequired?: boolean;
+  /** Owner invite control, shown in the shared empty state until a Pro joins. */
+  readonly inviteAction?: ReactNode;
   /** Dev gallery: open on another member's Ask thread without waiting for a click. */
   readonly defaultAskThreadOwnerId?: string | null;
   /** Dev gallery: Ask tab before searchParams hydrate (does not change production URLs). */
@@ -38,28 +41,6 @@ const PANEL_CLASS =
 
 function panelVisibility(selected: boolean): string {
   return selected ? "flex" : "hidden min-[1480px]:flex";
-}
-
-function ChannelHeader({
-  title,
-  privacy,
-  detail,
-  selected,
-}: {
-  title: string;
-  privacy: "Private" | "Shared";
-  detail: string;
-  selected: boolean;
-}) {
-  return (
-    <header className={`shrink-0 rounded-[9px] px-2.5 py-2 ${selected ? "bg-blue-wash" : ""}`}>
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="m-0 font-brand text-[16px] font-semibold text-ink">{title}</h2>
-        <span className="text-meta font-semibold text-ink-3">{privacy}</span>
-      </div>
-      <p className="m-0 mt-0.5 text-meta text-ink-3">{detail}</p>
-    </header>
-  );
 }
 
 function JoinHiveControl({ hiveId }: { hiveId: string }) {
@@ -122,6 +103,7 @@ export function HiveBoardMessaging({
   sharedClosed = null,
   peopleHint = null,
   joinRequired = false,
+  inviteAction = null,
   defaultAskThreadOwnerId = null,
   initialBoardView,
   hiveId,
@@ -209,7 +191,7 @@ export function HiveBoardMessaging({
       teamMemberFirstName={teamMemberFirstName}
       firmless={firmless}
       sharedClosed={sharedClosed}
-      closedAction={personal && joinRequired ? <JoinHiveControl hiveId={hiveId} /> : null}
+      closedAction={personal && joinRequired ? <JoinHiveControl hiveId={hiveId} /> : inviteAction}
       peopleHint={peopleHint}
       fillPanel={personal}
       onSwitchToConversation={() => setView("conversation")}
@@ -280,33 +262,39 @@ export function HiveBoardMessaging({
           : `With ${personFirstName(clientName ?? "the owner")}.`;
     return (
       <div className="contents" data-testid="personal-hive-channels">
-        <div className="min-w-0 border-t border-line pt-4 min-[760px]:border-l min-[760px]:border-t-0 min-[760px]:pl-5 min-[760px]:pt-0 min-[1480px]:contents">
+        <div className="min-w-0 min-[1480px]:contents">
           {tabs}
           <section
             aria-label="Ask AI — Private"
             data-testid="personal-ask-panel"
-            className={`${panelVisibility(view === "ask")} ${PANEL_CLASS} min-[1480px]:border-l min-[1480px]:border-line min-[1480px]:pl-5`}
+            className={`${panelVisibility(view === "ask")} ${PANEL_CLASS}`}
           >
-            <ChannelHeader
+            <WorkspaceSurface
               title="Ask AI"
-              privacy="Private"
               detail="Only you can see this."
-              selected={view === "ask"}
-            />
-            <div className="min-h-0 flex-1">{askConversation}</div>
+              meta={<span className="text-blue-deep">Private</span>}
+              tone="blue"
+              className="h-full"
+              bodyClassName="flex min-h-0 flex-col"
+            >
+              {askConversation}
+            </WorkspaceSurface>
           </section>
           <section
             aria-label="Pro Conversation — Shared"
             data-testid="personal-pro-panel"
-            className={`${panelVisibility(view === "conversation")} ${PANEL_CLASS} min-[1480px]:border-l min-[1480px]:border-line min-[1480px]:pl-5`}
+            className={`${panelVisibility(view === "conversation")} ${PANEL_CLASS}`}
           >
-            <ChannelHeader
+            <WorkspaceSurface
               title="Pro Conversation"
-              privacy="Shared"
               detail={sharedDetail}
-              selected={view === "conversation"}
-            />
-            <div className="min-h-0 flex-1">{peopleConversation}</div>
+              meta="Shared"
+              tone="mist"
+              className="h-full"
+              bodyClassName="flex min-h-0 flex-col"
+            >
+              {peopleConversation}
+            </WorkspaceSurface>
           </section>
         </div>
       </div>

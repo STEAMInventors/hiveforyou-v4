@@ -15,6 +15,7 @@ import type {
 import { useMemo, useState } from "react";
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
+import { StatusDot } from "@/components/ui/StatusDot";
 import { ComparisonCard } from "@/components/study/ComparisonCard";
 import { EvidenceViewerProvider, useEvidenceViewer } from "@/components/study/EvidenceViewer";
 import { groupMissing } from "@/components/study/MissingList";
@@ -225,22 +226,20 @@ export function FindingsPageView({
           real-world events.
         </div>
 
-        <section className="flex flex-col gap-4 min-[900px]:flex-row min-[900px]:items-start min-[900px]:justify-between">
+        <section className="flex flex-col gap-4 rounded-[12px] border border-line bg-blue-wash px-4 py-3 min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-between">
           <div>
-            <p className="m-0 text-[12px] font-semibold uppercase tracking-[0.08em] text-blue-deep">The picture so far</p>
-            <h2 className="m-0 mt-1 font-brand text-[25px] font-semibold text-ink">What we learned from these documents</h2>
+            <h2 className="m-0 font-brand text-[22px] font-semibold tracking-[-0.02em] text-ink">
+              What we learned from these documents
+            </h2>
             <p className="m-0 mt-1 text-small text-ink-2">
               Organized by topic, with original page references next to every supported statement.
             </p>
           </div>
-          <span
-            className={`inline-flex shrink-0 items-center rounded-pill px-3 py-1.5 text-small font-semibold ${
-              openItemCount > 0 ? "bg-coral-wash text-coral-deep" : "bg-leaf-wash text-leaf-deep"
-            }`}
-            data-testid="findings-open-count"
-            aria-label={openItemCount > 0 ? `${openItemCount} to review` : "Nothing to review"}
-          >
-            {openItemCount > 0 ? `${openItemCount} to review` : "Nothing to review"}
+          <span data-testid="findings-open-count">
+            <StatusDot
+              state={openItemCount > 0 ? "needs" : "checked"}
+              label={openItemCount > 0 ? `${openItemCount} to review` : "Nothing to review"}
+            />
           </span>
         </section>
 

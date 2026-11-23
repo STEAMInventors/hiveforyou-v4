@@ -22,6 +22,7 @@ import { Disclosure } from "@/components/ui/Disclosure";
 import { Section } from "@/components/ui/Section";
 import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
 import { StatusDot, type StatusDotState } from "@/components/ui/StatusDot";
+import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { HiveClientError } from "@/lib/hive-api-client";
 import { addHiveRequest, postRequestAction } from "@/lib/hive-requests-client";
 import { uploadSourceDocument } from "@/lib/source-documents-client";
@@ -79,8 +80,12 @@ export type MyWorkPanelProps = {
   /** Personal Hive: show the section with an empty state, and ignore pack or study rows. */
   personal?: boolean;
   uploadedDocuments?: readonly MyWorkUpload[];
+  /** Set when the authorized document list failed. Distinct from an empty list. */
+  documentsLoadError?: { message: string; correlationId: string; retryable: boolean } | null;
   onDocumentUploaded?: (document: SourceDocument) => void;
   className?: string;
+  /** The parent surface already supplies the heading. */
+  embedded?: boolean;
 };
 
 export function MyWorkPanel({
@@ -91,8 +96,10 @@ export function MyWorkPanel({
   otherFirstName,
   personal = false,
   uploadedDocuments = [],
+  documentsLoadError = null,
   onDocumentUploaded,
   className = "",
+  embedded = false,
 }: MyWorkPanelProps) {
   const [requests, setRequests] = useState<readonly RequestItem[]>(initialRequests);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -145,8 +152,16 @@ export function MyWorkPanel({
 
   const uploads = personal && viewer === "client" ? (
     <div className="mt-4" data-testid="my-work-uploads">
-      <h3 className="m-0 text-[13.5px] font-semibold text-ink-3">Uploaded</h3>
-      {uploadedDocuments.length === 0 ? (
+      <h3 className="m-0 text-[13.5px] font-semibold text-ink">Uploaded</h3>
+      {documentsLoadError ? (
+        <div className="mt-2" data-testid="my-work-documents-error">
+          <WorkspaceLoadError
+            message={documentsLoadError.message}
+            correlationId={documentsLoadError.correlationId}
+            retryable={documentsLoadError.retryable}
+          />
+        </div>
+      ) : uploadedDocuments.length === 0 ? (
         <p className="m-0 py-3 text-body text-ink-2">No documents uploaded yet.</p>
       ) : (
         <ul className="m-0 list-none p-0">
@@ -229,9 +244,11 @@ export function MyWorkPanel({
       </div>
   );
 
+  if (embedded) return body;
+
   if (viewer === "staff") {
     return (
-      <Section title={personal ? "Requests" : "Client requests"} headingRight={visibleRequests.length || null} className={className}>
+      <Section title={personal ? "Requests" : "Client requests"} headingRight={visibleRequests.length || null} className={className} tone={personal ? "mist" : "rule"}>
         {body}
       </Section>
     );

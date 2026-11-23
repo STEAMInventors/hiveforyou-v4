@@ -59,7 +59,7 @@ function PaginatedSection({
   onCollapse: () => void;
 }) {
   return (
-    <Section title={title} headingRight={count ?? itemCount}>
+    <Section title={title} headingRight={count ?? itemCount} tone="mist">
       <div data-testid={testId}>{children}</div>
       {itemCount > ROW_LIMIT ? (
         expanded ? (
@@ -140,6 +140,12 @@ export function AuditTrailPageView({
 
   const content = (
     <div className="mx-auto w-full max-w-col-read" data-testid="audit-trail">
+      <header className="mb-6 rounded-[12px] border border-line bg-mist px-4 py-3">
+        <h2 className="m-0 font-brand text-[22px] font-semibold tracking-[-0.02em] text-ink">Audit trail</h2>
+        <p className="m-0 mt-1 text-meta text-ink-2">
+          Checks, study versions, and activity recorded for this hive.
+        </p>
+      </header>
       {entries.length === 0 ? (
         <p className="m-0 text-body text-ink-2" data-testid="audit-empty">
           Checks will appear here after a study is accepted.

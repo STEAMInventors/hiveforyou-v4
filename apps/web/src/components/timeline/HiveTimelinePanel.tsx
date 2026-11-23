@@ -169,7 +169,6 @@ function HiveTimelineBody({
 
   return (
     <div data-testid="timeline-events">
-      <p className="m-0 mb-4 text-meta text-ink-3">Dated events from the documents, in order. Each row opens its source page.</p>
       <FindingsTimelineList rows={timeline} />
     </div>
   );
@@ -226,8 +225,13 @@ export function HiveTimelinePanel(props: HiveTimelinePanelProps) {
   );
 
   return (
-    <div className="mx-auto w-full max-w-col-read pt-8 pb-24" data-testid="hive-timeline-panel">
-      <h2 className="m-0 font-brand text-[22px] font-semibold leading-tight tracking-[-0.02em] text-ink">Events in date order</h2>
+    <div className="mx-auto w-full max-w-col-read pb-24" data-testid="hive-timeline-panel">
+      <header className="rounded-[12px] border border-line bg-mist px-4 py-3">
+        <h2 className="m-0 font-brand text-[22px] font-semibold leading-tight tracking-[-0.02em] text-ink">
+          Events in date order
+        </h2>
+        <p className="m-0 mt-1 text-meta text-ink-2">Dated events from the documents. Each row opens its source page.</p>
+      </header>
       {evidence ? (
         <EvidenceViewerProvider
           hiveId={props.hiveId}

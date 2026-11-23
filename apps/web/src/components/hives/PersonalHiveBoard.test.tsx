@@ -124,6 +124,37 @@ describe("PersonalHiveBoard", () => {
     expect(nav.replace).toHaveBeenCalledWith(expect.stringContaining("view=conversation"), { scroll: false });
   });
 
+  it("puts the invitation in the shared empty state and reports a document load failure", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ people: [], pendingInvitations: [] })));
+    nav.params = new URLSearchParams("view=conversation");
+    render(
+      <PersonalHiveBoard
+        hive={hive}
+        assistantName="HiveForYou"
+        summary={{ hasStudy: false, documentsIn: 0, checklistSize: null, toReview: 0, stillToCome: 0, study: null }}
+        requests={[]}
+        uploadedDocuments={[]}
+        documentsLoadError={{ message: "Could not load your documents.", correlationId: "corr-9", retryable: true }}
+        initialPeople={emptyThread}
+        initialAsk={emptyThread}
+        currentUserId={OWNER}
+        roster={EMPTY_PERSONAL_ROSTER}
+        loadError={null}
+        studyLoadError={null}
+        view={null}
+        sources={null}
+        canonicalStudy={null}
+        coverageGaps={[]}
+      />,
+    );
+    const shared = screen.getByTestId("personal-pro-panel");
+    expect(shared.textContent).toMatch(/A shared place for you and your Pro/);
+    expect(shared.textContent).toMatch(/Invite a professional/);
+    expect(shared.querySelector("button")?.textContent).toBe("Share with a professional");
+    expect(screen.getByTestId("my-work-documents-error").textContent).toMatch(/Could not load your documents/);
+    expect(screen.queryByText("No documents uploaded yet.")).toBeNull();
+  });
+
   it("keeps the shared composer closed until a professional joins", () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ people: [], pendingInvitations: [] })));
     renderBoard("view=conversation");

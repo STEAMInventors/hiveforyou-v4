@@ -130,7 +130,7 @@ export function ReportsPanel({
 
   if (!state.studyRevision) {
     return (
-      <section className="flex flex-col gap-2 rounded-input border border-line bg-paper p-5 sm:p-7" data-testid="reports-empty">
+      <section className="flex flex-col gap-2 rounded-[12px] border border-line bg-mist px-5 py-4 sm:px-7" data-testid="reports-empty">
         <h2 className="m-0 font-brand text-section font-semibold text-ink">No reports yet</h2>
         <p className="m-0 max-w-prose text-body text-ink-2">
           Analyze your documents from the Documents tab. Both reports are written from the same checked study.
@@ -227,14 +227,17 @@ export function ReportsPanel({
       <button type="button" className="sr-only" data-testid="print-report" onClick={printReport}>
         Print
       </button>
-      <div className="no-print flex flex-wrap items-center justify-between gap-3">
-        <p className="m-0 text-meta text-ink-3">
-          Written from Study v{state.studyRevision.revisionNumber}. Nothing new is analyzed.
-        </p>
+      <header className="no-print flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-line bg-blue-wash px-4 py-3">
+        <div>
+          <h2 className="m-0 font-brand text-[22px] font-semibold tracking-[-0.02em] text-ink">Reports</h2>
+          <p className="m-0 mt-1 text-meta text-ink-2">
+            Written from Study v{state.studyRevision.revisionNumber}. Nothing new is analyzed.
+          </p>
+        </div>
         <button type="button" className={COMPACT_SECONDARY_BUTTON_CLASS} onClick={printReport} data-testid="save-as-pdf">
           Save as PDF
         </button>
-      </div>
+      </header>
       <HiveMissingDocumentsChrome
         hiveId={hiveId}
         canonicalStudy={canonicalStudy}

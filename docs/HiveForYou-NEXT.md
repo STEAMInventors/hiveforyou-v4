@@ -1,8 +1,16 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-23): HB-4 — Apply HiveForYou Brand Colors Across All Pages.** HB-3 stays implemented locally, awaiting founder review. V5 pipeline simplification below is parked, not closed.
+> **Active ticket (2026-11-23): HB-5 — Give HiveForYou a Distinctive Visual Identity.** HB-4 stays implemented locally. V5 pipeline simplification below is parked, not closed.
 
-## Active ticket — HB-4: Apply HiveForYou Brand Colors Across All Pages
+## Active ticket — HB-5: Give HiveForYou a Distinctive Visual Identity
+
+**Objective:** Make the Hive Board and the main hive pages visibly distinct with the existing brand palette: a compact case summary, separate surfaces for My Work, Ask AI, and Pro Conversation, and the same header language on Documents, Findings, Timeline, Reports, and Audit. Fix My Work so an authorized document list is not reported as empty.
+
+**Scope:** Presentation and the personal-hive document load on the board. No database, no new tokens, no permission change. Leaf is completion, Coral is missing or an error, Honey stays on changes and evidence, Blue is action and selection.
+
+**Status (2026-11-23): implemented locally, awaiting founder review.** No migration. Typecheck passed. Targeted UI tests 84/84. The owner document list follows `personalBoardRole` and the authorized source already used by Documents. A listing failure is an error, not "No documents uploaded yet."
+
+## Previous ticket — HB-4: Apply HiveForYou Brand Colors Across All Pages
 
 **Objective:** Use the existing brand tokens so Cell Blue marks actions, navigation, links and focus; Coral, Honey and Leaf keep their meanings; Paper, Mist and Ink stay the dominant surfaces. Styling only.
 

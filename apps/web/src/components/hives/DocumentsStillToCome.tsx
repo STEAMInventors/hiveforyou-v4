@@ -81,7 +81,12 @@ export function DocumentsStillToCome({
   };
 
   return (
-    <Section id={CHECKLIST_ANCHOR_ID} title={`Still to come ${openCount}`} className="scroll-mt-4">
+    <Section
+      id={CHECKLIST_ANCHOR_ID}
+      title={`Still to come ${openCount}`}
+      tone={openCount > 0 ? "coral" : "mist"}
+      className="scroll-mt-4"
+    >
       <div data-testid="documents-still-to-come">
       <div>
         {visible.map((item) => (

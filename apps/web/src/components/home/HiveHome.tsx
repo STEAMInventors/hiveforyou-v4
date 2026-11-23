@@ -458,6 +458,7 @@ function HiveHomeBody({
             {showStatements ? (
               <Section
                 id="show"
+                tone="blue"
                 title="What the documents show"
                 headingRight={
                   content.statementCount === 0

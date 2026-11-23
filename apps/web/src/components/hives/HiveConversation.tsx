@@ -174,6 +174,7 @@ function MessageRow({
   revealActive,
   onRevealComplete,
   fromAskAssistantName,
+  layout,
 }: {
   hiveId: string;
   message: HiveMessage;
@@ -182,6 +183,7 @@ function MessageRow({
   revealActive: boolean;
   onRevealComplete: (messageId: string) => void;
   fromAskAssistantName?: string | null;
+  layout: "flat" | "ask" | "shared";
 }) {
   const assistant = message.authorKind === "assistant";
   const role = assistant ? "AI assistant" : bylineRole(message);
@@ -200,6 +202,81 @@ function MessageRow({
   const bodyText = assistant && revealActive ? displayBody : message.body;
   const showChips = chipRefs.length > 0 && (!assistant || !revealActive || revealComplete);
   const itemKey = message.sourceRefs.find((ref) => ref.itemKey)?.itemKey;
+  const bubble =
+    layout === "ask"
+      ? mine
+        ? "max-w-[min(100%,28rem)] rounded-[16px] rounded-br-[5px] bg-blue-wash px-3 py-2"
+        : "max-w-[min(100%,28rem)] rounded-[16px] rounded-bl-[5px] border border-line bg-mist px-3 py-2"
+      : layout === "shared"
+        ? "rounded-[12px] border border-line bg-paper px-3 py-2.5"
+        : "";
+  const content = (
+    <>
+      {layout === "flat" ? null : (
+        <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-meta text-ink-3">
+          <strong className="text-small font-semibold text-ink">
+            {message.authorDisplayName}
+            {mine ? <span className="font-normal text-ink-3"> · you</span> : null}
+          </strong>
+          {role ? (
+            <>
+              <span aria-hidden="true">·</span>
+              {assistant ? (
+                <span className="rounded-[5px] border border-line-strong bg-paper px-1.5 text-[11.5px] font-semibold text-ink-2">
+                  AI assistant
+                </span>
+              ) : (
+                <span>{role}</span>
+              )}
+            </>
+          ) : null}
+          <span aria-hidden="true">·</span>
+          <time dateTime={message.createdAt}>{mounted ? messageTimeLabel(message.createdAt) : ""}</time>
+        </p>
+      )}
+      {fromAskAssistantName && message.handoffFromMessageId ? (
+        <p className="m-0 text-meta text-ink-3" data-testid="hive-message-handoff-line">
+          Passed on from Ask {fromAskAssistantName}
+        </p>
+      ) : null}
+      <p
+        className={BODY_CLASS}
+        {...(assistant && revealActive && !revealComplete ? { "aria-hidden": true } : {})}
+        {...(assistant && revealComplete ? { "aria-live": "polite" as const } : {})}
+      >
+        {assistant && revealComplete ? <AssistantReplyBody text={message.body} /> : bodyText}
+      </p>
+      {showChips ? <CardChips refs={chipRefs} /> : null}
+      {itemKey ? (
+        <p className="m-0 mt-2 text-label">
+          <Link href={`${hiveDocumentsPath(hiveId)}#requested`} className="font-medium text-blue-deep no-underline hover:underline">
+            Documents → What we asked for
+          </Link>
+        </p>
+      ) : null}
+    </>
+  );
+  if (layout === "ask") {
+    return (
+      <article
+        className={`flex py-1.5 ${mine ? "justify-end" : "justify-start gap-2"}`}
+        data-testid="hive-message"
+        data-mine={mine ? "true" : "false"}
+      >
+        {mine ? null : (
+          <Avatar name={message.authorDisplayName} className={avatarClassFor(message.authorRole)} assistant={assistant} />
+        )}
+        <div className={bubble}>{content}</div>
+      </article>
+    );
+  }
+  if (layout === "shared") {
+    return (
+      <article className="py-1.5" data-testid="hive-message" data-mine={mine ? "true" : "false"}>
+        <div className={bubble}>{content}</div>
+      </article>
+    );
+  }
   return (
     <article
       className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 py-3"
@@ -506,8 +583,9 @@ export function HiveConversation({
 
   const showConversationHead = !fillPanel && !column && (assistantMode || !previewOnTabs);
   const frame = fillPanel || column ? "flex h-full min-h-0 flex-col" : "flex min-w-0 flex-col";
+  const messageLayout = assistantMode ? "ask" : fillPanel ? "shared" : "flat";
   const threadClass = fillPanel
-    ? "thread relative flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto py-2"
+    ? `thread relative flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-2.5 py-2 ${assistantMode ? "bg-paper" : "bg-mist"}`
     : column
       ? "thread relative flex min-h-0 flex-1 flex-col gap-0 overflow-visible py-2 min-[1100px]:overflow-y-auto"
       : "thread relative flex max-h-[570px] min-h-[280px] flex-col gap-0 overflow-y-auto py-2";
@@ -664,9 +742,16 @@ export function HiveConversation({
                     </p>
                   </div>
                 ) : sharedClosed ? (
-                  <p className="m-auto max-w-[420px] text-center text-small text-ink-2" data-testid="hive-pro-conversation-closed">
-                    {sharedClosed}
-                  </p>
+                  <div
+                    className="m-auto flex max-w-[440px] flex-col items-center px-4 py-8 text-center"
+                    data-testid="hive-pro-conversation-closed"
+                  >
+                    <h3 className="m-0 font-brand text-[18px] font-semibold tracking-[-0.015em] text-ink">
+                      A shared place for you and your Pro
+                    </h3>
+                    <p className="m-0 mt-2 text-body text-ink-2">{sharedClosed}</p>
+                    {closedAction ? <div className="mt-4">{closedAction}</div> : null}
+                  </div>
                 ) : (
                   <p className="m-auto max-w-[420px] text-center text-small text-ink-2">{CONVERSATION_EMPTY}</p>
                 )
@@ -709,6 +794,7 @@ export function HiveConversation({
                       revealActive={assistantMode && conversation.assistantRevealIds.has(message.id)}
                       onRevealComplete={conversation.clearAssistantReveal}
                       fromAskAssistantName={!assistantMode ? displayAssistantName : null}
+                      layout={messageLayout}
                     />
                     {assistantMode && !preview && !readOnly && !firmless && message.authorKind === "assistant" ? (
                       (() => {
@@ -782,8 +868,8 @@ export function HiveConversation({
               Preview — this is what {clientFirst} sees.
             </p>
           ) : readOnly || sharedClosed ? (
-            sharedClosed && closedAction ? (
-              <div className="shrink-0 border-t border-line px-1 py-3">{closedAction}</div>
+            sharedClosed && closedAction && (messages.length > 0 || pending.length > 0) ? (
+              <div className="shrink-0 border-t border-line bg-paper px-3 py-3">{closedAction}</div>
             ) : null
           ) : (
             <Composer

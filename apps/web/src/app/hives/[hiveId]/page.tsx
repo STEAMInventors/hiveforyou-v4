@@ -10,7 +10,12 @@ import type { HiveBoardChecklistItem, RequestItem, SourceDocument } from "@hivef
 import { ClientHome } from "@/components/home/ClientHome";
 import { HiveHome, type HiveHomeViewer } from "@/components/home/HiveHome";
 import { PersonalHiveBoard } from "@/components/hives/PersonalHiveBoard";
-import { personalHiveRoster } from "@/components/hives/personal-hive-roster";
+import {
+  resolvePersonalUploadedDocuments,
+  type AuthorizedDocumentList,
+  type PersonalUploadedDocument,
+} from "@/components/hives/personal-hive-documents";
+import { personalBoardRole, personalHiveRoster } from "@/components/hives/personal-hive-roster";
 import { buildHiveHomeContent } from "@/components/home/home-model";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { studyAvailability } from "@/lib/hives/study-availability";
@@ -54,6 +59,28 @@ function loadFailure(error: unknown): { message: string; correlationId: string; 
   };
 }
 
+async function listAuthorizedPersonalDocuments(
+  client: Parameters<typeof createLiveHiveVaultUploadAdapterDeps>[0],
+  input: { userId: string; hiveId: string; correlationId: string },
+): Promise<AuthorizedDocumentList> {
+  try {
+    const deps = createLiveHiveVaultUploadAdapterDeps(client, input.correlationId);
+    const listed = await listHiveSourceDocumentsWithV3Vault(deps, {
+      ownerUserId: input.userId,
+      hiveId: input.hiveId,
+      correlationId: input.correlationId,
+    });
+    const documents: PersonalUploadedDocument[] = listed.sourceDocuments.map((document) => ({
+      id: document.sourceDocumentId,
+      fileName: document.fileName,
+      createdAt: document.createdAt,
+    }));
+    return { status: "listed", documents };
+  } catch {
+    return { status: "failed" };
+  }
+}
+
 function homeViewer(hive: { firmId?: string | null; membershipRole?: string | null }): HiveHomeViewer {
   if (hive.firmId == null) return "firmless";
   if (hive.membershipRole === "client") return "client";
@@ -77,9 +104,18 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
   let progress: { in: number; total: number } | null = null;
   let requests: readonly RequestItem[] = [];
   let loadError: { message: string; correlationId: string; retryable: boolean } | null = null;
+  let boardDocumentList: AuthorizedDocumentList | null = null;
 
   try {
     const boardLoad = await loadHiveBoard(auth.client, { hive, correlationId, userId: auth.userId });
+    boardDocumentList = {
+      status: "listed",
+      documents: boardLoad.uploads.map((document) => ({
+        id: document.sourceDocumentId,
+        fileName: document.fileName,
+        createdAt: document.createdAt,
+      })),
+    };
     overview = boardLoad.overview;
     boardChecklist = boardLoad.board.checklist;
     checklist = boardLoad.board.checklist.map((item) => ({ title: item.title, status: item.status }));
@@ -184,24 +220,17 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
   const acceptedStudyRevisionId = revision?.id ?? null;
 
   if (personal) {
-    let uploadedDocuments: { id: string; fileName: string; createdAt: string }[] = [];
-    if (hive.isOwner) {
-      try {
-        const deps = createLiveHiveVaultUploadAdapterDeps(auth.client, correlationId);
-        const listed = await listHiveSourceDocumentsWithV3Vault(deps, {
-          ownerUserId: auth.userId,
-          hiveId: hive.id,
-          correlationId,
-        });
-        uploadedDocuments = listed.sourceDocuments.map((document) => ({
-          id: document.sourceDocumentId,
-          fileName: document.fileName,
-          createdAt: document.createdAt,
-        }));
-      } catch {
-        uploadedDocuments = [];
-      }
+    const roster = personalHiveRoster(rosterResult.data, auth.userId);
+    const role = personalBoardRole(hive, roster);
+    let ownerDocuments: AuthorizedDocumentList | null = boardDocumentList;
+    if (role === "owner" && !ownerDocuments) {
+      ownerDocuments = await listAuthorizedPersonalDocuments(auth.client, {
+        userId: auth.userId,
+        hiveId: hive.id,
+        correlationId,
+      });
     }
+    const uploaded = resolvePersonalUploadedDocuments(role, role === "owner" ? ownerDocuments : null, correlationId);
     const ask = askLoad ?? {
       ok: false as const,
       message: "Could not load the conversation. Try again.",
@@ -225,11 +254,12 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
             : null
         }
         requests={requests}
-        uploadedDocuments={uploadedDocuments}
+        uploadedDocuments={uploaded.documents}
+        documentsLoadError={uploaded.loadError}
         initialPeople={people}
         initialAsk={ask}
         currentUserId={auth.userId}
-        roster={personalHiveRoster(rosterResult.data, auth.userId)}
+        roster={roster}
         loadError={loadError}
         studyLoadError={overview?.studyLoadError ?? null}
         view={view}

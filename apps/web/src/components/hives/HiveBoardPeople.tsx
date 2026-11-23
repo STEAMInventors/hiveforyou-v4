@@ -31,6 +31,11 @@ type HiveBoardPeopleProps = {
   /** Used for the empty "You · …" line before the people list returns. */
   viewerRole?: "owner" | "professional" | "client";
   onRoster?: (data: unknown) => void;
+  /** Hide the quiet invite button when the conversation empty state owns that action. */
+  showInviteButton?: boolean;
+  /** Opens the existing invitation dialog from the conversation empty state. */
+  inviteOpen?: boolean;
+  onInviteOpenChange?: (open: boolean) => void;
 };
 
 function memberRoleLabel(role: string | undefined): string {
@@ -52,10 +57,24 @@ function personPrimaryName(person: PersonRow, currentUserId: string | null): str
   return "Member";
 }
 
-export function HiveBoardPeople({ hive, currentUserId, canInvite, viewerRole, onRoster }: HiveBoardPeopleProps) {
+export function HiveBoardPeople({
+  hive,
+  currentUserId,
+  canInvite,
+  viewerRole,
+  onRoster,
+  showInviteButton = true,
+  inviteOpen = false,
+  onInviteOpenChange,
+}: HiveBoardPeopleProps) {
   const [people, setPeople] = useState<PersonRow[]>([]);
   const [pending, setPending] = useState<PersonRow[]>([]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onInviteOpenChange?.(next);
+  };
+  const dialogOpen = open || inviteOpen;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -275,7 +294,7 @@ export function HiveBoardPeople({ hive, currentUserId, canInvite, viewerRole, on
           {err}
         </p>
       ) : null}
-      {isOwner ? (
+      {isOwner && showInviteButton ? (
         <button
           type="button"
           className={`${QUIET_BUTTON_CLASS} mt-3 min-h-11`}
@@ -319,7 +338,7 @@ export function HiveBoardPeople({ hive, currentUserId, canInvite, viewerRole, on
           </div>
         </div>
       ) : null}
-      {open ? (
+      {dialogOpen ? (
         <div
           role="dialog"
           aria-modal="true"

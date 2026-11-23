@@ -302,7 +302,7 @@ export function DocumentsPanel({
       </h2>
 
       {documents.length > 0 ? (
-        <header className="flex flex-col gap-3 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+        <header className="flex flex-col gap-3 rounded-[12px] border border-line bg-blue-wash px-4 py-3 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
           <MetaLine>
             <span data-testid="documents-meta-files">
               {summaryParts.fileCount} {summaryParts.fileCount === 1 ? "file" : "files"}
@@ -354,7 +354,8 @@ export function DocumentsPanel({
       />
 
       {documents.length === 0 && !loadError ? (
-        <div className="flex flex-col gap-3" data-testid="documents-empty-state">
+        <div className="flex flex-col gap-3 rounded-[12px] border border-line bg-mist px-4 py-4" data-testid="documents-empty-state">
+          <p className="m-0 font-brand text-[18px] font-semibold text-ink">Documents</p>
           <p className="m-0 text-body text-ink-2">
             Upload whatever you have. Old, partial or out of order is fine.
           </p>
