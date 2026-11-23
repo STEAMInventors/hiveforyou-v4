@@ -61,17 +61,18 @@ type DefinitionBase = {
 export type PackDefinition =
   | (DefinitionBase & { kind: "entity"; fields: FieldDefinition[] })
   | (DefinitionBase & { kind: "relationship"; fromEntityId: string; toEntityId: string; evidenceRequired: boolean })
-  | (DefinitionBase & { kind: "document"; aliases: string[]; appliesWhen: PackPredicate; settlesCheckIds: string[] })
+  | (DefinitionBase & { kind: "document"; aliases: string[]; appliesWhen: PackPredicate; settlesCheckIds: string[]; timingDescription?: string; applicabilityDescription?: string })
   | (DefinitionBase & { kind: "check"; criterion: PackPredicate; question?: string; evidenceDescription?: string })
-  | (DefinitionBase & { kind: "calculation"; operator: PackCalculationOperator; inputFields: string[]; state: "EXECUTABLE" | "DECLARATION_ONLY"; legacyInputs?: string })
+  | (DefinitionBase & { kind: "calculation"; operator: PackCalculationOperator; inputFields: string[]; state: "EXECUTABLE" | "DECLARATION_ONLY"; legacyInputs?: string; scope?: string })
   | (DefinitionBase & { kind: "chain"; links: string[] })
-  | (DefinitionBase & { kind: "question"; audience: "customer" | "professional" | "all"; text: string; appliesWhen: PackPredicate })
+  | (DefinitionBase & { kind: "question"; audience: "customer" | "professional" | "all"; text: string; appliesWhen: PackPredicate; conditionDescription?: string; rationale?: string })
   | (DefinitionBase & { kind: "workflow"; steps: { id: string; action: PackWorkflowAction; requiresReview: boolean }[] })
-  | (DefinitionBase & { kind: "report"; audience: "customer" | "professional"; sections: { id: string; heading: string; blocks: string[] }[] })
+  | (DefinitionBase & { kind: "report"; audience: "customer" | "professional"; voice?: string; sections: { id: string; heading: string; blocks: string[]; templateDescription?: string }[] })
   | (DefinitionBase & { kind: "term"; meaning: string })
   | (DefinitionBase & { kind: "referenceTable"; columns: string[]; rows: string[][] })
-  | (DefinitionBase & { kind: "persona"; audience: "customer" | "professional"; context: string; questionIds: string[] })
-  | (DefinitionBase & { kind: "note"; text: string; showWhen: string });
+  | (DefinitionBase & { kind: "persona"; audience: "customer" | "professional"; context: string; questionIds: string[]; knows?: string; doesNotKnow?: string; decisions?: string; usefulWhen?: string; leaveOut?: string; successTest?: string })
+  | (DefinitionBase & { kind: "note"; text: string; showWhen: string })
+  | (DefinitionBase & { kind: "guideline"; text: string; scope: "INVESTIGATION" | "REPORTING" | "GENERAL" });
 
 export type PackUpstreamRef = { packId: string; version: string; digest: string };
 export type PackEdit =
