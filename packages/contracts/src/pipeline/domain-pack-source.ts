@@ -46,6 +46,11 @@ export const PACK_CALCULATION_OPERATORS = [
 ] as const;
 export type PackCalculationOperator = (typeof PACK_CALCULATION_OPERATORS)[number];
 
+export const PACK_REPORT_BLOCKS = [
+  "documents", "spine_table", "conflicts", "timeline", "outside_spine", "checklist",
+  "chains", "questions", "unanswered", "terms", "general_notes", "gaps", "computed",
+] as const;
+
 export const PACK_WORKFLOW_ACTIONS = [
   "REQUEST_DOCUMENT", "ASK_QUESTION", "FLAG_REVIEW", "GENERATE_REPORT",
 ] as const;
