@@ -204,7 +204,7 @@ describe("editable Domain Pack DP-1", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.issues.some((i)=>i.code==="predicate_target_missing")).toBe(true);
     const other = baseSource();
-    other.definitions.push({...check("check:unsafe"),criterion:{op:"ARBITRARY_JS"} as never});
+    other.definitions.push({kind:"check",id:"check:unsafe",label:"Unsupported predicate",criterion:{op:"ARBITRARY_JS"} as never});
     const reject = compileDomainPack(other);
     expect(reject.ok).toBe(false);
     if (!reject.ok) expect(reject.issues.some((i)=>i.code==="predicate_operator")).toBe(true);
