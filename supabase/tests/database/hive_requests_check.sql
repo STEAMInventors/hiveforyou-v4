@@ -251,8 +251,8 @@ BEGIN
     FROM hive.request_events e
     JOIN hive.requests r ON r.id = e.request_id
    WHERE r.hive_id = v_hive;
-  IF v_count <> 0 THEN
-    RAISE EXCEPTION 'client should not see request_events';
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'client should see request_events (D-059)';
   END IF;
   RESET ROLE;
 

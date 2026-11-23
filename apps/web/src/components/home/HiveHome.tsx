@@ -8,6 +8,7 @@ import type {
   GetStudyPreparationResponse,
   LegacyHomeComparison,
   LegacyHomeProjection,
+  RequestItem,
   StudyView,
   StudyViewRow,
   StudyViewSources,
@@ -22,6 +23,7 @@ import { CanonicalStudyNotice } from "@/components/hives/CanonicalStudyNotice";
 import { HiveStudyRebuildAction } from "@/components/hives/HiveStudyRebuildAction";
 import { HiveConversation } from "@/components/hives/HiveConversation";
 import { HiveHomeSidePanel } from "@/components/hives/HiveHomeSidePanel";
+import { MyWorkPanel } from "@/components/hives/MyWorkPanel";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { FindingsCompareTable } from "@/components/findings/FindingsCompareTable";
 import { FindingsTimelineList } from "@/components/findings/FindingsTimelineList";
@@ -86,6 +88,8 @@ export type HiveHomeProps = {
   staffName: string | null;
   assistantName: string;
   content: HiveHomeContent | null;
+  /** Persisted Pro requests, shown to firm staff only. */
+  requests?: readonly RequestItem[];
   loadError: { message: string; correlationId: string; retryable: boolean } | null;
   studyLoadError: StudyLoadError | null;
   studyAvailability: StudyAvailability | null;
@@ -183,6 +187,7 @@ function HiveHomeBody({
   staffName,
   assistantName,
   content,
+  requests = [],
   loadError,
   studyLoadError,
   studyAvailability,
@@ -394,6 +399,15 @@ function HiveHomeBody({
               <p className="m-0 mt-3 text-meta text-ink-3" data-testid="home-legacy-provenance">
                 {legacySavedReportHomeMeta(content.study.revisionNumber, legacyHome?.report ?? null)}
               </p>
+            ) : null}
+            {viewer === "staff" && currentUserId ? (
+              <MyWorkPanel
+                hiveId={hiveId}
+                viewer="staff"
+                currentUserId={currentUserId}
+                initialRequests={requests}
+                otherFirstName={clientName?.trim() ? personFirstName(clientName) : null}
+              />
             ) : null}
             {showNextSteps ? (
               <Section title="Next steps" headingRight={steps.length} className="mt-10">

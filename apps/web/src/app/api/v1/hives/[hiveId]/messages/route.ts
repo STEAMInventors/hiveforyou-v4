@@ -7,11 +7,9 @@ import {
   parsePostHiveMessageRequest,
   type PostHiveMessageResponse,
 } from "@hiveforyou/contracts";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { after, type NextRequest } from "next/server";
 
-import { hiveHomePath } from "@/lib/hive-routes";
-import { sendHiveMessageNotices } from "@/server/hives/hive-message-notices";
+import { hiveMessageNoticeTarget, sendHiveMessageNotices } from "@/server/hives/hive-message-notices";
 import {
   CONVERSATION_LOAD_FAILED,
   CONVERSATION_SEND_FAILED,
@@ -28,14 +26,6 @@ export const maxDuration = 60;
 type RouteContext = { params: Promise<{ hiveId: string }> };
 
 const IDEMPOTENCY_HEADER = "idempotency-key";
-
-function resolvePublicBaseUrl(request: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (configured) return configured.replace(/\/$/, "");
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  return host ? `${proto}://${host}` : "http://localhost:3000";
-}
 
 async function requireHiveAndUser(context: RouteContext, correlationId: string, signInMessage: string) {
   const { hiveId: rawHiveId } = await context.params;
@@ -67,16 +57,6 @@ async function requireHiveAndUser(context: RouteContext, correlationId: string, 
     });
   }
   return { hiveId, auth };
-}
-
-async function loadHiveName(client: SupabaseClient, hiveId: string): Promise<string> {
-  try {
-    const { data } = await client.rpc("get_hive", { p_hive_id: hiveId });
-    const name = data && typeof data === "object" ? (data as { name?: unknown }).name : undefined;
-    return typeof name === "string" && name.trim() ? name.trim() : "your hive";
-  } catch {
-    return "your hive";
-  }
 }
 
 function malformedResponse(correlationId: string, message: string) {
@@ -177,8 +157,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     if (!result.duplicate && parsed.value.channel === "people" && result.notifyUserIds.length > 0) {
       await sendHiveMessageNotices({
         userIds: result.notifyUserIds,
-        hiveName: await loadHiveName(auth.client, hiveId),
-        conversationUrl: `${resolvePublicBaseUrl(req)}${hiveHomePath(hiveId)}`,
+        ...(await hiveMessageNoticeTarget(auth.client, req, hiveId)),
         correlationId,
       }).catch(() => undefined);
     }

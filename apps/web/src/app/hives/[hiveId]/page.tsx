@@ -5,7 +5,7 @@ import {
 } from "@hiveforyou/contracts";
 import { notFound, redirect } from "next/navigation";
 
-import type { HiveBoardChecklistItem, SourceDocument } from "@hiveforyou/contracts";
+import type { HiveBoardChecklistItem, RequestItem, SourceDocument } from "@hiveforyou/contracts";
 
 import { ClientHome } from "@/components/home/ClientHome";
 import { HiveHome, type HiveHomeViewer } from "@/components/home/HiveHome";
@@ -73,6 +73,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
   let boardChecklist: readonly HiveBoardChecklistItem[] = [];
   let checklist: { title: string; status: string }[] | null = null;
   let progress: { in: number; total: number } | null = null;
+  let requests: readonly RequestItem[] = [];
   let loadError: { message: string; correlationId: string; retryable: boolean } | null = null;
 
   try {
@@ -81,6 +82,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
     boardChecklist = boardLoad.board.checklist;
     checklist = boardLoad.board.checklist.map((item) => ({ title: item.title, status: item.status }));
     progress = boardLoad.board.progress;
+    requests = boardLoad.requests;
   } catch (error) {
     try {
       overview = await loadHiveOverview(auth.client, { hiveId: hive.id, correlationId });
@@ -208,6 +210,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
         staffTitle={staffTitle}
         assistantName={assistantName}
         checklist={boardChecklist}
+        requests={requests}
         progress={progress}
         openItems={openItems}
         initialDocuments={initialDocuments}
@@ -239,6 +242,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
       staffName={hive.assigneeDisplayName?.trim() || null}
       assistantName={assistantName}
       content={content}
+      requests={viewer === "staff" ? requests : []}
       loadError={loadError}
       studyLoadError={overview?.studyLoadError ?? null}
       studyAvailability={availability}
