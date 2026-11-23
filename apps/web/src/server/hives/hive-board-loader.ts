@@ -7,6 +7,7 @@ import {
   type Hive,
   type HiveBoardModel,
   type HiveBoardStoredEvent,
+  type RequestItem,
 } from "@hiveforyou/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -44,6 +45,8 @@ export type HiveBoardLoad = {
   overview: HiveOverview;
   board: HiveBoardModel;
   uploads: readonly HiveBoardUpload[];
+  /** Persisted Pro requests; empty when none exist or they cannot be loaded. */
+  requests: readonly RequestItem[];
 };
 
 type IntentRow = {
@@ -248,10 +251,12 @@ async function assembleHiveBoardLoad(
     new Date(),
   );
 
+  let requests: readonly RequestItem[] = [];
   try {
     const { data: requestData } = await client.rpc("list_requests", { p_hive_id: input.hive.id });
     const listed = normalizeListRequestsResponse(requestData);
     if (listed && listed.requests.length > 0) {
+      requests = listed.requests;
       const fromRequests = buildHiveBoardChecklistFromRequests(listed.requests, hiveDocumentsPath(input.hive.id));
       board = {
         ...board,
@@ -275,6 +280,7 @@ async function assembleHiveBoardLoad(
           canonicalGapId: document.canonicalGapId ?? null,
           canonicalGapTitle: document.canonicalGapTitle ?? null,
         })),
+    requests,
   };
 }
 

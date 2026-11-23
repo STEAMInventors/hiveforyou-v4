@@ -1,5 +1,5 @@
 -- QF-1a / FL-11: one-call-per-RPC smoke for every app/edge participant role.
--- Requires migrations through 20261117100000_hive_checklist_and_requests.sql.
+-- Requires migrations through 20261122100000_my_work_requests.sql.
 -- Paste into Supabase SQL editor (one transaction). Expect: ALL CHECKS PASSED, then ROLLBACK.
 --
 -- Role decisions (aligned with product decisions, not strict owner-only defaults):
@@ -11,20 +11,23 @@
 --      already in a firm (client, pro). list_firm / lookups are own-firm or token-holder scoped.
 -- get_hive_by_client_request_id and get_pipeline_throughput are safe for broader roles (see calls).
 -- set_assistant_name: firm owner/attorney only. get_source_upload_by_client_request: hive owner only.
--- FL-6a RPCs not yet called by the app are smoke-tested below but not listed here; add each name
--- when the app first calls it (the coverage script enforces both directions).
+-- Names the coverage script finds in apps/web and supabase/functions are listed here.
+-- Security-only RPCs the app does not call stay out of this list.
 -- APP_RPC_COVERAGE_BEGIN
 -- - accept_firm_invitation
 -- - accept_invitation
 -- - accept_study_revision
 -- - acknowledge_study_coverage
+-- - add_request
 -- - add_team_note
 -- - apply_vault_transaction
 -- - assign_hive
+-- - attach_document_to_request
 -- - backfill_processing_run_estimate
 -- - backfill_report_run_estimate
 -- - begin_doc_extraction_attempt
 -- - begin_hive_deletion
+-- - claim_assistant_run
 -- - claim_processing_run
 -- - claim_report_run
 -- - complete_hive_deletion
@@ -33,6 +36,7 @@
 -- - create_intent_request
 -- - create_invitation
 -- - fail_stale_in_flight_doc_extraction_attempts
+-- - finish_assistant_run
 -- - generate_hive_report
 -- - get_doc_extraction_attempt_totals_for_run
 -- - get_doc_extraction_gap_pages_for_run
@@ -56,20 +60,25 @@
 -- - get_study_tab_view
 -- - get_study_tab_view_definer
 -- - get_upload_quota
+-- - hive_unread_message_count
 -- - invite_firm_member
 -- - list_document_pages
 -- - list_document_reads
 -- - list_firm
+-- - list_hive_messages
 -- - list_hive_people
 -- - list_hive_source_documents
 -- - list_hives
+-- - list_requests
 -- - list_team_notes
 -- - lookup_firm_invitation
 -- - lookup_invitation
+-- - mark_hive_messages_read
 -- - patch_processing_run_workflow_state
 -- - persist_intake_result
 -- - persist_processing_run_estimate
 -- - persist_report_run_estimate
+-- - post_hive_message
 -- - put_doc_extraction
 -- - put_doc_extraction_range
 -- - put_document_pages
@@ -81,7 +90,9 @@
 -- - recover_expired_workflow_leases
 -- - release_processing_run
 -- - remove_member
+-- - reply_to_request
 -- - reserve_processing_run_handoff
+-- - respond_to_request
 -- - retry_processing_run_stage
 -- - revoke_firm_invitation
 -- - revoke_invitation
@@ -89,17 +100,22 @@
 -- - save_study_prompt_preview
 -- - set_assistant_name
 -- - set_display_name
+-- - set_hive_assistant_replies
 -- - set_hive_kind
 -- - set_hive_stage
 -- - set_starting_view
+-- - staff_resolve_request
+-- - start_checklist
 -- - start_document_reads
 -- - start_study_preparation
+-- - submit_practice_area_request
 -- - sweep_workflow_recovery
 -- - transition_document_read
 -- - transition_processing_run
 -- - transition_report_run
 -- - try_advance_extracting_to_canonicalizing
 -- - update_doc_extraction_attempt_outcome
+-- - update_firm_profile
 -- APP_RPC_COVERAGE_END
 BEGIN;
 
@@ -214,6 +230,7 @@ DECLARE
   v_stranger_firm uuid := 'f1100010-0000-4000-8000-000000000006';
   v_firm_two_creator uuid := 'f1100010-0000-4000-8000-000000000007';
   v_hive uuid;
+  v_request uuid;
   v_hive_deletion uuid;
   v_firm uuid;
   v_client_req uuid := 'f1100020-0000-4000-8000-000000000001';
@@ -1102,6 +1119,71 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.add_request(%L, 'Pro item')$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.add_request(%L, 'Stranger item')$fmt$, v_hive));
 
+  -- rpc: respond_to_request
+  -- Client only: can upload and cannot write the hive. Staff, pro, and strangers are denied.
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  v_json := public.add_request(v_hive, 'Pay stubs for review');
+  RESET ROLE;
+  v_request := (v_json->>'requestId')::uuid;
+  IF v_request IS NULL OR (v_json->>'state') IS DISTINCT FROM 'WAITING' THEN
+    RAISE EXCEPTION 'add_request for respond smoke failed: %', v_json;
+  END IF;
+
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.respond_to_request(%L, 'DONT_HAVE', 'Employer has not sent them')$fmt$, v_request));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.respond_to_request(%L, 'DONT_HAVE', 'Employer has not sent them')$fmt$, v_request));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.respond_to_request(%L, 'DONT_HAVE', 'Employer has not sent them')$fmt$, v_request));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.respond_to_request(%L, 'DONT_HAVE', 'Employer has not sent them')$fmt$, v_request));
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  v_json := public.respond_to_request(v_request, 'DONT_HAVE', 'Employer has not sent them');
+  RESET ROLE;
+  IF (v_json->>'state') IS DISTINCT FROM 'NEEDS_REVIEW'
+     OR (v_json->>'duplicate')::boolean IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'client respond_to_request wrong: %', v_json;
+  END IF;
+
+  -- rpc: reply_to_request
+  -- Hive participants who can converse may reply. Strangers are refused.
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_client::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  v_json := public.reply_to_request(v_request, 'I will upload tonight', 'f1100040-0000-4000-8000-000000000011'::uuid);
+  RESET ROLE;
+  IF (v_json->>'duplicate')::boolean IS DISTINCT FROM false
+     OR (v_json->'message'->>'id') IS NULL THEN
+    RAISE EXCEPTION 'client reply_to_request wrong: %', v_json;
+  END IF;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_owner::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  v_json := public.reply_to_request(v_request, 'Owner reply', 'f1100040-0000-4000-8000-000000000012'::uuid);
+  RESET ROLE;
+  IF (v_json->>'duplicate')::boolean IS DISTINCT FROM false
+     OR (v_json->'message'->>'id') IS NULL THEN
+    RAISE EXCEPTION 'owner reply_to_request wrong: %', v_json;
+  END IF;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_member::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  v_json := public.reply_to_request(v_request, 'Staff reply', 'f1100040-0000-4000-8000-000000000013'::uuid);
+  RESET ROLE;
+  IF (v_json->>'duplicate')::boolean IS DISTINCT FROM false
+     OR (v_json->'message'->>'id') IS NULL THEN
+    RAISE EXCEPTION 'member reply_to_request wrong: %', v_json;
+  END IF;
+
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', v_pro::text, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  v_json := public.reply_to_request(v_request, 'Pro reply', 'f1100040-0000-4000-8000-000000000014'::uuid);
+  RESET ROLE;
+  IF (v_json->>'duplicate')::boolean IS DISTINCT FROM false
+     OR (v_json->'message'->>'id') IS NULL THEN
+    RAISE EXCEPTION 'pro reply_to_request wrong: %', v_json;
+  END IF;
+
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.reply_to_request(%L, 'Stranger reply', 'f1100040-0000-4000-8000-000000000015')$fmt$, v_request));
+
   -- rpc: attach_document_to_request
   PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.attach_document_to_request(gen_random_uuid(), %L)$fmt$, v_doc));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.attach_document_to_request(gen_random_uuid(), %L)$fmt$, v_doc));
@@ -1243,6 +1325,69 @@ BEGIN
     $fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), %L::uuid, 'succeeded', NULL, NULL, NULL, NULL, false)$fmt$, v_run));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format(
     $fmt$SELECT public.update_doc_extraction_attempt_outcome(gen_random_uuid(), %L::uuid, 'succeeded', NULL, NULL, NULL, NULL, false)$fmt$, v_run));
+
+  -- rpc: claim_assistant_run (service_role only)
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, $fmt$SELECT public.claim_assistant_run(gen_random_uuid())$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_member, $fmt$SELECT public.claim_assistant_run(gen_random_uuid())$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_client, $fmt$SELECT public.claim_assistant_run(gen_random_uuid())$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, $fmt$SELECT public.claim_assistant_run(gen_random_uuid())$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, $fmt$SELECT public.claim_assistant_run(gen_random_uuid())$fmt$);
+
+  -- rpc: finish_assistant_run (service_role only)
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, $fmt$SELECT public.finish_assistant_run(gen_random_uuid(), 'answered', NULL, '[]'::jsonb, NULL, NULL, NULL, NULL, NULL)$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_member, $fmt$SELECT public.finish_assistant_run(gen_random_uuid(), 'answered', NULL, '[]'::jsonb, NULL, NULL, NULL, NULL, NULL)$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_client, $fmt$SELECT public.finish_assistant_run(gen_random_uuid(), 'answered', NULL, '[]'::jsonb, NULL, NULL, NULL, NULL, NULL)$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, $fmt$SELECT public.finish_assistant_run(gen_random_uuid(), 'answered', NULL, '[]'::jsonb, NULL, NULL, NULL, NULL, NULL)$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, $fmt$SELECT public.finish_assistant_run(gen_random_uuid(), 'answered', NULL, '[]'::jsonb, NULL, NULL, NULL, NULL, NULL)$fmt$);
+
+  -- rpc: list_hive_messages
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.list_hive_messages(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.list_hive_messages(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.list_hive_messages(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.list_hive_messages(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.list_hive_messages(%L)$fmt$, v_hive));
+
+  -- rpc: post_hive_message
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.post_hive_message(%L, 'Smoke hello', %L)$fmt$, v_hive, gen_random_uuid()));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.post_hive_message(%L, 'Smoke hello', %L)$fmt$, v_hive, gen_random_uuid()));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.post_hive_message(%L, 'Smoke hello', %L)$fmt$, v_hive, gen_random_uuid()));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.post_hive_message(%L, 'Smoke hello', %L)$fmt$, v_hive, gen_random_uuid()));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.post_hive_message(%L, 'Smoke hello', %L)$fmt$, v_hive, gen_random_uuid()));
+
+  -- rpc: mark_hive_messages_read
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.mark_hive_messages_read(%L, now())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.mark_hive_messages_read(%L, now())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.mark_hive_messages_read(%L, now())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.mark_hive_messages_read(%L, now())$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.mark_hive_messages_read(%L, now())$fmt$, v_hive));
+
+  -- rpc: hive_unread_message_count
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.hive_unread_message_count(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.hive_unread_message_count(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_client, format($fmt$SELECT public.hive_unread_message_count(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.hive_unread_message_count(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.hive_unread_message_count(%L)$fmt$, v_hive));
+
+  -- rpc: set_hive_assistant_replies (hive owner or firm staff)
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.set_hive_assistant_replies(%L, true)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.set_hive_assistant_replies(%L, true)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.set_hive_assistant_replies(%L, true)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.set_hive_assistant_replies(%L, true)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.set_hive_assistant_replies(%L, true)$fmt$, v_hive));
+
+  -- rpc: update_firm_profile (firm owner or attorney)
+  PERFORM pg_temp.smoke_expect_ok(v_owner, $fmt$SELECT public.update_firm_profile('Smoke Law')$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_member, $fmt$SELECT public.update_firm_profile('Smoke Law')$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_client, $fmt$SELECT public.update_firm_profile('Smoke Law')$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, $fmt$SELECT public.update_firm_profile('Smoke Law')$fmt$);
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, $fmt$SELECT public.update_firm_profile('Smoke Law')$fmt$);
+
+  -- rpc: submit_practice_area_request (active firm member)
+  PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.submit_practice_area_request('Need estate planning', %L)$fmt$, gen_random_uuid()));
+  PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.submit_practice_area_request('Need estate planning', %L)$fmt$, gen_random_uuid()));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.submit_practice_area_request('Need estate planning', %L)$fmt$, gen_random_uuid()));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.submit_practice_area_request('Need estate planning', %L)$fmt$, gen_random_uuid()));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.submit_practice_area_request('Need estate planning', %L)$fmt$, gen_random_uuid()));
 
   FOREACH v_unverified_name IN ARRAY v_smoke_unverified
   LOOP

@@ -7,6 +7,7 @@ import type {
   FindingsTopic,
   GetStudyPreparationResponse,
   HiveBoardChecklistItem,
+  RequestItem,
   SourceDocument,
   StudyView,
   StudyViewRow,
@@ -17,6 +18,7 @@ import { useMemo, useState } from "react";
 
 import { HiveConversation } from "@/components/hives/HiveConversation";
 import { ChecklistGapAddButton } from "@/components/hives/ChecklistGapAddButton";
+import { MyWorkPanel } from "@/components/hives/MyWorkPanel";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { buildHiveEvidenceViewerModel, type HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
@@ -60,6 +62,8 @@ export type ClientHomeProps = {
   staffTitle: string | null;
   assistantName: string;
   checklist: readonly HiveBoardChecklistItem[];
+  /** Persisted Pro requests; when present they replace the Still to send list. */
+  requests?: readonly RequestItem[];
   progress: { in: number; total: number } | null;
   openItems: readonly FindingsOpenItem[];
   initialDocuments: readonly SourceDocument[];
@@ -89,6 +93,7 @@ function ClientHomeBody(props: ClientHomeProps) {
     staffTitle,
     assistantName,
     checklist,
+    requests = [],
     progress,
     openItems,
     initialDocuments,
@@ -238,7 +243,19 @@ function ClientHomeBody(props: ClientHomeProps) {
         </div>
       ) : null}
 
-      {checklist.length > 0 ? (
+      {requests.length > 0 && currentUserId ? (
+        <MyWorkPanel
+          hiveId={hiveId}
+          viewer="client"
+          currentUserId={currentUserId}
+          initialRequests={requests}
+          otherFirstName={staffDisplayName?.trim() ? staffFirst : null}
+          onDocumentUploaded={(document) => {
+            setDocuments((current) => [...current, document]);
+            setToast("Added.");
+          }}
+        />
+      ) : checklist.length > 0 ? (
         <section className="mt-[30px]" aria-labelledby="client-still-heading">
           <h2
             id="client-still-heading"
