@@ -407,7 +407,7 @@ export function compileDomainPack(raw: unknown, upstream?: CompiledDomainPack): 
     }
   }
   if (errors.length) return { ok: false, issues: errors };
-  const effective = [...definitions.values()].sort((a,b)=>a.id.localeCompare(b.id,"en"));
+  const effective = [...definitions.values()].sort((a,b)=>a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   validateReferences(effective, errors);
   if (errors.length) return { ok: false, issues: errors };
   const material = {
