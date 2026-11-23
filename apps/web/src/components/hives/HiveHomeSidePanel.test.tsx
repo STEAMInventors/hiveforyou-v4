@@ -214,4 +214,73 @@ describe("HiveHomeSidePanel", () => {
       expect(screen.queryByRole("dialog")).toBeNull();
     });
   });
+
+  describe("composer visibility, bounded sticky height, and legitimate error states (P0.6)", () => {
+    it("desktop: bounds sticky panel height with overflow-hidden so composer and Send button stay visible while thread scrolls independently", () => {
+      stubViewport(1280);
+      render(
+        <ChatWrap config={chatConfig()}>
+          <HiveHomeSidePanel people={PEOPLE} other={OTHER} />
+        </ChatWrap>,
+      );
+
+      const aside = screen.getByTestId("hive-home-side-panel");
+      expect(aside.className).toContain("min-[1100px]:sticky");
+      expect(aside.className).toContain("min-[1100px]:self-start");
+      expect(aside.className).toContain("min-[1100px]:overflow-hidden");
+      expect(aside.className).toContain("min-[1100px]:h-[calc(100dvh-13rem)]");
+
+      const chat = screen.getByTestId("ask-chat");
+      expect(chat.className).toContain("overflow-hidden");
+
+      const thread = screen.getByTestId("ask-thread");
+      expect(thread.className).toContain("min-h-0");
+      expect(thread.className).toContain("flex-1");
+      expect(thread.className).toContain("overflow-y-auto");
+
+      const composer = screen.getByTestId("ask-composer");
+      expect(composer.className).toContain("shrink-0");
+      expect(screen.getByRole("textbox", { name: /Question for Rowan/ })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Send to Rowan" })).toBeTruthy();
+    });
+
+    it("mobile: opens ChatSheet with shrink-0 composer, Send button, and scrollable thread", () => {
+      stubViewport(390);
+      render(
+        <ChatWrap config={chatConfig()}>
+          <AskBar />
+          <ChatSheet />
+        </ChatWrap>,
+      );
+
+      fireEvent.click(screen.getByTestId("ask-bar"));
+      expect(screen.getByRole("dialog", { name: "Ask Rowan" })).toBeTruthy();
+      expect(screen.getByTestId("ask-thread").className).toContain("overflow-y-auto");
+      expect(screen.getByTestId("ask-composer").className).toContain("shrink-0");
+      expect(screen.getByRole("textbox", { name: /Question for Rowan/ })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Send to Rowan" })).toBeTruthy();
+    });
+
+    it("preserves legitimate loadError state by hiding the composer and showing retry UI", () => {
+      stubViewport(1280);
+      render(
+        <ChatWrap
+          config={chatConfig({
+            initialAssistant: {
+              ok: false,
+              message: "Could not load conversation.",
+              correlationId: "corr-123",
+              retryable: true,
+            },
+          })}
+        >
+          <HiveHomeSidePanel people={PEOPLE} other={OTHER} />
+        </ChatWrap>,
+      );
+
+      expect(screen.queryByTestId("ask-composer")).toBeNull();
+      expect(screen.getByTestId("ask-load-error").textContent).toContain("Could not load conversation.");
+      expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    });
+  });
 });

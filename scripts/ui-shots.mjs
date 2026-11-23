@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import { mkdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { access, mkdir } from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -60,9 +62,12 @@ const galleryPages = [
   "my-hives",
 ];
 
+const webDir = path.join(root, "apps/web");
 const conceptPath = path.join(root, "prototype/new/HiveForYou-Concept-v5.html");
 const conceptUrl = `file:///${conceptPath.replace(/\\/g, "/")}`;
-const baseUrl = process.env.UI_SHOTS_BASE_URL ?? "http://127.0.0.1:3000";
+const serverPort = Number(process.env.UI_SHOTS_PORT ?? 3000);
+const baseUrl = process.env.UI_SHOTS_BASE_URL ?? `http://127.0.0.1:${serverPort}`;
+const manageServer = process.env.UI_SHOTS_MANAGE_SERVER !== "0";
 
 const omniPages = new Set([
   "omni-staff-empty",
@@ -73,6 +78,114 @@ const omniPages = new Set([
 ]);
 
 const sheetPages = new Set(["chat-sheet-client", "evidence-ask-page", "home-narrow-askbar"]);
+
+async function probeUrl(url, timeoutMs = 4000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ac.signal, redirect: "follow" });
+    return res.status >= 200 && res.status < 500;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function portAcceptsConnections(port, host = "127.0.0.1") {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host });
+    const done = (open) => {
+      socket.destroy();
+      resolve(open);
+    };
+    socket.setTimeout(2500);
+    socket.on("connect", () => done(true));
+    socket.on("timeout", () => done(false));
+    socket.on("error", () => done(false));
+  });
+}
+
+async function ensureGalleryServer() {
+  const healthUrl = `${baseUrl}/api/health`;
+  const galleryUrlProbe = `${baseUrl}/dev/gallery/front`;
+
+  if ((await probeUrl(healthUrl, 5000)) && (await probeUrl(galleryUrlProbe, 20_000))) {
+    console.log(`Using gallery server at ${baseUrl}`);
+    return null;
+  }
+
+  const portBusy = await portAcceptsConnections(serverPort);
+  if (portBusy && !(await probeUrl(healthUrl, 3000))) {
+    throw new Error(
+      `Port ${serverPort} accepts connections but does not respond (stale process?). ` +
+        `Stop it or set UI_SHOTS_PORT to a free port.`,
+    );
+  }
+
+  if (!manageServer) {
+    throw new Error(
+      `Gallery server not ready at ${baseUrl}. Build and start: npm run build && npm run start -w @hiveforyou/web ` +
+        `(or set UI_SHOTS_MANAGE_SERVER=1 to start automatically).`,
+    );
+  }
+
+  try {
+    await access(path.join(webDir, ".next/BUILD_ID"));
+  } catch {
+    throw new Error("Missing apps/web/.next production build. Run npm run build from the repo root first.");
+  }
+
+  const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+  const child = spawn(npx, ["next", "start", "-p", String(serverPort), "-H", "127.0.0.1"], {
+    cwd: webDir,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, PORT: String(serverPort), HOSTNAME: "127.0.0.1" },
+  });
+
+  let bootLog = "";
+  child.stderr?.on("data", (chunk) => {
+    bootLog += chunk.toString();
+  });
+  child.stdout?.on("data", (chunk) => {
+    bootLog += chunk.toString();
+  });
+
+  const deadline = Date.now() + 120_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode != null) {
+      throw new Error(`next start exited with code ${child.exitCode}:\n${bootLog}`);
+    }
+    if ((await probeUrl(healthUrl, 3000)) && (await probeUrl(galleryUrlProbe, 20_000))) {
+      console.log(`Started Next.js gallery server at ${baseUrl}`);
+      return child;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 750));
+  }
+
+  child.kill();
+  throw new Error(`next start did not serve ${galleryUrlProbe} within 120s:\n${bootLog}`);
+}
+
+/** Concept shows queue controls in both the left nav (≥1100) and tablist — prefer the tab. */
+async function clickConceptQueue(page, queue) {
+  const tab = page.locator(`[role="tab"][data-queue="${queue}"]`);
+  if (await tab.isVisible().catch(() => false)) {
+    await tab.click();
+    return;
+  }
+  await page.locator(`nav.side-nav [data-queue="${queue}"]`).click();
+}
+
+/** Hive section nav duplicates between side-nav (≥1100) and tablist — prefer the tab. */
+async function clickConceptHiveTab(page, tabName) {
+  const tab = page.locator(`[role="tab"][data-tab="${tabName}"]`);
+  if (await tab.isVisible().catch(() => false)) {
+    await tab.click();
+    return;
+  }
+  await page.locator(`nav.side-nav [data-tab="${tabName}"]`).click();
+}
 
 function galleryUrl(pageName) {
   const url = `${baseUrl}/dev/gallery/${pageName}`;
@@ -196,7 +309,7 @@ const conceptStates = [
     slug: "hives-mine",
     go: "hives",
     async after(page) {
-      await page.locator('[data-queue="mine"]').click();
+      await clickConceptQueue(page, "mine");
     },
   },
   { slug: "hives-first-visit", go: "first" },
@@ -205,7 +318,7 @@ const conceptStates = [
     minWidth: 1100,
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
       await page.locator('[data-side="sarah"]').click().catch(() => undefined);
     },
   },
@@ -214,7 +327,7 @@ const conceptStates = [
     minWidth: 1100,
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
       await page.locator('[data-side="people"]').click();
     },
   },
@@ -223,7 +336,7 @@ const conceptStates = [
     minWidth: 1100,
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
       await page.locator('[data-act="clientqs"]').click();
     },
   },
@@ -232,7 +345,7 @@ const conceptStates = [
     maxWidth: 1099,
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
     },
   },
   {
@@ -246,7 +359,7 @@ const conceptStates = [
     slug: "evidence-ask-page",
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
       await page.locator('[data-ev]').first().click();
       await page.waitForTimeout(300);
       await page.locator('[data-act="askpage"]').click();
@@ -256,14 +369,14 @@ const conceptStates = [
     slug: "home-staff",
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
     },
   },
   {
     slug: "omni-answer",
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
       await page.locator("#omni").focus().catch(() => undefined);
       await page.locator("#omni").fill("2023").catch(() => undefined);
     },
@@ -273,7 +386,7 @@ const conceptStates = [
     minWidth: 1100,
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
       const input = page.locator("#omni");
       await input.waitFor({ state: "visible", timeout: 30_000 });
       await input.fill("2023");
@@ -283,7 +396,7 @@ const conceptStates = [
     slug: "evidence-item",
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="home"]').click();
+      await clickConceptHiveTab(page, "home");
       await page.locator('[data-item="x2"]').first().click();
     },
   },
@@ -291,7 +404,7 @@ const conceptStates = [
     slug: "documents",
     go: "hive:staff",
     async after(page) {
-      await page.locator('[data-tab="documents"]').click();
+      await clickConceptHiveTab(page, "documents");
     },
   },
   {
@@ -360,12 +473,17 @@ async function main() {
     process.exit(1);
   }
 
-  await mkdir(outDir, { recursive: true });
-  const browser = await chromium.launch();
+  let serverChild = null;
+  const skipGallery = process.env.UI_SHOTS_CONCEPT_ONLY === "1";
+  try {
+    if (!skipGallery) {
+      serverChild = await ensureGalleryServer();
+    }
+
+    await mkdir(outDir, { recursive: true });
+    const browser = await chromium.launch();
   const overflowPages = [];
   const galleryDiagnostics = { console: [], pageErrors: [] };
-
-  const skipGallery = process.env.UI_SHOTS_CONCEPT_ONLY === "1";
 
   if (!skipGallery) {
     const galleryContext = await browser.newContext();
@@ -398,31 +516,36 @@ async function main() {
     }
   }
 
-  await protoContext.close();
-  await browser.close();
+    await protoContext.close();
+    await browser.close();
 
-  console.log(`Wrote screenshots to ${outDir}`);
-  if (overflowPages.length > 0) {
-    console.log("Horizontal overflow:");
-    for (const line of overflowPages) console.log(`  - ${line}`);
-  } else if (!skipGallery) {
-    console.log("No horizontal overflow on gallery pages.");
-  }
+    console.log(`Wrote screenshots to ${outDir}`);
+    if (overflowPages.length > 0) {
+      console.log("Horizontal overflow:");
+      for (const line of overflowPages) console.log(`  - ${line}`);
+    } else if (!skipGallery) {
+      console.log("No horizontal overflow on gallery pages.");
+    }
 
-  const reportWidths = new Set([390, 1280]);
-  const consoleAtKeyWidths = galleryDiagnostics.console.filter((line) =>
-    reportWidths.has(Number(/@(\d+)px/.exec(line)?.[1])),
-  );
-  const pageErrorsAtKeyWidths = galleryDiagnostics.pageErrors.filter((line) =>
-    reportWidths.has(Number(/@(\d+)px/.exec(line)?.[1])),
-  );
+    const reportWidths = new Set([390, 1280]);
+    const consoleAtKeyWidths = galleryDiagnostics.console.filter((line) =>
+      reportWidths.has(Number(/@(\d+)px/.exec(line)?.[1])),
+    );
+    const pageErrorsAtKeyWidths = galleryDiagnostics.pageErrors.filter((line) =>
+      reportWidths.has(Number(/@(\d+)px/.exec(line)?.[1])),
+    );
 
-  if (!skipGallery && (consoleAtKeyWidths.length > 0 || pageErrorsAtKeyWidths.length > 0)) {
-    console.error("Gallery console errors (390 and 1280px):");
-    for (const line of [...consoleAtKeyWidths, ...pageErrorsAtKeyWidths]) console.error(`  - ${line}`);
-    process.exit(1);
-  } else if (!skipGallery) {
-    console.log("No console errors on gallery pages at 390 and 1280px.");
+    if (!skipGallery && (consoleAtKeyWidths.length > 0 || pageErrorsAtKeyWidths.length > 0)) {
+      console.error("Gallery console errors (390 and 1280px):");
+      for (const line of [...consoleAtKeyWidths, ...pageErrorsAtKeyWidths]) console.error(`  - ${line}`);
+      process.exit(1);
+    } else if (!skipGallery) {
+      console.log("No console errors on gallery pages at 390 and 1280px.");
+    }
+  } finally {
+    if (serverChild) {
+      serverChild.kill();
+    }
   }
 }
 

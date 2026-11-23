@@ -47,6 +47,8 @@ export type EvidencePdfPageProps = {
   readonly onHighlightStatus: (status: EvidenceHighlightStatus) => void;
   /** Owner session page route — shown after an in-viewer PDF load failure (not the signed vault URL). */
   readonly originalPageHref?: string;
+  /** Request a fresh signed URL and retry rendering after a PDF.js load/render failure or expired URL. */
+  readonly onRetry?: () => void;
 };
 
 function documentFileProp(fileUrl: string): DocumentProps["file"] {
@@ -67,6 +69,7 @@ export function EvidencePdfPage({
   neighborPageNumber,
   onHighlightStatus,
   originalPageHref,
+  onRetry,
 }: EvidencePdfPageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -236,7 +239,7 @@ export function EvidencePdfPage({
         ? `evidencePdf.loadError name=${err.name} host=${shape.host} scheme=${shape.scheme} pathSegments=${shape.pathSegmentCount}`
         : `evidencePdf.loadError name=${err.name} urlShape=invalid`;
     console.error(`[evidence-pdf] ${detail} message=${err.message}`);
-    setPdfLoadError("Could not load this page in the viewer.");
+    setPdfLoadError("Could not render this page in the PDF viewer. The temporary link may have expired.");
   }, [fileUrl]);
 
   const handlePageRenderSuccess = useCallback(() => {
@@ -253,19 +256,31 @@ export function EvidencePdfPage({
   if (pdfLoadError) {
     const originalHref = originalPageHref?.trim() ? originalPageHref : fileUrl;
     return (
-      <div className="flex flex-col gap-2 rounded-input border border-line bg-mist px-4 py-4">
+      <div role="alert" className="flex flex-col gap-2 rounded-input border border-line bg-mist px-4 py-4">
         <p className="m-0 text-small text-coral-deep" data-testid="evidence-pdf-load-error">
           {pdfLoadError}
         </p>
-        <a
-          href={originalHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-small text-ink-2 underline decoration-ink-3 underline-offset-2 hover:text-ink"
-          data-testid="evidence-pdf-open-original"
-        >
-          Open the original
-        </a>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              data-testid="evidence-pdf-retry"
+              className="inline-flex h-9 cursor-pointer items-center justify-center rounded-button border border-line-strong bg-paper px-3 text-small font-medium text-ink hover:bg-hover"
+            >
+              Try again
+            </button>
+          ) : null}
+          <a
+            href={originalHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-small text-ink-2 underline decoration-ink-3 underline-offset-2 hover:text-ink"
+            data-testid="evidence-pdf-open-original"
+          >
+            Open the original
+          </a>
+        </div>
       </div>
     );
   }
@@ -282,6 +297,7 @@ export function EvidencePdfPage({
             customTextRenderer={customTextRendererPrimary}
             onGetTextSuccess={handleGetTextSuccess(pageNumber) as (p: { items: unknown[] }) => void}
             onRenderSuccess={handlePageRenderSuccess}
+            onRenderError={handlePdfLoadError}
           />
         ) : null}
         {renderNeighbor ? (
@@ -292,6 +308,7 @@ export function EvidencePdfPage({
             renderAnnotationLayer={false}
             customTextRenderer={customTextRendererNeighbor}
             onGetTextSuccess={handleGetTextSuccess(neighborPage) as (p: { items: unknown[] }) => void}
+            onRenderError={handlePdfLoadError}
           />
         ) : null}
       </Document>

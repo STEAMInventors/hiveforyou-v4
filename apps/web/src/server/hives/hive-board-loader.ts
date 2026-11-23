@@ -18,7 +18,20 @@ import {
   listHiveSourceDocumentsWithV3Vault,
 } from "@/server/source-documents/hive-vault-upload-adapter";
 
+import { VaultAdminConfigError } from "@/server/source-documents/v3-vault/persistence/vault-admin-config-error";
+
 import { loadHiveOverview, type HiveOverview } from "./hive-summary";
+
+/** Document-list failures on read-only pages (e.g. missing vault admin). Auth failures rethrow. */
+export function isRecoverableHiveBoardDocumentListFailure(error: unknown): boolean {
+  if (error instanceof VaultAdminConfigError) return true;
+  if (error && typeof error === "object" && !Array.isArray(error)) {
+    const record = error as { errorCode?: unknown; category?: unknown };
+    if (record.errorCode === "NOT_FOUND" || record.errorCode === "ACCESS_DENIED") return false;
+    if (record.category === "SECURITY") return false;
+  }
+  return true;
+}
 
 export type HiveBoardUpload = {
   sourceDocumentId: string;
@@ -102,18 +115,41 @@ function buildStoredEvents(input: {
   return events;
 }
 
-export async function loadHiveBoard(
+type HiveBoardListedDocument = Awaited<
+  ReturnType<typeof listHiveSourceDocumentsWithV3Vault>
+>["sourceDocuments"][number];
+
+type HiveBoardDocumentListResult =
+  | { readonly status: "listed"; readonly documents: readonly HiveBoardListedDocument[] }
+  | { readonly status: "unavailable" };
+
+async function resolveHiveBoardDocumentList(
   client: SupabaseClient,
   input: { hive: Hive; correlationId: string; userId: string },
-): Promise<HiveBoardLoad> {
+  options: { recoverListingFailure: boolean },
+): Promise<HiveBoardDocumentListResult> {
   const deps = createLiveHiveVaultUploadAdapterDeps(client, input.correlationId);
-  const listed = await listHiveSourceDocumentsWithV3Vault(deps, {
-    ownerUserId: input.userId,
-    hiveId: input.hive.id,
-    correlationId: input.correlationId,
-  });
-  const documents = listed.sourceDocuments;
-  const gapUploads = parseGapUploadLinks(documents);
+  try {
+    const listed = await listHiveSourceDocumentsWithV3Vault(deps, {
+      ownerUserId: input.userId,
+      hiveId: input.hive.id,
+      correlationId: input.correlationId,
+    });
+    return { status: "listed", documents: listed.sourceDocuments };
+  } catch (error) {
+    if (!options.recoverListingFailure || !isRecoverableHiveBoardDocumentListFailure(error)) throw error;
+    return { status: "unavailable" };
+  }
+}
+
+async function assembleHiveBoardLoad(
+  client: SupabaseClient,
+  input: { hive: Hive; correlationId: string; userId: string },
+  documentList: HiveBoardDocumentListResult,
+): Promise<HiveBoardLoad> {
+  const sourceDocumentListUnavailable = documentList.status === "unavailable";
+  const documents = documentList.status === "listed" ? documentList.documents : [];
+  const gapUploads = sourceDocumentListUnavailable ? [] : parseGapUploadLinks(documents);
 
   const overview = await loadHiveOverview(client, {
     hiveId: input.hive.id,
@@ -200,6 +236,7 @@ export async function loadHiveBoard(
       hasSucceededReport: overview.preparation.reportRuns.some((run) => run.status === "SUCCEEDED"),
       latestReportAudience: latestSucceeded?.audience ?? null,
       latestReportFinishedAt: latestSucceeded?.finishedAt ?? null,
+      sourceDocumentListUnavailable,
       storedEvents: buildStoredEvents({
         documents,
         documentReads,
@@ -230,11 +267,30 @@ export async function loadHiveBoard(
   return {
     overview,
     board,
-    uploads: documents.map((document) => ({
-      sourceDocumentId: document.sourceDocumentId,
-      fileName: document.fileName,
-      canonicalGapId: document.canonicalGapId ?? null,
-      canonicalGapTitle: document.canonicalGapTitle ?? null,
-    })),
+    uploads: sourceDocumentListUnavailable
+      ? []
+      : documents.map((document) => ({
+          sourceDocumentId: document.sourceDocumentId,
+          fileName: document.fileName,
+          canonicalGapId: document.canonicalGapId ?? null,
+          canonicalGapTitle: document.canonicalGapTitle ?? null,
+        })),
   };
+}
+
+export async function loadHiveBoard(
+  client: SupabaseClient,
+  input: { hive: Hive; correlationId: string; userId: string },
+): Promise<HiveBoardLoad> {
+  const documentList = await resolveHiveBoardDocumentList(client, input, { recoverListingFailure: false });
+  return assembleHiveBoardLoad(client, input, documentList);
+}
+
+/** Loads the board when vault listing works; keeps study, report and checklist data when listing alone fails. */
+export async function loadHiveBoardResilient(
+  client: SupabaseClient,
+  input: { hive: Hive; correlationId: string; userId: string },
+): Promise<HiveBoardLoad> {
+  const documentList = await resolveHiveBoardDocumentList(client, input, { recoverListingFailure: true });
+  return assembleHiveBoardLoad(client, input, documentList);
 }

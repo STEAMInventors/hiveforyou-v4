@@ -13,8 +13,12 @@ import {
   isActiveReportRunStatus,
   isStudyViewReport,
   normalizeGetStudyTabViewResponse,
+  resolveLegacyHomeProjection,
+  resolveWorkspaceTimelineWithHistory,
   type HiveAttentionInput,
   type HiveAttentionResult,
+  type LegacyHomeProjection,
+  type ResolvedWorkspaceTimeline,
   type StudyView,
   type StudyViewReferencedDocument,
   type StudyViewReport,
@@ -25,7 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StateCounts } from "@/components/study/state-counts";
 import type { DisplayState } from "@/components/study/status-state";
 import { studyDocumentRequestCount, studyStateCounts, studyStateTargets } from "@/components/study/study-summary";
-import { getHiveReports } from "@/server/reports/reports";
+import { getHiveReport, getHiveReports } from "@/server/reports/reports";
 import { loadPackById, logPinnedPackNotFound } from "@/server/pipeline/pack-loader";
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation/study-preparation";
@@ -145,10 +149,112 @@ export function latestStudyView(reports: GetHiveReportsResponse | null): StudyVi
   return views.find((report) => report.audience === "CUSTOMER") ?? views[0] ?? null;
 }
 
+/** Canonical tab view when available; otherwise the pinned report study view for read-only legacy revisions. */
+export function workspaceStudyView(
+  overview: Pick<HiveOverview, "studyTab" | "studyView">,
+): { view: StudyView | null; sources: StudyViewSources | null } {
+  if (overview.studyTab?.view) {
+    return { view: overview.studyTab.view, sources: overview.studyTab.sources };
+  }
+  const fromReport = overview.studyView;
+  if (fromReport) {
+    return { view: fromReport.view, sources: fromReport.studyViewSources };
+  }
+  return { view: null, sources: null };
+}
+
 export function documentPageCounts(preparation: GetStudyPreparationResponse): Record<string, number> {
   return Object.fromEntries(
     preparation.eligibility.documents.map((document) => [document.sourceDocumentId, document.totalPhysicalPages]),
   );
+}
+
+/** Document labels for evidence chips when only a saved application-view is available. */
+export function hiveWorkspaceDocuments(
+  preparation: GetStudyPreparationResponse,
+): { sourceDocumentId: string; fileName: string }[] {
+  return preparation.eligibility.documents.map((document) => ({
+    sourceDocumentId: document.sourceDocumentId,
+    fileName: document.fileName,
+  }));
+}
+
+/** Source document IDs authorized on the current study revision snapshot (for timeline ref resolution). */
+export function authorizedSourceDocumentIds(preparation: GetStudyPreparationResponse): string[] {
+  const fromEligibility = preparation.eligibility.documents.map((document) => document.sourceDocumentId);
+  const matchesRevision =
+    !preparation.studyRevision || preparation.processingRun?.id === preparation.studyRevision.processingRunId;
+  const fromRun = matchesRevision ? (preparation.processingRun?.authorizedSourceDocumentIds ?? []) : [];
+  if (fromRun.length === 0) return fromEligibility;
+  const allowed = new Set(fromRun.map((id) => id.toLowerCase()));
+  return fromEligibility.filter((id) => allowed.has(id.toLowerCase()));
+}
+
+/**
+ * Resolves workspace Timeline rows and report attribution using the authenticated client.
+ * Canonical study-view takes precedence; for legacy revisions, checks latest Customer then latest Pro,
+ * and if neither has valid Timeline events, checks authorized report history for the SAME accepted
+ * study revision only via `get_hive_report`.
+ */
+export async function loadWorkspaceTimeline(
+  client: SupabaseClient,
+  input: {
+    readonly hiveId: string;
+    readonly overview: Pick<HiveOverview, "preparation" | "reports" | "studyTab" | "studyView">;
+    readonly correlationId: string;
+  },
+): Promise<ResolvedWorkspaceTimeline> {
+  const { view } = workspaceStudyView(input.overview);
+  const acceptedStudyRevisionId =
+    input.overview.preparation.studyRevision?.id ?? input.overview.reports?.studyRevision?.id ?? null;
+  const authorizedIds = authorizedSourceDocumentIds(input.overview.preparation);
+  const authorizedDocumentPages = documentPageCounts(input.overview.preparation);
+
+  let aborted = false;
+  return resolveWorkspaceTimelineWithHistory({
+    studyView: view,
+    acceptedStudyRevisionId,
+    latest: input.overview.reports?.latest ?? null,
+    history: input.overview.reports?.history ?? null,
+    authorizedSourceDocumentIds: authorizedIds,
+    authorizedDocumentPages,
+    loadHistoricalReport: async (reportId) => {
+      if (aborted) return null;
+      try {
+        const loaded = await getHiveReport(client, {
+          hiveId: input.hiveId,
+          reportId,
+          correlationId: input.correlationId,
+        });
+        return loaded.report;
+      } catch (error) {
+        const record = error as { errorCode?: unknown; diagnosticReason?: unknown } | null;
+        if (record?.errorCode === "UNAUTHENTICATED" || record?.diagnosticReason === "not_found") {
+          aborted = true;
+        }
+        return null;
+      }
+    },
+  });
+}
+
+/**
+ * Resolves source-backed Home findings, open items, and comparisons for an accepted legacy study
+ * from same-revision authenticated `hive-application-view/1` reports. Always empty for canonical studies.
+ */
+export function resolveWorkspaceLegacyHome(
+  overview: Pick<HiveOverview, "preparation" | "reports" | "studyTab" | "studyView">,
+): LegacyHomeProjection {
+  const { view } = workspaceStudyView(overview);
+  const acceptedStudyRevisionId =
+    overview.preparation.studyRevision?.id ?? overview.reports?.studyRevision?.id ?? null;
+  return resolveLegacyHomeProjection({
+    studyView: view,
+    reports: overview.reports?.latest ?? null,
+    acceptedStudyRevisionId,
+    authorizedSourceDocumentIds: authorizedSourceDocumentIds(overview.preparation),
+    authorizedDocumentPages: documentPageCounts(overview.preparation),
+  });
 }
 
 export function hiveIntakeCounts(

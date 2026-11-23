@@ -9,6 +9,7 @@ import type {
   HiveBoardChecklistItem,
   SourceDocument,
   StudyView,
+  StudyViewRow,
   StudyViewSources,
 } from "@hiveforyou/contracts";
 import Link from "next/link";
@@ -17,11 +18,11 @@ import { useMemo, useState } from "react";
 import { HiveConversation } from "@/components/hives/HiveConversation";
 import { ChecklistGapAddButton } from "@/components/hives/ChecklistGapAddButton";
 import type { ConversationLoad } from "@/components/hives/useHiveConversation";
-import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
+import { buildHiveEvidenceViewerModel, type HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { Avatar } from "@/components/ui/AvatarStack";
 import { LockIcon } from "@/components/ui/LockIcon";
-import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
+import { useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
 import { ProgressMeter } from "@/components/ui/ProgressMeter";
 import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
 import { StatusDot } from "@/components/ui/StatusDot";
@@ -32,6 +33,14 @@ import type { StudyAvailability } from "@/lib/hives/study-availability";
 import type { StudyLoadError } from "@/server/hives/hive-summary";
 import { useHiveChat } from "@/lib/hive-chat-context";
 import { hiveDocumentsPath, hiveReportsPath } from "@/lib/hive-routes";
+import {
+  mergeOmniCatalog,
+  omniDocumentsFromWorkspace,
+  omniOpenItemsFromChecklist,
+  omniOpenItemsFromFindings,
+  omniStatementsFromTimeline,
+  omniStatementsFromTopics,
+} from "@/lib/omni-catalog-build";
 
 import { askSuggestions } from "./ask-suggestions";
 import {
@@ -68,6 +77,8 @@ export type ClientHomeProps = {
   coverageGaps: readonly CoverageGap[];
   topics: readonly FindingsTopic[];
   documentPages?: Readonly<Record<string, number>>;
+  workspaceDocuments?: readonly HiveWorkspaceDocument[];
+  timeline?: readonly StudyViewRow[];
 };
 
 function ClientHomeBody(props: ClientHomeProps) {
@@ -109,17 +120,53 @@ function ClientHomeBody(props: ClientHomeProps) {
   const askOn = Boolean(chat?.assistantOn);
   const suggestions = useMemo(
     () =>
-      askOn && statementCount > 0
+      askOn && (statementCount > 0 || (props.timeline?.length ?? 0) > 0)
         ? askSuggestions({
             viewer: "client",
             stillToCome: missingCount,
             documentsIn: progress?.in ?? documents.length,
           })
         : [],
-    [askOn, documents.length, missingCount, progress?.in, statementCount],
+    [askOn, documents.length, missingCount, progress?.in, props.timeline, statementCount],
   );
-  // The sheet shows the same starter questions.
-  useRegisterOmniCatalog({ ...EMPTY_OMNI_CATALOG, suggestions });
+  const studyDocumentRows = useMemo(
+    () => props.view?.blocks.find((block) => block.name === "documents")?.rows ?? [],
+    [props.view],
+  );
+  const omniCatalog = useMemo(() => {
+    const mergedWorkspaceDocs: HiveWorkspaceDocument[] = [
+      ...(props.workspaceDocuments ?? []),
+      ...documents.map((doc) => ({ sourceDocumentId: doc.sourceDocumentId, fileName: doc.fileName })),
+    ];
+    const topicStatements = omniStatementsFromTopics(topics);
+    return mergeOmniCatalog({
+      suggestions,
+      documents: omniDocumentsFromWorkspace({
+        workspaceDocuments: mergedWorkspaceDocs,
+        studyDocumentRows,
+        documentPages: props.documentPages,
+        sourcesDocuments: props.sources?.documents,
+      }),
+      statements:
+        topicStatements.length > 0 ? topicStatements : omniStatementsFromTimeline(props.timeline ?? []),
+      openItems: omniOpenItemsFromFindings(props.openItems, props.sources).concat(
+        omniOpenItemsFromChecklist(checklist),
+      ),
+    });
+  }, [
+    checklist,
+    documents,
+    props.documentPages,
+    props.openItems,
+    props.sources,
+    props.timeline,
+    props.workspaceDocuments,
+    studyDocumentRows,
+    suggestions,
+    topics,
+  ]);
+  // The sheet shows the same starter questions; the top box indexes authorized documents, items, and statements.
+  useRegisterOmniCatalog(omniCatalog);
 
   const onAddFilesFallback = () => {
     window.location.href = hiveDocumentsPath(hiveId);
@@ -303,8 +350,18 @@ export function ClientHome(props: ClientHomeProps) {
         canonicalStudy: props.canonicalStudy,
         coverageGaps: props.coverageGaps,
         documentPages: props.documentPages,
+        projectedTimeline: props.view ? undefined : props.timeline,
+        workspaceDocuments: props.workspaceDocuments,
       }),
-    [props.view, props.sources, props.canonicalStudy, props.coverageGaps, props.documentPages],
+    [
+      props.view,
+      props.sources,
+      props.canonicalStudy,
+      props.coverageGaps,
+      props.documentPages,
+      props.timeline,
+      props.workspaceDocuments,
+    ],
   );
   const pageCountFor = (id: string) => props.documentPages?.[id] ?? props.documentPages?.[id.toLowerCase()];
   const body = <ClientHomeBody {...props} />;

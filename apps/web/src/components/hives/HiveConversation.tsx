@@ -496,7 +496,7 @@ export function HiveConversation({
 
   const head =
     column && column.header !== "hidden" ? (
-      <header className="flex items-center justify-between gap-2.5 border-b border-line pb-3">
+      <header className="flex shrink-0 items-center justify-between gap-2.5 border-b border-line pb-3">
         <div className="min-w-0">
           <h2 className="m-0 text-[16px] font-semibold text-ink">Conversation with {column.otherFirstName}</h2>
           <p className="m-0 mt-0.5 text-[12.5px] text-ink-3">
@@ -607,7 +607,7 @@ export function HiveConversation({
         </div>
       ) : (
         <>
-          <div className="relative">
+          <div className={column ? "relative flex min-h-0 flex-1 flex-col" : "relative"}>
             <div
               ref={listRef}
               onScroll={onScroll}

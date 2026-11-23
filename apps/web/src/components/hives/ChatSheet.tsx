@@ -110,7 +110,7 @@ export function ChatSheet() {
         tabIndex={-1}
         data-testid="chat-sheet"
         onKeyDown={onKeyDown}
-        className="fixed inset-0 z-[61] flex h-dvh w-full flex-col overflow-hidden bg-paper outline-none motion-safe:animate-[hfy-sheet_220ms_cubic-bezier(.16,1,.3,1)] min-[760px]:inset-x-auto min-[760px]:bottom-0 min-[760px]:left-1/2 min-[760px]:top-auto min-[760px]:h-[min(88vh,780px)] min-[760px]:w-[560px] min-[760px]:max-w-full min-[760px]:-translate-x-1/2 min-[760px]:rounded-t-sheet min-[760px]:shadow-pop"
+        className="fixed inset-0 z-[61] flex h-dvh w-full flex-col overflow-hidden bg-paper outline-none motion-safe:animate-[hfy-sheet_220ms_cubic-bezier(.16,1,.3,1)] min-[760px]:inset-x-auto min-[760px]:bottom-0 min-[760px]:left-1/2 min-[760px]:top-auto min-[760px]:h-[min(88dvh,780px)] min-[760px]:w-[560px] min-[760px]:max-w-full min-[760px]:-translate-x-1/2 min-[760px]:rounded-t-sheet min-[760px]:shadow-pop"
       >
         <EvidenceViewerOpenOverride open={openChip}>
           <ConnectedAskChat variant="sheet" active={open} />

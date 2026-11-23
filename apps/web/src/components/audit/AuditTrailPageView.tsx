@@ -1,10 +1,20 @@
 "use client";
 
-import type { AuditTrailEntry, HiveBoardModel, StudyRevisionLine } from "@hiveforyou/contracts";
+import type {
+  AuditTrailEntry,
+  CanonicalStudy,
+  HiveBoardModel,
+  StudyRevisionLine,
+  StudyView,
+  StudyViewRow,
+  StudyViewSources,
+} from "@hiveforyou/contracts";
 import { useMemo, useState, type ReactNode } from "react";
 
+import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
+import { buildHiveEvidenceViewerModel, type HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
 import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
-import { mergeOmniCatalog, omniStatementsFromAudit } from "@/lib/omni-catalog-build";
+import { mergeOmniCatalog, omniDocumentsFromWorkspace, omniStatementsFromAudit } from "@/lib/omni-catalog-build";
 
 import type { ChipRef } from "@/components/study/SourceChip";
 import { Section } from "@/components/ui/Section";
@@ -63,30 +73,64 @@ function PaginatedSection({
 }
 
 export function AuditTrailPageView({
+  hiveId,
   entries,
   revisions,
   board,
   assistantName,
+  view = null,
+  sources = null,
+  canonicalStudy = null,
+  workspaceDocuments,
+  studyDocumentRows,
+  documentPages,
+  sourcesDocuments,
 }: {
+  hiveId?: string;
   entries: readonly AuditTrailEntry[];
   revisions: readonly StudyRevisionLine[];
   board: HiveBoardModel;
   assistantName: string;
+  view?: StudyView | null;
+  sources?: StudyViewSources | null;
+  canonicalStudy?: CanonicalStudy | null;
+  workspaceDocuments?: readonly HiveWorkspaceDocument[];
+  studyDocumentRows?: readonly StudyViewRow[];
+  documentPages?: Readonly<Record<string, number>>;
+  sourcesDocuments?: StudyViewSources["documents"];
 }) {
   const [checksExpanded, setChecksExpanded] = useState(false);
   const [revisionsExpanded, setRevisionsExpanded] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);
 
   const activityRows = [...board.activity].reverse();
+  const evidence = useMemo(
+    () =>
+      hiveId
+        ? buildHiveEvidenceViewerModel({
+            view,
+            sources,
+            canonicalStudy,
+            documentPages,
+            workspaceDocuments,
+          })
+        : null,
+    [canonicalStudy, documentPages, hiveId, sources, view, workspaceDocuments],
+  );
   const omniCatalog = useMemo(
     () =>
       mergeOmniCatalog({
         suggestions: EMPTY_OMNI_CATALOG.suggestions,
         openItems: EMPTY_OMNI_CATALOG.openItems,
-        documents: EMPTY_OMNI_CATALOG.documents,
+        documents: omniDocumentsFromWorkspace({
+          workspaceDocuments,
+          studyDocumentRows,
+          documentPages,
+          sourcesDocuments,
+        }),
         statements: omniStatementsFromAudit(entries),
       }),
-    [entries],
+    [documentPages, entries, sourcesDocuments, studyDocumentRows, workspaceDocuments],
   );
   useRegisterOmniCatalog(omniCatalog);
 
@@ -94,7 +138,7 @@ export function AuditTrailPageView({
   const visibleRevisions = revisionsExpanded ? revisions : revisions.slice(0, ROW_LIMIT);
   const visibleActivity = activityExpanded ? activityRows : activityRows.slice(0, ROW_LIMIT);
 
-  return (
+  const content = (
     <div className="mx-auto w-full max-w-col-read" data-testid="audit-trail">
       {entries.length === 0 ? (
         <p className="m-0 text-body text-ink-2" data-testid="audit-empty">
@@ -190,5 +234,21 @@ export function AuditTrailPageView({
         )}
       </PaginatedSection>
     </div>
+  );
+
+  if (!hiveId || !evidence) return content;
+  return (
+    <EvidenceViewerProvider
+      hiveId={hiveId}
+      labels={evidence.labels}
+      chipLabels={evidence.chipLabels}
+      pageCountFor={evidence.pageCountFor}
+      citationContexts={evidence.citationContexts}
+      view={view}
+      sources={sources}
+      canonicalStudy={canonicalStudy}
+    >
+      {content}
+    </EvidenceViewerProvider>
   );
 }

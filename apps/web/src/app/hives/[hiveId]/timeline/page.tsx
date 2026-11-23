@@ -2,7 +2,13 @@ import { HiveTimelinePanel } from "@/components/timeline/HiveTimelinePanel";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { studyAvailability } from "@/lib/hives/study-availability";
 import { requestCorrelationId } from "@/server/auth/action-support";
-import { documentPageCounts, loadHiveOverview } from "@/server/hives/hive-summary";
+import {
+  documentPageCounts,
+  hiveWorkspaceDocuments,
+  loadHiveOverview,
+  loadWorkspaceTimeline,
+  workspaceStudyView,
+} from "@/server/hives/hive-summary";
 import { loadOwnedHiveOrNotFound } from "@/server/hives/load-owned-hive";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
 
@@ -18,15 +24,18 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
 
   const correlationId = await requestCorrelationId();
   const overview = await loadHiveOverview(auth.client, { hiveId: hive.id, correlationId });
-  const view = overview.studyTab?.view ?? null;
-  const sources = overview.studyTab?.sources ?? null;
+  const { view, sources } = workspaceStudyView(overview);
   const revision = overview.preparation.studyRevision ?? null;
   const availability = studyAvailability({
     revision,
-    hasCanonicalView: view != null,
+    hasCanonicalView: overview.studyTab?.view != null,
     studyLoadError: overview.studyLoadError,
   });
-  const timeline = view?.blocks.find((block) => block.name === "timeline")?.rows ?? [];
+  const resolvedTimeline = await loadWorkspaceTimeline(auth.client, {
+    hiveId: hive.id,
+    overview,
+    correlationId,
+  });
 
   return (
     <HiveTimelinePanel
@@ -36,11 +45,13 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
       viewerIsClient={hive.membershipRole === "client"}
       studyAvailability={availability}
       studyLoadError={overview.studyLoadError}
-      timeline={timeline}
+      timeline={resolvedTimeline.rows}
+      timelineReport={resolvedTimeline.report}
       view={view}
       sources={sources}
       canonicalStudy={overview.canonicalStudy}
       documentPages={documentPageCounts(overview.preparation)}
+      workspaceDocuments={hiveWorkspaceDocuments(overview.preparation)}
       initialPreparation={overview.preparation}
     />
   );

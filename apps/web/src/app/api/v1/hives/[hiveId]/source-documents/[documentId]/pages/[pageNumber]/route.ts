@@ -1,6 +1,7 @@
 import { createHiveError } from "@hiveforyou/contracts";
 import type { NextRequest } from "next/server";
 
+import { isHttpOrHttpsUrlString } from "@/lib/signed-url-log-shape";
 import { CORRELATION_HEADER } from "@/server/observability/correlation";
 import { withApiRoute } from "@/server/observability/with-api-route";
 import {
@@ -37,6 +38,18 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
       pageNumber,
       correlationId,
     });
+    const baseSignedUrl = signedUrl.includes("#") ? signedUrl.slice(0, signedUrl.indexOf("#")) : signedUrl;
+    if (!isHttpOrHttpsUrlString(baseSignedUrl)) {
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: true,
+        safeMessage: "We received an invalid link for this document. Try again in a moment.",
+        correlationId,
+        diagnosticReason: "storage_failed",
+      });
+    }
     return new Response(null, {
       status: 302,
       headers: { Location: signedUrl, "Cache-Control": "no-store", [CORRELATION_HEADER]: correlationId },

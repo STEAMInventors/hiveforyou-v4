@@ -6,18 +6,25 @@ import {
   canonicalStudyDocumentRoleLabel,
   buildUnexpectedExceptionDiagnostics,
   HIVE_MESSAGE_PAGE_SIZE,
+  isErrorCategory,
+  isErrorCode,
+  isProcessingStage,
+  mapLegacyAssistantFactRefs,
   normalizeGetStudyTabViewResponse,
   normalizeHiveMessagePage,
   normalizeListRequestsResponse,
   revisionIdForAssistant,
   validateAssistantReply,
   type AssistantBriefingAskerRole,
+  type HiveError,
   type HiveMessage,
+  type LegacyAssistantEvidence,
 } from "@hiveforyou/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { loadPackById } from "@/server/pipeline/pack-loader";
+import { VaultAdminConfigError } from "@/server/source-documents/v3-vault/persistence/vault-admin-config-error";
 import { getStudyPreparation, getStudyTabView } from "@/server/study-preparation/study-preparation";
 
 import { loadHiveAssistantReplyPrompt } from "./hive-assistant-prompt";
@@ -28,6 +35,7 @@ import {
   type AssistantSkipReason,
 } from "./hive-assistant-trigger";
 import { loadHiveOverview } from "./hive-summary";
+import { loadAcceptedLegacyAssistantEvidence } from "./load-legacy-assistant-evidence";
 
 type RunInput = {
   hiveId: string;
@@ -145,6 +153,16 @@ function logAssistantPackUnavailable(input: RunInput, runId: string, cause: unkn
   });
 }
 
+function logAssistantLegacyEvidenceUnavailable(input: RunInput, runId: string, reason: string): void {
+  emitStructuredEvent({
+    ...assistantLogBase(input, runId),
+    eventName: "hive.assistant.legacy_evidence_unavailable",
+    severity: "INFO",
+    status: "OK",
+    errorCode: reason,
+  });
+}
+
 function logAssistantAnswered(
   input: RunInput,
   runId: string,
@@ -253,26 +271,178 @@ async function loadBriefingChecklist(userClient: SupabaseClient, hiveId: string)
   return normalizeListRequestsResponse(data)?.requests ?? [];
 }
 
+export const ASSISTANT_PRE_CLAIM_STAGES = [
+  "model_runner_init",
+  "supabase_env_load",
+  "admin_client_create",
+  "hive_flags_query",
+  "assistant_name_lookup",
+  "rate_limit_lookup",
+  "trigger_eval",
+  "assistant_run_claim",
+] as const;
+
+export type AssistantPreClaimStage = (typeof ASSISTANT_PRE_CLAIM_STAGES)[number];
+
+type AssistantUnexpectedStage = AssistantPreClaimStage | "finish";
+
+const SAFE_EXCEPTION_TYPE = /^[A-Z][A-Za-z0-9]{0,39}$/;
+const SAFE_EXCEPTION_CODE = /^(?:[A-Z0-9][A-Z0-9_]{1,39}|[a-z][a-z0-9_]{1,39})$/;
+const LONG_HEX_CODE = /^[0-9a-f]{16,}$/i;
+const SENSITIVE_EXCEPTION_MARKER =
+  /password|token|quote|documenttext|prompt|authorization|secret|credential|ssn|phi|pii|bearer|apikey|api_key|service_role|jwt/i;
+
+class AssistantStageError extends Error {
+  override readonly name = "AssistantStageError";
+  readonly assistantStage: AssistantPreClaimStage;
+
+  constructor(stage: AssistantPreClaimStage, cause: unknown) {
+    super(stage);
+    this.assistantStage = stage;
+    Object.defineProperty(this, "cause", {
+      value: cause,
+      enumerable: false,
+      configurable: true,
+    });
+  }
+}
+
+function runStageSync<T>(stage: AssistantPreClaimStage, fn: () => T): T {
+  try {
+    return fn();
+  } catch (cause) {
+    throw new AssistantStageError(stage, cause);
+  }
+}
+
+async function runStageAsync<T>(stage: AssistantPreClaimStage, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (cause) {
+    throw new AssistantStageError(stage, cause);
+  }
+}
+
+function isHiveErrorLike(value: unknown): value is HiveError {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.errorCode === "string" &&
+    isErrorCode(record.errorCode) &&
+    typeof record.category === "string" &&
+    isErrorCategory(record.category) &&
+    typeof record.stage === "string" &&
+    isProcessingStage(record.stage) &&
+    typeof record.retryable === "boolean" &&
+    typeof record.safeMessage === "string" &&
+    typeof record.correlationId === "string"
+  );
+}
+
+function sanitizeExceptionType(cause: unknown): string {
+  if (cause instanceof VaultAdminConfigError) return "VaultAdminConfigError";
+  if (isHiveErrorLike(cause)) return "HiveError";
+  const isDomException = typeof DOMException !== "undefined" && cause instanceof DOMException;
+  if (cause instanceof Error || isDomException) {
+    const rawName = cause.name;
+    if (
+      typeof rawName === "string" &&
+      SAFE_EXCEPTION_TYPE.test(rawName) &&
+      !SENSITIVE_EXCEPTION_MARKER.test(rawName)
+    ) {
+      return rawName;
+    }
+    return "Error";
+  }
+  return "Unknown";
+}
+
+function sanitizeExceptionCode(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!SAFE_EXCEPTION_CODE.test(trimmed)) return null;
+  if (LONG_HEX_CODE.test(trimmed)) return null;
+  if (SENSITIVE_EXCEPTION_MARKER.test(trimmed)) return null;
+  return trimmed;
+}
+
+function sanitizeHttpStatusCode(record: Record<string, unknown>): string | null {
+  const raw = record.status ?? record.statusCode;
+  if (typeof raw === "number" && Number.isInteger(raw) && raw >= 100 && raw <= 599) {
+    return `http_${raw}`;
+  }
+  return null;
+}
+
+function extractSanitizedExceptionCode(cause: unknown): string | null {
+  if (cause instanceof VaultAdminConfigError) {
+    return cause.diagnosticReason;
+  }
+  if (isHiveErrorLike(cause)) {
+    return sanitizeExceptionCode(cause.diagnosticReason) ?? sanitizeExceptionCode(cause.errorCode);
+  }
+  if (!cause || typeof cause !== "object") return null;
+  const record = cause as Record<string, unknown>;
+  const direct = sanitizeExceptionCode(record.code);
+  if (direct) return direct;
+  const nestedCause = record.cause;
+  if (nestedCause && typeof nestedCause === "object") {
+    const nested = sanitizeExceptionCode((nestedCause as Record<string, unknown>).code);
+    if (nested) return nested;
+  }
+  return sanitizeHttpStatusCode(record);
+}
+
+function buildAssistantUnexpectedDiagnostics(error: unknown): {
+  stage: AssistantUnexpectedStage;
+  exceptionType: string;
+  exceptionCode: string | null;
+  diagnosticReason: string;
+  diagnosticField: string;
+} {
+  const stage: AssistantUnexpectedStage =
+    error instanceof AssistantStageError ? error.assistantStage : "finish";
+  const cause = error instanceof AssistantStageError ? error.cause : error;
+  const exceptionType = sanitizeExceptionType(cause);
+  const exceptionCode = extractSanitizedExceptionCode(cause);
+  const diagnosticReason =
+    cause instanceof VaultAdminConfigError ? cause.diagnosticReason : "unexpected_exception";
+  const diagnosticField = exceptionCode
+    ? `${stage}:${exceptionType}:${exceptionCode}`
+    : `${stage}:${exceptionType}`;
+  return {
+    stage,
+    exceptionType,
+    exceptionCode,
+    diagnosticReason,
+    diagnosticField,
+  };
+}
+
 export async function maybeScheduleHiveAssistantReply(
   input: RunInput & { authorRole: string },
-  runModel: AssistantModelRunner = createDefaultAssistantModelRunner(),
+  runModel?: AssistantModelRunner,
 ): Promise<void> {
-  const admin = createSupabaseAdminClient(loadSupabaseAdminEnv(process.env));
+  const resolvedRunModel = runStageSync("model_runner_init", () => runModel ?? createDefaultAssistantModelRunner());
+  const adminEnv = runStageSync("supabase_env_load", () => loadSupabaseAdminEnv(process.env));
+  const admin = runStageSync("admin_client_create", () => createSupabaseAdminClient(adminEnv));
   const { userClient } = input;
-  const hive = await loadHiveFlags(admin, input.hiveId);
+  const hive = await runStageAsync("hive_flags_query", () => loadHiveFlags(admin, input.hiveId));
   if (!hive) {
     logAssistantFlagsUnavailable(input);
     return;
   }
-  const assistantName = await loadAssistantName(admin, hive.firmId);
-  const runsInLastHour = await countRunsLastHour(admin, input.hiveId);
-  const decision = shouldTriggerHiveAssistant({
-    hive: { contentClass: hive.contentClass, assistantRepliesOn: hive.assistantRepliesOn, firmId: hive.firmId },
-    message: input.triggerMessage,
-    authorRole: input.authorRole as never,
-    assistantName,
-    runsInLastHour,
-  });
+  const assistantName = await runStageAsync("assistant_name_lookup", () => loadAssistantName(admin, hive.firmId));
+  const runsInLastHour = await runStageAsync("rate_limit_lookup", () => countRunsLastHour(admin, input.hiveId));
+  const decision = runStageSync("trigger_eval", () =>
+    shouldTriggerHiveAssistant({
+      hive: { contentClass: hive.contentClass, assistantRepliesOn: hive.assistantRepliesOn, firmId: hive.firmId },
+      message: input.triggerMessage,
+      authorRole: input.authorRole as never,
+      assistantName,
+      runsInLastHour,
+    }),
+  );
   if (!decision.trigger) {
     if (decision.skipReason) logAssistantSkipped(input, decision.skipReason);
     return;
@@ -280,8 +450,11 @@ export async function maybeScheduleHiveAssistantReply(
 
   const skipForRate = decision.skipReason === "rate_limited";
 
-  const { data: claimRaw, error: claimError } = await admin.rpc("claim_assistant_run", {
-    p_trigger_message_id: input.triggerMessage.id,
+  const { data: claimRaw, error: claimError } = await runStageAsync("assistant_run_claim", async () => {
+    const result = await admin.rpc("claim_assistant_run", {
+      p_trigger_message_id: input.triggerMessage.id,
+    });
+    return { data: result.data, error: result.error };
   });
   if (claimError) {
     logAssistantClaimFailed(input, claimError.code ?? "claim_failed");
@@ -381,6 +554,30 @@ export async function maybeScheduleHiveAssistantReply(
     }
   }
 
+  const isCanonicalStudy =
+    overview.canonicalStudy != null || preparation.studyRevision?.format === "canonical-study-1";
+  let legacyEvidence: LegacyAssistantEvidence | null = null;
+  if (!isCanonicalStudy && preparation.studyRevision != null) {
+    try {
+      const loaded = await loadAcceptedLegacyAssistantEvidence(userClient, {
+        hiveId: input.hiveId,
+        expectedRevision: preparation.studyRevision,
+        activeEligibleDocuments: preparation.eligibility.documents.map((doc) => ({
+          sourceDocumentId: doc.sourceDocumentId,
+          totalPhysicalPages: doc.totalPhysicalPages,
+        })),
+      });
+      if (loaded.ok) {
+        legacyEvidence = loaded.evidence;
+      } else {
+        logAssistantLegacyEvidenceUnavailable(input, runId, loaded.reason);
+      }
+    } catch {
+      legacyEvidence = null;
+      logAssistantLegacyEvidenceUnavailable(input, runId, "load_failed");
+    }
+  }
+
   let briefing: ReturnType<typeof buildAssistantBriefing>;
   try {
     briefing = buildAssistantBriefing({
@@ -402,13 +599,14 @@ export async function maybeScheduleHiveAssistantReply(
         revisionNumber: preparation.studyRevision?.revisionNumber ?? null,
         canonical: overview.canonicalStudy,
         sources: overview.studyTab?.sources ?? null,
+        legacyFacts: legacyEvidence?.briefingFacts ?? null,
       },
       documents: preparation.eligibility.documents.map((doc, index) => ({
         label: overview.canonicalStudy
           ? canonicalStudyDocumentRoleLabel(overview.canonicalStudy, doc.sourceDocumentId, {
               sources: overview.studyTab?.sources ?? null,
             })
-          : `Document ${index + 1}`,
+          : legacyEvidence?.documentLabels[doc.sourceDocumentId.toLowerCase()] ?? `Document ${index + 1}`,
         pages: doc.totalPhysicalPages ?? null,
         readState: doc.readStatus,
         unreadablePages: [],
@@ -432,7 +630,7 @@ export async function maybeScheduleHiveAssistantReply(
 
   let model: Awaited<ReturnType<AssistantModelRunner>>;
   try {
-    model = await runModel({
+    model = await resolvedRunModel({
       briefing: JSON.parse(JSON.stringify(briefing)) as Record<string, unknown>,
       correlationId: input.correlationId,
     });
@@ -455,16 +653,22 @@ export async function maybeScheduleHiveAssistantReply(
       {
         revisionId,
         mapFact: (fact) => {
-          const sources = overview.studyTab?.sources;
-          const ref = sources?.facts[fact.id];
-          if (!ref) return null;
-          return {
-            sourceDocumentId: ref.sourceDocumentId,
-            pageNumber: ref.pageNumber,
-            shortLabel: fact.sourceLabel,
-            factId: fact.id,
-            studyRevisionId: revisionId,
-          };
+          if (overview.canonicalStudy) {
+            const sources = overview.studyTab?.sources;
+            const ref = sources?.facts[fact.id];
+            if (!ref) return null;
+            return {
+              sourceDocumentId: ref.sourceDocumentId,
+              pageNumber: ref.pageNumber,
+              shortLabel: fact.sourceLabel,
+              factId: fact.id,
+              studyRevisionId: revisionId,
+            };
+          }
+          if (legacyEvidence) {
+            return mapLegacyAssistantFactRefs(legacyEvidence, fact.id, revisionId);
+          }
+          return null;
         },
       },
       replyFallback,
@@ -507,14 +711,17 @@ export async function maybeScheduleHiveAssistantReply(
 export async function runHiveAssistantReply(input: RunInput & { authorRole: string }): Promise<void> {
   try {
     await maybeScheduleHiveAssistantReply(input);
-  } catch {
+  } catch (cause) {
+    const diagnostics = buildAssistantUnexpectedDiagnostics(cause);
     emitStructuredEvent({
       ...assistantLogBase(input),
       eventName: "hive.assistant.failed",
       severity: "ERROR",
       status: "FAILED",
       errorCode: "unexpected",
-      diagnosticField: "finish",
+      diagnosticReason: diagnostics.diagnosticReason,
+      diagnosticField: diagnostics.diagnosticField,
+      exceptionType: diagnostics.exceptionType,
     });
   }
 }

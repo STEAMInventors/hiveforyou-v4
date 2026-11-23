@@ -115,6 +115,8 @@ export type BuildAssistantBriefingInput = {
     revisionNumber: number | null;
     canonical: CanonicalStudy | null;
     sources: StudyViewSources | null;
+    /** Accepted, verified legacy `investigation-1` facts; ignored whenever `canonical` is present. */
+    legacyFacts?: readonly AssistantBriefingFact[] | null;
   };
   readonly documents: readonly {
     label: string;
@@ -256,6 +258,23 @@ function studyFacts(
   return [...byId.values()];
 }
 
+function legacyStudyFacts(
+  legacyFacts: readonly AssistantBriefingFact[] | null | undefined,
+): AssistantBriefingFact[] {
+  if (!Array.isArray(legacyFacts) || legacyFacts.length === 0) return [];
+  const byId = new Map<string, AssistantBriefingFact>();
+  for (const fact of legacyFacts) {
+    const id = typeof fact?.id === "string" ? fact.id.trim() : "";
+    const statement = typeof fact?.statement === "string" ? fact.statement.trim() : "";
+    const sourceLabel = typeof fact?.sourceLabel === "string" ? fact.sourceLabel.trim() : "";
+    const page = fact?.page;
+    if (id === "" || statement === "" || sourceLabel === "" || byId.has(id)) continue;
+    if (page !== null && (typeof page !== "number" || !Number.isInteger(page) || page < 1)) continue;
+    byId.set(id, { id, statement, sourceLabel, page });
+  }
+  return [...byId.values()];
+}
+
 function gapsFromStudy(gaps: readonly CanonicalGap[]): AssistantBriefingGap[] {
   return gaps.map((gap) => ({
     id: gap.id,
@@ -384,7 +403,9 @@ export function buildAssistantBriefing(input: BuildAssistantBriefingInput): Assi
     ASSISTANT_BRIEFING_HARD_CAP_BYTES,
   );
   const canonical = input.study.canonical;
-  const facts = canonical ? studyFacts(canonical, input.study.sources, input.titleAsPrintedById) : [];
+  const facts = canonical
+    ? studyFacts(canonical, input.study.sources, input.titleAsPrintedById)
+    : legacyStudyFacts(input.study.legacyFacts);
   const rules = [...ASSISTANT_BRIEFING_FIXED_RULES, ...packNeverSayRules(input.pack)];
 
   let briefing: AssistantBriefing = sanitizeBriefingPayload({

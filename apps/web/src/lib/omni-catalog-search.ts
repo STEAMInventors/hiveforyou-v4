@@ -22,7 +22,9 @@ export function omniHits(catalog: OmniCatalog, rawQuery: string): OmniHit[] {
   }
   for (const document of catalog.documents) {
     if (hits.filter((hit) => hit.kind === "document").length >= 3) break;
-    const blob = `${document.role} ${document.typeLabel} ${document.period}`;
+    const rawFileName = document.fileName?.trim() ?? "";
+    const normalizedFileName = rawFileName.replace(/[_-]+/g, " ");
+    const blob = `${document.role} ${document.typeLabel} ${document.period} ${rawFileName} ${normalizedFileName}`;
     if (includes(blob, query)) {
       hits.push({ kind: "document", id: `document-${document.id}`, document });
     }

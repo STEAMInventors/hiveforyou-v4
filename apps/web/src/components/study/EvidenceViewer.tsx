@@ -157,7 +157,7 @@ type EvidenceViewerProviderProps = {
 };
 
 function chipMapKey(sourceDocumentId: string, pageNumber: number): string {
-  return `${sourceDocumentId}:${pageNumber}`;
+  return `${sourceDocumentId.toLowerCase()}:${pageNumber}`;
 }
 
 function backTabLabel(pathname: string, hiveId: string): string {
@@ -180,7 +180,8 @@ function chipFromUrl(
   }
   const match = Object.entries(sources.facts).find(
     ([, ref]) =>
-      ref.sourceDocumentId === parsed.sourceDocumentId && ref.pageNumber === parsed.pageNumber,
+      ref.sourceDocumentId.toLowerCase() === parsed.sourceDocumentId.toLowerCase() &&
+      ref.pageNumber === parsed.pageNumber,
   );
   if (!match) {
     return { sourceDocumentId: parsed.sourceDocumentId, pageNumber: parsed.pageNumber };
@@ -248,6 +249,8 @@ export function EvidenceViewerProvider({
   const [pageMime, setPageMime] = useState<string | null>(null);
   const [vaultMime, setVaultMime] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadErrorCorrelationId, setLoadErrorCorrelationId] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [highlightStatus, setHighlightStatus] = useState<EvidenceHighlightStatus | null>(null);
   const [neighborPageText, setNeighborPageText] = useState<string | null>(null);
   const [PdfViewer, setPdfViewer] = useState<ComponentType<EvidencePdfPageProps> | null>(null);
@@ -283,6 +286,7 @@ export function EvidenceViewerProvider({
     setPageMime(null);
     setVaultMime(null);
     setLoadError(null);
+    setLoadErrorCorrelationId(null);
     setHighlightStatus(null);
     setNeighborPageText(null);
     setPdfViewer(null);
@@ -429,6 +433,7 @@ export function EvidenceViewerProvider({
     let cancelled = false;
     (async () => {
       setLoadError(null);
+      setLoadErrorCorrelationId(null);
       setSignedUrl(null);
       setPageText(null);
       setPageMime(null);
@@ -463,14 +468,29 @@ export function EvidenceViewerProvider({
         if (cancelled) return;
 
         const openRes = await fetch(evidenceViewerOpenPath(hiveId, chip.sourceDocumentId), postViewerOpenInit(pageNumber));
+        const headerCorrelationId = openRes.headers?.get("x-correlation-id")?.trim() || null;
         if (!openRes.ok) {
-          setLoadError("Could not open the document.");
+          const errBody = (await openRes.json().catch(() => null)) as {
+            error?: { message?: unknown; correlationId?: unknown };
+          } | null;
+          if (cancelled) return;
+          const serverMessage =
+            typeof errBody?.error?.message === "string" && errBody.error.message.trim() !== ""
+              ? errBody.error.message.trim()
+              : "Could not open the document.";
+          const correlationId =
+            typeof errBody?.error?.correlationId === "string" && errBody.error.correlationId.trim() !== ""
+              ? errBody.error.correlationId.trim()
+              : headerCorrelationId;
+          setLoadError(serverMessage);
+          setLoadErrorCorrelationId(correlationId);
           return;
         }
         const body = (await openRes.json()) as { signedUrl?: string; mimeType?: string };
         if (cancelled) return;
         if (typeof body.signedUrl !== "string" || !isHttpOrHttpsUrlString(body.signedUrl)) {
-          setLoadError("Could not open the document.");
+          setLoadError("We received an invalid link for this document. Try again in a moment.");
+          setLoadErrorCorrelationId(headerCorrelationId);
           console.warn("[evidence-viewer] viewer-open returned invalid signedUrl shape (expected https URL string)");
           return;
         }
@@ -490,13 +510,16 @@ export function EvidenceViewerProvider({
         }
         setSignedUrl(body.signedUrl);
       } catch {
-        if (!cancelled) setLoadError("Could not open the document.");
+        if (!cancelled) {
+          setLoadError("We could not reach the document service. Check your connection and try again.");
+          setLoadErrorCorrelationId(null);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [chip, hiveId, pageNumber, totalPages, unreadableProblem]);
+  }, [chip, hiveId, pageNumber, totalPages, unreadableProblem, reloadNonce]);
 
   const highlightStatusLine = useMemo(() => {
     if (!highlightStatus) return null;
@@ -551,7 +574,11 @@ export function EvidenceViewerProvider({
     return () => {
       cancelled = true;
     };
-  }, [signedUrl, isPdf]);
+  }, [signedUrl, isPdf, reloadNonce]);
+
+  const onRetry = useCallback(() => {
+    setReloadNonce((n) => n + 1);
+  }, []);
 
   const onPageChange = useCallback(
     (nextPage: number) => {
@@ -593,7 +620,9 @@ export function EvidenceViewerProvider({
           signedUrl={signedUrl}
           pageText={pageText}
           loadError={loadError}
+          loadErrorCorrelationId={loadErrorCorrelationId}
           pdfViewerLoadError={pdfViewerLoadError}
+          onRetry={onRetry}
           highlightStatusLine={highlightStatusLine}
           quoteForHighlight={quoteForHighlight}
           isPdf={isPdf}

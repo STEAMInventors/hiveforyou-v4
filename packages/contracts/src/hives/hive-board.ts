@@ -123,6 +123,8 @@ export type HiveBoardInput = {
   readonly latestReportAudience: "CUSTOMER" | "PRO" | null;
   readonly latestReportFinishedAt: string | null;
   readonly storedEvents: readonly HiveBoardStoredEvent[];
+  /** Vault listing failed; documentCount may still reflect preparation eligibility, not a confirmed empty Hive. */
+  readonly sourceDocumentListUnavailable?: boolean;
 };
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
@@ -293,7 +295,10 @@ function buildHeadline(needs: readonly HiveBoardNeedItem[], input: HiveBoardInpu
   if (needs.length > 0) {
     return needs.length === 1 ? "1 thing to review" : `${needs.length} things to review`;
   }
-  if (input.documentCount === 0) return "Nothing is in yet";
+  if (input.documentCount === 0 && !input.sourceDocumentListUnavailable) return "Nothing is in yet";
+  if (input.sourceDocumentListUnavailable && input.documentCount === 0 && !input.canonicalStudy) {
+    return "Documents unavailable";
+  }
   if (input.readingInProgress) return "Reading the documents";
   const open = openChecklistCount(checklist);
   if (open > 0) return `${open} still to come`;
@@ -307,11 +312,19 @@ function buildNext(
 ): HiveBoardNext | null {
   if (needs.length > 0) return null;
 
-  if (input.documentCount === 0) {
+  if (input.documentCount === 0 && !input.sourceDocumentListUnavailable) {
     return {
       title: "Add the documents you have",
       detail: "Upload whatever you have. Old, partial, or out of order is fine.",
       action: { kind: "link", label: "Add documents", href: input.documentsPath },
+    };
+  }
+
+  if (input.sourceDocumentListUnavailable && input.documentCount === 0) {
+    return {
+      title: "Documents could not be loaded",
+      detail: "Open Documents to try again, or refresh the page.",
+      action: { kind: "link", label: "Open Documents", href: input.documentsPath },
     };
   }
 
@@ -401,10 +414,14 @@ function buildReadiness(
     latestReport = `${audienceLabel(input.latestReportAudience)}, ${date}`;
   }
 
+  const documentsLine = input.sourceDocumentListUnavailable
+    ? "Unavailable right now"
+    : `${input.documentsReadCount} read, ${input.documentsNotInStudyCount} new`;
+
   return [
     {
       label: "Documents",
-      value: `${input.documentsReadCount} read, ${input.documentsNotInStudyCount} new`,
+      value: documentsLine,
     },
     { label: "To review", value: String(needs.length) },
     { label: "Missing", value: String(missingOpen) },

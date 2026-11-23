@@ -46,7 +46,9 @@ type EvidenceViewPanelProps = {
   signedUrl: string | null;
   pageText: string | null;
   loadError: string | null;
+  loadErrorCorrelationId?: string | null;
   pdfViewerLoadError: boolean;
+  onRetry?: () => void;
   highlightStatusLine: string | null;
   quoteForHighlight: string;
   isPdf: boolean;
@@ -75,7 +77,9 @@ export function EvidenceViewPanel({
   signedUrl,
   pageText,
   loadError,
+  loadErrorCorrelationId = null,
   pdfViewerLoadError,
+  onRetry,
   highlightStatusLine,
   quoteForHighlight,
   isPdf,
@@ -191,8 +195,43 @@ export function EvidenceViewPanel({
             Page {pageNumber} of {totalPages}
           </span>
         </div>
-        {loadError ? <p className="m-0 text-small text-coral-deep">{loadError}</p> : null}
-        {pdfViewerLoadError ? <p className="m-0 text-small text-coral-deep">Could not load the PDF viewer.</p> : null}
+        {loadError ? (
+          <div
+            role="alert"
+            data-testid="evidence-load-error"
+            className="mx-auto flex w-full max-w-[680px] flex-col gap-2 rounded-input border border-line bg-paper px-4 py-4"
+          >
+            <p className="m-0 text-small text-coral-deep">{loadError}</p>
+            {loadErrorCorrelationId ? (
+              <p className="m-0 text-caption text-ink-3" data-testid="evidence-load-error-correlation">
+                Reference <span className="font-mono text-ink-2">{loadErrorCorrelationId}</span>
+              </p>
+            ) : null}
+            {onRetry ? (
+              <div className="pt-1">
+                <Button type="button" variant="secondary" size="small" onClick={onRetry} data-testid="evidence-load-retry">
+                  Try again
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {pdfViewerLoadError ? (
+          <div
+            role="alert"
+            data-testid="evidence-pdf-viewer-load-error"
+            className="mx-auto flex w-full max-w-[680px] flex-col gap-2 rounded-input border border-line bg-paper px-4 py-4"
+          >
+            <p className="m-0 text-small text-coral-deep">Could not load the PDF viewer.</p>
+            {onRetry ? (
+              <div className="pt-1">
+                <Button type="button" variant="secondary" size="small" onClick={onRetry} data-testid="evidence-pdf-viewer-retry">
+                  Try again
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {unreadableProblem ? (
           <div
             className="mx-auto w-full max-w-[680px] rounded-page bg-page-warm px-8 py-12 text-center text-body text-ink-2 shadow-lift"
@@ -217,6 +256,7 @@ export function EvidenceViewPanel({
               neighborPageNumber={pageNumber < totalPages ? pageNumber + 1 : undefined}
               onHighlightStatus={onHighlightStatus}
               originalPageHref={originalPageHref}
+              onRetry={onRetry}
             />
           </div>
         ) : null}

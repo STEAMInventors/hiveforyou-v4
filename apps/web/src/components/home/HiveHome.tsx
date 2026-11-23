@@ -6,9 +6,12 @@ import type {
   FindingsOpenItem,
   FindingsTopic,
   GetStudyPreparationResponse,
+  LegacyHomeComparison,
+  LegacyHomeProjection,
   StudyView,
   StudyViewRow,
   StudyViewSources,
+  TimelineReportAttribution,
 } from "@hiveforyou/contracts";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -23,21 +26,26 @@ import type { ConversationLoad } from "@/components/hives/useHiveConversation";
 import { FindingsCompareTable } from "@/components/findings/FindingsCompareTable";
 import { FindingsTimelineList } from "@/components/findings/FindingsTimelineList";
 import { EvidenceViewerProvider, useEvidenceViewer } from "@/components/study/EvidenceViewer";
-import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
+import { buildHiveEvidenceViewerModel, type HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
 import type { ChipRef } from "@/components/study/SourceChip";
 import { Button } from "@/components/ui/Button";
 import { Disclosure } from "@/components/ui/Disclosure";
-import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
+import { useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
 import { ProgressMeter } from "@/components/ui/ProgressMeter";
 import { Section } from "@/components/ui/Section";
 import { ShowFewer, ShowMore } from "@/components/ui/ShowMore";
+import { SourceRefs } from "@/components/ui/SourceRefs";
 import { StateSentence } from "@/components/ui/StateSentence";
 import { Statement, StatementTopic } from "@/components/ui/Statement";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { Step } from "@/components/ui/Step";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { personFirstName } from "@/lib/hives/firm-board";
-import type { StudyAvailability } from "@/lib/hives/study-availability";
+import {
+  legacySavedReportHomeMeta,
+  legacySavedReportTimelineNotice,
+  type StudyAvailability,
+} from "@/lib/hives/study-availability";
 import type { StudyLoadError } from "@/server/hives/hive-summary";
 import { EVIDENCE_COMPOSE_PARAM } from "@/lib/hive-compose-query";
 import { HIVE_CHAT_PANEL_MIN_WIDTH, useHiveChat, useMinWidth } from "@/lib/hive-chat-context";
@@ -45,7 +53,11 @@ import { EVIDENCE_SOURCE_PARAM } from "@/lib/evidence-source-query";
 import { hiveDocumentsPath, hiveRequestedItemsPath } from "@/lib/hive-routes";
 import {
   mergeOmniCatalog,
+  omniDocumentsFromWorkspace,
   omniOpenItemsFromFindings,
+  omniOpenItemsFromLegacyHome,
+  omniStatementsFromLegacyHomeTopics,
+  omniStatementsFromTimeline,
   omniStatementsFromTopics,
 } from "@/lib/omni-catalog-build";
 
@@ -80,6 +92,8 @@ export type HiveHomeProps = {
   initialPreparation?: GetStudyPreparationResponse;
   conflicts: readonly StudyViewRow[];
   timeline: readonly StudyViewRow[];
+  timelineReport?: TimelineReportAttribution | null;
+  legacyHome?: LegacyHomeProjection | null;
   view: StudyView | null;
   sources: StudyViewSources | null;
   canonicalStudy: CanonicalStudy | null;
@@ -87,6 +101,7 @@ export type HiveHomeProps = {
   openItems: readonly FindingsOpenItem[];
   topics: readonly FindingsTopic[];
   documentPages?: Readonly<Record<string, number>>;
+  workspaceDocuments?: readonly HiveWorkspaceDocument[];
   initialPeople: ConversationLoad;
   currentUserId: string | null;
   staffView: boolean;
@@ -122,8 +137,20 @@ export function HiveHome(props: HiveHomeProps) {
         canonicalStudy: props.canonicalStudy,
         coverageGaps: props.coverageGaps,
         documentPages: props.documentPages,
+        projectedTimeline: props.view ? undefined : props.timeline,
+        legacyHome: props.view ? null : props.legacyHome,
+        workspaceDocuments: props.workspaceDocuments,
       }),
-    [props.view, props.sources, props.canonicalStudy, props.coverageGaps, props.documentPages],
+    [
+      props.view,
+      props.sources,
+      props.canonicalStudy,
+      props.coverageGaps,
+      props.documentPages,
+      props.timeline,
+      props.legacyHome,
+      props.workspaceDocuments,
+    ],
   );
   const pageCountFor = (id: string) => props.documentPages?.[id] ?? props.documentPages?.[id.toLowerCase()];
   const body = <HiveHomeBody {...props} />;
@@ -162,9 +189,14 @@ function HiveHomeBody({
   initialPreparation,
   conflicts,
   timeline,
+  timelineReport,
+  legacyHome,
+  view,
   openItems,
   topics,
   sources,
+  documentPages,
+  workspaceDocuments,
   initialPeople,
   currentUserId,
   staffView,
@@ -201,37 +233,76 @@ function HiveHomeBody({
   const showPanel = showConversation || (askOn && wide);
   const showAskBar = askOn && !wide && viewer !== "client";
   const evidenceOpen = Boolean(searchParams.get(EVIDENCE_SOURCE_PARAM)?.trim());
-  const omniCatalog = useMemo(
-    () =>
-      mergeOmniCatalog({
-        suggestions:
-          askOn && (content?.statementCount ?? 0) > 0
-            ? askSuggestions({
-                viewer: viewer === "firmless" ? "own" : "staff",
-                toReview: content?.toReview ?? null,
-                stillToCome: content?.stillToCome.length ?? null,
-                documentsIn: content?.documentsIn ?? null,
-              })
-            : [],
-        documents: EMPTY_OMNI_CATALOG.documents,
-        statements: omniStatementsFromTopics(topics),
-        openItems: content
-          ? omniOpenItemsFromFindings(openItems, sources).concat(
-              content.stillToCome.map((title, index) => ({
-                id: `still-${index}`,
-                title,
-                kind: "missing" as const,
-                ref: null,
-              })),
-            )
-          : [],
-      }),
-    [askOn, content, openItems, sources, topics, viewer],
+  const legacyComparisons = legacyHome?.comparisons ?? [];
+  const studyDocumentRows = useMemo(
+    () => view?.blocks.find((block) => block.name === "documents")?.rows ?? [],
+    [view],
   );
+  const omniCatalog = useMemo(() => {
+    const documents = omniDocumentsFromWorkspace({
+      workspaceDocuments,
+      studyDocumentRows,
+      documentPages,
+      sourcesDocuments: sources?.documents,
+    });
+    const canonicalStatements = omniStatementsFromTopics(topics);
+    const legacyStatements =
+      canonicalStatements.length > 0
+        ? canonicalStatements
+        : [
+            ...omniStatementsFromLegacyHomeTopics(legacyHome?.topics ?? []),
+            ...omniStatementsFromTimeline(timeline),
+          ];
+    const baseOpenItems =
+      openItems.length > 0
+        ? omniOpenItemsFromFindings(openItems, sources)
+        : omniOpenItemsFromLegacyHome(legacyHome?.openItems ?? []);
+    const stillItems = (content?.stillToCome ?? []).map((title, index) => ({
+      id: `still-${index}`,
+      title,
+      kind: "missing" as const,
+      ref: null,
+    }));
+    const hasSearchableStudyContent = (content?.statementCount ?? 0) > 0 || timeline.length > 0;
+    return mergeOmniCatalog({
+      suggestions:
+        askOn && hasSearchableStudyContent
+          ? askSuggestions({
+              viewer: viewer === "firmless" ? "own" : "staff",
+              toReview: content?.toReview ?? null,
+              stillToCome: content?.stillToCome.length ?? null,
+              documentsIn: content?.documentsIn ?? null,
+            })
+          : [],
+      documents,
+      statements: legacyStatements,
+      openItems: content ? baseOpenItems.concat(stillItems) : baseOpenItems,
+    });
+  }, [
+    askOn,
+    content,
+    documentPages,
+    legacyHome,
+    openItems,
+    sources,
+    studyDocumentRows,
+    timeline,
+    topics,
+    viewer,
+    workspaceDocuments,
+  ]);
   useRegisterOmniCatalog(omniCatalog, !evidenceOpen);
 
   const steps = useMemoSteps(content, clientFirst, viewer);
   const visibleSteps = stepsOpen ? steps : steps.slice(0, STEP_LIMIT);
+  const hasLegacySupportingDetail =
+    legacyComparisons.length > 0 || timeline.length > 0 || (content?.coverage.length ?? 0) > 0;
+  const hasLegacyContent =
+    olderStudy &&
+    ((content?.statementCount ?? 0) > 0 || steps.length > 0 || hasLegacySupportingDetail);
+  const showNextSteps = canonicalView || (olderStudy && steps.length > 0);
+  const showStatements = canonicalView || (olderStudy && (content?.statementCount ?? 0) > 0);
+  const showSupporting = canonicalView || (olderStudy && hasLegacySupportingDetail);
 
   const people = showConversation ? (
     <HiveConversation
@@ -319,8 +390,12 @@ function HiveHomeBody({
                 {content.study.acceptedLabel ? `, accepted ${content.study.acceptedLabel}` : ""} · every statement below
                 opens the page it comes from
               </p>
+            ) : content.study && hasLegacyContent ? (
+              <p className="m-0 mt-3 text-meta text-ink-3" data-testid="home-legacy-provenance">
+                {legacySavedReportHomeMeta(content.study.revisionNumber, legacyHome?.report ?? null)}
+              </p>
             ) : null}
-            {canonicalView ? (
+            {showNextSteps ? (
               <Section title="Next steps" headingRight={steps.length} className="mt-10">
                 <div data-testid="hive-next-steps">
                   {steps.length > 0 ? (
@@ -366,7 +441,7 @@ function HiveHomeBody({
                 </div>
               </Section>
             ) : null}
-            {canonicalView ? (
+            {showStatements ? (
               <Section
                 id="show"
                 title="What the documents show"
@@ -417,12 +492,19 @@ function HiveHomeBody({
                 )}
               </Section>
             ) : null}
-            {canonicalView ? (
+            {showSupporting ? (
               <SupportingDetail
                 conflicts={conflicts}
+                legacyComparisons={legacyComparisons}
                 timeline={timeline}
                 timelineOpen={timelineOpen}
                 onToggleTimeline={() => setTimelineOpen((open) => !open)}
+                timelineNotice={
+                  olderStudy && timeline.length > 0 && content.study
+                    ? legacySavedReportTimelineNotice(content.study.revisionNumber, timelineReport)
+                    : null
+                }
+                timelineDefaultOpen={olderStudy && content.statementCount === 0 && timeline.length > 0}
                 coverage={content.coverage}
                 calculations={content.calculations}
               />
@@ -482,31 +564,87 @@ function useMemoSteps(
 
 function SupportingDetail({
   conflicts,
+  legacyComparisons,
   timeline,
   timelineOpen,
   onToggleTimeline,
+  timelineNotice,
+  timelineDefaultOpen,
   coverage,
   calculations,
 }: {
   conflicts: readonly StudyViewRow[];
+  legacyComparisons: readonly LegacyHomeComparison[];
   timeline: readonly StudyViewRow[];
   timelineOpen: boolean;
   onToggleTimeline: () => void;
+  timelineNotice: string | null;
+  timelineDefaultOpen: boolean;
   coverage: HiveHomeContent["coverage"];
   calculations: HiveHomeContent["calculations"];
 }) {
   const visibleTimeline = timelineOpen ? timeline : timeline.slice(0, TIMELINE_LIMIT);
-  const hasAny = conflicts.length > 0 || timeline.length > 0 || coverage.length > 0 || calculations.length > 0;
+  const hasCompare = conflicts.length > 0 || legacyComparisons.length > 0;
+  const hasAny = hasCompare || timeline.length > 0 || coverage.length > 0 || calculations.length > 0;
   if (!hasAny) return null;
   return (
-    <div className="mt-10">
-      {conflicts.length > 0 ? (
+    <div className="mt-10" data-testid="home-supporting-detail">
+      {hasCompare ? (
         <Disclosure title="Compare across documents">
-          <FindingsCompareTable rows={conflicts} />
+          {conflicts.length > 0 ? (
+            <FindingsCompareTable rows={conflicts} />
+          ) : (
+            <div className="flex flex-col gap-5">
+              {legacyComparisons.map((comparison) => (
+                <div key={comparison.id}>
+                  <p className="m-0 mb-2 text-meta font-semibold text-ink-3">{comparison.title}</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left text-body">
+                      <thead>
+                        <tr className="border-b border-line text-meta text-ink-3">
+                          <th className="py-2 pr-3 font-medium">Item</th>
+                          <th className="py-2 pr-3 font-medium">{comparison.leftLabel}</th>
+                          <th className="py-2 font-medium">{comparison.rightLabel}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comparison.items.map((item) => (
+                          <tr key={item.id} className="border-b border-line align-top">
+                            <td className="py-2.5 pr-3 font-medium text-ink">
+                              <div>{item.label}</div>
+                              <SourceRefs
+                                refs={item.refs.map((ref) => ({
+                                  sourceDocumentId: ref.sourceDocumentId,
+                                  pageNumber: ref.pageNumber,
+                                  quote: ref.quote || undefined,
+                                  factIds: [ref.factId],
+                                }))}
+                              />
+                            </td>
+                            <td className="py-2.5 pr-3 text-ink-2">{item.left}</td>
+                            <td className="py-2.5 text-ink-2">{item.right}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Disclosure>
       ) : null}
       {timeline.length > 0 ? (
-        <Disclosure title="Events in date order">
+        <Disclosure
+          title="Events in date order"
+          hint={timeline.length === 1 ? "1 event" : `${timeline.length} events`}
+          defaultOpen={timelineDefaultOpen}
+        >
+          {timelineNotice ? (
+            <p className="m-0 mb-3 text-meta text-ink-3" data-testid="home-legacy-timeline-notice">
+              {timelineNotice}
+            </p>
+          ) : null}
           <FindingsTimelineList rows={visibleTimeline} />
           {timeline.length > TIMELINE_LIMIT ? (
             timelineOpen ? (
@@ -518,7 +656,7 @@ function SupportingDetail({
         </Disclosure>
       ) : null}
       {coverage.length > 0 ? (
-        <Disclosure title="Document coverage">
+        <Disclosure title="Document coverage" hint={String(coverage.length)}>
           <ul className="m-0 list-none p-0">
             {coverage.map((row) => (
               <li key={row.id} className="flex items-center justify-between gap-3 border-b border-line py-3">

@@ -493,7 +493,8 @@ export function parseIsoDateInput(asOf: string | Date | null | undefined): strin
   return formatIsoDate(year, month, day);
 }
 
-function parseSingleDateToken(raw: string): string | null {
+/** Parses one calendar date token (ISO, slash, or month day year) into `YYYY-MM-DD`, or null. */
+export function parseCalendarDateToken(raw: string): string | null {
   const text = raw.trim();
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
   if (iso) {
@@ -544,8 +545,8 @@ function extractStructuredDates(
     DATE_RANGE_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = DATE_RANGE_RE.exec(sourceText)) !== null) {
-      const start = parseSingleDateToken(match[1]!);
-      const end = parseSingleDateToken(match[2]!);
+      const start = parseCalendarDateToken(match[1]!);
+      const end = parseCalendarDateToken(match[2]!);
       if (start && end && start <= end) {
         const key = `${start}..${end}`;
         if (!seenRanges.has(key)) {
@@ -564,7 +565,7 @@ function extractStructuredDates(
     SINGLE_DATE_RE.lastIndex = 0;
     let singleMatch: RegExpExecArray | null;
     while ((singleMatch = SINGLE_DATE_RE.exec(sourceText)) !== null) {
-      const parsed = parseSingleDateToken(singleMatch[1]!);
+      const parsed = parseCalendarDateToken(singleMatch[1]!);
       if (parsed) points.add(parsed);
     }
   };

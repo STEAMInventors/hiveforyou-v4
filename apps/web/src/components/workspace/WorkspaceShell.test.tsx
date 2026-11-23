@@ -25,8 +25,14 @@ vi.mock("./HiveWorkspaceHead", () => ({
   HiveWorkspaceHead: () => <div data-testid="hive-workspace-head" />,
 }));
 
+const chatProviderMount = vi.fn();
+let mockParentChat: { config: { hiveId: string } } | null = null;
 vi.mock("@/lib/hive-chat-context", () => ({
-  HiveChatProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  HiveChatProvider: ({ children }: { children: ReactNode }) => {
+    chatProviderMount();
+    return <>{children}</>;
+  },
+  useHiveChat: () => mockParentChat,
 }));
 
 import { WorkspaceShell } from "./WorkspaceShell";
@@ -43,6 +49,8 @@ const hive: Hive = {
 
 afterEach(() => {
   cleanup();
+  chatProviderMount.mockClear();
+  mockParentChat = null;
   vi.restoreAllMocks();
 });
 
@@ -74,5 +82,33 @@ describe("WorkspaceShell", () => {
     expect(container.firstElementChild?.className).toContain("min-[1100px]:grid-cols-[232px_minmax(0,1fr)]");
     expect(screen.getByTestId("hive-left-menu")).toBeTruthy();
     expect(screen.getByTestId("hive-workspace-head")).toBeTruthy();
+    expect(chatProviderMount).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses the parent HiveChatProvider for the same hive so AskBar, HiveOmni, and ChatSheet share state", () => {
+    mockParentChat = { config: { hiveId: hive.id } };
+    render(
+      <WorkspaceShell
+        hive={hive}
+        startingView="clients"
+        counts={{
+          toReviewCount: 1,
+          documents: 2,
+          reports: null,
+          teamNotes: null,
+          unreadMessages: null,
+        }}
+        firm={null}
+        currentUserId="user"
+        assigneeLabel={null}
+        assigneeTitle={null}
+        assistantName="HiveForYou"
+        initialAssistant={{ ok: true, page: { messages: [], nextCursor: null, participantCount: 0, participantRoleLabels: [], viewerLastReadAt: null, pendingAssistant: false, assistantRepliesOn: true, assistantAvailable: true, assistantName: "HiveForYou", failedAssistantForMessageIds: [], assistantThreads: [] } }}
+      >
+        <p>Workspace body</p>
+      </WorkspaceShell>,
+    );
+
+    expect(chatProviderMount).not.toHaveBeenCalled();
   });
 });

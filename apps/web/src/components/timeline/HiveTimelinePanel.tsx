@@ -6,19 +6,32 @@ import type {
   StudyView,
   StudyViewRow,
   StudyViewSources,
+  TimelineReportAttribution,
 } from "@hiveforyou/contracts";
+
+import type { HiveWorkspaceDocument } from "@/components/study/hive-evidence-model";
 import Link from "next/link";
 import { useMemo } from "react";
 
 import { FindingsTimelineList } from "@/components/findings/FindingsTimelineList";
 import { CanonicalStudyNotice } from "@/components/hives/CanonicalStudyNotice";
 import { HiveStudyRebuildAction } from "@/components/hives/HiveStudyRebuildAction";
-import { clientHomeOlderStudyLine } from "@/components/home/client-home-model";
 import { EvidenceViewerProvider } from "@/components/study/EvidenceViewer";
 import { buildHiveEvidenceViewerModel } from "@/components/study/hive-evidence-model";
+import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import type { StudyAvailability } from "@/lib/hives/study-availability";
+import {
+  legacySavedReportTimelineEmpty,
+  legacySavedReportTimelineNotice,
+  timelineOlderStudyIdleLine,
+} from "@/lib/hives/study-availability";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
+import {
+  mergeOmniCatalog,
+  omniDocumentsFromWorkspace,
+  omniStatementsFromTimeline,
+} from "@/lib/omni-catalog-build";
 import type { StudyLoadError } from "@/server/hives/hive-summary";
 
 const SECONDARY_LINK =
@@ -32,10 +45,12 @@ export type HiveTimelinePanelProps = {
   studyAvailability: StudyAvailability | null;
   studyLoadError: StudyLoadError | null;
   timeline: readonly StudyViewRow[];
+  timelineReport?: TimelineReportAttribution | null;
   view: StudyView | null;
   sources: StudyViewSources | null;
   canonicalStudy: CanonicalStudy | null;
   documentPages?: Readonly<Record<string, number>>;
+  workspaceDocuments?: readonly HiveWorkspaceDocument[];
   initialPreparation?: GetStudyPreparationResponse;
 };
 
@@ -47,6 +62,7 @@ function HiveTimelineBody({
   studyAvailability,
   studyLoadError,
   timeline,
+  timelineReport,
   initialPreparation,
 }: Pick<
   HiveTimelinePanelProps,
@@ -57,6 +73,7 @@ function HiveTimelineBody({
   | "studyAvailability"
   | "studyLoadError"
   | "timeline"
+  | "timelineReport"
   | "initialPreparation"
 >) {
   const olderStudy = studyAvailability?.kind === "older";
@@ -88,16 +105,54 @@ function HiveTimelineBody({
   }
 
   if (olderStudy) {
+    const revisionNumber = studyAvailability.revisionNumber;
+    const staffRebuild = staffView && !viewerIsClient ? (
+      <div className="mb-4 flex flex-col items-start gap-3">
+        <CanonicalStudyNotice />
+        <HiveStudyRebuildAction hiveId={hiveId} initialPreparation={initialPreparation} focusDocuments />
+      </div>
+    ) : null;
+    const idleLine = timelineOlderStudyIdleLine({ staffView, viewerIsClient, staffDisplayName });
+
+    if (timeline.length > 0) {
+      return (
+        <div data-testid="timeline-legacy-events">
+          <p
+            className="m-0 mb-4 text-meta text-ink-3"
+            data-testid="timeline-legacy-notice"
+            data-report-id={timelineReport?.reportId}
+            data-historical={timelineReport?.fromHistory ? "true" : undefined}
+          >
+            {legacySavedReportTimelineNotice(revisionNumber, timelineReport)}
+          </p>
+          {staffRebuild}
+          {!staffView && !viewerIsClient && idleLine ? (
+            <p className="m-0 mb-4 text-[15px] text-ink-2" data-testid="timeline-older-own-hive">
+              {idleLine}
+            </p>
+          ) : null}
+          <p className="m-0 mb-4 text-meta text-ink-3">Each row opens its source page from the saved report.</p>
+          <FindingsTimelineList rows={timeline} />
+        </div>
+      );
+    }
+
     return (
       <div data-testid="timeline-older-study">
-        {staffView && !viewerIsClient ? (
-          <div className="flex flex-col items-start gap-3">
-            <CanonicalStudyNotice />
-            <HiveStudyRebuildAction hiveId={hiveId} initialPreparation={initialPreparation} focusDocuments />
-          </div>
-        ) : (
-          <p className="m-0 text-[15px] text-ink-2">{clientHomeOlderStudyLine(staffDisplayName)}</p>
-        )}
+        {staffRebuild}
+        {viewerIsClient && idleLine ? (
+          <p className="m-0 mb-3 text-[15px] text-ink-2" data-testid="timeline-older-client">
+            {idleLine}
+          </p>
+        ) : null}
+        {!staffView && !viewerIsClient && idleLine ? (
+          <p className="m-0 mb-3 text-[15px] text-ink-2" data-testid="timeline-older-own-hive">
+            {idleLine}
+          </p>
+        ) : null}
+        <p className="m-0 py-3.5 text-body text-ink-2" data-testid="timeline-empty">
+          {legacySavedReportTimelineEmpty(revisionNumber)}
+        </p>
       </div>
     );
   }
@@ -128,9 +183,31 @@ export function HiveTimelinePanel(props: HiveTimelinePanelProps) {
         sources: props.sources,
         canonicalStudy: props.canonicalStudy,
         documentPages: props.documentPages,
+        projectedTimeline: props.view ? undefined : props.timeline,
+        workspaceDocuments: props.workspaceDocuments,
       }),
-    [props.view, props.sources, props.canonicalStudy, props.documentPages],
+    [props.view, props.sources, props.canonicalStudy, props.documentPages, props.timeline, props.workspaceDocuments],
   );
+  const studyDocumentRows = useMemo(
+    () => props.view?.blocks.find((block) => block.name === "documents")?.rows ?? [],
+    [props.view],
+  );
+  const omniCatalog = useMemo(
+    () =>
+      mergeOmniCatalog({
+        suggestions: EMPTY_OMNI_CATALOG.suggestions,
+        openItems: EMPTY_OMNI_CATALOG.openItems,
+        documents: omniDocumentsFromWorkspace({
+          workspaceDocuments: props.workspaceDocuments,
+          studyDocumentRows,
+          documentPages: props.documentPages,
+          sourcesDocuments: props.sources?.documents,
+        }),
+        statements: omniStatementsFromTimeline(props.timeline),
+      }),
+    [props.documentPages, props.sources?.documents, props.timeline, props.workspaceDocuments, studyDocumentRows],
+  );
+  useRegisterOmniCatalog(omniCatalog);
 
   const body = (
     <div className="mt-6">
@@ -142,6 +219,7 @@ export function HiveTimelinePanel(props: HiveTimelinePanelProps) {
         studyAvailability={props.studyAvailability}
         studyLoadError={props.studyLoadError}
         timeline={props.timeline}
+        timelineReport={props.timelineReport}
         initialPreparation={props.initialPreparation}
       />
     </div>
@@ -154,6 +232,7 @@ export function HiveTimelinePanel(props: HiveTimelinePanelProps) {
         <EvidenceViewerProvider
           hiveId={props.hiveId}
           labels={evidence.labels}
+          chipLabels={evidence.chipLabels}
           pageCountFor={evidence.pageCountFor}
           citationContexts={evidence.citationContexts}
         >

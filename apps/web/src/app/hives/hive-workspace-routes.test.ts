@@ -2,10 +2,21 @@ import type { Hive } from "@hiveforyou/contracts";
 import type { HiveWorkspaceSection } from "@/lib/hive-routes";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const loadOwnedHiveOrNotFoundMock = vi.fn();
-const notFoundMock = vi.fn(() => {
-  throw new Error("NOT_FOUND");
-});
+const { loadOwnedHiveOrNotFoundMock, notFoundMock, hiveBoardLoadMock } = vi.hoisted(() => ({
+  loadOwnedHiveOrNotFoundMock: vi.fn(),
+  notFoundMock: vi.fn(() => {
+    throw new Error("NOT_FOUND");
+  }),
+  hiveBoardLoadMock: vi.fn(async () => ({
+    board: { kicker: "", headline: "Everything is in and checked", needs: [], checklist: [], activity: [], readiness: [], progress: null, next: null, checklistNote: "" },
+    uploads: [],
+    overview: {
+      preparation: {
+        eligibility: { documents: [], excluded: [], coverageComplete: true, activeReadCount: 0, coverageDigest: null, gaps: [] },
+      },
+    },
+  })),
+}));
 
 vi.mock("next/navigation", () => ({
   notFound: () => notFoundMock(),
@@ -45,15 +56,8 @@ vi.mock("@/server/auth/action-support", () => ({
 }));
 
 vi.mock("@/server/hives/hive-board-loader", () => ({
-  loadHiveBoard: vi.fn(async () => ({
-    board: { kicker: "", headline: "Everything is in and checked", needs: [], checklist: [], activity: [], readiness: [], progress: null, next: null, checklistNote: "" },
-    uploads: [],
-    overview: {
-      preparation: {
-        eligibility: { documents: [], excluded: [], coverageComplete: true, activeReadCount: 0, coverageDigest: null, gaps: [] },
-      },
-    },
-  })),
+  loadHiveBoard: (...args: unknown[]) => hiveBoardLoadMock(...args),
+  loadHiveBoardResilient: (...args: unknown[]) => hiveBoardLoadMock(...args),
 }));
 
 vi.mock("@/server/firm/load-firm", () => ({
@@ -85,7 +89,14 @@ vi.mock("@/server/hives/hive-summary", () => ({
     summary: { study: null },
     studyLoadError: null,
   })),
+  workspaceStudyView: (overview: { studyTab?: { view: unknown; sources: unknown } | null }) => ({
+    view: overview.studyTab?.view ?? null,
+    sources: overview.studyTab?.sources ?? null,
+  }),
   documentPageCounts: vi.fn(() => ({})),
+  hiveWorkspaceDocuments: vi.fn(() => []),
+  authorizedSourceDocumentIds: vi.fn(() => []),
+  loadWorkspaceTimeline: vi.fn(async () => ({ rows: [], source: "none", report: null })),
 }));
 
 vi.mock("@/server/hives/load-study-revision-history", () => ({

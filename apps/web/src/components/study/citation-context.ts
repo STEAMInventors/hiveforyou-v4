@@ -1,4 +1,10 @@
-import type { StudyView, StudyViewSources } from "@hiveforyou/contracts";
+import type {
+  LegacyHomeProjection,
+  LegacyHomeRef,
+  StudyView,
+  StudyViewRow,
+  StudyViewSources,
+} from "@hiveforyou/contracts";
 
 export type CitationContext = {
   /** Sentence or row statement (or conflict row statement). */
@@ -16,7 +22,7 @@ export type SiblingPageTarget = {
 };
 
 function chipKey(sourceDocumentId: string, pageNumber: number): string {
-  return `${sourceDocumentId}:${pageNumber}`;
+  return `${sourceDocumentId.toLowerCase()}:${pageNumber}`;
 }
 
 function valueAsWrittenForFact(view: StudyView, factId: string): string | null {
@@ -142,6 +148,95 @@ export function buildCitationContextMap(
         verifiedQuote: ref.quote,
         factId: v.factId,
       }, siblings);
+    }
+  }
+
+  return map;
+}
+
+/** Citation context for legacy application-view timeline rows and/or Home projection (no study-view facts). */
+export function buildProjectedTimelineCitationContextMap(
+  rows: readonly StudyViewRow[],
+  legacyHome?: LegacyHomeProjection | null,
+): ReadonlyMap<string, readonly { context: CitationContext; siblings: readonly SiblingPageTarget[] }[]> {
+  const map = new Map<string, { context: CitationContext; siblings: SiblingPageTarget[] }[]>();
+
+  const pushEntry = (
+    sourceDocumentId: string,
+    pageNumber: number,
+    context: CitationContext,
+    siblings: SiblingPageTarget[],
+  ) => {
+    const key = chipKey(sourceDocumentId, pageNumber);
+    const list = map.get(key) ?? [];
+    list.push({ context, siblings });
+    map.set(key, list);
+  };
+
+  for (const row of rows) {
+    const line = row.statement?.trim() ?? "";
+    if (line === "") continue;
+    for (const value of row.values) {
+      const ref = value.sourceRef;
+      const siblings: SiblingPageTarget[] = [];
+      for (const other of row.values) {
+        if (other.sourceRef.sourceDocumentId !== ref.sourceDocumentId) continue;
+        if (other.sourceRef.pageNumber === ref.pageNumber) continue;
+        if (siblings.some((s) => s.pageNumber === other.sourceRef.pageNumber)) continue;
+        siblings.push({ pageNumber: other.sourceRef.pageNumber, label: `Page ${other.sourceRef.pageNumber}` });
+      }
+      pushEntry(
+        ref.sourceDocumentId,
+        ref.pageNumber,
+        {
+          supportingText: line,
+          valueAsWritten: value.valueAsWritten.trim() || null,
+          verifiedQuote: ref.quote,
+          factId: value.factId,
+        },
+        siblings,
+      );
+    }
+  }
+
+  const addLegacyRefs = (supportingText: string, refs: readonly LegacyHomeRef[]) => {
+    const line = supportingText.trim();
+    if (!line) return;
+    for (const ref of refs) {
+      const siblings: SiblingPageTarget[] = [];
+      for (const other of refs) {
+        if (other.sourceDocumentId !== ref.sourceDocumentId) continue;
+        if (other.pageNumber === ref.pageNumber) continue;
+        if (siblings.some((s) => s.pageNumber === other.pageNumber)) continue;
+        siblings.push({ pageNumber: other.pageNumber, label: `Page ${other.pageNumber}` });
+      }
+      pushEntry(
+        ref.sourceDocumentId,
+        ref.pageNumber,
+        {
+          supportingText: line,
+          valueAsWritten: ref.fileName.trim() || null,
+          verifiedQuote: ref.quote,
+          factId: ref.factId,
+        },
+        siblings,
+      );
+    }
+  };
+
+  if (legacyHome) {
+    for (const topic of legacyHome.topics) {
+      for (const statement of topic.statements) {
+        addLegacyRefs(statement.text, statement.refs);
+      }
+    }
+    for (const item of legacyHome.openItems) {
+      addLegacyRefs(item.title, item.refs);
+    }
+    for (const comparison of legacyHome.comparisons) {
+      for (const item of comparison.items) {
+        addLegacyRefs(`${item.label}: ${item.left} vs. ${item.right}`, item.refs);
+      }
     }
   }
 

@@ -19,9 +19,9 @@ export type HiveHomeSidePanelProps = {
 };
 
 const PEOPLE_ONLY_ASIDE =
-  "flex min-h-0 flex-col border-t border-line py-6 min-[1100px]:sticky min-[1100px]:top-16 min-[1100px]:h-[calc(100vh-4rem)] min-[1100px]:border-l min-[1100px]:border-t-0 min-[1100px]:py-6 min-[1100px]:pl-7";
+  "flex min-h-0 flex-col border-t border-line py-6 min-[1100px]:sticky min-[1100px]:top-16 min-[1100px]:self-start min-[1100px]:h-[calc(100dvh-13rem)] min-[1100px]:min-h-[360px] min-[1100px]:max-h-[calc(100dvh-4.5rem)] min-[1100px]:overflow-hidden min-[1100px]:border-l min-[1100px]:border-t-0 min-[1100px]:py-6 min-[1100px]:pl-7";
 const CHAT_ASIDE =
-  "flex min-h-0 flex-col border-line min-[1100px]:sticky min-[1100px]:top-16 min-[1100px]:h-[calc(100vh-4rem)] min-[1100px]:border-l";
+  "flex min-h-0 flex-col border-line min-[1100px]:sticky min-[1100px]:top-16 min-[1100px]:self-start min-[1100px]:h-[calc(100dvh-13rem)] min-[1100px]:min-h-[360px] min-[1100px]:max-h-[calc(100dvh-4.5rem)] min-[1100px]:overflow-hidden min-[1100px]:border-l";
 
 function tabFromSearch(value: string | null): SideTab {
   return value === "people" ? "people" : "ask";
@@ -120,7 +120,7 @@ export function HiveHomeSidePanel({ people, other, peopleDraftNonce = null }: Hi
   return (
     <aside aria-label="Side panel" data-testid="hive-home-side-panel" className={CHAT_ASIDE}>
       {hasPeople && other ? (
-        <div className="px-4 pb-1 pt-3.5">
+        <div className="shrink-0 px-4 pb-1 pt-3.5">
           <div role="group" aria-label="Choose a conversation" className="flex gap-1 rounded-[11px] bg-mist p-1" data-testid="side-tabs">
             <TabButton selected={shown === "ask"} onClick={() => select("ask")} testId="side-tab-ask">
               <Avatar person={{ id: "ai", name: assistantName, kind: "assistant" }} size="xs" />
@@ -134,12 +134,12 @@ export function HiveHomeSidePanel({ people, other, peopleDraftNonce = null }: Hi
         </div>
       ) : null}
       {shown === "ask" ? (
-        <div className="flex min-h-0 flex-1 flex-col" data-testid="side-panel-chat">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="side-panel-chat">
           <ConnectedAskChat variant="panel" active />
         </div>
       ) : (
         <div
-          className="flex min-h-0 flex-1 flex-col px-5 pb-4 pt-2"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 pb-4 pt-2"
           data-testid="hive-home-conversation"
           role="region"
           aria-label="Conversation"

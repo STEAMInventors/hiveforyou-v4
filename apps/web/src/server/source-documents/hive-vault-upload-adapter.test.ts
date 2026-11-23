@@ -8,11 +8,12 @@ import { InMemoryVaultRepositories } from "@hives/persistence/vault/memory";
 import { buildSourceObjectPath } from "@hives/persistence/vault/path";
 import { structuredPdf, pngBytes } from "@hives/security";
 import { createHiveError, FREE_UPLOADS_PER_UTC_MONTH, type Hive } from "@hiveforyou/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   completeHiveSourceDocumentUpload,
   createIntentRequestForOwnedHive,
+  createLiveHiveVaultUploadAdapterDeps,
   getUploadQuotaWithV3Vault,
   InMemoryClientRequestRegistry,
   listHiveSourceDocumentsWithV3Vault,
@@ -23,6 +24,7 @@ import {
   type HashScanner,
   type HiveVaultUploadAdapterDeps,
 } from "./hive-vault-upload-adapter";
+import { VaultAdminConfigError } from "./v3-vault/persistence/vault-admin-config-error";
 
 const USER_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -398,6 +400,69 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
     expect(calls[1]).not.toHaveProperty("p_audience");
   });
 
+  it("rejects listing for a hive the caller does not own before any vault fallback", async () => {
+    const { deps } = createTestHarness();
+    await expect(
+      listHiveSourceDocumentsWithV3Vault(deps, {
+        ownerUserId: USER_B,
+        hiveId: HIVE_A,
+        correlationId: CORR_ID,
+      }),
+    ).rejects.toMatchObject({ errorCode: "NOT_FOUND" });
+  });
+
+  it("lists documents through list_hive_source_documents without opening the vault admin path", async () => {
+    const hive: Hive = {
+      id: HIVE_A,
+      hiveId: HIVE_A,
+      name: "March Records",
+      description: null,
+      clientRequestId: "44444444-4444-4444-8444-444444444444",
+      createdAt: "2026-10-30T15:00:00.000Z",
+      updatedAt: "2026-10-30T15:00:00.000Z",
+    };
+  const listed = await listHiveSourceDocumentsWithV3Vault(
+      {
+        get vault() {
+          throw new Error("vault must not load when RPC list succeeds");
+        },
+        get store() {
+          throw new Error("store must not load when RPC list succeeds");
+        },
+        userClient: {
+          rpc: async (fn: string) =>
+            fn === "list_hive_source_documents"
+              ? { data: { sourceDocuments: [] }, error: null }
+              : { data: null, error: null },
+        },
+        loadOwnedHive: async () => hive,
+      },
+      { ownerUserId: USER_A, hiveId: HIVE_A, correlationId: CORR_ID },
+    );
+    expect(listed.sourceDocuments).toEqual([]);
+  });
+
+  it("defers vault admin env until a signed read is requested", () => {
+    const priorUrl = process.env.SUPABASE_URL;
+    const priorSecret = process.env.SUPABASE_SECRET_KEY;
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SECRET_KEY;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    try {
+      const deps = createLiveHiveVaultUploadAdapterDeps(
+        { rpc: async () => ({ data: null, error: null }) },
+        CORR_ID,
+      );
+      expect(() => deps.vault).toThrow(VaultAdminConfigError);
+      expect(() => deps.store).toThrow(VaultAdminConfigError);
+    } finally {
+      if (priorUrl !== undefined) process.env.SUPABASE_URL = priorUrl;
+      else delete process.env.SUPABASE_URL;
+      if (priorSecret !== undefined) process.env.SUPABASE_SECRET_KEY = priorSecret;
+      else delete process.env.SUPABASE_SECRET_KEY;
+    }
+  });
+
   it("opens a source page for the owner as a 60-second signed link to the original file at that page", async () => {
     const { deps } = createTestHarness();
     const uploaded = await uploadHiveSourceDocumentWithV3Vault(deps, {
@@ -431,6 +496,587 @@ describe("V4-003 V3 Vault Uploader Adapter", () => {
       await expect(open({ pageNumber })).rejects.toMatchObject({ errorCode: "INVALID_REQUEST" });
     }
     await expect(open({ sourceDocumentId: "not-a-uuid" })).rejects.toMatchObject({ errorCode: "INVALID_REQUEST" });
+  });
+
+  it("opens an authorized legacy or canonical PDF page via userClient RLS without requiring admin credentials", async () => {
+    const legacyDocId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const storagePath = buildSourceObjectPath(USER_A as never, HIVE_A as never, legacyDocId as never);
+    const hive: Hive = {
+      id: HIVE_A,
+      hiveId: HIVE_A,
+      name: "Maya Original Hive",
+      description: null,
+      clientRequestId: "44444444-4444-4444-8444-444444444444",
+      createdAt: "2026-10-30T15:00:00.000Z",
+      updatedAt: "2026-10-30T15:00:00.000Z",
+    };
+
+    const createSignedUrl = vi.fn(async (path: string, expiresIn: number) => ({
+      data: { signedUrl: `https://project.supabase.co/storage/v1/object/sign/hive-source-documents/${path}?token=abc&exp=${expiresIn}` },
+      error: null,
+    }));
+    const fromStorage = vi.fn(() => ({ createSignedUrl }));
+
+    const result = await openSourceDocumentPageWithV3Vault(
+      {
+        get vault() {
+          throw new VaultAdminConfigError("vault_admin_secret_missing");
+        },
+        get store() {
+          throw new VaultAdminConfigError("vault_admin_secret_missing");
+        },
+        userClient: {
+          schema: () => ({
+            from: () => ({
+              select: () => ({
+                eq: (_col1: string, idVal: string) => ({
+                  eq: (_col2: string, caseVal: string) => ({
+                    maybeSingle: async () => ({
+                      data:
+                        idVal === legacyDocId && caseVal === HIVE_A
+                          ? {
+                              id: legacyDocId,
+                              case_id: HIVE_A,
+                              owner_user_id: USER_A,
+                              mime_type: "application/pdf",
+                              storage_bucket: DEFAULT_HIVE_SOURCE_BUCKET,
+                              storage_path: storagePath,
+                              upload_status: "UPLOADED",
+                              lifecycle_status: "ACTIVE",
+                              deleted_at: null,
+                            }
+                          : null,
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+          storage: { from: fromStorage },
+        },
+        loadOwnedHive: async () => ({ ...hive, isOwner: true }),
+      },
+      {
+        ownerUserId: USER_A,
+        hiveId: HIVE_A,
+        sourceDocumentId: legacyDocId,
+        pageNumber: "4",
+        correlationId: CORR_ID,
+      },
+    );
+
+    expect(fromStorage).toHaveBeenCalledWith(DEFAULT_HIVE_SOURCE_BUCKET);
+    expect(createSignedUrl).toHaveBeenCalledWith(storagePath, 60);
+    expect(result).toEqual({
+      signedUrl: `https://project.supabase.co/storage/v1/object/sign/hive-source-documents/${storagePath}?token=abc&exp=60#page=4`,
+      mimeType: "application/pdf",
+    });
+
+    // Active shared-Hive member can also sign a valid historical file under Storage RLS without admin credentials.
+    const sharedMemberResult = await openSourceDocumentPageWithV3Vault(
+      {
+        get vault() {
+          throw new VaultAdminConfigError("vault_admin_secret_missing");
+        },
+        get store() {
+          throw new VaultAdminConfigError("vault_admin_secret_missing");
+        },
+        userClient: {
+          schema: () => ({
+            from: () => ({
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: async () => ({
+                      data: {
+                        id: legacyDocId,
+                        case_id: HIVE_A,
+                        owner_user_id: USER_A,
+                        mime_type: "application/pdf",
+                        storage_bucket: DEFAULT_HIVE_SOURCE_BUCKET,
+                        storage_path: storagePath,
+                        upload_status: "UPLOADED",
+                        lifecycle_status: "ACTIVE",
+                        deleted_at: null,
+                      },
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          }),
+          storage: { from: fromStorage },
+        },
+        loadOwnedHive: async () => ({ ...hive, isOwner: false, membershipRole: "client" }),
+      },
+      {
+        ownerUserId: USER_B,
+        hiveId: HIVE_A,
+        sourceDocumentId: legacyDocId,
+        pageNumber: "2",
+        correlationId: CORR_ID,
+      },
+    );
+
+    expect(sharedMemberResult.signedUrl).toBe(
+      `https://project.supabase.co/storage/v1/object/sign/hive-source-documents/${storagePath}?token=abc&exp=60#page=2`,
+    );
+  });
+
+  it("fails closed on missing, cross-Hive, soft-deleted, and unauthorized documents without falling back to admin", async () => {
+    const docId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const otherHiveId = "99999999-9999-4999-8999-999999999999";
+    const hive: Hive = {
+      id: HIVE_A,
+      hiveId: HIVE_A,
+      name: "March Records",
+      description: null,
+      clientRequestId: "44444444-4444-4444-8444-444444444444",
+      createdAt: "2026-10-30T15:00:00.000Z",
+      updatedAt: "2026-10-30T15:00:00.000Z",
+    };
+    const vaultSpy = vi.fn();
+    const storeSpy = vi.fn();
+
+    const makeDeps = (row: Record<string, unknown> | null, allowHive = true) => ({
+      get vault() {
+        vaultSpy();
+        throw new Error("vault must not be called when userClient fails closed");
+      },
+      get store() {
+        storeSpy();
+        throw new Error("store must not be called when document is unauthorized");
+      },
+      userClient: {
+        schema: () => ({
+          from: () => ({
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: row, error: null }),
+                }),
+              }),
+            }),
+          }),
+        }),
+        storage: {
+          from: () => ({
+            createSignedUrl: async () => ({ data: { signedUrl: "https://never.example/signed" }, error: null }),
+          }),
+        },
+      },
+      loadOwnedHive: async () => {
+        if (!allowHive) {
+          throw createHiveError({
+            errorCode: "NOT_FOUND",
+            category: "SECURITY",
+            stage: "SHELL",
+            retryable: false,
+            safeMessage: "We could not find that Hive.",
+            correlationId: CORR_ID,
+            diagnosticReason: "hive_not_found",
+          });
+        }
+        return hive;
+      },
+    });
+
+    // Missing document
+    await expect(
+      openSourceDocumentPageWithV3Vault(makeDeps(null), {
+        ownerUserId: USER_A,
+        hiveId: HIVE_A,
+        sourceDocumentId: docId,
+        pageNumber: "1",
+        correlationId: CORR_ID,
+      }),
+    ).rejects.toMatchObject({ errorCode: "NOT_FOUND", diagnosticReason: "not_found" });
+
+    // Cross-Hive document (case_id mismatch)
+    await expect(
+      openSourceDocumentPageWithV3Vault(
+        makeDeps({
+          id: docId,
+          case_id: otherHiveId,
+          owner_user_id: USER_A,
+          mime_type: "application/pdf",
+          storage_bucket: DEFAULT_HIVE_SOURCE_BUCKET,
+          storage_path: `${USER_A}/${otherHiveId}/${docId}/original`,
+          upload_status: "UPLOADED",
+          lifecycle_status: "ACTIVE",
+          deleted_at: null,
+        }),
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "1",
+          correlationId: CORR_ID,
+        },
+      ),
+    ).rejects.toMatchObject({ errorCode: "NOT_FOUND", diagnosticReason: "not_found" });
+
+    // Soft-deleted document
+    await expect(
+      openSourceDocumentPageWithV3Vault(
+        makeDeps({
+          id: docId,
+          case_id: HIVE_A,
+          owner_user_id: USER_A,
+          mime_type: "application/pdf",
+          storage_bucket: DEFAULT_HIVE_SOURCE_BUCKET,
+          storage_path: `${USER_A}/${HIVE_A}/${docId}/original`,
+          upload_status: "UPLOADED",
+          lifecycle_status: "SOFT_DELETED",
+          deleted_at: "2026-11-01T00:00:00.000Z",
+        }),
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "1",
+          correlationId: CORR_ID,
+        },
+      ),
+    ).rejects.toMatchObject({ errorCode: "NOT_FOUND", diagnosticReason: "not_found" });
+
+    // Unauthorized caller for Hive
+    await expect(
+      openSourceDocumentPageWithV3Vault(makeDeps(null, false), {
+        ownerUserId: USER_B,
+        hiveId: HIVE_A,
+        sourceDocumentId: docId,
+        pageNumber: "1",
+        correlationId: CORR_ID,
+      }),
+    ).rejects.toMatchObject({ errorCode: "NOT_FOUND" });
+
+    expect(vaultSpy).not.toHaveBeenCalled();
+    expect(storeSpy).not.toHaveBeenCalled();
+  });
+
+  it("never falls back to admin signing on unauthorized storage signing, unexpected permission errors, or missing objects", async () => {
+    const docId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const validPath = `${USER_A}/${HIVE_A}/${docId}/original`;
+    const hive: Hive = {
+      id: HIVE_A,
+      hiveId: HIVE_A,
+      name: "Maya Original Hive",
+      description: null,
+      clientRequestId: "44444444-4444-4444-8444-444444444444",
+      createdAt: "2026-10-30T15:00:00.000Z",
+      updatedAt: "2026-10-30T15:00:00.000Z",
+      isOwner: true,
+    };
+    const adminStore = {
+      createSignedReadUrl: vi.fn(async () => "https://admin-must-never-be-called.example/signed"),
+    };
+
+    const makeSigningDeps = (
+      signImpl: () => Promise<{ data: { signedUrl: string } | null; error: unknown }>,
+    ) => ({
+      get vault() {
+        throw new Error("vault must not be called when userClient is present");
+      },
+      store: adminStore as never,
+      userClient: {
+        schema: () => ({
+          from: () => ({
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: docId,
+                      case_id: HIVE_A,
+                      owner_user_id: USER_A,
+                      mime_type: "application/pdf",
+                      storage_bucket: DEFAULT_HIVE_SOURCE_BUCKET,
+                      storage_path: validPath,
+                      upload_status: "UPLOADED",
+                      lifecycle_status: "ACTIVE",
+                      deleted_at: null,
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+        storage: {
+          from: () => ({
+            createSignedUrl: signImpl,
+          }),
+        },
+      },
+      loadOwnedHive: async () => hive,
+    });
+
+    // 1. Storage RLS 403 denial must fail closed (never fall back to admin signing)
+    await expect(
+      openSourceDocumentPageWithV3Vault(
+        makeSigningDeps(async () => ({
+          data: null,
+          error: { statusCode: "403", message: "new row violates row-level security policy" },
+        })),
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "2",
+          correlationId: CORR_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      errorCode: "SOURCE_ACCESS_DENIED",
+      category: "SECURITY",
+      retryable: false,
+      diagnosticReason: "access_denied",
+      correlationId: CORR_ID,
+    });
+
+    // 2. Unexpected permission errors (401 / permission denied / Postgres 42501 / thrown 403) must fail closed
+    for (const permissionErr of [
+      { statusCode: "401", message: "Unauthorized" },
+      { code: "42501", message: "permission denied for table objects" },
+      { message: "Access denied for bucket" },
+    ]) {
+      await expect(
+        openSourceDocumentPageWithV3Vault(
+          makeSigningDeps(async () => ({ data: null, error: permissionErr })),
+          {
+            ownerUserId: USER_A,
+            hiveId: HIVE_A,
+            sourceDocumentId: docId,
+            pageNumber: "1",
+            correlationId: CORR_ID,
+          },
+        ),
+      ).rejects.toMatchObject({
+        errorCode: "SOURCE_ACCESS_DENIED",
+        category: "SECURITY",
+        retryable: false,
+        diagnosticReason: "access_denied",
+      });
+    }
+
+    await expect(
+      openSourceDocumentPageWithV3Vault(
+        makeSigningDeps(async () => {
+          throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+        }),
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "1",
+          correlationId: CORR_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      errorCode: "SOURCE_ACCESS_DENIED",
+      category: "SECURITY",
+      retryable: false,
+      diagnosticReason: "access_denied",
+    });
+
+    // 3. Unexpected non-permission storage failure (500 or empty signedUrl) must fail closed without admin fallback
+    await expect(
+      openSourceDocumentPageWithV3Vault(
+        makeSigningDeps(async () => ({
+          data: null,
+          error: { statusCode: "500", message: "storage gateway error" },
+        })),
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "1",
+          correlationId: CORR_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      errorCode: "INTERNAL_ERROR",
+      retryable: true,
+      diagnosticReason: "storage_failed",
+    });
+
+    await expect(
+      openSourceDocumentPageWithV3Vault(
+        makeSigningDeps(async () => ({ data: { signedUrl: "" }, error: null })),
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "1",
+          correlationId: CORR_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      errorCode: "INTERNAL_ERROR",
+      retryable: true,
+      diagnosticReason: "storage_failed",
+    });
+
+    // 4. Missing storage client on userClient must NOT fall through to admin store
+    await expect(
+      openSourceDocumentPageWithV3Vault(
+        {
+          get vault() {
+            throw new Error("vault must not be called when userClient is present");
+          },
+          store: adminStore as never,
+          userClient: {
+            schema: makeSigningDeps(async () => ({ data: null, error: null })).userClient.schema,
+          },
+          loadOwnedHive: async () => hive,
+        },
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "1",
+          correlationId: CORR_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      errorCode: "INTERNAL_ERROR",
+      diagnosticReason: "storage_failed",
+    });
+
+    // 5. Missing object in storage fails closed with truthful NOT_FOUND
+    await expect(
+      openSourceDocumentPageWithV3Vault(
+        makeSigningDeps(async () => ({
+          data: null,
+          error: { statusCode: "404", message: "Object not found" },
+        })),
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "1",
+          correlationId: CORR_ID,
+        },
+      ),
+    ).rejects.toMatchObject({
+      errorCode: "NOT_FOUND",
+      diagnosticReason: "source_object_missing",
+      correlationId: CORR_ID,
+    });
+
+    expect(adminStore.createSignedReadUrl).not.toHaveBeenCalled();
+  });
+
+  it("rejects wrong bucket, cross-Hive paths, cross-document paths, unbound legacy paths, and traversal before signing", async () => {
+    const docId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const otherHiveId = "99999999-9999-4999-8999-999999999999";
+    const otherDocId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const hive: Hive = {
+      id: HIVE_A,
+      hiveId: HIVE_A,
+      name: "Maya Original Hive",
+      description: null,
+      clientRequestId: "44444444-4444-4444-8444-444444444444",
+      createdAt: "2026-10-30T15:00:00.000Z",
+      updatedAt: "2026-10-30T15:00:00.000Z",
+      isOwner: true,
+    };
+    const userStorageFromSpy = vi.fn();
+    const adminStoreSpy = vi.fn();
+
+    const runWithLocation = (bucket: string, storagePath: string) =>
+      openSourceDocumentPageWithV3Vault(
+        {
+          get vault() {
+            throw new Error("vault must not be called");
+          },
+          store: {
+            createSignedReadUrl: adminStoreSpy,
+          } as never,
+          userClient: {
+            schema: () => ({
+              from: () => ({
+                select: () => ({
+                  eq: () => ({
+                    eq: () => ({
+                      maybeSingle: async () => ({
+                        data: {
+                          id: docId,
+                          case_id: HIVE_A,
+                          owner_user_id: USER_A,
+                          mime_type: "application/pdf",
+                          storage_bucket: bucket,
+                          storage_path: storagePath,
+                          upload_status: "UPLOADED",
+                          lifecycle_status: "ACTIVE",
+                          deleted_at: null,
+                        },
+                        error: null,
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
+            storage: {
+              from: (calledBucket: string) => {
+                userStorageFromSpy(calledBucket);
+                return {
+                  createSignedUrl: async () => ({
+                    data: { signedUrl: "https://must-not-sign.example/signed" },
+                    error: null,
+                  }),
+                };
+              },
+            },
+          },
+          loadOwnedHive: async () => hive,
+        },
+        {
+          ownerUserId: USER_A,
+          hiveId: HIVE_A,
+          sourceDocumentId: docId,
+          pageNumber: "1",
+          correlationId: CORR_ID,
+        },
+      );
+
+    const invalidCases: readonly [string, string][] = [
+      // Wrong buckets
+      ["hive-derived-artifacts", `${USER_A}/${HIVE_A}/${docId}/original`],
+      ["public", `${USER_A}/${HIVE_A}/${docId}/original`],
+      ["other-bucket", `${USER_A}/${HIVE_A}/${docId}/original`],
+      // Cross-Hive path
+      [DEFAULT_HIVE_SOURCE_BUCKET, `${USER_A}/${otherHiveId}/${docId}/original`],
+      // Cross-document path
+      [DEFAULT_HIVE_SOURCE_BUCKET, `${USER_A}/${HIVE_A}/${otherDocId}/original`],
+      // Wrong owner prefix
+      [DEFAULT_HIVE_SOURCE_BUCKET, `${USER_B}/${HIVE_A}/${docId}/original`],
+      // Unbound legacy prefix
+      [DEFAULT_HIVE_SOURCE_BUCKET, `legacy-prefix/${docId}/original.pdf`],
+      // Path traversal / malformed paths
+      [DEFAULT_HIVE_SOURCE_BUCKET, `${USER_A}/${HIVE_A}/${docId}/../${otherDocId}/original`],
+      [DEFAULT_HIVE_SOURCE_BUCKET, `${USER_A}/${HIVE_A}/${docId}/%2e%2e/original`],
+      [DEFAULT_HIVE_SOURCE_BUCKET, `/${USER_A}/${HIVE_A}/${docId}/original`],
+      [DEFAULT_HIVE_SOURCE_BUCKET, `${USER_A}/${HIVE_A}/${docId}\\original`],
+    ];
+
+    for (const [bucket, storagePath] of invalidCases) {
+      await expect(runWithLocation(bucket, storagePath)).rejects.toMatchObject({
+        errorCode: "SOURCE_ACCESS_DENIED",
+        category: "SECURITY",
+        retryable: false,
+        diagnosticReason: "source_path_forbidden",
+        correlationId: CORR_ID,
+      });
+    }
+
+    expect(userStorageFromSpy).not.toHaveBeenCalled();
+    expect(adminStoreSpy).not.toHaveBeenCalled();
   });
 
   it("migration defines 1:1 Hive-to-Case FK, V3 Vault tables, RLS, and private bucket hive-source-documents", async () => {

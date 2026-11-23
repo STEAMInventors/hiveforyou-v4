@@ -89,6 +89,18 @@ function factUncertain(
   return false;
 }
 
+function hasPageVerification(
+  chip: ChipRef,
+  primaryContext: CitationContext | undefined,
+  sources: StudyViewSources | null,
+): boolean {
+  if (primaryContext) return true;
+  for (const factId of chip.factIds ?? []) {
+    if (sources?.facts[factId]) return true;
+  }
+  return false;
+}
+
 function gapTextForFacts(
   canonicalStudy: CanonicalStudy | null,
   coverageGaps: readonly CoverageGap[] | undefined,
@@ -175,8 +187,13 @@ export function buildEvidenceStatementModel(input: {
   const extra = openItem && input.view ? resolveOpenItemContext(openItem, input.view, input.canonicalStudy) : {};
   const factIds = input.chip.factIds ?? (input.primaryContext ? [input.primaryContext.factId] : []);
   const unreadable = isUnreadablePage(input.readProblems, input.chip.sourceDocumentId, input.chip.pageNumber);
-  const uncertain = !unreadable && factUncertain(input.topics, factIds);
-  const status: EvidenceStatementStatus = unreadable ? "unreadable" : uncertain ? "uncertain" : "checked";
+  const uncertainFromTopics = !unreadable && factUncertain(input.topics, factIds);
+  const verifiedOnPage = hasPageVerification(input.chip, input.primaryContext, input.sources);
+  const status: EvidenceStatementStatus = unreadable
+    ? "unreadable"
+    : uncertainFromTopics || !verifiedOnPage
+      ? "uncertain"
+      : "checked";
   const headline = openItem?.title.trim() || input.primaryContext?.supportingText?.trim() || input.chip.quote?.trim() || "Statement";
   const whyItMatters = openItem?.question?.trim() || null;
   const pageSupports = input.primaryContext?.valueAsWritten?.trim()

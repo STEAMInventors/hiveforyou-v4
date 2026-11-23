@@ -929,8 +929,350 @@ export type OpenSourceDocumentPageResult = {
   readonly mimeType: string;
 };
 
+type AuthorizedSourceDocumentMeta = {
+  readonly id: string;
+  readonly caseId: string;
+  readonly ownerUserId: string;
+  readonly mimeType: string;
+  readonly storageBucket: string;
+  readonly storagePath: string;
+  readonly uploadStatus: string;
+  readonly lifecycleStatus: string;
+  readonly deletedAt: string | null;
+};
+
+function isStorageNotFoundError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const rec = error as { statusCode?: unknown; status?: unknown; error?: unknown; message?: unknown };
+  if (rec.statusCode === 404 || rec.statusCode === "404" || rec.status === 404 || rec.status === "404") {
+    return true;
+  }
+  const text = `${typeof rec.error === "string" ? rec.error : ""} ${typeof rec.message === "string" ? rec.message : ""}`.toLowerCase();
+  return text.includes("object not found") || text.includes("not_found");
+}
+
+function isStoragePermissionError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const rec = error as {
+    statusCode?: unknown;
+    status?: unknown;
+    code?: unknown;
+    error?: unknown;
+    message?: unknown;
+  };
+  if (
+    rec.statusCode === 401 ||
+    rec.statusCode === "401" ||
+    rec.statusCode === 403 ||
+    rec.statusCode === "403" ||
+    rec.status === 401 ||
+    rec.status === "401" ||
+    rec.status === 403 ||
+    rec.status === "403" ||
+    rec.code === "42501"
+  ) {
+    return true;
+  }
+  const text = `${typeof rec.error === "string" ? rec.error : ""} ${typeof rec.message === "string" ? rec.message : ""}`.toLowerCase();
+  return (
+    text.includes("row-level security") ||
+    text.includes("permission denied") ||
+    text.includes("unauthorized") ||
+    text.includes("forbidden") ||
+    text.includes("not authorized") ||
+    text.includes("access denied")
+  );
+}
+
+function isAuthorizedSourceStoragePath(
+  storagePath: string,
+  ownerUserId: string,
+  hiveId: string,
+  sourceDocumentId: string,
+): boolean {
+  if (!storagePath || storagePath.startsWith("/") || storagePath.endsWith("/")) {
+    return false;
+  }
+  if (
+    storagePath.includes("\\") ||
+    storagePath.includes("?") ||
+    storagePath.includes("#") ||
+    /[\x00-\x1f\x7f]/.test(storagePath) ||
+    /%2e|%2f|%5c/i.test(storagePath)
+  ) {
+    return false;
+  }
+  const segments = storagePath.split("/");
+  if (segments.length < 4) {
+    return false;
+  }
+  for (const segment of segments) {
+    if (segment.length === 0 || segment === "." || segment === "..") {
+      return false;
+    }
+  }
+  return (
+    segments[0]!.toLowerCase() === ownerUserId &&
+    segments[1]!.toLowerCase() === hiveId &&
+    segments[2]!.toLowerCase() === sourceDocumentId
+  );
+}
+
+function normalizeUserSourceDocumentRow(raw: unknown): AuthorizedSourceDocumentMeta | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  if (
+    typeof row.id !== "string" ||
+    typeof row.case_id !== "string" ||
+    typeof row.owner_user_id !== "string" ||
+    typeof row.mime_type !== "string" ||
+    typeof row.storage_bucket !== "string" ||
+    typeof row.storage_path !== "string" ||
+    typeof row.upload_status !== "string" ||
+    typeof row.lifecycle_status !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: row.id.trim().toLowerCase(),
+    caseId: row.case_id.trim().toLowerCase(),
+    ownerUserId: row.owner_user_id.trim().toLowerCase(),
+    mimeType: row.mime_type.trim(),
+    storageBucket: row.storage_bucket.trim(),
+    storagePath: row.storage_path.trim(),
+    uploadStatus: row.upload_status.trim(),
+    lifecycleStatus: row.lifecycle_status.trim(),
+    deletedAt: typeof row.deleted_at === "string" ? row.deleted_at : null,
+  };
+}
+
+async function loadAuthorizedSourceDocumentForViewer(
+  deps: Pick<HiveVaultUploadAdapterDeps, "vault" | "userClient">,
+  hiveId: string,
+  sourceDocumentId: string,
+  correlationId: string,
+): Promise<AuthorizedSourceDocumentMeta | null> {
+  if (deps.userClient !== undefined) {
+    const hiveSchema =
+      typeof deps.userClient.schema === "function"
+        ? (deps.userClient.schema("hive") as {
+            from?: (table: "source_documents") => AuthorizedSourceDocumentQuery;
+          } | null)
+        : null;
+    if (!hiveSchema || typeof hiveSchema.from !== "function") {
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: true,
+        safeMessage: "We could not verify access to this document right now. Try again in a moment.",
+        correlationId,
+        diagnosticReason: "persistence_failed",
+      });
+    }
+    const { data, error } = await hiveSchema
+      .from("source_documents")
+      .select(
+        "id, case_id, owner_user_id, mime_type, storage_bucket, storage_path, upload_status, lifecycle_status, deleted_at",
+      )
+      .eq("id", sourceDocumentId)
+      .eq("case_id", hiveId)
+      .maybeSingle();
+    if (error) {
+      if (isStoragePermissionError(error)) {
+        throw createHiveError({
+          errorCode: "SOURCE_ACCESS_DENIED",
+          category: "SECURITY",
+          stage: "READ",
+          retryable: false,
+          safeMessage: "You do not have permission to open this document.",
+          correlationId,
+          diagnosticReason: "access_denied",
+        });
+      }
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: true,
+        safeMessage: "We could not verify access to this document right now. Try again in a moment.",
+        correlationId,
+        diagnosticReason: "persistence_failed",
+      });
+    }
+    if (!data) {
+      return null;
+    }
+    return normalizeUserSourceDocumentRow(data);
+  }
+
+  let document: SourceDocumentRecord | undefined;
+  try {
+    document = await deps.vault.sourceDocuments.getById(sourceDocumentId as SourceDocumentRecord["id"]);
+  } catch (error) {
+    if (error instanceof HiveError) {
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: error.retryable,
+        safeMessage: "We could not verify access to this document right now. Try again in a moment.",
+        correlationId,
+        diagnosticReason: "persistence_failed",
+      });
+    }
+    throw error;
+  }
+  if (!document) return null;
+  return {
+    id: document.id.trim().toLowerCase(),
+    caseId: document.caseId.trim().toLowerCase(),
+    ownerUserId: document.ownerUserId.trim().toLowerCase(),
+    mimeType: document.mimeType.trim(),
+    storageBucket: document.storageBucket.trim(),
+    storagePath: document.storagePath.trim(),
+    uploadStatus: document.uploadStatus,
+    lifecycleStatus: document.lifecycleStatus,
+    deletedAt: document.deletedAt,
+  };
+}
+
+async function signAuthorizedSourceDocumentUrl(
+  deps: Pick<HiveVaultUploadAdapterDeps, "store" | "userClient">,
+  document: Pick<AuthorizedSourceDocumentMeta, "storageBucket" | "storagePath">,
+  correlationId: string,
+): Promise<string> {
+  // Always prefer authenticated user-scoped storage signing under Storage RLS and fail closed.
+  // Never fall back to administrator/service-role signing when an authenticated user client is present.
+  if (deps.userClient !== undefined) {
+    const bucketClient =
+      deps.userClient.storage && typeof deps.userClient.storage.from === "function"
+        ? (deps.userClient.storage.from(document.storageBucket) as Partial<AuthorizedStorageBucket> | null)
+        : null;
+    if (!bucketClient || typeof bucketClient.createSignedUrl !== "function") {
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: true,
+        safeMessage: "We could not prepare this document right now. Try again in a moment.",
+        correlationId,
+        diagnosticReason: "storage_failed",
+      });
+    }
+    let signedResult: { data: { signedUrl: string } | null; error: unknown };
+    try {
+      signedResult = await bucketClient.createSignedUrl(
+        document.storagePath,
+        SOURCE_PAGE_LINK_SECONDS,
+      );
+    } catch (thrownError) {
+      if (isStorageNotFoundError(thrownError)) {
+        throw createHiveError({
+          errorCode: "NOT_FOUND",
+          category: "PERSISTENCE",
+          stage: "READ",
+          retryable: false,
+          safeMessage: "The original file for this document is not available in storage.",
+          correlationId,
+          diagnosticReason: "source_object_missing",
+        });
+      }
+      if (isStoragePermissionError(thrownError)) {
+        throw createHiveError({
+          errorCode: "SOURCE_ACCESS_DENIED",
+          category: "SECURITY",
+          stage: "READ",
+          retryable: false,
+          safeMessage: "You do not have permission to open this document.",
+          correlationId,
+          diagnosticReason: "access_denied",
+        });
+      }
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: true,
+        safeMessage: "We could not prepare this document right now. Try again in a moment.",
+        correlationId,
+        diagnosticReason: "storage_failed",
+      });
+    }
+    const { data, error } = signedResult;
+    if (!error && typeof data?.signedUrl === "string" && data.signedUrl.trim() !== "") {
+      return data.signedUrl.trim();
+    }
+    const userStorageError = error ?? new Error("empty_signed_url");
+    if (isStorageNotFoundError(userStorageError)) {
+      throw createHiveError({
+        errorCode: "NOT_FOUND",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: false,
+        safeMessage: "The original file for this document is not available in storage.",
+        correlationId,
+        diagnosticReason: "source_object_missing",
+      });
+    }
+    if (isStoragePermissionError(userStorageError)) {
+      throw createHiveError({
+        errorCode: "SOURCE_ACCESS_DENIED",
+        category: "SECURITY",
+        stage: "READ",
+        retryable: false,
+        safeMessage: "You do not have permission to open this document.",
+        correlationId,
+        diagnosticReason: "access_denied",
+      });
+    }
+    throw createHiveError({
+      errorCode: "INTERNAL_ERROR",
+      category: "PERSISTENCE",
+      stage: "READ",
+      retryable: true,
+      safeMessage: "We could not prepare this document right now. Try again in a moment.",
+      correlationId,
+      diagnosticReason: "storage_failed",
+    });
+  }
+
+  // In-memory / non-userClient test harness path only.
+  try {
+    const url = await deps.store.createSignedReadUrl(
+      { bucket: document.storageBucket, path: document.storagePath },
+      SOURCE_PAGE_LINK_SECONDS,
+    );
+    if (typeof url !== "string" || url.trim() === "") {
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: true,
+        safeMessage: "We received an invalid link for this document. Try again in a moment.",
+        correlationId,
+        diagnosticReason: "storage_failed",
+      });
+    }
+    return url.trim();
+  } catch (error) {
+    if (error instanceof HiveError) {
+      throw createHiveError({
+        errorCode: "INTERNAL_ERROR",
+        category: "PERSISTENCE",
+        stage: "READ",
+        retryable: error.retryable,
+        safeMessage: "We could not prepare this document right now. Try again in a moment.",
+        correlationId,
+        diagnosticReason: "storage_failed",
+      });
+    }
+    throw error;
+  }
+}
+
 export async function openSourceDocumentPageWithV3Vault(
-  deps: Pick<HiveVaultUploadAdapterDeps, "vault" | "store" | "loadOwnedHive">,
+  deps: Pick<HiveVaultUploadAdapterDeps, "vault" | "store" | "loadOwnedHive" | "userClient" | "sourceBucket">,
   input: {
     readonly ownerUserId: string;
     readonly hiveId: string;
@@ -958,11 +1300,16 @@ export async function openSourceDocumentPageWithV3Vault(
       diagnosticReason: "invalid_page_number",
     });
   }
-  await deps.loadOwnedHive(input.ownerUserId, hiveId, input.correlationId);
-  const document = await deps.vault.sourceDocuments.getById(sourceDocumentId as SourceDocumentRecord["id"]);
+  const normalizedCallerUserId = input.ownerUserId.trim().toLowerCase();
+  const hive = await deps.loadOwnedHive(input.ownerUserId, hiveId, input.correlationId);
+  const document = await loadAuthorizedSourceDocumentForViewer(deps, hiveId, sourceDocumentId, input.correlationId);
+  const callerMustMatchDocumentOwner = hive.isOwner === true || deps.userClient === undefined;
   if (
     !document ||
+    document.id !== sourceDocumentId ||
     document.caseId !== hiveId ||
+    !isValidUuid(document.ownerUserId) ||
+    (callerMustMatchDocumentOwner && document.ownerUserId !== normalizedCallerUserId) ||
     document.deletedAt !== null ||
     document.lifecycleStatus !== "ACTIVE" ||
     document.uploadStatus !== "UPLOADED"
@@ -977,11 +1324,35 @@ export async function openSourceDocumentPageWithV3Vault(
       diagnosticReason: "not_found",
     });
   }
-  const url = await deps.store.createSignedReadUrl(
-    { bucket: document.storageBucket, path: document.storagePath },
-    SOURCE_PAGE_LINK_SECONDS,
-  );
-  return { signedUrl: `${url}#page=${pageNumber}`, mimeType: document.mimeType };
+  if (!document.storageBucket || !document.storagePath) {
+    throw createHiveError({
+      errorCode: "INTERNAL_ERROR",
+      category: "PERSISTENCE",
+      stage: "READ",
+      retryable: false,
+      safeMessage: "The original file location for this document is unavailable.",
+      correlationId: input.correlationId,
+      diagnosticReason: "source_object_missing",
+    });
+  }
+  const approvedBucket = (deps.sourceBucket ?? DEFAULT_HIVE_SOURCE_BUCKET).trim();
+  if (
+    approvedBucket !== DEFAULT_HIVE_SOURCE_BUCKET ||
+    document.storageBucket !== DEFAULT_HIVE_SOURCE_BUCKET ||
+    !isAuthorizedSourceStoragePath(document.storagePath, document.ownerUserId, hiveId, sourceDocumentId)
+  ) {
+    throw createHiveError({
+      errorCode: "SOURCE_ACCESS_DENIED",
+      category: "SECURITY",
+      stage: "READ",
+      retryable: false,
+      safeMessage: "This document cannot be opened from its stored location.",
+      correlationId: input.correlationId,
+      diagnosticReason: "source_path_forbidden",
+    });
+  }
+  const url = await signAuthorizedSourceDocumentUrl(deps, document, input.correlationId);
+  return { signedUrl: `${url}#page=${pageNumber}`, mimeType: document.mimeType || "application/pdf" };
 }
 
 export async function getUploadQuotaWithV3Vault(
@@ -995,11 +1366,35 @@ export async function getUploadQuotaWithV3Vault(
   return { quota };
 }
 
+type AuthorizedSourceDocumentQuery = {
+  select: (columns: string) => {
+    eq: (column: string, value: string) => {
+      eq: (column: string, value: string) => {
+        maybeSingle: () => PromiseLike<{ data: unknown; error: unknown }>;
+      };
+    };
+  };
+};
+
+type AuthorizedStorageBucket = {
+  createSignedUrl: (
+    path: string,
+    expiresIn: number,
+  ) => Promise<{
+    data: { signedUrl: string } | null;
+    error: unknown;
+  }>;
+};
+
 type RpcCapableClient = EdgeSupabaseClient & {
   rpc?: (
     fn: string,
     args?: Record<string, unknown>,
   ) => PromiseLike<{ data: unknown; error: unknown }>;
+  schema?: (schema: "hive") => unknown;
+  storage?: {
+    from: (bucket: string) => unknown;
+  };
 };
 
 export async function createIntentRequestForOwnedHive(
@@ -1107,15 +1502,25 @@ export function createLiveHiveVaultUploadAdapterDeps(
   userClient: RpcCapableClient,
   correlationId: string,
 ): HiveVaultUploadAdapterDeps {
-  const adminEnv = loadSupabaseAdminEnv(process.env);
-  const adminClient = createSupabaseAdminClient(adminEnv);
   const cid = correlationId as CorrelationId;
-  const vault = new SupabaseVaultRepositories(adminClient, cid);
-  const store = new SupabaseEvidenceObjectStore(adminClient, cid);
+  let adminClient: ReturnType<typeof createSupabaseAdminClient> | null = null;
+  let vaultRepo: SupabaseVaultRepositories | null = null;
+  let storeRepo: SupabaseEvidenceObjectStore | null = null;
 
-  return {
-    vault,
-    store,
+  const requireAdminClient = () => {
+    adminClient ??= createSupabaseAdminClient(loadSupabaseAdminEnv(process.env));
+    return adminClient;
+  };
+
+  const deps: HiveVaultUploadAdapterDeps = {
+    get vault() {
+      vaultRepo ??= new SupabaseVaultRepositories(requireAdminClient(), cid);
+      return vaultRepo;
+    },
+    get store() {
+      storeRepo ??= new SupabaseEvidenceObjectStore(requireAdminClient(), cid);
+      return storeRepo;
+    },
     sourceBucket: DEFAULT_HIVE_SOURCE_BUCKET,
     scanHash: defaultHashScanner,
     userClient,
@@ -1133,7 +1538,9 @@ export function createLiveHiveVaultUploadAdapterDeps(
           }
         }
       }
-      return computeVaultUploadQuota(vault, ownerUserId);
+      return computeVaultUploadQuota(deps.vault, ownerUserId);
     },
   };
+
+  return deps;
 }
