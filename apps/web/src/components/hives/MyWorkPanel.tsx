@@ -464,7 +464,7 @@ function RespondForm({ busy, onSubmit }: { busy: boolean; onSubmit: (response: C
         ))}
       </fieldset>
       <textarea
-        className="min-h-[64px] rounded-[9px] border border-line-strong p-2.5 text-[14px] text-ink focus:border-blue focus:outline-none"
+        className="min-h-[64px] rounded-[9px] border border-line-strong p-2.5 text-[14px] text-ink focus:border-blue focus:shadow-focus focus:outline-none"
         placeholder="Add a note (optional)"
         maxLength={1000}
         value={note}
@@ -512,7 +512,7 @@ function NoteForm({
       </label>
       <textarea
         id={id}
-        className="min-h-[64px] rounded-[9px] border border-line-strong p-2.5 text-[14px] text-ink focus:border-blue focus:outline-none"
+        className="min-h-[64px] rounded-[9px] border border-line-strong p-2.5 text-[14px] text-ink focus:border-blue focus:shadow-focus focus:outline-none"
         maxLength={maxLength}
         value={text}
         onChange={(event) => setText(event.target.value)}
@@ -559,13 +559,13 @@ function AddRequestForm({ busy, onAdd }: { busy: boolean; onAdd: (title: string,
       </label>
       <input
         id={titleId}
-        className="h-10 rounded-[9px] border border-line-strong px-2.5 text-[14px] text-ink focus:border-blue focus:outline-none"
+        className="h-10 rounded-[9px] border border-line-strong px-2.5 text-[14px] text-ink focus:border-blue focus:shadow-focus focus:outline-none"
         maxLength={500}
         value={title}
         onChange={(event) => setTitle(event.target.value)}
       />
       <textarea
-        className="min-h-[56px] rounded-[9px] border border-line-strong p-2.5 text-[14px] text-ink focus:border-blue focus:outline-none"
+        className="min-h-[56px] rounded-[9px] border border-line-strong p-2.5 text-[14px] text-ink focus:border-blue focus:shadow-focus focus:outline-none"
         placeholder="Why or which period (optional)"
         maxLength={1000}
         value={detail}

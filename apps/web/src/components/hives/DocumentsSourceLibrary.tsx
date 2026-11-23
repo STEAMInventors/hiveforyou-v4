@@ -174,7 +174,7 @@ export function DocumentsSourceLibrary({
               return (
                 <tr
                   key={row.sourceDocumentId}
-                  className="cursor-pointer border-b border-line transition-colors hover:bg-[#FAFBFC]"
+                  className="cursor-pointer border-b border-line transition-colors hover:bg-hover"
                   data-testid="source-library-row"
                   onClick={(event) => openRow(row, event.currentTarget)}
                   onKeyDown={(event) => {

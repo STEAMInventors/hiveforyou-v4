@@ -7,7 +7,12 @@ const CELLS: readonly (readonly [number, number])[] = [
   [50, 80],
   [32.68, 50],
 ];
-export const HONEYCOMB_COLORS = ["#3B7CF6", "#EF5143", "#F6B826", "#2FA35A"] as const;
+export const HONEYCOMB_COLORS = [
+  "var(--color-blue)",
+  "var(--color-coral)",
+  "var(--color-honey)",
+  "var(--color-leaf)",
+] as const;
 const REST_GREYS = ["#D3D7DD", "#C9CED6", "#DADEE3", "#C2C8D0"] as const;
 const HEX = "0,-17.6 15.24,-8.8 15.24,8.8 0,17.6 -15.24,8.8 -15.24,-8.8";
 const COMET_RADII = [3.4, 2.6, 1.9] as const;

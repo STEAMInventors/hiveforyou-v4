@@ -293,7 +293,7 @@ export function HiveBoardPeople({ hive, currentUserId, canInvite, viewerRole, on
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-paper/80 px-5"
         >
-          <div className="w-full max-w-[400px] rounded-input border border-line bg-paper p-6 shadow-lg">
+          <div className="w-full max-w-[400px] rounded-input border border-line bg-paper p-6 shadow-pop">
             <h2 className="m-0 font-brand text-[22px] font-semibold text-ink">Remove from this hive?</h2>
             <p className="mt-2 text-small text-ink-2">
               <strong>{removeTarget.label}</strong> will lose access immediately. You can invite them again later.
@@ -325,7 +325,7 @@ export function HiveBoardPeople({ hive, currentUserId, canInvite, viewerRole, on
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-paper/80 px-5"
         >
-          <div className="w-full max-w-[400px] rounded-input border border-line bg-paper p-6 shadow-lg">
+          <div className="w-full max-w-[400px] rounded-input border border-line bg-paper p-6 shadow-pop">
             <h2 className="m-0 font-brand text-[22px] font-semibold text-ink">{inviteTitle}</h2>
             <p className="mt-2 text-small text-ink-2">
               {hive.kind === "client"
@@ -338,7 +338,7 @@ export function HiveBoardPeople({ hive, currentUserId, canInvite, viewerRole, on
                 id={nameId}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="min-h-11 rounded-control border border-line-strong px-3 text-[16px]"
+                className="min-h-11 rounded-control border border-line-strong bg-paper px-3 text-[16px] text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
               />
             </label>
             <label htmlFor={emailId} className="mt-3 flex flex-col gap-1 text-[14px] font-medium">
@@ -348,7 +348,7 @@ export function HiveBoardPeople({ hive, currentUserId, canInvite, viewerRole, on
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="min-h-11 rounded-control border border-line-strong px-3 text-[16px]"
+                className="min-h-11 rounded-control border border-line-strong bg-paper px-3 text-[16px] text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
               />
             </label>
             {err ? (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { AvatarStack, formatPeopleLine, type AvatarPerson } from "@/components/ui/AvatarStack";
+import { TAB_IDLE, TAB_SELECTED } from "@/components/ui/selection";
 import { LockIcon } from "@/components/ui/LockIcon";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import {
@@ -85,7 +86,7 @@ export function HiveHead({
               role="tab"
               aria-selected={on}
               className={`inline-flex h-11 shrink-0 items-center gap-[7px] border-b-2 bg-transparent text-[14px] no-underline min-[760px]:h-[42px] ${
-                on ? "border-ink font-semibold text-ink" : "border-transparent font-medium text-ink-3 hover:text-ink"
+                on ? TAB_SELECTED : TAB_IDLE
               }`}
             >
               {tab.label}

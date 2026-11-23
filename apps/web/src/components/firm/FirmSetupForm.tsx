@@ -107,7 +107,7 @@ export function FirmSetupForm({
               setValidationError(null);
             }}
             autoComplete="given-name"
-            className="h-11 rounded-control border border-line-strong px-3 text-[15px] font-normal text-ink"
+            className="h-11 rounded-control border border-line-strong px-3 text-[15px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
           />
         </label>
 
@@ -121,7 +121,7 @@ export function FirmSetupForm({
             }}
             placeholder="Rivera Law"
             autoComplete="organization"
-            className="h-11 rounded-control border border-line-strong px-3 text-[15px] font-normal text-ink"
+            className="h-11 rounded-control border border-line-strong px-3 text-[15px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
           />
           <span className="text-[12.5px] font-normal text-ink-3">
             Your clients see it in emails: “{firmPreview} needs 9 items from you.” Working alone? Use your own name.
@@ -182,7 +182,7 @@ export function FirmSetupForm({
                 }}
                 rows={2}
                 placeholder="Planning for elderly clients; probate"
-                className="resize-y rounded-control border border-line-strong bg-paper px-3 py-2.5 text-[15px] font-normal text-ink"
+                className="resize-y rounded-control border border-line-strong bg-paper px-3 py-2.5 text-[15px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
               />
               <span className="text-[12.5px] font-normal leading-snug text-ink-2">
                 We read every request and will email you when HiveForYou covers it. Meanwhile you can still add clients:

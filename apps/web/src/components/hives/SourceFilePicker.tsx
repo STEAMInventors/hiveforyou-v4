@@ -22,7 +22,7 @@ const STATE_CLASSES: Record<SourceFileState, string> = {
   checking: "bg-blue-wash text-blue-deep",
   registered: "bg-leaf-wash text-leaf-deep",
   rejected: "bg-coral-wash text-coral-deep",
-  failed: "bg-honey-wash text-honey-deep",
+  failed: "bg-coral-wash text-coral-deep",
 };
 
 function PaperclipIcon() {

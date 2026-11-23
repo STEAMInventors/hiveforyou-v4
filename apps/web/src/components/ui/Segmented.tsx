@@ -1,5 +1,7 @@
 "use client";
 
+import { SEGMENTED_ON } from "@/components/ui/selection";
+
 export type SegmentedOption<T extends string> = {
   id: T;
   label: string;
@@ -44,9 +46,7 @@ export function Segmented<T extends string>({
             type="button"
             aria-pressed={pressed}
             className={`shrink-0 border-0 font-medium ${shape} ${
-              pressed
-                ? "bg-paper font-semibold text-ink shadow-[0_1px_2px_rgba(20,30,50,0.08),0_0_0_1px_var(--color-line)]"
-                : `bg-transparent ${tone} hover:text-ink`
+              pressed ? SEGMENTED_ON : `bg-transparent ${tone} hover:text-ink`
             }`}
             onClick={() => onChange(option.id)}
           >

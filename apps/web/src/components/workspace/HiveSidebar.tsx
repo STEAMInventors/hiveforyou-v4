@@ -11,6 +11,7 @@ import { hiveSectionPath, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import type { StartingView } from "@/lib/auth/profile";
 
 import { TEXT_LINK_CLASS } from "@/components/button-classes";
+import { MENU_ITEM_CLASS, menuIconClass } from "@/components/ui/selection";
 
 import { HivePeopleLine } from "./HivePeopleLine";
 import { countAccessibleLabel, type HiveSidebarCounts } from "./sidebar-counts";
@@ -113,9 +114,9 @@ function SideNavItem({
       href={href}
       data-tab={tab}
       aria-current={active ? "page" : undefined}
-      className="hive-side-link flex h-[38px] items-center gap-2.5 rounded-[9px] px-2.5 text-small font-medium text-ink-2 no-underline hover:bg-hover hover:text-ink aria-[current=page]:bg-mist aria-[current=page]:font-semibold aria-[current=page]:text-ink"
+      className={`hive-side-link ${MENU_ITEM_CLASS}`}
     >
-      <span className="text-ink-3 aria-[current=page]:text-ink">{Icon ? <Icon /> : null}</span>
+      <span className={menuIconClass(active)}>{Icon ? <Icon /> : null}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {showLock ? <NavIconLock className="h-3.5 w-3.5 shrink-0 text-ink-3" /> : null}
       {count !== null ? <MenuCount active={active} count={count} ariaLabel={ariaCount ?? label} /> : null}

@@ -125,7 +125,7 @@ export function CreateHiveModal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="relative z-10 flex max-h-[calc(100dvh-16px)] w-full max-w-[680px] flex-col gap-5 overflow-y-auto rounded-t-card border border-line bg-paper px-[clamp(20px,4vw,32px)] pb-[clamp(20px,4vw,28px)] pt-[clamp(24px,4vw,32px)] shadow-[0_24px_80px_rgba(0,0,0,0.2)] sm:max-h-[min(92dvh,760px)] sm:rounded-input"
+        className="relative z-10 flex max-h-[calc(100dvh-16px)] w-full max-w-[680px] flex-col gap-5 overflow-y-auto rounded-t-card border border-line bg-paper px-[clamp(20px,4vw,32px)] pb-[clamp(20px,4vw,28px)] pt-[clamp(24px,4vw,32px)] shadow-pop sm:max-h-[min(92dvh,760px)] sm:rounded-input"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">

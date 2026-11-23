@@ -22,6 +22,6 @@ describe("Tabs", () => {
     );
     fireEvent.click(screen.getByRole("tab", { name: "Ask Sarah" }));
     expect(onChange).toHaveBeenCalledWith("ask");
-    expect(screen.getByRole("tab", { name: "Conversation" }).className).toContain("border-ink");
+    expect(screen.getByRole("tab", { name: "Conversation" }).className).toContain("border-blue");
   });
 });

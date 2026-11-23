@@ -123,7 +123,7 @@ export function ConversationPreviewSelect({ id, value, onChange }: ConversationP
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value === "client" ? "client" : "self")}
-        className="min-h-10 rounded-control border border-line bg-paper px-2.5 text-[13px] text-ink"
+        className="min-h-10 rounded-control border border-line bg-paper px-2.5 text-[13px] text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
       >
         <option value="self">You</option>
         <option value="client">Client</option>

@@ -7,6 +7,8 @@ import { hiveSectionPath, type HiveWorkspaceSection } from "@/lib/hive-routes";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import type { Hive } from "@hiveforyou/contracts";
 
+import { TAB_IDLE, TAB_SELECTED } from "@/components/ui/selection";
+
 import { NavIconLock } from "./workspace-nav-icons";
 import type { HiveSidebarCounts } from "./sidebar-counts";
 import { countAccessibleLabel } from "./sidebar-counts";
@@ -57,7 +59,7 @@ export function HiveSectionTabs({ hive, active, counts }: HiveSectionTabsProps) 
               data-tab={item.tab}
               aria-selected={selected}
               className={`flex h-[42px] shrink-0 items-center gap-1.5 border-b-2 bg-transparent px-0 text-small no-underline ${
-                selected ? "border-ink font-semibold text-ink" : "border-transparent font-medium text-ink-3 hover:text-ink"
+                selected ? TAB_SELECTED : TAB_IDLE
               }`}
             >
               <span>{item.label}</span>

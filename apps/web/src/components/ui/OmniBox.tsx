@@ -157,7 +157,7 @@ export function OmniBox({
         className={`flex h-10 items-center gap-2.5 rounded-input border bg-paper px-3.5 transition-[background,border-color,box-shadow] min-[760px]:h-[42px] ${
           open
             ? "border-line-strong shadow-lift"
-            : "border-line-strong hover:border-ink-3 focus-within:border-ink-3 focus-within:shadow-lift"
+            : "border-line-strong hover:border-ink-3 focus-within:border-blue focus-within:shadow-focus"
         }`}
       >
         <SearchIcon />

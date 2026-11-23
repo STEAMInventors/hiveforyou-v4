@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 
 import { ConnectedAskChat } from "@/components/hives/AskChat";
 import { Avatar, type AvatarKind } from "@/components/ui/AvatarStack";
+import { SEGMENTED_ON } from "@/components/ui/selection";
 import { HIVE_CHAT_PANEL_MIN_WIDTH, useHiveChat, useMinWidth } from "@/lib/hive-chat-context";
 
 export const SIDE_PARAM = "side";
@@ -45,9 +46,7 @@ function TabButton({
       data-testid={testId}
       onClick={onClick}
       className={`flex h-[38px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[8px] border-0 px-2.5 text-[13.5px] font-medium ${
-        selected
-          ? "bg-paper font-semibold text-ink shadow-[0_1px_2px_rgba(20,30,50,0.08),0_0_0_1px_var(--color-line)]"
-          : "bg-transparent text-ink-2 hover:text-ink"
+        selected ? SEGMENTED_ON : "bg-transparent text-ink-2 hover:text-ink"
       }`}
     >
       {children}

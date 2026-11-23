@@ -137,7 +137,7 @@ export function EvidenceViewPanel({
                   type="button"
                   aria-current={button.current ? "page" : undefined}
                   className={`inline-flex min-h-10 flex-col items-start rounded-button border px-3 py-2 text-left text-[13px] ${
-                    button.current ? "border-ink ring-1 ring-ink" : "border-line-strong bg-paper hover:bg-hover"
+                    button.current ? "border-blue bg-blue-wash ring-1 ring-blue" : "border-line-strong bg-paper hover:bg-hover"
                   }`}
                   onClick={() => {
                     if (button.current) return;

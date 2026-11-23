@@ -68,7 +68,7 @@ export function DeleteHiveModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-[61] w-full max-w-md rounded-input border border-line bg-paper p-6 shadow-[0_24px_48px_rgba(31,35,40,0.18)]"
+        className="relative z-[61] w-full max-w-md rounded-input border border-line bg-paper p-6 shadow-pop"
       >
         <h2 id={titleId} className="m-0 font-brand text-[22px] font-semibold text-ink">
           Delete this Hive?

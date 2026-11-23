@@ -183,7 +183,7 @@ export function InviteAcceptPanel(props: InviteAcceptPanelProps) {
               name="firstName"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              className="min-h-11 rounded-control border border-line-strong px-3.5 text-[16px] font-normal text-ink"
+              className="min-h-11 rounded-control border border-line-strong px-3.5 text-[16px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
             />
           </label>
           <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={busy} onClick={() => void accept()}>

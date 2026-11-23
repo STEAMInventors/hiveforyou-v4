@@ -40,6 +40,28 @@ function panelVisibility(selected: boolean): string {
   return selected ? "flex" : "hidden min-[1480px]:flex";
 }
 
+function ChannelHeader({
+  title,
+  privacy,
+  detail,
+  selected,
+}: {
+  title: string;
+  privacy: "Private" | "Shared";
+  detail: string;
+  selected: boolean;
+}) {
+  return (
+    <header className={`shrink-0 rounded-[9px] px-2.5 py-2 ${selected ? "bg-blue-wash" : ""}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="m-0 font-brand text-[16px] font-semibold text-ink">{title}</h2>
+        <span className="text-meta font-semibold text-ink-3">{privacy}</span>
+      </div>
+      <p className="m-0 mt-0.5 text-meta text-ink-3">{detail}</p>
+    </header>
+  );
+}
+
 function JoinHiveControl({ hiveId }: { hiveId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -265,10 +287,12 @@ export function HiveBoardMessaging({
             data-testid="personal-ask-panel"
             className={`${panelVisibility(view === "ask")} ${PANEL_CLASS} min-[1480px]:border-l min-[1480px]:border-line min-[1480px]:pl-5`}
           >
-            <header className="shrink-0 pb-2">
-              <h2 className="m-0 text-[16px] font-semibold text-ink">Ask AI — Private</h2>
-              <p className="m-0 mt-0.5 text-meta text-ink-3">Only you can see this.</p>
-            </header>
+            <ChannelHeader
+              title="Ask AI"
+              privacy="Private"
+              detail="Only you can see this."
+              selected={view === "ask"}
+            />
             <div className="min-h-0 flex-1">{askConversation}</div>
           </section>
           <section
@@ -276,10 +300,12 @@ export function HiveBoardMessaging({
             data-testid="personal-pro-panel"
             className={`${panelVisibility(view === "conversation")} ${PANEL_CLASS} min-[1480px]:border-l min-[1480px]:border-line min-[1480px]:pl-5`}
           >
-            <header className="shrink-0 pb-2">
-              <h2 className="m-0 text-[16px] font-semibold text-ink">Pro Conversation — Shared</h2>
-              <p className="m-0 mt-0.5 text-meta text-ink-3">{sharedDetail}</p>
-            </header>
+            <ChannelHeader
+              title="Pro Conversation"
+              privacy="Shared"
+              detail={sharedDetail}
+              selected={view === "conversation"}
+            />
             <div className="min-h-0 flex-1">{peopleConversation}</div>
           </section>
         </div>

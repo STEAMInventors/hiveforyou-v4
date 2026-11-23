@@ -81,7 +81,7 @@ export function DisplayNameDialog({
         ref={dialogRef}
         role="dialog"
         aria-labelledby={titleId}
-        className="relative z-10 flex w-full max-w-md flex-col gap-4 rounded-input border border-line bg-paper p-6 shadow-[0_12px_32px_rgba(31,35,40,0.14)]"
+        className="relative z-10 flex w-full max-w-md flex-col gap-4 rounded-input border border-line bg-paper p-6 shadow-pop"
       >
         <h2 id={titleId} className="m-0 font-brand text-section font-semibold text-ink">
           Your first name
@@ -104,7 +104,7 @@ export function DisplayNameDialog({
               maxLength={60}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="min-h-11 rounded-control border border-line bg-paper px-3 text-[15px] text-ink"
+              className="min-h-11 rounded-control border border-line bg-paper px-3 text-[15px] text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
               autoComplete="given-name"
             />
             {state.field === "displayName" && state.error ? (

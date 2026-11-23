@@ -1,8 +1,16 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-23): HB-3 — Polish Hive Board as a Communication Workspace.** HB-2 stays implemented locally, awaiting founder review. V5 pipeline simplification below is parked, not closed.
+> **Active ticket (2026-11-23): HB-4 — Apply HiveForYou Brand Colors Across All Pages.** HB-3 stays implemented locally, awaiting founder review. V5 pipeline simplification below is parked, not closed.
 
-## Active ticket — HB-3: Polish Hive Board as a Communication Workspace
+## Active ticket — HB-4: Apply HiveForYou Brand Colors Across All Pages
+
+**Objective:** Use the existing brand tokens so Cell Blue marks actions, navigation, links and focus; Coral, Honey and Leaf keep their meanings; Paper, Mist and Ink stay the dominant surfaces. Styling only.
+
+**Scope:** Shared selection styles (current menu row, active tab, segmented control, focus rings), personal Hive channel headers, and a few inputs and dialogs that still used non-token colors or bright text. No gallery edits, no database, no domain logic.
+
+**Status (2026-11-23): implemented locally, awaiting founder review.** No migration. Typecheck passed. Targeted UI tests 23/23. Production build passed.
+
+## Previous ticket — HB-3: Polish Hive Board as a Communication Workspace
 
 **Objective:** The personal Hive board uses the workspace width as a communication surface: Hive title and a compact case summary, then My Work beside Ask AI (private) and Pro Conversation (shared). The viewer's actions follow their membership row. Routes stay the same.
 

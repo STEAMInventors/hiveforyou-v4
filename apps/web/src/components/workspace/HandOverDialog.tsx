@@ -101,7 +101,7 @@ export function HandOverDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(31,35,40,0.32)] p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/30 p-5"
       onClick={() => !action.pending && onClose()}
     >
       <form

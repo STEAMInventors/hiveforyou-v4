@@ -80,7 +80,7 @@ export function NameHiveDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative z-10 w-full max-w-[420px] rounded-t-card border border-line bg-paper px-6 pb-6 pt-7 shadow-[0_24px_80px_rgba(0,0,0,0.2)] sm:rounded-input"
+        className="relative z-10 w-full max-w-[420px] rounded-t-card border border-line bg-paper px-6 pb-6 pt-7 shadow-pop sm:rounded-input"
       >
         <h2
           id={titleId}

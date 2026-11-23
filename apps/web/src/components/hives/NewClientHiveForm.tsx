@@ -482,7 +482,7 @@ export function NewClientHiveForm({
                 }}
                 autoComplete="off"
                 maxLength={HIVE_NAME_MAX_LENGTH}
-                className="min-h-10 rounded-control border border-line-strong px-3 text-[16px] font-normal text-ink"
+                className="min-h-10 rounded-control border border-line-strong px-3 text-[16px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
               />
               {nameError ? (
                 <span className="text-small text-coral-deep" role="alert">
@@ -505,7 +505,7 @@ export function NewClientHiveForm({
                   setEmailError(null);
                 }}
                 autoComplete="email"
-                className="min-h-10 rounded-control border border-line-strong px-3 text-[16px] font-normal text-ink"
+                className="min-h-10 rounded-control border border-line-strong px-3 text-[16px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
               />
               {emailError ? (
                 <span className="text-small text-coral-deep" role="alert">
@@ -560,7 +560,7 @@ export function NewClientHiveForm({
                     maxLength={MAX_TAILOR_PROFESSIONAL_TEXT}
                     rows={4}
                     placeholder="Single, wages from one employer, car loan, a credit card lawsuit, no business."
-                    className="rounded-control border border-line-strong px-3 py-2.5 text-[16px] font-normal text-ink"
+                    className="rounded-control border border-line-strong px-3 py-2.5 text-[16px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
                   />
                   <span className="text-caption font-normal leading-snug text-ink-3">
                     HiveForYou uses this to choose what to ask {clientGreeting} for. Only your team sees it.
@@ -638,7 +638,7 @@ export function NewClientHiveForm({
                       }}
                       placeholder="Add an item, for example Lease for a storage unit"
                       maxLength={120}
-                      className="min-h-10 rounded-control border border-line-strong px-3 text-[16px] font-normal text-ink"
+                      className="min-h-10 rounded-control border border-line-strong px-3 text-[16px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
                     />
                   </label>
                   <button type="button" className={WORKSPACE_SECONDARY} disabled={busy || tailoring} onClick={submitAddItem}>

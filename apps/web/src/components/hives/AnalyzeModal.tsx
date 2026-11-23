@@ -197,7 +197,7 @@ function AnalyzeDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative z-[71] flex max-h-[92vh] w-full max-w-[520px] flex-col overflow-hidden rounded-input bg-paper shadow-[0_24px_64px_rgba(31,35,40,0.18)] outline-none"
+        className="relative z-[71] flex max-h-[92vh] w-full max-w-[520px] flex-col overflow-hidden rounded-input bg-paper shadow-pop outline-none"
         data-testid="analyze-modal"
         data-outcome={confirming ? "confirm" : outcome}
       >

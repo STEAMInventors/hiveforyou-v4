@@ -3,6 +3,8 @@
 import type { ClientsHomeQueue, ClientsHomeQueueCounts } from "@/lib/hives/clients-home-queue";
 import { hiveBadgeInitials } from "@/lib/hives/hive-badge-initials";
 
+import { MENU_ITEM_CLASS, menuIconClass } from "@/components/ui/selection";
+
 import { ClientsHomeQueueIcon } from "./clients-home-icons";
 
 type QueueRow = {
@@ -26,9 +28,9 @@ function QueueNavButton({
       data-queue={item.queue}
       aria-current={active ? "page" : undefined}
       onClick={() => onSelect(item.queue)}
-      className="flex h-[38px] w-full items-center gap-2.5 rounded-[9px] border-0 bg-transparent px-2.5 text-left text-small font-medium text-ink-2 hover:bg-hover hover:text-ink aria-[current=page]:bg-mist aria-[current=page]:font-semibold aria-[current=page]:text-ink"
+      className={MENU_ITEM_CLASS}
     >
-      <span className="text-ink-3 aria-[current=page]:text-ink">
+      <span className={menuIconClass(active)}>
         <ClientsHomeQueueIcon queue={item.queue} />
       </span>
       <span className="min-w-0 flex-1 truncate">{item.label}</span>

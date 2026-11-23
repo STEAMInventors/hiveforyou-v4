@@ -425,7 +425,7 @@ export function FindingsPageView({
               role="dialog"
               aria-modal="true"
               aria-labelledby="findings-calculation-title"
-              className={`${CARD} max-w-md shadow-lg`}
+              className={`${CARD} max-w-md shadow-pop`}
               data-testid="findings-calculation-dialog"
               onClick={(event) => event.stopPropagation()}
             >

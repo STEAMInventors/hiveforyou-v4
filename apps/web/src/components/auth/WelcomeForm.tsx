@@ -97,7 +97,7 @@ export function WelcomeForm({
           maxLength={60}
           value={firstName}
           onChange={(event) => setFirstName(event.target.value)}
-          className="min-h-11 rounded-control border border-line bg-paper px-3 text-[15px] text-ink"
+          className="min-h-11 rounded-control border border-line bg-paper px-3 text-[15px] text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
           autoComplete="given-name"
         />
         {state.field === "displayName" && state.error ? (

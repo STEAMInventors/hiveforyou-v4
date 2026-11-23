@@ -77,7 +77,7 @@ export function FirmTeamPanel({ initial, practiceAreaOptions = [] }: FirmTeamPan
       <label className="flex flex-col gap-1 text-small text-ink-2">
         Firm name
         <input
-          className="rounded-input border border-line bg-paper px-3 py-2 text-body text-ink"
+          className="rounded-input border border-line bg-paper px-3 py-2 text-body text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
           value={firmName}
           onChange={(event) => setFirmName(event.target.value)}
           maxLength={100}
@@ -87,13 +87,13 @@ export function FirmTeamPanel({ initial, practiceAreaOptions = [] }: FirmTeamPan
       <label className="flex flex-col gap-1 text-small text-ink-2">
         Assistant name (client-facing)
         <input
-          className="rounded-input border border-line bg-paper px-3 py-2 text-body text-ink"
+          className="rounded-input border border-line bg-paper px-3 py-2 text-body text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
           value={assistantName}
           onChange={(event) => setAssistantName(event.target.value)}
           maxLength={40}
         />
       </label>
-      {error ? <p className="m-0 text-small text-coral">{error}</p> : null}
+      {error ? <p className="m-0 text-small text-coral-deep">{error}</p> : null}
       <button type="submit" className={PRIMARY_BUTTON_CLASS} disabled={busy || firmName.trim().length < 1}>
         Create firm
       </button>

@@ -93,7 +93,7 @@ export function FirmInviteAcceptPanel(props: FirmInviteAcceptPanelProps) {
           id={firstNameId}
           value={firstName}
           onChange={(event) => setFirstName(event.target.value)}
-          className="min-h-11 rounded-control border border-line-strong px-3.5 text-[16px] font-normal text-ink"
+          className="min-h-11 rounded-control border border-line-strong px-3.5 text-[16px] font-normal text-ink outline-none transition-[border-color,box-shadow] focus:border-blue focus:shadow-focus"
         />
       </label>
       {error ? <p className="m-0 text-sm text-coral-deep">{error}</p> : null}

@@ -51,7 +51,7 @@ Names live in `tailwind.config.ts` / `globals.css` only. No hex values anywhere 
 
 | Token | Value | Use |
 |---|---|---|
-| `ink` | #1F2328 | Text, section rules, selected tab underline, assistant avatar |
+| `ink` | #1F2328 | Text, section rules, assistant avatar |
 | `ink-2` | #4A525C | Secondary text |
 | `ink-3` | #6B737D | Meta, labels, counts |
 | `line` | #E3E6EA | Row dividers, borders |
@@ -61,7 +61,7 @@ Names live in `tailwind.config.ts` / `globals.css` only. No hex values anywhere 
 | `paper` | #FFFFFF | Page background |
 | `page-warm` | #FFFEFB | Document page in the evidence viewer and the front page example |
 | `cite` | #FFF1BF (ring #F3D97A) | Highlighted cited text; search match `mark` |
-| `blue` / `blue-deep` / `blue-wash` | #3B7CF6 / #1A56C4 / #E8F0FE | Actions, links, focus, "To review", selected example statement |
+| `blue` / `blue-deep` / `blue-wash` | #3B7CF6 / #1A56C4 / #E8F0FE | Actions, links, focus, "To review", selected example statement, current menu row, active tab indicator |
 | `coral` / `coral-deep` / `coral-wash` | #EF5143 / #B33A2E / #FDEDEB | Missing, unreadable |
 | `honey` / `honey-deep` / `honey-wash` | #F6B826 / #7A5200 / #FEF3D6 | Changed, duplicate, uncertain |
 | `leaf` / `leaf-deep` / `leaf-wash` | #2FA35A / #197040 / #E6F4EA | Read, checked, received, up to date, progress meter, client avatar |
@@ -160,8 +160,8 @@ notes, evidence view) and on Your hives. Never on the client home, signed-out pa
   (radius 8, `mist`) + client name (14/600) and hive title (12 `ink-3`), both one line with ellipsis
   (own hive: hive title + "Your hive"), hairline under it · nav: Home · Documents <n> · Report · Audit
   trail · Team notes (lock icon; staff only). Rows 38px, radius 9, 16px outline icon + label (14
-  `ink-2`), count capsule at the right (11.5/600 `ink-3` on `mist`). Current page: `mist` fill, `ink`
-  600, icon `ink`, capsule white; `aria-current="page"`. Hover `hover`. · footer pinned to the bottom
+  `ink-2`), count capsule at the right (11.5/600 `ink-3` on `mist`). Current page: `blue-wash` fill, `blue-deep`
+  600, icon `blue-deep`, capsule white; `aria-current="page"`. Hover `hover`. · footer pinned to the bottom
   (hairline above): avatar stack + "<client first>, <staff first> and <assistant>" (own: "You and
   <assistant>").
 - **Your hives:** identity block = firm initials + firm name, the signed-in person under it (firmless:
@@ -329,7 +329,7 @@ right: avatar stack (client, staff, assistant; own hive: you + assistant; 2px wh
 "<client>, <staff> and <assistant>" / "You and <assistant>" (the people line and the tabs are hidden at ≥ 1100px,
 where the left menu carries them). Then **tabs**: Home · Documents <n> · Report ·
 Audit trail · Team notes 🔒 (staff only). Text tabs 42px, 14/500 `ink-3`; selected `ink` 600 with a 2px
-**ink** underline; count in a small `mist` capsule (11.5/600). `role="tablist"`. Firmless (own) hives: no
+**Cell Blue** underline; count in a small `mist` capsule (11.5/600). `role="tablist"`. Firmless (own) hives: no
 Team notes, avatars show only the people who exist.
 
 ### Own hive (an individual's firmless hive)
