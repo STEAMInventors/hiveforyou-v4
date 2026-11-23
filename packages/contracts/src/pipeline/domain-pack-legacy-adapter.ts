@@ -3,7 +3,7 @@
  * No legacy prose rule is upgraded into an executable predicate by inference.
  * Legacy calculations are declaration-only until a reviewed typed binding exists.
  */
-import { PACK_CALCULATION_OPERATORS, DOMAIN_PACK_SOURCE_SCHEMA, type DomainPackSource, type PackDefinition, type PackOwner } from "./domain-pack-source";
+import { PACK_CALCULATION_OPERATORS, PACK_REPORT_BLOCKS, DOMAIN_PACK_SOURCE_SCHEMA, type DomainPackSource, type PackDefinition, type PackOwner } from "./domain-pack-source";
 import type { Pack } from "./pack-contracts";
 
 const slug = (raw: string): string =>
@@ -98,14 +98,20 @@ export function legacyPackToEditableSource(pack: Pack, owner: PackOwner): Legacy
   for (const note of pack.generalNotes) push({
     id:"note:"+note.id,kind:"note",label:note.id,text:note.text,showWhen:note.showWhen,
   });
+  const supportedBlocks: ReadonlySet<string> = new Set(PACK_REPORT_BLOCKS);
   for (const audience of ["customer","professional"] as const) {
     const template = audience === "customer" ? pack.customerReport : pack.professionalReport;
     if (!template) continue;
-    const sections = template.sections.map((section) => ({
-      id:"section:"+slug(section.heading),
-      heading:section.heading,
-      blocks:section.blocks.map((b)=>b.name),templateDescription:section.builtFromRaw,
-    }));
+    const sections = template.sections.map((section) => {
+      const blockNames = section.blocks.map((b)=>b.name);
+      for (const name of blockNames) if (!supportedBlocks.has(name)) warnings.push("unsupported_legacy_report_block:"+name);
+      return {
+        id:"section:"+slug(section.heading),
+        heading:section.heading,
+        blocks:blockNames.filter((name)=>supportedBlocks.has(name)),
+        templateDescription:section.builtFromRaw,
+      };
+    });
     push({id:"report:"+audience,kind:"report",label:template.title,audience,sections,voice:template.voice});
   }
   if (pack.briefOnly) warnings.push("Legacy brief-only Pack has no typed executable rules.");
