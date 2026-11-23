@@ -1,8 +1,23 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-22): HB-1 Addendum — My Work & Pro Requests** (D-059). V5 pipeline simplification below is parked, not closed.
+> **Active ticket (2026-11-23): HB-2 — Restore Hive Board for Personal Hives** (D-060). HB-1 Addendum stays implemented locally, awaiting founder review. V5 pipeline simplification below is parked, not closed.
 
-## Active ticket — HB-1 Addendum: My Work & Pro Requests
+## Active ticket — HB-2: Restore Hive Board for Personal Hives
+
+**Objective:** A personal Hive opens on the communication board: a compact case summary, My Work & Pro Requests, and two channels — Ask AI (private) and Pro Conversation (shared). The full study stays on its own page. An invited professional can join and then create and review requests. The owner responds, uploads, and tracks them. Study and checklist rows are never shown as requests from a Pro.
+
+**Scope (D-060):**
+1. Personal Hive home (`firmId` null) renders `PersonalHiveBoard` instead of the long study Home. Firm client and staff homes are unchanged.
+2. My Work shows for a personal Hive with no firm and no Pro. Uploaded documents are listed. With no staff-sourced requests, the empty state is "No requests from a Pro yet." `source = pack` stays out of that list.
+3. Ask AI and Pro Conversation are separate. The shared composer stays closed until a professional membership is active. Ask threads stay private (`can_read_assistant_thread` unchanged).
+4. The owner invites a professional and sees invited / accepted-not-joined / accepted. Accepting an invitation still leaves the professional pending. `activate_professional_membership` (personal Hives only) is how they join.
+5. **Migration `supabase/migrations/20261123120000_personal_hive_pro_requests.sql` (not applied):** `hive.can_review_requests` is firm staff or an active professional on a personal Hive. `add_request` and `staff_resolve_request` use it, so a personal-Hive owner cannot create or accept requests. `respond_to_request` allows the owner because they are not a reviewer. `list_hive_people` includes a pending professional. No earlier migration file is edited.
+
+**Approval stops:** applying `20261123120000`, commit, push, deployment.
+
+**Status (2026-11-23): implemented locally, awaiting founder review.** Uncommitted. Migration not applied. SQL check `supabase/tests/database/personal_hive_board_check.sql` not run (no local Postgres). Verified: contracts `hive-board-requests.test.ts` 12/12; web `PersonalHiveBoard`, `personal-hive-roster`, `MyWorkPanel`, and `HiveBoardPeople` 13/13. Signed-in personal Hive and the production home were not opened; the new RPC is not applied.
+
+## Previous ticket — HB-1 Addendum: My Work & Pro Requests
 
 **Objective:** A compact **My Work & Pro Requests** section at the top of Hive Home (the Hive Board; `/board` redirects there) shows a client **What I've done**, **Waiting on me** and **Waiting on Pro**, and shows firm staff the mirror (**Waiting on client**, **Waiting on me**, **Done**). Each request shows requester, date, status, documents, linked messages and recorded history, expandable below.
 

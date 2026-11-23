@@ -3,6 +3,7 @@
 import type { Hive, HiveAttentionResult } from "@hiveforyou/contracts";
 import { hiveAttention } from "@hiveforyou/contracts";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
@@ -110,6 +111,43 @@ function IntakeSegments({ summary }: { summary: HiveSummary | undefined }) {
   );
 }
 
+function JoinHiveButton({ hiveId }: { hiveId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const join = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/v1/hives/${hiveId}/membership`, { method: "POST" });
+      if (!response.ok) {
+        setError("Could not join this hive. Try again.");
+        return;
+      }
+      router.push(hivePath(hiveId));
+      router.refresh();
+    } catch {
+      setError("Could not join this hive. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      <button type="button" className={`${SECONDARY_BUTTON_CLASS} min-h-11`} disabled={busy} onClick={() => void join()}>
+        {busy ? "Joining…" : "Join this hive"}
+      </button>
+      {error ? (
+        <p className="m-0 mt-1 text-small text-coral-deep" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function HiveRow({
   hive,
   summary,
@@ -125,6 +163,7 @@ function HiveRow({
   const activity = lastActivity(hive, summary);
   const kicker = hiveKicker(hive);
   const stateParts = formatStateLineParts(attention.counts);
+  const pendingJoin = hive.membershipRole === "professional" && hive.memberState === "pending";
 
   return (
     <li
@@ -133,10 +172,18 @@ function HiveRow({
     >
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-3 py-4 min-[760px]:flex-nowrap min-[760px]:gap-x-5">
         <div className="min-w-0 flex-1 basis-[200px]">
+          {pendingJoin ? (
+            <div className="-mx-2 px-2 py-1">
+              <p className="m-0 text-[17px] font-semibold text-ink">{hive.name}</p>
+              <p className="m-0 mt-0.5 text-[13px] text-ink-2">Accepted the invite, not joined yet</p>
+              <JoinHiveButton hiveId={hive.id} />
+            </div>
+          ) : (
           <Link href={hivePath(hive.id)} className="block rounded-control no-underline hover:bg-mist group-hover:bg-mist -mx-2 px-2 py-1">
             <p className="m-0 text-[17px] font-semibold text-blue-deep">{hive.name}</p>
             {kicker ? <p className="m-0 mt-0.5 text-[13px] text-ink-2">{kicker}</p> : null}
           </Link>
+          )}
         </div>
         <div className="min-w-0 flex-[2] basis-[260px]">
           <p className="m-0 text-[15px] leading-relaxed text-ink">{attention.sentence}</p>

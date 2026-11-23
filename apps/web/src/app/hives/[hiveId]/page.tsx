@@ -9,6 +9,8 @@ import type { HiveBoardChecklistItem, RequestItem, SourceDocument } from "@hivef
 
 import { ClientHome } from "@/components/home/ClientHome";
 import { HiveHome, type HiveHomeViewer } from "@/components/home/HiveHome";
+import { PersonalHiveBoard } from "@/components/hives/PersonalHiveBoard";
+import { personalHiveRoster } from "@/components/hives/personal-hive-roster";
 import { buildHiveHomeContent } from "@/components/home/home-model";
 import { showsFirmThreePane } from "@/lib/hives/firm-board";
 import { studyAvailability } from "@/lib/hives/study-availability";
@@ -97,10 +99,17 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
     redirect(hiveDocumentsPath(hive.id));
   }
 
-  const [people, firmRow] = await Promise.all([
+  const personal = hive.firmId == null;
+  const [people, firmRow, askLoad, rosterResult] = await Promise.all([
     loadHiveConversation(auth.client, hive.id, correlationId, { channel: "people" }),
     hive.firmId
       ? auth.client.schema("hive").from("firms").select("assistant_name").eq("id", hive.firmId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    personal
+      ? loadHiveConversation(auth.client, hive.id, correlationId, { channel: "assistant" })
+      : Promise.resolve(null),
+    personal
+      ? auth.client.rpc("list_hive_people", { p_hive_id: hive.id })
       : Promise.resolve({ data: null }),
   ]);
   let assistantName =
@@ -173,6 +182,64 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
 
   const viewer = homeViewer(hive);
   const acceptedStudyRevisionId = revision?.id ?? null;
+
+  if (personal) {
+    let uploadedDocuments: { id: string; fileName: string; createdAt: string }[] = [];
+    if (hive.isOwner) {
+      try {
+        const deps = createLiveHiveVaultUploadAdapterDeps(auth.client, correlationId);
+        const listed = await listHiveSourceDocumentsWithV3Vault(deps, {
+          ownerUserId: auth.userId,
+          hiveId: hive.id,
+          correlationId,
+        });
+        uploadedDocuments = listed.sourceDocuments.map((document) => ({
+          id: document.sourceDocumentId,
+          fileName: document.fileName,
+          createdAt: document.createdAt,
+        }));
+      } catch {
+        uploadedDocuments = [];
+      }
+    }
+    const ask = askLoad ?? {
+      ok: false as const,
+      message: "Could not load the conversation. Try again.",
+      correlationId,
+      retryable: true,
+    };
+    return (
+      <PersonalHiveBoard
+        hive={hive}
+        assistantName={assistantName}
+        summary={
+          content
+            ? {
+                hasStudy: content.hasStudy,
+                documentsIn: content.documentsIn,
+                checklistSize: content.checklistSize,
+                toReview: content.toReview,
+                stillToCome: content.stillToCome.length,
+                study: content.study,
+              }
+            : null
+        }
+        requests={requests}
+        uploadedDocuments={uploadedDocuments}
+        initialPeople={people}
+        initialAsk={ask}
+        currentUserId={auth.userId}
+        roster={personalHiveRoster(rosterResult.data)}
+        loadError={loadError}
+        studyLoadError={overview?.studyLoadError ?? null}
+        view={view}
+        sources={sources}
+        canonicalStudy={canonicalStudy}
+        coverageGaps={revision?.coverageGaps ?? []}
+        documentPages={overview ? documentPageCounts(overview.preparation) : undefined}
+      />
+    );
+  }
 
   if (viewer === "client") {
     let initialDocuments: SourceDocument[] = [];

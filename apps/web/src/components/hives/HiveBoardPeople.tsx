@@ -8,6 +8,7 @@ import { PRIMARY_BUTTON_CLASS, QUIET_BUTTON_CLASS } from "@/components/button-cl
 type PersonRow = {
   userId?: string;
   role?: string;
+  state?: string;
   displayName?: string | null;
   joined?: boolean;
   invitationId?: string;
@@ -25,6 +26,7 @@ type PeopleResponse = {
 type HiveBoardPeopleProps = {
   hive: Hive;
   currentUserId: string | null;
+  onRoster?: (data: unknown) => void;
 };
 
 function memberRoleLabel(role: string | undefined): string {
@@ -46,7 +48,7 @@ function personPrimaryName(person: PersonRow, currentUserId: string | null): str
   return "Member";
 }
 
-export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
+export function HiveBoardPeople({ hive, currentUserId, onRoster }: HiveBoardPeopleProps) {
   const [people, setPeople] = useState<PersonRow[]>([]);
   const [pending, setPending] = useState<PersonRow[]>([]);
   const [open, setOpen] = useState(false);
@@ -67,7 +69,8 @@ export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
     const data = (await res.json()) as PeopleResponse;
     setPeople(data.people ?? []);
     setPending(data.pendingInvitations ?? []);
-  }, [hive.id]);
+    onRoster?.(data);
+  }, [hive.id, onRoster]);
 
   useEffect(() => {
     void load();
@@ -195,7 +198,13 @@ export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
   const rows: PeopleRow[] = [
     ...people.map((p) => {
       const name = personPrimaryName(p, currentUserId);
-      const line = `${name} · ${memberRoleLabel(p.role)}`;
+      const role = memberRoleLabel(p.role);
+      const line =
+        p.role === "professional" && p.state === "pending"
+          ? `${name} · accepted the invite, not joined yet`
+          : role === "professional"
+            ? `${name} · professional · accepted`
+            : `${name} · ${role}`;
       return {
         key: p.userId ?? p.email ?? "member",
         line,
@@ -317,7 +326,7 @@ export function HiveBoardPeople({ hive, currentUserId }: HiveBoardPeopleProps) {
             <p className="mt-2 text-small text-ink-2">
               {hive.kind === "client"
                 ? "They get a sign-in link by email and see what you ask for. No password."
-                : "They get a link to a read-only summary, and choose whether to take it on."}
+                : "They get a link to join this hive. Once they accept, you can write to each other and they can ask you for documents."}
             </p>
             <label htmlFor={nameId} className="mt-4 flex flex-col gap-1 text-[14px] font-medium">
               Name

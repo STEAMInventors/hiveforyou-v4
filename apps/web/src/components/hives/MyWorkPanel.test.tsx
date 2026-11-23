@@ -197,6 +197,23 @@ describe("MyWorkPanel", () => {
     expect(screen.getByRole("button", { name: "Add a request" })).toBeTruthy();
   });
 
+  it("shows uploaded documents on a personal hive and hides checklist rows", () => {
+    render(
+      <MyWorkPanel
+        hiveId={HIVE_ID}
+        viewer="client"
+        personal
+        currentUserId={CLIENT}
+        initialRequests={[item({ id: "pack-1", source: "pack", title: "Study suggestion", requestedBy: null, history: [] })]}
+        uploadedDocuments={[{ id: "doc-9", fileName: "maya-lease.pdf", createdAt: "2026-11-02T00:00:00.000Z" }]}
+        otherFirstName={null}
+      />,
+    );
+    expect(screen.getByTestId("my-work-empty").textContent).toBe("No requests from a Pro yet.");
+    expect(screen.getByText("maya-lease.pdf")).toBeTruthy();
+    expect(screen.queryByText("Study suggestion")).toBeNull();
+  });
+
   it("expands a request to show its history", () => {
     render(
       <MyWorkPanel hiveId={HIVE_ID} viewer="client" currentUserId={CLIENT} initialRequests={REQUESTS} otherFirstName="Pat" />,

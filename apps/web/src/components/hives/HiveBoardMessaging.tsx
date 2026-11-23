@@ -16,6 +16,11 @@ export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"
   readonly initialPeople: ConversationLoad;
   readonly initialAsk: ConversationLoad;
   readonly teamMemberFirstName: string | null;
+  /** Personal Hive: Ask AI and Pro Conversation, including when no firm is attached. */
+  readonly personal?: boolean;
+  /** Hides the shared composer until a professional membership is accepted. */
+  readonly sharedClosed?: string | null;
+  readonly peopleHint?: string | null;
   /** Dev gallery: open on another member's Ask thread without waiting for a click. */
   readonly defaultAskThreadOwnerId?: string | null;
   /** Dev gallery: Ask tab before searchParams hydrate (does not change production URLs). */
@@ -24,9 +29,17 @@ export type HiveBoardMessagingProps = Omit<HiveBoardConversationProps, "initial"
 
 type BoardView = "conversation" | "ask";
 
-function activeView(searchParams: URLSearchParams | null, firmless: boolean): BoardView {
-  if (firmless) return "ask";
-  return searchParams?.get("view") === "ask" ? "ask" : "conversation";
+function activeView(
+  searchParams: URLSearchParams | null,
+  firmless: boolean,
+  personal: boolean,
+  sharedClosed: boolean,
+): BoardView {
+  if (firmless && !personal) return "ask";
+  const requested = searchParams?.get("view");
+  if (requested === "ask" || requested === "conversation") return requested;
+  if (personal && sharedClosed) return "ask";
+  return "conversation";
 }
 
 export function HiveBoardMessaging({
@@ -36,6 +49,9 @@ export function HiveBoardMessaging({
   initialPeople,
   initialAsk,
   teamMemberFirstName,
+  personal = false,
+  sharedClosed = null,
+  peopleHint = null,
   defaultAskThreadOwnerId = null,
   initialBoardView,
   hiveId,
@@ -48,22 +64,24 @@ export function HiveBoardMessaging({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const urlView = activeView(searchParams, firmless);
-  const view = initialBoardView ?? urlView;
+  const urlView = activeView(searchParams, firmless, personal, Boolean(sharedClosed));
+  const requested = searchParams?.get("view");
+  const view =
+    requested === "ask" || requested === "conversation" ? requested : (initialBoardView ?? urlView);
   const [askThreadOwner, setAskThreadOwner] = useState<string | null>(defaultAskThreadOwnerId ?? currentUserId);
   const [previewViewer, setPreviewViewer] = useState<ConversationViewer>("self");
   const previewSelectId = useId();
 
   const setView = useCallback(
     (next: BoardView) => {
-      if (firmless) return;
+      if (firmless && !personal) return;
       const params = new URLSearchParams(searchParams?.toString() ?? "");
-      if (next === "ask") params.set("view", "ask");
+      if (personal || next === "ask") params.set("view", next);
       else params.delete("view");
       const query = params.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     },
-    [firmless, pathname, router, searchParams],
+    [firmless, personal, pathname, router, searchParams],
   );
 
   const askReadOnly =
@@ -79,7 +97,8 @@ export function HiveBoardMessaging({
       ? { previewViewer, onPreviewViewerChange: setPreviewViewer, previewOnTabs: true }
       : {};
 
-  const tabs = !firmless ? (
+  const showTabs = personal || !firmless;
+  const tabs = showTabs ? (
     <div
       className="mb-2 flex flex-wrap items-center justify-between gap-3"
       data-testid="hive-board-view-tabs"
@@ -87,10 +106,17 @@ export function HiveBoardMessaging({
       <Tabs
         ariaLabel="Hive board"
         className="mb-0"
-        options={[
-          { id: "conversation" as const, label: "Conversation" },
-          { id: "ask" as const, label: `Ask ${assistantName}` },
-        ]}
+        options={
+          personal
+            ? [
+                { id: "ask" as const, label: "Ask AI (private)" },
+                { id: "conversation" as const, label: "Pro Conversation (shared)" },
+              ]
+            : [
+                { id: "conversation" as const, label: "Conversation" },
+                { id: "ask" as const, label: `Ask ${assistantName}` },
+              ]
+        }
         value={view}
         onChange={setView}
       />
@@ -115,6 +141,8 @@ export function HiveBoardMessaging({
           assistantName={assistantName}
           teamMemberFirstName={teamMemberFirstName}
           firmless={firmless}
+          sharedClosed={sharedClosed}
+          peopleHint={peopleHint}
           onSwitchToConversation={() => setView("conversation")}
           {...conversationPreviewProps}
           {...study}

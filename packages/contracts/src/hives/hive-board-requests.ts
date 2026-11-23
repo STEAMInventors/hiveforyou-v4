@@ -287,3 +287,11 @@ export function buildMyWorkModel(
 
   return { viewer, groups, myActivity: myActivity(requests, viewerUserId) };
 }
+
+/**
+ * A Pro request is one a person created (`source = staff`).
+ * Pack rows and study recommendations are never requests from a Pro.
+ */
+export function isProRequest(item: RequestItem): boolean {
+  return item.source === "staff";
+}

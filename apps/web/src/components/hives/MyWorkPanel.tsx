@@ -2,6 +2,7 @@
 
 import {
   buildMyWorkModel,
+  isProRequest,
   type ClientRequestResponse,
   type ListRequestsResponse,
   type MyWorkGroup,
@@ -62,6 +63,12 @@ function toActionError(requestId: string | null, error: unknown): ActionError {
   return { requestId, message, correlationId: "" };
 }
 
+export type MyWorkUpload = {
+  id: string;
+  fileName: string;
+  createdAt: string;
+};
+
 export type MyWorkPanelProps = {
   hiveId: string;
   viewer: MyWorkViewer;
@@ -69,6 +76,9 @@ export type MyWorkPanelProps = {
   initialRequests: readonly RequestItem[];
   /** First name of the other side ("Pat" for a client, the client's first name for staff). */
   otherFirstName: string | null;
+  /** Personal Hive: show the section with an empty state, and ignore pack or study rows. */
+  personal?: boolean;
+  uploadedDocuments?: readonly MyWorkUpload[];
   onDocumentUploaded?: (document: SourceDocument) => void;
   className?: string;
 };
@@ -79,6 +89,8 @@ export function MyWorkPanel({
   currentUserId,
   initialRequests,
   otherFirstName,
+  personal = false,
+  uploadedDocuments = [],
   onDocumentUploaded,
   className = "",
 }: MyWorkPanelProps) {
@@ -87,7 +99,11 @@ export function MyWorkPanel({
   const [error, setError] = useState<ActionError | null>(null);
   const [leadOpen, setLeadOpen] = useState(false);
   const headingId = useId();
-  const model = useMemo(() => buildMyWorkModel(requests, viewer, currentUserId), [requests, viewer, currentUserId]);
+  const visibleRequests = personal ? requests.filter(isProRequest) : requests;
+  const model = useMemo(
+    () => buildMyWorkModel(visibleRequests, viewer, currentUserId),
+    [visibleRequests, viewer, currentUserId],
+  );
 
   const run = async (requestId: string | null, work: () => Promise<ListRequestsResponse>): Promise<boolean> => {
     if (busyId) return false;
@@ -116,7 +132,8 @@ export function MyWorkPanel({
       return postRequestAction(hiveId, requestId, { action: "attach", sourceDocumentId: sourceDocument.sourceDocumentId });
     });
 
-  if (requests.length === 0 && viewer === "client") return null;
+  if (!personal && visibleRequests.length === 0 && viewer === "client") return null;
+  const clientEmpty = personal && viewer === "client" && visibleRequests.length === 0;
 
   const [first, ...rest] = viewer === "client"
     ? [model.groups.find((g) => g.key === "waiting_on_me")!, ...model.groups.filter((g) => g.key !== "waiting_on_me")]
@@ -126,12 +143,38 @@ export function MyWorkPanel({
 
   const rowProps = { viewer, busyId, error, otherLabel, act, upload };
 
+  const uploads = personal && viewer === "client" ? (
+    <div className="mt-4" data-testid="my-work-uploads">
+      <h3 className="m-0 text-[13.5px] font-semibold text-ink-3">Uploaded</h3>
+      {uploadedDocuments.length === 0 ? (
+        <p className="m-0 py-3 text-body text-ink-2">No documents uploaded yet.</p>
+      ) : (
+        <ul className="m-0 list-none p-0">
+          {uploadedDocuments.map((document) => (
+            <li key={document.id} className="flex items-baseline justify-between gap-3 border-b border-line py-2.5">
+              <span className="min-w-0 text-body text-ink">{document.fileName}</span>
+              <span className="shrink-0 text-meta tabular-nums text-ink-3">{dateLabel(document.createdAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  ) : null;
+
   const body = (
       <div data-testid="my-work-panel" data-viewer={viewer}>
+        {clientEmpty ? (
+          <p className="m-0 pt-2 text-body text-ink-2" data-testid="my-work-empty">
+            No requests from a Pro yet.
+          </p>
+        ) : (
         <p className="m-0 pt-2 text-meta text-ink-3" data-testid="my-work-summary">
           {summaryLine(model.groups, otherLabel)}
         </p>
+        )}
 
+        {clientEmpty ? null : (
+        <>
         <h3 className="m-0 mt-4 text-[13.5px] font-semibold text-ink-3">{first.label}</h3>
         {first.requests.length === 0 ? (
           <p className="m-0 py-3 text-body text-ink-2">
@@ -179,13 +222,16 @@ export function MyWorkPanel({
         {viewer === "staff" ? (
           <AddRequestForm busy={busyId === "new"} onAdd={(title, detail) => run(null, () => addHiveRequest(hiveId, title, detail))} />
         ) : null}
+        </>
+        )}
+        {uploads}
         {error && error.requestId === null ? <ErrorLine error={error} /> : null}
       </div>
   );
 
   if (viewer === "staff") {
     return (
-      <Section title="Client requests" headingRight={requests.length || null} className={className}>
+      <Section title="Client requests" headingRight={visibleRequests.length || null} className={className}>
         {body}
       </Section>
     );
@@ -194,7 +240,7 @@ export function MyWorkPanel({
     <section className={`mt-[30px] ${className}`.trim()} aria-labelledby={headingId}>
       <h2 id={headingId} className="m-0 flex items-baseline justify-between text-[16px] font-semibold text-ink">
         My work and Pro requests
-        <span className="text-meta font-medium tabular-nums text-ink-3">{requests.length}</span>
+        <span className="text-meta font-medium tabular-nums text-ink-3">{visibleRequests.length}</span>
       </h2>
       {body}
     </section>

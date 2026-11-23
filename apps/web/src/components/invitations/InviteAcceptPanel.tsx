@@ -133,7 +133,13 @@ export function InviteAcceptPanel(props: InviteAcceptPanelProps) {
         return;
       }
       if (body.hiveId && body.memberState === "pending") {
-        router.push("/hives");
+        const activated = await fetch(`/api/v1/hives/${body.hiveId}/membership`, { method: "POST" });
+        if (!activated.ok) {
+          setError("The invitation was saved, but joining the hive failed. Try again from Your hives.");
+          return;
+        }
+        router.push(`/hives/${body.hiveId}`);
+        router.refresh();
         return;
       }
       if (body.hiveId) {
@@ -198,13 +204,13 @@ export function InviteAcceptPanel(props: InviteAcceptPanelProps) {
             <p className="m-0 text-center text-small text-ink-2">{welcome.documentsReadLabel}</p>
           ) : null}
           <h1 className="m-0 text-center font-brand text-[30px] font-semibold leading-tight text-ink">
-            Read the summary when you are ready
+            Join this hive
           </h1>
           <p className="m-0 text-center text-body text-ink-2">
-            Reading doesn&apos;t take it on. The owner is told only what you decide.
+            Once you join, you can write to the owner and ask for documents. Your private questions stay private.
           </p>
           <button type="button" className={PRIMARY_BUTTON_CLASS} disabled={busy} onClick={() => void accept()}>
-            {busy ? "Opening…" : "Read the summary"}
+            {busy ? "Joining…" : "Join this hive"}
           </button>
         </>
       )}

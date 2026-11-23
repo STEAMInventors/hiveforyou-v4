@@ -90,6 +90,9 @@ export type HiveConversationProps = {
   } | null;
   /** Replaces the composer text. `nonce` changes when Home asks again. */
   fillDraft?: { nonce: number; text: string } | null;
+  /** When set, the shared composer stays closed until membership is accepted. */
+  sharedClosed?: string | null;
+  peopleHint?: string | null;
 };
 
 const noopSubscribe = () => () => undefined;
@@ -338,6 +341,8 @@ export function HiveConversation({
   onSwitchToConversation,
   column = null,
   fillDraft = null,
+  sharedClosed = null,
+  peopleHint = null,
 }: HiveConversationProps) {
   const conversation = useHiveConversation({
     hiveId,
@@ -647,6 +652,10 @@ export function HiveConversation({
                       ) : null}
                     </p>
                   </div>
+                ) : sharedClosed ? (
+                  <p className="m-auto max-w-[420px] text-center text-small text-ink-2" data-testid="hive-pro-conversation-closed">
+                    {sharedClosed}
+                  </p>
                 ) : (
                   <p className="m-auto max-w-[420px] text-center text-small text-ink-2">{CONVERSATION_EMPTY}</p>
                 )
@@ -761,7 +770,7 @@ export function HiveConversation({
             <p className="m-0 border-t border-line px-5 py-4 text-small text-ink-2 max-[649px]:p-[15px]">
               Preview — this is what {clientFirst} sees.
             </p>
-          ) : readOnly ? null : (
+          ) : readOnly || sharedClosed ? null : (
             <Composer
               textareaId={composerId}
               textareaLabel={assistantMode ? "Question" : "Message"}
@@ -785,8 +794,8 @@ export function HiveConversation({
                   </span>
                 ) : (
                   <span data-testid="hive-conversation-people-hint">
-                    Everyone in this hive sees this conversation.
-                    {staffView ? (
+                    {peopleHint ?? "Everyone in this hive sees this conversation."}
+                    {!peopleHint && staffView ? (
                       <>
                         {" "}
                         {CONVERSATION_STAFF_NOTE_LEAD}{" "}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildHiveBoardChecklistFromRequests, buildMyWorkModel } from "./hive-board-requests";
+import { buildHiveBoardChecklistFromRequests, buildMyWorkModel, isProRequest } from "./hive-board-requests";
 import { normalizeListRequestsResponse, type RequestHistoryEvent, type RequestItem } from "./hive-request-contracts";
 
 const CLIENT = "00000000-0000-4000-8000-00000000000c";
@@ -178,6 +178,13 @@ describe("buildMyWorkModel", () => {
     const model = buildMyWorkModel([base({ state: "READING" })], "client", CLIENT);
     expect(model.groups.find((group) => group.key === "waiting_on_other")?.requests).toHaveLength(1);
     expect(model.groups.flatMap((g) => g.requests)[0]?.requesterName).toBe("Starting checklist");
+  });
+});
+
+describe("isProRequest", () => {
+  it("treats only a person-created request as a Pro request", () => {
+    expect(isProRequest(base({ source: "staff", packRowKey: null }))).toBe(true);
+    expect(isProRequest(base({ source: "pack" }))).toBe(false);
   });
 });
 
