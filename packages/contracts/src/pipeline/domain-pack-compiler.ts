@@ -221,7 +221,7 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
       break;
     case "referenceTable":
       if (!strArray(raw.columns) || !a(raw.rows) || !raw.rows.every((row) => a(row) &&
-          row.length === raw.columns.length && row.every((cell) => typeof cell === "string")))
+          row.length === (raw.columns as string[]).length && row.every((cell) => typeof cell === "string")))
         issue(errors, "reference_table_invalid", path, "Rows must match declared columns.");
       break;
     case "persona":
