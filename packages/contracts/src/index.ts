@@ -59,6 +59,7 @@ export * from "./pipeline/extract-range-resilience";
 export * from "./pipeline/extraction-range-validity";
 export * from "./pipeline/canonical-study-contracts";
 export * from "./pipeline/pack-contracts";
+export * from "./pipeline/domain-pack-source";
 export * from "./pipeline/pack-canonicalize";
 export * from "./pipeline/pack-selection";
 export * from "./pipeline/pack-study-view";
