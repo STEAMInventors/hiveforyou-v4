@@ -9,6 +9,7 @@ import {
   DOMAIN_PACK_RUNTIME_SCHEMA,
   DOMAIN_PACK_SOURCE_SCHEMA,
   PACK_CALCULATION_OPERATORS,
+  PACK_REPORT_BLOCKS,
   PACK_WORKFLOW_ACTIONS,
   type CompiledDomainPack,
   type DomainPackSource,
@@ -27,10 +28,7 @@ const VALID_KINDS = new Set([
   "entity", "relationship", "document", "check", "calculation", "chain",
   "question", "workflow", "report", "term", "referenceTable", "persona", "note", "guideline",
 ]);
-const BLOCKS = new Set([
-  "documents", "spine_table", "conflicts", "timeline", "outside_spine", "checklist",
-  "chains", "questions", "unanswered", "terms", "general_notes", "gaps", "computed",
-]);
+const BLOCKS: ReadonlySet<string> = new Set(PACK_REPORT_BLOCKS);
 const DEFINITION_KEYS: Record<string, readonly string[]> = {
   entity: ["fields"],
   relationship: ["fromEntityId", "toEntityId", "evidenceRequired"],
