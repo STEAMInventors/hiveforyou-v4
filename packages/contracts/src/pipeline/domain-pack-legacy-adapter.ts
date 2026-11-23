@@ -33,6 +33,11 @@ export function legacyPackToEditableSource(pack: Pack, owner: PackOwner): Legacy
     if (seen.has(definition.id)) errors.push("duplicate_imported_definition:" + definition.id);
     else { seen.add(definition.id); definitions.push(definition); }
   }
+  for (const [index, rule] of pack.rules.entries()) push({
+    id:"guideline:legacy-"+(index+1),kind:"guideline",label:"Imported legacy guidance",
+    text:rule,scope:"INVESTIGATION",
+  });
+  if (pack.rules.length) warnings.push("Legacy free-text rule IDs require manual stabilization before publication.");
   for (const check of pack.checks) push({
     id: "check:" + check.id, kind: "check", label: check.check,
     criterion: manual(), ...(check.question ? {question:check.question} : {}),
@@ -42,6 +47,7 @@ export function legacyPackToEditableSource(pack: Pack, owner: PackOwner): Legacy
   for (const row of pack.documentsUsuallyNeeded) push({
     id: "document:" + slug(row.document), kind: "document", label: row.document,
     aliases: [], appliesWhen: manual(), settlesCheckIds: row.settlesCheckIds.filter((id)=>id.trim() !== "" && id !== "-").map((id)=>"check:"+id),
+    timingDescription:row.when,applicabilityDescription:row.appliesWhen ?? "",
   });
   for (const value of pack.computedValues) {
     if (!(PACK_CALCULATION_OPERATORS as readonly string[]).includes(value.op)) {
@@ -51,7 +57,7 @@ export function legacyPackToEditableSource(pack: Pack, owner: PackOwner): Legacy
     push({
       id:"calculation:"+value.id, kind:"calculation", label:value.label,
       operator:value.op as (typeof PACK_CALCULATION_OPERATORS)[number],
-      state:"DECLARATION_ONLY", inputFields:[], legacyInputs:value.inputs,
+      state:"DECLARATION_ONLY", inputFields:[], legacyInputs:value.inputs,scope:value.per,
     });
   }
   for (const chain of pack.chains) push({
@@ -60,12 +66,12 @@ export function legacyPackToEditableSource(pack: Pack, owner: PackOwner): Legacy
   for (const sq of pack.standingQuestions) push({
     id:"question:"+sq.id, kind:"question", label:sq.id, text:sq.question,
     audience: sq.audience === "customer" || sq.audience === "professional" ? sq.audience : "all",
-    appliesWhen:manual(),
+    appliesWhen:manual(),conditionDescription:sq.askWhen,
   });
   for (const q of pack.askThePerson) push({
     id:"question:"+q.id, kind:"question", label:q.id, text:q.question,
     audience:q.audience === "customer" || q.audience === "professional" ? q.audience : "all",
-    appliesWhen:manual(),
+    appliesWhen:manual(),rationale:q.why,
   });
   for (const persona of pack.personas) {
     const ids: string[] = [];
@@ -78,6 +84,8 @@ export function legacyPackToEditableSource(pack: Pack, owner: PackOwner): Legacy
     push({
       id:"persona:"+persona.audience,kind:"persona",label:persona.who,
       audience:persona.audience,context:persona.situation,questionIds:ids,
+      knows:persona.knows,doesNotKnow:persona.doesNotKnow,decisions:persona.decisions,
+      usefulWhen:persona.usefulWhen,leaveOut:persona.leaveOut,successTest:persona.successTest,
     });
   }
   for (const term of pack.terms) push({
@@ -96,9 +104,9 @@ export function legacyPackToEditableSource(pack: Pack, owner: PackOwner): Legacy
     const sections = template.sections.map((section) => ({
       id:"section:"+slug(section.heading),
       heading:section.heading,
-      blocks:section.blocks.map((b)=>b.name),
+      blocks:section.blocks.map((b)=>b.name),templateDescription:section.builtFromRaw,
     }));
-    push({id:"report:"+audience,kind:"report",label:template.title,audience,sections});
+    push({id:"report:"+audience,kind:"report",label:template.title,audience,sections,voice:template.voice});
   }
   if (pack.briefOnly) warnings.push("Legacy brief-only Pack has no typed executable rules.");
   if (errors.length) return {ok:false,errors};
