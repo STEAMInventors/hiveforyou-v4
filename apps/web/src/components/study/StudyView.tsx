@@ -45,11 +45,20 @@ export function StudyView({
     return (
       <section role="status" className={NOTICE_CLASS} data-testid="study-legacy-notice">
         <h2 className={NOTICE_HEADING}>This study was built the earlier way</h2>
+        {typeof revisionNumber === "number" ? (
+          <p className="m-0 text-meta text-ink-3" data-testid="accepted-study-revision">
+            Accepted study revision {revisionNumber}. Earlier revisions and their reports stay.
+          </p>
+        ) : null}
         <p className="m-0 max-w-prose text-body text-ink-2">
           Rebuild it to see it in the new study view. Rebuild uses the pages already read; earlier revisions and their
           reports stay.
         </p>
-        <Link href={hiveDocumentsPath(hiveId)} className={QUIET_LINK_CLASS} data-testid="study-legacy-rebuild">
+        <Link
+          href={`${hiveDocumentsPath(hiveId)}#rebuild-study-button`}
+          className={QUIET_LINK_CLASS}
+          data-testid="study-legacy-rebuild"
+        >
           Rebuild the study from Documents
         </Link>
       </section>
@@ -63,7 +72,11 @@ export function StudyView({
           We couldn&apos;t build this page from your accepted study. Try again from Documents, or contact support if it keeps
           happening.
         </p>
-        <Link href={hiveDocumentsPath(hiveId)} className={QUIET_LINK_CLASS} data-testid="study-view-retry-documents">
+        <Link
+          href={`${hiveDocumentsPath(hiveId)}#rebuild-study-button`}
+          className={QUIET_LINK_CLASS}
+          data-testid="study-view-retry-documents"
+        >
           Rebuild the study from Documents
         </Link>
       </section>

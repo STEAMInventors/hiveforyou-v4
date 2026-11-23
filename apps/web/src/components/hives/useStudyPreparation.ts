@@ -85,6 +85,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const [pollFailures, setPollFailures] = useState(0);
   const [authExpired, setAuthExpired] = useState(false);
   const [action, setAction] = useState<"analyze" | "rebuild">("analyze");
+  const [trackedRun, setTrackedRun] = useState<ProcessingRun | null>(initialPreparation?.processingRun ?? null);
 
   const runRef = useRef<ProcessingRun | null>(initialPreparation?.processingRun ?? null);
   const stateRef = useRef<GetStudyPreparationResponse | null>(initialPreparation);
@@ -106,9 +107,12 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
 
   const apply = useCallback(
     (next: GetStudyPreparationResponse) => {
+      const tracked = runRef.current;
+      if (tracked && isActive(tracked) && next.processingRun?.id !== tracked.id) return;
       const wasWorking = isWorking(stateRef.current);
       runRef.current = next.processingRun;
       stateRef.current = next;
+      setTrackedRun(next.processingRun);
       setState(next);
       if (wasWorking && !isWorking(next)) {
         stopPolling();
@@ -150,6 +154,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
         if (cancelled || settledSeqRef.current > 0) return;
         runRef.current = result.processingRun;
         stateRef.current = result;
+        setTrackedRun(result.processingRun);
         setState(result);
         if (isWorking(result)) startPolling();
         if (isActive(result.processingRun) && readMinimized(hiveId) !== result.processingRun?.id) setModalMode("progress");
@@ -183,17 +188,20 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
           ...(action === "rebuild" && withoutDomainPackRef.current ? { withoutDomainPack: true } : {}),
         };
         const result = action === "rebuild" ? await rebuildStudy(hiveId, payload) : await startStudyPreparation(hiveId, payload);
+        settledSeqRef.current = Math.max(settledSeqRef.current, requestSeqRef.current, 1);
         runRef.current = result.processingRun;
+        setTrackedRun(result.processingRun);
         const nextReportRuns = result.reportRuns ?? [];
         setState((current) => {
-          const next = current
+          const base = current ?? stateRef.current;
+          const next = base
             ? {
-                ...current,
+                ...base,
                 processingRun: result.processingRun,
                 ...(result.studyRevision !== undefined ? { studyRevision: result.studyRevision } : {}),
                 reportRuns: nextReportRuns,
               }
-            : current;
+            : base;
           stateRef.current = next;
           return next;
         });
@@ -315,6 +323,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
         coverageDigest: run.coverageDigest,
       });
       runRef.current = result.processingRun;
+      setTrackedRun(result.processingRun);
       setState((current) => {
         const next = current ? { ...current, processingRun: result.processingRun } : current;
         stateRef.current = next;
@@ -345,16 +354,17 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
     setModalMode("progress");
   }, [hiveId]);
 
+  const run = trackedRun ?? state?.processingRun ?? null;
   return {
     state,
-    run: state?.processingRun ?? null,
+    run,
     reportRuns: state?.reportRuns ?? [],
     toRead: state ? documentsToRead(state.eligibility) : [],
     availability,
     rebuildAvailability: rebuildReady,
     action,
-    active: isActive(state?.processingRun),
-    awaiting: isAwaiting(state?.processingRun),
+    active: isActive(run),
+    awaiting: isAwaiting(run),
     modalMode,
     starting,
     startError,

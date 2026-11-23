@@ -41,6 +41,8 @@ import {
   extractPlannerTimeoutMs,
   extractedDocumentIds,
   loadDocumentPages,
+  planRebuildSnapshot,
+  runCanonicalizeForRun,
   runExtractingWorkerPool,
   savedRangeKeysByDocument,
   selectAndPersistDomainPack,
@@ -1078,5 +1080,116 @@ describe("selectAndPersistDomainPack", () => {
     });
     expect(loadPackEntriesSpy).not.toHaveBeenCalled();
     loadPackEntriesSpy.mockRestore();
+  });
+});
+
+function rebuildExtraction(documentId: string, pageCount: number, evidencePage = 1) {
+  const validated = validateDocExtraction(
+    {
+      document: { titleAsPrinted: "Quote", documentType: "quote", issuer: { name: "Supplier" }, summary: "A quote." },
+      facts: [
+        {
+          id: "F-1",
+          subject: "Total",
+          attribute: "amount",
+          valueAsWritten: "$1",
+          modality: "stated",
+          evidence: [{ page: evidencePage, quote: "the total is $1" }],
+        },
+      ],
+      coverage: {
+        pageCount,
+        pagesRead: [evidencePage],
+        pagesBlankOrUnreadable: [],
+        truncated: false,
+        lastPageCompleted: evidencePage,
+      },
+    },
+    { documentId, fileName: "Quote.pdf", pageRange: null },
+  );
+  if (!validated.ok) throw new Error(validated.message);
+  return validated.value;
+}
+
+describe("planRebuildSnapshot", () => {
+  it("reuses a cached extraction when the page-set digest matches", () => {
+    const document = snapshotDocument(DOC_1, "Quote.pdf", { verifiedPageCount: 1, totalPhysicalPages: 1 });
+    const planned = planRebuildSnapshot(sourceSnapshot({ documents: [document] }), [
+      {
+        sourceDocumentId: DOC_1,
+        contentDigest: document.pageSetDigest,
+        extraction: rebuildExtraction(DOC_1, 1),
+      },
+    ]);
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    expect(planned.reconstruct).toHaveLength(0);
+    expect(planned.reuse).toHaveLength(1);
+  });
+
+  it("reconstructs when the cache is missing or the digest does not match", () => {
+    const document = snapshotDocument(DOC_1, "Quote.pdf", { verifiedPageCount: 1, totalPhysicalPages: 1 });
+    const missing = planRebuildSnapshot(sourceSnapshot({ documents: [document] }), []);
+    const stale = planRebuildSnapshot(sourceSnapshot({ documents: [document] }), [
+      {
+        sourceDocumentId: DOC_1,
+        contentDigest: `sha256:${"b".repeat(64)}`,
+        extraction: rebuildExtraction(DOC_1, 1),
+      },
+    ]);
+    expect(missing.ok && missing.reconstruct.map((row) => row.sourceDocumentId)).toEqual([DOC_1]);
+    expect(stale.ok && stale.reconstruct.map((row) => row.sourceDocumentId)).toEqual([DOC_1]);
+  });
+
+  it("fails closed when a matching digest has the wrong document, page count, or provenance", () => {
+    const document = snapshotDocument(DOC_1, "Quote.pdf", { verifiedPageCount: 1, totalPhysicalPages: 1 });
+    const identity = planRebuildSnapshot(sourceSnapshot({ documents: [document] }), [
+      {
+        sourceDocumentId: DOC_1,
+        contentDigest: document.pageSetDigest,
+        extraction: rebuildExtraction(DOC_2, 1),
+      },
+    ]);
+    const pages = planRebuildSnapshot(sourceSnapshot({ documents: [document] }), [
+      {
+        sourceDocumentId: DOC_1,
+        contentDigest: document.pageSetDigest,
+        extraction: rebuildExtraction(DOC_1, 2),
+      },
+    ]);
+    const provenance = planRebuildSnapshot(sourceSnapshot({ documents: [document] }), [
+      {
+        sourceDocumentId: DOC_1,
+        contentDigest: document.pageSetDigest,
+        extraction: rebuildExtraction(DOC_1, 1, 4),
+      },
+    ]);
+    expect(identity).toMatchObject({ ok: false, diagnosticReason: "rebuild_document_identity" });
+    expect(pages).toMatchObject({ ok: false, diagnosticReason: "rebuild_page_count" });
+    expect(provenance).toMatchObject({ ok: false, diagnosticReason: "rebuild_provenance" });
+  });
+});
+
+describe("runCanonicalizeForRun rebuildMode", () => {
+  it("does not call the model when a matching extraction is missing", async () => {
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === "get_doc_extractions_for_run") return { data: { extractions: [] }, error: null };
+      throw new Error(fn);
+    });
+    const document = snapshotDocument(DOC_1, "Quote.pdf", { verifiedPageCount: 1, totalPhysicalPages: 1 });
+    const result = await runCanonicalizeForRun({
+      deps: { client: { rpc } } as unknown as AnalysisWorkflowDeps,
+      run: runJson("CANONICALIZING", { preparationMode: "REBUILD" }) as never,
+      extractions: [],
+      sourceSnapshot: sourceSnapshot({ documents: [document] }),
+      catalog: loadPromptCatalog(),
+      correlationId: "corr",
+      stageAttempt: 1,
+      now: () => new Date("2026-11-23T12:00:00.000Z"),
+      rebuildMode: true,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.diagnosticReason).toBe("rebuild_extraction_missing");
+    expect(rpc.mock.calls.map((call) => call[0])).toEqual(["get_doc_extractions_for_run"]);
   });
 });

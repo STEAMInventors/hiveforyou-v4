@@ -24,5 +24,11 @@ export default async function StudyPage({ params, searchParams }: StudyPageProps
   const { hiveId } = await params;
   const hive = await loadOwnedHiveOrNotFound(hiveId, `/hives/${hiveId}/study`);
   const qs = queryString(await searchParams);
-  return <StudyLegacyRedirect hiveId={hive.id} queryString={qs} />;
+  return (
+    <StudyLegacyRedirect
+      hiveId={hive.id}
+      queryString={qs}
+      destination={hive.firmId == null ? "findings" : "home"}
+    />
+  );
 }

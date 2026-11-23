@@ -36,4 +36,10 @@ describe("StudyLegacyRedirect", () => {
     render(<StudyLegacyRedirect hiveId={HIVE_ID} queryString="" />);
     await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(hiveHomeShowPath(HIVE_ID)));
   });
+
+  it("opens Findings for a personal Hive and keeps the query and hash", async () => {
+    window.location.hash = "#timeline";
+    render(<StudyLegacyRedirect hiveId={HIVE_ID} queryString="ref=1" destination="findings" />);
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(`/hives/${HIVE_ID}/findings?ref=1#timeline`));
+  });
 });

@@ -7,6 +7,7 @@ import {
   formatStudyRevisionAcceptanceDetail,
   type FindingsOpenItem,
   type FindingsTopic,
+  type GetStudyPreparationResponse,
   type HiveBoardChecklistItem,
   type SourceDocument,
   type StudyView,
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/Button";
 import { MetaDot, MetaLine } from "@/components/ui/MetaLine";
 import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
 import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
+import { studyAvailability } from "@/lib/hives/study-availability";
 import {
   mergeOmniCatalog,
   omniDocumentsFromLibraryRows,
@@ -42,6 +44,7 @@ import { buildDocumentsLibraryReadMetrics } from "./documents-library-metrics";
 import { buildDocumentsSummaryParts } from "./documents-page-model";
 import { DocumentsStillToCome } from "./DocumentsStillToCome";
 import { AnalyzeModal } from "./AnalyzeModal";
+import { CanonicalStudyNotice } from "./CanonicalStudyNotice";
 import { analyzeHint, rebuildHint } from "./study-preparation-progress";
 import { AddFilesButton } from "./SourceFilePicker";
 import { SelectedFileList } from "./SourceFilePicker";
@@ -69,6 +72,9 @@ type DocumentsPanelProps = {
   checklist?: readonly HiveBoardChecklistItem[];
   openItems?: readonly FindingsOpenItem[];
   topics?: readonly FindingsTopic[];
+  initialPreparation?: GetStudyPreparationResponse;
+  /** Owner and staff see the legacy-study notice. Clients keep the documents page sentence. */
+  showLegacyRebuild?: boolean;
 };
 
 function toLoadError(error: unknown, fallback: string): LoadError {
@@ -91,6 +97,8 @@ export function DocumentsPanel({
   checklist = [],
   openItems = [],
   topics = [],
+  initialPreparation,
+  showLegacyRebuild = false,
 }: DocumentsPanelProps) {
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
@@ -124,7 +132,7 @@ export function DocumentsPanel({
       .catch(() => setQuota(null));
   }, []);
 
-  const analysis = useStudyPreparation(hiveId, { onReportsReady: navigateToReports });
+  const analysis = useStudyPreparation(hiveId, { onReportsReady: navigateToReports, initialPreparation });
   const refreshAnalysis = analysis.refresh;
   const analysisStatus = analysis.run?.status ?? null;
   useEffect(() => {
@@ -139,6 +147,14 @@ export function DocumentsPanel({
       ? analysis.state.studyRevision
       : null;
   const showRebuild = analysis.state?.studyRevision != null && !analysis.active;
+  const olderStudy =
+    showLegacyRebuild &&
+    studyAvailability({
+      revision: analysis.state?.studyRevision ?? null,
+      hasCanonicalView: studyView != null && analysis.state?.studyRevision?.format === "canonical-study-1",
+      studyLoadError: null,
+    }).kind === "older";
+  const legacyCanRebuild = Boolean(analysis.rebuildAvailability?.canRebuild) && !analysis.starting && !analysis.active;
   const eligibilityDocuments = analysis.state?.eligibility.documents ?? [];
   const readMetrics = useMemo(
     () => buildDocumentsLibraryReadMetrics(eligibilityDocuments, coverageGaps),
@@ -278,6 +294,7 @@ export function DocumentsPanel({
             className={SECONDARY_BUTTON_CLASS}
             disabled={!analysis.rebuildAvailability?.canRebuild || analysis.starting || busy}
             aria-describedby="documents-rebuild-hint"
+            id="rebuild-study-button"
             data-testid="rebuild-study-button"
             onClick={(event) => {
               analysis.returnFocusRef.current = event.currentTarget;
@@ -382,6 +399,30 @@ export function DocumentsPanel({
         onRemove={(key) => setBatch((current) => current.filter((item) => item.key !== key))}
       />
 
+      {olderStudy ? (
+        <div className="flex flex-col items-start gap-3" data-testid="study-dependent-older">
+          <CanonicalStudyNotice />
+          {analysis.rebuildAvailability ? (
+            <p id="documents-legacy-rebuild-hint" className="m-0 max-w-prose text-meta text-ink-2" data-testid="rebuild-eligibility">
+              {rebuildHint(analysis.rebuildAvailability)}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className={SECONDARY_BUTTON_CLASS}
+            disabled={!legacyCanRebuild}
+            aria-describedby="documents-legacy-rebuild-hint"
+            data-testid="documents-legacy-rebuild"
+            onClick={(event) => {
+              analysis.returnFocusRef.current = event.currentTarget;
+              analysis.rebuild();
+            }}
+          >
+            Rebuild the study
+          </button>
+        </div>
+      ) : null}
+
       {acceptedRebuild ? (
         <div role="status" data-testid="rebuild-study-status" className="flex flex-col gap-1 text-meta text-ink">
           <p className="m-0 font-medium">Study revision {acceptedRebuild.revisionNumber} accepted.</p>
@@ -393,7 +434,7 @@ export function DocumentsPanel({
       ) : null}
 
       {analysis.startError && !analysis.modalMode ? (
-        <div role="alert" className="flex flex-col gap-1 text-meta text-coral-deep">
+        <div role="alert" className="flex flex-col gap-1 text-meta text-coral-deep" data-testid="rebuild-start-error">
           {analysis.startError.message}
           {analysis.startError.correlationId ? (
             <span className="block font-mono text-meta text-ink-3">Support reference: {analysis.startError.correlationId}</span>

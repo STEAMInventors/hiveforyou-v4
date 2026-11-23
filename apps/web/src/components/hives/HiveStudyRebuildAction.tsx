@@ -1,46 +1,28 @@
-﻿"use client";
-
-import type { GetStudyPreparationResponse } from "@hiveforyou/contracts";
+﻿import type { GetStudyPreparationResponse } from "@hiveforyou/contracts";
 import Link from "next/link";
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
-import { useStudyPreparation } from "@/components/hives/useStudyPreparation";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 
+/**
+ * Home and Timeline do not start a rebuild. The Documents page owns the one preparation
+ * instance, the progress dialog, and the run.
+ */
 export function HiveStudyRebuildAction({
   hiveId,
-  initialPreparation,
-  focusDocuments,
 }: {
   hiveId: string;
   initialPreparation?: GetStudyPreparationResponse;
-  /** When rebuild cannot run here, link to Documents with this hash. */
+  /** Kept so existing call sites still compile. The link always opens the Documents control. */
   focusDocuments?: boolean;
 }) {
-  const analysis = useStudyPreparation(hiveId, { initialPreparation });
-  const canRebuild = analysis.rebuildAvailability?.canRebuild && !analysis.starting && !analysis.active;
-  const documentsHref = `${hiveDocumentsPath(hiveId)}${focusDocuments ? "#rebuild-study-button" : ""}`;
-
-  if (!canRebuild) {
-    return (
-      <Link href={documentsHref} className={WORKSPACE_SECONDARY} data-testid="rebuild-study-link-documents">
-        Rebuild the study
-      </Link>
-    );
-  }
-
   return (
-    <button
-      type="button"
+    <Link
+      href={`${hiveDocumentsPath(hiveId)}#rebuild-study-button`}
       className={WORKSPACE_SECONDARY}
-      disabled={analysis.starting || analysis.active}
-      data-testid="rebuild-study-button-home"
-      onClick={() => {
-        analysis.returnFocusRef.current = null;
-        void analysis.rebuild();
-      }}
+      data-testid="rebuild-study-link-documents"
     >
       Rebuild the study
-    </button>
+    </Link>
   );
 }

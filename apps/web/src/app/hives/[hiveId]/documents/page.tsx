@@ -93,6 +93,8 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
       checklist={checklist}
       openItems={openItems}
       topics={topics}
+      initialPreparation={overview?.preparation}
+      showLegacyRebuild={hive.membershipRole !== "client"}
     />
     </>
   );

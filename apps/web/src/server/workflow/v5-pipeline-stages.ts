@@ -252,6 +252,94 @@ export function extractionCacheKey(
   return `${document.sourceDocumentId}:${document.pageSetDigest}:${prompt.digest}:${modelAlias}`;
 }
 
+export type RebuildCachedExtraction = {
+  sourceDocumentId: string;
+  contentDigest: string;
+  extraction: DocExtraction;
+};
+
+export type RebuildDocumentPlan =
+  | { kind: "reuse"; extraction: DocExtraction }
+  | { kind: "reconstruct" }
+  | { kind: "invalid"; diagnosticReason: string };
+
+function pageInDocument(page: number, pageCount: number): boolean {
+  return Number.isInteger(page) && page >= 1 && page <= pageCount;
+}
+
+/** Identity, page count, and quote pages must match the frozen snapshot before a cache row is reused. */
+function extractionProvenanceHolds(extraction: DocExtraction, pageCount: number): boolean {
+  if (extraction.coverage.pageCount !== pageCount) return false;
+  if (extraction.coverage.lastPageCompleted > pageCount) return false;
+  for (const page of extraction.coverage.pagesRead) {
+    if (!pageInDocument(page, pageCount)) return false;
+  }
+  for (const page of extraction.coverage.pagesBlankOrUnreadable) {
+    if (!pageInDocument(page, pageCount)) return false;
+  }
+  for (const fact of extraction.facts) {
+    for (const evidence of fact.evidence) {
+      if (!pageInDocument(evidence.page, pageCount) || evidence.quote.trim() === "") return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Rebuild reuses a verified extraction only when its page-set digest is the snapshot digest.
+ * A different digest, or no row, is reconstructed from saved pages. A matching digest that fails
+ * identity, page count, or provenance fails closed.
+ */
+export function planRebuildDocument(
+  document: SnapshotDocument,
+  cached: RebuildCachedExtraction | null,
+): RebuildDocumentPlan {
+  if (!cached) return { kind: "reconstruct" };
+  const cachedDigest = normalizeContentDigest(cached.contentDigest);
+  const expectedDigest = normalizeContentDigest(document.pageSetDigest);
+  if (!cachedDigest || !expectedDigest || cachedDigest !== expectedDigest) return { kind: "reconstruct" };
+  if (cached.extraction.schema !== "hive.doc-extraction/1") {
+    return { kind: "invalid", diagnosticReason: "rebuild_extraction_schema" };
+  }
+  if (cached.sourceDocumentId.toLowerCase() !== document.sourceDocumentId.toLowerCase()) {
+    return { kind: "invalid", diagnosticReason: "rebuild_document_identity" };
+  }
+  if (cached.extraction.documentId.toLowerCase() !== document.sourceDocumentId.toLowerCase()) {
+    return { kind: "invalid", diagnosticReason: "rebuild_document_identity" };
+  }
+  if (cached.extraction.coverage.pageCount !== document.verifiedPageCount) {
+    return { kind: "invalid", diagnosticReason: "rebuild_page_count" };
+  }
+  if (!extractionProvenanceHolds(cached.extraction, document.verifiedPageCount)) {
+    return { kind: "invalid", diagnosticReason: "rebuild_provenance" };
+  }
+  return { kind: "reuse", extraction: cached.extraction };
+}
+
+export function planRebuildSnapshot(
+  snapshot: SourceSnapshot,
+  cached: readonly RebuildCachedExtraction[],
+):
+  | { ok: true; reuse: DocExtraction[]; reconstruct: SnapshotDocument[] }
+  | { ok: false; diagnosticReason: string } {
+  const reuse: DocExtraction[] = [];
+  const reconstruct: SnapshotDocument[] = [];
+  for (const document of snapshot.documents) {
+    const expected = normalizeContentDigest(document.pageSetDigest);
+    const match =
+      cached.find(
+        (row) =>
+          row.sourceDocumentId.toLowerCase() === document.sourceDocumentId.toLowerCase() &&
+          normalizeContentDigest(row.contentDigest) === expected,
+      ) ?? null;
+    const plan = planRebuildDocument(document, match);
+    if (plan.kind === "invalid") return { ok: false, diagnosticReason: plan.diagnosticReason };
+    if (plan.kind === "reuse") reuse.push(plan.extraction);
+    else reconstruct.push(document);
+  }
+  return { ok: true, reuse, reconstruct };
+}
+
 function cachedExtractionStats(extractionsPayload: unknown, documentId: string): Record<string, unknown> | null {
   const rows = Array.isArray((extractionsPayload as { extractions?: unknown })?.extractions)
     ? ((extractionsPayload as { extractions: Record<string, unknown>[] }).extractions ?? [])
@@ -2159,12 +2247,28 @@ export async function extractOneDocument(input: {
   return { ok: true, metric: outcome.documentMetric, modelAlias: outcome.modelAlias };
 }
 
-export async function loadVerifiedExtractions(client: RpcClient, runId: string): Promise<DocExtraction[]> {
+function cachedExtractionRows(payload: unknown): Record<string, unknown>[] {
+  return Array.isArray((payload as { extractions?: unknown })?.extractions)
+    ? ((payload as { extractions: Record<string, unknown>[] }).extractions ?? [])
+    : [];
+}
+
+export async function loadCachedDocExtractions(client: RpcClient, runId: string): Promise<RebuildCachedExtraction[]> {
   const payload = await rpc(client, "get_doc_extractions_for_run", { p_processing_run_id: runId });
-  const rows = Array.isArray(payload?.extractions) ? (payload.extractions as Record<string, unknown>[]) : [];
-  return rows
-    .map((row) => row.extraction as DocExtraction | undefined)
-    .filter((value): value is DocExtraction => !!value && value.schema === "hive.doc-extraction/1");
+  const cached: RebuildCachedExtraction[] = [];
+  for (const row of cachedExtractionRows(payload)) {
+    const extraction = row.extraction as DocExtraction | undefined;
+    const sourceDocumentId = String(row.sourceDocumentId ?? extraction?.documentId ?? "").toLowerCase();
+    const contentDigest = String(row.contentDigest ?? "");
+    if (!sourceDocumentId || !contentDigest || !extraction || extraction.schema !== "hive.doc-extraction/1") continue;
+    cached.push({ sourceDocumentId, contentDigest, extraction });
+  }
+  return cached;
+}
+
+export async function loadVerifiedExtractions(client: RpcClient, runId: string): Promise<DocExtraction[]> {
+  const cached = await loadCachedDocExtractions(client, runId);
+  return cached.map((row) => row.extraction);
 }
 
 export type CanonicalizeRunResult =
@@ -2182,13 +2286,49 @@ export async function runCanonicalizeForRun(input: {
   now: () => Date;
   clock?: () => number;
   invocationStartedAt?: number;
-  /** Rebuild Study: skip re-extract; re-run canonicalize only from cached extractions (cheap path). */
+  /** Rebuild Study: canonicalize only extractions whose page-set digest matches the frozen snapshot. */
   rebuildMode?: boolean;
   extractProgress?: V5StageOutputs;
   requestText?: string;
 }): Promise<CanonicalizeRunResult> {
-  void input.rebuildMode;
-  const { deps, run, extractions, catalog, correlationId, stageAttempt, now } = input;
+  const { deps, run, catalog, correlationId, stageAttempt, now } = input;
+  let extractions = input.extractions;
+  if (input.rebuildMode) {
+    if (!input.sourceSnapshot) {
+      return {
+        ok: false,
+        error: createHiveError({
+          errorCode: "INVALID_REQUEST",
+          category: "VALIDATION",
+          stage: "ANALYZE",
+          retryable: false,
+          safeMessage: "The rebuild did not start from the saved documents. Your earlier study is unchanged.",
+          correlationId,
+          operationId: run.id,
+          diagnosticReason: "rebuild_snapshot_missing",
+        }),
+        metric: null,
+      };
+    }
+    const planned = planRebuildSnapshot(input.sourceSnapshot, await loadCachedDocExtractions(deps.client, run.id));
+    if (!planned.ok || planned.reconstruct.length > 0) {
+      return {
+        ok: false,
+        error: createHiveError({
+          errorCode: "COVERAGE_INCOMPLETE",
+          category: "DOCUMENT",
+          stage: "ANALYZE",
+          retryable: false,
+          safeMessage: "The study could not be rebuilt from the saved pages. Your earlier study is unchanged.",
+          correlationId,
+          operationId: run.id,
+          diagnosticReason: planned.ok ? "rebuild_extraction_missing" : planned.diagnosticReason,
+        }),
+        metric: null,
+      };
+    }
+    extractions = planned.reuse;
+  }
   const pendingJob = input.extractProgress?.plannerJobs?.canonicalize;
   const clock = input.clock ?? deps.clock ?? (() => Date.now());
   const invocationStartedAt = input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now();

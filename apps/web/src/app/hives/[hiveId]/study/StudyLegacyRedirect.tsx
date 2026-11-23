@@ -1,6 +1,6 @@
 "use client";
 
-import { mapStudyLegacyHash } from "@/lib/hive-routes";
+import { hiveFindingsPath, mapStudyLegacyHash } from "@/lib/hive-routes";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -21,14 +21,26 @@ function joinTarget(target: string, queryString: string): string {
   return `${base}${hash}`;
 }
 
-export function StudyLegacyRedirect({ hiveId, queryString }: { hiveId: string; queryString: string }) {
+export function StudyLegacyRedirect({
+  hiveId,
+  queryString,
+  destination = "home",
+}: {
+  hiveId: string;
+  queryString: string;
+  /** Firm hives keep Home. A personal Hive opens Findings, where the accepted study is shown. */
+  destination?: "home" | "findings";
+}) {
   const router = useRouter();
 
   useEffect(() => {
     const hash = typeof window !== "undefined" ? window.location.hash.replace(/^#/, "") : "";
-    const target = mapStudyLegacyHash(hiveId, hash);
+    const target =
+      destination === "findings"
+        ? `${hiveFindingsPath(hiveId)}${hash ? `#${hash}` : ""}`
+        : mapStudyLegacyHash(hiveId, hash);
     router.replace(joinTarget(target, queryString));
-  }, [hiveId, queryString, router]);
+  }, [destination, hiveId, queryString, router]);
 
   return null;
 }

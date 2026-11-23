@@ -8,9 +8,6 @@ import type { HiveOverview } from "@/server/hives/hive-summary";
 
 import { clientHomeOlderStudyLine } from "@/components/home/client-home-model";
 
-import { CanonicalStudyNotice } from "./CanonicalStudyNotice";
-import { HiveStudyRebuildAction } from "./HiveStudyRebuildAction";
-
 export function StudyDependentAlerts({
   hiveId,
   overview,
@@ -61,16 +58,7 @@ export function StudyDependentAlerts({
         </p>
       );
     }
-    return (
-      <div className="mb-6 flex flex-col items-start gap-3" data-testid="study-dependent-older">
-        <CanonicalStudyNotice />
-        <HiveStudyRebuildAction
-          hiveId={hiveId}
-          initialPreparation={overview.preparation}
-          focusDocuments
-        />
-      </div>
-    );
+    return null;
   }
 
   return null;

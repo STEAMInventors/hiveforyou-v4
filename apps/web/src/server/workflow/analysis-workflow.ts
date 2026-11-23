@@ -70,8 +70,11 @@ import {
   extractedDocumentIds,
   documentsNeedingExtraction,
   isV5CanonicalStudy,
+  loadCachedDocExtractions,
+  loadDocumentPages,
   loadSavedDocExtractionRanges,
   loadVerifiedExtractions,
+  planRebuildSnapshot,
   persistDomainPackWorkflowState,
   persistV5ExtractStageOutputs,
   recordGapsForWorkItems,
@@ -532,7 +535,28 @@ async function domainSamples(context: Context, inputs: RunInputs) {
 // ---------------------------------------------------------------------------
 // Stages
 // ---------------------------------------------------------------------------
+function rebuildStopped(context: Context, diagnosticReason: string, safeMessage: string): StageFailure {
+  return new StageFailure(
+    analysisError({
+      errorCode: "COVERAGE_INCOMPLETE",
+      category: "DOCUMENT",
+      retryable: false,
+      safeMessage,
+      correlationId: context.correlationId,
+      diagnosticReason,
+    }),
+    null,
+  );
+}
+
 async function readDocuments(context: Context, run: ProcessingRun): Promise<StepResult> {
+  if (run.preparationMode === "REBUILD") {
+    throw rebuildStopped(
+      context,
+      "rebuild_read_refused",
+      "Rebuild uses the pages already saved. Your earlier study is unchanged.",
+    );
+  }
   const payload = await rpc(context.deps.client, "get_processing_run_queued_reads", { p_run_id: context.runId });
   const readIds = Array.isArray(payload?.readIds) ? payload.readIds.filter((id): id is string => typeof id === "string") : [];
   if (readIds.length > 0) {
@@ -988,16 +1012,50 @@ async function extractDocuments(context: Context): Promise<StepResult> {
       null,
     );
   }
+  let rebuildReuseIds: Set<string> | null = null;
+  if (inputs.run.preparationMode === "REBUILD") {
+    const planned = planRebuildSnapshot(
+      inputs.sourceSnapshot,
+      await loadCachedDocExtractions(context.deps.client, context.runId),
+    );
+    if (!planned.ok) {
+      throw rebuildStopped(
+        context,
+        planned.diagnosticReason,
+        "The saved study could not be rebuilt from these documents. Your earlier study is unchanged.",
+      );
+    }
+    if (planned.reconstruct.length === 0) {
+      return finishExtractingStage(context, inputs.run);
+    }
+    for (const document of planned.reconstruct) {
+      try {
+        await loadDocumentPages({
+          client: context.deps.client,
+          hiveId: inputs.run.hiveId,
+          runId: context.runId,
+          document,
+          correlationId: context.correlationId,
+        });
+      } catch (error) {
+        if (isHiveError(error)) throw new StageFailure(error, null);
+        throw error;
+      }
+    }
+    rebuildReuseIds = new Set(planned.reuse.map((extraction) => extraction.documentId.toLowerCase()));
+  }
   const catalog = context.catalog();
   const extractProgress = inputs.stageOutputs as V5StageOutputs;
   const payload = await rpc(context.deps.client, "get_doc_extractions_for_run", { p_processing_run_id: context.runId });
-  let extracted = await completeExtractedDocumentIds({
-    client: context.deps.client,
-    runId: context.runId,
-    snapshot: inputs.sourceSnapshot,
-    extractionsPayload: payload,
-    extractProgress,
-  });
+  let extracted = rebuildReuseIds
+    ? new Set(rebuildReuseIds)
+    : await completeExtractedDocumentIds({
+        client: context.deps.client,
+        runId: context.runId,
+        snapshot: inputs.sourceSnapshot,
+        extractionsPayload: payload,
+        extractProgress,
+      });
   let pending = documentsNeedingExtraction(inputs.sourceSnapshot, extracted);
   if (pending.length === 0) {
     return finishExtractingStage(context, inputs.run);
@@ -1043,13 +1101,14 @@ async function extractDocuments(context: Context): Promise<StepResult> {
   const payloadAfterMerge = await rpc(context.deps.client, "get_doc_extractions_for_run", {
     p_processing_run_id: context.runId,
   });
-  extracted = await completeExtractedDocumentIds({
+  const extractedAfterMerge = await completeExtractedDocumentIds({
     client: context.deps.client,
     runId: context.runId,
     snapshot: inputs.sourceSnapshot,
     extractionsPayload: payloadAfterMerge,
     extractProgress: progressPatch,
   });
+  extracted = rebuildReuseIds ? new Set([...rebuildReuseIds, ...extractedAfterMerge]) : extractedAfterMerge;
   pending = documentsNeedingExtraction(inputs.sourceSnapshot, extracted);
   if (pending.length === 0) {
     return finishExtractingStage(context, inputs.run);
@@ -1374,6 +1433,16 @@ async function acceptStudy(context: Context): Promise<StepResult> {
 async function runStage(context: Context, run: ProcessingRun): Promise<StepResult> {
   switch (run.status) {
     case "QUEUED":
+      if (run.preparationMode === "REBUILD") {
+        if (!run.snapshotFrozen) {
+          throw rebuildStopped(
+            context,
+            "rebuild_snapshot_not_frozen",
+            "The rebuild did not start from the saved documents. Your earlier study is unchanged.",
+          );
+        }
+        return { next: "continue", run: await advance(context, "QUEUED", "EXTRACTING") };
+      }
       if (run.snapshotFrozen) {
         return { next: "continue", run: await advance(context, "QUEUED", "EXTRACTING") };
       }

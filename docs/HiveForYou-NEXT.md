@@ -1,8 +1,16 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-23): HB-5 — Give HiveForYou a Distinctive Visual Identity.** HB-4 stays implemented locally. V5 pipeline simplification below is parked, not closed.
+> **Active ticket (2026-11-23): RB-2 — Rebuild Study Reliability Fix.** Implemented locally, awaiting founder review. HB-5 stays implemented locally. No commit, push, deploy, or production rebuild.
 
-## Active ticket — HB-5: Give HiveForYou a Distinctive Visual Identity
+## Active ticket — RB-2: Rebuild Study Reliability Fix
+
+**Objective:** Make Rebuild Study reliable on the existing path. One Documents preparation instance drives the legacy notice and the rebuild control. The worker honors `rebuildMode`: reuse a verified extraction when its page-set digest matches, otherwise reconstruct only from saved pages. A personal Hive can open the newest accepted study. Historical revisions and their reports stay.
+
+**Scope:** Documents notice and progress dialog, the rebuild extract/canonicalize path, and personal `/study` and `/findings` navigation. No migration. No new pipeline. No report regeneration on rebuild.
+
+**Status (2026-11-23): implemented locally, awaiting founder review.** No migration. No production rebuild.
+
+## Previous ticket — HB-5: Give HiveForYou a Distinctive Visual Identity
 
 **Objective:** Make the Hive Board and the main hive pages visibly distinct with the existing brand palette: a compact case summary, separate surfaces for My Work, Ask AI, and Pro Conversation, and the same header language on Documents, Findings, Timeline, Reports, and Audit. Fix My Work so an authorized document list is not reported as empty.
 

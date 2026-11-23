@@ -83,6 +83,8 @@ type FakeServer = {
   eligibilityGaps: CoverageGap[];
   runGaps: CoverageGap[];
   reportStatuses: { CUSTOMER: string; PRO: string } | null;
+  rebuildFailure: { message: string; correlationId: string } | null;
+  rebuildNextStatus: string | null;
 };
 
 let server: FakeServer;
@@ -244,6 +246,8 @@ describe("DocumentsPanel — Analyze", () => {
       eligibilityGaps: [],
       runGaps: [],
       reportStatuses: null,
+      rebuildFailure: null,
+      rebuildNextStatus: null,
     };
     vi.stubGlobal(
       "fetch",
@@ -251,6 +255,35 @@ describe("DocumentsPanel — Analyze", () => {
         const url = String(input);
         if (url === REBUILD_URL && init?.method === "POST") {
           server.rebuildPosts.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+          if (server.rebuildFailure) {
+            return json(
+              {
+                error: {
+                  errorCode: "PERSISTENCE_FAILED",
+                  message: server.rebuildFailure.message,
+                  retryable: true,
+                  correlationId: server.rebuildFailure.correlationId,
+                },
+              },
+              500,
+            );
+          }
+          if (server.rebuildNextStatus) {
+            server.preparationMode = "REBUILD";
+            server.analysisRunStatus = server.rebuildNextStatus;
+            if (server.rebuildNextStatus === "SUCCEEDED") server.revisionNumber = 8;
+            return json(
+              {
+                processingRun: analysisRun(server.analysisRunStatus),
+                created: true,
+                reusedStudy: false,
+                reportsReady: false,
+                studyRevision: studyPreparationBody().studyRevision,
+                reportRuns: [],
+              },
+              server.rebuildNextStatus === "SUCCEEDED" ? 200 : 202,
+            );
+          }
           server.preparationMode = "REBUILD";
           server.analysisRunStatus = "SUCCEEDED";
           server.revisionNumber = 7;
@@ -544,5 +577,63 @@ describe("DocumentsPanel — Analyze", () => {
     renderPanel();
     const button = await screen.findByTestId("rebuild-study-button");
     expect((button as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("connects the legacy notice to the Documents rebuild and shows why it is disabled", async () => {
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" };
+    server.revisionNumber = 6;
+    server.unreadDocuments = 1;
+    server.documents = [makeDocument(0, "SUCCEEDED"), makeDocument(1, "PENDING")];
+    render(<DocumentsPanel hiveId={HIVE_ID} initialDocuments={server.documents} showLegacyRebuild />);
+    const notice = await screen.findByTestId("documents-legacy-rebuild");
+    expect((notice as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId("rebuild-eligibility").textContent).toContain("Read every added document");
+    expect(screen.getByTestId("canonical-study-notice")).toBeTruthy();
+  });
+
+  it("shows an API failure and support reference without opening the progress dialog", async () => {
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" };
+    server.revisionNumber = 6;
+    server.rebuildFailure = {
+      message: "Could not rebuild the study. Try again.",
+      correlationId: "corr-rebuild-1",
+    };
+    render(<DocumentsPanel hiveId={HIVE_ID} initialDocuments={server.documents} showLegacyRebuild />);
+    const notice = await screen.findByTestId("documents-legacy-rebuild");
+    await act(async () => {
+      fireEvent.click(notice);
+    });
+    const alert = await screen.findByTestId("rebuild-start-error");
+    expect(alert.textContent).toContain("Could not rebuild the study. Try again.");
+    expect(alert.textContent).toContain("Support reference: corr-rebuild-1");
+    expect(screen.queryByTestId("analyze-modal")).toBeNull();
+    expect(server.rebuildPosts).toHaveLength(1);
+  });
+
+  it("opens the progress dialog on the rebuild run and keeps the earlier reports", async () => {
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" };
+    server.revisionNumber = 6;
+    server.rebuildNextStatus = "EXTRACTING";
+    render(<DocumentsPanel hiveId={HIVE_ID} initialDocuments={server.documents} showLegacyRebuild />);
+    const notice = await screen.findByTestId("documents-legacy-rebuild");
+    await act(async () => {
+      fireEvent.click(notice);
+    });
+    const dialog = await screen.findByTestId("analyze-modal");
+    expect(within(dialog).getByRole("heading", { name: "Extracting…" })).toBeTruthy();
+    expect(server.analysisPosts).toHaveLength(0);
+    expect(server.reportStatuses).toEqual({ CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" });
+
+    server.analysisRunStatus = "CANONICALIZING";
+    await poll();
+    expect(within(screen.getByTestId("analyze-modal")).getByRole("heading", { name: "Building study…" })).toBeTruthy();
+
+    server.analysisRunStatus = "SUCCEEDED";
+    server.revisionNumber = 8;
+    await poll();
+    const done = screen.getByTestId("analyze-modal");
+    expect(within(done).getByRole("heading", { name: "Study revision accepted" })).toBeTruthy();
+    expect(within(done).queryByTestId("analyze-reports")).toBeNull();
+    expect(server.reportStatuses).toEqual({ CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" });
   });
 });

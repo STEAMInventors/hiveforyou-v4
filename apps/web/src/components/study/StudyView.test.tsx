@@ -393,9 +393,20 @@ describe("StudyView", () => {
 
   it("shows a Rebuild notice instead of a view for investigation-1 revisions", () => {
     const fixture = bankruptcyC13Fixture("CUSTOMER");
-    render(<StudyView hiveId={HIVE_ID} revisionFormat="investigation-1" view={fixture.view} sources={fixture.sources} />);
+    render(
+      <StudyView
+        hiveId={HIVE_ID}
+        revisionFormat="investigation-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={4}
+      />,
+    );
     expect(screen.getByTestId("study-legacy-notice")).toBeTruthy();
-    expect(screen.getByTestId("study-legacy-rebuild").getAttribute("href")).toBe(`/hives/${HIVE_ID}/documents`);
+    expect(screen.getByTestId("accepted-study-revision").textContent).toContain("revision 4");
+    expect(screen.getByTestId("study-legacy-rebuild").getAttribute("href")).toBe(
+      `/hives/${HIVE_ID}/documents#rebuild-study-button`,
+    );
     expect(screen.queryByTestId("study-view")).toBeNull();
   });
 
