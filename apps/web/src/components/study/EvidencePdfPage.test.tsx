@@ -139,6 +139,24 @@ describe("EvidencePdfPage", () => {
     expect(view.queryByTestId("pdf-doc")).toBeNull();
   });
 
+  it("offers a Try again button on PDF.js load error that triggers onRetry to fetch a fresh signed URL", async () => {
+    pdfMock.setSimulateLoadError(true);
+    const onRetry = vi.fn();
+    const view = render(
+      <EvidencePdfPage
+        fileUrl="https://storage.example.com/object/expired?token=old"
+        {...baseProps}
+        originalPageHref="/api/v1/hives/h1/source-documents/d1/pages/1"
+        onRetry={onRetry}
+      />,
+    );
+    await waitFor(() => {
+      expect(view.getByTestId("evidence-pdf-load-error")).toBeTruthy();
+    });
+    fireEvent.click(view.getByTestId("evidence-pdf-retry"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
   it("emits highlight status after the text layer loads", async () => {
     const statuses: { kind: string }[] = [];
     render(

@@ -111,4 +111,43 @@ describe("POST viewer-open", () => {
     expect(res.status).toBe(404);
     expect(body.error).toMatchObject({ errorCode: "NOT_FOUND" });
   });
+
+  it("maps SOURCE_ACCESS_DENIED to 403 fail-closed with correlation ID", async () => {
+    adapter.openSourceDocumentPageWithV3Vault.mockRejectedValue(
+      createHiveError({
+        errorCode: "SOURCE_ACCESS_DENIED",
+        category: "SECURITY",
+        stage: "READ",
+        retryable: false,
+        safeMessage: "This document cannot be opened from its stored location.",
+        correlationId: CORRELATION_ID,
+        diagnosticReason: "source_path_forbidden",
+      }),
+    );
+    const res = await postOpen(1);
+    const body = await res.json();
+    expect(res.status).toBe(403);
+    expect(res.headers.get("x-correlation-id")).toBe(CORRELATION_ID);
+    expect(body.error).toMatchObject({
+      errorCode: "SOURCE_ACCESS_DENIED",
+      retryable: false,
+      correlationId: CORRELATION_ID,
+    });
+  });
+
+  it("fails closed with a retryable error and correlation ID if storage returns an invalid signed URL", async () => {
+    adapter.openSourceDocumentPageWithV3Vault.mockResolvedValue({
+      signedUrl: "/relative/not-a-valid-url#page=1",
+      mimeType: "application/pdf",
+    });
+    const res = await postOpen(1);
+    const body = await res.json();
+    expect(res.status).toBe(500);
+    expect(res.headers.get("x-correlation-id")).toBe(CORRELATION_ID);
+    expect(body.error).toMatchObject({
+      errorCode: "INTERNAL_ERROR",
+      retryable: true,
+      correlationId: CORRELATION_ID,
+    });
+  });
 });
