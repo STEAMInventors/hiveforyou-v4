@@ -155,7 +155,14 @@ describe("PersonalHiveBoard", () => {
         initialPeople={emptyThread}
         initialAsk={emptyThread}
         currentUserId="33333333-3333-4333-8333-333333333333"
-        roster={{ professionalJoined: true, professionalName: "Pat Pro", ownerName: "Maya", pendingEmail: null }}
+        roster={{
+          professionalJoined: true,
+          professionalName: "Pat Pro",
+          ownerName: "Maya",
+          pendingEmail: null,
+          viewerRole: "professional",
+          viewerJoined: true,
+        }}
         loadError={null}
         studyLoadError={null}
         view={null}
@@ -167,6 +174,99 @@ describe("PersonalHiveBoard", () => {
     expect(screen.getByRole("button", { name: "Add a request" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Share with a professional" })).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeTruthy();
-    expect(screen.getByTestId("hive-conversation-people-hint").textContent).toMatch(/Shared with your Pro/);
+    expect(screen.getByTestId("personal-pro-panel").textContent).toMatch(/With Maya/);
+    expect(screen.getByTestId("hive-conversation-people-hint").textContent).toMatch(/Shared with Maya/);
+    expect(screen.queryByRole("heading", { name: "Client requests" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Requests" })).toBeTruthy();
+  });
+
+  it("treats the people-list owner as the owner when the hive card has no owner role", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          people: [
+            { userId: OWNER, role: "owner", displayName: "Aryya", state: "active", joined: true },
+            {
+              userId: "33333333-3333-4333-8333-333333333333",
+              role: "professional",
+              displayName: "Aryya Pro",
+              state: "active",
+              joined: true,
+            },
+          ],
+          pendingInvitations: [],
+        }),
+      ),
+    );
+    nav.params = new URLSearchParams();
+    render(
+      <PersonalHiveBoard
+        hive={{ ...hive, isOwner: false, membershipRole: "firm" }}
+        assistantName="HiveForYou"
+        summary={{ hasStudy: false, documentsIn: 1, checklistSize: null, toReview: 0, stillToCome: 0, study: null }}
+        requests={[]}
+        uploadedDocuments={[]}
+        initialPeople={emptyThread}
+        initialAsk={emptyThread}
+        currentUserId={OWNER}
+        roster={{
+          professionalJoined: true,
+          professionalName: "Aryya Pro",
+          ownerName: "Aryya",
+          pendingEmail: null,
+          viewerRole: "owner",
+          viewerJoined: true,
+        }}
+        loadError={null}
+        studyLoadError={null}
+        view={null}
+        sources={null}
+        canonicalStudy={null}
+        coverageGaps={[]}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: /My work and Pro requests/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add a request" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Client requests" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Share with a professional" })).toBeTruthy();
+    expect(screen.getByTestId("personal-pro-panel").textContent).toMatch(/With Aryya Pro/);
+    expect(screen.getByRole("textbox", { name: "Message" })).toBeTruthy();
+  });
+
+  it("asks a pending professional to join instead of opening the shared composer", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ people: [], pendingInvitations: [] })));
+    nav.params = new URLSearchParams("view=conversation");
+    render(
+      <PersonalHiveBoard
+        hive={{ ...hive, isOwner: false, membershipRole: "professional", memberState: "pending" }}
+        assistantName="HiveForYou"
+        summary={{ hasStudy: true, documentsIn: 1, checklistSize: null, toReview: 0, stillToCome: 0, study: { revisionNumber: 4, acceptedLabel: "Nov 2" } }}
+        requests={[]}
+        uploadedDocuments={[]}
+        initialPeople={emptyThread}
+        initialAsk={emptyThread}
+        currentUserId="33333333-3333-4333-8333-333333333333"
+        roster={{
+          professionalJoined: false,
+          professionalName: "Pat Pro",
+          ownerName: "Maya",
+          pendingEmail: null,
+          viewerRole: "professional",
+          viewerJoined: false,
+        }}
+        loadError={null}
+        studyLoadError={null}
+        view={null}
+        sources={null}
+        canonicalStudy={null}
+        coverageGaps={[]}
+      />,
+    );
+    expect(screen.getByTestId("personal-hive-join")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Join this hive" })).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Message" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a request" })).toBeNull();
+    expect(screen.getByTestId("hive-pro-conversation-closed").textContent).toMatch(/haven't joined/);
   });
 });

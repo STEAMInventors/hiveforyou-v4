@@ -47,7 +47,7 @@ function renderMenu(overrides: Partial<ComponentProps<typeof HiveSidebar>> = {})
 }
 
 describe("HiveSidebar (D24 left menu)", () => {
-  it("lists Home through Team notes with Documents current and count from data", () => {
+  it("lists Hive Board through Team notes with Documents current and count from data", () => {
     renderMenu();
     const nav = screen.getByRole("navigation", { name: "Hive pages" });
     const scoped = within(nav);
@@ -55,7 +55,7 @@ describe("HiveSidebar (D24 left menu)", () => {
     expect(current.getAttribute("data-tab")).toBe("documents");
     expect(current.getAttribute("aria-current")).toBe("page");
     expect(scoped.getByLabelText("9 documents")).toBeTruthy();
-    expect(scoped.getByRole("link", { name: /Home/ }).getAttribute("data-tab")).toBe("home");
+    expect(scoped.getByRole("link", { name: "Hive Board" }).getAttribute("data-tab")).toBe("home");
     expect(scoped.getByRole("link", { name: /Report/ }).getAttribute("href")).toBe(`/hives/${hive.id}/reports`);
     expect(scoped.getByRole("link", { name: /Timeline/ }).getAttribute("data-tab")).toBe("timeline");
   });

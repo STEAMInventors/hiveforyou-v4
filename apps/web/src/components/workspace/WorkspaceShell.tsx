@@ -35,6 +35,8 @@ export type WorkspaceShellProps = {
   initialClientAssistant?: ConversationLoad | null;
   chatConfig?: HiveChatConfig;
   viewerDisplayName?: string | null;
+  /** Personal Hive board fills the main column. Firm pages stay on the reading width. */
+  workspaceWidth?: "board";
   children: ReactNode;
 };
 
@@ -51,6 +53,7 @@ export function WorkspaceShell({
   initialClientAssistant = null,
   chatConfig: chatConfigProp,
   viewerDisplayName = null,
+  workspaceWidth,
   children,
 }: WorkspaceShellProps) {
   const pathname = usePathname() ?? "";
@@ -59,6 +62,11 @@ export function WorkspaceShell({
   const staffView = showsFirmThreePane(hive);
   const clientFirmHive =
     hive.kind === "client" && Boolean(hive.firmId) && hive.membershipRole === "client";
+  const personalBoard =
+    workspaceWidth === "board" ||
+    (hive.firmId == null &&
+      hive.kind !== "client" &&
+      hiveSectionFromPathname(pathname, hive.id) === "board");
 
   const chatConfig = useMemo(
     () =>
@@ -148,7 +156,13 @@ export function WorkspaceShell({
           assistantName={assistantName}
         />
         <div className="hv-main flex min-w-0 flex-1 flex-col bg-paper">
-          <div className="mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-5 min-[1100px]:px-8 min-[1100px]:py-7 min-[1100px]:pb-16">
+          <div
+            className={
+              personalBoard
+                ? "mx-auto flex w-full max-w-none flex-1 flex-col gap-4 px-4 py-4 min-[1100px]:px-6 min-[1100px]:py-5 min-[1100px]:pb-6"
+                : "mx-auto flex w-full max-w-col-wide flex-1 flex-col gap-4 px-4 py-5 min-[1100px]:px-8 min-[1100px]:py-7 min-[1100px]:pb-16"
+            }
+          >
             <HiveWorkspaceHead
               hive={hive}
               active={section}

@@ -23,6 +23,7 @@ import { hiveDocumentsPath, hiveFindingsPath } from "@/lib/hive-routes";
 import type { StudyLoadError } from "@/server/hives/hive-summary";
 
 import {
+  personalBoardRole,
   personalHiveRoster,
   proConversationClosedReason,
   type PersonalHiveRoster,
@@ -84,17 +85,33 @@ export function PersonalHiveBoard({
   documentPages,
 }: PersonalHiveBoardProps) {
   const [roster, setRoster] = useState(initialRoster);
-  const onRoster = useCallback((data: unknown) => {
-    setRoster(personalHiveRoster(data));
-  }, []);
-  const owner = hive.isOwner === true || hive.membershipRole === "owner";
-  const viewer = owner ? "owner" : "professional";
-  const closed = proConversationClosedReason(roster, viewer);
+  const onRoster = useCallback(
+    (data: unknown) => {
+      setRoster(personalHiveRoster(data, currentUserId));
+    },
+    [currentUserId],
+  );
+  const role = personalBoardRole(hive, roster);
+  const owner = role === "owner";
+  const activeProfessional = role === "professional";
+  const pendingProfessional = role === "pending-professional";
+  const closed = proConversationClosedReason(
+    roster,
+    activeProfessional || pendingProfessional ? "professional" : "owner",
+    !pendingProfessional,
+  );
   const ownerName = roster.ownerName;
   const proName = roster.professionalName;
+  const otherFirst = owner
+    ? proName
+      ? personFirstName(proName)
+      : null
+    : ownerName
+      ? personFirstName(ownerName)
+      : null;
 
   return (
-    <main className="mx-auto w-full max-w-col-read pb-24 pt-8" data-testid="personal-hive-board">
+    <main className="w-full min-w-0 pb-4" data-testid="personal-hive-board">
       {loadError ? (
         <WorkspaceLoadError
           message={loadError.message}
@@ -133,9 +150,9 @@ export function PersonalHiveBoard({
             own page.
           </p>
         ) : (
-          <p className="m-0 mt-3 max-w-[640px] text-body text-ink-2">Your study builds once documents are read.</p>
+          <p className="m-0 mt-3 text-body text-ink-2">Your study builds once documents are read.</p>
         )}
-        <div className="mt-4">
+        <div className="mt-3">
           {summary?.hasStudy ? (
             <Link href={hiveFindingsPath(hive.id)} className={STUDY_LINK}>
               Open the study
@@ -148,48 +165,62 @@ export function PersonalHiveBoard({
         </div>
       </section>
 
-      {owner ? (
-        <MyWorkPanel
-          hiveId={hive.id}
-          viewer="client"
-          personal
-          currentUserId={currentUserId}
-          initialRequests={requests}
-          uploadedDocuments={uploadedDocuments}
-          otherFirstName={proName ? personFirstName(proName) : null}
-        />
-      ) : (
-        <MyWorkPanel
-          hiveId={hive.id}
-          viewer="staff"
-          personal
-          currentUserId={currentUserId}
-          initialRequests={requests}
-          otherFirstName={ownerName ? personFirstName(ownerName) : null}
-          className="mt-8"
-        />
-      )}
+      <div
+        className="mt-5 grid grid-cols-1 items-start gap-6 min-[760px]:grid-cols-[minmax(240px,340px)_minmax(0,1fr)] min-[760px]:gap-5 min-[1480px]:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.15fr)_minmax(0,1.15fr)] min-[1480px]:items-stretch"
+        data-testid="personal-hive-workspace"
+      >
+        <div className="min-w-0" data-testid="personal-hive-work">
+          {activeProfessional ? (
+            <MyWorkPanel
+              hiveId={hive.id}
+              viewer="staff"
+              personal
+              currentUserId={currentUserId}
+              initialRequests={requests}
+              otherFirstName={otherFirst}
+              className="mt-0"
+            />
+          ) : pendingProfessional ? (
+            <p className="m-0 text-body text-ink-2" data-testid="personal-hive-join-note">
+              Join this hive to ask {ownerName ? personFirstName(ownerName) : "the owner"} for documents.
+            </p>
+          ) : (
+            <MyWorkPanel
+              hiveId={hive.id}
+              viewer="client"
+              personal
+              currentUserId={currentUserId}
+              initialRequests={requests}
+              uploadedDocuments={uploadedDocuments}
+              otherFirstName={otherFirst}
+              className="mt-0"
+            />
+          )}
+          <HiveBoardPeople
+            hive={hive}
+            currentUserId={currentUserId}
+            canInvite={owner}
+            viewerRole={owner ? "owner" : activeProfessional || pendingProfessional ? "professional" : undefined}
+            onRoster={onRoster}
+          />
+        </div>
 
-      <div className="mt-8">
-        <HiveBoardPeople
-          hive={hive}
-          currentUserId={currentUserId}
-          onRoster={onRoster}
-        />
-      </div>
-
-      <div className="mt-8" data-testid="personal-hive-channels">
         <HiveBoardMessaging
           hiveId={hive.id}
           firmless
           personal
           sharedClosed={closed}
-          peopleHint="Shared with your Pro. The AI assistant doesn't take part here."
+          joinRequired={pendingProfessional}
+          peopleHint={
+            owner
+              ? "Shared with your Pro. The AI assistant doesn't take part here."
+              : `Shared with ${ownerName ? personFirstName(ownerName) : "the owner"}. The AI assistant doesn't take part here.`
+          }
           assistantName={assistantName}
           currentUserId={currentUserId}
           initialPeople={initialPeople}
           initialAsk={initialAsk}
-          teamMemberFirstName={proName}
+          teamMemberFirstName={owner ? proName : null}
           staffView={false}
           clientName={ownerName ?? hive.name}
           viewerIsClient={owner}

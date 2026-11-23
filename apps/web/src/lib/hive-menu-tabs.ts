@@ -11,7 +11,7 @@ export type HiveMenuNavItem = {
 };
 
 export const HIVE_MENU_NAV: readonly HiveMenuNavItem[] = [
-  { tab: "home", section: "board", label: "Home" },
+  { tab: "home", section: "board", label: "Hive Board" },
   { tab: "documents", section: "documents", label: "Documents" },
   { tab: "timeline", section: "timeline", label: "Timeline" },
   { tab: "report", section: "reports", label: "Report" },

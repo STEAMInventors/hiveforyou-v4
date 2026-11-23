@@ -26,6 +26,10 @@ type PeopleResponse = {
 type HiveBoardPeopleProps = {
   hive: Hive;
   currentUserId: string | null;
+  /** When set, invite and remove follow this flag instead of the hive card. */
+  canInvite?: boolean;
+  /** Used for the empty "You · …" line before the people list returns. */
+  viewerRole?: "owner" | "professional" | "client";
   onRoster?: (data: unknown) => void;
 };
 
@@ -48,7 +52,7 @@ function personPrimaryName(person: PersonRow, currentUserId: string | null): str
   return "Member";
 }
 
-export function HiveBoardPeople({ hive, currentUserId, onRoster }: HiveBoardPeopleProps) {
+export function HiveBoardPeople({ hive, currentUserId, canInvite, viewerRole, onRoster }: HiveBoardPeopleProps) {
   const [people, setPeople] = useState<PersonRow[]>([]);
   const [pending, setPending] = useState<PersonRow[]>([]);
   const [open, setOpen] = useState(false);
@@ -59,7 +63,7 @@ export function HiveBoardPeople({ hive, currentUserId, onRoster }: HiveBoardPeop
   const [removeTarget, setRemoveTarget] = useState<{ userId: string; label: string } | null>(null);
   const nameId = useId();
   const emailId = useId();
-  const isOwner = hive.isOwner ?? hive.membershipRole === "owner";
+  const isOwner = canInvite ?? Boolean(hive.isOwner ?? hive.membershipRole === "owner");
   const inviteRole = hive.kind === "client" ? "client" : "professional";
   const inviteTitle = hive.kind === "client" ? "Invite your client" : "Share with a professional";
 
@@ -193,7 +197,7 @@ export function HiveBoardPeople({ hive, currentUserId, onRoster }: HiveBoardPeop
     removeLabel: string;
   };
 
-  const viewerRole = memberRoleLabel(hive.membershipRole ?? (hive.isOwner ? "owner" : undefined));
+  const viewerRoleLabel = memberRoleLabel(viewerRole ?? hive.membershipRole ?? (hive.isOwner ? "owner" : undefined));
 
   const rows: PeopleRow[] = [
     ...people.map((p) => {
@@ -227,7 +231,7 @@ export function HiveBoardPeople({ hive, currentUserId, onRoster }: HiveBoardPeop
       <p className="m-0 text-caption text-ink-2">People in this hive</p>
       <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
         {rows.length === 0 ? (
-          <li className="text-body text-ink-2">{`You · ${viewerRole}`}</li>
+          <li className="text-body text-ink-2">{`You · ${viewerRoleLabel}`}</li>
         ) : (
           rows.map((row) => (
             <li key={row.key} className="flex items-center justify-between gap-2 text-body text-ink-2">

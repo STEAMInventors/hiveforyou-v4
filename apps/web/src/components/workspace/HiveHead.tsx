@@ -52,7 +52,7 @@ export function HiveHead({
   }
   if (assistantName.trim()) people.push({ id: "assistant", name: assistantName.trim(), kind: "assistant" });
   const tabs: { id: TabId; href: string; label: string; count?: number | null; lock?: boolean }[] = [
-    { id: "home", href: hivePath(hive.id), label: "Home", count: unreadMessages },
+    { id: "home", href: hivePath(hive.id), label: "Hive Board", count: unreadMessages },
     { id: "documents", href: hiveDocumentsPath(hive.id), label: "Documents", count: documentCount },
     { id: "report", href: hiveReportsPath(hive.id), label: "Report" },
     { id: "audit", href: hiveAuditPath(hive.id), label: "Audit trail" },

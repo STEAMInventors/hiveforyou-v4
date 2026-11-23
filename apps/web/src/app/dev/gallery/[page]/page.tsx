@@ -51,6 +51,7 @@ import { GalleryClientHomeOlderStudy } from "@/dev/gallery/views/GalleryClientHo
 import { GalleryHivesFirmMenu } from "@/dev/gallery/views/GalleryHivesFirmMenu";
 import { GalleryHomeOlderStudy } from "@/dev/gallery/views/GalleryHomeOlderStudy";
 import { GalleryHomeStudyError } from "@/dev/gallery/views/GalleryHomeStudyError";
+import { GalleryPersonalBoard } from "@/dev/gallery/views/GalleryPersonalBoard";
 
 const PAGES = {
   components: GalleryComponents,
@@ -99,6 +100,7 @@ const PAGES = {
   "home-study-error": GalleryHomeStudyError,
   "client-home-older-study": GalleryClientHomeOlderStudy,
   "hives-firm-menu": GalleryHivesFirmMenu,
+  "personal-board": GalleryPersonalBoard,
 } as const;
 
 type GalleryPageKey = keyof typeof PAGES;

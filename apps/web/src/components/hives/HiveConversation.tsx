@@ -13,6 +13,7 @@ import {
   useState,
   useSyncExternalStore,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 
 import { WORKSPACE_SECONDARY } from "@/components/button-classes";
@@ -92,7 +93,11 @@ export type HiveConversationProps = {
   fillDraft?: { nonce: number; text: string } | null;
   /** When set, the shared composer stays closed until membership is accepted. */
   sharedClosed?: string | null;
+  /** Replaces the composer while `sharedClosed` is set, such as Join this hive. */
+  closedAction?: ReactNode;
   peopleHint?: string | null;
+  /** Panel fills its parent: the thread scrolls and the composer stays at the bottom. */
+  fillPanel?: boolean;
 };
 
 const noopSubscribe = () => () => undefined;
@@ -342,7 +347,9 @@ export function HiveConversation({
   column = null,
   fillDraft = null,
   sharedClosed = null,
+  closedAction = null,
   peopleHint = null,
+  fillPanel = false,
 }: HiveConversationProps) {
   const conversation = useHiveConversation({
     hiveId,
@@ -497,7 +504,13 @@ export function HiveConversation({
     textareaRef.current?.focus();
   }, [fillDraft]);
 
-  const showConversationHead = !column && (assistantMode || !previewOnTabs);
+  const showConversationHead = !fillPanel && !column && (assistantMode || !previewOnTabs);
+  const frame = fillPanel || column ? "flex h-full min-h-0 flex-col" : "flex min-w-0 flex-col";
+  const threadClass = fillPanel
+    ? "thread relative flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto py-2"
+    : column
+      ? "thread relative flex min-h-0 flex-1 flex-col gap-0 overflow-visible py-2 min-[1100px]:overflow-y-auto"
+      : "thread relative flex max-h-[570px] min-h-[280px] flex-col gap-0 overflow-y-auto py-2";
 
   const head =
     column && column.header !== "hidden" ? (
@@ -593,7 +606,7 @@ export function HiveConversation({
     <section
       aria-label="Conversation"
       data-testid="hive-conversation"
-      className={`flex min-w-0 flex-col ${column ? "h-full min-h-0" : ""}`}
+      className={frame}
     >
       {head}
       {conversation.reconnecting ? (
@@ -612,15 +625,13 @@ export function HiveConversation({
         </div>
       ) : (
         <>
-          <div className={column ? "relative flex min-h-0 flex-1 flex-col" : "relative"}>
+          <div className={fillPanel || column ? "relative flex min-h-0 flex-1 flex-col" : "relative"}>
             <div
               ref={listRef}
               onScroll={onScroll}
               aria-live="polite"
               data-testid="hive-conversation-messages"
-              className={`thread relative flex flex-col gap-0 py-2 ${
-                column ? "min-h-0 flex-1 overflow-visible min-[1100px]:overflow-y-auto" : "max-h-[570px] min-h-[280px] overflow-y-auto"
-              }`}
+              className={threadClass}
             >
               {conversation.nextCursor ? (
                 <button
@@ -770,7 +781,11 @@ export function HiveConversation({
             <p className="m-0 border-t border-line px-5 py-4 text-small text-ink-2 max-[649px]:p-[15px]">
               Preview — this is what {clientFirst} sees.
             </p>
-          ) : readOnly || sharedClosed ? null : (
+          ) : readOnly || sharedClosed ? (
+            sharedClosed && closedAction ? (
+              <div className="shrink-0 border-t border-line px-1 py-3">{closedAction}</div>
+            ) : null
+          ) : (
             <Composer
               textareaId={composerId}
               textareaLabel={assistantMode ? "Question" : "Message"}

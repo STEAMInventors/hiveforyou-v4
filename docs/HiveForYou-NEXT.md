@@ -1,8 +1,22 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-23): HB-2 — Restore Hive Board for Personal Hives** (D-060). HB-1 Addendum stays implemented locally, awaiting founder review. V5 pipeline simplification below is parked, not closed.
+> **Active ticket (2026-11-23): HB-3 — Polish Hive Board as a Communication Workspace.** HB-2 stays implemented locally, awaiting founder review. V5 pipeline simplification below is parked, not closed.
 
-## Active ticket — HB-2: Restore Hive Board for Personal Hives
+## Active ticket — HB-3: Polish Hive Board as a Communication Workspace
+
+**Objective:** The personal Hive board uses the workspace width as a communication surface: Hive title and a compact case summary, then My Work beside Ask AI (private) and Pro Conversation (shared). The viewer's actions follow their membership row. Routes stay the same.
+
+**Scope:**
+1. Hive sidebar (and the narrow-screen tabs that replace it) label the board **Hive Board**. The route stays `/hives/{id}`.
+2. Wide screens show three columns. From 760px to 1479px, My Work sits beside a channel switcher. Phones stack a compact summary, My Work, and chat tabs. Each chat scrolls inside a panel with the composer at the bottom.
+3. With no active Pro, the shared composer stays closed. A pending professional gets **Join this hive** instead. After they join, the header uses the other person's name and the composer opens.
+4. Presentation role comes from the signed-in row in `list_hive_people`, not from a label and not from a hive card that omitted `membershipRole`. The owner does not see Pro request controls. Server checks are unchanged. No migration.
+
+**Approval stops:** commit, push, deployment.
+
+**Status (2026-11-23): implemented locally, awaiting founder review.** No migration. Sidebar label is Hive Board; the route is unchanged. Wide layout is three columns; 1280px uses My Work plus a channel switcher; 390px stacks summary, My Work, and chat tabs. The owner is taken from the signed-in `list_hive_people` row, so a hive card without an owner role does not show Pro request controls. Typecheck passed. Targeted tests: personal board, roster, people, My Work, sidebar, menu tabs, and workspace shell. Screenshots: `apps/web/.next/hb3-review-1600.png`, `hb3-review-1280.png`, `hb3-review-390.png`.
+
+## Previous ticket — HB-2: Restore Hive Board for Personal Hives
 
 **Objective:** A personal Hive opens on the communication board: a compact case summary, My Work & Pro Requests, and two channels — Ask AI (private) and Pro Conversation (shared). The full study stays on its own page. An invited professional can join and then create and review requests. The owner responds, uploads, and tracks them. Study and checklist rows are never shown as requests from a Pro.
 

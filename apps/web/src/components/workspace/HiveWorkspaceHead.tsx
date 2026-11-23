@@ -43,7 +43,7 @@ export function HiveWorkspaceHead({ hive, active, counts, assigneeLabel, assista
             clientName={null}
             staffLabel={null}
             assistantName={assistantName}
-            className="people shrink-0"
+            className="people shrink-0 min-[1100px]:hidden"
           />
         ) : null}
         {!wide && showsFirmThreePane(hive) ? (
@@ -52,11 +52,15 @@ export function HiveWorkspaceHead({ hive, active, counts, assigneeLabel, assista
             clientName={hive.name}
             staffLabel={assigneeLabel}
             assistantName={assistantName}
-            className="people shrink-0"
+            className="people shrink-0 min-[1100px]:hidden"
           />
         ) : null}
       </div>
-      {!wide ? <HiveSectionTabs hive={hive} active={active} counts={counts} /> : null}
+      {!wide ? (
+        <div className="min-[1100px]:hidden">
+          <HiveSectionTabs hive={hive} active={active} counts={counts} />
+        </div>
+      ) : null}
     </header>
   );
 }

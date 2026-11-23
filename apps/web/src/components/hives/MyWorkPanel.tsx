@@ -231,13 +231,13 @@ export function MyWorkPanel({
 
   if (viewer === "staff") {
     return (
-      <Section title="Client requests" headingRight={visibleRequests.length || null} className={className}>
+      <Section title={personal ? "Requests" : "Client requests"} headingRight={visibleRequests.length || null} className={className}>
         {body}
       </Section>
     );
   }
   return (
-    <section className={`mt-[30px] ${className}`.trim()} aria-labelledby={headingId}>
+    <section className={className || "mt-[30px]"} aria-labelledby={headingId}>
       <h2 id={headingId} className="m-0 flex items-baseline justify-between text-[16px] font-semibold text-ink">
         My work and Pro requests
         <span className="text-meta font-medium tabular-nums text-ink-3">{visibleRequests.length}</span>

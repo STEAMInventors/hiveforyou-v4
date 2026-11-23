@@ -229,7 +229,7 @@ export default async function HiveRootPage({ params }: HiveRootPageProps) {
         initialPeople={people}
         initialAsk={ask}
         currentUserId={auth.userId}
-        roster={personalHiveRoster(rosterResult.data)}
+        roster={personalHiveRoster(rosterResult.data, auth.userId)}
         loadError={loadError}
         studyLoadError={overview?.studyLoadError ?? null}
         view={view}
