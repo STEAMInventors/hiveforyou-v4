@@ -25,7 +25,7 @@ const DIGEST = /^[a-f0-9]{64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const VALID_KINDS = new Set([
   "entity", "relationship", "document", "check", "calculation", "chain",
-  "question", "workflow", "report", "term", "referenceTable", "persona", "note",
+  "question", "workflow", "report", "term", "referenceTable", "persona", "note", "guideline",
 ]);
 const BLOCKS = new Set([
   "documents", "spine_table", "conflicts", "timeline", "outside_spine", "checklist",
@@ -34,17 +34,18 @@ const BLOCKS = new Set([
 const DEFINITION_KEYS: Record<string, readonly string[]> = {
   entity: ["fields"],
   relationship: ["fromEntityId", "toEntityId", "evidenceRequired"],
-  document: ["aliases", "appliesWhen", "settlesCheckIds"],
+  document: ["aliases", "appliesWhen", "settlesCheckIds", "timingDescription", "applicabilityDescription"],
   check: ["criterion", "question", "evidenceDescription"],
-  calculation: ["operator", "inputFields", "state", "legacyInputs"],
+  calculation: ["operator", "inputFields", "state", "legacyInputs", "scope"],
   chain: ["links"],
-  question: ["audience", "text", "appliesWhen"],
+  question: ["audience", "text", "appliesWhen", "conditionDescription", "rationale"],
   workflow: ["steps"],
-  report: ["audience", "sections"],
+  report: ["audience", "sections", "voice"],
   term: ["meaning"],
   referenceTable: ["columns", "rows"],
-  persona: ["audience", "context", "questionIds"],
+  persona: ["audience", "context", "questionIds", "knows", "doesNotKnow", "decisions", "usefulWhen", "leaveOut", "successTest"],
   note: ["text", "showWhen"],
+  guideline: ["text", "scope"],
 };
 
 type ObjectMap = Record<string, unknown>;
@@ -183,6 +184,8 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
     case "document":
       if (!strArray(raw.aliases) || !strArray(raw.settlesCheckIds)) issue(errors, "document_fields", path, "Aliases and check references must be arrays.");
       validatePredicate(raw.appliesWhen, path + ".appliesWhen", errors);
+      if (raw.timingDescription !== undefined && typeof raw.timingDescription !== "string") issue(errors,"document_timing",path,"Invalid timing description.");
+      if (raw.applicabilityDescription !== undefined && typeof raw.applicabilityDescription !== "string") issue(errors,"document_applicability",path,"Invalid applicability description.");
       break;
     case "check":
       validatePredicate(raw.criterion, path + ".criterion", errors);
@@ -195,6 +198,7 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
           (raw.state === "DECLARATION_ONLY" && !nonempty(raw.legacyInputs))) {
         issue(errors, "calculation_invalid", path, "Unsupported operator or incomplete calculation bindings.");
       }
+      if (raw.scope !== undefined && typeof raw.scope !== "string") issue(errors,"calculation_scope",path,"Invalid calculation scope.");
       break;
     case "chain":
       if (!strArray(raw.links) || raw.links.length === 0) issue(errors, "chain_invalid", path, "At least one link is required.");
@@ -203,6 +207,8 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
       if (!["customer","professional","all"].includes(String(raw.audience)) || !nonempty(raw.text))
         issue(errors, "question_invalid", path, "Audience and question required.");
       validatePredicate(raw.appliesWhen, path + ".appliesWhen", errors);
+      if (raw.conditionDescription !== undefined && typeof raw.conditionDescription !== "string") issue(errors,"question_condition",path,"Invalid condition description.");
+      if (raw.rationale !== undefined && typeof raw.rationale !== "string") issue(errors,"question_rationale",path,"Invalid rationale.");
       break;
     case "workflow":
       if (!a(raw.steps) || !raw.steps.every((s) => isObject(s) && nonempty(s.id) &&
@@ -213,8 +219,10 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
     case "report":
       if (!["customer","professional"].includes(String(raw.audience)) || !a(raw.sections) ||
           !raw.sections.every((s) => isObject(s) && nonempty(s.id) && nonempty(s.heading) && strArray(s.blocks) &&
-            s.blocks.every((b: string) => BLOCKS.has(b)))) issue(errors, "report_invalid", path, "Report sections must use allowlisted blocks.");
-      else raw.sections.forEach((s, i) => exactKeys(s as ObjectMap, ["id","heading","blocks"], path + ".sections[" + i + "]", errors));
+            s.blocks.every((b: string) => BLOCKS.has(b)) &&
+            (s.templateDescription === undefined || typeof s.templateDescription === "string"))) issue(errors, "report_invalid", path, "Report sections must use allowlisted blocks.");
+      else raw.sections.forEach((s, i) => exactKeys(s as ObjectMap, ["id","heading","blocks","templateDescription"], path + ".sections[" + i + "]", errors));
+      if (raw.voice !== undefined && typeof raw.voice !== "string") issue(errors,"report_voice",path,"Invalid report voice.");
       break;
     case "term":
       if (!nonempty(raw.meaning)) issue(errors, "term_invalid", path, "Meaning required.");
@@ -227,9 +235,16 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
     case "persona":
       if (!["customer","professional"].includes(String(raw.audience)) ||
           !nonempty(raw.context) || !strArray(raw.questionIds)) issue(errors, "persona_invalid", path, "Persona requires audience, context and question IDs.");
+      for (const key of ["knows","doesNotKnow","decisions","usefulWhen","leaveOut","successTest"]) {
+        if (raw[key] !== undefined && typeof raw[key] !== "string") issue(errors,"persona_profile",path+"."+key,"Invalid profile text.");
+      }
       break;
     case "note":
       if (!nonempty(raw.text) || !nonempty(raw.showWhen)) issue(errors, "note_invalid", path, "Note text and condition required.");
+      break;
+    case "guideline":
+      if (!nonempty(raw.text) || !["GENERAL","INVESTIGATION","REPORTING"].includes(String(raw.scope)))
+        issue(errors,"guideline_invalid",path,"Guideline text and scope required.");
       break;
   }
   return true;
