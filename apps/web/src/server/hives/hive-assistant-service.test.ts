@@ -1,5 +1,6 @@
 import {
   CANONICAL_STUDY_SCHEMA,
+  createHiveError,
   verifyStudyInvestigation,
   type AssistantBriefing,
   type CanonicalStudy,
@@ -14,7 +15,13 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { maybeScheduleHiveAssistantReply } from "./hive-assistant-service";
+import { VaultAdminConfigError } from "@/server/source-documents/v3-vault/persistence/vault-admin-config-error";
+
+import {
+  ASSISTANT_PRE_CLAIM_STAGES,
+  maybeScheduleHiveAssistantReply,
+  runHiveAssistantReply,
+} from "./hive-assistant-service";
 
 const HIVE_ID = "11111111-1111-4111-8111-111111111111";
 const MESSAGE_ID = "55555555-5555-4555-8555-555555555555";
@@ -56,22 +63,52 @@ const {
   getStudyPreparationMock,
   loadHiveOverviewMock,
   getStudyTabViewMock,
+  loadSupabaseAdminEnvMock,
   createSupabaseAdminClientMock,
+  createDefaultAssistantModelRunnerMock,
+  shouldTriggerHiveAssistantMock,
   finishRunRpcMock,
   emitStructuredEventMock,
 } = vi.hoisted(() => ({
   getStudyPreparationMock: vi.fn(),
   loadHiveOverviewMock: vi.fn(),
   getStudyTabViewMock: vi.fn(),
+  loadSupabaseAdminEnvMock: vi.fn(() => ({})),
   createSupabaseAdminClientMock: vi.fn(),
+  createDefaultAssistantModelRunnerMock: vi.fn(),
+  shouldTriggerHiveAssistantMock: vi.fn(),
   finishRunRpcMock: vi.fn(),
   emitStructuredEventMock: vi.fn(),
 }));
 
-vi.mock("@hives/persistence/env", () => ({ loadSupabaseAdminEnv: () => ({}) }));
-vi.mock("@hives/persistence/storage/supabase-client", () => ({
-  createSupabaseAdminClient: () => createSupabaseAdminClientMock(),
+vi.mock("@hives/persistence/env", () => ({
+  loadSupabaseAdminEnv: (...args: unknown[]) => loadSupabaseAdminEnvMock(...args),
 }));
+vi.mock("@hives/persistence/storage/supabase-client", () => ({
+  createSupabaseAdminClient: (...args: unknown[]) => createSupabaseAdminClientMock(...args),
+}));
+vi.mock("./hive-assistant-model-runner", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./hive-assistant-model-runner")>();
+  createDefaultAssistantModelRunnerMock.mockImplementation((...args: Parameters<typeof actual.createDefaultAssistantModelRunner>) =>
+    actual.createDefaultAssistantModelRunner(...args),
+  );
+  return {
+    ...actual,
+    createDefaultAssistantModelRunner: (...args: Parameters<typeof actual.createDefaultAssistantModelRunner>) =>
+      createDefaultAssistantModelRunnerMock(...args),
+  };
+});
+vi.mock("./hive-assistant-trigger", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./hive-assistant-trigger")>();
+  shouldTriggerHiveAssistantMock.mockImplementation((...args: Parameters<typeof actual.shouldTriggerHiveAssistant>) =>
+    actual.shouldTriggerHiveAssistant(...args),
+  );
+  return {
+    ...actual,
+    shouldTriggerHiveAssistant: (...args: Parameters<typeof actual.shouldTriggerHiveAssistant>) =>
+      shouldTriggerHiveAssistantMock(...args),
+  };
+});
 vi.mock("@/server/study-preparation/study-preparation", () => ({
   getStudyPreparation: (...args: unknown[]) => getStudyPreparationMock(...args),
   getStudyTabView: (...args: unknown[]) => getStudyTabViewMock(...args),
@@ -957,5 +994,421 @@ describe("maybeScheduleHiveAssistantReply — P0.5-B legacy investigation-1 and 
         errorCode: "not_synthetic",
       }),
     );
+  });
+});
+
+describe("runHiveAssistantReply — P0.7-C1 pre-claim stage diagnostics", () => {
+  const FIRM_ID = "22222222-2222-4222-8222-222222222222";
+  const SECRET_MESSAGE_TEXT = "Confidential question about Maya's service delivery minutes";
+  const SECRET_DOC_TEXT = "Verbatim document excerpt: Service minutes delivered 360";
+  const SECRET_ENV_VALUE = "sbp_live_super_secret_env_value_99999";
+
+  function buildPreClaimAdminClient(overrides?: {
+    firmId?: string | null;
+    hivesError?: unknown;
+    firmsError?: unknown;
+    rateLimitError?: unknown;
+    runsCount?: number;
+    claimError?: unknown;
+    finishError?: unknown;
+  }): SupabaseClient {
+    const firmId = overrides?.firmId ?? FIRM_ID;
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "claim_assistant_run") {
+        if (overrides?.claimError !== undefined) throw overrides.claimError;
+        return { data: { runId: RUN_ID, claimed: true }, error: null };
+      }
+      if (name === "finish_assistant_run") {
+        if (overrides?.finishError !== undefined) throw overrides.finishError;
+        return { data: null, error: null };
+      }
+      throw new Error(`unexpected admin rpc ${name}`);
+    });
+
+    return {
+      rpc,
+      schema: vi.fn((name: string) => {
+        if (name !== "hive") throw new Error(`unexpected schema ${name}`);
+        return {
+          from: vi.fn((table: string) => {
+            if (table === "hives") {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle:
+                  overrides?.hivesError !== undefined
+                    ? vi.fn().mockRejectedValue(overrides.hivesError)
+                    : vi.fn().mockResolvedValue({
+                        data: {
+                          content_class: "synthetic",
+                          assistant_replies_on: true,
+                          name: "Maya's Hive",
+                          stage: null,
+                          firm_id: firmId,
+                        },
+                        error: null,
+                      }),
+              };
+            }
+            if (table === "firms") {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle:
+                  overrides?.firmsError !== undefined
+                    ? vi.fn().mockRejectedValue(overrides.firmsError)
+                    : vi.fn().mockResolvedValue({ data: { assistant_name: "Maya Helper" }, error: null }),
+              };
+            }
+            if (table === "assistant_runs") {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                gte:
+                  overrides?.rateLimitError !== undefined
+                    ? vi.fn().mockRejectedValue(overrides.rateLimitError)
+                    : vi.fn().mockResolvedValue({ count: overrides?.runsCount ?? 0, error: null }),
+              };
+            }
+            throw new Error(`unexpected table ${table}`);
+          }),
+        };
+      }),
+    } as unknown as SupabaseClient;
+  }
+
+  function runInput(userClient = buildUserClient()) {
+    return {
+      hiveId: HIVE_ID,
+      triggerMessage: { ...triggerMessage, body: SECRET_MESSAGE_TEXT },
+      authorRole: "owner",
+      correlationId: CORRELATION_ID,
+      userClient,
+    };
+  }
+
+  beforeEach(async () => {
+    const actualRunner = await vi.importActual<typeof import("./hive-assistant-model-runner")>(
+      "./hive-assistant-model-runner",
+    );
+    const actualTrigger = await vi.importActual<typeof import("./hive-assistant-trigger")>("./hive-assistant-trigger");
+
+    emitStructuredEventMock.mockReset();
+    loadSupabaseAdminEnvMock.mockReset();
+    loadSupabaseAdminEnvMock.mockReturnValue({});
+    createSupabaseAdminClientMock.mockReset();
+    createSupabaseAdminClientMock.mockReturnValue(buildPreClaimAdminClient());
+    createDefaultAssistantModelRunnerMock.mockReset();
+    createDefaultAssistantModelRunnerMock.mockImplementation((...args) =>
+      actualRunner.createDefaultAssistantModelRunner(...args),
+    );
+    shouldTriggerHiveAssistantMock.mockReset();
+    shouldTriggerHiveAssistantMock.mockImplementation((...args) => actualTrigger.shouldTriggerHiveAssistant(...args));
+  });
+
+  it("distinguishes model runner initialization failure", async () => {
+    createDefaultAssistantModelRunnerMock.mockImplementationOnce(() => {
+      throw createHiveError({
+        errorCode: "MODEL_UNAVAILABLE",
+        category: "DEPENDENCY",
+        stage: "ANALYZE",
+        retryable: false,
+        safeMessage: "Unavailable",
+        correlationId: CORRELATION_ID,
+        diagnosticReason: "planner_unconfigured",
+      });
+    });
+
+    await runHiveAssistantReply(runInput());
+
+    expect(loadSupabaseAdminEnvMock).not.toHaveBeenCalled();
+    expect(createSupabaseAdminClientMock).not.toHaveBeenCalled();
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        severity: "ERROR",
+        status: "FAILED",
+        errorCode: "unexpected",
+        diagnosticReason: "unexpected_exception",
+        exceptionType: "HiveError",
+        diagnosticField: "model_runner_init:HiveError:planner_unconfigured",
+      }),
+    );
+  });
+
+  it("distinguishes Supabase environment loading failure for missing secret or URL without logging env values", async () => {
+    loadSupabaseAdminEnvMock.mockImplementationOnce(() => {
+      throw new VaultAdminConfigError("vault_admin_secret_missing");
+    });
+
+    await runHiveAssistantReply(runInput());
+
+    expect(createSupabaseAdminClientMock).not.toHaveBeenCalled();
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        severity: "ERROR",
+        status: "FAILED",
+        errorCode: "unexpected",
+        diagnosticReason: "vault_admin_secret_missing",
+        exceptionType: "VaultAdminConfigError",
+        diagnosticField: "supabase_env_load:VaultAdminConfigError:vault_admin_secret_missing",
+      }),
+    );
+
+    emitStructuredEventMock.mockReset();
+    loadSupabaseAdminEnvMock.mockImplementationOnce(() => {
+      throw new VaultAdminConfigError("vault_admin_url_missing");
+    });
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        diagnosticReason: "vault_admin_url_missing",
+        exceptionType: "VaultAdminConfigError",
+        diagnosticField: "supabase_env_load:VaultAdminConfigError:vault_admin_url_missing",
+      }),
+    );
+  });
+
+  it("distinguishes admin client creation failure without logging secrets or URLs", async () => {
+    const err = Object.assign(
+      new TypeError(`Invalid URL https://secret-project.supabase.co key=${SECRET_ENV_VALUE}`),
+      { code: "ERR_INVALID_URL" },
+    );
+    createSupabaseAdminClientMock.mockImplementationOnce(() => {
+      throw err;
+    });
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        diagnosticReason: "unexpected_exception",
+        exceptionType: "TypeError",
+        diagnosticField: "admin_client_create:TypeError:ERR_INVALID_URL",
+      }),
+    );
+    const serialized = JSON.stringify(emitStructuredEventMock.mock.calls);
+    expect(serialized).not.toContain(SECRET_ENV_VALUE);
+    expect(serialized).not.toContain("secret-project.supabase.co");
+    expect(serialized).not.toContain(SECRET_MESSAGE_TEXT);
+  });
+
+  it("distinguishes hive flags query failure and captures sanitized nested cause code", async () => {
+    const networkErr = Object.assign(new TypeError("fetch failed"), {
+      cause: Object.assign(new Error(`getaddrinfo ENOTFOUND secret.internal ${SECRET_DOC_TEXT}`), {
+        code: "ENOTFOUND",
+      }),
+    });
+    createSupabaseAdminClientMock.mockReturnValue(buildPreClaimAdminClient({ hivesError: networkErr }));
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        exceptionType: "TypeError",
+        diagnosticField: "hive_flags_query:TypeError:ENOTFOUND",
+      }),
+    );
+    const serialized = JSON.stringify(emitStructuredEventMock.mock.calls);
+    expect(serialized).not.toContain(SECRET_DOC_TEXT);
+    expect(serialized).not.toContain("secret.internal");
+  });
+
+  it("distinguishes assistant name lookup failure", async () => {
+    const err = Object.assign(new Error(`Connection reset while reading ${SECRET_MESSAGE_TEXT}`), {
+      code: "ECONNRESET",
+    });
+    createSupabaseAdminClientMock.mockReturnValue(buildPreClaimAdminClient({ firmsError: err }));
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        exceptionType: "Error",
+        diagnosticField: "assistant_name_lookup:Error:ECONNRESET",
+      }),
+    );
+    expect(JSON.stringify(emitStructuredEventMock.mock.calls)).not.toContain(SECRET_MESSAGE_TEXT);
+  });
+
+  it("distinguishes rate-limit lookup failure", async () => {
+    const timeoutErr = Object.assign(new TypeError("fetch failed"), {
+      cause: Object.assign(new Error("Connect Timeout Error"), { code: "UND_ERR_CONNECT_TIMEOUT" }),
+    });
+    createSupabaseAdminClientMock.mockReturnValue(buildPreClaimAdminClient({ rateLimitError: timeoutErr }));
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        exceptionType: "TypeError",
+        diagnosticField: "rate_limit_lookup:TypeError:UND_ERR_CONNECT_TIMEOUT",
+      }),
+    );
+  });
+
+  it("distinguishes trigger evaluation failure", async () => {
+    shouldTriggerHiveAssistantMock.mockImplementationOnce(() => {
+      throw new RangeError(`trigger evaluation crashed on: ${SECRET_MESSAGE_TEXT}`);
+    });
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        exceptionType: "RangeError",
+        diagnosticField: "trigger_eval:RangeError",
+      }),
+    );
+    expect(JSON.stringify(emitStructuredEventMock.mock.calls)).not.toContain(SECRET_MESSAGE_TEXT);
+  });
+
+  it("distinguishes assistant run claim failure for both Postgres error objects and AbortError", async () => {
+    createSupabaseAdminClientMock.mockReturnValue(
+      buildPreClaimAdminClient({
+        claimError: {
+          code: "42501",
+          message: `permission denied for claim_assistant_run: ${SECRET_MESSAGE_TEXT}`,
+          details: `Bearer ${SECRET_ENV_VALUE}`,
+        },
+      }),
+    );
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        exceptionType: "Unknown",
+        diagnosticField: "assistant_run_claim:Unknown:42501",
+      }),
+    );
+    const firstSerialized = JSON.stringify(emitStructuredEventMock.mock.calls);
+    expect(firstSerialized).not.toContain(SECRET_MESSAGE_TEXT);
+    expect(firstSerialized).not.toContain(SECRET_ENV_VALUE);
+
+    emitStructuredEventMock.mockReset();
+    createSupabaseAdminClientMock.mockReturnValue(
+      buildPreClaimAdminClient({
+        claimError: new DOMException(`aborted: ${SECRET_DOC_TEXT}`, "AbortError"),
+      }),
+    );
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        exceptionType: "AbortError",
+        diagnosticField: "assistant_run_claim:AbortError",
+      }),
+    );
+    expect(JSON.stringify(emitStructuredEventMock.mock.calls)).not.toContain(SECRET_DOC_TEXT);
+  });
+
+  it("keeps post-claim uncaught failures labeled as finish rather than a pre-claim stage", async () => {
+    createSupabaseAdminClientMock.mockReturnValue(
+      buildPreClaimAdminClient({
+        runsCount: 25,
+        finishError: Object.assign(new Error("connection dropped"), { code: "08006" }),
+      }),
+    );
+
+    await runHiveAssistantReply(runInput());
+
+    expect(emitStructuredEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "hive.assistant.failed",
+        errorCode: "unexpected",
+        exceptionType: "Error",
+        diagnosticField: "finish:Error:08006",
+      }),
+    );
+  });
+
+  it("sanitizes sensitive exception names/codes and passes real structured logger validation without leaking secrets", async () => {
+    const actualLogger = await vi.importActual<typeof import("@/server/observability/logger")>(
+      "@/server/observability/logger",
+    );
+
+    const poisonedError = Object.assign(
+      new Error(`SUPABASE_SECRET_KEY=${SECRET_ENV_VALUE} body=${SECRET_MESSAGE_TEXT} doc=${SECRET_DOC_TEXT}`),
+      {
+        name: "SecretTokenError",
+        code: "invalid_token_secret",
+      },
+    );
+    createSupabaseAdminClientMock.mockImplementationOnce(() => {
+      throw poisonedError;
+    });
+
+    await runHiveAssistantReply(runInput());
+
+    const emittedEvent = emitStructuredEventMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(emittedEvent).toBeDefined();
+    expect(emittedEvent.diagnosticField).toBe("admin_client_create:Error");
+    expect(emittedEvent.exceptionType).toBe("Error");
+    expect(emittedEvent).not.toHaveProperty("errorDetail");
+
+    // Verify the exact event passes the real structured logger without throwing and without leaks.
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      expect(() => actualLogger.emitStructuredEvent(emittedEvent)).not.toThrow();
+      const line = String(logSpy.mock.calls[0]?.[0]);
+      expect(line).toContain("admin_client_create:Error");
+      expect(line).not.toContain(SECRET_ENV_VALUE);
+      expect(line).not.toContain(SECRET_MESSAGE_TEXT);
+      expect(line).not.toContain(SECRET_DOC_TEXT);
+      expect(line.toLowerCase()).not.toContain("token");
+      expect(line.toLowerCase()).not.toContain("secret");
+    } finally {
+      logSpy.mockRestore();
+    }
+
+    // Also verify VaultAdminConfigError events pass the real structured logger cleanly.
+    emitStructuredEventMock.mockReset();
+    loadSupabaseAdminEnvMock.mockImplementationOnce(() => {
+      throw new VaultAdminConfigError("vault_admin_secret_missing");
+    });
+    await runHiveAssistantReply(runInput());
+    const vaultEvent = emitStructuredEventMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    const vaultLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      expect(() => actualLogger.emitStructuredEvent(vaultEvent)).not.toThrow();
+      const parsed = JSON.parse(String(vaultLogSpy.mock.calls[0]?.[0])) as Record<string, unknown>;
+      expect(parsed.diagnosticField).toBe("supabase_env_load:VaultAdminConfigError:vault_admin_secret_missing");
+      expect(parsed.exceptionType).toBe("VaultAdminConfigError");
+      expect(parsed.diagnosticReason).toBe("vault_admin_secret_missing");
+    } finally {
+      vaultLogSpy.mockRestore();
+    }
+
+    expect(ASSISTANT_PRE_CLAIM_STAGES).toEqual([
+      "model_runner_init",
+      "supabase_env_load",
+      "admin_client_create",
+      "hive_flags_query",
+      "assistant_name_lookup",
+      "rate_limit_lookup",
+      "trigger_eval",
+      "assistant_run_claim",
+    ]);
   });
 });
