@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * QF-1a: ensure rpc_smoke_check.sql documents every app/edge RPC name.
+ * Also records `name: "rpc"` literals in files that dispatch with `.rpc(value.name)`.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
@@ -42,6 +43,13 @@ for (const base of ["apps/web", "supabase/functions"]) {
       let m;
       while ((m = re.exec(text)) !== null) {
         if (!IGNORE.has(m[1])) fromCode.add(m[1]);
+      }
+    }
+    if (/\.rpc\(\s*[A-Za-z_][A-Za-z0-9_]*\.name\b/.test(text)) {
+      const nameRe = /\bname:\s*["']([a-z_][a-z0-9_]*)["']/g;
+      let named;
+      while ((named = nameRe.exec(text)) !== null) {
+        if (!IGNORE.has(named[1])) fromCode.add(named[1]);
       }
     }
   }
