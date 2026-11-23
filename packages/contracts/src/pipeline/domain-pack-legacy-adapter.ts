@@ -41,7 +41,7 @@ export function legacyPackToEditableSource(pack: Pack, owner: PackOwner): Legacy
   });
   for (const row of pack.documentsUsuallyNeeded) push({
     id: "document:" + slug(row.document), kind: "document", label: row.document,
-    aliases: [], appliesWhen: manual(), settlesCheckIds: row.settlesCheckIds.map((id)=>"check:"+id),
+    aliases: [], appliesWhen: manual(), settlesCheckIds: row.settlesCheckIds.filter((id)=>id.trim() !== "" && id !== "-").map((id)=>"check:"+id),
   });
   for (const value of pack.computedValues) {
     if (!(PACK_CALCULATION_OPERATORS as readonly string[]).includes(value.op)) {
