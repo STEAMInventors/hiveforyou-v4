@@ -1,0 +1,232 @@
+{
+  "schema": "hive.domain-reconciliation/1",
+  "stage": "5A.2",
+  "status": "DRAFT",
+  "result": "PASS",
+  "packRef": {
+    "packId": "iep-us-federal",
+    "version": "0.3.0"
+  },
+  "publication": "UNPUBLISHED",
+  "review": "DRAFT",
+  "applicabilityVerification": "UNVERIFIED",
+  "authorityReview": "NOT_REVIEWED",
+  "summary": {
+    "authorityRecords": 149,
+    "authorityClassCounts": {
+      "FEDERAL_LAW": 135,
+      "RESEARCH": 2,
+      "PROFESSIONAL_CRITERIA": 1,
+      "AUTHOR_PROPOSED": 10,
+      "PLATFORM_POLICY": 1
+    },
+    "compiledDefinitions": 275,
+    "mapKeysBefore": 239,
+    "mapKeysAfter": 232,
+    "linksBefore": 399,
+    "linksAfter": 387,
+    "proposedCheckMapKeysRemoved": 7,
+    "reverseReferencesRemoved": 12,
+    "compiledDefinitionKeys": 214,
+    "conflictPatternKeys": 14,
+    "stateOverlayKeys": 4,
+    "unresolvedMapKeys": 0,
+    "unusedAuthoritiesBefore": 16,
+    "unusedAuthoritiesAfter": 24,
+    "forwardReverseDisagreements": 0,
+    "structuralDefinitionOverlap": 0
+  },
+  "proposalArtifact": {
+    "file": "iep-domain-proposed-checks.v1.json",
+    "schema": "hive.domain-proposed-check-set/1",
+    "version": "1.0.0",
+    "dp1Supported": false,
+    "plannerInput": false,
+    "definitionIds": [
+      "check:DS1",
+      "check:G3-LEGAL",
+      "check:IM2",
+      "check:P2b",
+      "check:PS2",
+      "check:RV4",
+      "check:TR4"
+    ]
+  },
+  "withdrawnMappings": [
+    {
+      "definitionId": "check:DS1",
+      "authorityIds": ["AUTH-CFR-300.530-e-1"],
+      "authorityRolesEntry": null,
+      "rationale": "Discipline module is deferred. The only mapped authority is a partial snippet of 34 CFR 300.530(e)(1). No ontology rule is defined, so no check was added."
+    },
+    {
+      "definitionId": "check:G3-LEGAL",
+      "authorityIds": [
+        "AUTH-CASE-ENDREW-F-HOLDING",
+        "AUTH-CASE-ENDREW-F-AMBITIOUS",
+        "AUTH-CASE-ENDREW-F-GRADE",
+        "AUTH-CASE-ENDREW-F-NO-ELABORATION",
+        "AUTH-CASE-ENDREW-F-DEMINIMIS"
+      ],
+      "authorityRolesEntry": null,
+      "retainedOn": ["check:G3", "calculation:C4", "chain:CH5"],
+      "rationale": "Proposed split of the existing check:G3 Endrew F. citation. check:G3 is preserved. A second legal check was not added."
+    },
+    {
+      "definitionId": "check:IM2",
+      "authorityIds": ["AUTH-CFR-300.323-d"],
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for implementer access under 34 CFR 300.323(d). No ontology ruleId. Not added."
+    },
+    {
+      "definitionId": "check:P2b",
+      "authorityIds": ["AUTH-CFR-300.324-a-1-iii"],
+      "authorityRolesEntry": null,
+      "retainedOn": ["check:S3", "chain:CH3", "conflictPattern:CP-REC-NOT-TRACEABLE", "entity:evaluation-recommendation"],
+      "rationale": "Authority-only proposal for considering the most recent evaluation under 34 CFR 300.324(a)(1)(iii). check:S3 already uses that subject. Not added."
+    },
+    {
+      "definitionId": "check:PS2",
+      "authorityIds": ["AUTH-CFR-300.321-f"],
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for a Part C coordinator invitation under 34 CFR 300.321(f). Preschool / Part C transition is a deferred workflow. Not added."
+    },
+    {
+      "definitionId": "check:RV4",
+      "authorityIds": ["AUTH-CFR-300.305-e-1", "AUTH-CFR-300.305-e-2"],
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for an evaluation before ending eligibility under 34 CFR 300.305(e). Named in workflow notes as RV4, with no ontology ruleId. Not added."
+    },
+    {
+      "definitionId": "check:TR4",
+      "authorityIds": ["AUTH-CFR-300.305-e-3"],
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for a summary of performance under 34 CFR 300.305(e)(3). No ontology ruleId. Not added."
+    }
+  ],
+  "authoritiesKeptUnmapped": [
+    {
+      "authorityId": "AUTH-CFR-300.305-e-1",
+      "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+      "unusedClass": "intentionally available"
+    },
+    {
+      "authorityId": "AUTH-CFR-300.305-e-2",
+      "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+      "unusedClass": "intentionally available"
+    },
+    {
+      "authorityId": "AUTH-CFR-300.305-e-3",
+      "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+      "unusedClass": "intentionally available"
+    },
+    {
+      "authorityId": "AUTH-CFR-300.321-f",
+      "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+      "unusedClass": "intentionally available"
+    },
+    {
+      "authorityId": "AUTH-CFR-300.323-d",
+      "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+      "unusedClass": "intentionally available"
+    },
+    {
+      "authorityId": "AUTH-CFR-300.530-e-1",
+      "verificationStatus": "PARTIAL_SNIPPET",
+      "unusedClass": "requiring review"
+    },
+    {
+      "authorityId": "AUTH-CASE-ENDREW-F-GRADE",
+      "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+      "unusedClass": "intentionally available"
+    },
+    {
+      "authorityId": "AUTH-CASE-ENDREW-F-DEMINIMIS",
+      "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+      "unusedClass": "intentionally available"
+    }
+  ],
+  "unresolved": [
+    {
+      "definitionId": "calculation:C21",
+      "authorityId": "AUTH-CFR-300.301-c-1-i",
+      "reason": "34 CFR 300.301(c)(1)(i) establishes a timeframe measured from receipt of consent. Its record states that it does not say whether eligibility must also occur within those 60 days. calculation:C21 measures evaluation completion to eligibility, a different interval. The citation was not copied into relatedDefinitionIds and was removed from definitionAuthorityMap. No replacement authority was created."
+    },
+    {
+      "definitionId": "conflictPattern:CP-SCORE-MISMATCH",
+      "authorityId": "AUTH-CFR-300.304-c-1-iii",
+      "reason": "34 CFR 300.304(c)(1)(iii) establishes valid use and a comparability caution. That relationship is already recorded on conflictPattern:CP-ASSESSMENT-NONCOMPARABLE. CP-SCORE-MISMATCH is a same-instrument value disagreement, which this section does not establish. The pattern stays mapped to AUTH-AP-SCORE-CONSISTENCY. The citation remains named on the conflict-pattern and ontology annotations and is not a mapping."
+    }
+  ],
+  "preservedAnnotations": [
+    {
+      "artifact": "iep-domain-workflow-coverage.v1.json",
+      "note": "The workflow note still says new checks RV1-RV4 were classified in Stage 4. That sentence is not a definitionAuthorityMap entry."
+    },
+    {
+      "artifact": "iep-domain-ontology-spec.json",
+      "note": "The ontology workflow note still says new checks RV1-RV4 were classified in Stage 4. It does not add a mapping."
+    }
+  ],
+  "validation": {
+    "everyActiveMapKeyResolves": true,
+    "compiledKeysAreAmongThe275": true,
+    "rule4SupplementalKeysAllowed": true,
+    "forwardAndReverseAgree": true,
+    "unusedAuthoritiesAbsentFromMap": true,
+    "proposedChecksAbsentFromActiveMap": true,
+    "authorityRecords": 149,
+    "authorityHumanReview": "NOT_REVIEWED",
+    "verificationStatusesUnchanged": true,
+    "packReview": "DRAFT",
+    "applicability": "UNVERIFIED",
+    "publication": "UNPUBLISHED",
+    "stage5bReadiness": "READY"
+  },
+  "digests": {
+    "algorithm": "packDigest of canonical JSON, the compiler's sha256 of sorted-key canonicalPackJson. These values were calculated after the edit. No earlier pin was copied.",
+    "changed": [
+      {
+        "file": "iep-domain-authority-register.json",
+        "digestBefore": "a1869a8febf46214b8e1fdb9cc9d42e5d24c58f07ddeb1cc1e7a692d5831f0ec",
+        "digestAfter": "b7175fb6a54aa5085bbba9c63e9c0827fd4dab1858f12a5e25c36946c3018f74"
+      }
+    ],
+    "added": [
+      {
+        "file": "iep-domain-proposed-checks.v1.json",
+        "digest": "0b52029813fe61575cb0ba927ab610183b990711f871b4d1a5b860697a434dcf"
+      }
+    ],
+    "unchanged": [
+      {
+        "file": "iep-domain-pack-source.stage4b.json",
+        "digest": "918f301a4c3d9ac21c5afff5123f3dc047c1df1b97c51892c2bed53f98835ab0"
+      },
+      {
+        "file": "iep-domain-ontology-spec.json",
+        "digest": "60e096187cbc44346ec78b76648edd4fcd159e407d0ec1d60000d62610455fd8"
+      },
+      {
+        "file": "iep-domain-conflict-patterns.v1.json",
+        "digest": "85586cfd6356397e775ed2e89f3a7c0b7f1c5c106e2111d308c5d6dd0fc1767f"
+      },
+      {
+        "file": "iep-domain-state-overlays.v1.json",
+        "digest": "928f6b91eb0baff422908aec0b5ac955403b8b1764539a6149c85c70043e787f"
+      },
+      {
+        "file": "iep-domain-fact-classes.v1.json",
+        "digest": "9ec53126bb258fbad2d956744b3681a20b93b830ef697cc1b627ef748a67b6b9"
+      },
+      {
+        "file": "iep-domain-workflow-coverage.v1.json",
+        "digest": "1ec87d6129888c48aa96918178a854a1009c17a483b747aabec0e8d478774311"
+      },
+      {
+        "file": "iep-domain-unsupported-operators.v1.json",
+        "digest": "44f1e486331b68d09c03f1f9499e1808699e5aec9ecddea0b09e034b7e38389d"
+      }
+    ]
+  }
+}

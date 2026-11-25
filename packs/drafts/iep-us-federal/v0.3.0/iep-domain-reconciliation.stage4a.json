@@ -1,0 +1,2077 @@
+{
+  "schema": "hive.domain-reconciliation/1",
+  "stage": "4A",
+  "status": "DRAFT",
+  "packRef": {
+    "packId": "iep-us-federal",
+    "version": "0.3.0"
+  },
+  "publication": "UNPUBLISHED",
+  "review": "DRAFT",
+  "applicabilityVerification": "UNVERIFIED",
+  "counts": {
+    "stage3Definitions": 245,
+    "preservedDefinitionIds": 245,
+    "addedChecks": 30,
+    "pendingOntologyChecks": 4,
+    "proposedChecksNotAdded": 7,
+    "stage4aDefinitions": 275,
+    "originalDocumentMismatches": 23,
+    "remainingDocumentMismatches": 0,
+    "documentSettlesCheckCorrections": 20,
+    "ontologyCheckListCorrections": 6,
+    "questionIdsMovedOutOfCheckLists": ["question:SQ3", "question:SQ4", "question:SQ7"],
+    "authorityRecords": 149,
+    "unusedAuthorities": 16,
+    "conflictPatterns": 14,
+    "stateOverlays": 4,
+    "daysBetweenCandidatesIdentified": 7,
+    "daysBetweenActivated": 0
+  },
+  "addedChecks": [
+    {
+      "id": "check:A5",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-6-ii"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:AM1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-4",
+        "AUTH-CFR-300.324-a-6"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:AM2",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-4"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:AM3",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-6"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:AT1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:BH1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:E10",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.305-a-1"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:E11",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.309-c"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:G2a",
+      "authorityKind": "PROFESSIONAL_PRACTICE",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-2-i",
+        "AUTH-CFR-300.320-a-3-i",
+        "AUTH-CFR-300.320-d",
+        "AUTH-AP-GOAL-FIVE-FIELD-RUBRIC"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:G5",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-2-ii"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:IE1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.502-a-1",
+        "AUTH-CFR-300.502-b-1-2",
+        "AUTH-CFR-300.502-b-5"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:IE2",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.502-c"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:IM1",
+      "authorityKind": "PROFESSIONAL_PRACTICE",
+      "authorityIds": [
+        "AUTH-AP-SERVICE-LOGS"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:M2",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.321-e-2"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:PP2",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.322-d"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:PP3",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.322-e",
+        "AUTH-CFR-300.503-c"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:PR3",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.324-b-1-ii"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:PS1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-1-ii"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:RA1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.613-a",
+        "AUTH-CFR-300.613-b-2"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:RV1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.303-a",
+        "AUTH-CFR-300.303-b-1",
+        "AUTH-CFR-300.303-b-2"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:RV2",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.300-c-1",
+        "AUTH-CFR-300.300-c-2"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:RV3",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.305-a-1",
+        "AUTH-CFR-300.305-a-2",
+        "AUTH-CFR-300.305-c",
+        "AUTH-CFR-300.305-d-1"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:T0a",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.323-a",
+        "AUTH-CFR-300.324-b-1-i"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:T5a",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.503-b-1-7"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:TF1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.323-e"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:TF2",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.323-f"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:TF3",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.323-g"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:TR1",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.320-b"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:TR2",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.320-b",
+        "AUTH-CFR-300.321-b",
+        "AUTH-CFR-300.322-b-2"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "check:TR3",
+      "authorityKind": "REFERENCE",
+      "authorityIds": [
+        "AUTH-CFR-300.320-c",
+        "AUTH-CFR-300.520-a"
+      ],
+      "criterion": "REVIEW_REQUIRED"
+    }
+  ],
+  "pendingChecks": [
+    {
+      "id": "check:PP1",
+      "reason": "Named on concerns, parent communications, and disagreements. No authority is mapped. check:P3 already covers recorded parent concerns. No distinct citation was created."
+    },
+    {
+      "id": "check:PR1",
+      "reason": "Named on progress reports and progress measurements. No authority is mapped. check:G4 already covers periodic progress reports. No distinct citation was created."
+    },
+    {
+      "id": "check:PR2",
+      "reason": "Named only on progress reports, with no authority. Not split away from check:G4."
+    },
+    {
+      "id": "check:VR1",
+      "reason": "Named on the draft and prior IEP as a version signal. No entity rule and no authority. No version-comparison rule was invented."
+    }
+  ],
+  "proposedChecks": [
+    {
+      "id": "check:DS1",
+      "reason": "Discipline module is deferred. The only mapped authority is a partial snippet of 34 CFR 300.530(e)(1). No ontology rule is defined, so no check was added.",
+      "authorityIds": [
+        "AUTH-CFR-300.530-e-1"
+      ],
+      "addedToDp1": false
+    },
+    {
+      "id": "check:G3-LEGAL",
+      "reason": "Proposed split of the existing check:G3 Endrew F. citation. check:G3 is preserved. A second legal check was not added.",
+      "authorityIds": [
+        "AUTH-CASE-ENDREW-F-HOLDING",
+        "AUTH-CASE-ENDREW-F-AMBITIOUS",
+        "AUTH-CASE-ENDREW-F-GRADE",
+        "AUTH-CASE-ENDREW-F-NO-ELABORATION",
+        "AUTH-CASE-ENDREW-F-DEMINIMIS"
+      ],
+      "addedToDp1": false
+    },
+    {
+      "id": "check:IM2",
+      "reason": "Authority-only proposal for implementer access under 34 CFR 300.323(d). No ontology ruleId. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.323-d"
+      ],
+      "addedToDp1": false
+    },
+    {
+      "id": "check:P2b",
+      "reason": "Authority-only proposal for considering the most recent evaluation under 34 CFR 300.324(a)(1)(iii). check:S3 already uses that subject. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii"
+      ],
+      "addedToDp1": false
+    },
+    {
+      "id": "check:PS2",
+      "reason": "Authority-only proposal for a Part C coordinator invitation under 34 CFR 300.321(f). Preschool / Part C transition is a deferred workflow. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.321-f"
+      ],
+      "addedToDp1": false
+    },
+    {
+      "id": "check:RV4",
+      "reason": "Authority-only proposal for an evaluation before ending eligibility under 34 CFR 300.305(e). Named in workflow notes as RV4, with no ontology ruleId. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.305-e-1",
+        "AUTH-CFR-300.305-e-2"
+      ],
+      "addedToDp1": false
+    },
+    {
+      "id": "check:TR4",
+      "reason": "Authority-only proposal for a summary of performance under 34 CFR 300.305(e)(3). No ontology ruleId. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.305-e-3"
+      ],
+      "addedToDp1": false
+    }
+  ],
+  "documentCorrections": [
+    {
+      "id": "document:progress-reports",
+      "before": [
+        "check:G4",
+        "check:PR1",
+        "check:PR2"
+      ],
+      "checksSupported": [
+        "check:G4"
+      ],
+      "pendingCheckIds": [
+        "check:PR1",
+        "check:PR2"
+      ],
+      "questionsInformed": []
+    },
+    {
+      "id": "document:draft-iep",
+      "before": [
+        "check:VR1"
+      ],
+      "checksSupported": [],
+      "pendingCheckIds": [
+        "check:VR1"
+      ],
+      "questionsInformed": []
+    },
+    {
+      "id": "document:prior-iep",
+      "before": [
+        "check:VR1",
+        "check:AM2"
+      ],
+      "checksSupported": [
+        "check:AM2"
+      ],
+      "pendingCheckIds": [
+        "check:VR1"
+      ],
+      "questionsInformed": []
+    },
+    {
+      "id": "document:meeting-notes",
+      "before": [
+        "check:PP1",
+        "check:P3"
+      ],
+      "checksSupported": [
+        "check:P3"
+      ],
+      "pendingCheckIds": [
+        "check:PP1"
+      ],
+      "questionsInformed": []
+    },
+    {
+      "id": "document:parent-communication",
+      "before": [
+        "check:PP1",
+        "check:PP2"
+      ],
+      "checksSupported": [
+        "check:PP2"
+      ],
+      "pendingCheckIds": [
+        "check:PP1"
+      ],
+      "questionsInformed": []
+    },
+    {
+      "id": "document:progress-monitoring-data",
+      "before": [
+        "check:PR3",
+        "question:SQ3",
+        "question:SQ7"
+      ],
+      "checksSupported": [
+        "check:PR3"
+      ],
+      "pendingCheckIds": [],
+      "questionsInformed": [
+        "question:SQ3",
+        "question:SQ7"
+      ]
+    }
+  ],
+  "sourceDocumentSettlesCheckChanges": [
+    {
+      "id": "document:prior-written-notice-for-evaluation-eligibility-and-placement",
+      "before": [
+        "check:T5",
+        "check:S3"
+      ],
+      "after": [
+        "check:T5",
+        "check:T5a",
+        "check:S3"
+      ]
+    },
+    {
+      "id": "document:referral-or-request-for-evaluation",
+      "before": [
+        "check:E1"
+      ],
+      "after": [
+        "check:E1",
+        "check:E11"
+      ]
+    },
+    {
+      "id": "document:meeting-notice-attendance-page-any-excusal-forms",
+      "before": [
+        "check:T4",
+        "check:M1"
+      ],
+      "after": [
+        "check:T4",
+        "check:M1",
+        "check:M2"
+      ]
+    },
+    {
+      "id": "document:private-evaluations",
+      "before": [
+        "check:E1",
+        "check:S3"
+      ],
+      "after": [
+        "check:E1",
+        "check:S3",
+        "check:IE2"
+      ]
+    },
+    {
+      "id": "document:service-logs",
+      "before": [
+        "check:S1"
+      ],
+      "after": [
+        "check:S1",
+        "check:IM1"
+      ]
+    },
+    {
+      "id": "document:prior-iep",
+      "before": [],
+      "after": [
+        "check:AM2"
+      ]
+    },
+    {
+      "id": "document:iep-amendment",
+      "before": [],
+      "after": [
+        "check:AM1",
+        "check:AM2",
+        "check:AM3"
+      ]
+    },
+    {
+      "id": "document:review-of-existing-data",
+      "before": [],
+      "after": [
+        "check:RV3",
+        "check:E10"
+      ]
+    },
+    {
+      "id": "document:consent-to-reevaluate",
+      "before": [],
+      "after": [
+        "check:RV2"
+      ]
+    },
+    {
+      "id": "document:parent-communication",
+      "before": [],
+      "after": [
+        "check:PP2"
+      ]
+    },
+    {
+      "id": "document:progress-monitoring-data",
+      "before": [],
+      "after": [
+        "check:PR3"
+      ]
+    },
+    {
+      "id": "document:transition-assessment",
+      "before": [],
+      "after": [
+        "check:TR1"
+      ]
+    },
+    {
+      "id": "document:fba-report",
+      "before": [],
+      "after": [
+        "check:BH1"
+      ]
+    },
+    {
+      "id": "document:bip",
+      "before": [],
+      "after": [
+        "check:BH1"
+      ]
+    },
+    {
+      "id": "document:at-evaluation",
+      "before": [],
+      "after": [
+        "check:AT1"
+      ]
+    },
+    {
+      "id": "document:iee-request",
+      "before": [],
+      "after": [
+        "check:IE1"
+      ]
+    },
+    {
+      "id": "document:iee-report",
+      "before": [
+        "check:S3"
+      ],
+      "after": [
+        "check:IE2",
+        "check:S3"
+      ]
+    },
+    {
+      "id": "document:records-request",
+      "before": [],
+      "after": [
+        "check:RA1"
+      ]
+    },
+    {
+      "id": "document:transfer-records",
+      "before": [],
+      "after": [
+        "check:TF1",
+        "check:TF2",
+        "check:TF3"
+      ]
+    },
+    {
+      "id": "document:enrollment-record",
+      "before": [
+        "check:T2"
+      ],
+      "after": [
+        "check:T2",
+        "check:TF1"
+      ]
+    }
+  ],
+  "questionMoves": [
+    {
+      "owner": "entity:progress-reporting-plan",
+      "field": "ruleIds",
+      "questionIds": [
+        "question:SQ3"
+      ]
+    },
+    {
+      "owner": "entity:accommodation",
+      "field": "ruleIds",
+      "questionIds": [
+        "question:SQ4"
+      ]
+    }
+  ],
+  "copiedAuthority": [],
+  "pendingUnmapped": [],
+  "unusedAuthorities": {
+    "AUTH-CFR-300.11-b": {
+      "class": "intentionally available",
+      "applied": false,
+      "reason": "The register states that no current IEP rule uses business days. Kept for lookup. verificationStatus remains PARTIAL_SNIPPET, so it is not mapped."
+    },
+    "AUTH-CFR-300.11-c-1": {
+      "class": "requiring review",
+      "applied": false,
+      "reason": "PARTIAL_SNIPPET. School day is relevant to deferred discipline timelines and to state evaluation timelines. Not mapped."
+    },
+    "AUTH-CFR-300.300-a-1-iii": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:T1"
+      ],
+      "reason": "Reasonable efforts to obtain initial-evaluation consent. Not attached to check:T1 in this gate."
+    },
+    "AUTH-CFR-300.300-a-3": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:T1"
+      ],
+      "reason": "Parent refusal or non-response to evaluation consent. Not attached."
+    },
+    "AUTH-CFR-300.300-b-3": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:T7"
+      ],
+      "reason": "Effect of refusing initial service consent. Not attached."
+    },
+    "AUTH-CFR-300.300-d-1": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:E10",
+        "check:RV3"
+      ],
+      "reason": "Consent is not required to review existing data. Not attached."
+    },
+    "AUTH-CFR-300.300-d-5": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:PP2"
+      ],
+      "reason": "Reasonable-efforts documentation points at the parent-participation procedure. Not attached."
+    },
+    "AUTH-CFR-300.301-a": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:T2"
+      ],
+      "reason": "A full and individual initial evaluation precedes initial services. Not attached."
+    },
+    "AUTH-CFR-300.301-c-2": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:E2"
+      ],
+      "reason": "The evaluation determines disability and educational needs. Not attached."
+    },
+    "AUTH-CFR-300.304-a": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:T5"
+      ],
+      "reason": "Notice describing evaluation procedures. Not attached."
+    },
+    "AUTH-CFR-300.304-b-3": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:E1"
+      ],
+      "reason": "Technically sound instruments. Not attached."
+    },
+    "AUTH-CFR-300.304-c-1-i": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:E1"
+      ],
+      "reason": "Assessments selected and administered so as not to discriminate. Not attached."
+    },
+    "AUTH-CFR-300.304-c-1-iv": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:E1"
+      ],
+      "reason": "Trained and knowledgeable personnel. Not attached."
+    },
+    "AUTH-CFR-300.304-c-5": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:TF1"
+      ],
+      "reason": "Coordination of assessments when a child transfers. Not attached."
+    },
+    "AUTH-CFR-300.304-c-7": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:E1"
+      ],
+      "reason": "Assessments that help determine educational needs. Not attached."
+    },
+    "AUTH-CFR-300.306-c-2": {
+      "class": "pending mapping",
+      "applied": false,
+      "candidateDefinitionIds": [
+        "check:T3"
+      ],
+      "reason": "An IEP is developed when the child is eligible and needs special education. Not attached."
+    }
+  },
+  "authorityClassCounts": {
+    "FEDERAL_LAW": 135,
+    "RESEARCH": 2,
+    "PROFESSIONAL_CRITERIA": 1,
+    "AUTHOR_PROPOSED": 10,
+    "PLATFORM_POLICY": 1
+  },
+  "mapResolutions": [
+    {
+      "id": "calculation:C1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C10",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C11",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C12",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C13",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C14",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C15",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C16",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C17",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C18",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C19",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C20",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C21",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C22",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C6",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C7a",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C7b",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C8",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "calculation:C9",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "chain:CH1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "chain:CH2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "chain:CH3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "chain:CH4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "chain:CH5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "chain:CH6",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "chain:CH7",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:A1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:A2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:A3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:A4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:A5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:AM1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:AM2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:AM3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:AT1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:BH1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:DS1",
+      "target": "GAP_PROPOSED_CHECK"
+    },
+    {
+      "id": "check:E1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E10",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E11",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E6",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E7",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E8",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:E9",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:F1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:G1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:G2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:G2a",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:G3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:G3-LEGAL",
+      "target": "GAP_PROPOSED_CHECK"
+    },
+    {
+      "id": "check:G4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:G5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:IE1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:IE2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:IM2",
+      "target": "GAP_PROPOSED_CHECK"
+    },
+    {
+      "id": "check:L1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:M1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:M2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:P1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:P2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:P2b",
+      "target": "GAP_PROPOSED_CHECK"
+    },
+    {
+      "id": "check:P3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:PP2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:PP3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:PR3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:PS1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:PS2",
+      "target": "GAP_PROPOSED_CHECK"
+    },
+    {
+      "id": "check:RA1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:RV1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:RV2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:RV3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:RV4",
+      "target": "GAP_PROPOSED_CHECK"
+    },
+    {
+      "id": "check:S1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:S2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:S3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:S4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T0",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T0a",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T5a",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T6",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T7",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T8",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:T9",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:TF1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:TF2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:TF3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:TR1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:TR2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:TR3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:TR4",
+      "target": "GAP_PROPOSED_CHECK"
+    },
+    {
+      "id": "conflictPattern:CP-ASSESSMENT-NONCOMPARABLE",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-BASELINE-MISMATCH",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-CONSENT-DATE",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-ELIGIBILITY-DATE",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-EVAL-COMPLETION",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-GOAL-DATE-RANGE",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-PLACEMENT-STATEMENT",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-REC-NOT-TRACEABLE",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-SCORE-MISMATCH",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-SERVICE-DESCRIPTION",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-SERVICE-FREQUENCY",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-SUPERSEDED-GOAL-PROGRESS",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-VERSION-CHANGE",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "conflictPattern:CP-VERSION-MIXING",
+      "target": "iep-domain-conflict-patterns.v1.json"
+    },
+    {
+      "id": "document:at-evaluation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:bip",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:classroom-observation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:consent-for-services",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:consent-to-reevaluate",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:draft-iep",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:eligibility-determination",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:enrollment-record",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:evaluation-report",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:exclusionary-factors-review-learning-disability",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:fba-report",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:iee-report",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:iee-request",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:iep",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:iep-amendment",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:intervention-response-to-intervention-data",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:meeting-notice-attendance-page-any-excusal-forms",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:parent-communication",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:parent-input-record",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:prior-iep",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:prior-written-notice-for-evaluation-eligibility-and-placement",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:private-evaluations",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:procedural-safeguards-notice",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:progress-monitoring-data",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:progress-reports",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:records-request",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:referral-or-request-for-evaluation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:report-cards-state-test-results-attendance",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:review-of-existing-data",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:revocation-of-consent",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:service-logs",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:signed-consent-to-evaluate",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:transfer-records",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "document:transition-assessment",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:accommodation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:age-of-majority-notice",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:amendment",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:annual-goal",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:assessment-administration",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:assessment-participation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:assessment-score",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:assistive-technology",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:behavior-assessment",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:behavior-plan",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:concern",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:consent",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:disagreement",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:document-provision",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:eligibility-determination",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:enrollment",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:esy-determination",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:evaluation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:evaluation-finding",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:evaluation-recommendation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:evaluation-report",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:exclusionary-review",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:iee-request",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:iep",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:iep-meeting",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:input-statement",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:intervention",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:meeting-notice",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:meeting-participant",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:member-certification",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:observation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:parent-communication",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:parent-guardian",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:placement",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:present-level",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:prior-written-notice",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:progress-measurement",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:progress-report",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:progress-reporting-plan",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:public-agency",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:records-request",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:referral",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:safeguards-notice",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:service",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:service-delivery-record",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:short-term-objective",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:special-factor",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:student",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "entity:transition-plan",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "guideline:legacy-1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "guideline:legacy-2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "guideline:legacy-3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "guideline:legacy-4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "guideline:legacy-5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "guideline:legacy-6",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "note:N1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "note:N2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "note:N3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "note:N4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "note:N5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "note:N6",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:Q1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:Q2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:Q5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:Q6",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:SQ1",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:SQ2",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:SQ3",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:SQ4",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:SQ5",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:SQ6",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:SQ7",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "question:SQ8",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "referenceTable:oral-reading-fluency-norms",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "stateOverlay:age-of-majority",
+      "target": "iep-domain-state-overlays.v1.json"
+    },
+    {
+      "id": "stateOverlay:consent",
+      "target": "iep-domain-state-overlays.v1.json"
+    },
+    {
+      "id": "stateOverlay:evaluation-timeline",
+      "target": "iep-domain-state-overlays.v1.json"
+    },
+    {
+      "id": "stateOverlay:sld-method",
+      "target": "iep-domain-state-overlays.v1.json"
+    },
+    {
+      "id": "term:accommodation",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:extended-school-year",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:least-restrictive-environment",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:percentile",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:present-levels",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:prior-written-notice",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:pull-out",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:related-services",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:standard-score",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "term:wcpm",
+      "target": "DP1_DEFINITION"
+    },
+    {
+      "id": "check:IM1",
+      "target": "DP1_DEFINITION"
+    }
+  ],
+  "daysBetweenCandidates": [
+    {
+      "id": "calculation:C1",
+      "label": "Days from consent received to evaluation completion",
+      "activated": false,
+      "dp1State": "DECLARATION_ONLY",
+      "requiredBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:consent",
+          "fieldId": "receivedDate",
+          "sourceFieldType": "DATE"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:evaluation",
+          "fieldId": "completionDate",
+          "sourceFieldType": "DATE"
+        }
+      ],
+      "requiredContext": {
+        "preconditions": [
+          "consent linked to evaluation by relationship:consent-authorizes-evaluation",
+          "consent.activityType = initial evaluation"
+        ],
+        "invalidInputConditions": [
+          "Either date missing/conflicting",
+          "Consent is for reevaluation"
+        ],
+        "limitations": [
+          "Receipt date often not stated; signed date is a different fact.",
+          "Does not decide compliance - State timeframe and exceptions."
+        ],
+        "permittedInterpretation": "Day count only.",
+        "authorityIds": [
+          "AUTH-CFR-300.301-c-1-i",
+          "AUTH-CFR-300.11-a"
+        ]
+      }
+    },
+    {
+      "id": "calculation:C2",
+      "label": "Days from eligibility decision to IEP meeting",
+      "activated": false,
+      "dp1State": "DECLARATION_ONLY",
+      "requiredBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:eligibility-determination",
+          "fieldId": "determinationDate",
+          "sourceFieldType": "DATE"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:iep",
+          "fieldId": "meetingDate",
+          "sourceFieldType": "DATE"
+        }
+      ],
+      "requiredContext": {
+        "preconditions": [
+          "relationship:eligibility-precedes-iep",
+          "Initial IEP"
+        ],
+        "invalidInputConditions": [
+          "Missing/conflicting dates"
+        ],
+        "limitations": [
+          "Annual reviews out of scope."
+        ],
+        "permittedInterpretation": "Day count; T3 may compare to 30 once pack is REVIEWED.",
+        "authorityIds": [
+          "AUTH-CFR-300.323-c-1"
+        ]
+      }
+    },
+    {
+      "id": "calculation:C3",
+      "label": "Days from IEP date to service start",
+      "activated": false,
+      "dp1State": "DECLARATION_ONLY",
+      "requiredBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:iep",
+          "fieldId": "meetingDate",
+          "sourceFieldType": "DATE"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:service",
+          "fieldId": "startDate",
+          "sourceFieldType": "DATE"
+        }
+      ],
+      "requiredContext": {
+        "preconditions": [
+          "relationship:iep-contains-service"
+        ],
+        "invalidInputConditions": [
+          "Missing dates"
+        ],
+        "limitations": [
+          "'As soon as possible' has no number; descriptive only."
+        ],
+        "permittedInterpretation": "Day count; never a compliance verdict.",
+        "authorityIds": [
+          "AUTH-CFR-300.323-c-2"
+        ]
+      }
+    },
+    {
+      "id": "calculation:C14",
+      "label": "Days from records request to response",
+      "activated": false,
+      "dp1State": "DECLARATION_ONLY",
+      "requiredBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:records-request",
+          "fieldId": "requestDate",
+          "sourceFieldType": "DATE"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:records-request",
+          "fieldId": "responseDate",
+          "sourceFieldType": "DATE"
+        }
+      ],
+      "requiredContext": {
+        "preconditions": [
+          "Same instance"
+        ],
+        "invalidInputConditions": [
+          "Missing response date"
+        ],
+        "limitations": [
+          "Also 'before any IEP meeting' limb not computed."
+        ],
+        "permittedInterpretation": "Day count; RA1 may compare to 45 when REVIEWED.",
+        "authorityIds": [
+          "AUTH-CFR-300.613-a"
+        ]
+      }
+    },
+    {
+      "id": "calculation:C15",
+      "label": "Days notice before meeting",
+      "activated": false,
+      "dp1State": "DECLARATION_ONLY",
+      "requiredBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:meeting-notice",
+          "fieldId": "noticeDate",
+          "sourceFieldType": "DATE"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:iep-meeting",
+          "fieldId": "meetingDate",
+          "sourceFieldType": "DATE"
+        }
+      ],
+      "requiredContext": {
+        "preconditions": [
+          "relationship:notice-for-meeting"
+        ],
+        "invalidInputConditions": [
+          "Missing dates"
+        ],
+        "limitations": [
+          "Federal rule sets no number ('early enough'); some States do."
+        ],
+        "permittedInterpretation": "Descriptive; State overlay may add threshold.",
+        "authorityIds": [
+          "AUTH-CFR-300.322-a-1"
+        ]
+      }
+    },
+    {
+      "id": "calculation:C20",
+      "label": "Days from IEE request to agency response",
+      "activated": false,
+      "dp1State": "DECLARATION_ONLY",
+      "requiredBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:iee-request",
+          "fieldId": "requestDate",
+          "sourceFieldType": "DATE"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:iee-request",
+          "fieldId": "agencyResponseDate",
+          "sourceFieldType": "DATE"
+        }
+      ],
+      "requiredContext": {
+        "preconditions": [
+          "Same instance"
+        ],
+        "invalidInputConditions": [
+          "Missing response"
+        ],
+        "limitations": [
+          "'Without unnecessary delay' has no number."
+        ],
+        "permittedInterpretation": "Descriptive only.",
+        "authorityIds": [
+          "AUTH-CFR-300.502-b-1-2"
+        ]
+      }
+    },
+    {
+      "id": "calculation:C21",
+      "label": "Days from evaluation completion to eligibility",
+      "activated": false,
+      "dp1State": "DECLARATION_ONLY",
+      "requiredBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:evaluation",
+          "fieldId": "completionDate",
+          "sourceFieldType": "DATE"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:eligibility-determination",
+          "fieldId": "determinationDate",
+          "sourceFieldType": "DATE"
+        }
+      ],
+      "requiredContext": {
+        "preconditions": [
+          "relationship:evaluation-supports-eligibility"
+        ],
+        "invalidInputConditions": [
+          "Missing"
+        ],
+        "limitations": [
+          "Federal rule sets no separate limit; some States do."
+        ],
+        "permittedInterpretation": "Descriptive.",
+        "authorityIds": [
+          "AUTH-CFR-300.301-c-1-i"
+        ]
+      }
+    }
+  ],
+  "stage4bPlan": {
+    "gate": "Stage 4B executable rules",
+    "startsOnlyAfter": "Founder review of Stage 4A. This gate does not activate rules.",
+    "steps": [
+      {
+        "id": "4B-1",
+        "action": "Activate only the seven DAYS_BETWEEN calculations as day counts.",
+        "calculationIds": [
+          "calculation:C1",
+          "calculation:C2",
+          "calculation:C3",
+          "calculation:C14",
+          "calculation:C15",
+          "calculation:C20",
+          "calculation:C21"
+        ],
+        "change": "Set state from DECLARATION_ONLY to EXECUTABLE and attach the requiredBindings recorded here, unchanged.",
+        "result": "DP-2 may return COMPUTED integer day counts. A day count is not a compliance verdict.",
+        "doNot": [
+          "Do not add a numeric threshold.",
+          "Do not set applicability.verification to REVIEWED.",
+          "Do not store a state timeframe, consent rule, SLD method, or age of majority.",
+          "Do not execute DIFFERENCE, RATE_PER_WEEK, SUM_BY, ADD_INTERVAL, or REFERENCE_GAP."
+        ]
+      },
+      {
+        "id": "4B-2",
+        "action": "Leave every check at REVIEW_REQUIRED.",
+        "reason": "DP-2 establishes a deadline comparison only when the literal names a jurisdiction, the pack applicability names that same jurisdiction, and verification is REVIEWED. Legal authorities are NOT_REVIEWED. check:T2, check:T3, and check:RA1 therefore stay review questions beside C1, C2, and C14."
+      },
+      {
+        "id": "4B-3",
+        "action": "Do not add EVERY, EXISTS, conflictPattern, stateOverlay, or factClasses to DP-1.",
+        "reason": "Those constructs stay in the versioned specifications written in Stage 4A."
+      },
+      {
+        "id": "4B-4",
+        "action": "Promote a pending check only when a cited meaning is written and mapped.",
+        "ids": [
+          "check:PP1",
+          "check:PR1",
+          "check:PR2",
+          "check:VR1"
+        ]
+      },
+      {
+        "id": "4B-5",
+        "action": "Promote a proposed check only when an ontology ruleId exists and every mapped authority used as the statement is more than a partial snippet.",
+        "ids": [
+          "check:DS1",
+          "check:G3-LEGAL",
+          "check:IM2",
+          "check:P2b",
+          "check:PS2",
+          "check:RV4",
+          "check:TR4"
+        ]
+      },
+      {
+        "id": "4B-6",
+        "action": "Map an unused authority only after the candidate definition is reviewed. The Stage 4A candidates are not applied mappings.",
+        "ids": [
+          "AUTH-CFR-300.300-a-1-iii",
+          "AUTH-CFR-300.300-a-3",
+          "AUTH-CFR-300.300-b-3",
+          "AUTH-CFR-300.300-d-1",
+          "AUTH-CFR-300.300-d-5",
+          "AUTH-CFR-300.301-a",
+          "AUTH-CFR-300.301-c-2",
+          "AUTH-CFR-300.304-a",
+          "AUTH-CFR-300.304-b-3",
+          "AUTH-CFR-300.304-c-1-i",
+          "AUTH-CFR-300.304-c-1-iv",
+          "AUTH-CFR-300.304-c-5",
+          "AUTH-CFR-300.304-c-7",
+          "AUTH-CFR-300.306-c-2"
+        ]
+      }
+    ]
+  }
+}

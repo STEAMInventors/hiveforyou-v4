@@ -1,0 +1,304 @@
+{
+  "schema": "hive.domain-workflow-coverage-spec/1",
+  "version": "1.0.0",
+  "status": "DRAFT",
+  "dp1Supported": false,
+  "questions": [
+    "inV7",
+    "entities",
+    "documents",
+    "relationships",
+    "legalResearched",
+    "exceptions",
+    "professionalCriteria",
+    "calculations",
+    "conflicts",
+    "questions",
+    "reports",
+    "everyClaimReferenced",
+    "dp2Executable",
+    "remainingClassified"
+  ],
+  "rows": [
+    {
+      "workflow": "Initial evaluation and eligibility",
+      "answers": {
+        "inV7": "YES",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "YES",
+        "legalResearched": "YES",
+        "exceptions": "PARTIAL",
+        "professionalCriteria": "YES",
+        "calculations": "PARTIAL",
+        "conflicts": "YES",
+        "questions": "YES",
+        "reports": "YES",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "PARTIAL",
+        "remainingClassified": "YES"
+      },
+      "note": "Category-specific criteria beyond SLD deferred (§300.8)."
+    },
+    {
+      "workflow": "Initial IEP development",
+      "answers": {
+        "inV7": "YES",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "YES",
+        "legalResearched": "YES",
+        "exceptions": "YES",
+        "professionalCriteria": "YES",
+        "calculations": "PARTIAL",
+        "conflicts": "YES",
+        "questions": "YES",
+        "reports": "YES",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "PARTIAL",
+        "remainingClassified": "YES"
+      },
+      "note": "Quantified checks (each need/goal) need EVERY/EXISTS operators."
+    },
+    {
+      "workflow": "Annual review",
+      "answers": {
+        "inV7": "PARTIAL (T0 only)",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "YES (CH6)",
+        "legalResearched": "YES",
+        "exceptions": "PARTIAL",
+        "professionalCriteria": "YES",
+        "calculations": "PARTIAL",
+        "conflicts": "YES",
+        "questions": "STAGE4",
+        "reports": "PARTIAL (no annual-review report variant)",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "PARTIAL",
+        "remainingClassified": "YES"
+      },
+      "note": "Needs annual-review report template and progress-vs-goal questions."
+    },
+    {
+      "workflow": "Reevaluation",
+      "answers": {
+        "inV7": "NO (C7b only)",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "YES",
+        "legalResearched": "YES",
+        "exceptions": "YES",
+        "professionalCriteria": "PARTIAL",
+        "calculations": "PARTIAL",
+        "conflicts": "PARTIAL",
+        "questions": "STAGE4",
+        "reports": "NO",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "PARTIAL",
+        "remainingClassified": "YES"
+      },
+      "note": "New checks RV1-RV4 (Stage 4)."
+    },
+    {
+      "workflow": "Amendments and versions",
+      "answers": {
+        "inV7": "NO",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "YES (CH6)",
+        "legalResearched": "YES",
+        "exceptions": "PARTIAL",
+        "professionalCriteria": "YES",
+        "calculations": "PARTIAL",
+        "conflicts": "YES",
+        "questions": "STAGE4",
+        "reports": "NO",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "NO (self-join)",
+        "remainingClassified": "YES"
+      },
+      "note": "Version comparison needs self-relationship join."
+    },
+    {
+      "workflow": "Progress review",
+      "answers": {
+        "inV7": "PARTIAL (G4, SQ3, SQ7)",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "YES (CH5)",
+        "legalResearched": "YES",
+        "exceptions": "N/A",
+        "professionalCriteria": "PARTIAL",
+        "calculations": "DECLARED",
+        "conflicts": "YES",
+        "questions": "STAGE4",
+        "reports": "NO",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "NO (operators)",
+        "remainingClassified": "YES"
+      },
+      "note": "Rate/trajectory operators unsupported."
+    },
+    {
+      "workflow": "Transfers",
+      "answers": {
+        "inV7": "NO",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "PARTIAL",
+        "legalResearched": "YES",
+        "exceptions": "YES",
+        "professionalCriteria": "N/A",
+        "calculations": "NO",
+        "conflicts": "NO",
+        "questions": "STAGE4",
+        "reports": "NO",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "PARTIAL",
+        "remainingClassified": "YES"
+      },
+      "note": "Comparable-services judgment is review-only."
+    },
+    {
+      "workflow": "Transition (16+)",
+      "answers": {
+        "inV7": "PARTIAL (A4)",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "PARTIAL",
+        "legalResearched": "YES",
+        "exceptions": "STATE",
+        "professionalCriteria": "PARTIAL",
+        "calculations": "NO",
+        "conflicts": "NO",
+        "questions": "STAGE4",
+        "reports": "NO",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "FIELD_PRESENT only",
+        "remainingClassified": "YES"
+      },
+      "note": "State transition age overlay required."
+    },
+    {
+      "workflow": "ESY",
+      "answers": {
+        "inV7": "PARTIAL (A3)",
+        "entities": "YES",
+        "documents": "NO",
+        "relationships": "NO",
+        "legalResearched": "YES",
+        "exceptions": "STATE",
+        "professionalCriteria": "NO",
+        "calculations": "NO",
+        "conflicts": "NO",
+        "questions": "STAGE4",
+        "reports": "NO",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "NO",
+        "remainingClassified": "YES"
+      },
+      "note": "ESY criteria State/case-law - research backlog."
+    },
+    {
+      "workflow": "Behavior / FBA / BIP",
+      "answers": {
+        "inV7": "PARTIAL (A2)",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "NO",
+        "legalResearched": "PARTIAL",
+        "exceptions": "NO",
+        "professionalCriteria": "NO",
+        "calculations": "NO",
+        "conflicts": "NO",
+        "questions": "STAGE4",
+        "reports": "NO",
+        "everyClaimReferenced": "PARTIAL",
+        "dp2Executable": "NO",
+        "remainingClassified": "YES"
+      },
+      "note": "FBA/BIP methodology deferred."
+    },
+    {
+      "workflow": "IEE and records access",
+      "answers": {
+        "inV7": "NO",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "N/A",
+        "legalResearched": "YES",
+        "exceptions": "YES",
+        "professionalCriteria": "N/A",
+        "calculations": "DECLARED",
+        "conflicts": "NO",
+        "questions": "STAGE4",
+        "reports": "NO",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "PARTIAL",
+        "remainingClassified": "YES"
+      },
+      "note": "C14/C20 day counts."
+    },
+    {
+      "workflow": "Parent participation",
+      "answers": {
+        "inV7": "PARTIAL (T4, P3, M1)",
+        "entities": "YES",
+        "documents": "YES",
+        "relationships": "YES (CH7)",
+        "legalResearched": "YES",
+        "exceptions": "YES",
+        "professionalCriteria": "PARTIAL",
+        "calculations": "DECLARED (C15)",
+        "conflicts": "YES",
+        "questions": "STAGE4",
+        "reports": "PARTIAL",
+        "everyClaimReferenced": "YES",
+        "dp2Executable": "PARTIAL",
+        "remainingClassified": "YES"
+      },
+      "note": ""
+    },
+    {
+      "workflow": "Discipline",
+      "answers": {
+        "inV7": "NO",
+        "entities": "NO",
+        "documents": "NO",
+        "relationships": "NO",
+        "legalResearched": "PARTIAL (§300.530(e) snippet)",
+        "exceptions": "NO",
+        "professionalCriteria": "NO",
+        "calculations": "NO",
+        "conflicts": "NO",
+        "questions": "NO",
+        "reports": "NO",
+        "everyClaimReferenced": "NO",
+        "dp2Executable": "NO",
+        "remainingClassified": "DEFERRED"
+      },
+      "note": "Deferred module."
+    },
+    {
+      "workflow": "Preschool / Part C transition",
+      "answers": {
+        "inV7": "NO",
+        "entities": "PARTIAL",
+        "documents": "NO",
+        "relationships": "NO",
+        "legalResearched": "PARTIAL",
+        "exceptions": "NO",
+        "professionalCriteria": "NO",
+        "calculations": "NO",
+        "conflicts": "NO",
+        "questions": "NO",
+        "reports": "NO",
+        "everyClaimReferenced": "NO",
+        "dp2Executable": "NO",
+        "remainingClassified": "DEFERRED"
+      },
+      "note": "Deferred module."
+    }
+  ]
+}
