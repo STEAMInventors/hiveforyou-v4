@@ -1,0 +1,2253 @@
+{
+  "schema": "hive.iep-v7-crosswalk/1",
+  "status": "DRAFT",
+  "publication": "UNPUBLISHED",
+  "candidate": {
+    "packId": "iep-us-federal",
+    "version": "0.4.0",
+    "file": "iep-domain-pack-source.v0.4.0.json"
+  },
+  "baseline": {
+    "packId": "iep-us-federal",
+    "version": "0.3.0",
+    "file": "packs/drafts/iep-us-federal/v0.3.0/iep-domain-pack-source.stage4b.json"
+  },
+  "activePack": {
+    "file": "packs/HiveForYou-Pack-iep-initial.md",
+    "pack": "iep-initial",
+    "version": 7
+  },
+  "origin": {
+    "v7ImportDefinitionIds": [
+      "guideline:legacy-1",
+      "guideline:legacy-2",
+      "guideline:legacy-3",
+      "guideline:legacy-4",
+      "guideline:legacy-5",
+      "guideline:legacy-6",
+      "check:T0",
+      "check:T1",
+      "check:T2",
+      "check:T3",
+      "check:T4",
+      "check:T5",
+      "check:T6",
+      "check:T7",
+      "check:T8",
+      "check:T9",
+      "check:E1",
+      "check:E2",
+      "check:E3",
+      "check:E4",
+      "check:E5",
+      "check:E6",
+      "check:E7",
+      "check:E8",
+      "check:E9",
+      "check:P1",
+      "check:P2",
+      "check:P3",
+      "check:G1",
+      "check:G2",
+      "check:G3",
+      "check:G4",
+      "check:S1",
+      "check:S2",
+      "check:S3",
+      "check:S4",
+      "check:L1",
+      "check:A1",
+      "check:A2",
+      "check:A3",
+      "check:A4",
+      "check:M1",
+      "check:F1",
+      "question:SQ1",
+      "question:SQ2",
+      "question:SQ3",
+      "question:SQ4",
+      "question:SQ5",
+      "question:SQ6",
+      "question:SQ7",
+      "question:SQ8",
+      "question:Q1",
+      "question:Q2",
+      "question:Q3",
+      "question:Q4",
+      "question:Q5",
+      "question:Q6",
+      "question:Q7",
+      "question:customer:L1",
+      "question:customer:L2",
+      "question:customer:L3",
+      "question:customer:L4",
+      "question:customer:L5",
+      "persona:customer",
+      "question:professional:L1",
+      "question:professional:L2",
+      "question:professional:L3",
+      "question:professional:L4",
+      "question:professional:L5",
+      "question:professional:L6",
+      "question:professional:L7",
+      "persona:professional",
+      "term:wcpm",
+      "term:present-levels",
+      "term:accommodation",
+      "term:pull-out",
+      "term:related-services",
+      "term:prior-written-notice",
+      "term:least-restrictive-environment",
+      "term:extended-school-year",
+      "term:standard-score",
+      "term:percentile",
+      "referenceTable:oral-reading-fluency-norms",
+      "note:N1",
+      "note:N2",
+      "note:N3",
+      "note:N4",
+      "note:N6",
+      "note:N5",
+      "report:customer",
+      "report:professional",
+      "document:prior-written-notice-for-evaluation-eligibility-and-placement",
+      "document:procedural-safeguards-notice",
+      "document:signed-consent-to-evaluate",
+      "document:consent-for-services",
+      "document:referral-or-request-for-evaluation",
+      "document:exclusionary-factors-review-learning-disability",
+      "document:classroom-observation",
+      "document:intervention-response-to-intervention-data",
+      "document:parent-input-record",
+      "document:meeting-notice-attendance-page-any-excusal-forms",
+      "document:report-cards-state-test-results-attendance",
+      "document:private-evaluations",
+      "document:progress-reports",
+      "document:service-logs",
+      "chain:CH1",
+      "chain:CH2",
+      "chain:CH3",
+      "calculation:C1",
+      "calculation:C2",
+      "calculation:C3",
+      "calculation:C4",
+      "calculation:C5",
+      "calculation:C6",
+      "calculation:C7a",
+      "calculation:C7b",
+      "calculation:C8",
+      "calculation:C9",
+      "calculation:C10"
+    ],
+    "stage4bExpansionDefinitionIds": [
+      "check:A5",
+      "check:AM1",
+      "check:AM2",
+      "check:AM3",
+      "check:AT1",
+      "check:BH1",
+      "check:E10",
+      "check:E11",
+      "check:G2a",
+      "check:G5",
+      "check:IE1",
+      "check:IE2",
+      "check:IM1",
+      "check:M2",
+      "check:PP2",
+      "check:PP3",
+      "check:PR3",
+      "check:PS1",
+      "check:RA1",
+      "check:RV1",
+      "check:RV2",
+      "check:RV3",
+      "check:T0a",
+      "check:T5a",
+      "check:TF1",
+      "check:TF2",
+      "check:TF3",
+      "check:TR1",
+      "check:TR2",
+      "check:TR3",
+      "entity:student",
+      "entity:parent-guardian",
+      "entity:school",
+      "entity:public-agency",
+      "entity:enrollment",
+      "entity:referral",
+      "entity:concern",
+      "entity:intervention",
+      "entity:consent",
+      "entity:evaluation",
+      "entity:evaluation-report",
+      "entity:assessment-administration",
+      "entity:assessment-score",
+      "entity:observation",
+      "entity:input-statement",
+      "entity:evaluation-finding",
+      "entity:evaluation-recommendation",
+      "entity:eligibility-determination",
+      "entity:exclusionary-review",
+      "entity:member-certification",
+      "entity:iep",
+      "entity:iep-meeting",
+      "entity:meeting-notice",
+      "entity:meeting-participant",
+      "entity:present-level",
+      "entity:annual-goal",
+      "entity:short-term-objective",
+      "entity:progress-reporting-plan",
+      "entity:service",
+      "entity:accommodation",
+      "entity:assistive-technology",
+      "entity:placement",
+      "entity:assessment-participation",
+      "entity:special-factor",
+      "entity:esy-determination",
+      "entity:transition-plan",
+      "entity:age-of-majority-notice",
+      "entity:progress-report",
+      "entity:progress-measurement",
+      "entity:service-delivery-record",
+      "entity:prior-written-notice",
+      "entity:safeguards-notice",
+      "entity:document-provision",
+      "entity:parent-communication",
+      "entity:iee-request",
+      "entity:records-request",
+      "entity:amendment",
+      "entity:disagreement",
+      "entity:behavior-assessment",
+      "entity:behavior-plan",
+      "relationship:concern-addressed-by-referral",
+      "relationship:referral-assessed-by-evaluation",
+      "relationship:concern-assessed-by-administration",
+      "relationship:administration-yields-score",
+      "relationship:score-supports-finding",
+      "relationship:evaluation-contains-report",
+      "relationship:consent-authorizes-evaluation",
+      "relationship:finding-informs-present-level",
+      "relationship:present-level-grounds-goal",
+      "relationship:goal-delivered-by-service",
+      "relationship:goal-measured-by-progress",
+      "relationship:recommendation-adopted-as-service",
+      "relationship:recommendation-adopted-as-accommodation",
+      "relationship:recommendation-adopted-as-goal",
+      "relationship:recommendation-addressed-by-pwn",
+      "relationship:report-contains-recommendation",
+      "relationship:report-contains-finding",
+      "relationship:evaluation-supports-eligibility",
+      "relationship:eligibility-precedes-iep",
+      "relationship:iep-developed-at-meeting",
+      "relationship:notice-for-meeting",
+      "relationship:participant-at-meeting",
+      "relationship:iep-contains-service",
+      "relationship:iep-contains-goal",
+      "relationship:iep-contains-present-level",
+      "relationship:iep-supersedes-iep",
+      "relationship:amendment-modifies-iep",
+      "relationship:progress-report-reports",
+      "relationship:service-delivered-record",
+      "relationship:concern-considered-in-meeting",
+      "relationship:meeting-results-in-pwn",
+      "relationship:consent-for-iep-services",
+      "relationship:intervention-precedes-referral",
+      "relationship:observation-supports-eligibility",
+      "relationship:exclusion-part-of-eligibility",
+      "relationship:certification-of-eligibility",
+      "relationship:plan-for-iep",
+      "relationship:placement-for-iep",
+      "relationship:disagreement-about-meeting",
+      "document:iep",
+      "document:draft-iep",
+      "document:prior-iep",
+      "document:iep-amendment",
+      "document:evaluation-report",
+      "document:eligibility-determination",
+      "document:review-of-existing-data",
+      "document:consent-to-reevaluate",
+      "document:revocation-of-consent",
+      "document:meeting-notes",
+      "document:parent-communication",
+      "document:progress-monitoring-data",
+      "document:transition-assessment",
+      "document:fba-report",
+      "document:bip",
+      "document:at-evaluation",
+      "document:iee-request",
+      "document:iee-report",
+      "document:records-request",
+      "document:transfer-records",
+      "document:enrollment-record",
+      "chain:CH4",
+      "chain:CH5",
+      "chain:CH6",
+      "chain:CH7",
+      "calculation:C11",
+      "calculation:C12",
+      "calculation:C13",
+      "calculation:C14",
+      "calculation:C15",
+      "calculation:C16",
+      "calculation:C17",
+      "calculation:C18",
+      "calculation:C19",
+      "calculation:C20",
+      "calculation:C21",
+      "calculation:C22"
+    ],
+    "addedGuidelineIds": [
+      "guideline:v7-two-readers",
+      "guideline:v7-evidence-question",
+      "guideline:v7-standing-when-shown",
+      "guideline:v7-chain-row",
+      "guideline:v7-cited-arithmetic",
+      "guideline:v7-orf-passage",
+      "guideline:v7-general-notes-not-proof",
+      "guideline:v7-request-timing",
+      "guideline:v7-limits",
+      "guideline:v7-sources"
+    ]
+  },
+  "authorityReview": "NOT_REVIEWED",
+  "authorityCount": 149,
+  "items": [
+    {
+      "v7Id": "guideline:legacy-1",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:legacy-1"
+      ],
+      "authorityIds": [
+        "AUTH-PLATFORM-EVIDENCE-RULES"
+      ],
+      "note": "This pack says what to check, what to compute, what to ask for and the order of the answer. It never supplies facts about the case."
+    },
+    {
+      "v7Id": "guideline:legacy-2",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:legacy-2"
+      ],
+      "authorityIds": [
+        "AUTH-PLATFORM-EVIDENCE-RULES"
+      ],
+      "note": "Every check gets one verdict from cited facts only: SHOWN, PARTLY SHOWN, NOT SHOWN, CONFLICT, NOT APPLICABLE."
+    },
+    {
+      "v7Id": "guideline:legacy-3",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:legacy-3"
+      ],
+      "authorityIds": [
+        "AUTH-PLATFORM-EVIDENCE-RULES"
+      ],
+      "note": "NOT SHOWN means \"these documents don't show it\", not \"it didn't happen\". It becomes a question and, where a document would settle it, a document request."
+    },
+    {
+      "v7Id": "guideline:legacy-4",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:legacy-4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-d"
+      ],
+      "note": "No legal conclusions in either report. Never \"violation\", \"illegal\", \"the school must\". The authority column is shown in the professional report only, as \"see 34 CFR ...\"."
+    },
+    {
+      "v7Id": "guideline:legacy-5",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:legacy-5"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.11-a"
+      ],
+      "note": "\"Days\" in the federal rules are calendar days unless the rule says school or business days (34 CFR 300.11(a))."
+    },
+    {
+      "v7Id": "guideline:legacy-6",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:legacy-6"
+      ],
+      "authorityIds": [
+        "AUTH-PLATFORM-EVIDENCE-RULES"
+      ],
+      "note": "The study date is given with the input. Judge whether the plan is current against that date (check T0), and say so first in both reports when it is not."
+    },
+    {
+      "v7Id": "prose:personas-intro",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-two-readers"
+      ],
+      "authorityIds": [],
+      "note": "v7 persona introduction. Added in 0.4.0 because the legacy adapter did not import it. No authority."
+    },
+    {
+      "v7Id": "prose:checks-header",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-evidence-question"
+      ],
+      "authorityIds": [],
+      "note": "Evidence must be cited for SHOWN. A dash means no question. Not an executable predicate."
+    },
+    {
+      "v7Id": "prose:standing-header",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-standing-when-shown"
+      ],
+      "authorityIds": [],
+      "note": "Standing questions are still asked when every check is SHOWN. The condition stays descriptive."
+    },
+    {
+      "v7Id": "prose:chains-header",
+      "category": "guidance",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-chain-row"
+      ],
+      "authorityIds": [],
+      "note": "One row per starting item. A missing link is a finding. v7 link lists are quoted beside the expanded chains."
+    },
+    {
+      "v7Id": "prose:computed-header",
+      "category": "calculation",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-cited-arithmetic"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-b-1-i",
+        "AUTH-CFR-300.303-b-2"
+      ],
+      "note": "Arithmetic is from cited values. C7a and C7b authorities are quoted. Those operators stay declarations."
+    },
+    {
+      "v7Id": "prose:reference-table",
+      "category": "reference table",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-orf-passage",
+        "referenceTable:oral-reading-fluency-norms"
+      ],
+      "authorityIds": [
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "note": "Passage method sentence. Rows stay on the reference table. REFERENCE_GAP is not executable."
+    },
+    {
+      "v7Id": "prose:general-notes",
+      "category": "general note",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-general-notes-not-proof"
+      ],
+      "authorityIds": [],
+      "note": "General notes are shown as written and are not proof about this child."
+    },
+    {
+      "v7Id": "prose:document-schedule",
+      "category": "document requirement",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-request-timing"
+      ],
+      "authorityIds": [],
+      "note": "v7 holder, when, applies-when, and settles columns. Stage 4B document timings stay in place."
+    },
+    {
+      "v7Id": "meta:jurisdiction-status",
+      "category": "jurisdiction",
+      "status": "enhanced",
+      "definitionIds": [
+        "guideline:v7-limits"
+      ],
+      "authorityIds": [],
+      "note": "Applicability jurisdiction remains the label US-FEDERAL and verification remains UNVERIFIED. The v7 sentence, the 2026-11-11 title-only limit on 300.106, and the state-rules limit are the guideline. No state number is stored."
+    },
+    {
+      "v7Id": "meta:matches",
+      "category": "pack matching",
+      "status": "preserved",
+      "definitionIds": [],
+      "authorityIds": [],
+      "note": "intentHints and documentHints match the v7 matches lists."
+    },
+    {
+      "v7Id": "source:1",
+      "category": "authority",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-sources"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.11-a"
+      ],
+      "note": "34 CFR Part 300, Subparts B, D and E (eCFR): 300.11, 300.106, 300.114, 300.300-300.311, 300.320-300.324, 300.503, 300.504. The guideline quotes the v7 list. Register records stay NOT_REVIEWED. No authority was created."
+    },
+    {
+      "v7Id": "source:2",
+      "category": "authority",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-sources"
+      ],
+      "authorityIds": [
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "note": "Hasbrouck, J. & Tindal, G. (2017). An update to compiled ORF norms (Technical Report No. 1702). University of Oregon. The guideline quotes the v7 list. Register records stay NOT_REVIEWED. No authority was created."
+    },
+    {
+      "v7Id": "source:3",
+      "category": "authority",
+      "status": "preserved",
+      "definitionIds": [
+        "guideline:v7-sources"
+      ],
+      "authorityIds": [
+        "AUTH-CASE-ENDREW-F-HOLDING"
+      ],
+      "note": "Endrew F. v. Douglas County School District RE-1, 580 U.S. 386 (2017). The guideline quotes the v7 list. Register records stay NOT_REVIEWED. No authority was created."
+    },
+    {
+      "v7Id": "check:T0",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T0"
+      ],
+      "authorityIds": [
+        "AUTH-AP-CURRENTNESS",
+        "AUTH-CFR-300.324-b-1-i"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.324(b)(1)(i). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-a-1-i",
+        "AUTH-CFR-300.9-a"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.300(a)(1)(i). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T2",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.11-a",
+        "AUTH-CFR-300.301-c-1-i",
+        "AUTH-CFR-300.301-c-1-ii",
+        "AUTH-CFR-300.301-d-1",
+        "AUTH-CFR-300.301-d-2",
+        "AUTH-CFR-300.301-e"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.301(c)(1)(i)-(ii); exceptions 300.301(d). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T3",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.11-a",
+        "AUTH-CFR-300.323-c-1"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.323(c)(1). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T4",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.322-a-1",
+        "AUTH-CFR-300.322-a-2",
+        "AUTH-CFR-300.322-b-1-i",
+        "AUTH-CFR-300.322-b-1-ii",
+        "AUTH-CFR-300.322-c",
+        "AUTH-CFR-300.322-d"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.322(a)(1), (b)(1)(i). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T5",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T5"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.503-a",
+        "AUTH-CFR-300.503-b-1-7"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.503(a), (b). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T6",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T6"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.504-a",
+        "AUTH-CFR-300.504-c"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.504(a)(1). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T7",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T7"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-a-1-ii",
+        "AUTH-CFR-300.300-b-1",
+        "AUTH-CFR-300.9-a"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.300(a)(1)(ii), 300.300(b). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T8",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T8"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.323-c-2"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.323(c)(2). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:T9",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:T9"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.322-f"
+      ],
+      "note": "Group: Timeline and process. Criterion stays REVIEW_REQUIRED. v7 citation: 300.322(f). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.304-b-1",
+        "AUTH-CFR-300.304-b-2",
+        "AUTH-CFR-300.304-c-4",
+        "AUTH-CFR-300.304-c-6",
+        "AUTH-CFR-300.306-c-1-i"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.304(b)(1)-(2), (c)(4); 300.306(c)(1)(i). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E2",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.306-a-1",
+        "AUTH-CFR-300.306-c-1-ii"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.306(a)(1). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E3",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.306-b-1"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.306(b)(1). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E4",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.309-a-1",
+        "AUTH-CFR-300.309-a-3",
+        "AUTH-CFR-300.311-a-1-6"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.309(a)(3); 300.311(a)(6). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E5",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E5"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.309-a-1",
+        "AUTH-CFR-300.309-b-1",
+        "AUTH-CFR-300.309-b-2"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.309(b)(1)-(2). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E6",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E6"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.310-a",
+        "AUTH-CFR-300.310-b",
+        "AUTH-CFR-300.311-a-1-6"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.310(a)-(b); 300.311(a)(3). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E7",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E7"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.311-b"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.311(b). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E8",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E8"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.306-a-2"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.306(a)(2). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:E9",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:E9"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.309-a-2",
+        "AUTH-CFR-300.311-a-7"
+      ],
+      "note": "Group: Evaluation and eligibility. Criterion stays REVIEW_REQUIRED. v7 citation: 300.311(a)(7). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:P1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:P1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-1-i"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(1)(i). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:P2",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:P2"
+      ],
+      "authorityIds": [
+        "AUTH-AP-SCORE-CONSISTENCY"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: consistency check. Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:P3",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:P3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-i-ii"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.324(a)(1)(i)-(ii). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:G1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:G1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-2-i",
+        "AUTH-CFR-300.324-a-1-iv"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(2)(i). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:G2",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:G2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-2-i",
+        "AUTH-CFR-300.320-a-3-i"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(2)(i), (a)(3)(i). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:G3",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:G3"
+      ],
+      "authorityIds": [
+        "AUTH-AP-GROWTH-RATE",
+        "AUTH-CASE-ENDREW-F-AMBITIOUS",
+        "AUTH-CASE-ENDREW-F-HOLDING",
+        "AUTH-CASE-ENDREW-F-NO-ELABORATION"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: Endrew F. v. Douglas County (2017). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:G4",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:G4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-i",
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(3)(i)-(ii). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:S1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:S1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-4",
+        "AUTH-CFR-300.320-a-7"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(4), (a)(7). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:S2",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:S2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-4"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(4). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:S3",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:S3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii",
+        "AUTH-CFR-300.502-c",
+        "AUTH-CFR-300.503-a"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.324(a)(1)(iii); 300.503(b). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:S4",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:S4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-4"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(4). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:L1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:L1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.114-a-2-i",
+        "AUTH-CFR-300.114-a-2-ii",
+        "AUTH-CFR-300.320-a-5"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(5); 300.114(a)(2). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:A1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:A1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-6-i"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(a)(6)(i). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:A2",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:A2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.324(a)(2). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:A3",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:A3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.106-a-1",
+        "AUTH-CFR-300.106-a-2",
+        "AUTH-CFR-300.106-a-3"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.106. Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:A4",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:A4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-b"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.320(b). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:M1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:M1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.321-a-1-5",
+        "AUTH-CFR-300.321-a-6-7",
+        "AUTH-CFR-300.321-e-1",
+        "AUTH-CFR-300.321-e-2",
+        "AUTH-CFR-300.324-a-3"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: 300.321(a)(1)-(5), (e). Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check:F1",
+      "category": "check",
+      "status": "preserved",
+      "definitionIds": [
+        "check:F1"
+      ],
+      "authorityIds": [
+        "AUTH-AP-FORM-COMPLETENESS"
+      ],
+      "note": "Group: IEP content. Criterion stays REVIEW_REQUIRED. v7 citation: observation. Evidence and question text match v7."
+    },
+    {
+      "v7Id": "check-group:timeline",
+      "category": "check",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "check:T0",
+        "check:T1",
+        "check:T2",
+        "check:T3",
+        "check:T4",
+        "check:T5",
+        "check:T6",
+        "check:T7",
+        "check:T8",
+        "check:T9"
+      ],
+      "authorityIds": [],
+      "note": "v7 group heading has no definition kind. The checks in the group are preserved."
+    },
+    {
+      "v7Id": "check-group:evaluation",
+      "category": "check",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "check:E1",
+        "check:E2",
+        "check:E3",
+        "check:E4",
+        "check:E5",
+        "check:E6",
+        "check:E7",
+        "check:E8",
+        "check:E9"
+      ],
+      "authorityIds": [],
+      "note": "v7 group heading has no definition kind. The checks in the group are preserved."
+    },
+    {
+      "v7Id": "check-group:content",
+      "category": "check",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "check:P1",
+        "check:P2",
+        "check:P3",
+        "check:G1",
+        "check:G2",
+        "check:G3",
+        "check:G4",
+        "check:S1",
+        "check:S2",
+        "check:S3",
+        "check:S4",
+        "check:L1",
+        "check:A1",
+        "check:A2",
+        "check:A3",
+        "check:A4",
+        "check:M1",
+        "check:F1"
+      ],
+      "authorityIds": [],
+      "note": "v7 group heading has no definition kind. The checks in the group are preserved."
+    },
+    {
+      "v7Id": "question:Q1",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:Q1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-d-2",
+        "AUTH-CFR-300.301-c-1-ii"
+      ],
+      "note": "Audience all. Why: Timelines and what a signature means differ by state. appliesWhen stays REVIEW_REQUIRED."
+    },
+    {
+      "v7Id": "question:Q2",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:Q2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-b-1"
+      ],
+      "note": "Audience all. Why: Decides whether the report is \"before you sign\" or \"what you can still ask\". appliesWhen stays REVIEW_REQUIRED."
+    },
+    {
+      "v7Id": "question:Q3",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:Q3"
+      ],
+      "authorityIds": [],
+      "note": "Audience all. Why: Orders the questions and document requests by urgency. appliesWhen stays REVIEW_REQUIRED."
+    },
+    {
+      "v7Id": "question:Q4",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:Q4"
+      ],
+      "authorityIds": [],
+      "note": "Audience customer. Why: The report answers these first. appliesWhen stays REVIEW_REQUIRED."
+    },
+    {
+      "v7Id": "question:Q5",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:Q5"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-i-ii"
+      ],
+      "note": "Audience customer. Why: Compared with present levels; shown as \"you told us\". appliesWhen stays REVIEW_REQUIRED."
+    },
+    {
+      "v7Id": "question:Q6",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:Q6"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.502-c"
+      ],
+      "note": "Audience all. Why: Possible missing evidence. appliesWhen stays REVIEW_REQUIRED."
+    },
+    {
+      "v7Id": "question:Q7",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:Q7"
+      ],
+      "authorityIds": [],
+      "note": "Audience professional. Why: Sets depth and the closing section. appliesWhen stays REVIEW_REQUIRED."
+    },
+    {
+      "v7Id": "question:SQ1",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:SQ1"
+      ],
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS",
+        "AUTH-CFR-300.114-a-2-ii"
+      ],
+      "note": "Ask when: A service is delivered outside the general classroom. The condition is descriptive, not an executable predicate."
+    },
+    {
+      "v7Id": "question:SQ2",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:SQ2"
+      ],
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS",
+        "AUTH-CFR-300.114-a-2-ii"
+      ],
+      "note": "Ask when: A service is delivered outside the general classroom. The condition is descriptive, not an executable predicate."
+    },
+    {
+      "v7Id": "question:SQ3",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:SQ3"
+      ],
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS",
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "note": "Ask when: Progress is reported quarterly or less often. The condition is descriptive, not an executable predicate."
+    },
+    {
+      "v7Id": "question:SQ4",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:SQ4"
+      ],
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS"
+      ],
+      "note": "Ask when: At least one accommodation is listed. The condition is descriptive, not an executable predicate."
+    },
+    {
+      "v7Id": "question:SQ5",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:SQ5"
+      ],
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS"
+      ],
+      "note": "Ask when: At least one academic goal is listed. The condition is descriptive, not an executable predicate."
+    },
+    {
+      "v7Id": "question:SQ6",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:SQ6"
+      ],
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS"
+      ],
+      "note": "Ask when: The plan or the evaluations mention test results the parent may not have seen in full. The condition is descriptive, not an executable predicate."
+    },
+    {
+      "v7Id": "question:SQ7",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:SQ7"
+      ],
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS",
+        "AUTH-CFR-300.324-b-1-ii"
+      ],
+      "note": "Ask when: At least one goal is measured by repeated probes or progress monitoring. The condition is descriptive, not an executable predicate."
+    },
+    {
+      "v7Id": "question:SQ8",
+      "category": "question",
+      "status": "preserved",
+      "definitionIds": [
+        "question:SQ8"
+      ],
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS"
+      ],
+      "note": "Ask when: A reading need is documented and the child takes subjects with a lot of reading (such as science or social studies). The condition is descriptive, not an executable predicate."
+    },
+    {
+      "v7Id": "persona:customer",
+      "category": "persona",
+      "status": "preserved",
+      "definitionIds": [
+        "persona:customer",
+        "question:customer:L1",
+        "question:customer:L2",
+        "question:customer:L3",
+        "question:customer:L4",
+        "question:customer:L5"
+      ],
+      "authorityIds": [],
+      "note": "Structural. Register marks the persona and Looking-for questions as making no domain claim. They are not authority-mapped."
+    },
+    {
+      "v7Id": "persona:professional",
+      "category": "persona",
+      "status": "preserved",
+      "definitionIds": [
+        "persona:professional",
+        "question:professional:L1",
+        "question:professional:L2",
+        "question:professional:L3",
+        "question:professional:L4",
+        "question:professional:L5",
+        "question:professional:L6",
+        "question:professional:L7"
+      ],
+      "authorityIds": [],
+      "note": "Structural. Register marks the persona and Looking-for questions as making no domain claim. They are not authority-mapped."
+    },
+    {
+      "v7Id": "calculation:C1",
+      "category": "calculation",
+      "status": "enhanced",
+      "definitionIds": [
+        "calculation:C1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.11-a",
+        "AUTH-CFR-300.301-c-1-i"
+      ],
+      "note": "Same inputs. Stage 4B activates DAYS_BETWEEN on consent.receivedDate and evaluation.completionDate through relationship:consent-authorizes-evaluation."
+    },
+    {
+      "v7Id": "calculation:C2",
+      "category": "calculation",
+      "status": "enhanced",
+      "definitionIds": [
+        "calculation:C2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.11-a",
+        "AUTH-CFR-300.323-c-1"
+      ],
+      "note": "Stage 4B activates DAYS_BETWEEN on eligibility-determination.determinationDate and iep.meetingDate through relationship:eligibility-precedes-iep."
+    },
+    {
+      "v7Id": "calculation:C3",
+      "category": "calculation",
+      "status": "enhanced",
+      "definitionIds": [
+        "calculation:C3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.11-a",
+        "AUTH-CFR-300.320-a-7",
+        "AUTH-CFR-300.323-c-2"
+      ],
+      "note": "Stage 4B activates DAYS_BETWEEN on iep.meetingDate and service.startDate through relationship:iep-contains-service. Scope stays service."
+    },
+    {
+      "v7Id": "calculation:C4",
+      "category": "calculation",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "calculation:C4"
+      ],
+      "authorityIds": [
+        "AUTH-AP-GROWTH-RATE",
+        "AUTH-CASE-ENDREW-F-NO-ELABORATION"
+      ],
+      "note": "RATE_PER_WEEK stays DECLARATION_ONLY. legacyInputs keep the v7 inputs. No binding was invented."
+    },
+    {
+      "v7Id": "calculation:C5",
+      "category": "calculation",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "calculation:C5"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-5",
+        "AUTH-CFR-300.320-a-7"
+      ],
+      "note": "SUM_BY stays DECLARATION_ONLY. legacyInputs keep the v7 inputs. No binding was invented."
+    },
+    {
+      "v7Id": "calculation:C6",
+      "category": "calculation",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "calculation:C6"
+      ],
+      "authorityIds": [
+        "AUTH-AP-SCORE-CONSISTENCY"
+      ],
+      "note": "Label shortened. legacyInputs still state the v7 difference. DIFFERENCE is not executable."
+    },
+    {
+      "v7Id": "calculation:C7a",
+      "category": "calculation",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "calculation:C7a"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-b-1-i"
+      ],
+      "note": "ADD_INTERVAL stays DECLARATION_ONLY. legacyInputs keep the v7 inputs. No binding was invented."
+    },
+    {
+      "v7Id": "calculation:C7b",
+      "category": "calculation",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "calculation:C7b"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.303-b-2"
+      ],
+      "note": "Label spelling normalized. The v7 authority and the agreement exception stay in guideline:v7-cited-arithmetic, AUTH-CFR-300.303-b-2, and the ontology limitation. ADD_INTERVAL is not executable."
+    },
+    {
+      "v7Id": "calculation:C8",
+      "category": "calculation",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "calculation:C8"
+      ],
+      "authorityIds": [
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "note": "REFERENCE_GAP stays DECLARATION_ONLY. legacyInputs keep the v7 inputs. No binding was invented."
+    },
+    {
+      "v7Id": "calculation:C9",
+      "category": "calculation",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "calculation:C9"
+      ],
+      "authorityIds": [
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "note": "REFERENCE_GAP stays DECLARATION_ONLY. legacyInputs keep the v7 inputs. No binding was invented."
+    },
+    {
+      "v7Id": "calculation:C10",
+      "category": "calculation",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "calculation:C10"
+      ],
+      "authorityIds": [
+        "AUTH-AP-CURRENTNESS",
+        "AUTH-CFR-300.11-a"
+      ],
+      "note": "Label shortened. DAYS_BETWEEN stays DECLARATION_ONLY. The start is the latest of two dates and the end is the study date; no single reviewed field binding was added."
+    },
+    {
+      "v7Id": "chain:CH1",
+      "category": "chain",
+      "status": "enhanced",
+      "definitionIds": [
+        "chain:CH1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.304-c-4",
+        "AUTH-CFR-300.304-c-6",
+        "AUTH-CFR-300.306-c-1-i"
+      ],
+      "note": "Stage 4B expands the three v7 links. The v7 link list stays in guideline:v7-chain-row."
+    },
+    {
+      "v7Id": "chain:CH2",
+      "category": "chain",
+      "status": "enhanced",
+      "definitionIds": [
+        "chain:CH2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-1-i",
+        "AUTH-CFR-300.320-a-2-i",
+        "AUTH-CFR-300.320-a-3-i",
+        "AUTH-CFR-300.320-a-4"
+      ],
+      "note": "Stage 4B expands the five v7 links, including observed progress. The v7 link list stays in guideline:v7-chain-row."
+    },
+    {
+      "v7Id": "chain:CH3",
+      "category": "chain",
+      "status": "enhanced",
+      "definitionIds": [
+        "chain:CH3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii",
+        "AUTH-CFR-300.502-c",
+        "AUTH-CFR-300.503-a"
+      ],
+      "note": "Stage 4B expands the three v7 links. The v7 link list stays in guideline:v7-chain-row."
+    },
+    {
+      "v7Id": "document:prior-written-notice-for-evaluation-eligibility-and-placement",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:prior-written-notice-for-evaluation-eligibility-and-placement"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.503-a"
+      ],
+      "note": "Stage 4B shortened the label, added aliases, legal timing, applicability, and check:T5a. v7 name, holder, before-signing request, and settles T5, S3 stay in guideline:v7-request-timing and ontology legacyName."
+    },
+    {
+      "v7Id": "document:procedural-safeguards-notice",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:procedural-safeguards-notice"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.504-a"
+      ],
+      "note": "Stage 4B replaced before-signing with referral/yearly timing and added applicability. v7 holder and request timing stay in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:signed-consent-to-evaluate",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:signed-consent-to-evaluate"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-a-1-i"
+      ],
+      "note": "Stage 4B shortened the label and replaced before-signing with before-testing. v7 name, holder, and request timing stay in guideline:v7-request-timing and ontology legacyName."
+    },
+    {
+      "v7Id": "document:consent-for-services",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:consent-for-services"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-b-1"
+      ],
+      "note": "Stage 4B expanded the label and replaced before-signing with before services begin. v7 request timing stays in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:referral-or-request-for-evaluation",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:referral-or-request-for-evaluation"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.301-b"
+      ],
+      "note": "Stage 4B added check:E11 and start-of-process timing. v7 settles E1 and before-signing stay in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:exclusionary-factors-review-learning-disability",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:exclusionary-factors-review-learning-disability"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.306-b-1",
+        "AUTH-CFR-300.309-a-3"
+      ],
+      "note": "Stage 4B shortened the label and added applicability. v7 name and before-signing stay in guideline:v7-request-timing and ontology legacyName."
+    },
+    {
+      "v7Id": "document:classroom-observation",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:classroom-observation"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.310-a"
+      ],
+      "note": "Stage 4B added SLD applicability and during-evaluation timing. v7 before-signing request stays in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:intervention-response-to-intervention-data",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:intervention-response-to-intervention-data"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.309-b-1",
+        "AUTH-CFR-300.309-b-2"
+      ],
+      "note": "Stage 4B shortened the label and added SLD applicability. v7 before-signing request stays in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:parent-input-record",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:parent-input-record"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.304-b-1",
+        "AUTH-CFR-300.324-a-1-i-ii"
+      ],
+      "note": "Ontology holder adds ASKER_OR_CLIENT beside the v7 school holder. v7 holder stays in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:meeting-notice-attendance-page-any-excusal-forms",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:meeting-notice-attendance-page-any-excusal-forms"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.321-e-2",
+        "AUTH-CFR-300.322-b-1-i"
+      ],
+      "note": "Stage 4B added check:M2 and meeting timing. v7 settles T4, M1 and before-signing stay in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:report-cards-state-test-results-attendance",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:report-cards-state-test-results-attendance"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.306-c-1-i"
+      ],
+      "note": "Stage 4B timing is any time; applicability if available matches v7. v7 holder ASKER_OR_CLIENT stays in the ontology and guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:private-evaluations",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:private-evaluations"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.502-c"
+      ],
+      "note": "Stage 4B added check:IE2. v7 applies-when and settles E1, S3 stay in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "document:progress-reports",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:progress-reports"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "note": "Stage 4B timing follows the IEP schedule. v7 each-reporting-period (later) stays in guideline:v7-request-timing and ontology mayBeExpectedLaterWhen."
+    },
+    {
+      "v7Id": "document:service-logs",
+      "category": "document requirement",
+      "status": "enhanced",
+      "definitionIds": [
+        "document:service-logs"
+      ],
+      "authorityIds": [
+        "AUTH-AP-SERVICE-LOGS"
+      ],
+      "note": "Stage 4B added check:IM1 and after-services timing. v7 if-progress-is-slow (later) stays in guideline:v7-request-timing."
+    },
+    {
+      "v7Id": "term:wcpm",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:wcpm"
+      ],
+      "authorityIds": [
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "note": "Words read correctly in one minute"
+    },
+    {
+      "v7Id": "term:present-levels",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:present-levels"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-1-i"
+      ],
+      "note": "Where the child is now; the starting line for each goal"
+    },
+    {
+      "v7Id": "term:accommodation",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:accommodation"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-4",
+        "AUTH-CFR-300.320-a-6-i"
+      ],
+      "note": "The same work with support. A modification changes what is expected"
+    },
+    {
+      "v7Id": "term:pull-out",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:pull-out"
+      ],
+      "authorityIds": [
+        "AUTH-AP-TERM-PULLOUT"
+      ],
+      "note": "Teaching outside the general classroom. Push-in is support inside it"
+    },
+    {
+      "v7Id": "term:related-services",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:related-services"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.34-a"
+      ],
+      "note": "Speech, occupational therapy, counselling and similar supports"
+    },
+    {
+      "v7Id": "term:prior-written-notice",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:prior-written-notice"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.503-a"
+      ],
+      "note": "The district's written explanation of a decision, including what it refused"
+    },
+    {
+      "v7Id": "term:least-restrictive-environment",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:least-restrictive-environment"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.114-a-2-i"
+      ],
+      "note": "Learning alongside classmates without disabilities as much as is appropriate"
+    },
+    {
+      "v7Id": "term:extended-school-year",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:extended-school-year"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.106-a-1",
+        "AUTH-CFR-300.106-b"
+      ],
+      "note": "Services during school breaks when needed to keep skills"
+    },
+    {
+      "v7Id": "term:standard-score",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:standard-score"
+      ],
+      "authorityIds": [
+        "AUTH-PROF-STANDARD-SCORE-SCALES"
+      ],
+      "note": "A test score where 100 is average; most children score between 85 and 115"
+    },
+    {
+      "v7Id": "term:percentile",
+      "category": "terminology",
+      "status": "preserved",
+      "definitionIds": [
+        "term:percentile"
+      ],
+      "authorityIds": [
+        "AUTH-PROF-STANDARD-SCORE-SCALES"
+      ],
+      "note": "The share of same-age children who scored the same or lower. It is not percent correct"
+    },
+    {
+      "v7Id": "note:N1",
+      "category": "general note",
+      "status": "preserved",
+      "definitionIds": [
+        "note:N1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-a-1-ii",
+        "AUTH-CFR-300.300-b-1",
+        "AUTH-CFR-300.9-a"
+      ],
+      "note": "Show when: always. The condition is descriptive."
+    },
+    {
+      "v7Id": "note:N2",
+      "category": "general note",
+      "status": "preserved",
+      "definitionIds": [
+        "note:N2"
+      ],
+      "authorityIds": [
+        "AUTH-AP-SIGNATURE-MEANING",
+        "AUTH-CFR-300.300-d-2"
+      ],
+      "note": "Show when: always. The condition is descriptive."
+    },
+    {
+      "v7Id": "note:N3",
+      "category": "general note",
+      "status": "preserved",
+      "definitionIds": [
+        "note:N3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.306-a-2",
+        "AUTH-CFR-300.322-f"
+      ],
+      "note": "Show when: always. The condition is descriptive."
+    },
+    {
+      "v7Id": "note:N4",
+      "category": "general note",
+      "status": "preserved",
+      "definitionIds": [
+        "note:N4"
+      ],
+      "authorityIds": [
+        "AUTH-RES-HASBROUCK-2006-10WCPM",
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "note": "Show when: C8 or C9 present. The condition is descriptive."
+    },
+    {
+      "v7Id": "note:N6",
+      "category": "general note",
+      "status": "preserved",
+      "definitionIds": [
+        "note:N6"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-i-ii"
+      ],
+      "note": "Show when: always. The condition is descriptive."
+    },
+    {
+      "v7Id": "note:N5",
+      "category": "general note",
+      "status": "preserved",
+      "definitionIds": [
+        "note:N5"
+      ],
+      "authorityIds": [
+        "AUTH-AP-GRADE-EQUIVALENT-CAUTION",
+        "AUTH-PROF-STANDARD-SCORE-SCALES"
+      ],
+      "note": "Show when: any score table present. The condition is descriptive."
+    },
+    {
+      "v7Id": "referenceTable:oral-reading-fluency-norms",
+      "category": "reference table",
+      "status": "preserved",
+      "definitionIds": [
+        "referenceTable:oral-reading-fluency-norms"
+      ],
+      "authorityIds": [
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "note": "Grades 1-6, 50th and 25th percentiles, fall winter spring, including the blank grade-1 fall cells. Same rows as v7."
+    },
+    {
+      "v7Id": "report:customer:The short answer",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 1. Built from: narrative: if check T0 is not SHOWN, say first, in one sentence, that this plan's dates have passed and the parent may need the newer one; then answer the Customer \"Looking for\" questions L1 to L3 in order, one or two sentences each; then the person's worries (Q4) if given; block unanswered. Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:customer:What the school decided",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 2. Built from: narrative: eligibility, category, the need (L1). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:customer:What {first name} will get",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 3. Built from: narrative + block spine_table: each goal as \"from baseline to target by date, measured by how\"; each service as \"minutes, times a week, where, starting when\"; accommodations as a short list; block computed (C4, C8, C9) (L2). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:customer:Does the plan match the testing?",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 4. Built from: block chains, as two lists: Matches, Worth asking (L3). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:customer:Questions to ask before you sign",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 5. Built from: block questions: check questions and standing questions together, at most seven, most important first (L4); block general_notes (N6). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:customer:What to ask the school for",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 6. Built from: block gaps (document requests by holder, ask now before later) (L4). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:customer:What signing means",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 7. Built from: block general_notes (N1-N3) (L5). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:customer:What happens next",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 8. Built from: block computed (C7a) + narrative: progress report dates (L5). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:customer:Words used in these documents",
+      "category": "customer report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:customer"
+      ],
+      "authorityIds": [],
+      "note": "Order 9. Built from: block terms. Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Bottom line",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 1. Built from: narrative: if check T0 is not SHOWN, state that first with the dates; then answer the Professional \"Looking for\" questions L1 to L7 in order, one sentence each; block unanswered. Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Points to raise",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 2. Built from: narrative: one numbered point per issue a professional would raise, most important first, drawn from checks that are not SHOWN, chain rows with a missing link, and conflicts; each point states the finding, what is missing or weak, and the specific change, document or written request to ask for; every sentence, including the ask, cites the facts of its finding; no predictions of outcome and no legal conclusions (L7). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Snapshot",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 3. Built from: narrative: student, grade, school, category, key dates, state, the request; block documents. Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Chronology",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 4. Built from: block timeline + block computed (C1, C2, C3, C7a, C7b, C10); flag \"state timeline not verified\" when no overlay (L2). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Checklist",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 5. Built from: block checklist: id, check, verdict, evidence, authority; rows that are not SHOWN first (L2, L3). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Alignment",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 6. Built from: block chains (CH1, CH2, CH3) with missing links marked (L4). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Goal analysis",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 7. Built from: block spine_table (goals) + block computed (C4, C8, C9) (L5). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Services against recommendations",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 8. Built from: block spine_table (services) + block computed (C5) + narrative on S3, S4 (L5). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Conflicts and inconsistencies",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 9. Built from: block conflicts + block computed (C6) (L6). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Document requests",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 10. Built from: block gaps with the check each one settles (L1). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Meeting agenda",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 11. Built from: block questions (all, check and standing) + narrative: points for a parent-concerns letter (L7). Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "report:professional:Coverage and caveats",
+      "category": "professional report",
+      "status": "preserved",
+      "definitionIds": [
+        "report:professional"
+      ],
+      "authorityIds": [],
+      "note": "Order 12. Built from: narrative: unreadable pages, checks not applicable, state rules not verified; pack version and verification date. Narrative is kept in templateDescription. It is not an allowlisted report block."
+    },
+    {
+      "v7Id": "exception:T2-300.301-d",
+      "category": "exception",
+      "status": "enhanced",
+      "definitionIds": [
+        "check:T2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.301-d-1",
+        "AUTH-CFR-300.301-d-2",
+        "AUTH-CFR-300.301-e"
+      ],
+      "note": "v7 names parent did not produce the child and a district change, and cites 300.301(d). Those sentences stay in the check evidence. The register also maps 300.301(e). The exception is not an executable predicate."
+    },
+    {
+      "v7Id": "exception:T2-state-timeframe",
+      "category": "exception",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "check:T2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-ii"
+      ],
+      "note": "stateOverlay:evaluation-timeline records the state-timeframe sentence and stores no number. A state limit is not evaluated."
+    },
+    {
+      "v7Id": "exception:C7b-agreement",
+      "category": "exception",
+      "status": "enhanced",
+      "definitionIds": [
+        "calculation:C7b",
+        "guideline:v7-cited-arithmetic"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.303-b-2"
+      ],
+      "note": "v7: unless parent and school agree a re-evaluation is unnecessary. Register exception and ontology limitation already say parent and agency may agree. The calculation is not executable."
+    },
+    {
+      "v7Id": "exception:A3-300.106-title-only",
+      "category": "exception",
+      "status": "preserved",
+      "definitionIds": [
+        "check:A3",
+        "guideline:v7-limits"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.106-a-1",
+        "AUTH-CFR-300.106-a-2",
+        "AUTH-CFR-300.106-a-3"
+      ],
+      "note": "v7 verified 300.106 by section title only. The register now has subsection records. humanReview stays NOT_REVIEWED. This candidate does not treat those excerpts as reviewed."
+    },
+    {
+      "v7Id": "exception:learning-disability-only",
+      "category": "exception",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "check:E4",
+        "check:E5",
+        "check:E6",
+        "check:E7",
+        "check:E9"
+      ],
+      "authorityIds": [],
+      "note": "The v7 condition is in the check labels. It is not a predicate. The checks stay REVIEW_REQUIRED."
+    },
+    {
+      "v7Id": "exception:A4-age-16",
+      "category": "exception",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "check:A4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-b"
+      ],
+      "note": "The v7 condition, including younger if the team decides, is in the check label. It is not a predicate. stateOverlay:age-of-majority stores no threshold and is a different rule."
+    },
+    {
+      "v7Id": "exception:S3-notice-content",
+      "category": "exception",
+      "status": "currently unsupported",
+      "definitionIds": [
+        "check:S3",
+        "check:T5"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii",
+        "AUTH-CFR-300.502-c",
+        "AUTH-CFR-300.503-a"
+      ],
+      "note": "The check citation still says 300.503(b). definitionAuthorityMap lists AUTH-CFR-300.324-a-1-iii, AUTH-CFR-300.502-c, and AUTH-CFR-300.503-a for S3. AUTH-CFR-300.503-b-1-7 stays on check:T5. No mapping was added."
+    }
+  ],
+  "coverageGaps": [
+    {
+      "id": "operator:RATE_PER_WEEK",
+      "definitionIds": [
+        "calculation:C4"
+      ],
+      "note": "Declared. Not executable. Inputs stay in legacyInputs."
+    },
+    {
+      "id": "operator:SUM_BY",
+      "definitionIds": [
+        "calculation:C5"
+      ],
+      "note": "Declared. Not executable."
+    },
+    {
+      "id": "operator:DIFFERENCE",
+      "definitionIds": [
+        "calculation:C6"
+      ],
+      "note": "Declared. Not executable."
+    },
+    {
+      "id": "operator:ADD_INTERVAL",
+      "definitionIds": [
+        "calculation:C7a",
+        "calculation:C7b"
+      ],
+      "note": "Declared. Not executable. Anchors are not converted into a date predicate."
+    },
+    {
+      "id": "operator:REFERENCE_GAP",
+      "definitionIds": [
+        "calculation:C8",
+        "calculation:C9"
+      ],
+      "note": "Declared against referenceTable:oral-reading-fluency-norms. Not executable. Season boundaries stay a limitation on the ontology calculation."
+    },
+    {
+      "id": "calculation:C10",
+      "definitionIds": [
+        "calculation:C10"
+      ],
+      "note": "DAYS_BETWEEN is not activated. Latest-of and study date have no reviewed single-field binding."
+    },
+    {
+      "id": "block:narrative",
+      "definitionIds": [
+        "report:customer",
+        "report:professional"
+      ],
+      "note": "Narrative instructions stay in templateDescription. narrative is not an allowlisted block."
+    },
+    {
+      "id": "predicate:applicability",
+      "definitionIds": [
+        "check:E4",
+        "check:E5",
+        "check:E6",
+        "check:E7",
+        "check:E9",
+        "check:A4",
+        "question:SQ1",
+        "question:SQ2",
+        "question:SQ3",
+        "question:SQ4",
+        "question:SQ5",
+        "question:SQ6",
+        "question:SQ7",
+        "question:SQ8"
+      ],
+      "note": "Applicability text is preserved. EVERY and EXISTS stay unsupported. No predicate was written."
+    },
+    {
+      "id": "stateOverlay:evaluation-timeline",
+      "definitionIds": [
+        "check:T2"
+      ],
+      "note": "storedThreshold is null. No state day count is evaluated."
+    },
+    {
+      "id": "register:check:S3:300.503-b",
+      "definitionIds": [
+        "check:S3"
+      ],
+      "note": "Citation string preserves 300.503(b). The register link was not added."
+    }
+  ]
+}

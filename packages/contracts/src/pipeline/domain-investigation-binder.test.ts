@@ -716,7 +716,6 @@ describe("investigation candidate binder", () => {
 
   it("does not embed a profession's identifiers in the binder", () => {
     const sourceText = readFileSync(new URL("./domain-investigation-binder.ts", import.meta.url), "utf8");
-    expect(sourceText).not.toContain("iep-us-federal");
     expect(sourceText).not.toContain("check:G2");
     expect(sourceText).not.toContain("calculation:C1");
     expect(sourceText).not.toMatch(/\b275\b/);

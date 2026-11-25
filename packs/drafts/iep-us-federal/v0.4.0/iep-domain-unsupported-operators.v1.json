@@ -1,0 +1,20 @@
+{
+  "schema": "hive.domain-unsupported-operator-spec/1",
+  "version": "1.0.0",
+  "status": "DRAFT",
+  "dp1Supported": false,
+  "operators": [
+    {
+      "id": "EVERY",
+      "status": "UNSUPPORTED",
+      "source": "Ontology workflow note: quantified checks (each need, each goal) need EVERY/EXISTS operators.",
+      "dp1Predicate": false
+    },
+    {
+      "id": "EXISTS",
+      "status": "UNSUPPORTED",
+      "source": "Ontology workflow note: quantified checks (each need, each goal) need EVERY/EXISTS operators.",
+      "dp1Predicate": false
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { compileDomainPack } from "./domain-pack-compiler";
+import { compileDomainPack } from "../domain-pack-compiler";
 import {
   evaluateDomainRules,
   VERIFIED_CASE_FACTS_SCHEMA,
@@ -10,10 +10,10 @@ import {
   type VerifiedCaseFacts,
   type VerifiedFact,
   type VerifiedRelationshipFact,
-} from "./domain-pack-rules";
-import type { CompiledDomainPack, DomainPackSource, PackDefinition } from "./domain-pack-source";
+} from "../domain-pack-rules";
+import type { CompiledDomainPack, DomainPackSource, PackDefinition } from "../domain-pack-source";
 
-const ROOT = join(import.meta.dirname, "../../../../packs/drafts/iep-us-federal/v0.3.0");
+const ROOT = join(import.meta.dirname, "../../../../../packs/drafts/iep-us-federal/v0.3.0");
 
 type Endpoint = { entityId: string; fieldId: string };
 type CalculationSpec = {

@@ -1,0 +1,47 @@
+{
+  "schema": "hive.domain-state-overlay-spec/1",
+  "version": "1.0.0",
+  "status": "DRAFT",
+  "dp1Supported": false,
+  "note": "State-specific numbers are not stored. Each overlay points at an unreviewed federal authority that allows or requires state variation.",
+  "overlays": [
+    {
+      "id": "stateOverlay:age-of-majority",
+      "authorityIds": [
+        "AUTH-CFR-300.520-a"
+      ],
+      "statement": "A State may provide that rights transfer to the student at the age of majority under State law; the agency notifies both student and parent.",
+      "storedThreshold": null,
+      "partialAuthorityIds": [
+        "AUTH-CFR-300.520-a"
+      ]
+    },
+    {
+      "id": "stateOverlay:consent",
+      "authorityIds": [
+        "AUTH-CFR-300.300-d-2"
+      ],
+      "statement": "States may add consent requirements if refusal does not deny FAPE.",
+      "storedThreshold": null,
+      "partialAuthorityIds": []
+    },
+    {
+      "id": "stateOverlay:evaluation-timeline",
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-ii"
+      ],
+      "statement": "... or, if the State establishes a timeframe, within that timeframe.",
+      "storedThreshold": null,
+      "partialAuthorityIds": []
+    },
+    {
+      "id": "stateOverlay:sld-method",
+      "authorityIds": [
+        "AUTH-CFR-300.309-a-2"
+      ],
+      "statement": "Either insufficient response to scientific, research-based intervention, or a pattern of strengths and weaknesses, consistent with State criteria (§300.307).",
+      "storedThreshold": null,
+      "partialAuthorityIds": []
+    }
+  ]
+}

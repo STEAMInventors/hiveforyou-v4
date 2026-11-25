@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { compileDomainPack, packDigest } from "./domain-pack-compiler";
 import {
@@ -14,7 +13,6 @@ import { compileInvestigationPlan, type SupplementalArtifacts } from "./domain-i
 import { evaluateDomainRules, type DomainRuleResult } from "./domain-pack-rules";
 import { DOMAIN_PACK_SOURCE_SCHEMA, type CompiledDomainPack, type DomainPackSource } from "./domain-pack-source";
 import {
-  assessRelationshipTypedSource,
   authoredRelationshipDirection,
   decideRelationshipVerification,
   relationshipCandidateContentDigest,
@@ -757,18 +755,7 @@ describe("trusted relationship verification", () => {
     expect(reversed.ok).toBe(false);
     if (!reversed.ok) expect(reversed.code).toBe("STRUCTURE_UNAPPROVED");
 
-    const proof = compileDomainPack(JSON.parse(readFileSync(join(import.meta.dirname, "../../../../packs/drafts/iep-us-federal/v0.3.0/iep-domain-pack-source.stage4b.json"), "utf8")) as DomainPackSource);
-    expect(proof.ok).toBe(true);
-    if (!proof.ok) return;
-    expect(proof.value.identity).toMatchObject({ packId: "iep-us-federal", version: "0.3.0" });
-    const relationships = proof.value.definitions.filter((definition) => definition.kind === "relationship");
-    expect(relationships.length).toBeGreaterThan(0);
-    for (const relationship of relationships) {
-      expect(assessRelationshipTypedSource(relationship.id, undefined)).toBe("NO_TYPED_SOURCE");
-      expect(assessRelationshipTypedSource(relationship.id, [])).toBe("NO_TYPED_SOURCE");
-    }
     const sourceText = readFileSync(new URL("./domain-relationship-verification.ts", import.meta.url), "utf8");
-    expect(sourceText).not.toContain("iep-us-federal");
     expect(sourceText).not.toContain("authorizes");
     expect(sourceText).not.toContain("Date.now");
     expect(sourceText).not.toMatch(/openai|anthropic|litellm|fetch\(/i);

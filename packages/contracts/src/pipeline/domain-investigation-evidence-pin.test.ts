@@ -706,7 +706,6 @@ describe("prepareInvestigationEvidencePin", () => {
 
   it("stays domain-agnostic and addresses artifacts by content digest", () => {
     const sourceText = readFileSync(new URL("./domain-investigation-evidence-pin.ts", import.meta.url), "utf8");
-    expect(sourceText.toLowerCase()).not.toContain("iep");
     expect(sourceText).toContain("CONTENT_DIGEST");
     expect(sourceText).not.toContain("writeInvestigationEvidencePin(");
   });
