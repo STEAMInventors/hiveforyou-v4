@@ -15,7 +15,7 @@ const reactPdfPdfjsDistRoot = path.dirname(
 const PACK_TRACE_GLOBS = [
   "../../packs/*.md",
   "../../packs/archive/*.md",
-  "../../packs/drafts/iep-us-federal/v0.4.0/**/*",
+  "../../packs/drafts/*/v0.4.0/**/*",
 ] as const;
 
 const nextConfig: NextConfig = {
