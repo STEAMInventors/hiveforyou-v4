@@ -209,4 +209,30 @@ describe("editable Domain Pack DP-1", () => {
     expect(reject.ok).toBe(false);
     if (!reject.ok) expect(reject.issues.some((i)=>i.code==="predicate_operator")).toBe(true);
   });
+
+  it("keeps a DP-1 comparison label untyped and rejects a date role bound to a number", () => {
+    const source = baseSource();
+    source.definitions.push({
+      id: "check:label-compare", kind: "check", label: "Legacy label compare",
+      criterion: { op: "COMPARE", left: "not-a-field", comparator: "LT", right: "also-not-a-field" },
+    });
+    const labels = compileDomainPack(source);
+    expect(labels.ok).toBe(true);
+    const dated = baseSource();
+    dated.definitions.push({
+      id: "entity:amount", kind: "entity", label: "Amount",
+      fields: [{ id: "value", valueType: "NUMBER" }],
+    });
+    dated.definitions.push({
+      id: "calculation:bad-days", kind: "calculation", label: "Bad days",
+      operator: "DAYS_BETWEEN", inputFields: ["start", "end"], state: "EXECUTABLE",
+      bindings: [
+        { role: "start", entityId: "entity:amount", fieldId: "value" },
+        { role: "end", entityId: "entity:amount", fieldId: "value" },
+      ],
+    });
+    const wrongType = compileDomainPack(dated);
+    expect(wrongType.ok).toBe(false);
+    if (!wrongType.ok) expect(wrongType.issues.some((issue) => issue.code === "calculation_binding_type")).toBe(true);
+  });
 });

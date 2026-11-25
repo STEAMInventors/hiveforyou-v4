@@ -4,6 +4,7 @@
  * Node-only on purpose: the source contract stays browser-safe for Domain Studio.
  */
 import { createHash } from "node:crypto";
+import { decimalFromPlain } from "../analysis/decimal-formula";
 import {
   DOMAIN_PACK_COMPILER_VERSION,
   DOMAIN_PACK_RUNTIME_SCHEMA,
@@ -14,9 +15,11 @@ import {
   type CompiledDomainPack,
   type DomainPackSource,
   type EffectiveDefinition,
+  type FieldValueType,
   type PackCompileIssue,
   type PackCompileResult,
   type PackDefinition,
+  type PackOperand,
   type PackPredicate,
 } from "./domain-pack-source";
 
@@ -34,7 +37,7 @@ const DEFINITION_KEYS: Record<string, readonly string[]> = {
   relationship: ["fromEntityId", "toEntityId", "evidenceRequired"],
   document: ["aliases", "appliesWhen", "settlesCheckIds", "timingDescription", "applicabilityDescription"],
   check: ["criterion", "question", "evidenceDescription"],
-  calculation: ["operator", "inputFields", "state", "legacyInputs", "scope"],
+  calculation: ["operator", "inputFields", "bindings", "state", "legacyInputs", "scope"],
   chain: ["links"],
   question: ["audience", "text", "appliesWhen", "conditionDescription", "rationale"],
   workflow: ["steps"],
@@ -103,6 +106,74 @@ function safeJson(value: unknown, errors: PackCompileIssue[], path = "$", depth 
   }
 }
 
+const VALUE_TYPES = ["TEXT", "NUMBER", "DATE", "BOOLEAN", "MONEY", "QUANTITY"] as const;
+const COMPARATORS = ["EQ", "NE", "LT", "LTE", "GT", "GTE"] as const;
+
+function validateLiteralShape(raw: ObjectMap, path: string, errors: PackCompileIssue[]): void {
+  const valueType = raw.valueType;
+  if (!VALUE_TYPES.includes(valueType as (typeof VALUE_TYPES)[number]) || !nonempty(raw.value)) {
+    issue(errors, "operand_literal", path, "Literal operand needs a value type and a value.");
+    return;
+  }
+  const keys = valueType === "MONEY"
+    ? ["ref", "valueType", "value", "currency", "jurisdiction"]
+    : valueType === "QUANTITY"
+      ? ["ref", "valueType", "value", "unit", "jurisdiction"]
+      : ["ref", "valueType", "value", "jurisdiction"];
+  exactKeys(raw, keys, path, errors);
+  if (raw.jurisdiction !== undefined && valueType !== "NUMBER") {
+    issue(errors, "operand_jurisdiction", path, "Only a numeric literal can carry a jurisdictional threshold.");
+  } else if (raw.jurisdiction !== undefined && !nonempty(raw.jurisdiction)) {
+    issue(errors, "operand_jurisdiction", path, "Jurisdictional threshold name must be nonblank.");
+  }
+  if (valueType === "NUMBER" && !decimalFromPlain(String(raw.value))) {
+    issue(errors, "operand_literal", path, "Numeric literal is not an exact decimal.");
+  }
+  if (valueType === "DATE" && !validDate(raw.value)) {
+    issue(errors, "operand_literal", path, "Date literal must be a real calendar date.");
+  }
+  if (valueType === "BOOLEAN" && raw.value !== "true" && raw.value !== "false") {
+    issue(errors, "operand_literal", path, "Boolean literal must be true or false.");
+  }
+  if (valueType === "MONEY" && (!decimalFromPlain(String(raw.value)) || !/^[A-Z]{3}$/.test(String(raw.currency)))) {
+    issue(errors, "operand_literal", path, "Money literal needs an exact amount and a currency code.");
+  }
+  if (valueType === "QUANTITY" && (!decimalFromPlain(String(raw.value)) || !nonempty(raw.unit))) {
+    issue(errors, "operand_literal", path, "Quantity literal needs an exact amount and a unit.");
+  }
+}
+
+/** A string operand is the DP-1 label. It is accepted and is not resolved to a field. */
+function validateOperand(raw: unknown, path: string, errors: PackCompileIssue[]): void {
+  if (typeof raw === "string") {
+    if (!nonempty(raw)) issue(errors, "predicate_comparison", path, "Untyped comparison label must be nonblank.");
+    return;
+  }
+  if (!isObject(raw)) {
+    issue(errors, "operand_invalid", path, "Comparison operand must be a typed binding or a DP-1 label.");
+    return;
+  }
+  if (raw.ref === "FIELD") {
+    exactKeys(raw, ["ref", "entityId", "fieldId"], path, errors);
+    if (!nonempty(raw.entityId) || !ID.test(String(raw.entityId)) || !nonempty(raw.fieldId) || !ID.test(String(raw.fieldId))) {
+      issue(errors, "operand_binding", path, "Field operand needs an entity ID and a field ID.");
+    }
+    return;
+  }
+  if (raw.ref === "CALCULATION") {
+    exactKeys(raw, ["ref", "calculationId"], path, errors);
+    if (!nonempty(raw.calculationId) || !ID.test(String(raw.calculationId))) {
+      issue(errors, "operand_binding", path, "Calculation operand needs a calculation ID.");
+    }
+    return;
+  }
+  if (raw.ref === "LITERAL") {
+    validateLiteralShape(raw, path, errors);
+    return;
+  }
+  issue(errors, "operand_invalid", path, "Unsupported operand binding.");
+}
+
 function validatePredicate(raw: unknown, path: string, errors: PackCompileIssue[], depth = 0): void {
   if (!isObject(raw) || depth > 10) {
     issue(errors, "predicate_invalid", path, "Expected a bounded typed predicate.");
@@ -133,10 +204,14 @@ function validatePredicate(raw: unknown, path: string, errors: PackCompileIssue[
       return;
     case "COMPARE":
       exactKeys(raw, ["op", "left", "comparator", "right"], path, errors);
-      if (!nonempty(raw.left) || !nonempty(raw.right) ||
-          !["EQ", "NE", "LT", "LTE", "GT", "GTE"].includes(String(raw.comparator))) {
-        issue(errors, "predicate_comparison", path, "Invalid typed comparison.");
+      if (!(COMPARATORS as readonly string[]).includes(String(raw.comparator))) {
+        issue(errors, "predicate_comparison", path, "Unsupported comparator.");
       }
+      if (typeof raw.left !== typeof raw.right) {
+        issue(errors, "predicate_comparison", path, "Both comparison operands must be typed bindings, or both must be DP-1 labels.");
+      }
+      validateOperand(raw.left, path + ".left", errors);
+      validateOperand(raw.right, path + ".right", errors);
       return;
     default:
       issue(errors, "predicate_operator", path, "Unsupported predicate operator.");
@@ -194,7 +269,22 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
           !strArray(raw.inputFields) || !["EXECUTABLE", "DECLARATION_ONLY"].includes(String(raw.state)) ||
           (raw.state === "EXECUTABLE" && raw.inputFields.length === 0) ||
           (raw.state === "DECLARATION_ONLY" && !nonempty(raw.legacyInputs))) {
-        issue(errors, "calculation_invalid", path, "Unsupported operator or incomplete calculation bindings.");
+        issue(errors, "calculation_invalid", path, "Unsupported operator or incomplete calculation declaration.");
+      }
+      if (raw.bindings !== undefined) {
+        if (!Array.isArray(raw.bindings) || raw.bindings.length < 1 || raw.bindings.length > 8 ||
+            !raw.bindings.every((binding) => isObject(binding) && nonempty(binding.role) && ID.test(String(binding.role)) &&
+              nonempty(binding.entityId) && ID.test(String(binding.entityId)) &&
+              nonempty(binding.fieldId) && ID.test(String(binding.fieldId)))) {
+          issue(errors, "calculation_binding", path, "Calculation bindings need a role, an entity ID and a field ID.");
+        } else {
+          raw.bindings.forEach((binding, index) => exactKeys(binding as ObjectMap, ["role", "entityId", "fieldId"], path + ".bindings[" + index + "]", errors));
+          const roles = raw.bindings.map((binding) => String((binding as { role: string }).role));
+          if (!unique(roles)) issue(errors, "calculation_binding", path, "Calculation binding roles must be unique.");
+          if (raw.operator === "DAYS_BETWEEN" && (roles.length !== 2 || !roles.includes("start") || !roles.includes("end"))) {
+            issue(errors, "calculation_binding", path, "DAYS_BETWEEN bindings are exactly the roles start and end.");
+          }
+        }
       }
       if (raw.scope !== undefined && typeof raw.scope !== "string") issue(errors,"calculation_scope",path,"Invalid calculation scope.");
       break;
@@ -248,6 +338,32 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
   return true;
 }
 
+function fieldType(defs: Map<string, EffectiveDefinition>, entityId: string, fieldId: string): FieldValueType | null {
+  const entity = defs.get(entityId);
+  if (entity?.kind !== "entity") return null;
+  return entity.fields.find((field) => field.id === fieldId)?.valueType ?? null;
+}
+
+function calculationValueType(defs: Map<string, EffectiveDefinition>, calculationId: string): FieldValueType | "UNSUPPORTED" | null {
+  const calculation = defs.get(calculationId);
+  if (calculation?.kind !== "calculation") return null;
+  if (calculation.operator !== "DAYS_BETWEEN" || calculation.state !== "EXECUTABLE" || !calculation.bindings) return "UNSUPPORTED";
+  const start = calculation.bindings.find((binding) => binding.role === "start");
+  const end = calculation.bindings.find((binding) => binding.role === "end");
+  if (!start || !end) return "UNSUPPORTED";
+  if (fieldType(defs, start.entityId, start.fieldId) !== "DATE" || fieldType(defs, end.entityId, end.fieldId) !== "DATE") {
+    return "UNSUPPORTED";
+  }
+  return "NUMBER";
+}
+
+function operandValueType(defs: Map<string, EffectiveDefinition>, operand: string | PackOperand): FieldValueType | "UNTYPED" | "UNSUPPORTED" | null {
+  if (typeof operand === "string") return "UNTYPED";
+  if (operand.ref === "LITERAL") return operand.valueType;
+  if (operand.ref === "FIELD") return fieldType(defs, operand.entityId, operand.fieldId);
+  return calculationValueType(defs, operand.calculationId);
+}
+
 function validateReferences(defs: readonly EffectiveDefinition[], errors: PackCompileIssue[]): void {
   const byId = new Map(defs.map((d) => [d.id, d]));
   for (const def of defs) {
@@ -261,6 +377,15 @@ function validateReferences(defs: readonly EffectiveDefinition[], errors: PackCo
     if (def.kind === "persona") for (const id of def.questionIds) {
       if (byId.get(id)?.kind !== "question") issue(errors, "question_target_missing", def.id, "Persona references unknown question: " + id);
     }
+    if (def.kind === "calculation" && def.bindings) {
+      for (const binding of def.bindings) {
+        const boundType = fieldType(byId, binding.entityId, binding.fieldId);
+        if (!boundType) issue(errors, "calculation_binding_missing", def.id, "Calculation binding does not name an effective field.");
+        else if (def.operator === "DAYS_BETWEEN" && boundType !== "DATE") {
+          issue(errors, "calculation_binding_type", def.id, "DAYS_BETWEEN start and end must both be dates.");
+        }
+      }
+    }
     if (def.kind === "check" || def.kind === "document" || def.kind === "question") {
       const p: PackPredicate = def.kind === "check" ? def.criterion : def.appliesWhen;
       function refs(node: PackPredicate): void {
@@ -273,6 +398,28 @@ function validateReferences(defs: readonly EffectiveDefinition[], errors: PackCo
             issue(errors, "predicate_target_missing", def.id, "Unknown document kind binding.");
         } else if (node.op === "ALL" || node.op === "ANY") node.conditions.forEach(refs);
         else if (node.op === "NOT") refs(node.condition);
+        else if (node.op === "COMPARE") {
+          for (const operand of [node.left, node.right]) {
+            if (typeof operand === "string") continue;
+            if (operand.ref === "FIELD" && !fieldType(byId, operand.entityId, operand.fieldId)) {
+              issue(errors, "predicate_target_missing", def.id, "Comparison field binding is not an effective field.");
+            }
+            if (operand.ref === "CALCULATION" && byId.get(operand.calculationId)?.kind !== "calculation") {
+              issue(errors, "predicate_target_missing", def.id, "Comparison calculation binding is not an effective calculation.");
+            }
+          }
+          if (typeof node.left !== "string" && typeof node.right !== "string") {
+            const leftType = operandValueType(byId, node.left);
+            const rightType = operandValueType(byId, node.right);
+            if (leftType && rightType && leftType !== "UNSUPPORTED" && rightType !== "UNSUPPORTED") {
+              const ordered = node.comparator === "LT" || node.comparator === "LTE" || node.comparator === "GT" || node.comparator === "GTE";
+              const equalityOnly = leftType === "TEXT" || leftType === "BOOLEAN";
+              if (leftType !== rightType || (ordered && equalityOnly)) {
+                issue(errors, "predicate_type_mismatch", def.id, "Comparison operands do not have a comparable type.");
+              }
+            }
+          }
+        }
       }
       refs(p);
     }

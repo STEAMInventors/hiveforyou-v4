@@ -1,0 +1,316 @@
+{
+  "schema": "hive.domain-proposed-check-set/1",
+  "version": "1.0.0",
+  "status": "DRAFT",
+  "dp1Supported": false,
+  "packRef": {
+    "packId": "iep-us-federal",
+    "version": "0.3.0"
+  },
+  "publication": "UNPUBLISHED",
+  "review": "DRAFT",
+  "applicabilityVerification": "UNVERIFIED",
+  "authorityReview": "NOT_REVIEWED",
+  "note": "Seven proposed checks withdrawn from the active authority register in Stage 5A.2. They are not among the 275 compiled definitions. This set preserves each mapping, the absent authorityRoles entry, and the Stage 4A rationale. It is not a DP-1 definition kind, not a supplemental planner input, and not evaluated.",
+  "proposals": [
+    {
+      "definitionId": "check:DS1",
+      "addedToDp1": false,
+      "compiled": false,
+      "authorityRolesEntry": null,
+      "rationale": "Discipline module is deferred. The only mapped authority is a partial snippet of 34 CFR 300.530(e)(1). No ontology rule is defined, so no check was added.",
+      "authorityIds": [
+        "AUTH-CFR-300.530-e-1"
+      ],
+      "mappings": [
+        {
+          "authorityId": "AUTH-CFR-300.530-e-1",
+          "role": null,
+          "citation": "34 CFR 300.530(e)(1)",
+          "sectionOrLocator": "§ 300.530(e)(1)",
+          "authorityType": "FEDERAL_REGULATION",
+          "verificationStatus": "PARTIAL_SNIPPET",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Manifestation-determination timeline (school days).",
+            "doesNotEstablish": "-"
+          },
+          "limitations": [
+            "Seen in 2007 CFR edition (GPO archive) and current eCFR snippet; current full text not fetched. Discipline module is DEFERRED.",
+            "Retrieved from Cornell LII, which republishes the eCFR (eCFR pages seen 2026-08 to 2026-10 report Title 34 amended through 2026-07/10). eCFR is not the official legal edition; the official text is the annual CFR on govinfo.gov. Operative words quoted (<=12 words); remainder is a paraphrase checked against the fetched text, not a verbatim copy."
+          ]
+        }
+      ]
+    },
+    {
+      "definitionId": "check:G3-LEGAL",
+      "addedToDp1": false,
+      "compiled": false,
+      "authorityRolesEntry": null,
+      "rationale": "Proposed split of the existing check:G3 Endrew F. citation. check:G3 is preserved. A second legal check was not added.",
+      "authorityIds": [
+        "AUTH-CASE-ENDREW-F-HOLDING",
+        "AUTH-CASE-ENDREW-F-AMBITIOUS",
+        "AUTH-CASE-ENDREW-F-GRADE",
+        "AUTH-CASE-ENDREW-F-NO-ELABORATION",
+        "AUTH-CASE-ENDREW-F-DEMINIMIS"
+      ],
+      "mappings": [
+        {
+          "authorityId": "AUTH-CASE-ENDREW-F-HOLDING",
+          "role": null,
+          "citation": "580 U.S. 386 (2017)",
+          "sectionOrLocator": "Opinion Part II-B",
+          "authorityType": "US_SUPREME_COURT_DECISION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "The substantive FAPE standard.",
+            "doesNotEstablish": "Does not set a numeric growth rate, gap-closure requirement, or goal format."
+          },
+          "limitations": [
+            "U.S. Reports page pin-cites not captured; locators are opinion Part numbers from LII.",
+            "Applying the standard to a case is a legal judgment for a professional; Hive must not compute it."
+          ]
+        },
+        {
+          "authorityId": "AUTH-CASE-ENDREW-F-AMBITIOUS",
+          "role": null,
+          "citation": "580 U.S. 386 (2017)",
+          "sectionOrLocator": "Opinion Part II-B",
+          "authorityType": "US_SUPREME_COURT_DECISION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Ambition is part of the legal standard.",
+            "doesNotEstablish": "Does not make 'closes the gap with typical peers' a legal requirement."
+          },
+          "limitations": [
+            "U.S. Reports page pin-cites not captured; locators are opinion Part numbers from LII.",
+            "Applying the standard to a case is a legal judgment for a professional; Hive must not compute it."
+          ]
+        },
+        {
+          "authorityId": "AUTH-CASE-ENDREW-F-GRADE",
+          "role": null,
+          "citation": "580 U.S. 386 (2017)",
+          "sectionOrLocator": "Opinion Part II-B and n.2",
+          "authorityType": "US_SUPREME_COURT_DECISION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Grade advancement benchmark for integrated children.",
+            "doesNotEstablish": "Not an inflexible rule (n.2)."
+          },
+          "limitations": [
+            "U.S. Reports page pin-cites not captured; locators are opinion Part numbers from LII.",
+            "Applying the standard to a case is a legal judgment for a professional; Hive must not compute it."
+          ]
+        },
+        {
+          "authorityId": "AUTH-CASE-ENDREW-F-NO-ELABORATION",
+          "role": null,
+          "citation": "580 U.S. 386 (2017)",
+          "sectionOrLocator": "Opinion Part II-D",
+          "authorityType": "US_SUPREME_COURT_DECISION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Limits on reading the standard as a formula.",
+            "doesNotEstablish": "Supports keeping G3 as REVIEW_REQUIRED."
+          },
+          "limitations": [
+            "U.S. Reports page pin-cites not captured; locators are opinion Part numbers from LII.",
+            "Applying the standard to a case is a legal judgment for a professional; Hive must not compute it."
+          ]
+        },
+        {
+          "authorityId": "AUTH-CASE-ENDREW-F-DEMINIMIS",
+          "role": null,
+          "citation": "580 U.S. 386 (2017)",
+          "sectionOrLocator": "Opinion Part II-B",
+          "authorityType": "US_SUPREME_COURT_DECISION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Rejects the de minimis test.",
+            "doesNotEstablish": "-"
+          },
+          "limitations": [
+            "U.S. Reports page pin-cites not captured; locators are opinion Part numbers from LII.",
+            "Applying the standard to a case is a legal judgment for a professional; Hive must not compute it."
+          ]
+        }
+      ]
+    },
+    {
+      "definitionId": "check:IM2",
+      "addedToDp1": false,
+      "compiled": false,
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for implementer access under 34 CFR 300.323(d). No ontology ruleId. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.323-d"
+      ],
+      "mappings": [
+        {
+          "authorityId": "AUTH-CFR-300.323-d",
+          "role": null,
+          "citation": "34 CFR 300.323(d)",
+          "sectionOrLocator": "§ 300.323(d)",
+          "authorityType": "FEDERAL_REGULATION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Implementer access/notification.",
+            "doesNotEstablish": "-"
+          },
+          "limitations": [
+            "Retrieved from Cornell LII, which republishes the eCFR (eCFR pages seen 2026-08 to 2026-10 report Title 34 amended through 2026-07/10). eCFR is not the official legal edition; the official text is the annual CFR on govinfo.gov. Operative words quoted (<=12 words); remainder is a paraphrase checked against the fetched text, not a verbatim copy."
+          ]
+        }
+      ]
+    },
+    {
+      "definitionId": "check:P2b",
+      "addedToDp1": false,
+      "compiled": false,
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for considering the most recent evaluation under 34 CFR 300.324(a)(1)(iii). check:S3 already uses that subject. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii"
+      ],
+      "mappings": [
+        {
+          "authorityId": "AUTH-CFR-300.324-a-1-iii",
+          "role": null,
+          "citation": "34 CFR 300.324(a)(1)(iii)",
+          "sectionOrLocator": "§ 300.324(a)(1)(iii)",
+          "authorityType": "FEDERAL_REGULATION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Team considers results of the initial or most recent evaluation.",
+            "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+          },
+          "limitations": [
+            "Retrieved from Cornell LII, which republishes the eCFR (eCFR pages seen 2026-08 to 2026-10 report Title 34 amended through 2026-07/10). eCFR is not the official legal edition; the official text is the annual CFR on govinfo.gov. Operative words quoted (<=12 words); remainder is a paraphrase checked against the fetched text, not a verbatim copy."
+          ]
+        }
+      ]
+    },
+    {
+      "definitionId": "check:PS2",
+      "addedToDp1": false,
+      "compiled": false,
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for a Part C coordinator invitation under 34 CFR 300.321(f). Preschool / Part C transition is a deferred workflow. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.321-f"
+      ],
+      "mappings": [
+        {
+          "authorityId": "AUTH-CFR-300.321-f",
+          "role": null,
+          "citation": "34 CFR 300.321(f)",
+          "sectionOrLocator": "§ 300.321(f)",
+          "authorityType": "FEDERAL_REGULATION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "For a child previously served under Part C, on parent request, the Part C coordinator is invited to the initial IEP meeting.",
+            "doesNotEstablish": "-"
+          },
+          "limitations": [
+            "Retrieved from Cornell LII, which republishes the eCFR (eCFR pages seen 2026-08 to 2026-10 report Title 34 amended through 2026-07/10). eCFR is not the official legal edition; the official text is the annual CFR on govinfo.gov. Operative words quoted (<=12 words); remainder is a paraphrase checked against the fetched text, not a verbatim copy."
+          ]
+        }
+      ]
+    },
+    {
+      "definitionId": "check:RV4",
+      "addedToDp1": false,
+      "compiled": false,
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for an evaluation before ending eligibility under 34 CFR 300.305(e). Named in workflow notes as RV4, with no ontology ruleId. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.305-e-1",
+        "AUTH-CFR-300.305-e-2"
+      ],
+      "mappings": [
+        {
+          "authorityId": "AUTH-CFR-300.305-e-1",
+          "role": null,
+          "citation": "34 CFR 300.305(e)(1)",
+          "sectionOrLocator": "§ 300.305(e)(1)",
+          "authorityType": "FEDERAL_REGULATION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Evaluation required before determining a child is no longer eligible.",
+            "doesNotEstablish": "-"
+          },
+          "limitations": [
+            "Retrieved from Cornell LII, which republishes the eCFR (eCFR pages seen 2026-08 to 2026-10 report Title 34 amended through 2026-07/10). eCFR is not the official legal edition; the official text is the annual CFR on govinfo.gov. Operative words quoted (<=12 words); remainder is a paraphrase checked against the fetched text, not a verbatim copy."
+          ]
+        },
+        {
+          "authorityId": "AUTH-CFR-300.305-e-2",
+          "role": null,
+          "citation": "34 CFR 300.305(e)(2)",
+          "sectionOrLocator": "§ 300.305(e)(2)",
+          "authorityType": "FEDERAL_REGULATION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "No evaluation needed when eligibility ends by graduation with a regular diploma or exceeding age eligibility.",
+            "doesNotEstablish": "-"
+          },
+          "limitations": [
+            "Retrieved from Cornell LII, which republishes the eCFR (eCFR pages seen 2026-08 to 2026-10 report Title 34 amended through 2026-07/10). eCFR is not the official legal edition; the official text is the annual CFR on govinfo.gov. Operative words quoted (<=12 words); remainder is a paraphrase checked against the fetched text, not a verbatim copy."
+          ]
+        }
+      ]
+    },
+    {
+      "definitionId": "check:TR4",
+      "addedToDp1": false,
+      "compiled": false,
+      "authorityRolesEntry": null,
+      "rationale": "Authority-only proposal for a summary of performance under 34 CFR 300.305(e)(3). No ontology ruleId. Not added.",
+      "authorityIds": [
+        "AUTH-CFR-300.305-e-3"
+      ],
+      "mappings": [
+        {
+          "authorityId": "AUTH-CFR-300.305-e-3",
+          "role": null,
+          "citation": "34 CFR 300.305(e)(3)",
+          "sectionOrLocator": "§ 300.305(e)(3)",
+          "authorityType": "FEDERAL_REGULATION",
+          "verificationStatus": "VERIFIED_PRIMARY_EXCERPT",
+          "humanReview": "NOT_REVIEWED",
+          "evidenceStrength": "PRIMARY_AUTHORITY",
+          "interpretation": {
+            "establishes": "Those leavers receive a summary of performance with postsecondary recommendations.",
+            "doesNotEstablish": "-"
+          },
+          "limitations": [
+            "Retrieved from Cornell LII, which republishes the eCFR (eCFR pages seen 2026-08 to 2026-10 report Title 34 amended through 2026-07/10). eCFR is not the official legal edition; the official text is the annual CFR on govinfo.gov. Operative words quoted (<=12 words); remainder is a paraphrase checked against the fetched text, not a verbatim copy."
+          ]
+        }
+      ]
+    }
+  ]
+}

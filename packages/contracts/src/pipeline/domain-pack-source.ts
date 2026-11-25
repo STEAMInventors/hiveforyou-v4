@@ -33,13 +33,42 @@ export type PackApplicability = {
 export type FieldValueType = "TEXT" | "NUMBER" | "DATE" | "BOOLEAN" | "MONEY" | "QUANTITY";
 export type FieldDefinition = { id: string; valueType: FieldValueType; required?: boolean; unit?: string };
 
+/**
+ * A comparison operand. Object forms are the only executable bindings.
+ * A bare string remains valid authoring data from DP-1 and is not a field name.
+ */
+export type PackOperand =
+  | { ref: "FIELD"; entityId: string; fieldId: string }
+  | { ref: "CALCULATION"; calculationId: string }
+  | {
+      ref: "LITERAL";
+      valueType: FieldValueType;
+      value: string;
+      /** Set only on a NUMBER threshold that states which jurisdiction adopted it. */
+      jurisdiction?: string;
+      currency?: string;
+      unit?: string;
+    };
+
 export type PackPredicate =
   | { op: "REVIEW_REQUIRED" }
   | { op: "FIELD_PRESENT"; entityId: string; fieldId: string }
   | { op: "DOCUMENT_PRESENT"; documentKindId: string }
   | { op: "ALL" | "ANY"; conditions: PackPredicate[] }
   | { op: "NOT"; condition: PackPredicate }
-  | { op: "COMPARE"; left: string; comparator: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE"; right: string };
+  | {
+      op: "COMPARE";
+      left: string | PackOperand;
+      comparator: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE";
+      right: string | PackOperand;
+    };
+
+/** Operator roles such as start/end. These are not free-text field names. */
+export type PackCalculationBinding = {
+  role: string;
+  entityId: string;
+  fieldId: string;
+};
 
 export const PACK_CALCULATION_OPERATORS = [
   "DAYS_BETWEEN", "DIFFERENCE", "RATE_PER_WEEK", "SUM_BY", "ADD_INTERVAL", "REFERENCE_GAP",
@@ -68,7 +97,7 @@ export type PackDefinition =
   | (DefinitionBase & { kind: "relationship"; fromEntityId: string; toEntityId: string; evidenceRequired: boolean })
   | (DefinitionBase & { kind: "document"; aliases: string[]; appliesWhen: PackPredicate; settlesCheckIds: string[]; timingDescription?: string; applicabilityDescription?: string })
   | (DefinitionBase & { kind: "check"; criterion: PackPredicate; question?: string; evidenceDescription?: string })
-  | (DefinitionBase & { kind: "calculation"; operator: PackCalculationOperator; inputFields: string[]; state: "EXECUTABLE" | "DECLARATION_ONLY"; legacyInputs?: string; scope?: string })
+  | (DefinitionBase & { kind: "calculation"; operator: PackCalculationOperator; inputFields: string[]; bindings?: PackCalculationBinding[]; state: "EXECUTABLE" | "DECLARATION_ONLY"; legacyInputs?: string; scope?: string })
   | (DefinitionBase & { kind: "chain"; links: string[] })
   | (DefinitionBase & { kind: "question"; audience: "customer" | "professional" | "all"; text: string; appliesWhen: PackPredicate; conditionDescription?: string; rationale?: string })
   | (DefinitionBase & { kind: "workflow"; steps: { id: string; action: PackWorkflowAction; requiresReview: boolean }[] })

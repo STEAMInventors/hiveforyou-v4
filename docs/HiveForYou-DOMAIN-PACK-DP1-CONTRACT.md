@@ -26,7 +26,7 @@ Compilation flattens inherited and amended definitions and calculates a content 
 
 Entity / attributes, relationships, documents, checks and predicates, calculations, chains, questions, workflows with allowlisted actions, reports with allowlisted data blocks, terms, reference tables, personas, and notes.
 
-The current predicate contract represents bounded comparison and presence checks, but this DP-1 slice does **not** evaluate them against case records. Domain rule execution belongs in DP-2.
+The current predicate contract represents bounded comparison and presence checks. DP-1 does not evaluate them. DP-2 (`docs/HiveForYou-DOMAIN-PACK-DP2-CONTRACT.md`) evaluates a compiled snapshot against verified facts. Legacy prose is still not upgraded into an executable rule.
 
 The current legacy Markdown parser does not expose every domain-oriented table (notably `Record kinds`); the adapter does not invent those missing definitions. A separate reviewed adapter enhancement is required for complete ontology migration.
 

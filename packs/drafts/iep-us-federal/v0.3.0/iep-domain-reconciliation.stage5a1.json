@@ -1,0 +1,1622 @@
+{
+  "schema": "hive.domain-reconciliation/1",
+  "stage": "5A.1",
+  "status": "DRAFT",
+  "result": "PASS",
+  "packRef": {
+    "packId": "iep-us-federal",
+    "version": "0.3.0"
+  },
+  "publication": "UNPUBLISHED",
+  "review": "DRAFT",
+  "applicabilityVerification": "UNVERIFIED",
+  "authorityReview": "NOT_REVIEWED",
+  "summary": {
+    "authorityRecords": 149,
+    "inconsistentLinksExamined": 160,
+    "relatedDefinitionIdsAdded": 158,
+    "mapLinksWithdrawn": 2,
+    "forwardReverseDisagreements": 0,
+    "relationshipClassCounts": {
+      "PROFESSIONAL_CRITERIA": 13,
+      "LIMITATION": 13,
+      "DIRECT_LEGAL_REQUIREMENT": 132
+    }
+  },
+  "corrections": [
+    {
+      "definitionId": "calculation:C11",
+      "authorityId": "AUTH-AP-GROWTH-RATE",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "calculation:C12",
+      "authorityId": "AUTH-AP-GROWTH-RATE",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "calculation:C15",
+      "authorityId": "AUTH-CFR-300.322-a-1",
+      "relationshipClass": "LIMITATION",
+      "reason": "Notice must be early enough for parents to attend. The section sets no day count, so the day count is descriptive.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Notify parents early enough to have an opportunity to attend.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "calculation:C16",
+      "authorityId": "AUTH-CFR-300.309-c",
+      "relationshipClass": "LIMITATION",
+      "reason": "The section requires a prompt consent request in the SLD context and does not define the period. The day count is descriptive.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Prompt consent request (SLD context).",
+      "doesNotEstablish": "Does not define 'promptly' or the 'appropriate period'."
+    },
+    {
+      "definitionId": "calculation:C17",
+      "authorityId": "AUTH-CFR-300.320-a-3-ii",
+      "relationshipClass": "LIMITATION",
+      "reason": "The section requires a progress-report timing statement. Quarterly is an example, not a mandate.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress-report timing statement.",
+      "doesNotEstablish": "Quarterly is an example, not a mandate."
+    },
+    {
+      "definitionId": "calculation:C18",
+      "authorityId": "AUTH-CFR-300.320-a-3-ii",
+      "relationshipClass": "LIMITATION",
+      "reason": "The section requires a progress-report timing statement. Quarterly is an example, not a mandate.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress-report timing statement.",
+      "doesNotEstablish": "Quarterly is an example, not a mandate."
+    },
+    {
+      "definitionId": "calculation:C19",
+      "authorityId": "AUTH-CFR-300.324-a-4",
+      "relationshipClass": "LIMITATION",
+      "reason": "The section authorizes a written amendment between annual reviews. It does not establish a service-minute formula. The calculation stays descriptive of a version change.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Between annual reviews, parent and agency may agree in writing to amend without a meeting; team is informed.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "calculation:C20",
+      "authorityId": "AUTH-CFR-300.502-b-1-2",
+      "relationshipClass": "LIMITATION",
+      "reason": "The section states the agency's response options and does not set a day count for 'without unnecessary delay.'",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Agency response options to an IEE request.",
+      "doesNotEstablish": "Does not set a day count for 'without unnecessary delay'."
+    },
+    {
+      "definitionId": "calculation:C22",
+      "authorityId": "AUTH-CFR-300.303-b-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Frequency ceiling.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "calculation:C22",
+      "authorityId": "AUTH-CFR-300.303-b-2",
+      "relationshipClass": "LIMITATION",
+      "reason": "The section establishes a three-year maximum and does not specify whether the anchor is the last evaluation or the eligibility date.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "3-year maximum interval.",
+      "doesNotEstablish": "Does not specify the anchor date from which 3 years runs (last evaluation vs eligibility date)."
+    },
+    {
+      "definitionId": "calculation:C5",
+      "authorityId": "AUTH-CFR-300.320-a-7",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Service grid fields.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "chain:CH1",
+      "authorityId": "AUTH-CFR-300.306-c-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Variety of sources at eligibility.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "chain:CH3",
+      "authorityId": "AUTH-CFR-300.502-c",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Consideration of private evaluations.",
+      "doesNotEstablish": "Does not require adoption of private evaluation recommendations."
+    },
+    {
+      "definitionId": "chain:CH4",
+      "authorityId": "AUTH-CFR-300.300-a-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Consent must precede the initial evaluation.",
+      "doesNotEstablish": "Does not set a time limit for seeking consent after referral (see §300.309(c) for SLD)."
+    },
+    {
+      "definitionId": "chain:CH4",
+      "authorityId": "AUTH-CFR-300.301-c-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Federal default timeframe, measured from receipt of consent.",
+      "doesNotEstablish": "Does not say whether the eligibility determination must also occur within 60 days; does not apply where the State has its own timeframe."
+    },
+    {
+      "definitionId": "chain:CH4",
+      "authorityId": "AUTH-CFR-300.323-c-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "30-day initial IEP meeting timeline (calendar days).",
+      "doesNotEstablish": "Does not apply to annual reviews."
+    },
+    {
+      "definitionId": "chain:CH4",
+      "authorityId": "AUTH-CFR-300.323-c-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Prompt implementation.",
+      "doesNotEstablish": "Sets no fixed day limit."
+    },
+    {
+      "definitionId": "chain:CH4",
+      "authorityId": "AUTH-CFR-300.303-b-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "3-year maximum interval.",
+      "doesNotEstablish": "Does not specify the anchor date from which 3 years runs (last evaluation vs eligibility date)."
+    },
+    {
+      "definitionId": "chain:CH5",
+      "authorityId": "AUTH-CFR-300.320-a-3-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress measurement statement.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "chain:CH5",
+      "authorityId": "AUTH-CFR-300.324-b-1-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Revise to address lack of expected progress, reevaluation results, parent information, anticipated needs, other matters.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "chain:CH5",
+      "authorityId": "AUTH-CASE-ENDREW-F-NO-ELABORATION",
+      "relationshipClass": "LIMITATION",
+      "reason": "The opinion is recorded as a limit on reading the standard as a formula. It is not the statement of the progress trajectory.",
+      "authorityType": "US_SUPREME_COURT_DECISION",
+      "establishes": "Limits on reading the standard as a formula.",
+      "doesNotEstablish": "Supports keeping G3 as REVIEW_REQUIRED."
+    },
+    {
+      "definitionId": "chain:CH5",
+      "authorityId": "AUTH-AP-GROWTH-RATE",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "chain:CH6",
+      "authorityId": "AUTH-CFR-300.324-a-4",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Between annual reviews, parent and agency may agree in writing to amend without a meeting; team is informed.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "chain:CH6",
+      "authorityId": "AUTH-CFR-300.324-a-6",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Changes may be made by amendment; parent may request a revised copy with amendments incorporated.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "chain:CH7",
+      "authorityId": "AUTH-CFR-300.324-a-1-i-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Team considers the child's strengths and the parents' concerns.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "chain:CH7",
+      "authorityId": "AUTH-CFR-300.322-a-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Notify parents early enough to have an opportunity to attend.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "chain:CH7",
+      "authorityId": "AUTH-CFR-300.503-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "PWN triggers.",
+      "doesNotEstablish": "Does not define 'reasonable time'."
+    },
+    {
+      "definitionId": "conflictPattern:CP-BASELINE-MISMATCH",
+      "authorityId": "AUTH-AP-SCORE-CONSISTENCY",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "conflictPattern:CP-CONSENT-DATE",
+      "authorityId": "AUTH-CFR-300.301-c-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Federal default timeframe, measured from receipt of consent.",
+      "doesNotEstablish": "Does not say whether the eligibility determination must also occur within 60 days; does not apply where the State has its own timeframe."
+    },
+    {
+      "definitionId": "conflictPattern:CP-ELIGIBILITY-DATE",
+      "authorityId": "AUTH-CFR-300.323-c-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "30-day initial IEP meeting timeline (calendar days).",
+      "doesNotEstablish": "Does not apply to annual reviews."
+    },
+    {
+      "definitionId": "conflictPattern:CP-EVAL-COMPLETION",
+      "authorityId": "AUTH-CFR-300.301-c-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Federal default timeframe, measured from receipt of consent.",
+      "doesNotEstablish": "Does not say whether the eligibility determination must also occur within 60 days; does not apply where the State has its own timeframe."
+    },
+    {
+      "definitionId": "conflictPattern:CP-GOAL-DATE-RANGE",
+      "authorityId": "AUTH-CFR-300.324-b-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "IEP reviewed periodically, not less than annually, to determine whether goals are being achieved.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "conflictPattern:CP-PLACEMENT-STATEMENT",
+      "authorityId": "AUTH-CFR-300.320-a-5",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Removal explanation.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "conflictPattern:CP-REC-NOT-TRACEABLE",
+      "authorityId": "AUTH-CFR-300.324-a-1-iii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Team considers results of the initial or most recent evaluation.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "conflictPattern:CP-SERVICE-DESCRIPTION",
+      "authorityId": "AUTH-CFR-300.320-a-7",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Service grid fields.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "conflictPattern:CP-SERVICE-FREQUENCY",
+      "authorityId": "AUTH-CFR-300.320-a-7",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Service grid fields.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "conflictPattern:CP-SUPERSEDED-GOAL-PROGRESS",
+      "authorityId": "AUTH-CFR-300.320-a-3-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress-report timing statement.",
+      "doesNotEstablish": "Quarterly is an example, not a mandate."
+    },
+    {
+      "definitionId": "conflictPattern:CP-VERSION-CHANGE",
+      "authorityId": "AUTH-CFR-300.324-a-4",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Between annual reviews, parent and agency may agree in writing to amend without a meeting; team is informed.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "conflictPattern:CP-VERSION-MIXING",
+      "authorityId": "AUTH-AP-CURRENTNESS",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "document:at-evaluation",
+      "authorityId": "AUTH-CFR-300.324-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Special factors: behavior (PBIS), limited English, Braille, communication, assistive technology.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "document:bip",
+      "authorityId": "AUTH-CFR-300.324-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Special factors: behavior (PBIS), limited English, Braille, communication, assistive technology.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "document:consent-to-reevaluate",
+      "authorityId": "AUTH-CFR-300.300-c-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Reevaluation consent requirement.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:draft-iep",
+      "authorityId": "AUTH-AP-CURRENTNESS",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "document:eligibility-determination",
+      "authorityId": "AUTH-CFR-300.306-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Copy at no cost.",
+      "doesNotEstablish": "Does not set a deadline for providing it."
+    },
+    {
+      "definitionId": "document:eligibility-determination",
+      "authorityId": "AUTH-CFR-300.311-a-1-6",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Required content of SLD eligibility documentation.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:enrollment-record",
+      "authorityId": "AUTH-CFR-300.301-d-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Transfer exception.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:evaluation-report",
+      "authorityId": "AUTH-CFR-300.306-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Copy at no cost.",
+      "doesNotEstablish": "Does not set a deadline for providing it."
+    },
+    {
+      "definitionId": "document:evaluation-report",
+      "authorityId": "AUTH-CFR-300.304-b-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Variety of tools; parent information.",
+      "doesNotEstablish": "Does not prescribe particular instruments or a minimum number of measures."
+    },
+    {
+      "definitionId": "document:exclusionary-factors-review-learning-disability",
+      "authorityId": "AUTH-CFR-300.306-b-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Determinant-factor exclusion applies to every category.",
+      "doesNotEstablish": "Does not require a specific form section."
+    },
+    {
+      "definitionId": "document:fba-report",
+      "authorityId": "AUTH-CFR-300.324-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Special factors: behavior (PBIS), limited English, Braille, communication, assistive technology.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "document:iee-report",
+      "authorityId": "AUTH-CFR-300.502-c",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Consideration of private evaluations.",
+      "doesNotEstablish": "Does not require adoption of private evaluation recommendations."
+    },
+    {
+      "definitionId": "document:iee-request",
+      "authorityId": "AUTH-CFR-300.502-b-1-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Agency response options to an IEE request.",
+      "doesNotEstablish": "Does not set a day count for 'without unnecessary delay'."
+    },
+    {
+      "definitionId": "document:iep",
+      "authorityId": "AUTH-CFR-300.320-a-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Present-levels content.",
+      "doesNotEstablish": "Does not require that present-level numbers match evaluations (P2 is a review practice)."
+    },
+    {
+      "definitionId": "document:iep",
+      "authorityId": "AUTH-CFR-300.322-f",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Parent gets a copy of the IEP at no cost.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:iep-amendment",
+      "authorityId": "AUTH-CFR-300.324-a-4",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Between annual reviews, parent and agency may agree in writing to amend without a meeting; team is informed.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:intervention-response-to-intervention-data",
+      "authorityId": "AUTH-CFR-300.309-b-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress-monitoring data shared with parents.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:parent-communication",
+      "authorityId": "AUTH-CFR-300.322-d",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "A meeting may proceed without parents if the agency cannot convince them to attend; attempts must be recorded (calls, correspondence, visits).",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:prior-iep",
+      "authorityId": "AUTH-AP-CURRENTNESS",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "document:progress-monitoring-data",
+      "authorityId": "AUTH-AP-STANDING-QUESTIONS",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "document:records-request",
+      "authorityId": "AUTH-CFR-300.613-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Records-access deadline.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:review-of-existing-data",
+      "authorityId": "AUTH-CFR-300.305-a-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "As part of an initial evaluation (if appropriate) and any reevaluation, the team reviews existing data, including parent-provided evaluations and observations.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:revocation-of-consent",
+      "authorityId": "AUTH-CFR-300.300-b-4",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Written revocation of consent ends services after PWN.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:transfer-records",
+      "authorityId": "AUTH-CFR-300.323-g",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Records transmittal.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "document:transition-assessment",
+      "authorityId": "AUTH-CFR-300.320-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Transition content.",
+      "doesNotEstablish": "Age is a federal floor; some States require earlier."
+    },
+    {
+      "definitionId": "entity:accommodation",
+      "authorityId": "AUTH-CFR-300.320-a-6-i",
+      "relationshipClass": "LIMITATION",
+      "reason": "This paragraph establishes assessment accommodations. It does not itself require a list of classroom accommodations.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Assessment accommodations.",
+      "doesNotEstablish": "Does not itself require a list of classroom accommodations (those arise under (a)(4))."
+    },
+    {
+      "definitionId": "entity:accommodation",
+      "authorityId": "AUTH-CFR-300.320-a-4",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Service statement and research basis.",
+      "doesNotEstablish": "Does not require naming a branded program."
+    },
+    {
+      "definitionId": "entity:age-of-majority-notice",
+      "authorityId": "AUTH-CFR-300.320-c",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Age-of-majority statement.",
+      "doesNotEstablish": "Applies only where State law transfers rights."
+    },
+    {
+      "definitionId": "entity:age-of-majority-notice",
+      "authorityId": "AUTH-CFR-300.520-a",
+      "relationshipClass": "LIMITATION",
+      "reason": "Transfer of rights is State-optional. The federal section does not establish that rights have transferred.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Transfer is State-optional.",
+      "doesNotEstablish": "Federal pack cannot know whether or at what age a State transfers rights."
+    },
+    {
+      "definitionId": "entity:amendment",
+      "authorityId": "AUTH-CFR-300.324-a-4",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Between annual reviews, parent and agency may agree in writing to amend without a meeting; team is informed.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:amendment",
+      "authorityId": "AUTH-CFR-300.324-a-6",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Changes may be made by amendment; parent may request a revised copy with amendments incorporated.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:annual-goal",
+      "authorityId": "AUTH-CFR-300.320-a-2-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Measurable annual goals tied to needs.",
+      "doesNotEstablish": "Does not list required goal components (baseline, mastery criterion etc.)."
+    },
+    {
+      "definitionId": "entity:annual-goal",
+      "authorityId": "AUTH-CFR-300.320-a-3-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress measurement statement.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:annual-goal",
+      "authorityId": "AUTH-AP-GOAL-FIVE-FIELD-RUBRIC",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "entity:assessment-administration",
+      "authorityId": "AUTH-CFR-300.304-c-1-iii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Valid use; supports comparability caution.",
+      "doesNotEstablish": "Does not prescribe particular instruments or a minimum number of measures."
+    },
+    {
+      "definitionId": "entity:assessment-administration",
+      "authorityId": "AUTH-CFR-300.304-c-1-v",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Standard administration.",
+      "doesNotEstablish": "Does not prescribe particular instruments or a minimum number of measures."
+    },
+    {
+      "definitionId": "entity:assessment-participation",
+      "authorityId": "AUTH-CFR-300.320-a-6-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Assessment accommodations.",
+      "doesNotEstablish": "Does not itself require a list of classroom accommodations (those arise under (a)(4))."
+    },
+    {
+      "definitionId": "entity:assessment-participation",
+      "authorityId": "AUTH-CFR-300.320-a-6-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Alternate assessment justification.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:assessment-score",
+      "authorityId": "AUTH-PROF-STANDARD-SCORE-SCALES",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "PROFESSIONAL_REFERENCE",
+      "establishes": "The 85-115 'most children' statement holds only for mean-100/SD-15 scales.",
+      "doesNotEstablish": "The scale of any particular test; the scale must come from the report or manual."
+    },
+    {
+      "definitionId": "entity:assessment-score",
+      "authorityId": "AUTH-AP-SCORE-CONSISTENCY",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "entity:assistive-technology",
+      "authorityId": "AUTH-CFR-300.324-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Special factors: behavior (PBIS), limited English, Braille, communication, assistive technology.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "entity:behavior-assessment",
+      "authorityId": "AUTH-CFR-300.324-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Special factors: behavior (PBIS), limited English, Braille, communication, assistive technology.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "entity:behavior-plan",
+      "authorityId": "AUTH-CFR-300.324-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Special factors: behavior (PBIS), limited English, Braille, communication, assistive technology.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "entity:concern",
+      "authorityId": "AUTH-CFR-300.324-a-1-i-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Team considers the child's strengths and the parents' concerns.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "entity:concern",
+      "authorityId": "AUTH-CFR-300.304-c-4",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "All suspected areas assessed.",
+      "doesNotEstablish": "Does not prescribe particular instruments or a minimum number of measures."
+    },
+    {
+      "definitionId": "entity:consent",
+      "authorityId": "AUTH-CFR-300.300-a-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Consent must precede the initial evaluation.",
+      "doesNotEstablish": "Does not set a time limit for seeking consent after referral (see §300.309(c) for SLD)."
+    },
+    {
+      "definitionId": "entity:consent",
+      "authorityId": "AUTH-CFR-300.300-a-1-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Evaluation consent and service consent are distinct.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:consent",
+      "authorityId": "AUTH-CFR-300.300-b-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Service-consent requirement for initial services only.",
+      "doesNotEstablish": "Does not require consent for every later IEP revision under federal law (states may add, §300.300(d)(2))."
+    },
+    {
+      "definitionId": "entity:consent",
+      "authorityId": "AUTH-CFR-300.300-c-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Reevaluation consent requirement.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:consent",
+      "authorityId": "AUTH-CFR-300.9-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Defines 'consent' used by §300.300; written agreement and voluntariness elements are in (b)-(c).",
+      "doesNotEstablish": "Does not by itself establish that any particular signature was informed consent."
+    },
+    {
+      "definitionId": "entity:disagreement",
+      "authorityId": "AUTH-CFR-300.311-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Member certification/dissent.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:document-provision",
+      "authorityId": "AUTH-CFR-300.322-f",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Parent gets a copy of the IEP at no cost.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:document-provision",
+      "authorityId": "AUTH-CFR-300.306-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Copy at no cost.",
+      "doesNotEstablish": "Does not set a deadline for providing it."
+    },
+    {
+      "definitionId": "entity:eligibility-determination",
+      "authorityId": "AUTH-CFR-300.306-a-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Who decides eligibility; parent is part of the group.",
+      "doesNotEstablish": "Does not require a separate eligibility meeting format."
+    },
+    {
+      "definitionId": "entity:eligibility-determination",
+      "authorityId": "AUTH-CFR-300.306-b-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Determinant-factor exclusion applies to every category.",
+      "doesNotEstablish": "Does not require a specific form section."
+    },
+    {
+      "definitionId": "entity:eligibility-determination",
+      "authorityId": "AUTH-CFR-300.309-a-2",
+      "relationshipClass": "LIMITATION",
+      "reason": "The section permits two SLD methods and leaves the permitted method to the State. It does not establish which method applies.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Two permitted SLD approaches; State chooses which are allowed.",
+      "doesNotEstablish": "Federal pack cannot tell which method a State permits."
+    },
+    {
+      "definitionId": "entity:enrollment",
+      "authorityId": "AUTH-CFR-300.323-e",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "In-State transfer rule.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:enrollment",
+      "authorityId": "AUTH-CFR-300.323-g",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Records transmittal.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:enrollment",
+      "authorityId": "AUTH-CFR-300.301-d-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Transfer exception.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:esy-determination",
+      "authorityId": "AUTH-CFR-300.106-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "The ESY decision belongs to the IEP Team and is individualized.",
+      "doesNotEstablish": "Does not set eligibility criteria (regression/recoupment etc. are state or case-law standards)."
+    },
+    {
+      "definitionId": "entity:evaluation",
+      "authorityId": "AUTH-CFR-300.301-c-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Federal default timeframe, measured from receipt of consent.",
+      "doesNotEstablish": "Does not say whether the eligibility determination must also occur within 60 days; does not apply where the State has its own timeframe."
+    },
+    {
+      "definitionId": "entity:evaluation",
+      "authorityId": "AUTH-CFR-300.303-b-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "3-year maximum interval.",
+      "doesNotEstablish": "Does not specify the anchor date from which 3 years runs (last evaluation vs eligibility date)."
+    },
+    {
+      "definitionId": "entity:evaluation",
+      "authorityId": "AUTH-CFR-300.305-a-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "As part of an initial evaluation (if appropriate) and any reevaluation, the team reviews existing data, including parent-provided evaluations and observations.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:evaluation-finding",
+      "authorityId": "AUTH-CFR-300.304-c-6",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Comprehensiveness.",
+      "doesNotEstablish": "Does not prescribe particular instruments or a minimum number of measures."
+    },
+    {
+      "definitionId": "entity:evaluation-finding",
+      "authorityId": "AUTH-CFR-300.324-a-1-iv",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Team considers academic, developmental and functional needs.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "entity:evaluation-recommendation",
+      "authorityId": "AUTH-CFR-300.324-a-1-iii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Team considers results of the initial or most recent evaluation.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "entity:evaluation-recommendation",
+      "authorityId": "AUTH-CFR-300.502-c",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Consideration of private evaluations.",
+      "doesNotEstablish": "Does not require adoption of private evaluation recommendations."
+    },
+    {
+      "definitionId": "entity:evaluation-report",
+      "authorityId": "AUTH-CFR-300.306-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Copy at no cost.",
+      "doesNotEstablish": "Does not set a deadline for providing it."
+    },
+    {
+      "definitionId": "entity:evaluation-report",
+      "authorityId": "AUTH-CFR-300.502-c",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Consideration of private evaluations.",
+      "doesNotEstablish": "Does not require adoption of private evaluation recommendations."
+    },
+    {
+      "definitionId": "entity:exclusionary-review",
+      "authorityId": "AUTH-CFR-300.309-a-3",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "SLD exclusionary factors.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:exclusionary-review",
+      "authorityId": "AUTH-CFR-300.306-b-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Determinant-factor exclusion applies to every category.",
+      "doesNotEstablish": "Does not require a specific form section."
+    },
+    {
+      "definitionId": "entity:iee-request",
+      "authorityId": "AUTH-CFR-300.502-b-1-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Agency response options to an IEE request.",
+      "doesNotEstablish": "Does not set a day count for 'without unnecessary delay'."
+    },
+    {
+      "definitionId": "entity:iep",
+      "authorityId": "AUTH-CFR-300.324-b-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "IEP reviewed periodically, not less than annually, to determine whether goals are being achieved.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:iep",
+      "authorityId": "AUTH-CFR-300.323-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "IEP in effect at school-year start.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:iep",
+      "authorityId": "AUTH-CFR-300.320-a-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Present-levels content.",
+      "doesNotEstablish": "Does not require that present-level numbers match evaluations (P2 is a review practice)."
+    },
+    {
+      "definitionId": "entity:iep-meeting",
+      "authorityId": "AUTH-CFR-300.322-a-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Notify parents early enough to have an opportunity to attend.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:iep-meeting",
+      "authorityId": "AUTH-CFR-300.321-a-1-5",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "IEP Team includes the parents; at least one regular education teacher (if the child is or may be in regular education); at least one special education teacher/provider; a qualified agency representative; and someone who can interpret evaluation results.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:input-statement",
+      "authorityId": "AUTH-CFR-300.304-b-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Variety of tools; parent information.",
+      "doesNotEstablish": "Does not prescribe particular instruments or a minimum number of measures."
+    },
+    {
+      "definitionId": "entity:input-statement",
+      "authorityId": "AUTH-CFR-300.306-c-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Variety of sources at eligibility.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:intervention",
+      "authorityId": "AUTH-CFR-300.309-b-1",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Instruction evidence for SLD.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:intervention",
+      "authorityId": "AUTH-CFR-300.309-b-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress-monitoring data shared with parents.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:intervention",
+      "authorityId": "AUTH-CFR-300.311-a-7",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "RTI documentation.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:meeting-notice",
+      "authorityId": "AUTH-CFR-300.322-b-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Notice states purpose, time, location and who will attend.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:meeting-notice",
+      "authorityId": "AUTH-CFR-300.322-b-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "For transition-age students, notice states transition purpose, student invitation, agencies invited.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:meeting-participant",
+      "authorityId": "AUTH-CFR-300.321-a-1-5",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "IEP Team includes the parents; at least one regular education teacher (if the child is or may be in regular education); at least one special education teacher/provider; a qualified agency representative; and someone who can interpret evaluation results.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:meeting-participant",
+      "authorityId": "AUTH-CFR-300.321-e-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "A member may be excused when their area is discussed if parent and agency consent in writing and the member submits written input before the meeting.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:member-certification",
+      "authorityId": "AUTH-CFR-300.311-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Member certification/dissent.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:observation",
+      "authorityId": "AUTH-CFR-300.310-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "SLD observation requirement.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:observation",
+      "authorityId": "AUTH-CFR-300.310-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Two acceptable observation routes.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:parent-communication",
+      "authorityId": "AUTH-CFR-300.322-d",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "A meeting may proceed without parents if the agency cannot convince them to attend; attempts must be recorded (calls, correspondence, visits).",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:parent-guardian",
+      "authorityId": "AUTH-CFR-300.322-e",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Agency ensures parents understand proceedings, including interpreters.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:parent-guardian",
+      "authorityId": "AUTH-CFR-300.520-a",
+      "relationshipClass": "LIMITATION",
+      "reason": "Transfer of rights is State-optional. The federal section does not establish who holds the rights after the State age.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Transfer is State-optional.",
+      "doesNotEstablish": "Federal pack cannot know whether or at what age a State transfers rights."
+    },
+    {
+      "definitionId": "entity:placement",
+      "authorityId": "AUTH-CFR-300.320-a-5",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Removal explanation.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:placement",
+      "authorityId": "AUTH-CFR-300.114-a-2-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Removal must be justified by inability to educate satisfactorily in regular classes with supports.",
+      "doesNotEstablish": "Does not itself require a written explanation (that is §300.320(a)(5))."
+    },
+    {
+      "definitionId": "entity:placement",
+      "authorityId": "AUTH-CFR-300.116-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Placement decision timing and basis.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:present-level",
+      "authorityId": "AUTH-CFR-300.320-a-1-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Present-levels content.",
+      "doesNotEstablish": "Does not require that present-level numbers match evaluations (P2 is a review practice)."
+    },
+    {
+      "definitionId": "entity:prior-written-notice",
+      "authorityId": "AUTH-CFR-300.503-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "PWN triggers.",
+      "doesNotEstablish": "Does not define 'reasonable time'."
+    },
+    {
+      "definitionId": "entity:prior-written-notice",
+      "authorityId": "AUTH-CFR-300.503-b-1-7",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "PWN content elements.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:progress-measurement",
+      "authorityId": "AUTH-CFR-300.320-a-3-i",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress measurement statement.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:progress-measurement",
+      "authorityId": "AUTH-CFR-300.324-b-1-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Revise to address lack of expected progress, reevaluation results, parent information, anticipated needs, other matters.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:progress-report",
+      "authorityId": "AUTH-CFR-300.320-a-3-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress-report timing statement.",
+      "doesNotEstablish": "Quarterly is an example, not a mandate."
+    },
+    {
+      "definitionId": "entity:progress-reporting-plan",
+      "authorityId": "AUTH-CFR-300.320-a-3-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Progress-report timing statement.",
+      "doesNotEstablish": "Quarterly is an example, not a mandate."
+    },
+    {
+      "definitionId": "entity:public-agency",
+      "authorityId": "AUTH-CFR-300.323-e",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "In-State transfer rule.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:public-agency",
+      "authorityId": "AUTH-CFR-300.323-f",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Interstate transfer rule.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:records-request",
+      "authorityId": "AUTH-CFR-300.613-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Records-access deadline.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:referral",
+      "authorityId": "AUTH-CFR-300.301-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Who may request.",
+      "doesNotEstablish": "Does not set a timeline from request to consent."
+    },
+    {
+      "definitionId": "entity:referral",
+      "authorityId": "AUTH-CFR-300.303-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Triggers for reevaluation.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:safeguards-notice",
+      "authorityId": "AUTH-CFR-300.504-a",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "When the safeguards notice is due.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:service",
+      "authorityId": "AUTH-CFR-300.320-a-4",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Service statement and research basis.",
+      "doesNotEstablish": "Does not require naming a branded program."
+    },
+    {
+      "definitionId": "entity:service",
+      "authorityId": "AUTH-CFR-300.320-a-7",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Service grid fields.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "entity:service",
+      "authorityId": "AUTH-CFR-300.34-a",
+      "relationshipClass": "LIMITATION",
+      "reason": "The section defines related services. It does not make any particular service mandatory.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Definition of related services.",
+      "doesNotEstablish": "Does not make any particular service mandatory for a child; the IEP Team decides."
+    },
+    {
+      "definitionId": "entity:service-delivery-record",
+      "authorityId": "AUTH-AP-SERVICE-LOGS",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    },
+    {
+      "definitionId": "entity:short-term-objective",
+      "authorityId": "AUTH-CFR-300.320-a-2-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Benchmarks only for that group.",
+      "doesNotEstablish": "Not required for other children under federal law."
+    },
+    {
+      "definitionId": "entity:special-factor",
+      "authorityId": "AUTH-CFR-300.324-a-2",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Special factors: behavior (PBIS), limited English, Braille, communication, assistive technology.",
+      "doesNotEstablish": "Requires consideration; does not dictate the outcome."
+    },
+    {
+      "definitionId": "entity:student",
+      "authorityId": "AUTH-CFR-300.320-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Transition content.",
+      "doesNotEstablish": "Age is a federal floor; some States require earlier."
+    },
+    {
+      "definitionId": "entity:student",
+      "authorityId": "AUTH-CFR-300.304-c-1-ii",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Native language.",
+      "doesNotEstablish": "Does not prescribe particular instruments or a minimum number of measures."
+    },
+    {
+      "definitionId": "entity:transition-plan",
+      "authorityId": "AUTH-CFR-300.320-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "Transition content.",
+      "doesNotEstablish": "Age is a federal floor; some States require earlier."
+    },
+    {
+      "definitionId": "entity:transition-plan",
+      "authorityId": "AUTH-CFR-300.321-b",
+      "relationshipClass": "DIRECT_LEGAL_REQUIREMENT",
+      "reason": "The authority record establishes this subject. The existing role object, if any, is unchanged.",
+      "authorityType": "FEDERAL_REGULATION",
+      "establishes": "When postsecondary goals/transition are considered, invite the child, consider preferences if absent, and invite likely-responsible agencies with consent.",
+      "doesNotEstablish": "-"
+    },
+    {
+      "definitionId": "check:IM1",
+      "authorityId": "AUTH-AP-SERVICE-LOGS",
+      "relationshipClass": "PROFESSIONAL_CRITERIA",
+      "reason": "Author-proposed, professional, or research criterion. It does not establish a legal requirement.",
+      "authorityType": "AUTHOR_PROPOSED_REVIEW_CRITERION",
+      "establishes": "A review heuristic used to raise questions.",
+      "doesNotEstablish": "Any legal requirement or research finding."
+    }
+  ],
+  "unresolved": [
+    {
+      "definitionId": "calculation:C21",
+      "authorityId": "AUTH-CFR-300.301-c-1-i",
+      "reason": "34 CFR 300.301(c)(1)(i) establishes a timeframe measured from receipt of consent. Its record states that it does not say whether eligibility must also occur within those 60 days. calculation:C21 measures evaluation completion to eligibility, a different interval. The citation was not copied into relatedDefinitionIds and was removed from definitionAuthorityMap. No replacement authority was created."
+    },
+    {
+      "definitionId": "conflictPattern:CP-SCORE-MISMATCH",
+      "authorityId": "AUTH-CFR-300.304-c-1-iii",
+      "reason": "34 CFR 300.304(c)(1)(iii) establishes valid use and a comparability caution. That relationship is already recorded on conflictPattern:CP-ASSESSMENT-NONCOMPARABLE. CP-SCORE-MISMATCH is a same-instrument value disagreement, which this section does not establish. The pattern stays mapped to AUTH-AP-SCORE-CONSISTENCY. The citation remains named on the conflict-pattern and ontology annotations and is not a mapping."
+    }
+  ],
+  "unresolvedAnnotations": [
+    {
+      "artifact": "iep-domain-conflict-patterns.v1.json",
+      "id": "conflictPattern:CP-SCORE-MISMATCH",
+      "authorityId": "AUTH-CFR-300.304-c-1-iii",
+      "note": "The conflict-pattern annotation still names this authority. It is not a definitionAuthorityMap entry."
+    },
+    {
+      "artifact": "iep-domain-ontology-spec.json",
+      "id": "conflictPattern:CP-SCORE-MISMATCH",
+      "authorityId": "AUTH-CFR-300.304-c-1-iii",
+      "note": "The ontology conflict-pattern annotation still names this authority. Ontology authorityIds do not add mappings."
+    },
+    {
+      "artifact": "iep-domain-ontology-spec.json",
+      "id": "calculation:C21",
+      "authorityId": "AUTH-CFR-300.301-c-1-i",
+      "note": "The calculation annotation still names this authority. The register map does not. The structured join does not depend on it."
+    }
+  ],
+  "joins": [
+    {
+      "calculationId": "calculation:C1",
+      "relationshipId": "relationship:consent-authorizes-evaluation",
+      "fromEntityId": "entity:consent",
+      "toEntityId": "entity:evaluation",
+      "startEntityId": "entity:consent",
+      "endEntityId": "entity:evaluation",
+      "direction": "MATCH"
+    },
+    {
+      "calculationId": "calculation:C2",
+      "relationshipId": "relationship:eligibility-precedes-iep",
+      "fromEntityId": "entity:eligibility-determination",
+      "toEntityId": "entity:iep",
+      "startEntityId": "entity:eligibility-determination",
+      "endEntityId": "entity:iep",
+      "direction": "MATCH"
+    },
+    {
+      "calculationId": "calculation:C3",
+      "relationshipId": "relationship:iep-contains-service",
+      "fromEntityId": "entity:iep",
+      "toEntityId": "entity:service",
+      "startEntityId": "entity:iep",
+      "endEntityId": "entity:service",
+      "direction": "MATCH"
+    },
+    {
+      "calculationId": "calculation:C14",
+      "relationshipId": null,
+      "fromEntityId": "entity:records-request",
+      "toEntityId": "entity:records-request",
+      "startEntityId": "entity:records-request",
+      "endEntityId": "entity:records-request",
+      "direction": "SAME_INSTANCE"
+    },
+    {
+      "calculationId": "calculation:C15",
+      "relationshipId": "relationship:notice-for-meeting",
+      "fromEntityId": "entity:meeting-notice",
+      "toEntityId": "entity:iep-meeting",
+      "startEntityId": "entity:meeting-notice",
+      "endEntityId": "entity:iep-meeting",
+      "direction": "MATCH"
+    },
+    {
+      "calculationId": "calculation:C20",
+      "relationshipId": null,
+      "fromEntityId": "entity:iee-request",
+      "toEntityId": "entity:iee-request",
+      "startEntityId": "entity:iee-request",
+      "endEntityId": "entity:iee-request",
+      "direction": "SAME_INSTANCE"
+    },
+    {
+      "calculationId": "calculation:C21",
+      "relationshipId": "relationship:evaluation-supports-eligibility",
+      "fromEntityId": "entity:evaluation",
+      "toEntityId": "entity:eligibility-determination",
+      "startEntityId": "entity:evaluation",
+      "endEntityId": "entity:eligibility-determination",
+      "direction": "MATCH"
+    }
+  ],
+  "validation": {
+    "forwardAndReverseAgree": true,
+    "everyMappedAuthorityResolves": true,
+    "joinsStructuredAndDirectional": true,
+    "stage4bDefinitionsUnchanged": 275,
+    "executableCalculations": [
+      "calculation:C1",
+      "calculation:C14",
+      "calculation:C15",
+      "calculation:C2",
+      "calculation:C20",
+      "calculation:C21",
+      "calculation:C3"
+    ],
+    "checksReviewRequired": 67,
+    "packReview": "DRAFT",
+    "applicability": "UNVERIFIED",
+    "publication": "UNPUBLISHED",
+    "supplementalArtifacts": "DRAFT",
+    "authorityHumanReview": "NOT_REVIEWED"
+  },
+  "digests": {
+    "algorithm": "packDigest of canonical JSON, the compiler's sha256 of sorted-key canonicalPackJson. These values were calculated after the edits. No earlier pin was copied.",
+    "changed": [
+      {
+        "file": "iep-domain-authority-register.json",
+        "digestBefore": "abe8509d1f4fd67723523c02d2ee7a384818f1c39392a72fcca465e0026ea571",
+        "digestAfter": "a1869a8febf46214b8e1fdb9cc9d42e5d24c58f07ddeb1cc1e7a692d5831f0ec"
+      },
+      {
+        "file": "iep-domain-ontology-spec.json",
+        "digestBefore": "61467d2a9d911d7cc865c7b7502485578c3c352cf9a13bf53a7c84c7f8935bf5",
+        "digestAfter": "60e096187cbc44346ec78b76648edd4fcd159e407d0ec1d60000d62610455fd8"
+      }
+    ],
+    "unchanged": [
+      {
+        "file": "iep-domain-pack-source.stage4b.json",
+        "digest": "918f301a4c3d9ac21c5afff5123f3dc047c1df1b97c51892c2bed53f98835ab0"
+      },
+      {
+        "file": "iep-domain-conflict-patterns.v1.json",
+        "digest": "85586cfd6356397e775ed2e89f3a7c0b7f1c5c106e2111d308c5d6dd0fc1767f"
+      },
+      {
+        "file": "iep-domain-state-overlays.v1.json",
+        "digest": "928f6b91eb0baff422908aec0b5ac955403b8b1764539a6149c85c70043e787f"
+      },
+      {
+        "file": "iep-domain-fact-classes.v1.json",
+        "digest": "9ec53126bb258fbad2d956744b3681a20b93b830ef697cc1b627ef748a67b6b9"
+      },
+      {
+        "file": "iep-domain-workflow-coverage.v1.json",
+        "digest": "1ec87d6129888c48aa96918178a854a1009c17a483b747aabec0e8d478774311"
+      },
+      {
+        "file": "iep-domain-unsupported-operators.v1.json",
+        "digest": "44f1e486331b68d09c03f1f9499e1808699e5aec9ecddea0b09e034b7e38389d"
+      }
+    ]
+  },
+  "stage5bReadiness": "TWO_BLOCKERS_CLOSED_RULE_4_PARKED",
+  "parked": {
+    "proposedCheckMapKeys": [
+      "check:DS1",
+      "check:G3-LEGAL",
+      "check:IM2",
+      "check:P2b",
+      "check:PS2",
+      "check:RV4",
+      "check:TR4"
+    ],
+    "note": "These seven ids are already bidirectional and were not part of the 160 inconsistent links. They are not compiled definitions. Stage 5A contract rule 4 says a map key must be a compiled definition or a pinned conflict-pattern or state-overlay id. They were left unchanged in this ticket."
+  }
+}
