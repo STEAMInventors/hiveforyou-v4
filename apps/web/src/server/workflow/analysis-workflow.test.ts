@@ -250,7 +250,17 @@ function fakeDatabase(
           error: null,
         };
       case "get_doc_extractions_for_run":
-        return { data: { extractions: docExtractions.map((row) => ({ ...row })) }, error: null };
+        return {
+          data: {
+            extractions: docExtractions.map((row) => {
+              const document = snapshot.documents.find(
+                (item) => item.sourceDocumentId.toLowerCase() === row.sourceDocumentId.toLowerCase(),
+              );
+              return { ...row, contentDigest: document?.pageSetDigest ?? "" };
+            }),
+          },
+          error: null,
+        };
       case "get_doc_extraction_gap_pages_for_run":
         return {
           data: {
@@ -486,6 +496,8 @@ function fakeDatabase(
         };
       }
       case "get_hive_chosen_pack":
+        return { data: null, error: null };
+      case "get_domain_pack_selection":
         return { data: null, error: null };
       case "accept_study_revision":
         accepted = args.p_revision as Record<string, unknown>;
