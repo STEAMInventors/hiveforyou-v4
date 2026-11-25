@@ -215,6 +215,9 @@ jobs:
 
           run_readonly "Migration relations" "select n.nspname as schema_name, c.relname as relation_name from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind = 'r' and (n.nspname ilike '%migration%' or c.relname ilike '%migration%') order by 1, 2"
           run_readonly "Target objects" "select to_regclass('hive.hives')::text as hives, to_regclass('hive.domain_pack_selections')::text as domain_pack_selections, to_regprocedure('public.get_domain_pack_selection(uuid)')::text as get_domain_pack_selection, to_regclass('hive.relationship_verification_chain')::text as relationship_verification_chain, to_regclass('supabase_migrations.schema_migrations')::text as schema_migrations"
+          run_readonly "Domain pack columns" "select column_name, data_type, is_nullable from information_schema.columns where table_schema = 'hive' and table_name = 'domain_pack_selections' order by ordinal_position"
+          run_readonly "Domain pack constraints" "select conname from pg_constraint where conrelid = 'hive.domain_pack_selections'::regclass order by 1"
+          run_readonly "Relationship append objects" "select to_regprocedure('public.append_relationship_verification(uuid,uuid,text,text,text,text,text,text,timestamptz,text,text)')::text as append_fn, to_regclass('hive.relationship_verification_append_grants')::text as append_grants, exists (select 1 from information_schema.columns where table_schema = 'hive' and table_name = 'relationship_verification_chain' and column_name = 'request_id') as chain_request_id"
           echo "Report-only run complete (no migrations applied)."
 
       - name: Setup Supabase CLI
