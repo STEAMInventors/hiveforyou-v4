@@ -298,6 +298,7 @@ export function GalleryEvidenceUnreadable() {
 }
 
 export function GalleryDocuments() {
+  const checklist = medicaidBoard().checklist;
   return (
     <GalleryHiveChrome titleSlug="documents">
       <DocumentsPanel
@@ -308,7 +309,7 @@ export function GalleryDocuments() {
         canonicalStudy={MEDICAID_FINDINGS.canonicalStudy}
         openItems={MEDICAID_FINDINGS.otherOpenItems}
         topics={MEDICAID_FINDINGS.topics}
-        checklist={[]}
+        checklist={checklist}
       />
     </GalleryHiveChrome>
   );

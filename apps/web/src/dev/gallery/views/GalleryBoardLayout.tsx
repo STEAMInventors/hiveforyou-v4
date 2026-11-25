@@ -167,6 +167,12 @@ export function GalleryBoardLayout({
               <HiveBoardMessaging
                 hiveId={GALLERY_HIVE_ID}
                 firmless={firmless}
+                personal={firmless}
+                sharedClosed={
+                  firmless
+                    ? "Invite a professional to start this conversation. It stays empty until they join."
+                    : null
+                }
                 assistantName={GALLERY_ASSISTANT_NAME}
                 currentUserId={currentUserId}
                 initialPeople={toLoad(initialPeople)}

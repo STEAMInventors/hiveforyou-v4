@@ -4,7 +4,7 @@ import { GALLERY_ASK_EMPTY_PAGE, GALLERY_CLIENT_ID, GALLERY_PEOPLE_PAGE } from "
 import { GalleryBoardLayout } from "./GalleryBoardLayout";
 import { GalleryFrame } from "./GalleryFrame";
 
-/** Solo hive: one person and Sarah, Ask only (no tabs, no Still to come). */
+/** Personal hive with no Pro yet: Ask AI and Pro Conversation, no Still to come. */
 export function GalleryBoardFirmless() {
   return (
     <GalleryFrame>

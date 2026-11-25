@@ -1,7 +1,7 @@
 "use client";
 
 import type { HiveMessagePage } from "@hiveforyou/contracts";
-import { Suspense, useEffect, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, type ReactNode } from "react";
 
 import type { AppShellAccount } from "@/components/app-header";
 import { HivePageChrome } from "@/components/workspace/HivePageChrome";
@@ -43,6 +43,11 @@ export function GalleryHiveChrome({
   documentCount = 9,
   assistantRepliesOn = true,
   initialClientAssistant = null,
+  peoplePage,
+  people,
+  workspaceWidth,
+  hiveName,
+  hiveDescription,
 }: {
   titleSlug: string;
   children: ReactNode;
@@ -54,16 +59,36 @@ export function GalleryHiveChrome({
   documentCount?: number;
   assistantRepliesOn?: boolean;
   initialClientAssistant?: ConversationLoad | null;
+  peoplePage?: HiveMessagePage;
+  people?: unknown;
+  workspaceWidth?: "board";
+  hiveName?: string;
+  hiveDescription?: string;
 }) {
   useGalleryTitle(titleSlug);
 
-  useEffect(() => installGalleryBoardFetch(GALLERY_HIVE_ID, assistantPage), [assistantPage]);
+  const fetchRestore = useRef<(() => void) | null>(null);
+  if (typeof window !== "undefined") {
+    fetchRestore.current?.();
+    fetchRestore.current = installGalleryBoardFetch(GALLERY_HIVE_ID, assistantPage, { peoplePage, people });
+  }
+  useEffect(
+    () => () => {
+      fetchRestore.current?.();
+      fetchRestore.current = null;
+    },
+    [],
+  );
 
-  const hive = firmless
-    ? { ...GALLERY_HIVE, firmId: null, membershipRole: "owner" as const, kind: "own" as const }
-    : clientViewer
-      ? { ...GALLERY_HIVE, membershipRole: "client" as const, isOwner: false }
-      : GALLERY_HIVE;
+  const hive = {
+    ...(firmless
+      ? { ...GALLERY_HIVE, firmId: null, membershipRole: "owner" as const, kind: "own" as const }
+      : clientViewer
+        ? { ...GALLERY_HIVE, membershipRole: "client" as const, isOwner: false }
+        : GALLERY_HIVE),
+    ...(hiveName ? { name: hiveName } : {}),
+    ...(hiveDescription !== undefined ? { description: hiveDescription } : {}),
+  };
   const initialAssistant: ConversationLoad = {
     ok: true,
     page: { ...assistantPage, assistantRepliesOn },
@@ -117,6 +142,7 @@ export function GalleryHiveChrome({
           documentCount,
           initialAssistant,
           initialClientAssistant,
+          ...(workspaceWidth ? { workspaceWidth } : {}),
         }}
       >
         <Suspense fallback={null}>{children}</Suspense>

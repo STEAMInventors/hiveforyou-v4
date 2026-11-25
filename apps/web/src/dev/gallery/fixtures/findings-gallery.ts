@@ -1,4 +1,5 @@
 import type {
+  CanonicalGap,
   CanonicalStudy,
   FindingsGlanceMetric,
   FindingsOpenItem,
@@ -146,9 +147,9 @@ const medicaidOpen: FindingsOpenItem[] = [
   openItem("x1", "needs", "Savings transfer to account 7710", "No matching deposit appears in the uploads.", ["f-x1"]),
   openItem("x2", "needs", "Check to R. Ellis for $8,500.00", "No matching deposit appears in another uploaded account.", ["f-x2"]),
   openItem("x3", "needs", "Proposed $2,400.00 match", "Withdrawal and deposit may be the same funds.", ["f-x3"]),
-  openItem("x4", "missing", "Checking statements Apr–Jun 2023", "Those months are not in any uploaded file.", []),
-  openItem("x5", "missing", "Checking statements Jul–Aug 2026", "July and August are within the review period.", []),
-  openItem("x6", "missing", "Savings statements Q2–Q3 2026", "April through August are within the review period.", []),
+  openItem("gap-x4", "missing", "Checking statements Apr–Jun 2023", "Those months are not in any uploaded file.", []),
+  openItem("gap-x5", "missing", "Checking statements Jul–Aug 2026", "July and August are within the review period.", []),
+  openItem("gap-x6", "missing", "Savings statements Q2–Q3 2026", "April through August are within the review period.", []),
   openItem("x7", "needs", "Savings account open in 2022?", "No 2022 savings documents were uploaded.", ["f-x7"]),
   openItem("x8", "difference", "Unreadable page on June 2024 checking", "Page 11 could not be read, so its transactions are excluded.", ["f-x8"]),
 ];
@@ -257,6 +258,45 @@ function medicaidView(): StudyView {
   };
 }
 
+function medicaidDocumentRequestGap(
+  id: string,
+  title: string,
+  why: string,
+): CanonicalGap {
+  return {
+    id,
+    statement: why,
+    relatedSpineIds: [],
+    kind: "REQUESTABLE_DOCUMENT",
+    title,
+    why,
+    holder: "Client",
+    holderType: "ASKER_OR_CLIENT",
+    when: null,
+    basisType: "USUALLY_EXPECTED",
+    relatedFactIds: [],
+  };
+}
+
+/** Unsatisfied requestable gaps — same titles as medicaidOpen missing rows; drives board checklist on Documents. */
+export const MEDICAID_DOCUMENT_REQUEST_GAPS: readonly CanonicalGap[] = [
+  medicaidDocumentRequestGap(
+    "x4",
+    "Checking statements Apr–Jun 2023",
+    "Those months are not in any uploaded file.",
+  ),
+  medicaidDocumentRequestGap(
+    "x5",
+    "Checking statements Jul–Aug 2026",
+    "July and August are within the review period.",
+  ),
+  medicaidDocumentRequestGap(
+    "x6",
+    "Savings statements Q2–Q3 2026",
+    "April through August are within the review period.",
+  ),
+];
+
 const medicaidCanonical: CanonicalStudy = {
   schema: "hive.canonical-study/1",
   domainLabel: "medicaid-gallery",
@@ -275,7 +315,7 @@ const medicaidCanonical: CanonicalStudy = {
   outsideSpine: [],
   conflicts: [],
   timeline: [],
-  gaps: [],
+  gaps: [...MEDICAID_DOCUMENT_REQUEST_GAPS],
   checklist: [],
 };
 
