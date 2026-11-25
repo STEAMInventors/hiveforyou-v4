@@ -188,42 +188,33 @@ jobs:
           jq -r 'sort_by(.version)[] | "- \(.version) \(.name // "")"' "$payload"
           echo "management_list_count=$(jq 'length' "$payload")"
 
-          query_body="$(mktemp)"
-          query_payload="$(mktemp)"
-          jq -n --arg q "select version, name from supabase_migrations.schema_migrations order by version" '{query:$q, read_only:true}' > "$query_body"
-          qcode="$(curl -sS -o "$query_payload" -w '%{http_code}' \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            -X POST \
-            --data-binary @"$query_body" \
-            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query")"
-          if [ "$qcode" != "200" ] && [ "$qcode" != "201" ]; then
-            message="$(jq -r '.message // "no-message"' "$query_payload" 2>/dev/null || echo "unreadable")"
-            echo "::error title=Schema migration query failed::Database query returned HTTP $qcode ($message)."
-            exit 1
-          fi
-          echo "## supabase_migrations.schema_migrations"
-          jq -r '.[] | "- \(.version) \(.name // "")"' "$query_payload"
-          echo "schema_migration_count=$(jq 'length' "$query_payload")"
+          run_readonly() {
+            local title="$1"
+            local sql="$2"
+            local body payload code message compact
+            body="$(mktemp)"
+            payload="$(mktemp)"
+            jq -n --arg q "$sql" '{query:$q, read_only:true}' > "$body"
+            code="$(curl -sS -o "$payload" -w '%{http_code}' \
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json" \
+              -X POST \
+              --data-binary @"$body" \
+              "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query")"
+            if [ "$code" != "200" ] && [ "$code" != "201" ]; then
+              message="$(jq -r '.message // "no-message"' "$payload" 2>/dev/null || echo "unreadable")"
+              echo "::error title=${title}::HTTP ${code} (${message})"
+              exit 1
+            fi
+            compact="$(jq -c '.' "$payload")"
+            echo "## ${title}"
+            echo "$compact"
+            echo "::notice title=${title}::${compact}"
+          }
 
-          object_body="$(mktemp)"
-          object_payload="$(mktemp)"
-          jq -n --arg q "select to_regclass('hive.domain_pack_selections')::text as domain_pack_selections, to_regprocedure('public.get_domain_pack_selection(uuid)')::text as get_domain_pack_selection, to_regclass('hive.relationship_verification_chain')::text as relationship_verification_chain" '{query:$q, read_only:true}' > "$object_body"
-          ocode="$(curl -sS -o "$object_payload" -w '%{http_code}' \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            -X POST \
-            --data-binary @"$object_body" \
-            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/query")"
-          if [ "$ocode" != "200" ] && [ "$ocode" != "201" ]; then
-            message="$(jq -r '.message // "no-message"' "$object_payload" 2>/dev/null || echo "unreadable")"
-            echo "::error title=Object probe failed::Database query returned HTTP $ocode ($message)."
-            exit 1
-          fi
-          echo "## Target objects"
-          jq -c '.' "$object_payload"
+          run_readonly "Migration relations" "select n.nspname as schema_name, c.relname as relation_name from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind = 'r' and (n.nspname ilike '%migration%' or c.relname ilike '%migration%') order by 1, 2"
+          run_readonly "Target objects" "select to_regclass('hive.hives')::text as hives, to_regclass('hive.domain_pack_selections')::text as domain_pack_selections, to_regprocedure('public.get_domain_pack_selection(uuid)')::text as get_domain_pack_selection, to_regclass('hive.relationship_verification_chain')::text as relationship_verification_chain, to_regclass('supabase_migrations.schema_migrations')::text as schema_migrations"
           echo "Report-only run complete (no migrations applied)."
 
       - name: Setup Supabase CLI
