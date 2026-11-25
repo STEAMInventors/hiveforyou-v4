@@ -12,7 +12,11 @@ const reactPdfPdfjsDistRoot = path.dirname(
   require.resolve("pdfjs-dist/package.json", { paths: [require.resolve("react-pdf")] }),
 );
 
-const PACK_TRACE_GLOBS = ["../../packs/*.md", "../../packs/archive/*.md"] as const;
+const PACK_TRACE_GLOBS = [
+  "../../packs/*.md",
+  "../../packs/archive/*.md",
+  "../../packs/drafts/iep-us-federal/v0.4.0/**/*",
+] as const;
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@hiveforyou/contracts"],

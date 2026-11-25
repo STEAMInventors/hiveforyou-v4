@@ -107,6 +107,12 @@ const HARD_REASONS = new Set<BinderReasonCode>([
   "VALUE_NOT_IN_QUOTE",
   "WRONG_DOCUMENT",
 ]);
+
+/** A hard binder reason rejects the evidence. It is not an unresolved finding. */
+export function binderReasonRejectsRun(code: string): boolean {
+  return HARD_REASONS.has(code as BinderReasonCode);
+}
+
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const FIELD_KEYS = ["candidateId", "taskId", "kind", "entityId", "instanceId", "fieldId", "documentId", "extractionFactId", "value"];
 const DOCUMENT_KEYS = ["candidateId", "taskId", "kind", "documentKindId", "documentId", "extractionFactId", "subject", "evidence"];

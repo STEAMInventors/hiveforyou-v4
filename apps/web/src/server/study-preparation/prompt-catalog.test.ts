@@ -96,6 +96,9 @@ describe("loadPromptCatalog", () => {
   it("hive-canonicalize/2 forbids obligation wording in checklist notes", () => {
     const { canonicalizeV2 } = loadPromptCatalog();
     expect(canonicalizeV2).toMatchObject({ task: "canonicalize", id: "hive-canonicalize/2" });
+    expect(loadPromptCatalog().fieldMapping).toMatchObject({ task: "canonicalize", id: "hive.field-mapping-proposal/1" });
+    expect(loadPromptCatalog().fieldMapping.systemPrompt).toContain("hive.field-mapping-proposal/1");
+    expect(loadPromptCatalog().fieldMapping.systemPrompt).toContain("Do not return a canonical study.");
     expect(canonicalizeV2.systemPrompt).toContain(
       "Notes describe what the documents show or do not show. Never state a requirement or obligation; do not use must, required, should or shall.",
     );
@@ -138,6 +141,7 @@ describe("buildPromptCatalog", () => {
       "hive-extract/HiveForYou-Extract-v1.md": [planner("hive-extract/1"), "## User (template)", "Document id: `{{documentId}}`"].join(eol),
       "hive-canonicalize/HiveForYou-Canonicalize-v1.md": [planner("hive-canonicalize/1"), "## Output", "Return JSON."].join(eol),
       "hive-canonicalize/HiveForYou-Canonicalize-v2.md": [planner("hive-canonicalize/2"), "## Output", "Return JSON."].join(eol),
+      "hive-field-mapping/HiveForYou-Field-Mapping-v1.md": [planner("hive.field-mapping-proposal/1"), "## Output", "Return hive.field-mapping-proposal/1."].join(eol),
       "hive-write/HiveForYou-Write-v1.md": [planner("hive-write/1"), "## Output", "Return write JSON."].join(eol),
       "hive-write/HiveForYou-Write-v2.md": [planner("hive-write/2"), "## Output", "Return write JSON."].join(eol),
     };

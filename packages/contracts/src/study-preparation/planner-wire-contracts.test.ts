@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { FIELD_MAPPING_PROPOSAL_SCHEMA } from "../pipeline/investigation-study-engine";
 
 import {
   normalizePlannerCompletion,
   normalizeStudyAgentTurn,
   PIPELINE_PLANNER_TASKS,
   PLANNER_COMPLETION_TASKS,
+  FIELD_MAPPING_PROMPT_ID,
   PLANNER_CONTRACT_VERSION,
   PLANNER_MAX_OUTPUT_TOKENS,
   PLANNER_MAX_REQUEST_BYTES_BY_TASK,
@@ -19,8 +21,9 @@ import {
 describe("planner tasks", () => {
   it("runs intent intelligence before deterministic prompt construction", () => {
     expect(PREPARATION_PLANNER_TASKS).toEqual(["intent", "domain", "intelligence"]);
-    expect(STUDY_AGENT_TURN_TASKS).toEqual(["study", "writer"]);
-    expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "study", "writer"]);
+    expect(STUDY_AGENT_TURN_TASKS).toEqual(["study", "writer", "mapping"]);
+    expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "study", "writer", "mapping"]);
+    expect(PLANNER_TASK_PROMPT_IDS.mapping).toBe(FIELD_MAPPING_PROMPT_ID);
     expect(PLANNER_TASK_PROMPT_IDS.intelligence).toBe("hive-intent-intelligence/1");
     expect(PLANNER_COMPLETION_TASKS).toEqual([
       "intent",
@@ -49,6 +52,8 @@ describe("planner tasks", () => {
     for (const task of PIPELINE_PLANNER_TASKS) expect(PLANNER_COMPLETION_TASKS).toContain(task);
     expect(PLANNER_TASK_PROMPT_IDS.extract).toBe("hive-extract/1");
     expect(PLANNER_TASK_PROMPT_IDS.canonicalize).toBe("hive-canonicalize/1");
+    expect(FIELD_MAPPING_PROMPT_ID).toBe(FIELD_MAPPING_PROPOSAL_SCHEMA);
+    expect(FIELD_MAPPING_PROMPT_ID).toBe("hive.field-mapping-proposal/1");
     expect(PLANNER_TASK_PROMPT_IDS.write).toBe("hive-write/1");
     expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.extract).toBe(1536 * 1024);
     expect(PLANNER_MAX_REQUEST_BYTES_BY_TASK.canonicalize).toBe(2048 * 1024);

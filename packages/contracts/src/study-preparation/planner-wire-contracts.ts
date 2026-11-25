@@ -1,4 +1,5 @@
 import type { StudyAgentToolDefinition } from "../analysis/study-agent";
+import type { MappingAgentToolDefinition } from "../pipeline/domain-mapping-agent";
 import type { WriterAgentToolDefinition } from "../reports/writer-agent";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 
@@ -6,7 +7,7 @@ import type { ContractValidation } from "../source-documents/source-document-con
  * Wire contracts between the web server and the Oracle `v4-planner` (D-039, D-042, D-045). Mirrored in
  * `infra/oracle/v4_planner.py`. The planner chooses the model alias itself; callers cannot.
  * `planner-completion@1` carries one JSON completion (intent, domain, intelligence, extract, canonicalize, write);
- * `study-agent-turn@1` relays one Canonical Study or Writer tool-calling turn and never runs a tool.
+ * `study-agent-turn@1` relays one Canonical Study, Writer, or Domain Pack mapping tool-calling turn and never runs a tool.
  */
 export const PLANNER_CONTRACT_VERSION = "planner-completion@1";
 export const STUDY_AGENT_TURN_CONTRACT_VERSION = "study-agent-turn@1";
@@ -26,12 +27,18 @@ export const PLANNER_COMPLETION_TASKS = [
   ...AUXILIARY_PLANNER_TASKS,
 ] as const;
 export type PlannerCompletionTask = (typeof PLANNER_COMPLETION_TASKS)[number];
-/** Agentic tool-calling tasks relayed through `study-agent-turn@1` (D-042, D-045). */
-export const STUDY_AGENT_TURN_TASKS = ["study", "writer"] as const;
+/** Agentic tool-calling tasks relayed through `study-agent-turn@1` (D-042, D-045, D-063). */
+export const STUDY_AGENT_TURN_TASKS = ["study", "writer", "mapping"] as const;
 export type StudyAgentTurnTask = (typeof STUDY_AGENT_TURN_TASKS)[number];
 /** Every planner task; `study` and `writer` run through `study-agent-turn@1` (D-042, D-045). */
 export const PLANNER_TASKS = [...PREPARATION_PLANNER_TASKS, ...STUDY_AGENT_TURN_TASKS] as const;
 export type PlannerTask = (typeof PLANNER_TASKS)[number];
+
+/**
+ * Pinned Rebuild Study mapping prompt. The agent tools assemble this schema.
+ * Unpinned Hives keep `hive-canonicalize/1` and `hive-canonicalize/2`.
+ */
+export const FIELD_MAPPING_PROMPT_ID = "hive.field-mapping-proposal/1" as const;
 
 export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask | PipelinePlannerTask | AuxiliaryPlannerTask, string> = {
   intent: "hive.intent-analysis/1",
@@ -39,6 +46,7 @@ export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask | PipelinePlannerTask |
   intelligence: "hive-intent-intelligence/1",
   study: "hive-study-preview/1",
   writer: "hive-writer/1",
+  mapping: FIELD_MAPPING_PROMPT_ID,
   extract: "hive-extract/1",
   canonicalize: "hive-canonicalize/1",
   write: "hive-write/1",
@@ -198,9 +206,11 @@ export type StudyAgentTurnRequest = {
   prompt_digest: string;
   system_prompt: string;
   messages: StudyAgentMessage[];
-  tools: readonly (StudyAgentToolDefinition | WriterAgentToolDefinition)[];
+  tools: readonly (StudyAgentToolDefinition | WriterAgentToolDefinition | MappingAgentToolDefinition)[];
   max_output_tokens: number;
   timeout_seconds: number;
+  /** Server-known Hive id for mapping authorization. A synthetic label is not a field on this request. */
+  hive_id?: string;
 };
 
 export type StudyAgentTurn = Metadata & {

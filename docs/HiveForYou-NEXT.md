@@ -1,8 +1,83 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-23): RB-2 — Rebuild Study Reliability Fix.** Implemented locally, awaiting founder review. HB-5 stays implemented locally. No commit, push, deploy, or production rebuild.
+> **Active ticket (2026-11-25): Stage 5D.4 — Approved Frontier-Model Processing.** **Local policy implemented. Live rebuild BLOCKED.** Mapping stays on `PLANNER_STUDY_LITELLM_ALIAS` and `POST /v1/study-agent-turn` (`task: "mapping"`). A verified private runtime may proceed. `anthropic/claude-opus-4-6` may proceed only for a Hive UUID in `PLANNER_EXTERNAL_MAPPING_HIVE_IDS`. That list is empty. `content_class` and a client synthetic flag are not authorization. Real IEP, Medicaid, financial, legal, and health records stay blocked. This account's ZDR, BAA, and workspace retention are **unknown**. Do not pin a Hive. No commit, push, deploy, or production rebuild. Do not apply `20261125140000_relationship_verification_append.sql` or `20261125160000_domain_pack_selection.sql`. IEP v0.4.0 is not global. Compiled digest `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
 
-## Active ticket — RB-2: Rebuild Study Reliability Fix
+## Active ticket — Stage 5D.4: Approved Frontier-Model Processing
+
+**Objective:** Use the existing LiteLLM study alias for Domain Pack mapping on one explicitly designated synthetic Hive, and keep real regulated records off that route until data-use approvals are documented.
+
+**Decision:** D-064, Option A. No new inference stack or model alias.
+
+**Status (2026-11-25): BLOCKED for a live rebuild.** The provider policy is local. The allowlist is empty, so an external mapping post does not happen. No Anthropic organization setting was readable from this workspace. No migration applied. No production rebuild. No Hive pin.
+
+**Provider policy**
+
+| Route | When a mapping turn may be posted |
+|---|---|
+| Private `ollama/`, `ollama_chat/`, `hosted_vllm/` | Loopback or private address, and the model server lists the model |
+| `anthropic/claude-opus-4-6` | `api_base` absent or `https://api.anthropic.com`, and `hive_id` is in `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` |
+| Any other provider or Anthropic model | Not posted (`provider_not_authorized`) |
+
+The Hive id is the id on the processing run. The Rebuild Study button already sends the Hive from the page URL; the worker copies `run.hiveId` onto the mapping turn. A `synthetic` field or `content_class` is rejected or ignored. Legacy canonicalize and Study turns are unchanged and are not treated as approval to map real records.
+
+**Anthropic account, checked 2026-11-25**
+
+| Item | Result |
+|---|---|
+| Public commercial terms | Anthropic's published Commercial Terms say it may not train models on Customer Content from the Services. This is a public term, not this account's signed contract. |
+| Public retention | Messages API tool use is listed as Legacy ZDR eligible and HIPAA eligible. Covered Models that require 30-day retention are Fable and Mythos 5.x, not `claude-opus-4-6`. `claude-opus-4-6` is a published legacy model id. ZDR and HIPAA readiness are off until an organization enables them. |
+| This organization's ZDR | **Unknown.** No console, admin API, or contract was available here. |
+| This organization's BAA / HIPAA readiness | **Unknown.** Not inferred from the legacy Study path, which already calls the same alias. |
+| This workspace's 30-day retention setting | **Unknown.** |
+| This key's permission to call `claude-opus-4-6` | **Unknown.** The running gateway was previously recorded as `heavy_lifter` → `anthropic/claude-opus-4-6` with no `api_base`. That configuration was not re-read in this gate. |
+| Real IEP, Medicaid, financial, legal, health records | **Blocked.** They are not an allowlisted Hive. |
+
+**Not done:** set the one synthetic Hive id, deploy the planner, apply either migration, insert one `hive.domain_pack_selections` row for that Hive, or click Rebuild Study.
+
+## Previous ticket — Stage 5D.3: Unified Agentic Domain Investigation
+
+**Objective:** Replace the one-shot field-mapping completion with the existing Study agent loop. The ledger admits only catalog ids, extraction fact ids, instance ids, and source-written values, then the existing investigation engine accepts `hive.field-mapping-proposal/1`.
+
+**Status (2026-11-25): local path passed synthetic regression. External refusal superseded by 5D.4.** The study alias stayed `anthropic/claude-opus-4-6`. At the close of 5D.3 a mapping turn returned `private_route_unverified` and did not post fact values. D-064 replaces that blanket refusal with the allowlist. Unpinned Hives stay on `hive-canonicalize/1`. No Hive pin, migration, commit, push, or deploy.
+
+## Previous ticket — Stage 5D.2c: Unblock Private Field Mapping
+
+**Objective:** Run one Domain Pack rebuild through a private model for `hive.field-mapping-proposal/1`, without sending case values to an external provider and without changing the Rebuild Study UI, canonical contracts, or investigation engine.
+
+**Status (2026-11-25): BLOCKED.** No private model on this host met schema compliance, mapping accuracy, and the 600-second canonicalize limit together. The alias was not configured. No external model was used.
+
+**Host, measured before the trial:** 2× ARM Neoverse-N1, 11 GiB RAM with about 9.7 GiB available, 45 GB disk with 11 GB free, load idle. No GPU, no Ollama, no vLLM. Planner container limit remains 512 MiB and 1 CPU. LiteLLM still has only `sorter` (`openai/gpt-4o-mini`), `harvester` (`anthropic/claude-sonnet-4-5`), and `heavy_lifter` (`anthropic/claude-opus-4-6`), none with an `api_base`.
+
+**Synthetic test:** the shipped IEP catalog (237 fields, 39 relationships) plus eight invented facts. Same system prompt the planner would send. Temperature 0, JSON output. No case record.
+
+| Model | Cores | Wall | Prefill | Generation | Schema | Field accuracy | Notes |
+|---|---|---|---|---|---|---|---|
+| Qwen2.5 1.5B Q4 (986 MB) | 1 | 593 s | 6,592 tokens / 409 s | 570 tokens / 3.15 per s | Top-level object only | 3/6 | Every mapping omitted `instanceId`. Invented field ids. Kept the unmappable fact. No relationship. |
+| Qwen2.5 3B Q4 (1.9 GB) | 2 | 615 s | 6,592 tokens / 413 s | 602 tokens / 3.11 per s | Mappings match; relationship does not | 6/6 | Unmappable fact omitted. Relationship id was right, but the row used entity ids instead of `fromInstanceId` / `toInstanceId`, so the engine would reject the proposal. |
+
+**Minimum additional compute:** 4 Neoverse-N1 cores (add 2) to give the measured 8-fact call margin under 600 s. RAM already holds a 3B Q4 model inside a 4 GB cap. The boot disk cannot keep that model installed: the Ollama image used about 6 GB and left 2 GB free at 96% full. Reclaim the unused Docker build cache (about 14 GB) or add disk before another install. A larger fact list needs more than 4 cores, because generation on 2 cores is about 3 tokens per second. A GPU is not required. The trial container, volume, and image were removed. Disk is 11 GB free again. Planner, Reader, and LiteLLM were not restarted.
+
+**Legacy privacy finding (not changed):** `buildCanonicalizePayload` still sends file names, printed titles, issuer and person names, summaries, key dates, `valueAsWritten`, timeframes, attributed speakers, empty-field labels, and referenced-document descriptions to `heavy_lifter`. Study-agent turns send `read_pages` text to the same alias. That alias is `anthropic/claude-opus-4-6` with no private `api_base`. Smallest safe change, not applied: before the planner posts a legacy canonicalize body or a study-agent turn, reuse the field-mapping private-route check and return `private_route_unverified` without posting. Do not unset the aliases. That would stop legacy Study until a private route exists, and it needs a separate approval. Extract and write still use `harvester` and are parked, not part of this change.
+
+**Not done:** LiteLLM alias, planner env, planner deploy, Hive pin, either migration, commit, or push.
+
+## Previous ticket — Stage 5D.2b: Private Model Routing
+
+**Objective:** Route `hive.field-mapping-proposal/1` through a dedicated private alias. Do not replace `heavy_lifter`. Verify the model server before sending case values. A private hostname is not proof of an approved provider. Legacy canonicalize stays on its current task, async job, timeout, and schema checks.
+
+**Status (2026-11-25): BLOCKED for a live rebuild.** Planner tests `infra/oracle/test_v4_planner.py`: 132 passed. The planner now selects `PLANNER_FIELD_MAPPING_LITELLM_ALIAS` only for the field-mapping prompt. It accepts `ollama/`, `ollama_chat/`, or `hosted_vllm/` when every resolved address is loopback or private and that server lists the model id. Otherwise it returns `private_route_unverified` and does not post the facts. The running gateway has no alias that can pass that check, so a real model generation was not run. The deployed planner (up 5 days) does not contain this prompt and still serves legacy canonicalize as `heavy_lifter`.
+
+**Legacy privacy finding:** `buildCanonicalizePayload` sends case-derived text to `heavy_lifter`: file names, printed titles, issuer and person names, summaries, `valueAsWritten`, timeframes, and referenced-document descriptions. On the running gateway that alias is `anthropic/claude-opus-4-6` with no private `api_base`. That is an existing disclosure on legacy Study generation. This ticket does not reroute it. Study-agent turns use the same alias and can include page text. Field mapping is not on the deployed planner; an unknown prompt id is refused before a model call.
+
+**Not done:** deploy the planner, set the alias, install or attach a private model, pin a Hive, apply either migration, commit, or push.
+
+## Previous ticket — Stage 5D.2: Enable Existing Rebuild Study
+
+**Objective:** The existing Rebuild Study button runs the Domain Pack engine for one Hive whose `hive.domain_pack_selections` row is `iep-us-federal` `0.4.0` and the compiled digest of the shipped source. Unpinned Hives stay on `hive-canonicalize/1`. The pinned call requests and validates `hive.field-mapping-proposal/1`.
+
+**Status (2026-11-25): selection and acceptance are local; live routing moved to 5D.2b.** The first private-route check treated a private host as sufficient and used the canonicalize alias. 5D.2b replaces that check. No migration applied. No production rebuild.
+
+## Previous ticket — RB-2: Rebuild Study Reliability Fix
 
 **Objective:** Make Rebuild Study reliable on the existing path. One Documents preparation instance drives the legacy notice and the rebuild control. The worker honors `rebuildMode`: reuse a verified extraction when its page-set digest matches, otherwise reconstruct only from saved pages. A personal Hive can open the newest accepted study. Historical revisions and their reports stay.
 

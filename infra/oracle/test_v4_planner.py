@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import time
 from collections.abc import Callable
 
@@ -345,6 +346,8 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
         **PIPELINE_ALIASES,
     }
     assert data["task_aliases_configured"] is True
+    assert data["field_mapping_alias"] is None
+    assert data["external_mapping_hive_count"] == 0
     assert data["litellm_configured"] is True
     assert data["service_token_configured"] is True
     assert data["contracts"] == ["planner-completion@1", "study-agent-turn@1", "planner-job@1"]
@@ -1090,6 +1093,7 @@ def test_writer_editorial_wire_compatibility_and_rebuild_requirement(
 
 
 def test_planner_job_lifecycle(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    reset_job_store()
     monkeypatch.setenv("PLANNER_EXTRACT_LITELLM_ALIAS", "harvester")
     use_litellm(lambda _: httpx.Response(200, json=completion('{"facts": []}', finish_reason="stop")))
     job_body = body(task="extract", prompt_id="hive-extract/1", max_output_tokens=16000)
@@ -1186,3 +1190,382 @@ def test_assistant_reply_rejects_unknown_prompt_id(client: TestClient, monkeypat
     assert response.status_code == 400
     assert response.json()["error_code"] == "INVALID_REQUEST"
     assert seen == []
+
+
+FIELD_MAPPING_PROMPT = "hive.field-mapping-proposal/1"
+FIELD_MAPPING_ALIAS = "private_mapper"
+SECRET_FACT = "CONFIDENTIAL-FACT-VALUE"
+OLLAMA_PROBE = {"models": [{"name": "llama3:latest", "model": "llama3:latest"}]}
+VLLM_PROBE = {"data": [{"id": "local", "object": "model"}]}
+
+
+@pytest.fixture
+def field_mapping_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_FIELD_MAPPING_LITELLM_ALIAS", FIELD_MAPPING_ALIAS)
+
+
+def field_mapping_body(**overrides: object) -> dict[str, object]:
+    return pipeline_body(
+        "canonicalize",
+        prompt_id=FIELD_MAPPING_PROMPT,
+        system_prompt="Return hive.field-mapping-proposal/1.",
+        user_payload={"schema": "hive.field-mapping-request/1", "facts": [{"valueAsWritten": SECRET_FACT}]},
+    ) | overrides
+
+
+def model_info(model: str, api_base: str | None, alias: str = FIELD_MAPPING_ALIAS) -> dict[str, object]:
+    params: dict[str, object] = {"model": model}
+    if api_base is not None:
+        params["api_base"] = api_base
+    return {"data": [{"model_name": alias, "litellm_params": params}]}
+
+
+def route_transport(
+    info: dict[str, object],
+    content: str,
+    probe: dict[str, object] | None = None,
+) -> Callable[[httpx.Request], httpx.Response]:
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/model/info"):
+            return httpx.Response(200, json=info)
+        if path in {"/api/tags", "/v1/models"}:
+            if probe is None:
+                return httpx.Response(404, json={"error": "probe-not-configured"})
+            return httpx.Response(200, json=probe)
+        if path.endswith("/chat/completions"):
+            return httpx.Response(200, json=completion(content))
+        return httpx.Response(404, json={"error": "unexpected-path"})
+
+    return handler
+
+
+def reset_job_store() -> None:
+    import planner_jobs
+
+    planner_jobs._store = None
+
+
+def wait_for_job(client: TestClient, job_id: str) -> dict[str, object]:
+    data: dict[str, object] = {}
+    for _ in range(50):
+        poll = client.get(
+            f"/v1/jobs/{job_id}",
+            headers={"Authorization": f"Bearer {TOKEN}", "x-correlation-id": "job-field"},
+        )
+        assert poll.status_code == 200
+        data = poll.json()
+        if data["status"] in ("succeeded", "failed"):
+            return data
+        time.sleep(0.05)
+    raise AssertionError("planner job did not finish")
+
+
+def test_only_allowlisted_private_runtimes_are_approved() -> None:
+    assert v4_planner._approved_private_model("ollama/llama3") == ("ollama", "llama3")
+    assert v4_planner._approved_private_model("ollama_chat/llama3") == ("ollama", "llama3")
+    assert v4_planner._approved_private_model("hosted_vllm/local") == ("vllm", "local")
+    assert v4_planner._approved_private_model("anthropic/claude-opus-4-6") is None
+    assert v4_planner._approved_private_model("openai/gpt-4o-mini") is None
+    assert v4_planner._approved_private_model("custom/llama3") is None
+
+
+def test_field_mapping_host_must_be_a_private_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert v4_planner._api_base_is_reachable_privately("http://10.0.0.8:11434") is True
+    assert v4_planner._api_base_is_reachable_privately("http://127.0.0.1:8000/v1") is True
+    assert v4_planner._api_base_is_reachable_privately("http://localhost:11434") is True
+    assert v4_planner._api_base_is_reachable_privately("http://8.8.8.8:11434") is False
+    assert v4_planner._api_base_is_reachable_privately("http://169.254.169.254/api/tags") is False
+    assert v4_planner._api_base_is_reachable_privately("http://user:pass@10.0.0.8:11434") is False
+
+    def public(*_args: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 0))]
+
+    monkeypatch.setattr(v4_planner.socket, "getaddrinfo", public)
+    assert v4_planner._api_base_is_reachable_privately("http://ollama.internal:11434") is False
+
+    def mixed(*_args: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.1.2.3", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.2.3.4", 0)),
+        ]
+
+    monkeypatch.setattr(v4_planner.socket, "getaddrinfo", mixed)
+    assert v4_planner._api_base_is_reachable_privately("http://ollama.internal:11434") is False
+
+    def private(*_args: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.1.2.3", 0))]
+
+    monkeypatch.setattr(v4_planner.socket, "getaddrinfo", private)
+    assert v4_planner._api_base_is_reachable_privately("http://ollama.internal:11434") is True
+
+
+def mapping_turn_body(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "contract_version": "study-agent-turn@1",
+        "task": "mapping",
+        "prompt_id": FIELD_MAPPING_PROMPT,
+        "prompt_digest": DIGEST,
+        "system_prompt": "Map with the tools.",
+        "messages": [{"role": "user", "content": json.dumps({"facts": [{"valueAsWritten": SECRET_FACT}]})}],
+        "tools": agent_tools(v4_planner.MAPPING_AGENT_TOOL_NAMES),
+        "max_output_tokens": 1000,
+        "timeout_seconds": 30,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_field_mapping_alias_is_not_a_completion_route(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLANNER_CANONICALIZE_LITELLM_ALIAS", "heavy_lifter")
+    monkeypatch.setenv(v4_planner.FIELD_MAPPING_ALIAS_ENV, FIELD_MAPPING_ALIAS)
+    data = client.get("/health").json()
+    assert data["task_model_aliases"]["canonicalize"] == "heavy_lifter"
+    assert data["field_mapping_alias"] == FIELD_MAPPING_ALIAS
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, field_mapping_body())
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+
+
+def test_mapping_turn_checks_the_study_alias_before_sending_fact_values(
+    client: TestClient, study_alias: None
+) -> None:
+    seen = use_litellm(
+        route_transport(
+            model_info("ollama/llama3", "http://10.0.0.8:11434", alias="heavy_lifter"),
+            "{}",
+            OLLAMA_PROBE,
+        )
+    )
+    response = post_agent(client, mapping_turn_body())
+    assert response.status_code == 200
+    assert response.json()["model_alias"] == "heavy_lifter"
+    assert response.json()["message"]["tool_calls"] == []
+    assert [request.url.path for request in seen] == ["/v1/model/info", "/api/tags", "/v1/chat/completions"]
+    assert seen[1].url.host == "10.0.0.8"
+    assert SECRET_FACT.encode() not in seen[0].content
+    assert SECRET_FACT.encode() not in seen[1].content
+    sent = json.loads(seen[2].content)
+    assert sent["model"] == "heavy_lifter"
+    assert sent["tool_choice"] == "required"
+    assert {tool["function"]["name"] for tool in sent["tools"]} == set(v4_planner.MAPPING_AGENT_TOOL_NAMES)
+    assert SECRET_FACT.encode() in seen[2].content
+    assert seen[2].extensions["timeout"]["read"] == 30.0
+
+
+SYNTHETIC_HIVE = "11111111-1111-4111-8111-111111111111"
+OTHER_HIVE = "22222222-2222-4222-8222-222222222222"
+INVENTED_FACT = "Invented student North started on 2024-01-02."
+
+
+def test_mapping_turn_fails_closed_for_an_external_provider(client: TestClient, study_alias: None) -> None:
+    seen = use_litellm(
+        route_transport(model_info("anthropic/claude-opus-4-6", "https://api.anthropic.com", alias="heavy_lifter"), "{}")
+    )
+    response = post_agent(client, mapping_turn_body())
+    assert response.status_code == 503
+    assert response.json()["diagnostic_reason"] == "provider_not_authorized"
+    assert response.json()["retryable"] is False
+    assert [request.url.path for request in seen] == ["/v1/model/info"]
+    assert SECRET_FACT.encode() not in seen[0].content
+
+
+def test_mapping_turn_ignores_a_client_synthetic_claim(client: TestClient, study_alias: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(v4_planner.EXTERNAL_MAPPING_HIVE_IDS_ENV, f"synthetic,{SYNTHETIC_HIVE}")
+    seen = use_litellm(
+        route_transport(model_info("anthropic/claude-opus-4-6", None, alias="heavy_lifter"), "{}")
+    )
+    claimed = mapping_turn_body(hive_id=SYNTHETIC_HIVE, synthetic=True, content_class="synthetic")
+    rejected = post_agent(client, claimed)
+    assert rejected.status_code == 400
+    assert rejected.json()["diagnostic_reason"] == "planner_invalid_request"
+    unlabeled = post_agent(
+        client,
+        mapping_turn_body(hive_id=OTHER_HIVE, messages=[{"role": "user", "content": "content_class is synthetic"}]),
+    )
+    assert unlabeled.status_code == 503
+    assert unlabeled.json()["diagnostic_reason"] == "provider_not_authorized"
+    assert [request.url.path for request in seen] == ["/v1/model/info"]
+    assert all(SECRET_FACT.encode() not in request.content for request in seen)
+
+
+def test_mapping_turn_posts_invented_facts_only_for_the_designated_hive(
+    client: TestClient, study_alias: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(v4_planner.EXTERNAL_MAPPING_HIVE_IDS_ENV, SYNTHETIC_HIVE.upper())
+    tool_calls = [
+        wire_call(
+            "c1",
+            "propose_field",
+            json.dumps({"documentId": "doc-1", "extractionFactId": "F-start", "value": "2024-01-02"}),
+        ),
+        wire_call("c2", "finish_mapping", json.dumps({"ready": True})),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/model/info"):
+            return httpx.Response(200, json=model_info("anthropic/claude-opus-4-6", "https://api.anthropic.com/v1", alias="heavy_lifter"))
+        if request.url.path.endswith("/chat/completions"):
+            return httpx.Response(200, json=tool_completion(tool_calls))
+        raise AssertionError(f"unexpected path {request.url.path}")
+
+    seen = use_litellm(handler)
+    response = post_agent(client, mapping_turn_body(
+        hive_id=SYNTHETIC_HIVE,
+        messages=[{"role": "user", "content": INVENTED_FACT}],
+    ))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["model_alias"] == "heavy_lifter"
+    assert [call["name"] for call in body["message"]["tool_calls"]] == ["propose_field", "finish_mapping"]
+    assert [request.url.path for request in seen] == ["/v1/model/info", "/v1/chat/completions"]
+    assert INVENTED_FACT.encode() not in seen[0].content
+    assert INVENTED_FACT.encode() in seen[1].content
+    sent = json.loads(seen[1].content)
+    assert sent["model"] == "heavy_lifter"
+    assert sent["tool_choice"] == "required"
+    assert {tool["function"]["name"] for tool in sent["tools"]} == set(v4_planner.MAPPING_AGENT_TOOL_NAMES)
+
+    refused = post_agent(client, mapping_turn_body(hive_id=OTHER_HIVE, messages=[{"role": "user", "content": INVENTED_FACT}]))
+    assert refused.status_code == 503
+    assert refused.json()["diagnostic_reason"] == "provider_not_authorized"
+    assert [request.url.path for request in seen].count("/v1/chat/completions") == 1
+    health = client.get("/health").json()
+    assert health["external_mapping_hive_count"] == 1
+    assert SYNTHETIC_HIVE not in json.dumps(health)
+
+
+def test_mapping_turn_refuses_an_unlisted_anthropic_model_and_a_private_anthropic_host(
+    client: TestClient, study_alias: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(v4_planner.EXTERNAL_MAPPING_HIVE_IDS_ENV, SYNTHETIC_HIVE)
+    sonnet = use_litellm(route_transport(model_info("anthropic/claude-sonnet-4-5", None, alias="heavy_lifter"), "{}"))
+    sonnet_response = post_agent(client, mapping_turn_body(hive_id=SYNTHETIC_HIVE))
+    assert sonnet_response.status_code == 503
+    assert sonnet_response.json()["diagnostic_reason"] == "provider_not_authorized"
+    assert all(not request.url.path.endswith("/chat/completions") for request in sonnet)
+
+    private_host = use_litellm(
+        route_transport(model_info("anthropic/claude-opus-4-6", "http://10.0.0.8:11434", alias="heavy_lifter"), "{}", OLLAMA_PROBE)
+    )
+    private_response = post_agent(client, mapping_turn_body(hive_id=SYNTHETIC_HIVE))
+    assert private_response.status_code == 503
+    assert private_response.json()["diagnostic_reason"] == "provider_not_authorized"
+    assert [request.url.path for request in private_host] == ["/v1/model/info"]
+    assert SECRET_FACT.encode() not in private_host[0].content
+
+
+def test_mapping_turn_does_not_post_when_the_study_alias_is_unset(client: TestClient) -> None:
+    seen = use_litellm(route_transport(model_info("anthropic/claude-opus-4-6", None, alias="heavy_lifter"), "{}"))
+    response = post_agent(client, mapping_turn_body())
+    assert response.status_code == 503
+    assert response.json()["diagnostic_reason"] == "model_alias_unconfigured"
+    assert seen == []
+
+
+def test_mapping_turn_private_address_is_not_an_approved_provider(client: TestClient, study_alias: None) -> None:
+    seen = use_litellm(
+        route_transport(model_info("openai/gpt-4o-mini", "http://10.0.0.8:11434", alias="heavy_lifter"), "{}", OLLAMA_PROBE)
+    )
+    response = post_agent(client, mapping_turn_body())
+    assert response.status_code == 503
+    assert response.json()["diagnostic_reason"] == "provider_not_authorized"
+    assert [request.url.path for request in seen] == ["/v1/model/info"]
+    assert SECRET_FACT.encode() not in seen[0].content
+
+
+def test_mapping_turn_fails_closed_when_the_endpoint_does_not_list_the_model(client: TestClient, study_alias: None) -> None:
+    seen = use_litellm(
+        route_transport(
+            model_info("ollama/llama3", "http://10.0.0.8:11434", alias="heavy_lifter"),
+            "{}",
+            {"models": [{"name": "other:latest"}]},
+        )
+    )
+    response = post_agent(client, mapping_turn_body())
+    assert response.status_code == 503
+    assert response.json()["diagnostic_reason"] == "private_route_unverified"
+    assert [request.url.path for request in seen] == ["/v1/model/info", "/api/tags"]
+    assert all(SECRET_FACT.encode() not in request.content for request in seen)
+
+
+def test_mapping_turn_fails_closed_when_the_endpoint_is_unreachable(client: TestClient, study_alias: None) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/model/info"):
+            return httpx.Response(200, json=model_info("hosted_vllm/local", "http://127.0.0.1:8000", alias="heavy_lifter"))
+        if request.url.path == "/v1/models":
+            raise httpx.ConnectError("endpoint down")
+        raise AssertionError(f"case values were sent to {request.url.path}")
+
+    seen = use_litellm(handler)
+    response = post_agent(client, mapping_turn_body())
+    assert response.status_code == 503
+    assert response.json()["diagnostic_reason"] == "private_route_unverified"
+    assert [request.url.path for request in seen] == ["/v1/model/info", "/v1/models"]
+
+
+def test_mapping_turn_fails_closed_when_model_info_is_unavailable(client: TestClient, study_alias: None) -> None:
+    seen = use_litellm(lambda _: httpx.Response(503, json={"error": "down"}))
+    response = post_agent(client, mapping_turn_body())
+    assert response.status_code == 503
+    assert response.json()["diagnostic_reason"] == "private_route_unverified"
+    assert seen[0].url.path == "/v1/model/info"
+    assert all(not request.url.path.endswith("/chat/completions") for request in seen)
+
+
+def test_mapping_turn_rejects_study_tools_and_keeps_legacy_study_tools(client: TestClient, study_alias: None) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=tool_completion([wire_call()])))
+    rejected = post_agent(client, mapping_turn_body(tools=agent_tools()))
+    assert rejected.status_code == 400
+    assert rejected.json()["error_code"] == "INVALID_REQUEST"
+    legacy = post_agent(client, agent_body())
+    assert legacy.status_code == 200
+    assert seen[0].url.path.endswith("/chat/completions")
+    assert SECRET_FACT.encode() not in seen[0].content
+
+
+def test_one_shot_field_mapping_job_is_rejected(client: TestClient, pipeline_aliases: None) -> None:
+    reset_job_store()
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    submit = client.post(
+        "/v1/jobs",
+        content=json.dumps(field_mapping_body()),
+        headers={"Authorization": f"Bearer {TOKEN}", "x-correlation-id": "job-field"},
+    )
+    assert submit.status_code == 400
+    assert submit.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+
+
+def test_canonicalize_prompt_must_match_the_field_mapping_request(client: TestClient, pipeline_aliases: None) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    mismatched = pipeline_body("canonicalize", user_payload={"schema": "hive.field-mapping-request/1", "facts": [{"valueAsWritten": SECRET_FACT}]})
+    response = post(client, mismatched)
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+    reverse = post(client, field_mapping_body(user_payload={"documents": []}))
+    assert reverse.status_code == 400
+    assert seen == []
+
+
+def test_legacy_canonicalize_does_not_require_a_private_route(
+    client: TestClient, pipeline_aliases: None, field_mapping_alias: None
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/model/info") or request.url.path in {"/api/tags", "/v1/models"}:
+            raise AssertionError("legacy canonicalize checked the provider route")
+        return httpx.Response(200, json=completion('{"schema":"hive.canonical-study/1"}'))
+
+    seen = use_litellm(handler)
+    response = post(client, pipeline_body("canonicalize", user_payload={"documents": [{"id": "doc", "valueAsWritten": SECRET_FACT}]}))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["model_alias"] == "heavy_lifter"
+    assert body["content_json"]["schema"] == "hive.canonical-study/1"
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == "heavy_lifter"
+    assert seen[0].url.path == "/v1/chat/completions"
+    assert seen[0].extensions["timeout"]["read"] == 600.0

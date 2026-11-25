@@ -188,9 +188,21 @@ function mapPlannerHttpError(
       errorCode: "MODEL_OUTPUT_INVALID",
       category: "MODEL",
       retryable: modelOutputRetryable(diagnosticReason, retryable),
-      safeMessage: "The analysis model returned an answer we couldn't use. You can try again.",
+      safeMessage:
+        diagnosticReason === "field_mapping_schema_mismatch"
+          ? "The study could not be checked against the saved evidence. Your earlier study is unchanged."
+          : "The analysis model returned an answer we couldn't use. You can try again.",
       correlationId,
       diagnosticReason,
+    });
+  }
+  if (upstream === "private_route_unverified") {
+    return withRun({
+      errorCode: "MODEL_UNAVAILABLE",
+      retryable: false,
+      safeMessage: "The study was not rebuilt because private processing could not be confirmed. Your earlier study is unchanged.",
+      correlationId,
+      diagnosticReason: "private_route_unverified",
     });
   }
   if (code === "MODEL_UNAVAILABLE" || code === "DEPENDENCY_UNAVAILABLE") {

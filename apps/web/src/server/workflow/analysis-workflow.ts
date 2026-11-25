@@ -78,6 +78,7 @@ import {
   persistDomainPackWorkflowState,
   persistV5ExtractStageOutputs,
   recordGapsForWorkItems,
+  resolveInvestigationEnginePin,
   runCanonicalizeForRun,
   runExtractingWorkerPool,
   savedRangeKeysByDocument,
@@ -1244,6 +1245,16 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
   }
   // Rebuild Study: re-run CANONICALIZING from cached extractions; re-extract only changed documents (cheap path).
   const requestText = inputs.intents.map((intent) => intent.intentText).join("\n");
+  const resolved =
+    inputs.run.preparationMode === "REBUILD"
+      ? await resolveInvestigationEnginePin({
+          client: context.deps.client,
+          run: inputs.run,
+          sourceSnapshot: inputs.sourceSnapshot,
+          correlationId: context.correlationId,
+        })
+      : { ok: true as const, pin: null };
+  if (!resolved.ok) throw new StageFailure(resolved.error, null);
   const result = await runCanonicalizeForRun({
     deps: context.deps,
     run: inputs.run,
@@ -1254,6 +1265,7 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
     stageAttempt: context.stageAttempt,
     now: context.now,
     rebuildMode: inputs.run.preparationMode === "REBUILD",
+    investigationEngine: resolved.pin,
     extractProgress: inputs.stageOutputs as V5StageOutputs,
     requestText,
     clock: context.deps.clock,

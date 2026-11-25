@@ -1,6 +1,9 @@
 import {
   type CanonicalStudy,
   CANONICAL_STUDY_SCHEMA,
+  type InvestigationEnginePin,
+  prepareInvestigationStudy,
+  runInvestigationStudyEngine,
   cloudflareProxyLimitSuspect,
   computeExtractPlannerCallTimeoutMs,
   resolveExtractPlannerCallDeadlineMs,
@@ -42,6 +45,7 @@ import { buildCanonicalizePayload, canonicalizeCase } from "@/server/pipeline/ca
 import { loadPackById, loadPackEntries, logPinnedPackNotFound } from "@/server/pipeline/pack-loader";
 import { selectDomainPack } from "@hiveforyou/contracts";
 import { PlannerJobHandoffError } from "@/server/study-preparation/planner-async-jobs";
+import { callPlanner } from "@/server/study-preparation/planner-client";
 import {
   type ExtractCallRecord,
   type ExtractDocumentStats,
@@ -58,6 +62,11 @@ import {
 import { refreshProcessingRunProgressEstimateInWorker } from "@/server/pipeline/progress-estimate-persistence";
 import { loadPipelineThroughput, recordPipelineModelCall } from "@/server/pipeline/pipeline-throughput";
 import { listDocumentPagesForSource } from "@/server/source-documents/document-pages-persistence";
+import {
+  loadPinnedDomainPack,
+  PINNED_DOMAIN_PACK,
+  readDomainPackSelection,
+} from "@/server/workflow/domain-pack-selection";
 import { sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import type { PromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import { canonicalJson } from "@/server/study-preparation/study-prompt-builder";
@@ -67,6 +76,7 @@ import {
 } from "./report-generation";
 
 import type { AnalysisWorkflowDeps } from "./analysis-workflow";
+import { runDomainMappingInvestigation } from "./domain-mapping-investigation";
 
 export { V5_CLIENT_TASK_TIMEOUT_MS };
 
@@ -2275,6 +2285,263 @@ export type CanonicalizeRunResult =
   | { ok: true; study: CanonicalStudy; metric: StageMetric }
   | { ok: false; error: HiveError; metric: StageMetric | null };
 
+export type InvestigationPinResolution =
+  | { ok: true; pin: InvestigationEnginePin | null }
+  | { ok: false; error: HiveError };
+
+function pinMismatch(correlationId: string, runId: string): HiveError {
+  return createHiveError({
+    errorCode: "INVALID_REQUEST",
+    category: "VALIDATION",
+    stage: "ANALYZE",
+    retryable: false,
+    safeMessage: "This rebuild is not pinned to the checked study pack. Your earlier study is unchanged.",
+    correlationId,
+    operationId: runId,
+    diagnosticReason: "investigation_pack_pin_mismatch",
+  });
+}
+
+/**
+ * Loads the durable Domain Pack selection for one Hive.
+ * No row, or a selection table that is not installed yet, leaves the Hive on legacy canonicalization.
+ * A row that is not the compiled iep-us-federal 0.4.0 digest fails closed and does not fall back.
+ * `get_hive_chosen_pack` remains the legacy checklist pack and is not consulted here.
+ */
+export async function resolveInvestigationEnginePin(input: {
+  client: RpcClient;
+  run: ProcessingRun;
+  sourceSnapshot: SourceSnapshot;
+  correlationId: string;
+}): Promise<InvestigationPinResolution> {
+  const read = await readDomainPackSelection(input.client, input.run.hiveId);
+  if (read.status === "none" || read.status === "unavailable") return { ok: true, pin: null };
+  if (read.status === "error") {
+    return {
+      ok: false,
+      error: createHiveError({
+        errorCode: "PERSISTENCE_FAILED",
+        category: "PERSISTENCE",
+        stage: "ANALYZE",
+        retryable: true,
+        safeMessage: "Analysis stopped before it finished. You can try again.",
+        correlationId: input.correlationId,
+        operationId: input.run.id,
+        diagnosticReason: "chosen_pack_lookup_failed",
+        diagnosticField: read.message,
+      }),
+    };
+  }
+  let pinned: ReturnType<typeof loadPinnedDomainPack>;
+  try {
+    pinned = loadPinnedDomainPack();
+  } catch {
+    return { ok: false, error: pinMismatch(input.correlationId, input.run.id) };
+  }
+  const selection = read.selection;
+  if (
+    selection.packId !== PINNED_DOMAIN_PACK.packId ||
+    selection.version !== PINNED_DOMAIN_PACK.version ||
+    selection.compiledDigest !== pinned.compiledDigest
+  ) {
+    return { ok: false, error: pinMismatch(input.correlationId, input.run.id) };
+  }
+  const pages: InvestigationEnginePin["pages"][number][] = [];
+  for (const document of input.sourceSnapshot.documents) {
+    let listed: { pageNumber: number; text: string }[];
+    try {
+      listed = await loadDocumentPages({
+        client: input.client,
+        hiveId: input.run.hiveId,
+        runId: input.run.id,
+        document,
+        correlationId: input.correlationId,
+      });
+    } catch (error) {
+      if (error && typeof error === "object" && "errorCode" in error) {
+        return { ok: false, error: error as HiveError };
+      }
+      throw error;
+    }
+    pages.push({
+      documentId: document.sourceDocumentId,
+      pages: listed.map((page) => ({ pageNumber: page.pageNumber, text: page.text })),
+    });
+  }
+  return {
+    ok: true,
+    pin: {
+      hiveId: input.run.hiveId,
+      packSource: pinned.source,
+      artifacts: pinned.artifacts,
+      pages,
+    },
+  };
+}
+
+const INVESTIGATION_FAILURE_REASONS = {
+  EMPTY_CANDIDATES: "investigation_candidates_empty",
+  INVALID_EVIDENCE: "investigation_evidence_invalid",
+  VERIFICATION_FAILED: "investigation_verification_failed",
+  INCOMPLETE_DOCUMENTS: "investigation_documents_incomplete",
+  MAPPING_INVALID: "investigation_mapping_invalid",
+  RECORD_TEXT_BOUNDARY: "investigation_record_text_boundary",
+  PACK_COMPILE_FAILED: "investigation_engine_failed",
+  PLAN_COMPILE_FAILED: "investigation_engine_failed",
+  BIND_FAILED: "investigation_engine_failed",
+  LEDGER_FAILED: "investigation_engine_failed",
+} as const;
+
+function investigationFailure(input: {
+  code: keyof typeof INVESTIGATION_FAILURE_REASONS;
+  correlationId: string;
+  runId: string;
+}): HiveError {
+  const diagnosticReason = INVESTIGATION_FAILURE_REASONS[input.code];
+  const safeMessage =
+    input.code === "INVALID_EVIDENCE"
+      ? "A quotation did not match the saved page, so the study was not accepted. Your earlier study is unchanged."
+      : input.code === "INCOMPLETE_DOCUMENTS"
+        ? "The study did not record every saved document, so it was not accepted. Your earlier study is unchanged."
+        : input.code === "EMPTY_CANDIDATES"
+          ? "The rebuild did not produce evidence to accept. Your earlier study is unchanged."
+          : input.code === "RECORD_TEXT_BOUNDARY"
+            ? "The analysis stopped before sending the record. Your earlier study is unchanged."
+            : "The study could not be checked against the saved evidence. Your earlier study is unchanged.";
+  return createHiveError({
+    errorCode: input.code === "EMPTY_CANDIDATES" || input.code === "INCOMPLETE_DOCUMENTS" ? "COVERAGE_INCOMPLETE" : "MODEL_OUTPUT_INVALID",
+    category: "VALIDATION",
+    stage: "ANALYZE",
+    retryable: false,
+    safeMessage,
+    correlationId: input.correlationId,
+    operationId: input.runId,
+    diagnosticReason,
+  });
+}
+
+async function runPinnedInvestigationEngine(input: {
+  deps: AnalysisWorkflowDeps;
+  run: ProcessingRun;
+  extractions: readonly DocExtraction[];
+  pin: InvestigationEnginePin;
+  catalog: PromptCatalog;
+  correlationId: string;
+  stageAttempt: number;
+  now: () => Date;
+}): Promise<CanonicalizeRunResult> {
+  const { deps, run, catalog, correlationId, stageAttempt, now, pin } = input;
+  if (pin.hiveId !== run.hiveId) {
+    return {
+      ok: false,
+      error: createHiveError({
+        errorCode: "INVALID_REQUEST",
+        category: "VALIDATION",
+        stage: "ANALYZE",
+        retryable: false,
+        safeMessage: "This rebuild is not pinned to this hive. Your earlier study is unchanged.",
+        correlationId,
+        operationId: run.id,
+        diagnosticReason: "investigation_hive_mismatch",
+      }),
+      metric: null,
+    };
+  }
+  const prepared = prepareInvestigationStudy(pin);
+  if (!prepared.ok) {
+    return { ok: false, error: investigationFailure({ code: prepared.code, correlationId, runId: run.id }), metric: null };
+  }
+  const prompt = catalog.fieldMapping;
+  const startedAt = now().toISOString();
+  const mapped = await runDomainMappingInvestigation({
+    planner: deps.planner,
+    runId: run.id,
+    hiveId: run.hiveId,
+    correlationId,
+    prompt,
+    plan: prepared.prepared.plan,
+    pack: prepared.prepared.pack,
+    extractions: input.extractions,
+    pages: pin.pages,
+    clock: () => now().getTime(),
+  });
+  if (!mapped.ok) {
+    if (mapped.error.diagnosticReason === "investigation_record_text_boundary") {
+      return { ok: false, error: investigationFailure({ code: "RECORD_TEXT_BOUNDARY", correlationId, runId: run.id }), metric: null };
+    }
+    return { ok: false, error: mapped.error, metric: null };
+  }
+  await logPipelineCall({
+    client: deps.client,
+    task: "canonicalize",
+    correlationId,
+    hiveId: run.hiveId,
+    processingRunId: run.id,
+    inputTokens: mapped.totals.promptTokens,
+    outputTokens: mapped.totals.completionTokens,
+    latencyMs: mapped.totals.latencyMs,
+    finishReason: mapped.totals.finishReason,
+    outcome: "ok",
+    resolvedModel: mapped.totals.resolvedModel,
+    concurrencyAtStart: 1,
+  });
+  const engine = runInvestigationStudyEngine({
+    prepared: prepared.prepared,
+    extractions: input.extractions,
+    pages: pin.pages,
+    proposal: mapped.proposal,
+    studyDate: now().toISOString().slice(0, 10),
+  });
+  if (!engine.ok) {
+    emitStructuredEvent({
+      eventName: "pipeline.canonicalize.investigation_engine_failed",
+      severity: "ERROR",
+      timestamp: now().toISOString(),
+      component: "pipeline",
+      operation: "canonicalize",
+      stage: "ANALYZE",
+      correlationId,
+      hiveId: run.hiveId,
+      processingRunId: run.id,
+      diagnosticReason: INVESTIGATION_FAILURE_REASONS[engine.code],
+    });
+    return {
+      ok: false,
+      error: investigationFailure({ code: engine.code, correlationId, runId: run.id }),
+      metric: null,
+    };
+  }
+  emitStructuredEvent({
+    eventName: "pipeline.canonicalize.investigation_engine_accepted",
+    severity: "INFO",
+    timestamp: now().toISOString(),
+    component: "pipeline",
+    operation: "canonicalize",
+    stage: "ANALYZE",
+    correlationId,
+    hiveId: run.hiveId,
+    processingRunId: run.id,
+    diagnosticReason: "investigation_engine_accepted",
+  });
+  const metric: StageMetric = {
+    stage: "CANONICALIZING",
+    attempt: stageAttempt,
+    outcome: "SUCCEEDED",
+    promptId: prompt.id,
+    promptDigest: prompt.digest,
+    modelAliasRequested: mapped.totals.resolvedModel,
+    resolvedModel: mapped.totals.resolvedModel,
+    promptTokens: mapped.totals.promptTokens,
+    completionTokens: mapped.totals.completionTokens,
+    totalTokens: mapped.totals.promptTokens + mapped.totals.completionTokens,
+    latencyMs: mapped.totals.latencyMs,
+    finishReason: mapped.totals.finishReason,
+    startedAt,
+    completedAt: now().toISOString(),
+  };
+  return { ok: true, study: engine.study, metric };
+}
+
 export async function runCanonicalizeForRun(input: {
   deps: AnalysisWorkflowDeps;
   run: ProcessingRun;
@@ -2288,6 +2555,11 @@ export async function runCanonicalizeForRun(input: {
   invocationStartedAt?: number;
   /** Rebuild Study: canonicalize only extractions whose page-set digest matches the frozen snapshot. */
   rebuildMode?: boolean;
+  /**
+   * Explicit domain-pack pin for this rebuild. Absent for every Hive until a trusted
+   * per-Hive pin exists. A failed pinned run does not fall back to legacy canonicalization.
+   */
+  investigationEngine?: InvestigationEnginePin | null;
   extractProgress?: V5StageOutputs;
   requestText?: string;
 }): Promise<CanonicalizeRunResult> {
@@ -2328,6 +2600,18 @@ export async function runCanonicalizeForRun(input: {
       };
     }
     extractions = planned.reuse;
+  }
+  if (input.rebuildMode && input.investigationEngine) {
+    return runPinnedInvestigationEngine({
+      deps,
+      run,
+      extractions,
+      pin: input.investigationEngine,
+      catalog,
+      correlationId,
+      stageAttempt,
+      now,
+    });
   }
   const pendingJob = input.extractProgress?.plannerJobs?.canonicalize;
   const clock = input.clock ?? deps.clock ?? (() => Date.now());

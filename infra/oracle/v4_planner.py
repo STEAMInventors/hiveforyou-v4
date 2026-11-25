@@ -8,14 +8,20 @@ with a fixed model alias and a scoped virtual key that never leaves Oracle:
   (intent, domain, intelligence, plan) or pipeline stage (extract, canonicalize, write). Returns the
   parsed JSON plus usage metadata.
 - `study-agent-turn@1` (`POST /v1/study-agent-turn`): one native tool-calling turn of the Canonical
-  Study investigation (`task: "study"`) or Writer report generation (`task: "writer"`). Forwards the
-  conversation and the fixed tool definitions and returns the model's tool calls unexecuted. The
-  planner never runs a Hive tool; the web workflow does.
+  Study investigation (`task: "study"`), Writer report generation (`task: "writer"`), or Domain Pack
+  field mapping (`task: "mapping"`). Forwards the conversation and the fixed tool definitions and
+  returns the model's tool calls unexecuted. The planner never runs a Hive tool; the web workflow does.
 
 - Callers cannot choose the model. Preparation tasks use `TASK_MODEL_ALIASES[task]` when set,
-  otherwise `PLANNER_LITELLM_ALIAS` (`sorter`). `study` and `writer` turns use
-  `PLANNER_STUDY_LITELLM_ALIAS` / `PLANNER_WRITER_LITELLM_ALIAS`; `extract`, `canonicalize` and
-  `write` use `PLANNER_{EXTRACT,CANONICALIZE,WRITE}_LITELLM_ALIAS`. All five fail closed when unset.
+  otherwise `PLANNER_LITELLM_ALIAS` (`sorter`). `study` and `mapping` turns use
+  `PLANNER_STUDY_LITELLM_ALIAS`; `writer` turns use `PLANNER_WRITER_LITELLM_ALIAS`; `extract`,
+  `canonicalize` and `write` use `PLANNER_{EXTRACT,CANONICALIZE,WRITE}_LITELLM_ALIAS`. Those aliases
+  fail closed when unset. A mapping turn reuses the study alias. Before any case value is posted,
+  the planner reads that alias from LiteLLM. A verified private runtime may proceed. The one
+  approved external model may proceed only for a Hive id listed in
+  `PLANNER_EXTERNAL_MAPPING_HIVE_IDS`. A synthetic label, `content_class`, or any other
+  client claim is not authorization. Anything else is `provider_not_authorized` and is not
+  called. `PLANNER_FIELD_MAPPING_LITELLM_ALIAS` is no longer a route.
 - Bearer `PLANNER_SERVICE_TOKEN` is compared in constant time; an unset token fails closed.
 - Logs carry identifiers, codes, token counts and latency only — never prompts, page text,
   messages, tool arguments, completions or credentials.
@@ -25,12 +31,15 @@ with a fixed model alias and a scoped virtual key that never leaves Oracle:
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import json
 import logging
 import os
 import re
+import socket
 import time
 import uuid
+from urllib.parse import urlparse
 from typing import Annotated, Any, Literal, Union
 
 import httpx
@@ -63,12 +72,71 @@ PIPELINE_PROMPT_IDS_V2: dict[str, str] = {
     "write": "hive-write/2",
     "assistant_reply": "hive-assistant-reply/2",
 }
+# Pinned rebuilds use this prompt on study-agent-turn task "mapping".
+# Unpinned canonicalize stays on hive-canonicalize/1 and hive-canonicalize/2.
+FIELD_MAPPING_PROMPT_ID = "hive.field-mapping-proposal/1"
+FIELD_MAPPING_REQUEST_SCHEMA = "hive.field-mapping-request/1"
+FIELD_MAPPING_ALIAS_ENV = "PLANNER_FIELD_MAPPING_LITELLM_ALIAS"
+# Server allowlist. Empty means no external mapping post. Client claims are not read.
+EXTERNAL_MAPPING_HIVE_IDS_ENV = "PLANNER_EXTERNAL_MAPPING_HIVE_IDS"
+HIVE_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+# Model id already configured as the study alias. Other Anthropic models stay unauthorized.
+APPROVED_EXTERNAL_MODELS = {
+    "anthropic/claude-opus-4-6": "api.anthropic.com",
+}
+# Prefix is the approved runtime. A private address is required as well, then a live model listing.
+APPROVED_PRIVATE_PROVIDERS = (
+    ("ollama_chat/", "ollama"),
+    ("ollama/", "ollama"),
+    ("hosted_vllm/", "vllm"),
+)
+PRIVATE_PROBE_TIMEOUT_SECONDS = 10.0
+PRIVATE_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@+/-]{0,199}$")
+# A public provider prefix means the fact values would leave for that provider.
+PUBLIC_MODEL_PREFIXES = (
+    "anthropic/",
+    "openai/",
+    "azure/",
+    "azure_ai/",
+    "vertex_ai/",
+    "vertex_ai_beta/",
+    "gemini/",
+    "google/",
+    "groq/",
+    "mistral/",
+    "cohere/",
+    "bedrock/",
+    "fireworks_ai/",
+    "together_ai/",
+    "openrouter/",
+    "perplexity/",
+    "deepseek/",
+    "xai/",
+    "voyage/",
+    "sagemaker/",
+    "huggingface/",
+    "replicate/",
+    "ai21/",
+    "palm/",
+)
 
 
 def _prompt_id_allowed(task: str, prompt_id: str) -> bool:
+    if prompt_id == FIELD_MAPPING_PROMPT_ID:
+        return False
     if prompt_id == TASK_PROMPT_IDS.get(task):
         return True
     return PIPELINE_PROMPT_IDS_V2.get(task) == prompt_id
+
+
+def _payload_schema(payload: dict[str, Any]) -> str | None:
+    schema = payload.get("schema")
+    return schema if isinstance(schema, str) else None
+
+
+def _validate_canonicalize_prompt(parsed: PlannerCompletionRequest) -> None:
+    if parsed.prompt_id == FIELD_MAPPING_PROMPT_ID or _payload_schema(parsed.user_payload) == FIELD_MAPPING_REQUEST_SCHEMA:
+        raise _invalid_request("Field mapping uses a study-agent turn.")
 WRITER_SEMANTIC_REVIEW_PROMPT_ID = "hive.writer-semantic-review/1"
 DEFAULT_MODEL_ALIAS = "sorter"
 # Per-task model override; preparation tasks not listed use PLANNER_LITELLM_ALIAS.
@@ -190,9 +258,11 @@ WRITER_ALLOWED_TOOL_SETS: tuple[frozenset[str], ...] = (
     WRITER_EDITORIAL_TOOL_NAMES | WRITER_COMPOSE_TOOL_NAMES,
     WRITER_EDITORIAL_TOOL_NAMES | WRITER_COMPOSE_TOOL_NAMES | WRITER_AGENT_TOOL_NAMES,
 )
+MAPPING_AGENT_TOOL_NAMES = frozenset({"propose_field", "propose_relationship", "finish_mapping"})
 AGENT_TASK_TOOLS: dict[str, frozenset[str]] = {
     "study": STUDY_AGENT_TOOL_NAMES,
     "writer": WRITER_AGENT_TOOL_NAMES,
+    "mapping": MAPPING_AGENT_TOOL_NAMES,
 }
 STUDY_AGENT_MAX_REQUEST_BYTES = 1024 * 1024
 STUDY_AGENT_MAX_SYSTEM_PROMPT_CHARS = 200_000
@@ -285,7 +355,7 @@ class _ToolDefinition(_Strict):
 
 class StudyAgentTurnRequest(_Strict):
     contract_version: Literal["study-agent-turn@1"]
-    task: Literal["study", "writer"] = "study"
+    task: Literal["study", "writer", "mapping"] = "study"
     prompt_id: str = Field(min_length=1, max_length=64)
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=STUDY_AGENT_MAX_SYSTEM_PROMPT_CHARS)
@@ -293,6 +363,8 @@ class StudyAgentTurnRequest(_Strict):
     tools: list[_ToolDefinition] = Field(min_length=0, max_length=len(STUDY_AGENT_TOOL_NAMES))
     max_output_tokens: int = Field(ge=1, le=STUDY_AGENT_MAX_OUTPUT_TOKENS)
     timeout_seconds: int = Field(ge=5, le=240)
+    # Server-known Hive id. Not a synthetic claim. Study and Writer turns ignore it.
+    hive_id: str | None = Field(default=None, pattern=HIVE_ID_RE.pattern)
 
 
 class PlannerError(Exception):
@@ -332,6 +404,8 @@ def _settings() -> dict[str, str]:
             f"{task}_alias": os.environ.get(env_name, "").strip()
             for task, env_name in REQUIRED_TASK_ALIAS_ENV.items()
         },
+        "field_mapping_alias": os.environ.get(FIELD_MAPPING_ALIAS_ENV, "").strip(),
+        "external_mapping_hive_ids": os.environ.get(EXTERNAL_MAPPING_HIVE_IDS_ENV, "").strip(),
     }
 
 
@@ -399,6 +473,8 @@ def _parse_request(body: bytes) -> PlannerCompletionRequest:
         raise _invalid_request("Planner request is invalid.") from exc
     if not _prompt_id_allowed(parsed.task, parsed.prompt_id):
         raise _invalid_request("Prompt does not match the task.")
+    if parsed.task == "canonicalize":
+        _validate_canonicalize_prompt(parsed)
     if not DIGEST_RE.match(parsed.prompt_digest):
         raise _invalid_request("Prompt digest is invalid.")
     if parsed.max_output_tokens > TASK_MAX_OUTPUT_TOKENS[parsed.task]:
@@ -419,7 +495,10 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
         raise _invalid_request("Planner request is invalid.") from exc
     if not DIGEST_RE.match(parsed.prompt_digest):
         raise _invalid_request("Prompt digest is invalid.")
-    if parsed.prompt_id == WRITER_SEMANTIC_REVIEW_PROMPT_ID:
+    if parsed.task == "mapping":
+        if parsed.prompt_id != FIELD_MAPPING_PROMPT_ID:
+            raise _invalid_request("Prompt does not match the task.")
+    elif parsed.prompt_id == WRITER_SEMANTIC_REVIEW_PROMPT_ID:
         if parsed.task != "writer":
             raise _invalid_request("Semantic review requires task writer.")
         if len(parsed.tools) != 0:
@@ -441,6 +520,9 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
     elif parsed.task == "study":
         if len(names) != len(name_set) or name_set not in STUDY_ALLOWED_TOOL_SETS:
             raise _invalid_request("Tools do not match the study tool set.")
+    elif parsed.task == "mapping":
+        if len(names) != len(name_set) or name_set != MAPPING_AGENT_TOOL_NAMES:
+            raise _invalid_request("Tools do not match the mapping tool set.")
     elif len(names) != len(expected_tools) or name_set != expected_tools:
         raise _invalid_request(f"Tools do not match the {parsed.task} tool set.")
     for tool in parsed.tools:
@@ -466,6 +548,8 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
 
 
 def _model_alias(task: str, settings: dict[str, str]) -> str | None:
+    if task == "mapping":
+        return _model_alias("study", settings)
     if task in REQUIRED_TASK_ALIAS_ENV:
         alias = settings.get(f"{task}_alias", "")
         return alias if alias and SAFE_TOKEN_RE.match(alias) else None
@@ -651,6 +735,239 @@ def _require_alias(task: str, settings: dict[str, str]) -> str:
     return alias
 
 
+def _provider_not_authorized() -> PlannerError:
+    return PlannerError(
+        503,
+        "MODEL_UNAVAILABLE",
+        "dependency",
+        False,
+        "This provider is not authorized for this hive.",
+        "provider_not_authorized",
+    )
+
+
+def _private_route_unavailable() -> PlannerError:
+    return PlannerError(
+        503,
+        "MODEL_UNAVAILABLE",
+        "dependency",
+        False,
+        "Private processing could not be confirmed.",
+        "private_route_unverified",
+    )
+
+
+def _field_mapping_alias(settings: dict[str, str]) -> str | None:
+    alias = settings.get("field_mapping_alias", "")
+    return alias if alias and SAFE_TOKEN_RE.match(alias) else None
+
+
+def _address_is_approved_private(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if address.is_loopback:
+        return True
+    if address.is_multicast or address.is_unspecified or address.is_reserved or address.is_link_local:
+        return False
+    return bool(address.is_private)
+
+
+def _host_resolves_to_private_addresses(hostname: str) -> bool:
+    host = hostname.lower().strip("[]").rstrip(".")
+    if not host:
+        return False
+    if host == "localhost":
+        return True
+    try:
+        return _address_is_approved_private(ipaddress.ip_address(host))
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return False
+    found = False
+    for info in infos:
+        raw = str(info[4][0]).split("%", 1)[0]
+        try:
+            address = ipaddress.ip_address(raw)
+        except ValueError:
+            return False
+        if not _address_is_approved_private(address):
+            return False
+        found = True
+    return found
+
+
+def _api_base_is_reachable_privately(api_base: str) -> bool:
+    parsed = urlparse(api_base.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return False
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        return False
+    return _host_resolves_to_private_addresses(parsed.hostname)
+
+
+def _approved_private_model(model: str) -> tuple[str, str] | None:
+    """Approved runtime prefix plus model id. A private host is not a provider."""
+    stripped = model.strip()
+    lowered = stripped.lower()
+    if not lowered or any(lowered.startswith(prefix) for prefix in PUBLIC_MODEL_PREFIXES):
+        return None
+    for prefix, kind in APPROVED_PRIVATE_PROVIDERS:
+        if lowered.startswith(prefix):
+            model_id = stripped[len(prefix) :]
+            if PRIVATE_MODEL_ID_RE.match(model_id):
+                return kind, model_id
+            return None
+    return None
+
+
+def _probe_url(kind: str, api_base: str) -> str:
+    parsed = urlparse(api_base.strip())
+    host = parsed.hostname or ""
+    if ":" in host:
+        host = f"[{host}]"
+    port = f":{parsed.port}" if parsed.port else ""
+    origin = f"{parsed.scheme}://{host}{port}"
+    if kind == "ollama":
+        return origin + "/api/tags"
+    return origin + "/v1/models"
+
+
+def _probe_confirms_model(kind: str, model_id: str, payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if kind == "ollama":
+        rows = payload.get("models")
+        if not isinstance(rows, list):
+            return False
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            for key in ("name", "model"):
+                value = row.get(key)
+                if isinstance(value, str) and (value == model_id or value.startswith(model_id + ":")):
+                    return True
+        return False
+    rows = payload.get("data")
+    if not isinstance(rows, list):
+        return False
+    return any(isinstance(row, dict) and row.get("id") == model_id for row in rows)
+
+
+async def _read_model_info(settings: dict[str, str]) -> dict[str, Any]:
+    payload: dict[str, Any] | None = None
+    try:
+        async with httpx.AsyncClient(transport=_transport, timeout=PRIVATE_PROBE_TIMEOUT_SECONDS, follow_redirects=False) as client:
+            for path in ("/v1/model/info", "/model/info"):
+                response = await client.get(
+                    f"{settings['litellm_base_url']}{path}",
+                    headers={"Authorization": f"Bearer {settings['litellm_api_key']}"},
+                )
+                if response.status_code == 404:
+                    continue
+                if response.status_code != 200:
+                    raise _private_route_unavailable()
+                try:
+                    parsed = response.json()
+                except ValueError as exc:
+                    raise _private_route_unavailable() from exc
+                if not isinstance(parsed, dict):
+                    raise _private_route_unavailable()
+                payload = parsed
+                break
+    except PlannerError:
+        raise
+    except httpx.HTTPError as exc:
+        raise _private_route_unavailable() from exc
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise _private_route_unavailable()
+    return payload
+
+
+async def _probe_private_endpoint(kind: str, model_id: str, api_base: str) -> None:
+    """Confirms the runtime lists this model. Sends no case text and no LiteLLM key."""
+    try:
+        async with httpx.AsyncClient(transport=_transport, timeout=PRIVATE_PROBE_TIMEOUT_SECONDS, follow_redirects=False) as client:
+            response = await client.get(_probe_url(kind, api_base))
+    except httpx.HTTPError as exc:
+        raise _private_route_unavailable() from exc
+    if response.status_code != 200:
+        raise _private_route_unavailable()
+    try:
+        body = response.json()
+    except ValueError as exc:
+        raise _private_route_unavailable() from exc
+    if not _probe_confirms_model(kind, model_id, body):
+        raise _private_route_unavailable()
+
+
+def _designated_external_mapping_hives(settings: dict[str, str]) -> frozenset[str]:
+    """UUIDs from the server allowlist only. A non-UUID token, including the word synthetic, is dropped."""
+    found: set[str] = set()
+    for part in settings.get("external_mapping_hive_ids", "").split(","):
+        hive_id = part.strip().lower()
+        if HIVE_ID_RE.match(hive_id):
+            found.add(hive_id)
+    return frozenset(found)
+
+
+def _approved_external_route(model: str, api_base: object) -> bool:
+    """Official Anthropic host, or LiteLLM's default when no api_base is set. No other host."""
+    expected_host = APPROVED_EXTERNAL_MODELS.get(model.strip())
+    if expected_host is None:
+        return False
+    if not isinstance(api_base, str) or not api_base.strip():
+        return True
+    parsed = urlparse(api_base.strip())
+    if parsed.scheme != "https" or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        return False
+    if (parsed.hostname or "").lower() != expected_host:
+        return False
+    return parsed.path.rstrip("/") in {"", "/v1"}
+
+
+def _classify_mapping_deployment(row: dict[str, Any]) -> tuple[str, tuple[str, str, str] | None]:
+    params = row.get("litellm_params") if isinstance(row.get("litellm_params"), dict) else {}
+    model = params.get("model")
+    api_base = params.get("api_base")
+    if not isinstance(model, str) or not model.strip():
+        raise _provider_not_authorized()
+    private = _approved_private_model(model)
+    if private is not None:
+        if not isinstance(api_base, str) or not _api_base_is_reachable_privately(api_base):
+            raise _private_route_unavailable()
+        kind, model_id = private
+        return "private", (kind, model_id, api_base)
+    if _approved_external_route(model, api_base):
+        return "external", None
+    raise _provider_not_authorized()
+
+
+async def _assert_mapping_provider(settings: dict[str, str], alias: str, hive_id: str | None) -> None:
+    """Classifies the study alias before any fact value is posted. Does not read content_class or a synthetic flag."""
+    payload = await _read_model_info(settings)
+    matches = [row for row in payload["data"] if isinstance(row, dict) and row.get("model_name") == alias]
+    if not matches:
+        raise _provider_not_authorized()
+    kinds: list[str] = []
+    private_targets: list[tuple[str, str, str]] = []
+    for row in matches:
+        kind, target = _classify_mapping_deployment(row)
+        kinds.append(kind)
+        if target is not None:
+            private_targets.append(target)
+    if len(set(kinds)) != 1:
+        raise _provider_not_authorized()
+    if kinds[0] == "private":
+        for kind, model_id, api_base in private_targets:
+            await _probe_private_endpoint(kind, model_id, api_base)
+        return
+    normalized = (hive_id or "").strip().lower()
+    if normalized not in _designated_external_mapping_hives(settings):
+        raise _provider_not_authorized()
+
+
 async def _complete(request: PlannerCompletionRequest, settings: dict[str, str]) -> dict[str, Any]:
     _require_litellm(settings)
     alias = _require_alias(request.task, settings)
@@ -829,9 +1146,11 @@ async def _agent_json_content_turn(request: StudyAgentTurnRequest, settings: dic
 
 
 async def _agent_turn(request: StudyAgentTurnRequest, settings: dict[str, str]) -> dict[str, Any]:
-    """Relays one Study or Writer tool-calling turn. Returns the model's tool calls; never executes them."""
+    """Relays one Study, Writer, or mapping tool-calling turn. Returns the model's tool calls; never executes them."""
     _require_litellm(settings)
     alias = _require_alias(request.task, settings)
+    if request.task == "mapping":
+        await _assert_mapping_provider(settings, alias, request.hive_id)
     payload: dict[str, object] = {
         "model": alias,
         "messages": [{"role": "system", "content": request.system_prompt}, *(_dump_message(m) for m in request.messages)],
@@ -916,6 +1235,8 @@ async def health() -> dict[str, object]:
         "model_alias": settings["litellm_alias"],
         "task_model_aliases": {task: _model_alias(task, settings) for task in TASK_PROMPT_IDS},
         "task_aliases_configured": all(_model_alias(task, settings) for task in TASK_PROMPT_IDS),
+        "field_mapping_alias": _field_mapping_alias(settings),
+        "external_mapping_hive_count": len(_designated_external_mapping_hives(settings)),
         "litellm_configured": bool(settings["litellm_base_url"] and settings["litellm_api_key"]),
         "service_token_configured": bool(settings["service_token"]),
         "contracts": [CONTRACT_VERSION, STUDY_AGENT_CONTRACT_VERSION, "planner-job@1"],
@@ -1041,7 +1362,7 @@ async def study_agent_turn(request: Request) -> JSONResponse:
         raw_body = await request.body()
         try:
             peek = json.loads(raw_body)
-            if isinstance(peek, dict) and peek.get("task") in ("study", "writer"):
+            if isinstance(peek, dict) and peek.get("task") in ("study", "writer", "mapping"):
                 task = str(peek["task"])
         except ValueError:
             pass
