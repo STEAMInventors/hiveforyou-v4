@@ -1,15 +1,8 @@
 import {
   createHiveError,
-  DomainMappingLedger,
   estimateStudyAgentUsd,
-  fieldMappingRequestLeaksRecordText,
-  formatMappingRejectionSummary,
   formatStudyAgentBudgetDiagnosticField,
   type HiveError,
-  MAPPING_AGENT_TOOLS,
-  type MappingWindow,
-  renderMappingWindow,
-  selectMappingWindows,
   STUDY_AGENT_BUDGET,
   type StudyAgentBudgetDimension,
   type StudyAgentMessage,
@@ -19,6 +12,15 @@ import {
   type DomainInvestigationPlan,
   type AuthorizedDocument,
 } from "@hiveforyou/contracts";
+import {
+  DomainMappingLedger,
+  fieldMappingRequestLeaksRecordText,
+  formatMappingRejectionSummary,
+  MAPPING_AGENT_TOOLS,
+  type MappingWindow,
+  renderMappingWindow,
+  selectMappingWindows,
+} from "@hiveforyou/contracts/investigation";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation/planner-client";

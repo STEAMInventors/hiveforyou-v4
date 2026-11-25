@@ -1,15 +1,17 @@
 import {
   DOMAIN_PACK_SOURCE_SCHEMA,
   FIELD_MAPPING_PROMPT_ID,
-  MAPPING_AGENT_TOOL_NAMES,
-  MAPPING_WINDOW_LIMITS,
   PLANNER_CONTRACT_VERSION,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   type DocExtraction,
   type DomainPackSource,
   type ExtractionFact,
-  type InvestigationEnginePin,
 } from "@hiveforyou/contracts";
+import {
+  type InvestigationEnginePin,
+  MAPPING_AGENT_TOOL_NAMES,
+  MAPPING_WINDOW_LIMITS,
+} from "@hiveforyou/contracts/investigation";
 import { computeSha256Digest } from "@hiveforyou/contracts/document-read";
 import { describe, expect, it, vi } from "vitest";
 

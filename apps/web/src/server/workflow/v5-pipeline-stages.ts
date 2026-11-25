@@ -1,9 +1,6 @@
 import {
   type CanonicalStudy,
   CANONICAL_STUDY_SCHEMA,
-  type InvestigationEnginePin,
-  prepareInvestigationStudy,
-  runInvestigationStudyEngine,
   cloudflareProxyLimitSuspect,
   computeExtractPlannerCallTimeoutMs,
   resolveExtractPlannerCallDeadlineMs,
@@ -39,6 +36,11 @@ import {
   buildV5AcceptanceCounts,
 } from "@hiveforyou/contracts";
 import { normalizeContentDigest } from "@hiveforyou/contracts/document-read";
+import {
+  type InvestigationEnginePin,
+  prepareInvestigationStudy,
+  runInvestigationStudyEngine,
+} from "@hiveforyou/contracts/investigation";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { buildCanonicalizePayload, canonicalizeCase } from "@/server/pipeline/canonicalize-runner";

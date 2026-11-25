@@ -7,11 +7,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import {
-  type DomainPackSource,
-  type InvestigationEnginePin,
-  prepareInvestigationStudy,
-} from "@hiveforyou/contracts";
+import { type DomainPackSource } from "@hiveforyou/contracts";
+import { type InvestigationEnginePin, prepareInvestigationStudy } from "@hiveforyou/contracts/investigation";
 
 export const PINNED_DOMAIN_PACK = {
   packId: "iep-us-federal",
