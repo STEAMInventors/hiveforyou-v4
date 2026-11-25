@@ -94,7 +94,7 @@ jobs:
             exit 1
           fi
 
-          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+          if [ "$RUN_MODE" = "apply" ] && [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
             echo "::error title=Missing secret::Configure SUPABASE_DB_PASSWORD (remote Postgres password for supabase link / migrations)."
             exit 1
           fi
@@ -169,12 +169,34 @@ jobs:
             fi
           fi
 
+      - name: Report hosted migration history
+        if: github.event.inputs.run_mode == 'report'
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$(mktemp)"
+          code="$(curl -sS -o "$payload" -w '%{http_code}' \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/database/migrations")"
+          if [ "$code" != "200" ]; then
+            message="$(jq -r '.message // "no-message"' "$payload" 2>/dev/null || echo "unreadable")"
+            echo "::error title=Migration history request failed::Management API returned HTTP $code ($message)."
+            exit 1
+          fi
+          echo "## Hosted applied migrations"
+          jq -r 'sort_by(.version)[] | "- \(.version) \(.name // "")"' "$payload"
+          echo "hosted_count=$(jq 'length' "$payload")"
+          echo "Report-only run complete (no migrations applied)."
+
       - name: Setup Supabase CLI
+        if: github.event.inputs.run_mode == 'apply'
         uses: supabase/setup-cli@v3
         with:
           version: latest
 
       - name: Link Supabase project (repository view)
+        if: github.event.inputs.run_mode == 'apply'
         shell: bash
         run: |
           set -euo pipefail
@@ -183,6 +205,7 @@ jobs:
 
       - name: Verify migration history and report pending
         id: history
+        if: github.event.inputs.run_mode == 'apply'
         shell: bash
         run: |
           set -euo pipefail
