@@ -1,6 +1,6 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-25): Stage 5D.4 — Approved Frontier-Model Processing.** **Local policy implemented. Live rebuild BLOCKED.** Mapping stays on `PLANNER_STUDY_LITELLM_ALIAS` and `POST /v1/study-agent-turn` (`task: "mapping"`). A verified private runtime may proceed. `anthropic/claude-opus-4-6` may proceed only for a Hive UUID in `PLANNER_EXTERNAL_MAPPING_HIVE_IDS`. That list is empty. `content_class` and a client synthetic flag are not authorization. Real IEP, Medicaid, financial, legal, and health records stay blocked. This account's ZDR, BAA, and workspace retention are **unknown**. Do not pin a Hive. No commit, push, deploy, or production rebuild. Do not apply `20261125140000_relationship_verification_append.sql` or `20261125160000_domain_pack_selection.sql`. IEP v0.4.0 is not global. Compiled digest `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
+> **Active ticket (2026-11-25): Stage 5D.4 — Approved Frontier-Model Processing.** **Web and Oracle planner are deployed. Live rebuild is stopped at sign-in.** Mapping stays on `PLANNER_STUDY_LITELLM_ALIAS` and `POST /v1/study-agent-turn` (`task: "mapping"`). `anthropic/claude-opus-4-6` may proceed only for a Hive UUID in `PLANNER_EXTERNAL_MAPPING_HIVE_IDS`. That list is empty (`external_mapping_hive_count` 0). Real IEP, Medicaid, financial, legal, and health records stay blocked. Do not run `supabase db push`: `supabase_migrations.schema_migrations` is absent, while the Domain Pack selection objects and the relationship-append objects are already present. Do not apply either SQL file again. Do not pin a Hive until a new synthetic Hive exists. IEP v0.4.0 is not global. Compiled digest `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
 
 ## Active ticket — Stage 5D.4: Approved Frontier-Model Processing
 
@@ -8,7 +8,7 @@
 
 **Decision:** D-064, Option A. No new inference stack or model alias.
 
-**Status (2026-11-25): BLOCKED for a live rebuild.** The provider policy is local. The allowlist is empty, so an external mapping post does not happen. No Anthropic organization setting was readable from this workspace. No migration applied. No production rebuild. No Hive pin.
+**Status (2026-11-25, later): deployed, then stopped at the sign-in page.** Production web `https://hiveforyou-v4.vercel.app` is Ready on `https://hiveforyou-v4-g684igx5g-abhattacharyya-2114s-projects.vercel.app` (app fix `d37cbd0`, alias includes the later report-only workflow commits through `c6c8cb9`). The earlier production build of `5ca3b84` failed on `node:crypto` and did not replace the alias. Oracle planner `/opt/hiveforyou-v4` is `5ca3b84`, healthy, study and canonicalize on `heavy_lifter`, `field_mapping_alias` null, allowlist count 0. Hosted probe: `hive.domain_pack_selections` and `public.get_domain_pack_selection(uuid)` match the selection migration; `public.append_relationship_verification` and `hive.relationship_verification_append_grants` are already present, so the relationship-append migration was not applied again. No Hive was created. Rebuild Study was not clicked. No new Study is displayed.
 
 **Provider policy**
 
@@ -32,7 +32,7 @@ The Hive id is the id on the processing run. The Rebuild Study button already se
 | This key's permission to call `claude-opus-4-6` | **Unknown.** The running gateway was previously recorded as `heavy_lifter` → `anthropic/claude-opus-4-6` with no `api_base`. That configuration was not re-read in this gate. |
 | Real IEP, Medicaid, financial, legal, health records | **Blocked.** They are not an allowlisted Hive. |
 
-**Not done:** set the one synthetic Hive id, deploy the planner, apply either migration, insert one `hive.domain_pack_selections` row for that Hive, or click Rebuild Study.
+**Not done:** sign in through the existing UI, create one Hive from the eight synthetic L001 PDFs, verify the stored corpus, set `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` to that Hive only, insert one `hive.domain_pack_selections` row for the compiled digest, click Rebuild Study, and confirm the new revision, facts, citations, unresolved calculations and relationships, and the intact previous Study and reports.
 
 ## Previous ticket — Stage 5D.3: Unified Agentic Domain Investigation
 
