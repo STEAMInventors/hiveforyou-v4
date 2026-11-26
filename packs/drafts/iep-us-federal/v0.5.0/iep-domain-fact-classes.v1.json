@@ -1,0 +1,15 @@
+{
+  "schema": "hive.domain-fact-class-spec/1",
+  "version": "1.0.0",
+  "status": "DRAFT",
+  "dp1Supported": false,
+  "classes": [
+    "PROCEDURAL_EVENT",
+    "DOCUMENTED_STATEMENT",
+    "MEASURED_VALUE",
+    "PROFESSIONAL_INTERPRETATION",
+    "TEAM_DECISION",
+    "PLAN_PROVISION",
+    "DELIVERY_RECORD"
+  ]
+}

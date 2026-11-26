@@ -4,11 +4,13 @@
  * The model may propose which fact belongs on which pack field. Hive copies provenance
  * from the extraction, refuses conversions the written value does not already state,
  * and accepts a study only after the binder, the ledger, and canonical verification agree.
- * This module does not call a model, invent a relationship, or compute a day count.
+ * This module does not call a model. A relationship is admitted only by the typed-source
+ * verifier. A day count is the ledger's result, not a number from the proposal.
  */
+import { compareDecimal, decimalFromPlain, evaluateFormula, formatDecimal } from "../analysis/decimal-formula";
 import type { CanonicalGap, CanonicalStudy, SpineSource } from "./canonical-study-contracts";
 import { parseCanonicalStudy, verifyCanonicalStudy } from "./canonical-study-contracts";
-import type { CoordinatedInvestigationRecord } from "./domain-investigation-agent";
+import { measurementRoleForField, type CoordinatedInvestigationRecord } from "./domain-investigation-agent";
 import { compileDomainPack, packDigest } from "./domain-pack-compiler";
 import {
   authorizedExtractionDigest,
@@ -17,6 +19,7 @@ import {
   INVESTIGATION_CANDIDATES_SCHEMA,
   type AuthorizedDocument,
   type CandidateEvidence,
+  type UnresolvedCandidates,
 } from "./domain-investigation-binder";
 import { buildCoverageLedger, investigationEvidenceDigest, type DomainInvestigationLedger, type LedgerRow } from "./domain-investigation-ledger";
 import {
@@ -24,11 +27,24 @@ import {
   type DomainInvestigationPlan,
   type SupplementalArtifacts,
 } from "./domain-investigation-plan";
-import { calendarDayIndex } from "./domain-pack-rules";
+import { calendarDayIndex, type VerifiedCaseFacts, type VerifiedFieldConflict } from "./domain-pack-rules";
+import {
+  assessRelationshipTypedSource,
+  authoredRelationshipDirection,
+  decideRelationshipVerification,
+  relationshipCandidateContentDigest,
+  relationshipStructureDigest,
+  RELATIONSHIP_SOURCE_STRUCTURE_SCHEMA,
+  RELATIONSHIP_VERIFICATION_CONTEXT_SCHEMA,
+  type RelationshipVerificationRecord,
+} from "./domain-relationship-verification";
+
+export { authoredRelationshipDirection, relationshipStructureDigest, RELATIONSHIP_SOURCE_STRUCTURE_SCHEMA };
 import {
   type CompiledDomainPack,
   type DomainPackSource,
   type FieldValueType,
+  type PackPredicate,
 } from "./domain-pack-source";
 import type { DocExtraction, ExtractionFact } from "./extraction-contracts";
 import type { CheckVerdict, PersonaCoverageItem } from "./pack-canonicalize";
@@ -65,6 +81,8 @@ export type InvestigationEnginePin = {
   readonly packSource: DomainPackSource;
   readonly artifacts: SupplementalArtifacts;
   readonly pages: readonly AuthorizedDocument[];
+  /** Compiled relationship structures. Absent means the case has no typed source. */
+  readonly relationshipStructures?: readonly unknown[];
 };
 
 export type InvestigationEngineSuccess = {
@@ -365,15 +383,6 @@ const EMPTY_RECORD: CoordinatedInvestigationRecord = {
   answers: [],
 };
 
-function measurementRoleForField(entityLabel: string, fieldId: string): "BASELINE" | "TARGET" | "ACTUAL" | null {
-  const field = fieldId.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
-  if (/\bbaseline\b/.test(field)) return "BASELINE";
-  if (/\btarget\b/.test(field)) return "TARGET";
-  if (/\b(actual|observed|measured)\b/.test(field)) return "ACTUAL";
-  if (/\bprogress\b/.test(entityLabel.toLowerCase()) && /\bvalue\b/.test(field)) return "ACTUAL";
-  return null;
-}
-
 function readableField(fieldId: string): string {
   return fieldId.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase();
 }
@@ -395,7 +404,14 @@ function excerptIds(refs: readonly { excerptId?: string }[], known: ReadonlySet<
   return [...new Set(refs.flatMap((ref) => ref.excerptId && known.has(ref.excerptId) ? [ref.excerptId] : []))];
 }
 
-function verdictFor(row: LedgerRow): CheckVerdict {
+function evidenceInsufficient(row: LedgerRow, coverage: DomainInvestigationLedger["evidenceCoverage"]): boolean {
+  if (coverage === "INCOMPLETE" || row.reasonCodes.includes("INCOMPLETE_COVERAGE") || row.reasonCodes.includes("SOURCE_MISSING") || row.reasonCodes.includes("NEGATION_OF_UNKNOWN")) {
+    return true;
+  }
+  return false;
+}
+
+function verdictFor(row: LedgerRow, coverage: DomainInvestigationLedger["evidenceCoverage"]): CheckVerdict {
   if (
     row.taskKind === "REVIEW_CHECK"
     || row.reasonCodes.includes("REVIEW_REQUIRED")
@@ -406,20 +422,39 @@ function verdictFor(row: LedgerRow): CheckVerdict {
   ) return "NOT_ASSESSED";
   if (row.disposition === "DISABLED") return "NOT_APPLICABLE";
   if (row.disposition === "CONFLICT") return "CONFLICT";
+  if (evidenceInsufficient(row, coverage)) return "NOT_ASSESSED";
   if (row.disposition === "ESTABLISHED" || row.disposition === "COMPUTED") return "SHOWN";
-  if (row.disposition === "NOT_SATISFIED" || row.disposition === "NOT_ESTABLISHED") return "NOT_SHOWN";
+  if (row.disposition === "NOT_SATISFIED") return "NOT_SHOWN";
+  if (row.disposition === "NOT_ESTABLISHED") {
+    const absent = row.reasonCodes.includes("FIELD_MISSING") || row.reasonCodes.includes("DOCUMENT_MISSING") || row.reasonCodes.includes("COMPARE_FAILS");
+    return coverage === "COMPLETE" && absent ? "NOT_SHOWN" : "NOT_ASSESSED";
+  }
   return "NOT_ASSESSED";
 }
 
+function checklistNote(verdict: CheckVerdict, row: LedgerRow, packDigestValue: string, planDigestValue: string): string {
+  const digest = `pack ${packDigestValue} plan ${planDigestValue}`;
+  if (verdict === "NOT_ASSESSED") {
+    if (row.taskKind === "REVIEW_CHECK" || row.reasonCodes.includes("REVIEW_REQUIRED")) {
+      return `Not assessed. The compiled criterion is review only, so document coverage is not a legal conclusion. ${digest}`;
+    }
+    return `Not assessed. The saved evidence is not sufficient. ${digest}`;
+  }
+  if (verdict === "SHOWN") return "Established from cited evidence.";
+  if (verdict === "NOT_SHOWN") return "The saved documents do not show this.";
+  if (verdict === "CONFLICT") return "Cited values conflict.";
+  return "This check does not apply to the saved record.";
+}
+
 function checklistFrom(ledger: DomainInvestigationLedger, known: ReadonlySet<string>, packDigestValue: string, planDigestValue: string) {
-  const grouped = new Map<string, { verdict: CheckVerdict; factIds: string[] }>();
+  const grouped = new Map<string, { verdict: CheckVerdict; factIds: string[]; row: LedgerRow }>();
   const rank: Record<CheckVerdict, number> = { CONFLICT: 5, SHOWN: 4, PARTLY_SHOWN: 3, NOT_SHOWN: 2, NOT_APPLICABLE: 1, NOT_ASSESSED: 0 };
   for (const row of ledger.rows) {
     if (row.taskKind !== "REVIEW_CHECK" && row.taskKind !== "EVALUATE_CHECK") continue;
-    const verdict = verdictFor(row);
+    const verdict = verdictFor(row, ledger.evidenceCoverage);
     const factIds = excerptIds(row.sourceRefs, known);
     const current = grouped.get(row.definitionId);
-    if (!current || rank[verdict] > rank[current.verdict]) grouped.set(row.definitionId, { verdict, factIds });
+    if (!current || rank[verdict] > rank[current.verdict]) grouped.set(row.definitionId, { verdict, factIds, row });
     else if (verdict === current.verdict) current.factIds = [...new Set([...current.factIds, ...factIds])];
   }
   return [...grouped.entries()]
@@ -430,16 +465,7 @@ function checklistFrom(ledger: DomainInvestigationLedger, known: ReadonlySet<str
       if ((verdict === "SHOWN" || verdict === "PARTLY_SHOWN" || verdict === "CONFLICT") && factIds.length === 0) {
         verdict = "NOT_ASSESSED";
       }
-      const note = verdict === "NOT_ASSESSED"
-        ? `Review required. pack ${packDigestValue} plan ${planDigestValue}`
-        : verdict === "SHOWN"
-          ? "Established from cited evidence."
-          : verdict === "NOT_SHOWN"
-            ? "The saved documents do not show this."
-            : verdict === "CONFLICT"
-              ? "Cited values conflict."
-              : "This check does not apply to the saved record.";
-      return { checkId, verdict, factIds, note };
+      return { checkId, verdict, factIds, note: checklistNote(verdict, item.row, packDigestValue, planDigestValue) };
     });
 }
 
@@ -463,13 +489,166 @@ function tokensOf(value: string): Set<string> {
   return new Set(value.toLowerCase().split(/[^a-z0-9]+/).filter((part) => part.length >= 4));
 }
 
+type StudyFact = {
+  entityId: string;
+  instanceId: string;
+  fieldId: string;
+  value: string;
+  documentId: string;
+  extractionFactId: string;
+  page: string | undefined;
+};
+
+const NUMBER_VALUE = /^[0-9]+(?:\.[0-9]+)?$/;
+
+function plainDifference(left: string, right: string): string | null {
+  const evaluated = evaluateFormula({ op: "-", args: [{ value: left }, { value: right }] }, () => null);
+  return evaluated.ok ? formatDecimal(evaluated.value) : null;
+}
+
+function fieldUnit(pack: CompiledDomainPack, entityId: string, fieldId: string): string {
+  const entity = pack.definitions.find((item) => item.kind === "entity" && item.id === entityId);
+  if (!entity || entity.kind !== "entity") return "";
+  return entity.fields.find((field) => field.id === fieldId)?.unit ?? "";
+}
+
+function withUnit(value: string, unit: string): string {
+  return unit ? `${value} ${unit}` : value;
+}
+
+function applicabilityOf(predicate: PackPredicate, facts: readonly StudyFact[]): "APPLIES" | "DOES_NOT_APPLY" | "UNDECIDED" {
+  switch (predicate.op) {
+    case "REVIEW_REQUIRED":
+    case "COMPARE":
+    case "DOCUMENT_PRESENT":
+      return "UNDECIDED";
+    case "FIELD_PRESENT":
+      return facts.some((fact) => fact.entityId === predicate.entityId && fact.fieldId === predicate.fieldId) ? "APPLIES" : "DOES_NOT_APPLY";
+    case "ALL": {
+      const states = predicate.conditions.map((condition) => applicabilityOf(condition, facts));
+      if (states.includes("UNDECIDED")) return "UNDECIDED";
+      if (states.includes("DOES_NOT_APPLY")) return "DOES_NOT_APPLY";
+      return states.length > 0 ? "APPLIES" : "UNDECIDED";
+    }
+    case "ANY": {
+      const states = predicate.conditions.map((condition) => applicabilityOf(condition, facts));
+      if (states.includes("APPLIES")) return "APPLIES";
+      if (states.includes("UNDECIDED")) return "UNDECIDED";
+      return states.length > 0 ? "DOES_NOT_APPLY" : "UNDECIDED";
+    }
+    case "NOT": {
+      const inner = applicabilityOf(predicate.condition, facts);
+      if (inner === "UNDECIDED") return "UNDECIDED";
+      return inner === "APPLIES" ? "DOES_NOT_APPLY" : "APPLIES";
+    }
+    default:
+      return "UNDECIDED";
+  }
+}
+
+function publishedCalculation(
+  pack: CompiledDomainPack,
+  row: LedgerRow,
+  facts: readonly StudyFact[],
+  known: ReadonlySet<string>,
+  relationships: ReadonlyArray<{ fromInstanceId: string; toInstanceId: string; factIds: readonly string[] }>,
+): { label: string; factIds: string[] } | null {
+  const value = row.daysBetween ?? row.computedValue;
+  if (row.disposition !== "COMPUTED" || value === undefined) return null;
+  const definition = pack.definitions.find((item) => item.id === row.definitionId);
+  if (!definition || definition.kind !== "calculation" || !definition.bindings) return null;
+  const factIds = new Set(excerptIds(row.sourceRefs, known));
+  const parts: string[] = [];
+  for (const binding of definition.bindings) {
+    if (!("entityId" in binding)) {
+      if ("literal" in binding) parts.push(`${binding.role} ${binding.literal.value} ${binding.literal.unit}`);
+      if ("referenceTableId" in binding) {
+        const table = pack.definitions.find((item) => item.id === binding.referenceTableId);
+        parts.push(`${binding.role} ${table && table.kind === "referenceTable" ? table.label : binding.referenceTableId}`);
+      }
+      continue;
+    }
+    const instanceId = row.instances.find((item) => item.entityId === binding.entityId)?.instanceId;
+    const fact = facts.find((item) => item.entityId === binding.entityId && item.instanceId === instanceId && item.fieldId === binding.fieldId);
+    if (!fact || !known.has(fact.extractionFactId)) return null;
+    factIds.add(fact.extractionFactId);
+    parts.push(`${binding.role} ${withUnit(fact.value, fieldUnit(pack, binding.entityId, binding.fieldId))}`);
+  }
+  const instances = new Set(row.instances.map((item) => item.instanceId));
+  for (const link of relationships) {
+    if (!instances.has(link.fromInstanceId) || !instances.has(link.toInstanceId)) continue;
+    for (const factId of link.factIds) if (known.has(factId)) factIds.add(factId);
+  }
+  if (factIds.size === 0) return null;
+  const resultUnit = row.daysBetween !== undefined ? " calendar days" : row.computedUnit ? ` ${row.computedUnit}` : "";
+  const instanceNote = definition.operator === "SUM_BY" ? "" : row.instances.map((item) => item.instanceId).join(", ");
+  return {
+    label: `${definition.label}${instanceNote ? ` (${instanceNote})` : ""}: ${value}${resultUnit}. Inputs: ${parts.join("; ")}.`,
+    factIds: [...factIds].sort(),
+  };
+}
+
+type ProgressComparison = {
+  label: string;
+  factIds: string[];
+  meetsPlan: boolean;
+};
+
+function progressComparisons(facts: readonly StudyFact[], record: CoordinatedInvestigationRecord, pack: CompiledDomainPack): ProgressComparison[] {
+  const grouped = new Map<string, StudyFact[]>();
+  for (const fact of facts) {
+    const key = `${fact.entityId}\0${fact.instanceId}`;
+    const list = grouped.get(key) ?? [];
+    list.push(fact);
+    grouped.set(key, list);
+  }
+  const comparisons: ProgressComparison[] = [];
+  for (const group of grouped.values()) {
+    const rows = group.map((fact) => ({
+      ...fact,
+      role: record.measurements.find((item) => item.extractionFactId === fact.extractionFactId)?.role
+        ?? measurementRoleForField(definitionLabel(pack, fact.entityId), fact.fieldId),
+    }));
+    const baseline = rows.find((item) => item.role === "BASELINE" && NUMBER_VALUE.test(item.value));
+    const planned = rows.find((item) => item.role === "TARGET" && NUMBER_VALUE.test(item.value));
+    const observed = rows.find((item) => item.role === "ACTUAL" && NUMBER_VALUE.test(item.value));
+    const baselineWhen = rows.find((item) => item.role === "BASELINE" && ISO_DATE.test(item.value))?.value ?? null;
+    const observedWhen = rows.find((item) => item.role === "ACTUAL" && ISO_DATE.test(item.value))?.value ?? null;
+    if (!baseline || !observed || !baselineWhen || !observedWhen || observedWhen <= baselineWhen) continue;
+    const observedChange = plainDifference(observed.value, baseline.value);
+    if (!observedChange) continue;
+    const unit = fieldUnit(pack, baseline.entityId, baseline.fieldId);
+    const factIds = [baseline.extractionFactId, observed.extractionFactId];
+    const plannedChange = planned ? plainDifference(planned.value, baseline.value) : null;
+    const plannedDecimal = planned ? decimalFromPlain(planned.value) : null;
+    const observedDecimal = decimalFromPlain(observed.value);
+    const meetsPlan = !!(plannedDecimal && observedDecimal && compareDecimal(observedDecimal, plannedDecimal) >= 0);
+    const plannedText = planned && plannedChange
+      ? `planned target ${withUnit(planned.value, unit)}; planned change from baseline ${withUnit(plannedChange, unit)}`
+      : "planned target is not in the saved record";
+    if (planned) factIds.push(planned.extractionFactId);
+    const relation = !plannedDecimal || !observedDecimal
+      ? "The planned target cannot be compared."
+      : meetsPlan
+        ? "The observed value is at or above the planned target."
+        : "The observed value is below the planned target.";
+    comparisons.push({
+      meetsPlan,
+      factIds,
+      label: `Progress comparison for ${definitionLabel(pack, baseline.entityId)}: baseline ${withUnit(baseline.value, unit)}; ${plannedText}; observed ${withUnit(observed.value, unit)}. Observed change from baseline ${withUnit(observedChange, unit)}. ${relation}`,
+    });
+  }
+  return comparisons;
+}
+
 function projectStudy(input: {
   prepared: PreparedStudy;
   extractions: readonly DocExtraction[];
   pages: readonly AuthorizedDocument[];
-  verifiedFacts: ReadonlyArray<{ entityId: string; fieldId: string; value: string; documentId: string; extractionFactId: string; page: string | undefined }>;
-  verifiedRelationships: ReadonlyArray<{ relationshipId: string; factIds: string[] }>;
-  unresolvedRelationships: ReadonlyArray<{ relationshipId: string; extractionFactId: string; page: number | null }>;
+  verifiedFacts: readonly StudyFact[];
+  verifiedRelationships: ReadonlyArray<{ relationshipId: string; fromInstanceId: string; toInstanceId: string; factIds: string[] }>;
+  unresolvedRelationships: ReadonlyArray<{ relationshipId: string; extractionFactId: string; page: number | null; reasons: readonly string[]; withheld: boolean }>;
+  fieldConflicts: readonly VerifiedFieldConflict[];
   unsupported: readonly UnsupportedConversion[];
   ledger: DomainInvestigationLedger;
   proposalFacts: ReadonlySet<string>;
@@ -539,14 +718,32 @@ function projectStudy(input: {
       missing: [],
     });
   }
+  const publishedCalculations = new Set<string>();
+  const publishedLabels = new Set<string>();
   for (const row of input.ledger.rows) {
-    if (row.disposition !== "COMPUTED" || row.daysBetween === undefined) continue;
-    const factIds = excerptIds(row.sourceRefs, known);
-    if (factIds.length === 0) continue;
+    const published = publishedCalculation(pack, row, input.verifiedFacts, known, input.verifiedRelationships);
+    if (!published || publishedLabels.has(published.label)) continue;
+    publishedLabels.add(published.label);
+    publishedCalculations.add(row.definitionId);
     spine.push({
       id: row.rowId,
-      label: `${definitionLabel(pack, row.definitionId)}: ${row.daysBetween} calendar days, counted from the cited dates.`,
+      label: published.label,
       kind: "calculation",
+      status: "SUPPORTED",
+      supportingFactIds: published.factIds,
+      contradictingFactIds: [],
+      updatingFactIds: [],
+      missing: [],
+    });
+  }
+  const comparisons = progressComparisons(input.verifiedFacts, input.record, pack);
+  for (const comparison of comparisons) {
+    const factIds = comparison.factIds.filter((id) => known.has(id));
+    if (factIds.length === 0) continue;
+    spine.push({
+      id: `progress:${factIds[0]}`,
+      label: comparison.label,
+      kind: "progress",
       status: "SUPPORTED",
       supportingFactIds: factIds,
       contradictingFactIds: [],
@@ -554,30 +751,25 @@ function projectStudy(input: {
       missing: [],
     });
   }
-  const measurements = input.verifiedFacts.map((fact) => ({
-    ...fact,
-    role: input.record.measurements.find((item) => item.extractionFactId === fact.extractionFactId)?.role
-      ?? measurementRoleForField(definitionLabel(pack, fact.entityId), fact.fieldId),
-  }));
-  const baselineDate = measurements.find((item) => item.role === "BASELINE" && ISO_DATE.test(item.value))?.value ?? null;
-  const targetNumber = measurements.find((item) => item.role === "TARGET" && /^[0-9]+(?:\.[0-9]+)?$/.test(item.value));
-  const later = measurements.filter((item) => item.role === "ACTUAL");
-  const laterAfterBaseline = later.filter((item) => {
-    const datedFact = input.verifiedFacts.find((fact) => fact.extractionFactId !== item.extractionFactId && ISO_DATE.test(fact.value) && fact.documentId === item.documentId);
-    const date = ISO_DATE.test(item.value) ? item.value : datedFact?.value ?? null;
-    return date !== null && (baselineDate === null || date > baselineDate);
-  });
-  const progressReady = laterAfterBaseline.length > 0 && (!targetNumber || laterAfterBaseline.some((item) => /^[0-9]+(?:\.[0-9]+)?$/.test(item.value) && Number(item.value) >= Number(targetNumber.value)));
+  const progressMeetsClaim = comparisons.some((item) => item.meetsPlan);
   const outside: { statement: string; factIds: string[] }[] = [
     ...input.unsupported.map((item) => ({
       statement: `Written value was not converted: ${item.valueAsWritten}.${item.page ? ` Page ${item.page}.` : ""}`,
       factIds: known.has(item.extractionFactId) ? [item.extractionFactId] : [],
     })),
     ...input.unresolvedRelationships.map((item) => ({
-      statement: `Relationship ${item.relationshipId} is not verified.${item.page ? ` Page ${item.page}.` : ""}`,
+      statement: `Relationship ${item.relationshipId} is not verified (${item.reasons.join(", ")}).${item.page ? ` Page ${item.page}.` : ""}${item.withheld ? " The compiled source structure does not match the quoted text." : ""}`,
       factIds: known.has(item.extractionFactId) ? [item.extractionFactId] : [],
     })),
   ];
+  for (const definition of pack.definitions) {
+    if (definition.kind !== "calculation" || publishedCalculations.has(definition.id)) continue;
+    const reasons = [...new Set(input.ledger.rows.filter((row) => row.definitionId === definition.id).flatMap((row) => row.reasonCodes))].sort();
+    outside.push({
+      statement: `Calculation ${definition.label} was not published (${reasons.join(", ") || "NOT_EVALUATED"}).`,
+      factIds: [],
+    });
+  }
   for (const extraction of input.extractions) {
     for (const fact of extraction.facts) {
       const key = factKey(extraction.documentId, fact.id);
@@ -590,13 +782,17 @@ function projectStudy(input: {
   }
   for (const assessment of input.record.assessments) {
     const factIds = assessment.factIds.filter((id) => known.has(id));
-    if (PROGRESS_CLAIM.test(assessment.statement) && !progressReady) {
+    if (PROGRESS_CLAIM.test(assessment.statement) && !progressMeetsClaim) {
+      const lead = comparisons.length === 0
+        ? "No subsequent measurement supports a progress conclusion."
+        : "The later measurement does not support that progress conclusion.";
       outside.push({
-        statement: `No subsequent measurement supports a progress conclusion. ${assessment.statement}`,
+        statement: `${lead} ${assessment.statement}`,
         factIds,
       });
       continue;
     }
+    if (PROGRESS_CLAIM.test(assessment.statement)) continue;
     if (factIds.length === 0) continue;
     spine.push({
       id: `assessment:${factIds[0]}`,
@@ -628,6 +824,17 @@ function projectStudy(input: {
     }
     return [{ statement: conflict.statement, factIds }];
   });
+  for (const conflict of input.fieldConflicts) {
+    const rows = input.verifiedFacts.filter((fact) => fact.entityId === conflict.entityId && fact.instanceId === conflict.instanceId && fact.fieldId === conflict.fieldId);
+    const factIds = [...new Set(rows.map((row) => row.extractionFactId))].filter((id) => known.has(id));
+    if (factIds.length < 2) continue;
+    const key = [...factIds].sort().join("\0");
+    if (conflicts.some((item) => [...item.factIds].sort().join("\0") === key)) continue;
+    conflicts.push({
+      statement: `${definitionLabel(pack, conflict.entityId)} ${readableField(conflict.fieldId)} has more than one saved value.`,
+      factIds,
+    });
+  }
   const mentioned = caseText(input.extractions);
   const gaps: CanonicalGap[] = [];
   const pushGap = (gap: Omit<CanonicalGap, "id" | "relatedSpineIds">) => {
@@ -725,19 +932,39 @@ function projectStudy(input: {
   const questions = pack.definitions.flatMap((definition) => definition.kind === "question" ? [definition] : []);
   const personas = pack.definitions.flatMap((definition) => definition.kind === "persona" ? [definition] : []);
   const personaCoverage: PersonaCoverageItem[] = [];
-  for (const persona of personas) {
-    for (const questionId of persona.questionIds) {
-      const answer = input.record.answers.find((item) => item.questionId === questionId && (item.audience === persona.audience || item.audience === "all"));
-      let status: PersonaCoverageItem["status"] = "NOT_ASSESSED";
-      let factIds: string[] = [];
-      let missing = "";
-      if (answer) {
-        factIds = answer.factIds.filter((id) => known.has(id));
-        missing = (answer.uncertainty ?? "").slice(0, 120);
-        status = factIds.length === 0 ? "NOT_ANSWERABLE" : answer.uncertainty ? "PARTLY" : "ANSWERABLE";
-      }
-      personaCoverage.push({ audience: persona.audience, questionId, status, factIds, checkIds: [], missing });
+  const coverQuestion = (audience: PersonaCoverageItem["audience"], questionId: string) => {
+    if (personaCoverage.some((item) => item.audience === audience && item.questionId === questionId)) return;
+    const question = questions.find((item) => item.id === questionId);
+    if (question && applicabilityOf(question.appliesWhen, input.verifiedFacts) === "DOES_NOT_APPLY") {
+      personaCoverage.push({
+        audience,
+        questionId,
+        status: "NOT_ASSESSED",
+        factIds: [],
+        checkIds: [],
+        missing: "This question does not apply to the saved record.",
+      });
+      return;
     }
+    const answer = input.record.answers.find((item) => item.questionId === questionId && (item.audience === audience || item.audience === "all"));
+    let status: PersonaCoverageItem["status"] = "NOT_ASSESSED";
+    let factIds: string[] = [];
+    let missing = "";
+    if (answer) {
+      factIds = answer.factIds.filter((id) => known.has(id));
+      missing = (answer.uncertainty ?? "").slice(0, 120);
+      status = factIds.length === 0 ? "NOT_ANSWERABLE" : answer.uncertainty ? "PARTLY" : "ANSWERABLE";
+    }
+    personaCoverage.push({ audience, questionId, status, factIds, checkIds: [], missing });
+  };
+  for (const persona of personas) {
+    for (const questionId of persona.questionIds) coverQuestion(persona.audience, questionId);
+  }
+  for (const question of questions) {
+    if (question.audience === "all") {
+      coverQuestion("customer", question.id);
+      coverQuestion("professional", question.id);
+    } else coverQuestion(question.audience, question.id);
   }
   const asked = intentQuestions(input.record.intentText);
   asked.forEach((question, index) => {
@@ -818,6 +1045,98 @@ export function assessCanonicalProjection(
   return { ok: true, study: verified.study };
 }
 
+function studyInstant(studyDate: string): string | null {
+  if (!ISO_DATE.test(studyDate)) return null;
+  const instant = `${studyDate}T12:00:00.000Z`;
+  return new Date(instant).toISOString() === instant ? instant : null;
+}
+
+/**
+ * Admits a relationship only when a compiled source structure matches the quote
+ * and the verified endpoints. The model proposal is not an acceptance.
+ */
+function admitTypedRelationships(input: {
+  prepared: PreparedStudy;
+  extractions: readonly DocExtraction[];
+  pages: readonly AuthorizedDocument[];
+  verified: VerifiedCaseFacts;
+  unresolved: UnresolvedCandidates;
+  binderDigest: string;
+  structures: readonly unknown[] | undefined;
+  studyDate: string;
+}): { ok: true; verified: VerifiedCaseFacts; unresolved: UnresolvedCandidates; withheld: ReadonlySet<string> } | { ok: false; code: "BIND_FAILED" } {
+  const structures = input.structures ?? [];
+  if (structures.length === 0) return { ok: true, verified: input.verified, unresolved: input.unresolved, withheld: new Set() };
+  const instant = studyInstant(input.studyDate);
+  if (!instant) return { ok: false, code: "BIND_FAILED" };
+  const eligible = input.unresolved.candidates.filter((candidate) =>
+    candidate.kind === "RELATIONSHIP"
+    && candidate.trust === "REVIEW_REQUIRED"
+    && candidate.reasons.length === 1
+    && candidate.reasons[0] === "RELATIONSHIP_SEMANTICS_UNVERIFIED"
+    && candidate.relationshipId
+    && candidate.fromEntityId
+    && candidate.toEntityId
+    && candidate.fromInstanceId
+    && candidate.toInstanceId
+  ).sort((left, right) => left.candidateId.localeCompare(right.candidateId));
+  let records: RelationshipVerificationRecord[] = [];
+  let verified = input.verified;
+  let unresolved = input.unresolved;
+  const revision = {
+    extractionDigest: authorizedExtractionDigest(input.extractions),
+    binderDigest: input.binderDigest,
+    evidenceDigest: investigationEvidenceDigest(input.verified, input.unresolved),
+  };
+  for (const candidate of eligible) {
+    const availability = assessRelationshipTypedSource(candidate.relationshipId ?? "", structures);
+    if (availability === "STRUCTURE_UNAPPROVED") return { ok: false, code: "BIND_FAILED" };
+    if (availability !== "TYPED_SOURCE_PRESENT") continue;
+    const decision = decideRelationshipVerification({
+      pack: input.prepared.pack,
+      plan: input.prepared.plan,
+      verified: input.verified,
+      unresolved: input.unresolved,
+      binderDigest: input.binderDigest,
+      documents: input.pages,
+      extractions: input.extractions,
+      structures,
+      records,
+      decidedAt: instant,
+      context: {
+        schema: RELATIONSHIP_VERIFICATION_CONTEXT_SCHEMA,
+        hiveId: "study-engine",
+        actorId: "trusted-code",
+        permission: "HIVE_OWNER",
+        evidenceRevision: revision,
+        candidate: {
+          candidateId: candidate.candidateId,
+          contentDigest: relationshipCandidateContentDigest({
+            relationshipId: candidate.relationshipId ?? "",
+            fromEntityId: candidate.fromEntityId ?? "",
+            toEntityId: candidate.toEntityId ?? "",
+            fromInstanceId: candidate.fromInstanceId ?? "",
+            toInstanceId: candidate.toInstanceId ?? "",
+            evidence: candidate.evidence,
+          }),
+        },
+        packDigest: input.prepared.pack.identity.digest,
+        planDigest: input.prepared.plan.digest,
+      },
+    });
+    if (!decision.ok) return { ok: false, code: "BIND_FAILED" };
+    records = [...decision.records];
+    verified = decision.verified;
+    unresolved = decision.unresolved;
+  }
+  return {
+    ok: true,
+    verified,
+    unresolved,
+    withheld: new Set(records.filter((record) => record.effect === "WITHHOLDS").map((record) => record.candidateId)),
+  };
+}
+
 export function runInvestigationStudyEngine(input: {
   prepared: PreparedStudy;
   extractions: readonly DocExtraction[];
@@ -825,6 +1144,8 @@ export function runInvestigationStudyEngine(input: {
   proposal: unknown;
   studyDate: string;
   investigation?: CoordinatedInvestigationRecord;
+  /** Compiled relationship structures. A model proposal cannot supply these. */
+  relationshipStructures?: readonly unknown[];
 }): InvestigationEngineResult {
   const proposal = readProposal(input.proposal);
   if (!proposal) return { ok: false, code: "MAPPING_INVALID" };
@@ -848,12 +1169,23 @@ export function runInvestigationStudyEngine(input: {
   if (bound.unresolved.candidates.some((candidate) => candidate.reasons.some((reason) => binderReasonRejectsRun(reason)))) {
     return { ok: false, code: "INVALID_EVIDENCE" };
   }
-  const evidenceDigest = investigationEvidenceDigest(bound.verified, bound.unresolved);
+  const admitted = admitTypedRelationships({
+    prepared: input.prepared,
+    extractions: input.extractions,
+    pages: input.pages,
+    verified: bound.verified,
+    unresolved: bound.unresolved,
+    binderDigest: bound.digest,
+    structures: input.relationshipStructures,
+    studyDate: input.studyDate,
+  });
+  if (!admitted.ok) return admitted;
+  const evidenceDigest = investigationEvidenceDigest(admitted.verified, admitted.unresolved);
   const ledger = buildCoverageLedger({
     plan: input.prepared.plan,
     pack: input.prepared.pack,
-    verified: bound.verified,
-    unresolved: bound.unresolved,
+    verified: admitted.verified,
+    unresolved: admitted.unresolved,
     evidenceDigest,
   });
   if (!ledger.ok) return { ok: false, code: "LEDGER_FAILED" };
@@ -861,12 +1193,13 @@ export function runInvestigationStudyEngine(input: {
     return { ok: false, code: "LEDGER_FAILED" };
   }
   const known = new Set(input.extractions.flatMap((extraction) => extraction.facts.map((fact) => fact.id)));
-  const verifiedFacts = bound.verified.facts.flatMap((fact) => {
+  const verifiedFacts = admitted.verified.facts.flatMap((fact) => {
     const extractionFactId = evidenceFactId(fact.sourceRefs.find((ref) => ref.excerptId)?.excerptId, known);
     if (!extractionFactId) return [];
     const page = fact.sourceRefs.find((ref) => ref.page)?.page;
     return [{
       entityId: fact.entityId,
+      instanceId: fact.instanceId,
       fieldId: fact.fieldId,
       value: fact.value.value,
       documentId: fact.sourceRefs[0]?.documentId ?? "",
@@ -874,18 +1207,26 @@ export function runInvestigationStudyEngine(input: {
       page,
     }];
   });
-  if (verifiedFacts.length !== bound.verified.facts.length) return { ok: false, code: "VERIFICATION_FAILED" };
-  const unresolvedRelationships = bound.unresolved.candidates
+  if (verifiedFacts.length !== admitted.verified.facts.length) return { ok: false, code: "VERIFICATION_FAILED" };
+  const unresolvedRelationships = admitted.unresolved.candidates
     .filter((candidate) => candidate.kind === "RELATIONSHIP" && candidate.trust === "REVIEW_REQUIRED" && candidate.relationshipId)
     .flatMap((candidate) => {
       const match = proposal.relationships.find((link) => link.relationshipId === candidate.relationshipId && link.fromInstanceId === candidate.fromInstanceId && link.toInstanceId === candidate.toInstanceId);
       if (!match || !known.has(match.extractionFactId)) return [];
       const page = candidate.evidence[0]?.page ?? null;
-      return [{ relationshipId: candidate.relationshipId!, extractionFactId: match.extractionFactId, page }];
+      return [{
+        relationshipId: candidate.relationshipId!,
+        extractionFactId: match.extractionFactId,
+        page,
+        reasons: candidate.reasons,
+        withheld: admitted.withheld.has(candidate.candidateId),
+      }];
     });
-  const verifiedRelationships = bound.verified.relationships.flatMap((link) => {
-    const factIds = excerptIds(link.sourceRefs, known);
-    return factIds.length > 0 ? [{ relationshipId: link.relationshipId, factIds }] : [];
+  const verifiedRelationships = admitted.verified.relationships.flatMap((link) => {
+    const factIds = new Set(excerptIds(link.sourceRefs, known));
+    const match = proposal.relationships.find((row) => row.relationshipId === link.relationshipId && row.fromInstanceId === link.fromInstanceId && row.toInstanceId === link.toInstanceId);
+    if (match && known.has(match.extractionFactId)) factIds.add(match.extractionFactId);
+    return factIds.size > 0 ? [{ relationshipId: link.relationshipId, fromInstanceId: link.fromInstanceId, toInstanceId: link.toInstanceId, factIds: [...factIds].sort() }] : [];
   });
   const proposalFacts = new Set<string>([
     ...proposal.mappings.map((row) => factKey(row.documentId, row.extractionFactId)),
@@ -898,6 +1239,7 @@ export function runInvestigationStudyEngine(input: {
     verifiedFacts,
     verifiedRelationships,
     unresolvedRelationships,
+    fieldConflicts: admitted.verified.conflicts,
     unsupported: adapted.adapted.unsupported,
     ledger: ledger.value,
     proposalFacts,

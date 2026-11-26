@@ -6,16 +6,20 @@
 import { createHash } from "node:crypto";
 import { decimalFromPlain } from "../analysis/decimal-formula";
 import {
+  CALCULATION_OPERATOR_CONTRACT,
   DOMAIN_PACK_COMPILER_VERSION,
   DOMAIN_PACK_RUNTIME_SCHEMA,
   DOMAIN_PACK_SOURCE_SCHEMA,
+  INTERVAL_UNITS,
   PACK_CALCULATION_OPERATORS,
   PACK_REPORT_BLOCKS,
   PACK_WORKFLOW_ACTIONS,
+  calculationFieldBindings,
   type CompiledDomainPack,
   type DomainPackSource,
   type EffectiveDefinition,
   type FieldValueType,
+  type PackCalculationOperator,
   type PackCompileIssue,
   type PackCompileResult,
   type PackDefinition,
@@ -271,21 +275,8 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
           (raw.state === "DECLARATION_ONLY" && !nonempty(raw.legacyInputs))) {
         issue(errors, "calculation_invalid", path, "Unsupported operator or incomplete calculation declaration.");
       }
-      if (raw.bindings !== undefined) {
-        if (!Array.isArray(raw.bindings) || raw.bindings.length < 1 || raw.bindings.length > 8 ||
-            !raw.bindings.every((binding) => isObject(binding) && nonempty(binding.role) && ID.test(String(binding.role)) &&
-              nonempty(binding.entityId) && ID.test(String(binding.entityId)) &&
-              nonempty(binding.fieldId) && ID.test(String(binding.fieldId)))) {
-          issue(errors, "calculation_binding", path, "Calculation bindings need a role, an entity ID and a field ID.");
-        } else {
-          raw.bindings.forEach((binding, index) => exactKeys(binding as ObjectMap, ["role", "entityId", "fieldId"], path + ".bindings[" + index + "]", errors));
-          const roles = raw.bindings.map((binding) => String((binding as { role: string }).role));
-          if (!unique(roles)) issue(errors, "calculation_binding", path, "Calculation binding roles must be unique.");
-          if (raw.operator === "DAYS_BETWEEN" && (roles.length !== 2 || !roles.includes("start") || !roles.includes("end"))) {
-            issue(errors, "calculation_binding", path, "DAYS_BETWEEN bindings are exactly the roles start and end.");
-          }
-        }
-      }
+      if (raw.bindings !== undefined) validateCalculationBindings(raw, path, errors);
+      else if (raw.state === "EXECUTABLE") issue(errors, "calculation_binding", path, "An executable calculation needs its operator bindings.");
       if (raw.scope !== undefined && typeof raw.scope !== "string") issue(errors,"calculation_scope",path,"Invalid calculation scope.");
       break;
     case "chain":
@@ -338,6 +329,60 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
   return true;
 }
 
+const NUMERIC_TYPES = new Set<FieldValueType>(["NUMBER", "MONEY", "QUANTITY"]);
+
+function validateCalculationBindings(raw: ObjectMap, path: string, errors: PackCompileIssue[]): void {
+  const operator = raw.operator as PackCalculationOperator;
+  const contract = CALCULATION_OPERATOR_CONTRACT[operator];
+  if (!Array.isArray(raw.bindings) || raw.bindings.length < 1 || raw.bindings.length > 8 || !contract) {
+    issue(errors, "calculation_binding", path, "Calculation bindings do not match the operator.");
+    return;
+  }
+  const roles: string[] = [];
+  raw.bindings.forEach((binding, index) => {
+    const at = path + ".bindings[" + index + "]";
+    if (!isObject(binding) || !nonempty(binding.role) || !ID.test(String(binding.role))) {
+      issue(errors, "calculation_binding", at, "Calculation binding role is invalid.");
+      return;
+    }
+    const role = String(binding.role);
+    roles.push(role);
+    if ("referenceTableId" in binding) {
+      exactKeys(binding, ["role", "referenceTableId"], at, errors);
+      if (!nonempty(binding.referenceTableId) || !ID.test(String(binding.referenceTableId))) {
+        issue(errors, "calculation_binding", at, "Reference-table binding needs a table ID.");
+      }
+      return;
+    }
+    if ("literal" in binding) {
+      exactKeys(binding, ["role", "literal"], at, errors);
+      const literal = binding.literal;
+      if (!isObject(literal) || literal.valueType !== "QUANTITY" || !nonempty(literal.value) || !nonempty(literal.unit)) {
+        issue(errors, "calculation_binding", at, "Interval binding needs a quantity and a unit.");
+        return;
+      }
+      exactKeys(literal, ["valueType", "value", "unit"], at + ".literal", errors);
+      const amount = decimalFromPlain(String(literal.value));
+      const unit = String(literal.unit).trim().toLowerCase();
+      if (!amount || amount.scale !== 0 || !(INTERVAL_UNITS as readonly string[]).includes(unit)) {
+        issue(errors, "calculation_binding", at, "Interval must be a whole number of days, weeks, months, or years.");
+      }
+      return;
+    }
+    exactKeys(binding, ["role", "entityId", "fieldId"], at, errors);
+    if (!nonempty(binding.entityId) || !ID.test(String(binding.entityId)) || !nonempty(binding.fieldId) || !ID.test(String(binding.fieldId))) {
+      issue(errors, "calculation_binding", at, "Field binding needs an entity ID and a field ID.");
+    }
+  });
+  if (!unique(roles)) issue(errors, "calculation_binding", path, "Calculation binding roles must be unique.");
+  if (raw.state !== "EXECUTABLE" || !contract) return;
+  const expected = [...contract.fields, ...contract.literals, ...contract.tables].sort();
+  const actual = [...roles].sort();
+  if (expected.join("\0") !== actual.join("\0")) {
+    issue(errors, "calculation_binding", path, operator + " bindings are exactly " + expected.join(", ") + ".");
+  }
+}
+
 function fieldType(defs: Map<string, EffectiveDefinition>, entityId: string, fieldId: string): FieldValueType | null {
   const entity = defs.get(entityId);
   if (entity?.kind !== "entity") return null;
@@ -347,14 +392,39 @@ function fieldType(defs: Map<string, EffectiveDefinition>, entityId: string, fie
 function calculationValueType(defs: Map<string, EffectiveDefinition>, calculationId: string): FieldValueType | "UNSUPPORTED" | null {
   const calculation = defs.get(calculationId);
   if (calculation?.kind !== "calculation") return null;
-  if (calculation.operator !== "DAYS_BETWEEN" || calculation.state !== "EXECUTABLE" || !calculation.bindings) return "UNSUPPORTED";
-  const start = calculation.bindings.find((binding) => binding.role === "start");
-  const end = calculation.bindings.find((binding) => binding.role === "end");
-  if (!start || !end) return "UNSUPPORTED";
-  if (fieldType(defs, start.entityId, start.fieldId) !== "DATE" || fieldType(defs, end.entityId, end.fieldId) !== "DATE") {
-    return "UNSUPPORTED";
+  if (calculation.state !== "EXECUTABLE" || !calculation.bindings) return "UNSUPPORTED";
+  const fields = calculationFieldBindings(calculation.bindings);
+  const typed = (role: string) => {
+    const binding = fields.find((item) => item.role === role);
+    return binding ? fieldType(defs, binding.entityId, binding.fieldId) : null;
+  };
+  switch (calculation.operator) {
+    case "DAYS_BETWEEN":
+      return typed("start") === "DATE" && typed("end") === "DATE" ? "NUMBER" : "UNSUPPORTED";
+    case "DIFFERENCE": {
+      const left = typed("minuend");
+      const right = typed("subtrahend");
+      return left && left === right && NUMERIC_TYPES.has(left) ? left : "UNSUPPORTED";
+    }
+    case "RATE_PER_WEEK": {
+      const from = typed("from");
+      const to = typed("to");
+      if (!from || from !== to || (from !== "NUMBER" && from !== "QUANTITY") || typed("start") !== "DATE" || typed("end") !== "DATE") return "UNSUPPORTED";
+      return "NUMBER";
+    }
+    case "SUM_BY": {
+      const value = typed("value");
+      return value && NUMERIC_TYPES.has(value) && typed("group") === "TEXT" ? value : "UNSUPPORTED";
+    }
+    case "ADD_INTERVAL":
+      return typed("date") === "DATE" ? "DATE" : "UNSUPPORTED";
+    case "REFERENCE_GAP": {
+      const value = typed("value");
+      return value && NUMERIC_TYPES.has(value) && typed("row") === "TEXT" && typed("column") === "TEXT" ? value : "UNSUPPORTED";
+    }
+    default:
+      return "UNSUPPORTED";
   }
-  return "NUMBER";
 }
 
 function operandValueType(defs: Map<string, EffectiveDefinition>, operand: string | PackOperand): FieldValueType | "UNTYPED" | "UNSUPPORTED" | null {
@@ -379,10 +449,24 @@ function validateReferences(defs: readonly EffectiveDefinition[], errors: PackCo
     }
     if (def.kind === "calculation" && def.bindings) {
       for (const binding of def.bindings) {
+        if ("referenceTableId" in binding) {
+          if (byId.get(binding.referenceTableId)?.kind !== "referenceTable") {
+            issue(errors, "calculation_binding_missing", def.id, "Calculation table binding is not an effective reference table.");
+          }
+          continue;
+        }
+        if ("literal" in binding) continue;
         const boundType = fieldType(byId, binding.entityId, binding.fieldId);
         if (!boundType) issue(errors, "calculation_binding_missing", def.id, "Calculation binding does not name an effective field.");
-        else if (def.operator === "DAYS_BETWEEN" && boundType !== "DATE") {
-          issue(errors, "calculation_binding_type", def.id, "DAYS_BETWEEN start and end must both be dates.");
+      }
+      if (def.state === "EXECUTABLE" && calculationValueType(byId, def.id) === "UNSUPPORTED") {
+        issue(errors, "calculation_binding_type", def.id, "Executable calculation bindings do not have a supported type.");
+      }
+      if (def.operator === "SUM_BY") {
+        const fields = calculationFieldBindings(def.bindings);
+        const entities = new Set(fields.map((binding) => binding.entityId));
+        if (fields.length > 0 && entities.size !== 1) {
+          issue(errors, "calculation_binding_type", def.id, "SUM_BY value and group must be fields of one entity.");
         }
       }
     }

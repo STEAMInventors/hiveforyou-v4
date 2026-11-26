@@ -90,12 +90,25 @@ export type LedgerRow = {
   sourceRefs: VerifiedSourceRef[];
   missingRequirements: string[];
   daysBetween?: string;
+  computedValue?: string;
+  computedUnit?: string;
   candidateId?: string;
   candidateTrust?: UnresolvedCandidate["trust"];
   unresolvedCandidateIds?: string[];
   disabledReason?: string;
   evidenceForLink?: string;
 };
+
+function measured(value: { daysBetween?: string; computedValue?: string } | undefined): boolean {
+  return value?.daysBetween !== undefined || value?.computedValue !== undefined;
+}
+
+function measureFields(value: { daysBetween?: string; computedValue?: string; computedUnit?: string }): Pick<LedgerRow, "daysBetween" | "computedValue" | "computedUnit"> {
+  return {
+    ...(value.daysBetween !== undefined ? { daysBetween: value.daysBetween } : {}),
+    ...(value.computedValue !== undefined ? { computedValue: value.computedValue, computedUnit: value.computedUnit ?? "" } : {}),
+  };
+}
 
 export type DomainInvestigationLedger = {
   schema: typeof DOMAIN_INVESTIGATION_LEDGER_SCHEMA;
@@ -144,6 +157,8 @@ type Draft = {
   sourceRefs: VerifiedSourceRef[];
   missingRequirements: string[];
   daysBetween?: string;
+  computedValue?: string;
+  computedUnit?: string;
   candidateId?: string;
   candidateTrust?: UnresolvedCandidate["trust"];
   unresolvedCandidateIds?: string[];
@@ -332,7 +347,7 @@ function finish(plan: DomainInvestigationPlan, draft: Draft): LedgerRow {
     relationshipFactIds: sortIds(draft.relationshipFactIds),
     sourceRefs: sortRefs(draft.sourceRefs),
     missingRequirements: sortIds(draft.missingRequirements.map(normalizeMissingRequirement)),
-    ...(draft.daysBetween !== undefined ? { daysBetween: draft.daysBetween } : {}),
+    ...measureFields(draft),
     ...(draft.candidateId ? { candidateId: draft.candidateId } : {}),
     ...(draft.candidateTrust ? { candidateTrust: draft.candidateTrust } : {}),
     ...(draft.unresolvedCandidateIds && draft.unresolvedCandidateIds.length > 0 ? { unresolvedCandidateIds: sortIds(draft.unresolvedCandidateIds) } : {}),
@@ -356,7 +371,7 @@ function base(task: InvestigationTask, population: LedgerPopulation, disposition
     relationshipFactIds: extra.relationshipFactIds ?? [],
     sourceRefs: extra.sourceRefs ?? [],
     missingRequirements: extra.missingRequirements ?? [],
-    ...(extra.daysBetween !== undefined ? { daysBetween: extra.daysBetween } : {}),
+    ...measureFields(extra),
     ...(extra.candidateId ? { candidateId: extra.candidateId } : {}),
     ...(extra.candidateTrust ? { candidateTrust: extra.candidateTrust } : {}),
     ...(extra.unresolvedCandidateIds ? { unresolvedCandidateIds: extra.unresolvedCandidateIds } : {}),
@@ -401,7 +416,7 @@ function adopted(task: InvestigationTask, result: DomainRuleResult, relationship
     relationshipFactIds: support.relationshipFactIds,
     sourceRefs: result.sourceRefs,
     missingRequirements: result.missingRequirements,
-    ...(result.daysBetween !== undefined ? { daysBetween: result.daysBetween } : {}),
+    ...measureFields(result),
   });
 }
 
@@ -450,7 +465,7 @@ function subjectFieldGaps(pack: CompiledDomainPack, definitionId: string, entity
   if (definition?.kind !== "calculation") return [];
   const gaps: string[] = [];
   for (const binding of definition.bindings ?? []) {
-    if (binding.entityId !== entityId) continue;
+    if (!("entityId" in binding) || binding.entityId !== entityId) continue;
     const present = evidence.facts.some((fact) => fact.entityId === entityId && fact.instanceId === instanceId && fact.fieldId === binding.fieldId && sourced(fact.sourceRefs));
     if (!present) gaps.push("field:" + entityId + "/" + binding.fieldId);
   }
@@ -471,14 +486,14 @@ function crossRows(
   const results = resultsFor(evaluation, task.definitionId);
   const pairs = results.filter((result) => result.instances.length > 0);
   const blank = results.find((result) => result.instances.length === 0);
-  if (blank && (blank.outcome === "COMPUTED" || blank.daysBetween !== undefined)) {
-    issue(issues, "inconsistent_dp2", task.taskId, "DP-2 computed a day count without instances.");
+  if (blank && (blank.outcome === "COMPUTED" || measured(blank))) {
+    issue(issues, "inconsistent_dp2", task.taskId, "DP-2 computed a value without instances.");
   }
   const drafts: Draft[] = [];
   const covered = new Set<string>();
   for (const result of pairs) {
-    if (result.outcome === "COMPUTED" && result.daysBetween === undefined) {
-      issue(issues, "inconsistent_dp2", task.taskId, "DP-2 reported a computed row without a day count.");
+    if (result.outcome === "COMPUTED" && !measured(result)) {
+      issue(issues, "inconsistent_dp2", task.taskId, "DP-2 reported a computed row without a value.");
     }
     const draft = adopted(task, result, relationshipIds);
     drafts.push(draft);
@@ -533,8 +548,8 @@ function pairRows(
   const results = resultsFor(evaluation, task.definitionId);
   const pairs = results.filter((result) => result.instances.length > 0);
   const blank = results.find((result) => result.instances.length === 0);
-  if (blank && (blank.outcome === "COMPUTED" || blank.daysBetween !== undefined)) {
-    issue(issues, "inconsistent_dp2", task.taskId, "DP-2 computed a day count without instances.");
+  if (blank && (blank.outcome === "COMPUTED" || measured(blank))) {
+    issue(issues, "inconsistent_dp2", task.taskId, "DP-2 computed a value without instances.");
   }
   const seen = new Set<string>();
   const covered = new Set<string>();
@@ -543,8 +558,8 @@ function pairRows(
     const key = instanceKey(result.instances);
     if (seen.has(key)) issue(issues, "inconsistent_dp2", task.taskId, "DP-2 returned more than one row for the same instances.");
     seen.add(key);
-    if (result.outcome === "COMPUTED" && result.daysBetween === undefined) {
-      issue(issues, "inconsistent_dp2", task.taskId, "DP-2 reported a computed row without a day count.");
+    if (result.outcome === "COMPUTED" && !measured(result)) {
+      issue(issues, "inconsistent_dp2", task.taskId, "DP-2 reported a computed row without a value.");
     }
     const fromId = result.instances.find((item) => item.entityId === binding.fromEntityId)?.instanceId;
     const toId = result.instances.find((item) => item.entityId === binding.toEntityId)?.instanceId;
@@ -605,7 +620,7 @@ function withheldRows(task: InvestigationTask, evidence: VerifiedCaseFacts, veri
 function noInstanceRow(task: InvestigationTask, evaluation: ReadyEvaluation, issues: LedgerIssue[]): Draft {
   const mode = adoptionMode(task);
   const blank = mode === "none" ? undefined : resultsFor(evaluation, task.definitionId).find((result) => result.instances.length === 0);
-  if (blank && (blank.outcome === "COMPUTED" || blank.daysBetween !== undefined || blank.outcome === "ESTABLISHED" || blank.outcome === "NOT_SATISFIED")) {
+  if (blank && (blank.outcome === "COMPUTED" || measured(blank) || blank.outcome === "ESTABLISHED" || blank.outcome === "NOT_SATISFIED")) {
     issue(issues, "inconsistent_dp2", task.taskId, "DP-2 reported an affirmative result with no instance.");
   }
   return base(task, "NO_INSTANCE", "NOT_EVALUATED", {
@@ -766,11 +781,11 @@ function account(plan: DomainInvestigationPlan, evidence: VerifiedCaseFacts, can
   for (const row of rows) {
     if (seen.has(row.rowId)) issue(issues, "duplicate_row", row.rowId, "Ledger row identity is duplicated.");
     seen.add(row.rowId);
-    if (row.daysBetween !== undefined && row.disposition !== "COMPUTED") {
-      issue(issues, "inconsistent_dp2", row.rowId, "A day count is recorded without a computed disposition.");
+    if (measured(row) && row.disposition !== "COMPUTED") {
+      issue(issues, "inconsistent_dp2", row.rowId, "A calculated value is recorded without a computed disposition.");
     }
-    if (row.disposition === "COMPUTED" && row.daysBetween === undefined) {
-      issue(issues, "inconsistent_dp2", row.rowId, "A computed row has no day count.");
+    if (row.disposition === "COMPUTED" && !measured(row)) {
+      issue(issues, "inconsistent_dp2", row.rowId, "A computed row has no value.");
     }
     if (row.candidateTrust === "REVIEW_REQUIRED" && row.relationshipFactIds.length > 0) {
       issue(issues, "relationship_promoted", row.rowId, "A review relationship was stored as a verified relationship.");
@@ -857,8 +872,8 @@ function account(plan: DomainInvestigationPlan, evidence: VerifiedCaseFacts, can
       if (AFFIRMATIVE.has(row.disposition) && (!task.dp2Eligible || row.population !== "VERIFIED_INSTANCE")) {
         issue(issues, "inconsistent_dp2", row.rowId, "An affirmative disposition is not tied to an eligible verified instance.");
       }
-      if ((row.population === "NO_INSTANCE" || row.population === "UNRESOLVED_SUBJECT" || row.population === "PRESENTATION") && row.daysBetween !== undefined) {
-        issue(issues, "inconsistent_dp2", row.rowId, "This population cannot carry a day count.");
+      if ((row.population === "NO_INSTANCE" || row.population === "UNRESOLVED_SUBJECT" || row.population === "PRESENTATION") && measured(row)) {
+        issue(issues, "inconsistent_dp2", row.rowId, "This population cannot carry a calculated value.");
       }
     }
   }
@@ -875,7 +890,7 @@ function account(plan: DomainInvestigationPlan, evidence: VerifiedCaseFacts, can
 function agree(plan: DomainInvestigationPlan, evaluation: ReadyEvaluation, rows: readonly LedgerRow[], relationshipIds: ReadonlySet<string>, issues: LedgerIssue[]): void {
   for (const task of plan.tasks) {
     if (task.taskKind === "REVIEW_CHECK") {
-      const affirmed = resultsFor(evaluation, task.definitionId).some((result) => result.outcome === "ESTABLISHED" || result.outcome === "NOT_SATISFIED" || result.outcome === "COMPUTED" || result.daysBetween !== undefined);
+      const affirmed = resultsFor(evaluation, task.definitionId).some((result) => result.outcome === "ESTABLISHED" || result.outcome === "NOT_SATISFIED" || result.outcome === "COMPUTED" || measured(result));
       if (affirmed) issue(issues, "inconsistent_dp2", task.taskId, "A review check was evaluated as a conclusion.");
     }
     const mode = adoptionMode(task);
@@ -903,6 +918,8 @@ function agree(plan: DomainInvestigationPlan, evaluation: ReadyEvaluation, rows:
 function sameResult(row: LedgerRow, result: DomainRuleResult, relationshipIds: ReadonlySet<string>): boolean {
   if (row.disposition !== result.outcome) return false;
   if ((row.daysBetween ?? "") !== (result.daysBetween ?? "")) return false;
+  if ((row.computedValue ?? "") !== (result.computedValue ?? "")) return false;
+  if ((row.computedUnit ?? "") !== (result.computedUnit ?? "")) return false;
   const support = splitSupport(result, relationshipIds);
   const left = sortIds([...row.supportingFactIds, ...row.relationshipFactIds]).join("\0");
   const right = sortIds([...support.supportingFactIds, ...support.relationshipFactIds]).join("\0");

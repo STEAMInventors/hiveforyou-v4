@@ -5,6 +5,7 @@ import {
   authorizedExtractionDigest,
   bindInvestigationCandidates,
   INVESTIGATION_CANDIDATES_SCHEMA,
+  recordedPageCoverage,
   type CandidateBinderInput,
 } from "./domain-investigation-binder";
 import { compileInvestigationPlan, type SupplementalArtifacts } from "./domain-investigation-plan";
@@ -393,7 +394,7 @@ describe("investigation candidate binder", () => {
     ]);
     const bound = expectBound(withDocument.result);
     expect(bound.verified.schema).toBe("hive.verified-case-facts/1");
-    expect(bound.verified.coverage).toBe("INCOMPLETE");
+    expect(bound.verified.coverage).toBe("COMPLETE");
     expect(bound.verified.facts).toHaveLength(4);
     expect(bound.verified.documents).toHaveLength(1);
     expect(bound.verified.relationships).toEqual([]);
@@ -712,6 +713,16 @@ describe("investigation candidate binder", () => {
     if (citedFacts.ok) return;
     expect(citedFacts.issues.some((item) => item.code === "forbidden_field")).toBe(true);
     expect(JSON.stringify(citedFacts)).not.toContain("\"status\":\"VERIFIED\"");
+  });
+
+  it("treats a truncated or unread page as incomplete coverage", () => {
+    const { extractions } = world();
+    expect(recordedPageCoverage(extractions)).toBe("COMPLETE");
+    const truncated = extractions.map((item, index) => index === 0 ? { ...item, coverage: { ...item.coverage, truncated: true } } : item);
+    expect(recordedPageCoverage(truncated)).toBe("INCOMPLETE");
+    const unread = extractions.map((item) => ({ ...item, coverage: { ...item.coverage, pagesRead: [1] } }));
+    expect(recordedPageCoverage(unread)).toBe("INCOMPLETE");
+    expect(recordedPageCoverage([])).toBe("INCOMPLETE");
   });
 
   it("does not embed a profession's identifiers in the binder", () => {

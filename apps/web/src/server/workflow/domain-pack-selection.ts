@@ -1,7 +1,8 @@
 /**
  * Trusted per-Hive Domain Pack selection for Rebuild Study.
- * The only selectable edition is the shipped iep-us-federal 0.4.0 source,
+ * The only selectable edition is the shipped iep-us-federal 0.5.0 source,
  * and only when the stored digest equals that source compiled in this process.
+ * v0.4.0 remains on disk and its compiled digest is unchanged.
  * Legacy checklist selection stays on hive.hives.pack_id / pack_version.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -12,10 +13,11 @@ import { type InvestigationEnginePin, prepareInvestigationStudy } from "@hivefor
 
 export const PINNED_DOMAIN_PACK = {
   packId: "iep-us-federal",
-  version: "0.4.0",
+  version: "0.5.0",
 } as const;
 
-const SOURCE_FILE = "iep-domain-pack-source.v0.4.0.json";
+const SOURCE_FILE = "iep-domain-pack-source.v0.5.0.json";
+const RELATIONSHIP_FILE = "relationship-source-structures.json";
 const ARTIFACT_FILES = {
   ontology: "iep-domain-ontology-spec.json",
   authorityRegister: "iep-domain-authority-register.json",
@@ -36,6 +38,7 @@ export type PinnedDomainPack = {
   readonly source: DomainPackSource;
   readonly artifacts: InvestigationEnginePin["artifacts"];
   readonly compiledDigest: string;
+  readonly relationshipStructures: readonly unknown[];
 };
 
 type SelectionClient = {
@@ -54,7 +57,7 @@ export type DomainPackSelectionRead =
 let cached: PinnedDomainPack | null = null;
 
 function packDirectory(cwd: string): string {
-  const relative = path.join("packs", "drafts", "iep-us-federal", "v0.4.0");
+  const relative = path.join("packs", "drafts", "iep-us-federal", "v0.5.0");
   const candidates = [path.join(cwd, relative), path.join(cwd, "..", "..", relative), path.join(cwd, "..", "..", "..", relative)];
   for (const candidate of candidates) {
     if (existsSync(path.join(candidate, SOURCE_FILE))) return candidate;
@@ -86,7 +89,10 @@ export function loadPinnedDomainPack(cwd: string = process.cwd()): PinnedDomainP
   if (identity.packId !== PINNED_DOMAIN_PACK.packId || identity.version !== PINNED_DOMAIN_PACK.version || !identity.digest) {
     throw new Error("pinned_domain_pack_invalid");
   }
-  cached = { source, artifacts, compiledDigest: identity.digest };
+  const relationshipPath = path.join(root, RELATIONSHIP_FILE);
+  const relationshipStructures = existsSync(relationshipPath) ? readJson(relationshipPath) : [];
+  if (!Array.isArray(relationshipStructures)) throw new Error("pinned_domain_pack_invalid");
+  cached = { source, artifacts, compiledDigest: identity.digest, relationshipStructures };
   return cached;
 }
 

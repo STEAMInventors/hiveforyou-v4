@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DocExtraction, ExtractionFact } from "./extraction-contracts";
 import {
@@ -10,6 +11,11 @@ import {
 } from "./investigation-study-engine";
 import { DOMAIN_PACK_SOURCE_SCHEMA, type CompiledDomainPack, type DomainPackSource } from "./domain-pack-source";
 import type { SupplementalArtifacts } from "./domain-investigation-plan";
+import {
+  authoredRelationshipDirection,
+  RELATIONSHIP_SOURCE_STRUCTURE_SCHEMA,
+  relationshipStructureDigest,
+} from "./domain-relationship-verification";
 import type { VerificationPage } from "./verify-quotes";
 
 const DOC = "doc-1";
@@ -70,7 +76,7 @@ function source(): DomainPackSource {
   };
 }
 
-function companions(pack: CompiledDomainPack): SupplementalArtifacts {
+function companions(pack: CompiledDomainPack, extras?: { ruleIds?: string[]; fields?: Array<{ id: string; valueType: string }> }): SupplementalArtifacts {
   return {
     ontology: {
       schema: "hive.domain-ontology-spec/1",
@@ -82,8 +88,9 @@ function companions(pack: CompiledDomainPack): SupplementalArtifacts {
             { id: "label", valueType: "TEXT" },
             { id: "startDate", valueType: "DATE" },
             { id: "flag", valueType: "BOOLEAN" },
+            ...(extras?.fields ?? []),
           ],
-          ruleIds: ["calculation:between"],
+          ruleIds: ["calculation:between", ...(extras?.ruleIds ?? [])],
           documentKinds: ["document:record"],
           instanceBoundary: "One record.",
           identityKeys: ["label"],
@@ -290,6 +297,7 @@ describe("investigation study engine", () => {
     });
     expect(JSON.stringify(result.study)).not.toContain("daysBetween");
     expect(JSON.stringify(result.study)).not.toMatch(/\b30\b/);
+    expect(JSON.stringify(result.study.outsideSpine)).toContain("Calculation Days between records was not published");
   });
 
   it("keeps a review-only check unassessed and records the pack and plan digests", () => {
@@ -301,7 +309,7 @@ describe("investigation study engine", () => {
         checkId: "check:review",
         verdict: "NOT_ASSESSED",
         factIds: [],
-        note: `Review required. pack ${result.packDigest} plan ${result.planDigest}`,
+        note: `Not assessed. The compiled criterion is review only, so document coverage is not a legal conclusion. pack ${result.packDigest} plan ${result.planDigest}`,
       }),
     ]);
     expect(result.study.checklist?.some((item) => item.verdict === "SHOWN" || item.verdict === "NOT_SHOWN")).toBe(false);
@@ -382,5 +390,291 @@ describe("investigation study engine", () => {
     expect(fieldMappingRequestLeaksRecordText(request, [{ text: PAGE_1 }])).toBe(false);
     expect(fieldMappingRequestLeaksRecordText({ ...request, facts: [...request.facts, { valueAsWritten: PAGE_1 }] }, [{ text: PAGE_1 }])).toBe(false);
     expect(fieldMappingRequestLeaksRecordText({ ...request, quote: PAGE_1 }, [{ text: PAGE_1 }])).toBe(true);
+  });
+});
+
+const PARITY_PAGE = [
+  PAGE_1,
+  "Baseline value: 42 count.",
+  "Baseline date: 2024-01-02.",
+  "Target value: 75 count.",
+].join(" ");
+const LATER_PAGE = [
+  "Observed value: 60 count.",
+  "Observed date: 2024-06-01.",
+  "north->south North South.",
+].join(" ");
+
+function paritySource(): DomainPackSource {
+  const drafted = source();
+  const item = drafted.definitions.find((definition) => definition.id === "entity:item");
+  if (item && item.kind === "entity") {
+    item.fields.push(
+      { id: "baselineValue", valueType: "NUMBER", unit: "count" },
+      { id: "baselineDate", valueType: "DATE" },
+      { id: "targetValue", valueType: "NUMBER", unit: "count" },
+      { id: "observedValue", valueType: "NUMBER", unit: "count" },
+      { id: "observedDate", valueType: "DATE" },
+    );
+  }
+  drafted.definitions.push(
+    { id: "check:present", kind: "check", label: "Name is recorded", criterion: { op: "FIELD_PRESENT", entityId: "entity:item", fieldId: "label" } },
+    { id: "check:absent", kind: "check", label: "Flag is recorded", criterion: { op: "FIELD_PRESENT", entityId: "entity:item", fieldId: "flag" } },
+    { id: "question:customer", kind: "question", label: "Customer question", audience: "customer", text: "What name is recorded?", appliesWhen: { op: "FIELD_PRESENT", entityId: "entity:item", fieldId: "label" } },
+    { id: "question:professional", kind: "question", label: "Professional question", audience: "professional", text: "What should be reviewed?", appliesWhen: { op: "REVIEW_REQUIRED" } },
+    { id: "question:skipped", kind: "question", label: "Skipped question", audience: "customer", text: "What flag is recorded?", appliesWhen: { op: "FIELD_PRESENT", entityId: "entity:item", fieldId: "flag" } },
+    { id: "persona:customer", kind: "persona", label: "Customer", audience: "customer", context: "The person asking.", questionIds: ["question:customer", "question:skipped"] },
+    { id: "persona:professional", kind: "persona", label: "Professional", audience: "professional", context: "The reviewer.", questionIds: ["question:professional"] },
+  );
+  return drafted;
+}
+
+function parityArtifacts(drafted: DomainPackSource): SupplementalArtifacts {
+  return companions(
+    { identity: { ...drafted.identity, digest: "pending" } } as CompiledDomainPack,
+    {
+      ruleIds: ["check:present", "check:absent"],
+      fields: [
+        { id: "baselineValue", valueType: "NUMBER" },
+        { id: "baselineDate", valueType: "DATE" },
+        { id: "targetValue", valueType: "NUMBER" },
+        { id: "observedValue", valueType: "NUMBER" },
+        { id: "observedDate", valueType: "DATE" },
+      ],
+    },
+  );
+}
+
+function holdingStructure(polarity: "HOLDS" | "DOES_NOT_HOLD" = "HOLDS", from = "North") {
+  const body = {
+    schema: RELATIONSHIP_SOURCE_STRUCTURE_SCHEMA,
+    relationshipId: "relationship:item-other",
+    direction: "AUTHORED_FROM_TO" as const,
+    polarity,
+    slots: [
+      { role: "FROM_IDENTITY" as const, value: from },
+      { role: "TO_IDENTITY" as const, value: "South" },
+      { role: "POLARITY" as const, value: "North" },
+      { role: "DIRECTION" as const, value: authoredRelationshipDirection("north", "south") },
+    ],
+  };
+  return { ...body, structureDigest: relationshipStructureDigest(body) };
+}
+
+function parityCase(structures?: readonly unknown[]) {
+  const drafted = paritySource();
+  const prepared = prepareInvestigationStudy({
+    packSource: drafted,
+    artifacts: parityArtifacts(drafted),
+  });
+  if (!prepared.ok) throw new Error(prepared.code);
+  const first = extraction([
+    fact("F-label", "North", 1, "Name: North."),
+    fact("F-start", "2024-01-02", 1, "Started 2024-01-02."),
+    fact("F-name", "South", 1, "Other name: South."),
+    fact("F-when", "2024-02-01", 1, "Ended 2024-02-01."),
+    fact("F-base", "42", 1, "Baseline value: 42 count."),
+    fact("F-base-date", "2024-01-02", 1, "Baseline date: 2024-01-02."),
+    fact("F-target", "75", 1, "Target value: 75 count."),
+  ]);
+  const later = extraction([
+    fact("F-observed", "60", 1, "Observed value: 60 count."),
+    fact("F-observed-date", "2024-06-01", 1, "Observed date: 2024-06-01."),
+    fact("F-link", "north->south North South.", 1, "north->south North South."),
+  ], OTHER_DOC);
+  const pages: InvestigationEnginePin["pages"] = [
+    { documentId: DOC, pages: [{ pageNumber: 1, text: PARITY_PAGE }] satisfies VerificationPage[] },
+    { documentId: OTHER_DOC, pages: [{ pageNumber: 1, text: LATER_PAGE }] },
+  ];
+  const proposal = {
+    schema: "hive.field-mapping-proposal/1",
+    mappings: [
+      { documentId: DOC, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north", fieldId: "label", valueType: "TEXT", value: "North" },
+      { documentId: DOC, extractionFactId: "F-start", entityId: "entity:item", instanceId: "north", fieldId: "startDate", valueType: "DATE", value: "2024-01-02" },
+      { documentId: DOC, extractionFactId: "F-name", entityId: "entity:other", instanceId: "south", fieldId: "name", valueType: "TEXT", value: "South" },
+      { documentId: DOC, extractionFactId: "F-when", entityId: "entity:other", instanceId: "south", fieldId: "when", valueType: "DATE", value: "2024-02-01" },
+      { documentId: DOC, extractionFactId: "F-base", entityId: "entity:item", instanceId: "north", fieldId: "baselineValue", valueType: "NUMBER", value: "42" },
+      { documentId: DOC, extractionFactId: "F-base-date", entityId: "entity:item", instanceId: "north", fieldId: "baselineDate", valueType: "DATE", value: "2024-01-02" },
+      { documentId: DOC, extractionFactId: "F-target", entityId: "entity:item", instanceId: "north", fieldId: "targetValue", valueType: "NUMBER", value: "75" },
+      { documentId: OTHER_DOC, extractionFactId: "F-observed", entityId: "entity:item", instanceId: "north", fieldId: "observedValue", valueType: "NUMBER", value: "60" },
+      { documentId: OTHER_DOC, extractionFactId: "F-observed-date", entityId: "entity:item", instanceId: "north", fieldId: "observedDate", valueType: "DATE", value: "2024-06-01" },
+    ],
+    relationships: [
+      { documentId: OTHER_DOC, extractionFactId: "F-link", relationshipId: "relationship:item-other", fromInstanceId: "north", toInstanceId: "south" },
+    ],
+  };
+  return runInvestigationStudyEngine({
+    prepared: prepared.prepared,
+    extractions: [first, later],
+    pages,
+    proposal,
+    studyDate: "2026-11-25",
+    relationshipStructures: structures,
+    investigation: {
+      intentText: "What name is recorded?",
+      documentRoles: [],
+      measurements: [],
+      assessments: [{ statement: "The goal has been met.", factIds: ["F-base", "F-target", "F-observed"] }],
+      determinations: [{ statement: "A professional still has to decide." }],
+      conflicts: [{ statement: "The baseline and the target contradict each other.", factIds: ["F-base", "F-target"] }],
+      gaps: [],
+      answers: [
+        { questionId: "question:customer", audience: "customer", factIds: ["F-label"] },
+        { questionId: "question:professional", audience: "professional", factIds: [], uncertainty: "Still open." },
+      ],
+    },
+  });
+}
+
+describe("investigation quality parity", () => {
+  it("decides executable checks, withholds review, and compares later progress without a legal conclusion", () => {
+    const result = parityCase();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const checklist = result.study.checklist ?? [];
+    expect(checklist.find((item) => item.checkId === "check:present")).toMatchObject({
+      verdict: "SHOWN",
+      factIds: ["F-label"],
+      note: "Established from cited evidence.",
+    });
+    expect(checklist.find((item) => item.checkId === "check:absent")).toMatchObject({
+      verdict: "NOT_SHOWN",
+      note: "The saved documents do not show this.",
+    });
+    expect(checklist.find((item) => item.checkId === "check:review")?.verdict).toBe("NOT_ASSESSED");
+    expect(checklist.find((item) => item.checkId === "check:review")?.note).toContain("not a legal conclusion");
+    const progress = result.study.spine.find((item) => item.kind === "progress");
+    expect(progress?.label).toContain("baseline 42 count");
+    expect(progress?.label).toContain("planned target 75 count");
+    expect(progress?.label).toContain("observed 60 count");
+    expect(progress?.label).toContain("below the planned target");
+    expect(progress?.supportingFactIds).toEqual(expect.arrayContaining(["F-base", "F-target", "F-observed"]));
+    expect(result.study.spine.some((item) => /has been met/i.test(item.label))).toBe(false);
+    expect(JSON.stringify(result.study.outsideSpine)).toContain("The later measurement does not support that progress conclusion");
+    expect(result.study.conflicts).toEqual([]);
+    expect(JSON.stringify(result.study.outsideSpine)).toContain("not two values of the same field");
+    expect(JSON.stringify(result.study.outsideSpine)).toContain("Open for a professional");
+    expect(result.study.outsideSpine.some((item) => item.statement.includes("relationship:item-other") && item.statement.includes("RELATIONSHIP_SEMANTICS_UNVERIFIED"))).toBe(true);
+    expect(result.study.spine.some((item) => item.kind === "calculation")).toBe(false);
+    expect(JSON.stringify(result.study)).not.toMatch(/\b30 calendar days\b/);
+    const coverage = result.study.personaCoverage ?? [];
+    expect(coverage.find((item) => item.questionId === "question:customer")).toMatchObject({ audience: "customer", status: "ANSWERABLE", factIds: ["F-label"] });
+    expect(coverage.find((item) => item.questionId === "question:professional")).toMatchObject({ status: "NOT_ANSWERABLE", missing: "Still open." });
+    expect(coverage.find((item) => item.questionId === "question:skipped")?.missing).toContain("does not apply");
+  });
+
+  it("admits a cross-document relationship and publishes the day count only when the compiled structure matches", () => {
+    const admitted = parityCase([holdingStructure()]);
+    expect(admitted.ok).toBe(true);
+    if (!admitted.ok) return;
+    const link = admitted.study.spine.find((item) => item.kind === "relationship");
+    expect(link?.supportingFactIds).toContain("F-link");
+    expect(link?.label).toContain("supported by the cited record");
+    const calculation = admitted.study.spine.find((item) => item.kind === "calculation");
+    expect(calculation?.label).toContain("30 calendar days");
+    expect(calculation?.label).toContain("start 2024-01-02");
+    expect(calculation?.label).toContain("end 2024-02-01");
+    expect(calculation?.supportingFactIds).toEqual(expect.arrayContaining(["F-start", "F-when", "F-link"]));
+    expect(admitted.study.outsideSpine.some((item) => item.statement.includes("relationship:item-other is not verified"))).toBe(false);
+
+    const withheld = parityCase([holdingStructure("HOLDS", "West")]);
+    expect(withheld.ok).toBe(true);
+    if (!withheld.ok) return;
+    expect(withheld.study.spine.some((item) => item.kind === "relationship" || item.kind === "calculation")).toBe(false);
+    expect(JSON.stringify(withheld.study.outsideSpine)).toContain("The compiled source structure does not match the quoted text.");
+    expect(JSON.stringify(withheld.study)).not.toMatch(/\b30 calendar days\b/);
+  });
+
+  it("does not turn an unread page into a shown check", () => {
+    const drafted = paritySource();
+    const prepared = prepareInvestigationStudy({
+      packSource: drafted,
+      artifacts: parityArtifacts(drafted),
+    });
+    if (!prepared.ok) throw new Error(prepared.code);
+    const complete = parityCase();
+    expect(complete.ok).toBe(true);
+    if (!complete.ok) return;
+    const first = extraction([
+      fact("F-label", "North", 1, "Name: North."),
+      fact("F-start", "2024-01-02", 1, "Started 2024-01-02."),
+      fact("F-name", "South", 1, "Other name: South."),
+      fact("F-when", "2024-02-01", 1, "Ended 2024-02-01."),
+    ]);
+    first.coverage = { ...first.coverage, truncated: true };
+    const later = extraction([], OTHER_DOC);
+    const result = runInvestigationStudyEngine({
+      prepared: prepared.prepared,
+      extractions: [first, later],
+      pages: [
+        { documentId: DOC, pages: [{ pageNumber: 1, text: PARITY_PAGE }] },
+        { documentId: OTHER_DOC, pages: [{ pageNumber: 1, text: "Second record cover." }] },
+      ],
+      proposal: {
+        schema: "hive.field-mapping-proposal/1",
+        mappings: [
+          { documentId: DOC, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north", fieldId: "label", valueType: "TEXT", value: "North" },
+          { documentId: DOC, extractionFactId: "F-start", entityId: "entity:item", instanceId: "north", fieldId: "startDate", valueType: "DATE", value: "2024-01-02" },
+          { documentId: DOC, extractionFactId: "F-name", entityId: "entity:other", instanceId: "south", fieldId: "name", valueType: "TEXT", value: "South" },
+          { documentId: DOC, extractionFactId: "F-when", entityId: "entity:other", instanceId: "south", fieldId: "when", valueType: "DATE", value: "2024-02-01" },
+        ],
+        relationships: [],
+      },
+      studyDate: "2026-11-25",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.study.spine.some((item) => item.supportingFactIds.includes("F-label"))).toBe(true);
+    expect(result.study.checklist?.find((item) => item.checkId === "check:present")?.verdict).toBe("NOT_ASSESSED");
+    expect(result.study.checklist?.find((item) => item.checkId === "check:present")?.note).toContain("not sufficient");
+    expect(result.study.checklist?.some((item) => item.verdict === "SHOWN")).toBe(false);
+  });
+
+  it("keeps a verified field conflict when the model did not propose one", () => {
+    const drafted = paritySource();
+    const prepared = prepareInvestigationStudy({
+      packSource: drafted,
+      artifacts: parityArtifacts(drafted),
+    });
+    if (!prepared.ok) throw new Error(prepared.code);
+    const page = `${PARITY_PAGE} Alias: West.`;
+    const first = extraction([
+      fact("F-label", "North", 1, "Name: North."),
+      fact("F-alias", "West", 1, "Alias: West."),
+      fact("F-start", "2024-01-02", 1, "Started 2024-01-02."),
+      fact("F-name", "South", 1, "Other name: South."),
+      fact("F-when", "2024-02-01", 1, "Ended 2024-02-01."),
+    ]);
+    const result = runInvestigationStudyEngine({
+      prepared: prepared.prepared,
+      extractions: [first, extraction([], OTHER_DOC)],
+      pages: [
+        { documentId: DOC, pages: [{ pageNumber: 1, text: page }] },
+        { documentId: OTHER_DOC, pages: [{ pageNumber: 1, text: "Second record cover." }] },
+      ],
+      proposal: {
+        schema: "hive.field-mapping-proposal/1",
+        mappings: [
+          { documentId: DOC, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north", fieldId: "label", valueType: "TEXT", value: "North" },
+          { documentId: DOC, extractionFactId: "F-alias", entityId: "entity:item", instanceId: "north", fieldId: "label", valueType: "TEXT", value: "West" },
+          { documentId: DOC, extractionFactId: "F-start", entityId: "entity:item", instanceId: "north", fieldId: "startDate", valueType: "DATE", value: "2024-01-02" },
+          { documentId: DOC, extractionFactId: "F-name", entityId: "entity:other", instanceId: "south", fieldId: "name", valueType: "TEXT", value: "South" },
+          { documentId: DOC, extractionFactId: "F-when", entityId: "entity:other", instanceId: "south", fieldId: "when", valueType: "DATE", value: "2024-02-01" },
+        ],
+        relationships: [],
+      },
+      studyDate: "2026-11-25",
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.study.conflicts).toEqual([
+      expect.objectContaining({ factIds: expect.arrayContaining(["F-label", "F-alias"]) }),
+    ]);
+    expect(result.study.conflicts[0]?.statement).toContain("more than one saved value");
+  });
+
+  it("does not hardcode a profession or a corpus name in the study engine", () => {
+    const sourceText = readFileSync(new URL("./investigation-study-engine.ts", import.meta.url), "utf8");
+    expect(sourceText).not.toMatch(/\bIEP\b|\bL001\b|\bWCPM\b/);
   });
 });

@@ -2307,7 +2307,7 @@ function pinMismatch(correlationId: string, runId: string): HiveError {
 /**
  * Loads the durable Domain Pack selection for one Hive.
  * No row, or a selection table that is not installed yet, leaves the Hive on legacy canonicalization.
- * A row that is not the compiled iep-us-federal 0.4.0 digest fails closed and does not fall back.
+ * A row that is not the compiled iep-us-federal 0.5.0 digest fails closed and does not fall back.
  * `get_hive_chosen_pack` remains the legacy checklist pack and is not consulted here.
  */
 export async function resolveInvestigationEnginePin(input: {
@@ -2377,6 +2377,7 @@ export async function resolveInvestigationEnginePin(input: {
       packSource: pinned.source,
       artifacts: pinned.artifacts,
       pages,
+      relationshipStructures: pinned.relationshipStructures,
     },
   };
 }
@@ -2496,6 +2497,7 @@ async function runPinnedInvestigationEngine(input: {
     proposal: mapped.proposal,
     investigation: mapped.record,
     studyDate: now().toISOString().slice(0, 10),
+    relationshipStructures: pin.relationshipStructures,
   });
   if (!engine.ok) {
     emitStructuredEvent({

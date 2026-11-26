@@ -748,6 +748,25 @@ function toFact(field: AcceptedField): VerifiedFact {
   };
 }
 
+/**
+ * Page coverage of the saved extractions.
+ * Complete means every declared page was read and none were truncated or unreadable.
+ * It is not a claim that a legal standard is met.
+ */
+export function recordedPageCoverage(extractions: readonly DocExtraction[]): "COMPLETE" | "INCOMPLETE" {
+  if (!extractions || extractions.length === 0) return "INCOMPLETE";
+  for (const extraction of extractions) {
+    const coverage = extraction?.coverage;
+    if (!coverage || coverage.truncated || coverage.pageCount < 1) return "INCOMPLETE";
+    if ((coverage.pagesBlankOrUnreadable ?? []).length > 0) return "INCOMPLETE";
+    const read = new Set(coverage.pagesRead ?? []);
+    for (let page = 1; page <= coverage.pageCount; page += 1) {
+      if (!read.has(page)) return "INCOMPLETE";
+    }
+  }
+  return "COMPLETE";
+}
+
 function conflictsOf(fields: readonly AcceptedField[]): VerifiedCaseFacts["conflicts"] {
   const groups = new Map<string, AcceptedField[]>();
   for (const field of fields) {
@@ -916,7 +935,7 @@ export function bindInvestigationCandidates(input: CandidateBinderInput): Candid
   const verifiedRelationships: VerifiedRelationshipFact[] = [];
   const verified: VerifiedCaseFacts = {
     schema: VERIFIED_CASE_FACTS_SCHEMA,
-    coverage: "INCOMPLETE",
+    coverage: recordedPageCoverage(input.extractions),
     facts: verifiedFacts,
     documents: verifiedDocuments,
     relationships: verifiedRelationships,

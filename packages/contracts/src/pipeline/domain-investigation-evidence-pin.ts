@@ -481,8 +481,8 @@ function validateBoundOutput(
   }
   if (verified.relationships.length !== 0) return fail("INVALID_BINDING", "$.verified.relationships");
   if (candidateCount === 0) {
-    if (verified.coverage !== "INCOMPLETE" || verified.facts.length !== 0 || verified.documents.length !== 0 || unresolved.candidates.length !== 0) {
-      return fail("INVALID_BINDING", "$.verified.coverage");
+    if (verified.facts.length !== 0 || verified.documents.length !== 0 || unresolved.candidates.length !== 0) {
+      return fail("INVALID_BINDING", "$.verified.facts");
     }
   }
   const pagesOf = new Map(generations.map((generation) => [generation.sourceDocumentId, new Set(generation.pages.map((page) => page.pageNumber))]));
@@ -518,7 +518,7 @@ function validateBoundOutput(
 /**
  * Prepare one immutable evidence pin from a compiled pack, a pinned plan,
  * authorized extractions, source-page generations, and one candidate envelope.
- * A completed envelope with zero candidates is pinned with incomplete coverage.
+ * A completed envelope with zero candidates pins no facts. Coverage stays the recorded page coverage.
  * A missing, failed, or invalid investigation produces no pin.
  */
 export function prepareInvestigationEvidencePin(input: PrepareInvestigationEvidencePinInput): PrepareInvestigationEvidencePinResult {

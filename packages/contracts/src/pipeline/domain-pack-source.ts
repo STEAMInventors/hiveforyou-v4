@@ -63,17 +63,56 @@ export type PackPredicate =
       right: string | PackOperand;
     };
 
-/** Operator roles such as start/end. These are not free-text field names. */
-export type PackCalculationBinding = {
+/** A field role such as start or minuend. The role is not a free-text field name. */
+export type PackFieldCalculationBinding = {
   role: string;
   entityId: string;
   fieldId: string;
 };
 
+/** A pack constant, such as an interval of one year. It is not a case fact. */
+export type PackLiteralCalculationBinding = {
+  role: string;
+  literal: { valueType: "QUANTITY"; value: string; unit: string };
+};
+
+/** The reference table whose cell a REFERENCE_GAP calculation reads. */
+export type PackTableCalculationBinding = {
+  role: string;
+  referenceTableId: string;
+};
+
+export type PackCalculationBinding =
+  | PackFieldCalculationBinding
+  | PackLiteralCalculationBinding
+  | PackTableCalculationBinding;
+
+export function calculationFieldBindings(
+  bindings: readonly PackCalculationBinding[] | undefined,
+): PackFieldCalculationBinding[] {
+  return (bindings ?? []).filter((binding): binding is PackFieldCalculationBinding => "entityId" in binding && "fieldId" in binding);
+}
+
 export const PACK_CALCULATION_OPERATORS = [
   "DAYS_BETWEEN", "DIFFERENCE", "RATE_PER_WEEK", "SUM_BY", "ADD_INTERVAL", "REFERENCE_GAP",
 ] as const;
 export type PackCalculationOperator = (typeof PACK_CALCULATION_OPERATORS)[number];
+
+/** Closed role contract for an executable calculation. Declaration-only rows may omit bindings. */
+export const CALCULATION_OPERATOR_CONTRACT: Record<PackCalculationOperator, {
+  fields: readonly string[];
+  literals: readonly string[];
+  tables: readonly string[];
+}> = {
+  DAYS_BETWEEN: { fields: ["start", "end"], literals: [], tables: [] },
+  DIFFERENCE: { fields: ["minuend", "subtrahend"], literals: [], tables: [] },
+  RATE_PER_WEEK: { fields: ["from", "to", "start", "end"], literals: [], tables: [] },
+  SUM_BY: { fields: ["value", "group"], literals: [], tables: [] },
+  ADD_INTERVAL: { fields: ["date"], literals: ["interval"], tables: [] },
+  REFERENCE_GAP: { fields: ["value", "row", "column"], literals: [], tables: ["table"] },
+};
+
+export const INTERVAL_UNITS = ["day", "days", "week", "weeks", "month", "months", "year", "years"] as const;
 
 export const PACK_REPORT_BLOCKS = [
   "documents", "spine_table", "conflicts", "timeline", "outside_spine", "checklist",

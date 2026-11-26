@@ -1,0 +1,5890 @@
+{
+  "schema": "hive.domain-ontology-spec/1 (PROPOSED)",
+  "status": "DRAFT - Stage 4A reconciliation. Not reviewed. Not published.",
+  "packRef": {
+    "packId": "iep-us-federal",
+    "version": "0.5.0"
+  },
+  "factClasses": [
+    "PROCEDURAL_EVENT",
+    "DOCUMENTED_STATEMENT",
+    "MEASURED_VALUE",
+    "PROFESSIONAL_INTERPRETATION",
+    "TEAM_DECISION",
+    "PLAN_PROVISION",
+    "DELIVERY_RECORD"
+  ],
+  "entities": [
+    {
+      "id": "entity:student",
+      "label": "Student",
+      "group": "A. Student and context",
+      "purpose": "The child whose records are under review. Exactly one per case; other entities never mix facts across students.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "documented name + date of birth as written"
+      ],
+      "instanceBoundary": "One per case. A second student name in the record is a CROSS_ENTITY signal, never merged.",
+      "temporalScope": "Stable; grade changes over time via enrollment.",
+      "fields": [
+        {
+          "id": "displayName",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "dateOfBirth",
+          "valueType": "DATE"
+        },
+        {
+          "id": "gradeAsWritten",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "primaryLanguage",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "englishLearnerStatus",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "homeLanguage",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep",
+        "document:evaluation-report",
+        "document:eligibility-determination"
+      ],
+      "ruleIds": [
+        "check:A4",
+        "check:TR3",
+        "check:PS1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-b",
+        "AUTH-CFR-300.304-c-1-ii"
+      ]
+    },
+    {
+      "id": "entity:parent-guardian",
+      "label": "Parent / guardian / educational decision-maker",
+      "group": "A. Student and context",
+      "purpose": "A person holding parental rights (parent, guardian, surrogate, or adult student after transfer).",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "name + role as written"
+      ],
+      "instanceBoundary": "One per person; role field distinguishes parent, guardian, surrogate, adult student.",
+      "temporalScope": "Rights may transfer at age of majority.",
+      "fields": [
+        {
+          "id": "displayName",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "role",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "nativeLanguage",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "interpreterNeeded",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:meeting-notice-attendance-page-any-excusal-forms",
+        "document:signed-consent-to-evaluate",
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:T4",
+        "check:PP3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.322-e",
+        "AUTH-CFR-300.520-a"
+      ]
+    },
+    {
+      "id": "entity:school",
+      "label": "School",
+      "group": "A. Student and context",
+      "purpose": "School the student attends or will attend.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "name as written"
+      ],
+      "instanceBoundary": "One per school named.",
+      "temporalScope": "Per enrollment period.",
+      "fields": [
+        {
+          "id": "name",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "districtName",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [],
+      "authorityIds": []
+    },
+    {
+      "id": "entity:public-agency",
+      "label": "Public agency (district / LEA)",
+      "group": "A. Student and context",
+      "purpose": "Agency responsible for FAPE; changes on transfer.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "name as written"
+      ],
+      "instanceBoundary": "One per agency.",
+      "temporalScope": "Per enrollment period.",
+      "fields": [
+        {
+          "id": "name",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "state",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep",
+        "document:prior-written-notice-for-evaluation-eligibility-and-placement"
+      ],
+      "ruleIds": [
+        "check:TF1",
+        "check:TF2",
+        "check:T2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.323-e",
+        "AUTH-CFR-300.323-f"
+      ]
+    },
+    {
+      "id": "entity:enrollment",
+      "label": "Enrollment / transfer event",
+      "group": "A. Student and context",
+      "purpose": "Enrollment, withdrawal or transfer; needed for transfer rules and timeline exceptions.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "agency + start date"
+      ],
+      "instanceBoundary": "One per enrollment span.",
+      "temporalScope": "Dated span.",
+      "fields": [
+        {
+          "id": "startDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "endDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "grade",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "transferType",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "priorAgencyName",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "recordsRequestedDate",
+          "valueType": "DATE"
+        }
+      ],
+      "documentKinds": [
+        "document:transfer-records",
+        "document:enrollment-record"
+      ],
+      "ruleIds": [
+        "check:TF1",
+        "check:TF2",
+        "check:TF3",
+        "check:T2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.323-e",
+        "AUTH-CFR-300.323-g",
+        "AUTH-CFR-300.301-d-2"
+      ]
+    },
+    {
+      "id": "entity:referral",
+      "label": "Referral / request for evaluation",
+      "group": "B. Referral and concerns",
+      "purpose": "The request that starts an initial evaluation or reevaluation.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "date + requester"
+      ],
+      "instanceBoundary": "One per request.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "requestDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "requestedBy",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "requestType",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "suspectedAreas",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "writtenRequest",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:referral-or-request-for-evaluation"
+      ],
+      "ruleIds": [
+        "check:E1",
+        "check:E11",
+        "check:RV1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.301-b",
+        "AUTH-CFR-300.303-a"
+      ]
+    },
+    {
+      "id": "entity:concern",
+      "label": "Concern",
+      "group": "B. Referral and concerns",
+      "purpose": "A concern raised by a parent, teacher or the student, as written. Starts Chain 1 and Chain 7.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "source + text"
+      ],
+      "instanceBoundary": "One per distinct concern statement; same concern repeated in several documents is linked, not merged, unless the text matches.",
+      "temporalScope": "Dated by its document.",
+      "fields": [
+        {
+          "id": "concernText",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "raisedBy",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "domain",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "raisedDate",
+          "valueType": "DATE"
+        }
+      ],
+      "documentKinds": [
+        "document:parent-input-record",
+        "document:referral-or-request-for-evaluation",
+        "document:meeting-notes",
+        "document:parent-communication"
+      ],
+      "ruleIds": [
+        "check:P3",
+        "check:E1",
+        "check:PP1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-i-ii",
+        "AUTH-CFR-300.304-c-4"
+      ]
+    },
+    {
+      "id": "entity:intervention",
+      "label": "Pre-referral or general-education intervention",
+      "group": "B. Referral and concerns",
+      "purpose": "Instruction or intervention provided before/during referral (RTI/MTSS).",
+      "factClass": "DELIVERY_RECORD",
+      "identityKeys": [
+        "name + start date"
+      ],
+      "instanceBoundary": "One per intervention period.",
+      "temporalScope": "Dated span.",
+      "fields": [
+        {
+          "id": "name",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "startDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "endDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "frequencyAsWritten",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "providerRole",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "dataSharedWithParentDate",
+          "valueType": "DATE"
+        }
+      ],
+      "documentKinds": [
+        "document:intervention-response-to-intervention-data"
+      ],
+      "ruleIds": [
+        "check:E5",
+        "check:E9"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.309-b-1",
+        "AUTH-CFR-300.309-b-2",
+        "AUTH-CFR-300.311-a-7"
+      ]
+    },
+    {
+      "id": "entity:consent",
+      "label": "Consent event",
+      "group": "C. Evaluation",
+      "purpose": "A parent's consent, refusal or revocation for a specific activity. Type is essential: evaluation consent is not service consent.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "activity type + signature date"
+      ],
+      "instanceBoundary": "One per consent document per activity; evaluation, reevaluation, initial-services and revocation are separate instances.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "activityType",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "decision",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "signedDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "receivedDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "scopeAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:signed-consent-to-evaluate",
+        "document:consent-for-services",
+        "document:consent-to-reevaluate",
+        "document:revocation-of-consent"
+      ],
+      "ruleIds": [
+        "check:T1",
+        "check:T7",
+        "check:RV2",
+        "calculation:C1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-a-1-i",
+        "AUTH-CFR-300.300-a-1-ii",
+        "AUTH-CFR-300.300-b-1",
+        "AUTH-CFR-300.300-c-1",
+        "AUTH-CFR-300.9-a"
+      ]
+    },
+    {
+      "id": "entity:evaluation",
+      "label": "Evaluation (initial or reevaluation)",
+      "group": "C. Evaluation",
+      "purpose": "One evaluation process covering several assessments; holds the completion date used for timelines.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "type + completion date"
+      ],
+      "instanceBoundary": "One per evaluation cycle; a reevaluation is a new instance.",
+      "temporalScope": "Dated span from first assessment to completion.",
+      "fields": [
+        {
+          "id": "evaluationType",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "startDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "completionDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "reviewOfExistingDataDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "noAdditionalDataDecision",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "exceptionAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:evaluation-report",
+        "document:review-of-existing-data"
+      ],
+      "ruleIds": [
+        "check:T2",
+        "check:E1",
+        "check:E10",
+        "check:RV1",
+        "check:RV3",
+        "calculation:C1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-i",
+        "AUTH-CFR-300.303-b-2",
+        "AUTH-CFR-300.305-a-1"
+      ]
+    },
+    {
+      "id": "entity:evaluation-report",
+      "label": "Evaluation report",
+      "group": "C. Evaluation",
+      "purpose": "A written report by one evaluator or discipline (psychoeducational, speech-language, OT, FBA, private/IEE).",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "author/discipline + report date"
+      ],
+      "instanceBoundary": "One per report document; a private evaluation or IEE is its own instance with isIndependent=true.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "discipline",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "reportDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "evaluatorRole",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "isIndependent",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "providedToParentDate",
+          "valueType": "DATE"
+        }
+      ],
+      "documentKinds": [
+        "document:evaluation-report",
+        "document:private-evaluations",
+        "document:iee-report"
+      ],
+      "ruleIds": [
+        "check:E8",
+        "check:IE2",
+        "check:S3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.306-a-2",
+        "AUTH-CFR-300.502-c"
+      ]
+    },
+    {
+      "id": "entity:assessment-administration",
+      "label": "Assessment administration",
+      "group": "C. Evaluation",
+      "purpose": "One administration of one instrument (or subtest battery) on one date.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "instrument name + form + date"
+      ],
+      "instanceBoundary": "One per instrument per date. Same instrument on two dates = two instances.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "instrumentName",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "instrumentForm",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "administrationDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "examinerRole",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "language",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "standardConditions",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "conditionsNote",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:evaluation-report"
+      ],
+      "ruleIds": [
+        "check:E1",
+        "check:P2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.304-c-1-iii",
+        "AUTH-CFR-300.304-c-1-v"
+      ]
+    },
+    {
+      "id": "entity:assessment-score",
+      "label": "Assessment score",
+      "group": "C. Evaluation",
+      "purpose": "A single reported score. Measured value; never mixed with interpretation. Comparable only with same instrument, subtest, score type and norm basis.",
+      "factClass": "MEASURED_VALUE",
+      "identityKeys": [
+        "administration + subtest/composite + score type"
+      ],
+      "instanceBoundary": "One per (administration, subtest, scoreType).",
+      "temporalScope": "Inherits administration date.",
+      "fields": [
+        {
+          "id": "subtestOrComposite",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "scoreType",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "value",
+          "valueType": "NUMBER",
+          "required": true
+        },
+        {
+          "id": "scaleMean",
+          "valueType": "NUMBER"
+        },
+        {
+          "id": "scaleSD",
+          "valueType": "NUMBER"
+        },
+        {
+          "id": "percentileRank",
+          "valueType": "NUMBER"
+        },
+        {
+          "id": "confidenceInterval",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "normBasis",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "descriptorAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:evaluation-report",
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:P2",
+        "calculation:C6",
+        "calculation:C8"
+      ],
+      "authorityIds": [
+        "AUTH-PROF-STANDARD-SCORE-SCALES",
+        "AUTH-AP-SCORE-CONSISTENCY"
+      ]
+    },
+    {
+      "id": "entity:observation",
+      "label": "Observation",
+      "group": "C. Evaluation",
+      "purpose": "A documented observation of the student (classroom or other setting).",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "observer + date + setting"
+      ],
+      "instanceBoundary": "One per observation session.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "observationDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "observerRole",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "setting",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "beforeReferral",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "findingsText",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:classroom-observation"
+      ],
+      "ruleIds": [
+        "check:E6"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.310-a",
+        "AUTH-CFR-300.310-b"
+      ]
+    },
+    {
+      "id": "entity:input-statement",
+      "label": "Parent or teacher input",
+      "group": "C. Evaluation",
+      "purpose": "Input gathered from parent/teacher (interview, questionnaire, rating scale narrative).",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "source + date"
+      ],
+      "instanceBoundary": "One per input instance.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "source",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "inputDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "method",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "summaryAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:parent-input-record",
+        "document:evaluation-report"
+      ],
+      "ruleIds": [
+        "check:E1",
+        "check:P3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.304-b-1",
+        "AUTH-CFR-300.306-c-1-i"
+      ]
+    },
+    {
+      "id": "entity:evaluation-finding",
+      "label": "Evaluation finding / identified need",
+      "group": "C. Evaluation",
+      "purpose": "A professional interpretation in an evaluation: an identified need or area of difficulty. Start of Chain 2.",
+      "factClass": "PROFESSIONAL_INTERPRETATION",
+      "identityKeys": [
+        "report + finding text"
+      ],
+      "instanceBoundary": "One per distinct finding statement.",
+      "temporalScope": "Dated by report.",
+      "fields": [
+        {
+          "id": "findingText",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "domain",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "isNeed",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:evaluation-report"
+      ],
+      "ruleIds": [
+        "check:G1",
+        "check:P1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.304-c-6",
+        "AUTH-CFR-300.324-a-1-iv"
+      ]
+    },
+    {
+      "id": "entity:evaluation-recommendation",
+      "label": "Evaluation recommendation",
+      "group": "C. Evaluation",
+      "purpose": "A recommendation in an evaluation report (service, accommodation, goal area, setting). Start of Chain 3.",
+      "factClass": "PROFESSIONAL_INTERPRETATION",
+      "identityKeys": [
+        "report + recommendation text"
+      ],
+      "instanceBoundary": "One per distinct recommendation.",
+      "temporalScope": "Dated by report.",
+      "fields": [
+        {
+          "id": "recommendationText",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "recommendationType",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "domain",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "quantityAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:evaluation-report",
+        "document:private-evaluations"
+      ],
+      "ruleIds": [
+        "check:S3",
+        "check:IE2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii",
+        "AUTH-CFR-300.502-c"
+      ]
+    },
+    {
+      "id": "entity:eligibility-determination",
+      "label": "Eligibility determination",
+      "group": "D. Eligibility",
+      "purpose": "The group's decision on disability category and need for special education.",
+      "factClass": "TEAM_DECISION",
+      "identityKeys": [
+        "determination date"
+      ],
+      "instanceBoundary": "One per determination (initial or at reevaluation).",
+      "temporalScope": "Dated; superseded by later determination.",
+      "fields": [
+        {
+          "id": "determinationDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "eligible",
+          "valueType": "BOOLEAN",
+          "required": true
+        },
+        {
+          "id": "category",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "secondaryCategory",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "needsSpecialEducation",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "determinantFactorStatement",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "sldMethod",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "parentParticipated",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:eligibility-determination"
+      ],
+      "ruleIds": [
+        "check:E2",
+        "check:E3",
+        "check:E4",
+        "check:E9",
+        "check:T3",
+        "calculation:C2",
+        "calculation:C7b"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.306-a-1",
+        "AUTH-CFR-300.306-b-1",
+        "AUTH-CFR-300.309-a-2"
+      ]
+    },
+    {
+      "id": "entity:exclusionary-review",
+      "label": "Exclusionary-factor review",
+      "group": "D. Eligibility",
+      "purpose": "Documented consideration of factors that must not be the primary cause (SLD) or determinant factor (all categories).",
+      "factClass": "TEAM_DECISION",
+      "identityKeys": [
+        "determination + factor"
+      ],
+      "instanceBoundary": "One per factor considered.",
+      "temporalScope": "Dated by determination.",
+      "fields": [
+        {
+          "id": "factor",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "conclusionAsWritten",
+          "valueType": "TEXT",
+          "required": true
+        }
+      ],
+      "documentKinds": [
+        "document:exclusionary-factors-review-learning-disability",
+        "document:eligibility-determination"
+      ],
+      "ruleIds": [
+        "check:E3",
+        "check:E4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.309-a-3",
+        "AUTH-CFR-300.306-b-1"
+      ]
+    },
+    {
+      "id": "entity:member-certification",
+      "label": "Team member certification (SLD)",
+      "group": "D. Eligibility",
+      "purpose": "Each member's written agreement or dissent with the SLD report.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "member + date"
+      ],
+      "instanceBoundary": "One per member.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "memberRole",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "agrees",
+          "valueType": "BOOLEAN",
+          "required": true
+        },
+        {
+          "id": "separateStatementAttached",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:eligibility-determination"
+      ],
+      "ruleIds": [
+        "check:E7"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.311-b"
+      ]
+    },
+    {
+      "id": "entity:iep",
+      "label": "IEP document version",
+      "group": "E. IEP development",
+      "purpose": "One IEP document (initial, annual, amended copy, or draft). Versions form Chain 6.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "meeting date + effective start + status"
+      ],
+      "instanceBoundary": "One per distinct document version; a draft and a final with the same date are two instances.",
+      "temporalScope": "Effective span start-end.",
+      "fields": [
+        {
+          "id": "iepType",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "status",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "meetingDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "effectiveStartDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "effectiveEndDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "annualReviewDueDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "reevaluationDueDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "parentConcernsText",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "strengthsText",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep",
+        "document:iep-amendment",
+        "document:prior-iep",
+        "document:draft-iep"
+      ],
+      "ruleIds": [
+        "check:T0",
+        "check:T0a",
+        "check:T3",
+        "check:P3",
+        "check:F1",
+        "calculation:C2",
+        "calculation:C7a",
+        "calculation:C10"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-b-1-i",
+        "AUTH-CFR-300.323-a",
+        "AUTH-CFR-300.320-a-1-i"
+      ]
+    },
+    {
+      "id": "entity:iep-meeting",
+      "label": "IEP Team meeting",
+      "group": "E. IEP development",
+      "purpose": "A meeting at which the IEP was developed, reviewed or revised.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "meeting date"
+      ],
+      "instanceBoundary": "One per meeting.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "meetingDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "purpose",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "parentAttended",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "attendanceMethod",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "interpreterProvided",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:meeting-notes",
+        "document:meeting-notice-attendance-page-any-excusal-forms"
+      ],
+      "ruleIds": [
+        "check:T3",
+        "check:T4",
+        "check:M1",
+        "check:PP2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.322-a-1",
+        "AUTH-CFR-300.321-a-1-5"
+      ]
+    },
+    {
+      "id": "entity:meeting-notice",
+      "label": "Meeting notice",
+      "group": "E. IEP development",
+      "purpose": "Written notice of an IEP meeting.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "notice date"
+      ],
+      "instanceBoundary": "One per notice.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "noticeDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "statedPurpose",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "statedTime",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "statedLocation",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "listedAttendees",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "mentionsTransition",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "mentionsInviteOthersRight",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:meeting-notice-attendance-page-any-excusal-forms"
+      ],
+      "ruleIds": [
+        "check:T4",
+        "check:TR2",
+        "calculation:C17"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.322-b-1-i",
+        "AUTH-CFR-300.322-b-2"
+      ]
+    },
+    {
+      "id": "entity:meeting-participant",
+      "label": "Meeting participant / excusal",
+      "group": "E. IEP development",
+      "purpose": "A person and role at a meeting, or their written excusal.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "meeting + role + name"
+      ],
+      "instanceBoundary": "One per person per meeting.",
+      "temporalScope": "Dated by meeting.",
+      "fields": [
+        {
+          "id": "role",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "name",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "attended",
+          "valueType": "BOOLEAN",
+          "required": true
+        },
+        {
+          "id": "excusedInWriting",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "writtenInputSubmitted",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:meeting-notice-attendance-page-any-excusal-forms"
+      ],
+      "ruleIds": [
+        "check:M1",
+        "check:M2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.321-a-1-5",
+        "AUTH-CFR-300.321-e-2"
+      ]
+    },
+    {
+      "id": "entity:present-level",
+      "label": "Present level statement",
+      "group": "E. IEP development",
+      "purpose": "A present-levels statement for one area, possibly citing scores.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "IEP + area"
+      ],
+      "instanceBoundary": "One per area per IEP version.",
+      "temporalScope": "Dated by IEP.",
+      "fields": [
+        {
+          "id": "area",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "statementText",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "impactOnGeneralCurriculum",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "citesScore",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:P1",
+        "check:P2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-1-i"
+      ]
+    },
+    {
+      "id": "entity:annual-goal",
+      "label": "Annual goal",
+      "group": "E. IEP development",
+      "purpose": "One measurable annual goal in one IEP version.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "IEP + goal number/text"
+      ],
+      "instanceBoundary": "One per goal per IEP version; a revised goal in an amendment is a new instance linked by supersedes.",
+      "temporalScope": "Goal date bounded by IEP span.",
+      "fields": [
+        {
+          "id": "goalText",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "area",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "baselineValue",
+          "valueType": "NUMBER"
+        },
+        {
+          "id": "baselineUnit",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "baselineDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "targetValue",
+          "valueType": "NUMBER"
+        },
+        {
+          "id": "targetUnit",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "goalDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "measurementMethod",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "masteryCriterion",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "isFunctional",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:G1",
+        "check:G2",
+        "check:G2a",
+        "check:G3",
+        "calculation:C4",
+        "calculation:C9",
+        "calculation:C11"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-2-i",
+        "AUTH-CFR-300.320-a-3-i",
+        "AUTH-AP-GOAL-FIVE-FIELD-RUBRIC"
+      ]
+    },
+    {
+      "id": "entity:short-term-objective",
+      "label": "Benchmark / short-term objective",
+      "group": "E. IEP development",
+      "purpose": "Intermediate step under a goal; required for alternate-assessment students.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "goal + objective number"
+      ],
+      "instanceBoundary": "One per objective.",
+      "temporalScope": "Dated by goal.",
+      "fields": [
+        {
+          "id": "objectiveText",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "targetDate",
+          "valueType": "DATE"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:G5"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-2-ii"
+      ]
+    },
+    {
+      "id": "entity:progress-reporting-plan",
+      "label": "Progress measurement and reporting plan",
+      "group": "E. IEP development",
+      "purpose": "How and when progress is reported to parents.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "IEP"
+      ],
+      "instanceBoundary": "One per IEP version (or per goal if stated per goal).",
+      "temporalScope": "IEP span.",
+      "fields": [
+        {
+          "id": "reportingFrequencyAsWritten",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "reportsPerYear",
+          "valueType": "NUMBER"
+        },
+        {
+          "id": "reportingMethod",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:G4",
+        "calculation:C18"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "questionIds": [
+        "question:SQ3"
+      ]
+    },
+    {
+      "id": "entity:service",
+      "label": "Service / support provision",
+      "group": "F. Services and supports",
+      "purpose": "A special education service, related service, supplementary aid, program modification or personnel support in one IEP version.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "IEP + service name + provider role"
+      ],
+      "instanceBoundary": "One per service line per IEP version.",
+      "temporalScope": "Start date to end date within IEP span.",
+      "fields": [
+        {
+          "id": "serviceCategory",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "serviceName",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "startDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "endDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "frequencyAsWritten",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "minutesPerSession",
+          "valueType": "QUANTITY",
+          "unit": "minutes"
+        },
+        {
+          "id": "sessionsPerPeriod",
+          "valueType": "NUMBER"
+        },
+        {
+          "id": "period",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "minutesPerWeek",
+          "valueType": "QUANTITY",
+          "unit": "minutes/week"
+        },
+        {
+          "id": "location",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "setting",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "providerRole",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "methodologyAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:S1",
+        "check:S2",
+        "check:S4",
+        "check:T8",
+        "check:L1",
+        "calculation:C3",
+        "calculation:C5",
+        "calculation:C13"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-4",
+        "AUTH-CFR-300.320-a-7",
+        "AUTH-CFR-300.34-a"
+      ]
+    },
+    {
+      "id": "entity:accommodation",
+      "label": "Accommodation or modification",
+      "group": "F. Services and supports",
+      "purpose": "A classroom or testing accommodation or a modification.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "IEP + text"
+      ],
+      "instanceBoundary": "One per item per IEP version.",
+      "temporalScope": "IEP span.",
+      "fields": [
+        {
+          "id": "text",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "context",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "isModification",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "frequencyAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:A1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-6-i",
+        "AUTH-CFR-300.320-a-4"
+      ],
+      "questionIds": [
+        "question:SQ4"
+      ]
+    },
+    {
+      "id": "entity:assistive-technology",
+      "label": "Assistive technology device or service",
+      "group": "F. Services and supports",
+      "purpose": "AT considered or provided.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "IEP + device/service"
+      ],
+      "instanceBoundary": "One per item.",
+      "temporalScope": "IEP span.",
+      "fields": [
+        {
+          "id": "itemText",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "considered",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "provided",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:iep",
+        "document:at-evaluation"
+      ],
+      "ruleIds": [
+        "check:AT1",
+        "check:A2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ]
+    },
+    {
+      "id": "entity:placement",
+      "label": "Educational placement / LRE statement",
+      "group": "G. Placement and participation",
+      "purpose": "Setting decision and the explanation of non-participation with nondisabled peers.",
+      "factClass": "TEAM_DECISION",
+      "identityKeys": [
+        "IEP"
+      ],
+      "instanceBoundary": "One per IEP version.",
+      "temporalScope": "IEP span.",
+      "fields": [
+        {
+          "id": "settingAsWritten",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "percentInRegularClass",
+          "valueType": "NUMBER"
+        },
+        {
+          "id": "minutesOutsideGeneralEducation",
+          "valueType": "QUANTITY",
+          "unit": "minutes/week"
+        },
+        {
+          "id": "removalExplanation",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "closestToHomeStatement",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep",
+        "document:prior-written-notice-for-evaluation-eligibility-and-placement"
+      ],
+      "ruleIds": [
+        "check:L1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-5",
+        "AUTH-CFR-300.114-a-2-ii",
+        "AUTH-CFR-300.116-b"
+      ]
+    },
+    {
+      "id": "entity:assessment-participation",
+      "label": "State/district assessment participation",
+      "group": "G. Placement and participation",
+      "purpose": "Regular vs alternate assessment and testing accommodations.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "IEP + assessment"
+      ],
+      "instanceBoundary": "One per assessment named.",
+      "temporalScope": "IEP span.",
+      "fields": [
+        {
+          "id": "assessmentName",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "participationType",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "alternateJustification",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:A1",
+        "check:A5"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-6-i",
+        "AUTH-CFR-300.320-a-6-ii"
+      ]
+    },
+    {
+      "id": "entity:special-factor",
+      "label": "Special factor consideration",
+      "group": "G. Placement and participation",
+      "purpose": "Team consideration of behavior, English proficiency, Braille, communication, AT.",
+      "factClass": "TEAM_DECISION",
+      "identityKeys": [
+        "IEP + factor"
+      ],
+      "instanceBoundary": "One per factor per IEP.",
+      "temporalScope": "IEP span.",
+      "fields": [
+        {
+          "id": "factor",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "consideredStatement",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "needIdentified",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:A2",
+        "check:BH1",
+        "check:AT1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ]
+    },
+    {
+      "id": "entity:esy-determination",
+      "label": "Extended school year determination",
+      "group": "G. Placement and participation",
+      "purpose": "IEP Team's individual ESY decision.",
+      "factClass": "TEAM_DECISION",
+      "identityKeys": [
+        "IEP"
+      ],
+      "instanceBoundary": "One per IEP version (or per decision date).",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "decisionAsWritten",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "decisionDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "esyServicesText",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:A3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.106-a-2"
+      ]
+    },
+    {
+      "id": "entity:transition-plan",
+      "label": "Transition plan",
+      "group": "J. Specialized planning",
+      "purpose": "Measurable postsecondary goals and transition services.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "IEP"
+      ],
+      "instanceBoundary": "One per IEP version.",
+      "temporalScope": "IEP span.",
+      "fields": [
+        {
+          "id": "postsecondaryEducationGoal",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "employmentGoal",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "independentLivingGoal",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "transitionAssessmentsAsWritten",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "transitionServicesText",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "courseOfStudy",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "studentInvited",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "agencyInvited",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iep",
+        "document:transition-assessment"
+      ],
+      "ruleIds": [
+        "check:A4",
+        "check:TR1",
+        "check:TR2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-b",
+        "AUTH-CFR-300.321-b"
+      ]
+    },
+    {
+      "id": "entity:age-of-majority-notice",
+      "label": "Age-of-majority statement",
+      "group": "J. Specialized planning",
+      "purpose": "IEP statement that the student was informed of rights transferring.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "IEP"
+      ],
+      "instanceBoundary": "One per IEP.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "statementText",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "informedDate",
+          "valueType": "DATE"
+        }
+      ],
+      "documentKinds": [
+        "document:iep"
+      ],
+      "ruleIds": [
+        "check:TR3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-c",
+        "AUTH-CFR-300.520-a"
+      ]
+    },
+    {
+      "id": "entity:progress-report",
+      "label": "Progress report",
+      "group": "H. Progress",
+      "purpose": "A periodic report on progress toward goals.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "report date + reporting period"
+      ],
+      "instanceBoundary": "One per report document.",
+      "temporalScope": "Covers a reporting period.",
+      "fields": [
+        {
+          "id": "reportDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "periodStart",
+          "valueType": "DATE"
+        },
+        {
+          "id": "periodEnd",
+          "valueType": "DATE"
+        },
+        {
+          "id": "providedToParentDate",
+          "valueType": "DATE"
+        }
+      ],
+      "documentKinds": [
+        "document:progress-reports"
+      ],
+      "ruleIds": [
+        "check:G4",
+        "check:PR1",
+        "check:PR2",
+        "calculation:C18"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-ii"
+      ]
+    },
+    {
+      "id": "entity:progress-measurement",
+      "label": "Progress data point",
+      "group": "H. Progress",
+      "purpose": "One measured value for one goal on one date.",
+      "factClass": "MEASURED_VALUE",
+      "identityKeys": [
+        "goal + date + measure"
+      ],
+      "instanceBoundary": "One per goal per date per measure.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "measurementDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "value",
+          "valueType": "NUMBER",
+          "required": true
+        },
+        {
+          "id": "unit",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "measureName",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "statusDescriptor",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:progress-reports",
+        "document:progress-monitoring-data"
+      ],
+      "ruleIds": [
+        "check:PR1",
+        "check:PR3",
+        "calculation:C11",
+        "calculation:C12"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-i",
+        "AUTH-CFR-300.324-b-1-ii"
+      ]
+    },
+    {
+      "id": "entity:service-delivery-record",
+      "label": "Service delivery record",
+      "group": "H. Progress",
+      "purpose": "A logged session or period of delivered service.",
+      "factClass": "DELIVERY_RECORD",
+      "identityKeys": [
+        "service + date"
+      ],
+      "instanceBoundary": "One per logged session or period.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "deliveryDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "minutesDelivered",
+          "valueType": "QUANTITY",
+          "unit": "minutes"
+        },
+        {
+          "id": "missedReason",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:service-logs"
+      ],
+      "ruleIds": [
+        "check:IM1",
+        "calculation:C13"
+      ],
+      "authorityIds": [
+        "AUTH-AP-SERVICE-LOGS"
+      ]
+    },
+    {
+      "id": "entity:prior-written-notice",
+      "label": "Prior written notice",
+      "group": "I. Procedural records",
+      "purpose": "Agency notice of a proposal or refusal.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "notice date + action"
+      ],
+      "instanceBoundary": "One per notice.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "noticeDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "actionType",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "proposedOrRefused",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "actionDescription",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "reasons",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "recordsRelied",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "optionsRejected",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "safeguardsStatement",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:prior-written-notice-for-evaluation-eligibility-and-placement"
+      ],
+      "ruleIds": [
+        "check:T5",
+        "check:T5a",
+        "check:S3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.503-a",
+        "AUTH-CFR-300.503-b-1-7"
+      ]
+    },
+    {
+      "id": "entity:safeguards-notice",
+      "label": "Procedural safeguards notice provision",
+      "group": "I. Procedural records",
+      "purpose": "Record that the safeguards notice was given.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "date + occasion"
+      ],
+      "instanceBoundary": "One per provision.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "providedDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "occasion",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:procedural-safeguards-notice"
+      ],
+      "ruleIds": [
+        "check:T6"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.504-a"
+      ]
+    },
+    {
+      "id": "entity:document-provision",
+      "label": "Copy provided to parent",
+      "group": "I. Procedural records",
+      "purpose": "Record that a copy of the IEP or evaluation report was given to the parent.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "document + date"
+      ],
+      "instanceBoundary": "One per provision.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "documentProvided",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "providedDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "atNoCostStatement",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:iep",
+        "document:evaluation-report"
+      ],
+      "ruleIds": [
+        "check:T9",
+        "check:E8"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.322-f",
+        "AUTH-CFR-300.306-a-2"
+      ]
+    },
+    {
+      "id": "entity:parent-communication",
+      "label": "Parent communication",
+      "group": "I. Procedural records",
+      "purpose": "Letter, email or call log between parent and school.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "date + sender + medium"
+      ],
+      "instanceBoundary": "One per communication.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "sentDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "sender",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "medium",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "subjectAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:parent-communication"
+      ],
+      "ruleIds": [
+        "check:PP1",
+        "check:PP2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.322-d"
+      ]
+    },
+    {
+      "id": "entity:iee-request",
+      "label": "Independent educational evaluation request",
+      "group": "I. Procedural records",
+      "purpose": "A parent's IEE request and the agency response.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "request date"
+      ],
+      "instanceBoundary": "One per request.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "requestDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "disagreedEvaluation",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "agencyResponseDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "agencyResponse",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:iee-request"
+      ],
+      "ruleIds": [
+        "check:IE1",
+        "calculation:C20"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.502-b-1-2"
+      ]
+    },
+    {
+      "id": "entity:records-request",
+      "label": "Records request",
+      "group": "I. Procedural records",
+      "purpose": "A parent request to inspect/review records.",
+      "factClass": "PROCEDURAL_EVENT",
+      "identityKeys": [
+        "request date"
+      ],
+      "instanceBoundary": "One per request.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "requestDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "responseDate",
+          "valueType": "DATE"
+        },
+        {
+          "id": "scopeAsWritten",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:records-request"
+      ],
+      "ruleIds": [
+        "check:RA1",
+        "calculation:C14"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.613-a"
+      ]
+    },
+    {
+      "id": "entity:amendment",
+      "label": "IEP amendment",
+      "group": "I. Procedural records",
+      "purpose": "A change between annual reviews, by meeting or written agreement.",
+      "factClass": "TEAM_DECISION",
+      "identityKeys": [
+        "amendment date"
+      ],
+      "instanceBoundary": "One per amendment.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "amendmentDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "method",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "writtenAgreement",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "changesAsWritten",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "teamInformed",
+          "valueType": "BOOLEAN"
+        },
+        {
+          "id": "revisedCopyProvided",
+          "valueType": "BOOLEAN"
+        }
+      ],
+      "documentKinds": [
+        "document:iep-amendment"
+      ],
+      "ruleIds": [
+        "check:AM1",
+        "check:AM2",
+        "check:AM3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-4",
+        "AUTH-CFR-300.324-a-6"
+      ]
+    },
+    {
+      "id": "entity:disagreement",
+      "label": "Documented disagreement",
+      "group": "I. Procedural records",
+      "purpose": "A recorded disagreement by a parent or team member.",
+      "factClass": "DOCUMENTED_STATEMENT",
+      "identityKeys": [
+        "date + party + subject"
+      ],
+      "instanceBoundary": "One per statement.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "statedBy",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "subject",
+          "valueType": "TEXT",
+          "required": true
+        },
+        {
+          "id": "statementDate",
+          "valueType": "DATE"
+        }
+      ],
+      "documentKinds": [
+        "document:meeting-notes",
+        "document:parent-communication",
+        "document:eligibility-determination"
+      ],
+      "ruleIds": [
+        "check:PP1",
+        "check:E7"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.311-b"
+      ]
+    },
+    {
+      "id": "entity:behavior-assessment",
+      "label": "Functional behavior assessment",
+      "group": "J. Specialized planning",
+      "purpose": "An FBA (where conducted).",
+      "factClass": "PROFESSIONAL_INTERPRETATION",
+      "identityKeys": [
+        "date"
+      ],
+      "instanceBoundary": "One per FBA.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "completionDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "targetBehavior",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "hypothesizedFunction",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:fba-report"
+      ],
+      "ruleIds": [
+        "check:BH1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ]
+    },
+    {
+      "id": "entity:behavior-plan",
+      "label": "Behavior intervention plan",
+      "group": "J. Specialized planning",
+      "purpose": "A BIP or positive behavior supports in the IEP.",
+      "factClass": "PLAN_PROVISION",
+      "identityKeys": [
+        "date"
+      ],
+      "instanceBoundary": "One per plan version.",
+      "temporalScope": "Dated.",
+      "fields": [
+        {
+          "id": "planDate",
+          "valueType": "DATE",
+          "required": true
+        },
+        {
+          "id": "targetBehavior",
+          "valueType": "TEXT"
+        },
+        {
+          "id": "strategiesText",
+          "valueType": "TEXT"
+        }
+      ],
+      "documentKinds": [
+        "document:bip"
+      ],
+      "ruleIds": [
+        "check:BH1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "relationship:concern-addressed-by-referral",
+      "label": "Concern is part of referral",
+      "fromEntityId": "entity:concern",
+      "toEntityId": "entity:referral",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Referral text names the concern, or concern appears in the referral document.",
+      "chains": [
+        "CH1"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:referral-assessed-by-evaluation",
+      "label": "Referral leads to evaluation",
+      "fromEntityId": "entity:referral",
+      "toEntityId": "entity:evaluation",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Evaluation report or consent references the referral/request.",
+      "chains": [
+        "CH1",
+        "CH4"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:concern-assessed-by-administration",
+      "label": "Concern area covered by an assessment",
+      "fromEntityId": "entity:concern",
+      "toEntityId": "entity:assessment-administration",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "Evaluation report states the assessment addresses the concern/area; similar wording alone is not evidence.",
+      "chains": [
+        "CH1"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:administration-yields-score",
+      "label": "Administration produced score",
+      "fromEntityId": "entity:assessment-administration",
+      "toEntityId": "entity:assessment-score",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Score appears in the same report table/section as the administration.",
+      "chains": [
+        "CH1",
+        "CH5"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:score-supports-finding",
+      "label": "Score cited for finding",
+      "fromEntityId": "entity:assessment-score",
+      "toEntityId": "entity:evaluation-finding",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "Finding text cites the score/instrument.",
+      "chains": [
+        "CH1"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:evaluation-contains-report",
+      "label": "Evaluation includes report",
+      "fromEntityId": "entity:evaluation",
+      "toEntityId": "entity:evaluation-report",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Report is part of the evaluation cycle (dates/ref).",
+      "chains": [
+        "CH1",
+        "CH4"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:consent-authorizes-evaluation",
+      "label": "Consent authorizes evaluation",
+      "fromEntityId": "entity:consent",
+      "toEntityId": "entity:evaluation",
+      "evidenceRequired": true,
+      "cardinality": "1:1",
+      "evidenceForLink": "Consent document names the evaluation; dates consistent.",
+      "chains": [
+        "CH4"
+      ],
+      "note": "Used by C1."
+    },
+    {
+      "id": "relationship:finding-informs-present-level",
+      "label": "Finding reflected in present level",
+      "fromEntityId": "entity:evaluation-finding",
+      "toEntityId": "entity:present-level",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "Present-level text cites the evaluation/finding.",
+      "chains": [
+        "CH2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:present-level-grounds-goal",
+      "label": "Present level is baseline for goal",
+      "fromEntityId": "entity:present-level",
+      "toEntityId": "entity:annual-goal",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "Goal is in the same area and cites/quotes the present-level baseline.",
+      "chains": [
+        "CH2",
+        "CH5"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:goal-delivered-by-service",
+      "label": "Service works on goal",
+      "fromEntityId": "entity:annual-goal",
+      "toEntityId": "entity:service",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "IEP links the goal number/area to the service line.",
+      "chains": [
+        "CH2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:goal-measured-by-progress",
+      "label": "Data point measures goal",
+      "fromEntityId": "entity:annual-goal",
+      "toEntityId": "entity:progress-measurement",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Progress report lists the value under this goal.",
+      "chains": [
+        "CH2",
+        "CH5"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:recommendation-adopted-as-service",
+      "label": "Recommendation reflected as service",
+      "fromEntityId": "entity:evaluation-recommendation",
+      "toEntityId": "entity:service",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "IEP service matches the recommendation and the record links them (same provider type and purpose, or explicit reference).",
+      "chains": [
+        "CH3"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:recommendation-adopted-as-accommodation",
+      "label": "Recommendation reflected as accommodation",
+      "fromEntityId": "entity:evaluation-recommendation",
+      "toEntityId": "entity:accommodation",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "Same as above.",
+      "chains": [
+        "CH3"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:recommendation-adopted-as-goal",
+      "label": "Recommendation reflected as goal",
+      "fromEntityId": "entity:evaluation-recommendation",
+      "toEntityId": "entity:annual-goal",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "Same as above.",
+      "chains": [
+        "CH3"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:recommendation-addressed-by-pwn",
+      "label": "Refusal/decision on recommendation explained",
+      "fromEntityId": "entity:evaluation-recommendation",
+      "toEntityId": "entity:prior-written-notice",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "PWN names the recommendation or the refused action.",
+      "chains": [
+        "CH3",
+        "CH7"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:report-contains-recommendation",
+      "label": "Report makes recommendation",
+      "fromEntityId": "entity:evaluation-report",
+      "toEntityId": "entity:evaluation-recommendation",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Recommendation appears in the report.",
+      "chains": [
+        "CH3"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:report-contains-finding",
+      "label": "Report states finding",
+      "fromEntityId": "entity:evaluation-report",
+      "toEntityId": "entity:evaluation-finding",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Finding appears in the report.",
+      "chains": [
+        "CH1",
+        "CH2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:evaluation-supports-eligibility",
+      "label": "Evaluation basis for eligibility",
+      "fromEntityId": "entity:evaluation",
+      "toEntityId": "entity:eligibility-determination",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Eligibility document cites the evaluation.",
+      "chains": [
+        "CH4"
+      ],
+      "note": "Used by C1/C2 chronology."
+    },
+    {
+      "id": "relationship:eligibility-precedes-iep",
+      "label": "Eligibility leads to IEP",
+      "fromEntityId": "entity:eligibility-determination",
+      "toEntityId": "entity:iep",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "IEP references eligibility/category; dates consistent.",
+      "chains": [
+        "CH4"
+      ],
+      "note": "Used by C2."
+    },
+    {
+      "id": "relationship:iep-developed-at-meeting",
+      "label": "IEP developed at meeting",
+      "fromEntityId": "entity:iep",
+      "toEntityId": "entity:iep-meeting",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "IEP meeting date field or meeting notes name the IEP.",
+      "chains": [
+        "CH4",
+        "CH6"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:notice-for-meeting",
+      "label": "Notice is for meeting",
+      "fromEntityId": "entity:meeting-notice",
+      "toEntityId": "entity:iep-meeting",
+      "evidenceRequired": true,
+      "cardinality": "1:1",
+      "evidenceForLink": "Notice date/time/purpose match the meeting.",
+      "chains": [
+        "CH4",
+        "CH7"
+      ],
+      "note": "Used by C17."
+    },
+    {
+      "id": "relationship:participant-at-meeting",
+      "label": "Participant attended/excused from meeting",
+      "fromEntityId": "entity:meeting-participant",
+      "toEntityId": "entity:iep-meeting",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Attendance/signature page of that meeting.",
+      "chains": [
+        "CH7"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:iep-contains-service",
+      "label": "IEP provides service",
+      "fromEntityId": "entity:iep",
+      "toEntityId": "entity:service",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Service appears in that IEP version.",
+      "chains": [
+        "CH2",
+        "CH6"
+      ],
+      "note": "Used by C3."
+    },
+    {
+      "id": "relationship:iep-contains-goal",
+      "label": "IEP contains goal",
+      "fromEntityId": "entity:iep",
+      "toEntityId": "entity:annual-goal",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Goal appears in that IEP version.",
+      "chains": [
+        "CH2",
+        "CH6"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:iep-contains-present-level",
+      "label": "IEP states present level",
+      "fromEntityId": "entity:iep",
+      "toEntityId": "entity:present-level",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "In that IEP version.",
+      "chains": [
+        "CH2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:iep-supersedes-iep",
+      "label": "Later version supersedes earlier",
+      "fromEntityId": "entity:iep",
+      "toEntityId": "entity:iep",
+      "evidenceRequired": true,
+      "cardinality": "1:1",
+      "evidenceForLink": "Later document states it replaces/amends the earlier one, or dates show succession with same student.",
+      "chains": [
+        "CH6"
+      ],
+      "note": "Self-relationship; DP-2 joins two different entity IDs only, so version comparison is non-executable (GAP)."
+    },
+    {
+      "id": "relationship:amendment-modifies-iep",
+      "label": "Amendment modifies IEP",
+      "fromEntityId": "entity:amendment",
+      "toEntityId": "entity:iep",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Amendment names the IEP date.",
+      "chains": [
+        "CH6"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:progress-report-reports",
+      "label": "Report contains data point",
+      "fromEntityId": "entity:progress-report",
+      "toEntityId": "entity:progress-measurement",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Value printed in that report.",
+      "chains": [
+        "CH5"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:service-delivered-record",
+      "label": "Delivery logged against service",
+      "fromEntityId": "entity:service",
+      "toEntityId": "entity:service-delivery-record",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "Log names the service/provider.",
+      "chains": [
+        "CH2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:concern-considered-in-meeting",
+      "label": "Concern considered at meeting",
+      "fromEntityId": "entity:concern",
+      "toEntityId": "entity:iep-meeting",
+      "evidenceRequired": true,
+      "cardinality": "N:N",
+      "evidenceForLink": "Meeting notes or IEP parent-concerns section records the concern.",
+      "chains": [
+        "CH7"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:meeting-results-in-pwn",
+      "label": "Meeting decision explained by PWN",
+      "fromEntityId": "entity:iep-meeting",
+      "toEntityId": "entity:prior-written-notice",
+      "evidenceRequired": true,
+      "cardinality": "1:N",
+      "evidenceForLink": "PWN dated at/after meeting and describes its decision.",
+      "chains": [
+        "CH7"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:consent-for-iep-services",
+      "label": "Initial service consent for IEP",
+      "fromEntityId": "entity:consent",
+      "toEntityId": "entity:iep",
+      "evidenceRequired": true,
+      "cardinality": "1:1",
+      "evidenceForLink": "Consent form references the IEP/services.",
+      "chains": [
+        "CH4"
+      ],
+      "note": "Second consent<->evaluation pair is a different entity pair; allowed."
+    },
+    {
+      "id": "relationship:intervention-precedes-referral",
+      "label": "Intervention data before referral",
+      "fromEntityId": "entity:intervention",
+      "toEntityId": "entity:referral",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Referral/eligibility cites the intervention data.",
+      "chains": [
+        "CH1"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:observation-supports-eligibility",
+      "label": "Observation used in eligibility",
+      "fromEntityId": "entity:observation",
+      "toEntityId": "entity:eligibility-determination",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Eligibility document cites the observation.",
+      "chains": [
+        "CH4"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:exclusion-part-of-eligibility",
+      "label": "Exclusionary review in determination",
+      "fromEntityId": "entity:exclusionary-review",
+      "toEntityId": "entity:eligibility-determination",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Same document/section.",
+      "chains": [
+        "CH4"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:certification-of-eligibility",
+      "label": "Member certification of SLD report",
+      "fromEntityId": "entity:member-certification",
+      "toEntityId": "entity:eligibility-determination",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Signature page of that determination.",
+      "chains": [
+        "CH4"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:plan-for-iep",
+      "label": "Reporting plan in IEP",
+      "fromEntityId": "entity:progress-reporting-plan",
+      "toEntityId": "entity:iep",
+      "evidenceRequired": true,
+      "cardinality": "1:1",
+      "evidenceForLink": "In that IEP.",
+      "chains": [
+        "CH2"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:placement-for-iep",
+      "label": "Placement in IEP",
+      "fromEntityId": "entity:placement",
+      "toEntityId": "entity:iep",
+      "evidenceRequired": true,
+      "cardinality": "1:1",
+      "evidenceForLink": "In that IEP.",
+      "chains": [
+        "CH6"
+      ],
+      "note": ""
+    },
+    {
+      "id": "relationship:disagreement-about-meeting",
+      "label": "Disagreement recorded at meeting",
+      "fromEntityId": "entity:disagreement",
+      "toEntityId": "entity:iep-meeting",
+      "evidenceRequired": true,
+      "cardinality": "N:1",
+      "evidenceForLink": "Meeting notes record it.",
+      "chains": [
+        "CH7"
+      ],
+      "note": ""
+    }
+  ],
+  "chains": [
+    {
+      "id": "chain:CH1",
+      "label": "Concern to assessment (v7 'Concern to testing', expanded)",
+      "links": [
+        "Concern",
+        "Suspected need / area",
+        "Assessment administered",
+        "Score",
+        "Finding",
+        "Identified educational need"
+      ],
+      "startEntity": "entity:concern",
+      "endEntity": "entity:evaluation-finding",
+      "relationshipIds": [
+        "relationship:concern-assessed-by-administration",
+        "relationship:administration-yields-score",
+        "relationship:score-supports-finding",
+        "relationship:report-contains-finding",
+        "relationship:concern-addressed-by-referral",
+        "relationship:intervention-precedes-referral"
+      ],
+      "requiredEvidence": "Each link needs its own sourced relationship fact; matching words between concern and test name are not sufficient.",
+      "commonMissingLinks": [
+        "Referral concern with no assessment in that area",
+        "Assessment with no reported score",
+        "Finding with no cited data"
+      ],
+      "possibleContradictions": [
+        "Report says area assessed but no instrument listed"
+      ],
+      "relevantChecks": [
+        "check:E1",
+        "check:E10"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.304-c-4",
+        "AUTH-CFR-300.304-c-6",
+        "AUTH-CFR-300.306-c-1-i"
+      ],
+      "investigationQuestions": [
+        "question:Q-EV-1"
+      ]
+    },
+    {
+      "id": "chain:CH2",
+      "label": "Need to progress (v7, expanded)",
+      "links": [
+        "Identified need",
+        "Present level",
+        "Annual goal",
+        "Service (minutes, setting, provider)",
+        "Progress measure",
+        "Observed progress"
+      ],
+      "startEntity": "entity:evaluation-finding",
+      "endEntity": "entity:progress-measurement",
+      "relationshipIds": [
+        "relationship:finding-informs-present-level",
+        "relationship:present-level-grounds-goal",
+        "relationship:goal-delivered-by-service",
+        "relationship:goal-measured-by-progress",
+        "relationship:iep-contains-goal",
+        "relationship:iep-contains-service"
+      ],
+      "requiredEvidence": "Sourced link for each step; a goal 'covering' a need requires the IEP to tie them (area + reference), not similarity alone.",
+      "commonMissingLinks": [
+        "Need with no goal",
+        "Goal with no service",
+        "Goal with no progress data after a reporting date has passed"
+      ],
+      "possibleContradictions": [
+        "Progress report tracks a goal that is not in the current IEP"
+      ],
+      "relevantChecks": [
+        "check:G1",
+        "check:S2",
+        "check:G4",
+        "check:PR1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-1-i",
+        "AUTH-CFR-300.320-a-2-i",
+        "AUTH-CFR-300.320-a-4",
+        "AUTH-CFR-300.320-a-3-i"
+      ],
+      "investigationQuestions": [
+        "question:Q-GL-1",
+        "question:Q-SV-1"
+      ]
+    },
+    {
+      "id": "chain:CH3",
+      "label": "Recommendation reconciliation (v7 'Recommendation to plan', expanded)",
+      "links": [
+        "Evaluation recommendation",
+        "IEP provision (service / accommodation / goal)",
+        "Implementation detail",
+        "Documented decision or PWN, or unresolved question"
+      ],
+      "startEntity": "entity:evaluation-recommendation",
+      "endEntity": "entity:prior-written-notice",
+      "relationshipIds": [
+        "relationship:report-contains-recommendation",
+        "relationship:recommendation-adopted-as-service",
+        "relationship:recommendation-adopted-as-accommodation",
+        "relationship:recommendation-adopted-as-goal",
+        "relationship:recommendation-addressed-by-pwn"
+      ],
+      "requiredEvidence": "Recommendation must be verified; 'not reflected' requires full coverage of the IEP pages (coverage record), never inferred from an unread page.",
+      "commonMissingLinks": [
+        "Recommendation with no matching provision and no recorded reason"
+      ],
+      "possibleContradictions": [
+        "Provision quantity differs from recommended quantity"
+      ],
+      "relevantChecks": [
+        "check:S3",
+        "check:IE2"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii",
+        "AUTH-CFR-300.502-c",
+        "AUTH-CFR-300.503-a"
+      ],
+      "investigationQuestions": [
+        "question:Q-SV-2"
+      ]
+    },
+    {
+      "id": "chain:CH4",
+      "label": "Procedural chronology (new)",
+      "links": [
+        "Referral",
+        "Consent to evaluate",
+        "Evaluation completion",
+        "Eligibility determination",
+        "Meeting notice",
+        "IEP meeting",
+        "Consent for services",
+        "Service start",
+        "Annual review",
+        "Reevaluation"
+      ],
+      "startEntity": "entity:referral",
+      "endEntity": "entity:evaluation",
+      "relationshipIds": [
+        "relationship:referral-assessed-by-evaluation",
+        "relationship:consent-authorizes-evaluation",
+        "relationship:evaluation-supports-eligibility",
+        "relationship:eligibility-precedes-iep",
+        "relationship:iep-developed-at-meeting",
+        "relationship:notice-for-meeting",
+        "relationship:consent-for-iep-services",
+        "relationship:iep-contains-service"
+      ],
+      "requiredEvidence": "Every date must be a verified fact tied to the same student and the same cycle (initial vs reevaluation).",
+      "commonMissingLinks": [
+        "Consent date missing",
+        "Evaluation completion date missing",
+        "Eligibility date missing"
+      ],
+      "possibleContradictions": [
+        "Two different consent dates",
+        "Eligibility dated after IEP meeting"
+      ],
+      "relevantChecks": [
+        "check:T1",
+        "check:T2",
+        "check:T3",
+        "check:T4",
+        "check:T7",
+        "check:T8",
+        "check:RV1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.300-a-1-i",
+        "AUTH-CFR-300.301-c-1-i",
+        "AUTH-CFR-300.323-c-1",
+        "AUTH-CFR-300.323-c-2",
+        "AUTH-CFR-300.303-b-2"
+      ],
+      "investigationQuestions": [
+        "question:Q-TL-1"
+      ]
+    },
+    {
+      "id": "chain:CH5",
+      "label": "Progress trajectory (new)",
+      "links": [
+        "Baseline",
+        "Target",
+        "Measurement dates",
+        "Actual measurements",
+        "Observed rate",
+        "Remaining gap",
+        "Review question"
+      ],
+      "startEntity": "entity:annual-goal",
+      "endEntity": "entity:progress-measurement",
+      "relationshipIds": [
+        "relationship:present-level-grounds-goal",
+        "relationship:goal-measured-by-progress",
+        "relationship:progress-report-reports"
+      ],
+      "requiredEvidence": "Same measure and unit across baseline, target and data points; otherwise rates are not computed.",
+      "commonMissingLinks": [
+        "No baseline",
+        "No dated data points",
+        "Unit changes between reports"
+      ],
+      "possibleContradictions": [
+        "Data point unit differs from goal unit"
+      ],
+      "relevantChecks": [
+        "check:G2",
+        "check:G3",
+        "check:PR1",
+        "check:PR3"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-i",
+        "AUTH-CFR-300.324-b-1-ii",
+        "AUTH-CASE-ENDREW-F-NO-ELABORATION",
+        "AUTH-AP-GROWTH-RATE"
+      ],
+      "investigationQuestions": [
+        "question:SQ7",
+        "question:Q-PR-1"
+      ]
+    },
+    {
+      "id": "chain:CH6",
+      "label": "Document evolution (new)",
+      "links": [
+        "Original IEP",
+        "Amendment or replacement IEP",
+        "Superseded provisions",
+        "Current provisions",
+        "Progress and service records tied to each version"
+      ],
+      "startEntity": "entity:iep",
+      "endEntity": "entity:iep",
+      "relationshipIds": [
+        "relationship:iep-supersedes-iep",
+        "relationship:amendment-modifies-iep",
+        "relationship:iep-contains-goal",
+        "relationship:iep-contains-service",
+        "relationship:placement-for-iep"
+      ],
+      "requiredEvidence": "Version order must come from document statements or dates; provisions are compared only between versions linked by supersedes/amends.",
+      "commonMissingLinks": [
+        "Amendment referenced but not uploaded",
+        "Draft vs final unclear"
+      ],
+      "possibleContradictions": [
+        "Progress report refers to superseded goal",
+        "Service minutes differ between versions without amendment"
+      ],
+      "relevantChecks": [
+        "check:T0",
+        "check:AM1",
+        "check:AM2",
+        "check:VR1"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-4",
+        "AUTH-CFR-300.324-a-6"
+      ],
+      "investigationQuestions": [
+        "question:Q-DC-2"
+      ]
+    },
+    {
+      "id": "chain:CH7",
+      "label": "Parent participation (new)",
+      "links": [
+        "Parent concern",
+        "Meeting or communication",
+        "Documented consideration",
+        "IEP decision",
+        "Prior written notice or outstanding question"
+      ],
+      "startEntity": "entity:concern",
+      "endEntity": "entity:prior-written-notice",
+      "relationshipIds": [
+        "relationship:concern-considered-in-meeting",
+        "relationship:meeting-results-in-pwn",
+        "relationship:notice-for-meeting",
+        "relationship:participant-at-meeting",
+        "relationship:disagreement-about-meeting"
+      ],
+      "requiredEvidence": "Parent's own statements (intake) are person statements and may start the chain but never count as document evidence of consideration.",
+      "commonMissingLinks": [
+        "Concern raised in writing with no recorded consideration",
+        "Decision with no PWN"
+      ],
+      "possibleContradictions": [
+        "Notes say parent agreed; parent communication says otherwise"
+      ],
+      "relevantChecks": [
+        "check:P3",
+        "check:PP1",
+        "check:T5",
+        "check:T4"
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-i-ii",
+        "AUTH-CFR-300.322-a-1",
+        "AUTH-CFR-300.503-a"
+      ],
+      "investigationQuestions": [
+        "question:Q-PP-1"
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "document:prior-written-notice-for-evaluation-eligibility-and-placement",
+      "name": "Prior written notice",
+      "aliases": [
+        "PWN",
+        "notice of action",
+        "written notice"
+      ],
+      "purpose": "Agency explanation of each proposal or refusal.",
+      "typicalProducer": "District",
+      "typicalHolder": "THIRD_PARTY (district)",
+      "workflowStage": "Each decision",
+      "entities": [
+        "entity:prior-written-notice"
+      ],
+      "checksSupported": [
+        "check:T5",
+        "check:T5a",
+        "check:S3"
+      ],
+      "applicability": "Whenever the agency proposes or refuses evaluation, identification, placement or FAPE changes.",
+      "timing": "A reasonable time before the action.",
+      "requirementBasis": "LEGALLY_REQUIRED_RECORD",
+      "authorityIds": [
+        "AUTH-CFR-300.503-a"
+      ],
+      "mayNotApplyWhen": [
+        "No proposal or refusal occurred"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Prior written notice for evaluation, eligibility and placement"
+    },
+    {
+      "id": "document:procedural-safeguards-notice",
+      "name": "Procedural safeguards notice",
+      "aliases": [
+        "parent rights",
+        "notice of procedural safeguards"
+      ],
+      "purpose": "Explains parents' rights.",
+      "typicalProducer": "District/State",
+      "typicalHolder": "THIRD_PARTY (district)",
+      "workflowStage": "Referral; yearly",
+      "entities": [
+        "entity:safeguards-notice"
+      ],
+      "checksSupported": [
+        "check:T6"
+      ],
+      "applicability": "Initial referral/request; once a year; specified events; on request.",
+      "timing": "At referral and yearly.",
+      "requirementBasis": "LEGALLY_REQUIRED_RECORD",
+      "authorityIds": [
+        "AUTH-CFR-300.504-a"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Procedural safeguards notice"
+    },
+    {
+      "id": "document:signed-consent-to-evaluate",
+      "name": "Consent to evaluate",
+      "aliases": [
+        "permission to evaluate",
+        "consent for initial evaluation"
+      ],
+      "purpose": "Parent's informed written consent to an initial evaluation.",
+      "typicalProducer": "District form signed by parent",
+      "typicalHolder": "ASKER_OR_CLIENT or THIRD_PARTY (district)",
+      "workflowStage": "Evaluation",
+      "entities": [
+        "entity:consent"
+      ],
+      "checksSupported": [
+        "check:T1",
+        "check:T2"
+      ],
+      "applicability": "Initial evaluation.",
+      "timing": "Before testing.",
+      "requirementBasis": "LEGALLY_REQUIRED_RECORD",
+      "authorityIds": [
+        "AUTH-CFR-300.300-a-1-i"
+      ],
+      "mayNotApplyWhen": [
+        "Reevaluation (use consent-to-reevaluate)"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Signed consent to evaluate"
+    },
+    {
+      "id": "document:consent-for-services",
+      "name": "Consent for initial provision of services",
+      "aliases": [
+        "consent for placement",
+        "consent for special education"
+      ],
+      "purpose": "Parent's consent before first services.",
+      "typicalProducer": "District form",
+      "typicalHolder": "THIRD_PARTY (district)",
+      "workflowStage": "Initial IEP",
+      "entities": [
+        "entity:consent"
+      ],
+      "checksSupported": [
+        "check:T7"
+      ],
+      "applicability": "Initial IEP only.",
+      "timing": "Before services begin.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.300-b-1"
+      ],
+      "mayNotApplyWhen": [
+        "Annual review or amendment (federal); State may differ"
+      ],
+      "mayBeExpectedLaterWhen": [
+        "Initial IEP not yet finalized"
+      ],
+      "legacyName": "Consent for services"
+    },
+    {
+      "id": "document:referral-or-request-for-evaluation",
+      "name": "Referral or request for evaluation",
+      "aliases": [
+        "referral form",
+        "evaluation request letter"
+      ],
+      "purpose": "Starts the evaluation; lists concerns.",
+      "typicalProducer": "Parent or school",
+      "typicalHolder": "ASKER_OR_CLIENT or THIRD_PARTY (school)",
+      "workflowStage": "Referral",
+      "entities": [
+        "entity:referral",
+        "entity:concern"
+      ],
+      "checksSupported": [
+        "check:E1",
+        "check:E11"
+      ],
+      "applicability": "Any evaluation.",
+      "timing": "Start of process.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-CFR-300.301-b"
+      ],
+      "mayNotApplyWhen": [
+        "Oral request never written down"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Referral or request for evaluation"
+    },
+    {
+      "id": "document:exclusionary-factors-review-learning-disability",
+      "name": "Exclusionary-factors review",
+      "aliases": [
+        "rule-out factors",
+        "exclusionary factors"
+      ],
+      "purpose": "Documents factors that must not be the primary/determinant cause.",
+      "typicalProducer": "Eligibility team",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Eligibility",
+      "entities": [
+        "entity:exclusionary-review"
+      ],
+      "checksSupported": [
+        "check:E3",
+        "check:E4"
+      ],
+      "applicability": "All categories (determinant factor); SLD-specific list.",
+      "timing": "With eligibility.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.306-b-1",
+        "AUTH-CFR-300.309-a-3"
+      ],
+      "mayNotApplyWhen": [
+        "Often embedded in eligibility form rather than separate"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Exclusionary-factors review (learning disability)"
+    },
+    {
+      "id": "document:classroom-observation",
+      "name": "Classroom observation",
+      "aliases": [
+        "observation report"
+      ],
+      "purpose": "Observation in the learning environment.",
+      "typicalProducer": "School staff",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Evaluation",
+      "entities": [
+        "entity:observation"
+      ],
+      "checksSupported": [
+        "check:E6"
+      ],
+      "applicability": "Required for SLD; useful otherwise.",
+      "timing": "During evaluation.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.310-a"
+      ],
+      "mayNotApplyWhen": [
+        "Non-SLD evaluation (not federally required)"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Classroom observation"
+    },
+    {
+      "id": "document:intervention-response-to-intervention-data",
+      "name": "Intervention / RTI data",
+      "aliases": [
+        "MTSS data",
+        "progress monitoring before referral"
+      ],
+      "purpose": "Instruction and repeated progress data before/during referral.",
+      "typicalProducer": "Teacher/interventionist",
+      "typicalHolder": "THIRD_PARTY (teacher)",
+      "workflowStage": "Referral / eligibility",
+      "entities": [
+        "entity:intervention"
+      ],
+      "checksSupported": [
+        "check:E5",
+        "check:E9"
+      ],
+      "applicability": "SLD determinations.",
+      "timing": "Before/during referral.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.309-b-1",
+        "AUTH-CFR-300.309-b-2"
+      ],
+      "mayNotApplyWhen": [
+        "No intervention process used"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Intervention / response-to-intervention data"
+    },
+    {
+      "id": "document:parent-input-record",
+      "name": "Parent input record",
+      "aliases": [
+        "parent questionnaire",
+        "parent concerns letter",
+        "parent interview"
+      ],
+      "purpose": "Parent's concerns and information.",
+      "typicalProducer": "Parent / evaluator",
+      "typicalHolder": "THIRD_PARTY (school) or ASKER_OR_CLIENT",
+      "workflowStage": "Evaluation / IEP",
+      "entities": [
+        "entity:input-statement",
+        "entity:concern"
+      ],
+      "checksSupported": [
+        "check:P3",
+        "check:E1"
+      ],
+      "applicability": "Every evaluation and IEP.",
+      "timing": "Before meeting.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-i-ii",
+        "AUTH-CFR-300.304-b-1"
+      ],
+      "mayNotApplyWhen": [
+        "Concerns recorded only inside IEP"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Parent input record"
+    },
+    {
+      "id": "document:meeting-notice-attendance-page-any-excusal-forms",
+      "name": "Meeting notice, attendance page, excusal forms",
+      "aliases": [
+        "invitation to IEP meeting",
+        "signature page",
+        "sign-in sheet",
+        "excusal agreement"
+      ],
+      "purpose": "Shows notice, who attended, and written excusals.",
+      "typicalProducer": "School",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Meeting",
+      "entities": [
+        "entity:meeting-notice",
+        "entity:meeting-participant",
+        "entity:iep-meeting"
+      ],
+      "checksSupported": [
+        "check:T4",
+        "check:M1",
+        "check:M2"
+      ],
+      "applicability": "Each IEP meeting.",
+      "timing": "Before/at meeting.",
+      "requirementBasis": "LEGALLY_REQUIRED_RECORD",
+      "authorityIds": [
+        "AUTH-CFR-300.322-b-1-i",
+        "AUTH-CFR-300.321-e-2"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Meeting notice, attendance page, any excusal forms"
+    },
+    {
+      "id": "document:report-cards-state-test-results-attendance",
+      "name": "Report cards, State test results, attendance",
+      "aliases": [
+        "grades",
+        "state assessment report"
+      ],
+      "purpose": "Background performance data.",
+      "typicalProducer": "School",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Any",
+      "entities": [
+        "entity:student"
+      ],
+      "checksSupported": [
+        "check:P1",
+        "check:E3"
+      ],
+      "applicability": "If available.",
+      "timing": "Any time.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-CFR-300.306-c-1-i"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Report cards, state test results, attendance"
+    },
+    {
+      "id": "document:private-evaluations",
+      "name": "Private evaluations",
+      "aliases": [
+        "outside evaluation",
+        "independent evaluation (parent-funded)"
+      ],
+      "purpose": "Parent-obtained evaluations; must be considered if they meet agency criteria.",
+      "typicalProducer": "Private evaluator",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Any",
+      "entities": [
+        "entity:evaluation-report",
+        "entity:evaluation-recommendation"
+      ],
+      "checksSupported": [
+        "check:E1",
+        "check:S3",
+        "check:IE2"
+      ],
+      "applicability": "If any exist.",
+      "timing": "Any time.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.502-c"
+      ],
+      "mayNotApplyWhen": [
+        "None obtained"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": "Private evaluations"
+    },
+    {
+      "id": "document:progress-reports",
+      "name": "Progress reports",
+      "aliases": [
+        "IEP progress report",
+        "goal progress"
+      ],
+      "purpose": "Periodic goal progress.",
+      "typicalProducer": "School",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Implementation",
+      "entities": [
+        "entity:progress-report",
+        "entity:progress-measurement"
+      ],
+      "checksSupported": [
+        "check:G4"
+      ],
+      "applicability": "After IEP implementation begins.",
+      "timing": "Per IEP reporting schedule.",
+      "requirementBasis": "LEGALLY_REQUIRED_RECORD",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "mayNotApplyWhen": [
+        "Initial IEP not yet implemented"
+      ],
+      "mayBeExpectedLaterWhen": [
+        "First reporting date not reached"
+      ],
+      "legacyName": "Progress reports",
+      "pendingCheckIds": [
+        "check:PR1",
+        "check:PR2"
+      ]
+    },
+    {
+      "id": "document:service-logs",
+      "name": "Service logs",
+      "aliases": [
+        "service delivery log",
+        "session notes"
+      ],
+      "purpose": "Delivered minutes.",
+      "typicalProducer": "Providers",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Implementation",
+      "entities": [
+        "entity:service-delivery-record"
+      ],
+      "checksSupported": [
+        "check:S1",
+        "check:IM1"
+      ],
+      "applicability": "If kept.",
+      "timing": "After services start.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-AP-SERVICE-LOGS"
+      ],
+      "mayNotApplyWhen": [
+        "District does not keep logs"
+      ],
+      "mayBeExpectedLaterWhen": [
+        "Services not yet started"
+      ],
+      "legacyName": "Service logs"
+    },
+    {
+      "id": "document:iep",
+      "name": "IEP",
+      "aliases": [
+        "individualized education program",
+        "IEP document"
+      ],
+      "purpose": "The plan; anchor document.",
+      "typicalProducer": "IEP Team",
+      "typicalHolder": "ASKER_OR_CLIENT / THIRD_PARTY",
+      "workflowStage": "IEP",
+      "entities": [
+        "entity:iep",
+        "entity:annual-goal",
+        "entity:service",
+        "entity:present-level",
+        "entity:placement",
+        "entity:accommodation"
+      ],
+      "checksSupported": [
+        "check:P1",
+        "check:G1",
+        "check:S1",
+        "check:L1",
+        "check:A1"
+      ],
+      "applicability": "Every case.",
+      "timing": "At meeting.",
+      "requirementBasis": "LEGALLY_REQUIRED_RECORD",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-1-i",
+        "AUTH-CFR-300.322-f"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:draft-iep",
+      "name": "Draft IEP",
+      "aliases": [
+        "proposed IEP"
+      ],
+      "purpose": "Proposal before finalization; must not be treated as the plan in effect.",
+      "typicalProducer": "School",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Pre-meeting",
+      "entities": [
+        "entity:iep"
+      ],
+      "checksSupported": [],
+      "applicability": "If shared.",
+      "timing": "Before meeting.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null,
+      "pendingCheckIds": [
+        "check:VR1"
+      ]
+    },
+    {
+      "id": "document:prior-iep",
+      "name": "Prior IEP",
+      "aliases": [
+        "previous IEP",
+        "last year's IEP"
+      ],
+      "purpose": "Earlier version for comparison.",
+      "typicalProducer": "School",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Annual review",
+      "entities": [
+        "entity:iep"
+      ],
+      "checksSupported": [
+        "check:AM2"
+      ],
+      "applicability": "Annual review / reevaluation.",
+      "timing": "Historical.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [],
+      "mayNotApplyWhen": [
+        "Initial IEP case"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null,
+      "pendingCheckIds": [
+        "check:VR1"
+      ]
+    },
+    {
+      "id": "document:iep-amendment",
+      "name": "IEP amendment",
+      "aliases": [
+        "amendment",
+        "agreement to amend without meeting"
+      ],
+      "purpose": "Change between annual reviews.",
+      "typicalProducer": "School",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Any",
+      "entities": [
+        "entity:amendment",
+        "entity:iep"
+      ],
+      "checksSupported": [
+        "check:AM1",
+        "check:AM2",
+        "check:AM3"
+      ],
+      "applicability": "If plan was changed between reviews.",
+      "timing": "Any time.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-4"
+      ],
+      "mayNotApplyWhen": [
+        "No change made"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:evaluation-report",
+      "name": "Evaluation report",
+      "aliases": [
+        "psychoeducational report",
+        "multidisciplinary evaluation report",
+        "evaluation summary"
+      ],
+      "purpose": "Assessment results, findings, recommendations.",
+      "typicalProducer": "Evaluators",
+      "typicalHolder": "THIRD_PARTY (school) / ASKER_OR_CLIENT",
+      "workflowStage": "Evaluation",
+      "entities": [
+        "entity:evaluation-report",
+        "entity:assessment-administration",
+        "entity:assessment-score",
+        "entity:evaluation-finding",
+        "entity:evaluation-recommendation"
+      ],
+      "checksSupported": [
+        "check:E1",
+        "check:E8",
+        "check:P2",
+        "check:S3"
+      ],
+      "applicability": "Every evaluation.",
+      "timing": "At evaluation completion.",
+      "requirementBasis": "LEGALLY_REQUIRED_RECORD",
+      "authorityIds": [
+        "AUTH-CFR-300.306-a-2",
+        "AUTH-CFR-300.304-b-1"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:eligibility-determination",
+      "name": "Eligibility determination",
+      "aliases": [
+        "eligibility report",
+        "eligibility summary"
+      ],
+      "purpose": "Category and need decision.",
+      "typicalProducer": "Eligibility group",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Eligibility",
+      "entities": [
+        "entity:eligibility-determination",
+        "entity:exclusionary-review",
+        "entity:member-certification"
+      ],
+      "checksSupported": [
+        "check:E2",
+        "check:E3",
+        "check:E4",
+        "check:E7"
+      ],
+      "applicability": "Every initial evaluation and reevaluation.",
+      "timing": "With eligibility.",
+      "requirementBasis": "LEGALLY_REQUIRED_RECORD",
+      "authorityIds": [
+        "AUTH-CFR-300.306-a-2",
+        "AUTH-CFR-300.311-a-1-6"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:review-of-existing-data",
+      "name": "Review of existing evaluation data",
+      "aliases": [
+        "REED"
+      ],
+      "purpose": "Team review of existing data and decision on additional data.",
+      "typicalProducer": "Team",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Reevaluation",
+      "entities": [
+        "entity:evaluation"
+      ],
+      "checksSupported": [
+        "check:RV3",
+        "check:E10"
+      ],
+      "applicability": "Reevaluation; initial as appropriate.",
+      "timing": "Start of evaluation.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.305-a-1"
+      ],
+      "mayNotApplyWhen": [
+        "Often recorded inside another form"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:consent-to-reevaluate",
+      "name": "Consent to reevaluate",
+      "aliases": [
+        "reevaluation consent"
+      ],
+      "purpose": "Consent before reevaluation.",
+      "typicalProducer": "District form",
+      "typicalHolder": "THIRD_PARTY (district)",
+      "workflowStage": "Reevaluation",
+      "entities": [
+        "entity:consent"
+      ],
+      "checksSupported": [
+        "check:RV2"
+      ],
+      "applicability": "Reevaluation.",
+      "timing": "Before testing.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.300-c-1"
+      ],
+      "mayNotApplyWhen": [
+        "Reasonable efforts made and parent did not respond (§300.300(c)(2))",
+        "No new assessments needed"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:revocation-of-consent",
+      "name": "Revocation of consent",
+      "aliases": [
+        "withdrawal from special education"
+      ],
+      "purpose": "Written revocation of consent for services.",
+      "typicalProducer": "Parent",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Any",
+      "entities": [
+        "entity:consent"
+      ],
+      "checksSupported": [
+        "check:T7"
+      ],
+      "applicability": "If revoked.",
+      "timing": "Any time.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.300-b-4"
+      ],
+      "mayNotApplyWhen": [
+        "Not revoked"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:meeting-notes",
+      "name": "Meeting notes / minutes",
+      "aliases": [
+        "IEP meeting summary",
+        "notes"
+      ],
+      "purpose": "What was discussed and decided.",
+      "typicalProducer": "School or parent",
+      "typicalHolder": "THIRD_PARTY (school) / ASKER_OR_CLIENT",
+      "workflowStage": "Meeting",
+      "entities": [
+        "entity:iep-meeting",
+        "entity:concern",
+        "entity:disagreement"
+      ],
+      "checksSupported": [
+        "check:P3"
+      ],
+      "applicability": "If taken.",
+      "timing": "At meeting.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [],
+      "mayNotApplyWhen": [
+        "Not kept"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null,
+      "pendingCheckIds": [
+        "check:PP1"
+      ]
+    },
+    {
+      "id": "document:parent-communication",
+      "name": "Parent communications",
+      "aliases": [
+        "emails",
+        "letters",
+        "call log"
+      ],
+      "purpose": "Requests, concerns and responses.",
+      "typicalProducer": "Parent/school",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Any",
+      "entities": [
+        "entity:parent-communication",
+        "entity:concern"
+      ],
+      "checksSupported": [
+        "check:PP2"
+      ],
+      "applicability": "If any.",
+      "timing": "Any time.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-CFR-300.322-d"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null,
+      "pendingCheckIds": [
+        "check:PP1"
+      ]
+    },
+    {
+      "id": "document:progress-monitoring-data",
+      "name": "Progress-monitoring data (probes/graphs)",
+      "aliases": [
+        "CBM graphs",
+        "probe data"
+      ],
+      "purpose": "Frequent data between report cards.",
+      "typicalProducer": "Teacher/provider",
+      "typicalHolder": "THIRD_PARTY (teacher)",
+      "workflowStage": "Implementation",
+      "entities": [
+        "entity:progress-measurement"
+      ],
+      "checksSupported": [
+        "check:PR3"
+      ],
+      "applicability": "If goals are probe-measured.",
+      "timing": "Ongoing.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-AP-STANDING-QUESTIONS"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [
+        "Implementation not begun"
+      ],
+      "legacyName": null,
+      "questionsInformed": [
+        "question:SQ3",
+        "question:SQ7"
+      ]
+    },
+    {
+      "id": "document:transition-assessment",
+      "name": "Transition assessments",
+      "aliases": [
+        "career interest inventory",
+        "age-appropriate transition assessment"
+      ],
+      "purpose": "Basis for postsecondary goals.",
+      "typicalProducer": "School",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Transition",
+      "entities": [
+        "entity:transition-plan"
+      ],
+      "checksSupported": [
+        "check:TR1"
+      ],
+      "applicability": "IEP in effect at 16 (or younger per team/State).",
+      "timing": "Before transition IEP.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.320-b"
+      ],
+      "mayNotApplyWhen": [
+        "Student below transition age"
+      ],
+      "mayBeExpectedLaterWhen": [
+        "Student will reach transition age during next IEP"
+      ],
+      "legacyName": null
+    },
+    {
+      "id": "document:fba-report",
+      "name": "Functional behavior assessment",
+      "aliases": [
+        "FBA"
+      ],
+      "purpose": "Analysis of behavior function.",
+      "typicalProducer": "School psychologist/behavior specialist",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Behavior",
+      "entities": [
+        "entity:behavior-assessment"
+      ],
+      "checksSupported": [
+        "check:BH1"
+      ],
+      "applicability": "When behavior impedes learning (practice) or required in discipline contexts.",
+      "timing": "As needed.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ],
+      "mayNotApplyWhen": [
+        "No behavior concern"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:bip",
+      "name": "Behavior intervention plan",
+      "aliases": [
+        "BIP",
+        "behavior support plan"
+      ],
+      "purpose": "Behavior supports.",
+      "typicalProducer": "Team",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Behavior",
+      "entities": [
+        "entity:behavior-plan"
+      ],
+      "checksSupported": [
+        "check:BH1"
+      ],
+      "applicability": "When behavior supports are planned.",
+      "timing": "As needed.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ],
+      "mayNotApplyWhen": [
+        "No behavior concern"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:at-evaluation",
+      "name": "Assistive technology evaluation",
+      "aliases": [
+        "AT assessment"
+      ],
+      "purpose": "AT needs.",
+      "typicalProducer": "AT specialist",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Evaluation",
+      "entities": [
+        "entity:assistive-technology"
+      ],
+      "checksSupported": [
+        "check:AT1"
+      ],
+      "applicability": "When AT need is considered.",
+      "timing": "As needed.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-2"
+      ],
+      "mayNotApplyWhen": [
+        "AT not at issue"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:iee-request",
+      "name": "IEE request and response",
+      "aliases": [
+        "independent educational evaluation request"
+      ],
+      "purpose": "Parent's disagreement and request; agency response.",
+      "typicalProducer": "Parent/district",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Dispute",
+      "entities": [
+        "entity:iee-request"
+      ],
+      "checksSupported": [
+        "check:IE1"
+      ],
+      "applicability": "If requested.",
+      "timing": "Any time.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.502-b-1-2"
+      ],
+      "mayNotApplyWhen": [
+        "Not requested"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:iee-report",
+      "name": "Independent educational evaluation report",
+      "aliases": [
+        "IEE"
+      ],
+      "purpose": "Independent evaluator's report.",
+      "typicalProducer": "Independent evaluator",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Any",
+      "entities": [
+        "entity:evaluation-report",
+        "entity:evaluation-recommendation"
+      ],
+      "checksSupported": [
+        "check:IE2",
+        "check:S3"
+      ],
+      "applicability": "If obtained.",
+      "timing": "Any time.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.502-c"
+      ],
+      "mayNotApplyWhen": [
+        "Not obtained"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:records-request",
+      "name": "Records request and response",
+      "aliases": [
+        "request to inspect records"
+      ],
+      "purpose": "Parent's records request.",
+      "typicalProducer": "Parent",
+      "typicalHolder": "ASKER_OR_CLIENT",
+      "workflowStage": "Any",
+      "entities": [
+        "entity:records-request"
+      ],
+      "checksSupported": [
+        "check:RA1"
+      ],
+      "applicability": "If requested.",
+      "timing": "Any time.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.613-a"
+      ],
+      "mayNotApplyWhen": [
+        "Not requested"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:transfer-records",
+      "name": "Transfer records",
+      "aliases": [
+        "records from prior district",
+        "out-of-state IEP"
+      ],
+      "purpose": "Prior agency's records on transfer.",
+      "typicalProducer": "Prior agency",
+      "typicalHolder": "THIRD_PARTY (prior district)",
+      "workflowStage": "Transfer",
+      "entities": [
+        "entity:enrollment",
+        "entity:iep"
+      ],
+      "checksSupported": [
+        "check:TF1",
+        "check:TF2",
+        "check:TF3"
+      ],
+      "applicability": "Transfer within school year.",
+      "timing": "At transfer.",
+      "requirementBasis": "CONDITIONAL_LEGAL",
+      "authorityIds": [
+        "AUTH-CFR-300.323-g"
+      ],
+      "mayNotApplyWhen": [
+        "No transfer"
+      ],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    },
+    {
+      "id": "document:enrollment-record",
+      "name": "Enrollment record",
+      "aliases": [
+        "registration",
+        "withdrawal form"
+      ],
+      "purpose": "Enrollment dates; needed for transfer exception.",
+      "typicalProducer": "School",
+      "typicalHolder": "THIRD_PARTY (school)",
+      "workflowStage": "Any",
+      "entities": [
+        "entity:enrollment"
+      ],
+      "checksSupported": [
+        "check:T2",
+        "check:TF1"
+      ],
+      "applicability": "Transfer or timeline exception at issue.",
+      "timing": "Any time.",
+      "requirementBasis": "PROFESSIONALLY_RECOMMENDED",
+      "authorityIds": [
+        "AUTH-CFR-300.301-d-2"
+      ],
+      "mayNotApplyWhen": [],
+      "mayBeExpectedLaterWhen": [],
+      "legacyName": null
+    }
+  ],
+  "documentAvailabilityStates": [
+    {
+      "state": "NOT_UPLOADED",
+      "meaning": "Not among the uploaded documents; says nothing about whether it exists.",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "MENTIONED_NOT_PROVIDED",
+      "meaning": "Another document refers to it (cite the mention), but it was not uploaded.",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "POSSIBLY_HELD_BY_OTHER_PARTY",
+      "meaning": "Typical holder is the district/provider; request from holder.",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "NOT_APPLICABLE",
+      "meaning": "Verified condition makes it inapplicable (cite the fact).",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "EXPECTED_LATER",
+      "meaning": "Timing not yet reached (e.g. first progress report date in future).",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "UNREADABLE",
+      "meaning": "Uploaded but pages unreadable; coverage record lists pages.",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "PARTIALLY_AVAILABLE",
+      "meaning": "Some pages/sections present.",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "SUPERSEDED",
+      "meaning": "A later version exists; earlier one is historical.",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "CONFLICTING_VERSIONS",
+      "meaning": "Two versions disagree; both kept, conflict raised.",
+      "mayBeStatedAsNoncompliance": false
+    },
+    {
+      "state": "UNKNOWN_INCOMPLETE_COLLECTION",
+      "meaning": "Collection is incomplete and applicability cannot be decided.",
+      "mayBeStatedAsNoncompliance": false
+    }
+  ],
+  "conflictPatterns": [
+    {
+      "id": "conflictPattern:CP-CONSENT-DATE",
+      "title": "Different consent dates for the same evaluation",
+      "entities": [
+        "entity:consent"
+      ],
+      "fields": [
+        "signedDate",
+        "receivedDate"
+      ],
+      "requiredComparableContext": "Same activityType and same evaluation cycle.",
+      "relationshipRequirements": [
+        "relationship:consent-authorizes-evaluation"
+      ],
+      "temporalRules": "Compare only instances linked to the same evaluation.",
+      "genuineContradictionWhen": "Two verified dates for the same consent instance or same linked evaluation.",
+      "possibleExplanations": [
+        "Signed vs received date",
+        "Re-signed form",
+        "Different activity (reevaluation)"
+      ],
+      "reviewQuestion": "The documents give two consent dates. Which date did the school receive consent?",
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-i"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-EVAL-COMPLETION",
+      "title": "Different evaluation completion dates",
+      "entities": [
+        "entity:evaluation",
+        "entity:evaluation-report"
+      ],
+      "fields": [
+        "completionDate",
+        "reportDate"
+      ],
+      "requiredComparableContext": "Same evaluation cycle.",
+      "relationshipRequirements": [
+        "relationship:evaluation-contains-report"
+      ],
+      "temporalRules": "Report date may precede the overall completion.",
+      "genuineContradictionWhen": "Same field, same instance, different verified values.",
+      "possibleExplanations": [
+        "Multiple reports in one evaluation",
+        "Report dated at typing, not completion"
+      ],
+      "reviewQuestion": "When was the evaluation completed?",
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-i"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-ELIGIBILITY-DATE",
+      "title": "Conflicting eligibility dates",
+      "entities": [
+        "entity:eligibility-determination",
+        "entity:iep"
+      ],
+      "fields": [
+        "determinationDate",
+        "meetingDate"
+      ],
+      "requiredComparableContext": "Same determination.",
+      "relationshipRequirements": [
+        "relationship:eligibility-precedes-iep"
+      ],
+      "temporalRules": "Eligibility should precede or equal the IEP meeting.",
+      "genuineContradictionWhen": "Two verified determination dates, or eligibility after the IEP meeting that relies on it.",
+      "possibleExplanations": [
+        "Combined eligibility+IEP meeting",
+        "Typo"
+      ],
+      "reviewQuestion": "Which date was eligibility decided?",
+      "authorityIds": [
+        "AUTH-CFR-300.323-c-1"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-SCORE-MISMATCH",
+      "title": "Assessment value differs across documents",
+      "entities": [
+        "entity:assessment-score",
+        "entity:present-level"
+      ],
+      "fields": [
+        "value"
+      ],
+      "requiredComparableContext": "Same instrument, form, subtest/composite, score type, norm basis and administration date.",
+      "relationshipRequirements": [
+        "relationship:score-supports-finding"
+      ],
+      "temporalRules": "Same administration.",
+      "genuineContradictionWhen": "All comparability fields match and values differ.",
+      "possibleExplanations": [
+        "Different score type (SS vs percentile)",
+        "Different administration",
+        "Rounding",
+        "Different subtest"
+      ],
+      "reviewQuestion": "The IEP and the evaluation give different numbers for the same test. Which is right?",
+      "authorityIds": [
+        "AUTH-AP-SCORE-CONSISTENCY",
+        "AUTH-CFR-300.304-c-1-iii"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-BASELINE-MISMATCH",
+      "title": "Goal baseline does not match cited evaluation value",
+      "entities": [
+        "entity:annual-goal",
+        "entity:assessment-score"
+      ],
+      "fields": [
+        "baselineValue",
+        "value"
+      ],
+      "requiredComparableContext": "Goal cites that instrument/date and same unit.",
+      "relationshipRequirements": [
+        "relationship:present-level-grounds-goal"
+      ],
+      "temporalRules": "Baseline date equals or follows the cited administration.",
+      "genuineContradictionWhen": "Goal explicitly cites the score and values differ.",
+      "possibleExplanations": [
+        "Baseline from a later probe",
+        "Different measure"
+      ],
+      "reviewQuestion": "Where does this goal's starting number come from?",
+      "authorityIds": [
+        "AUTH-AP-SCORE-CONSISTENCY"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-SERVICE-FREQUENCY",
+      "title": "Service frequency/minutes differ between records",
+      "entities": [
+        "entity:service"
+      ],
+      "fields": [
+        "minutesPerWeek",
+        "frequencyAsWritten"
+      ],
+      "requiredComparableContext": "Same service line in the same IEP version.",
+      "relationshipRequirements": [
+        "relationship:iep-contains-service"
+      ],
+      "temporalRules": "Compare within one version; across versions it is a change, not a conflict (see CP-VERSION-CHANGE).",
+      "genuineContradictionWhen": "Same version, different verified values (e.g. service grid vs LRE page).",
+      "possibleExplanations": [
+        "Different periods (week vs month)",
+        "Amendment"
+      ],
+      "reviewQuestion": "The plan lists this service twice with different time. Which is correct?",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-7"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-GOAL-DATE-RANGE",
+      "title": "Goal date outside IEP dates",
+      "entities": [
+        "entity:annual-goal",
+        "entity:iep"
+      ],
+      "fields": [
+        "goalDate",
+        "effectiveEndDate"
+      ],
+      "requiredComparableContext": "Goal belongs to that IEP.",
+      "relationshipRequirements": [
+        "relationship:iep-contains-goal"
+      ],
+      "temporalRules": "Goal date expected within IEP span.",
+      "genuineContradictionWhen": "Goal date after effective end or before start.",
+      "possibleExplanations": [
+        "Typo",
+        "Carried-over goal"
+      ],
+      "reviewQuestion": "This goal's date is outside the plan's dates. Is that intended?",
+      "authorityIds": [
+        "AUTH-CFR-300.324-b-1-i"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-SUPERSEDED-GOAL-PROGRESS",
+      "title": "Progress report refers to a superseded goal",
+      "entities": [
+        "entity:progress-measurement",
+        "entity:annual-goal",
+        "entity:iep"
+      ],
+      "fields": [
+        "goalText"
+      ],
+      "requiredComparableContext": "Goal identity.",
+      "relationshipRequirements": [
+        "relationship:goal-measured-by-progress",
+        "relationship:iep-supersedes-iep"
+      ],
+      "temporalRules": "Report period after the newer IEP's start.",
+      "genuineContradictionWhen": "Reported goal is only in an older version.",
+      "possibleExplanations": [
+        "Report covers period before change"
+      ],
+      "reviewQuestion": "The progress report tracks a goal from the earlier plan. Is there progress data on the current goals?",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-REC-NOT-TRACEABLE",
+      "title": "Recommendation not traceable to IEP",
+      "entities": [
+        "entity:evaluation-recommendation",
+        "entity:service",
+        "entity:accommodation",
+        "entity:annual-goal"
+      ],
+      "fields": [
+        "recommendationText"
+      ],
+      "requiredComparableContext": "IEP coverage complete.",
+      "relationshipRequirements": [
+        "relationship:recommendation-adopted-as-service"
+      ],
+      "temporalRules": "Recommendation from report in force at IEP development.",
+      "genuineContradictionWhen": "Full IEP coverage and no link or PWN; otherwise NOT SHOWN, not conflict.",
+      "possibleExplanations": [
+        "Addressed under different wording",
+        "Rejected at meeting (check notes/PWN)"
+      ],
+      "reviewQuestion": "The evaluation recommended something I can't find in the plan. Where is it?",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-SERVICE-DESCRIPTION",
+      "title": "Contradictory service descriptions",
+      "entities": [
+        "entity:service"
+      ],
+      "fields": [
+        "setting",
+        "location",
+        "providerRole"
+      ],
+      "requiredComparableContext": "Same service line, same version.",
+      "relationshipRequirements": [
+        "relationship:iep-contains-service"
+      ],
+      "temporalRules": "Same version.",
+      "genuineContradictionWhen": "Different verified setting/provider for same line.",
+      "possibleExplanations": [
+        "Push-in and pull-out split"
+      ],
+      "reviewQuestion": "Is this service delivered in class or outside it?",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-7"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-PLACEMENT-STATEMENT",
+      "title": "Inconsistent placement statements",
+      "entities": [
+        "entity:placement",
+        "entity:service"
+      ],
+      "fields": [
+        "percentInRegularClass",
+        "minutesOutsideGeneralEducation",
+        "minutesPerWeek"
+      ],
+      "requiredComparableContext": "Same version; school week length known.",
+      "relationshipRequirements": [
+        "relationship:placement-for-iep"
+      ],
+      "temporalRules": "Same version.",
+      "genuineContradictionWhen": "Stated percentage/minutes disagree with summed pull-out minutes beyond rounding (computed, C5).",
+      "possibleExplanations": [
+        "School week length assumption",
+        "Related services counted differently"
+      ],
+      "reviewQuestion": "The plan's percentage of time in class doesn't match the service minutes. Which is right?",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-5"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-VERSION-MIXING",
+      "title": "Current and historical records mixed",
+      "entities": [
+        "entity:iep"
+      ],
+      "fields": [
+        "effectiveStartDate",
+        "status"
+      ],
+      "requiredComparableContext": "Version chain established.",
+      "relationshipRequirements": [
+        "relationship:iep-supersedes-iep"
+      ],
+      "temporalRules": "Study date vs spans.",
+      "genuineContradictionWhen": "Facts from a superseded version presented as current.",
+      "possibleExplanations": [
+        "Draft vs final"
+      ],
+      "reviewQuestion": "Which IEP is in effect now?",
+      "authorityIds": [
+        "AUTH-AP-CURRENTNESS"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-ASSESSMENT-NONCOMPARABLE",
+      "title": "Assessments compared without equivalence",
+      "entities": [
+        "entity:assessment-score"
+      ],
+      "fields": [
+        "scoreType",
+        "scaleMean",
+        "scaleSD",
+        "normBasis"
+      ],
+      "requiredComparableContext": "Never compare across instruments/score types.",
+      "relationshipRequirements": [],
+      "temporalRules": "Any.",
+      "genuineContradictionWhen": "Not a conflict: block the comparison and raise a question.",
+      "possibleExplanations": [
+        "Different instruments legitimately differ"
+      ],
+      "reviewQuestion": "These two tests measure differently, so their numbers can't be compared directly.",
+      "authorityIds": [
+        "AUTH-CFR-300.304-c-1-iii",
+        "AUTH-PROF-STANDARD-SCORE-SCALES"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-VERSION-CHANGE",
+      "title": "Provision changed between versions without amendment record",
+      "entities": [
+        "entity:iep",
+        "entity:amendment"
+      ],
+      "fields": [
+        "minutesPerWeek",
+        "goalText"
+      ],
+      "requiredComparableContext": "Two linked versions.",
+      "relationshipRequirements": [
+        "relationship:iep-supersedes-iep",
+        "relationship:amendment-modifies-iep"
+      ],
+      "temporalRules": "Mid-year change.",
+      "genuineContradictionWhen": "Change mid-year with no amendment or meeting record.",
+      "possibleExplanations": [
+        "Annual review replaced IEP"
+      ],
+      "reviewQuestion": "Services changed between these two plans. Was there a meeting or amendment?",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-4"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    }
+  ],
+  "calculations": [
+    {
+      "id": "calculation:C1",
+      "label": "Days from consent received to evaluation completion",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "consent.receivedDate (activityType=initial evaluation)",
+        "evaluation.completionDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none (integer)",
+      "preconditions": [
+        "consent linked to evaluation by relationship:consent-authorizes-evaluation",
+        "consent.activityType = initial evaluation"
+      ],
+      "invalidInputConditions": [
+        "Either date missing/conflicting",
+        "Consent is for reevaluation"
+      ],
+      "limitations": [
+        "Receipt date often not stated; signed date is a different fact.",
+        "Does not decide compliance - State timeframe and exceptions."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-i",
+        "AUTH-CFR-300.11-a"
+      ],
+      "permittedInterpretation": "Day count only.",
+      "executionStatus": "EXECUTABLE_IN_DP2_PENDING_SOURCE_TYPES",
+      "proposedBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:consent",
+          "fieldId": "receivedDate"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:evaluation",
+          "fieldId": "completionDate"
+        }
+      ],
+      "legacyInputs": "start = date consent received; end = last evaluation date",
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative.",
+      "join": {
+        "relationshipId": "relationship:consent-authorizes-evaluation"
+      }
+    },
+    {
+      "id": "calculation:C2",
+      "label": "Days from eligibility decision to IEP meeting",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "eligibility-determination.determinationDate",
+        "iep.meetingDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none",
+      "preconditions": [
+        "relationship:eligibility-precedes-iep",
+        "Initial IEP"
+      ],
+      "invalidInputConditions": [
+        "Missing/conflicting dates"
+      ],
+      "limitations": [
+        "Annual reviews out of scope."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.323-c-1"
+      ],
+      "permittedInterpretation": "Day count; T3 may compare to 30 once pack is REVIEWED.",
+      "executionStatus": "EXECUTABLE_IN_DP2_PENDING_SOURCE_TYPES",
+      "proposedBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:eligibility-determination",
+          "fieldId": "determinationDate"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:iep",
+          "fieldId": "meetingDate"
+        }
+      ],
+      "legacyInputs": "start = eligibility date; end = IEP meeting date",
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative.",
+      "join": {
+        "relationshipId": "relationship:eligibility-precedes-iep"
+      }
+    },
+    {
+      "id": "calculation:C3",
+      "label": "Days from IEP date to service start",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "iep.meetingDate",
+        "service.startDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none",
+      "preconditions": [
+        "relationship:iep-contains-service"
+      ],
+      "invalidInputConditions": [
+        "Missing dates"
+      ],
+      "limitations": [
+        "'As soon as possible' has no number; descriptive only."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.323-c-2"
+      ],
+      "permittedInterpretation": "Day count; never a compliance verdict.",
+      "executionStatus": "EXECUTABLE_IN_DP2_PENDING_SOURCE_TYPES",
+      "proposedBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:iep",
+          "fieldId": "meetingDate"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:service",
+          "fieldId": "startDate"
+        }
+      ],
+      "legacyInputs": "start = IEP date; end = service start date",
+      "scope": "service",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative.",
+      "join": {
+        "relationshipId": "relationship:iep-contains-service"
+      }
+    },
+    {
+      "id": "calculation:C4",
+      "label": "Gain needed per week",
+      "operator": "RATE_PER_WEEK",
+      "inputs": [
+        "annual-goal.baselineValue",
+        "annual-goal.targetValue",
+        "annual-goal.baselineDate",
+        "annual-goal.goalDate"
+      ],
+      "units": "goal unit per calendar week",
+      "formula": "(target - baseline) / (days/7)",
+      "rounding": "1 decimal",
+      "preconditions": [
+        "baselineUnit = targetUnit",
+        "goalDate > baselineDate"
+      ],
+      "invalidInputConditions": [
+        "Units differ",
+        "Missing baseline date"
+      ],
+      "limitations": [
+        "Calendar weeks, not instructional weeks."
+      ],
+      "authorityIds": [
+        "AUTH-AP-GROWTH-RATE"
+      ],
+      "permittedInterpretation": "Pace the goal assumes; not a measure of ambition under Endrew F.",
+      "executionStatus": "EXECUTABLE",
+      "proposedBindings": [
+        {
+          "role": "from",
+          "entityId": "entity:annual-goal",
+          "fieldId": "baselineValue"
+        },
+        {
+          "role": "to",
+          "entityId": "entity:annual-goal",
+          "fieldId": "targetValue"
+        },
+        {
+          "role": "start",
+          "entityId": "entity:annual-goal",
+          "fieldId": "baselineDate"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:annual-goal",
+          "fieldId": "goalDate"
+        }
+      ],
+      "legacyInputs": "from = baseline value; to = target value; start = baseline date; end = goal date",
+      "scope": "goal",
+      "dateSemantics": null,
+      "join": null
+    },
+    {
+      "id": "calculation:C5",
+      "label": "Service minutes per week by setting",
+      "operator": "SUM_BY",
+      "inputs": [
+        "service.minutesPerWeek",
+        "service.setting"
+      ],
+      "units": "minutes/week",
+      "formula": "sum grouped by setting",
+      "rounding": "none",
+      "preconditions": [
+        "Same IEP version",
+        "Frequencies normalized to week"
+      ],
+      "invalidInputConditions": [
+        "Monthly frequencies without conversion rule"
+      ],
+      "limitations": [
+        "Normalizing monthly to weekly is an assumption."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-5",
+        "AUTH-CFR-300.320-a-7"
+      ],
+      "permittedInterpretation": "Totals only.",
+      "executionStatus": "EXECUTABLE",
+      "proposedBindings": [
+        {
+          "role": "value",
+          "entityId": "entity:service",
+          "fieldId": "minutesPerWeek"
+        },
+        {
+          "role": "group",
+          "entityId": "entity:service",
+          "fieldId": "setting"
+        }
+      ],
+      "legacyInputs": "value = minutes per week; group = setting",
+      "scope": "case",
+      "dateSemantics": null,
+      "join": null
+    },
+    {
+      "id": "calculation:C6",
+      "label": "Evaluation vs present-level difference",
+      "operator": "DIFFERENCE",
+      "inputs": [
+        "assessment-score.value",
+        "present-level cited value"
+      ],
+      "units": "score units",
+      "formula": "a - b",
+      "rounding": "exact",
+      "preconditions": [
+        "CP-SCORE-MISMATCH comparability context satisfied"
+      ],
+      "invalidInputConditions": [
+        "Different score types/instruments"
+      ],
+      "limitations": [
+        "Present-level numbers need their own typed field (extraction)."
+      ],
+      "authorityIds": [
+        "AUTH-AP-SCORE-CONSISTENCY"
+      ],
+      "permittedInterpretation": "Difference only.",
+      "executionStatus": "NOT_EXECUTABLE_OPERATOR_UNSUPPORTED",
+      "proposedBindings": [],
+      "legacyInputs": "a = evaluation figure; b = present-level figure for the same measure",
+      "scope": "measure",
+      "dateSemantics": null
+    },
+    {
+      "id": "calculation:C7a",
+      "label": "Annual review due",
+      "operator": "ADD_INTERVAL",
+      "inputs": [
+        "iep.meetingDate"
+      ],
+      "units": "date",
+      "formula": "date + 1 year",
+      "rounding": "Feb 29 + 1y -> Feb 28 (policy to confirm)",
+      "preconditions": [
+        "Anchor = meeting date (interpretation)"
+      ],
+      "invalidInputConditions": [
+        "Missing date"
+      ],
+      "limitations": [
+        "Anchor is an interpretation; IEP may state its own due date - prefer the stated one."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-b-1-i"
+      ],
+      "permittedInterpretation": "Estimated due date; stated date in IEP takes precedence.",
+      "executionStatus": "EXECUTABLE",
+      "proposedBindings": [
+        {
+          "role": "date",
+          "entityId": "entity:iep",
+          "fieldId": "meetingDate"
+        },
+        {
+          "role": "interval",
+          "literal": {
+            "valueType": "QUANTITY",
+            "value": "1",
+            "unit": "year"
+          }
+        }
+      ],
+      "legacyInputs": "date = IEP date; interval = 1 year",
+      "scope": "case",
+      "dateSemantics": null,
+      "join": null
+    },
+    {
+      "id": "calculation:C7b",
+      "label": "Reevaluation due",
+      "operator": "ADD_INTERVAL",
+      "inputs": [
+        "evaluation.completionDate or eligibility-determination.determinationDate"
+      ],
+      "units": "date",
+      "formula": "date + 3 years",
+      "rounding": "Feb 29 rule as C7a",
+      "preconditions": [
+        "Anchor is interpretation"
+      ],
+      "invalidInputConditions": [
+        "Missing date"
+      ],
+      "limitations": [
+        "Parent/agency may agree reevaluation unnecessary; no anchor fixed by regulation."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.303-b-2"
+      ],
+      "permittedInterpretation": "Estimate only.",
+      "executionStatus": "EXECUTABLE",
+      "proposedBindings": [
+        {
+          "role": "date",
+          "entityId": "entity:eligibility-determination",
+          "fieldId": "determinationDate"
+        },
+        {
+          "role": "interval",
+          "literal": {
+            "valueType": "QUANTITY",
+            "value": "3",
+            "unit": "year"
+          }
+        }
+      ],
+      "legacyInputs": "date = eligibility date; interval = 3 years",
+      "scope": "case",
+      "dateSemantics": null,
+      "join": null
+    },
+    {
+      "id": "calculation:C8",
+      "label": "Gap to typical reader at baseline",
+      "operator": "REFERENCE_GAP",
+      "inputs": [
+        "annual-goal.baselineValue (WCPM)",
+        "student grade",
+        "season of baselineDate"
+      ],
+      "units": "WCPM",
+      "formula": "value - table[grade][50th season]",
+      "rounding": "exact",
+      "preconditions": [
+        "Measure is WCPM on unpracticed passages",
+        "Grade 1-6",
+        "Season mapping defined"
+      ],
+      "invalidInputConditions": [
+        "Not WCPM",
+        "Grade >6",
+        "Grade 1 fall (blank cell)"
+      ],
+      "limitations": [
+        "Season boundaries not defined by source.",
+        "Norms average three products."
+      ],
+      "authorityIds": [
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "permittedInterpretation": "Distance from 50th percentile; not a diagnosis.",
+      "executionStatus": "NOT_EXECUTABLE_OPERATOR_UNSUPPORTED",
+      "proposedBindings": [],
+      "legacyInputs": "value = baseline WCPM; table = Oral reading fluency norms; row = grade; column = 50th percentile for the season of the baseline date",
+      "scope": "goal",
+      "dateSemantics": null
+    },
+    {
+      "id": "calculation:C9",
+      "label": "Gap to typical reader at goal date",
+      "operator": "REFERENCE_GAP",
+      "inputs": [
+        "annual-goal.targetValue",
+        "grade at goal date",
+        "season of goalDate"
+      ],
+      "units": "WCPM",
+      "formula": "value - table cell",
+      "rounding": "exact",
+      "preconditions": [
+        "As C8",
+        "Grade at goal date must be documented, not assumed"
+      ],
+      "invalidInputConditions": [
+        "As C8"
+      ],
+      "limitations": [
+        "Projected grade is an assumption unless documented."
+      ],
+      "authorityIds": [
+        "AUTH-RES-HT2017-ORF-NORMS"
+      ],
+      "permittedInterpretation": "As C8.",
+      "executionStatus": "NOT_EXECUTABLE_OPERATOR_UNSUPPORTED",
+      "proposedBindings": [],
+      "legacyInputs": "value = target WCPM; table = Oral reading fluency norms; row = grade at goal date; column = 50th percentile for the season of the goal date",
+      "scope": "goal",
+      "dateSemantics": null
+    },
+    {
+      "id": "calculation:C10",
+      "label": "Days since latest goal or annual review date",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "iep.annualReviewDueDate or annual-goal.goalDate",
+        "run context studyDate"
+      ],
+      "units": "calendar days",
+      "formula": "studyDate - date",
+      "rounding": "none",
+      "preconditions": [
+        "Study date available"
+      ],
+      "invalidInputConditions": [
+        "No study date binding (GAP-C4)"
+      ],
+      "limitations": [
+        "Study date is not a verified fact."
+      ],
+      "authorityIds": [
+        "AUTH-AP-CURRENTNESS"
+      ],
+      "permittedInterpretation": "Currentness signal.",
+      "executionStatus": "NOT_EXECUTABLE_CONTRACT_GAP",
+      "proposedBindings": [],
+      "legacyInputs": "start = latest goal date or annual review date; end = study date",
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative."
+    },
+    {
+      "id": "calculation:C11",
+      "label": "Progress toward target (share of gap closed)",
+      "operator": "DIFFERENCE",
+      "inputs": [
+        "progress-measurement.value",
+        "annual-goal.baselineValue",
+        "annual-goal.targetValue"
+      ],
+      "units": "percent",
+      "formula": "(latest - baseline)/(target - baseline)",
+      "rounding": "1 decimal",
+      "preconditions": [
+        "Same unit/measure"
+      ],
+      "invalidInputConditions": [
+        "target = baseline"
+      ],
+      "limitations": [
+        "Needs DIVIDE; DIFFERENCE alone insufficient."
+      ],
+      "authorityIds": [
+        "AUTH-AP-GROWTH-RATE"
+      ],
+      "permittedInterpretation": "Descriptive.",
+      "executionStatus": "NOT_EXECUTABLE_OPERATOR_UNSUPPORTED",
+      "proposedBindings": [],
+      "legacyInputs": null,
+      "scope": "goal",
+      "dateSemantics": null
+    },
+    {
+      "id": "calculation:C12",
+      "label": "Observed rate of improvement",
+      "operator": "RATE_PER_WEEK",
+      "inputs": [
+        "first and latest progress-measurement value/date for a goal"
+      ],
+      "units": "unit/week",
+      "formula": "(v2-v1)/weeks",
+      "rounding": "1 decimal",
+      "preconditions": [
+        "≥2 data points same measure"
+      ],
+      "invalidInputConditions": [
+        "Unit change"
+      ],
+      "limitations": [
+        "Two-point rate ignores variability; slope methods (OLS) are a professional choice."
+      ],
+      "authorityIds": [
+        "AUTH-AP-GROWTH-RATE"
+      ],
+      "permittedInterpretation": "Compare with C4 as a question, not a verdict.",
+      "executionStatus": "NOT_EXECUTABLE_OPERATOR_UNSUPPORTED",
+      "proposedBindings": [],
+      "legacyInputs": null,
+      "scope": "goal",
+      "dateSemantics": null
+    },
+    {
+      "id": "calculation:C13",
+      "label": "Delivered vs planned minutes",
+      "operator": "SUM_BY",
+      "inputs": [
+        "service-delivery-record.minutesDelivered",
+        "service.minutesPerWeek"
+      ],
+      "units": "minutes",
+      "formula": "sum(delivered) - planned*weeks",
+      "rounding": "none",
+      "preconditions": [
+        "Logs cover a defined period"
+      ],
+      "invalidInputConditions": [
+        "Partial logs"
+      ],
+      "limitations": [
+        "Absence of a log entry is not proof a session was missed."
+      ],
+      "authorityIds": [
+        "AUTH-AP-SERVICE-LOGS"
+      ],
+      "permittedInterpretation": "Descriptive.",
+      "executionStatus": "NOT_EXECUTABLE_OPERATOR_UNSUPPORTED",
+      "proposedBindings": [],
+      "legacyInputs": null,
+      "scope": "service",
+      "dateSemantics": null
+    },
+    {
+      "id": "calculation:C14",
+      "label": "Days from records request to response",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "records-request.requestDate",
+        "records-request.responseDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none",
+      "preconditions": [
+        "Same instance"
+      ],
+      "invalidInputConditions": [
+        "Missing response date"
+      ],
+      "limitations": [
+        "Also 'before any IEP meeting' limb not computed."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.613-a"
+      ],
+      "permittedInterpretation": "Day count; RA1 may compare to 45 when REVIEWED.",
+      "executionStatus": "EXECUTABLE_IN_DP2_PENDING_SOURCE_TYPES",
+      "proposedBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:records-request",
+          "fieldId": "requestDate"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:records-request",
+          "fieldId": "responseDate"
+        }
+      ],
+      "legacyInputs": null,
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative.",
+      "join": null
+    },
+    {
+      "id": "calculation:C15",
+      "label": "Days notice before meeting",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "meeting-notice.noticeDate",
+        "iep-meeting.meetingDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none",
+      "preconditions": [
+        "relationship:notice-for-meeting"
+      ],
+      "invalidInputConditions": [
+        "Missing dates"
+      ],
+      "limitations": [
+        "Federal rule sets no number ('early enough'); some States do."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.322-a-1"
+      ],
+      "permittedInterpretation": "Descriptive; State overlay may add threshold.",
+      "executionStatus": "EXECUTABLE_IN_DP2_PENDING_SOURCE_TYPES",
+      "proposedBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:meeting-notice",
+          "fieldId": "noticeDate"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:iep-meeting",
+          "fieldId": "meetingDate"
+        }
+      ],
+      "legacyInputs": null,
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative.",
+      "join": {
+        "relationshipId": "relationship:notice-for-meeting"
+      }
+    },
+    {
+      "id": "calculation:C16",
+      "label": "Days from referral to consent",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "referral.requestDate",
+        "consent.signedDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none",
+      "preconditions": [
+        "Referral linked (via evaluation) - two-hop join not supported"
+      ],
+      "invalidInputConditions": [
+        "No direct relationship referral-consent"
+      ],
+      "limitations": [
+        "Federal rule has no number (SLD: 'promptly'); States vary."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.309-c"
+      ],
+      "permittedInterpretation": "Descriptive.",
+      "executionStatus": "NOT_EXECUTABLE_JOIN_DEPTH",
+      "proposedBindings": [],
+      "legacyInputs": null,
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative."
+    },
+    {
+      "id": "calculation:C17",
+      "label": "Days between progress reports",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "consecutive progress-report.reportDate"
+      ],
+      "units": "calendar days",
+      "formula": "next - previous",
+      "rounding": "none",
+      "preconditions": [
+        "Ordering of instances"
+      ],
+      "invalidInputConditions": [
+        "Single report"
+      ],
+      "limitations": [
+        "Requires instance ordering, not supported."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "permittedInterpretation": "Detect missing periods vs stated schedule.",
+      "executionStatus": "NOT_EXECUTABLE_CONTRACT_GAP",
+      "proposedBindings": [],
+      "legacyInputs": null,
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative."
+    },
+    {
+      "id": "calculation:C18",
+      "label": "Expected vs received progress reports",
+      "operator": "DIFFERENCE",
+      "inputs": [
+        "progress-reporting-plan.reportsPerYear",
+        "count(progress-report)"
+      ],
+      "units": "reports",
+      "formula": "expected - received",
+      "rounding": "none",
+      "preconditions": [
+        "Elapsed period known"
+      ],
+      "invalidInputConditions": [
+        "Schedule not numeric"
+      ],
+      "limitations": [
+        "Needs COUNT operator."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "permittedInterpretation": "Gap is a document request, not a finding of non-reporting.",
+      "executionStatus": "NOT_EXECUTABLE_OPERATOR_UNSUPPORTED",
+      "proposedBindings": [],
+      "legacyInputs": null,
+      "scope": "case",
+      "dateSemantics": null
+    },
+    {
+      "id": "calculation:C19",
+      "label": "Change in service minutes between IEP versions",
+      "operator": "DIFFERENCE",
+      "inputs": [
+        "service.minutesPerWeek in two versions"
+      ],
+      "units": "minutes/week",
+      "formula": "new - old",
+      "rounding": "none",
+      "preconditions": [
+        "Versions linked by supersedes; same service line"
+      ],
+      "invalidInputConditions": [
+        "Unlinked versions"
+      ],
+      "limitations": [
+        "Self-relationship join unsupported."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-4"
+      ],
+      "permittedInterpretation": "Descriptive.",
+      "executionStatus": "NOT_EXECUTABLE_JOIN_DEPTH",
+      "proposedBindings": [],
+      "legacyInputs": null,
+      "scope": "service",
+      "dateSemantics": null
+    },
+    {
+      "id": "calculation:C20",
+      "label": "Days from IEE request to agency response",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "iee-request.requestDate",
+        "iee-request.agencyResponseDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none",
+      "preconditions": [
+        "Same instance"
+      ],
+      "invalidInputConditions": [
+        "Missing response"
+      ],
+      "limitations": [
+        "'Without unnecessary delay' has no number."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.502-b-1-2"
+      ],
+      "permittedInterpretation": "Descriptive only.",
+      "executionStatus": "EXECUTABLE_IN_DP2_PENDING_SOURCE_TYPES",
+      "proposedBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:iee-request",
+          "fieldId": "requestDate"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:iee-request",
+          "fieldId": "agencyResponseDate"
+        }
+      ],
+      "legacyInputs": null,
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative.",
+      "join": null
+    },
+    {
+      "id": "calculation:C21",
+      "label": "Days from evaluation completion to eligibility",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "evaluation.completionDate",
+        "eligibility-determination.determinationDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none",
+      "preconditions": [
+        "relationship:evaluation-supports-eligibility"
+      ],
+      "invalidInputConditions": [
+        "Missing"
+      ],
+      "limitations": [
+        "Federal rule sets no separate limit; some States do."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-i"
+      ],
+      "permittedInterpretation": "Descriptive.",
+      "executionStatus": "EXECUTABLE_IN_DP2_PENDING_SOURCE_TYPES",
+      "proposedBindings": [
+        {
+          "role": "start",
+          "entityId": "entity:evaluation",
+          "fieldId": "completionDate"
+        },
+        {
+          "role": "end",
+          "entityId": "entity:eligibility-determination",
+          "fieldId": "determinationDate"
+        }
+      ],
+      "legacyInputs": null,
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative.",
+      "join": {
+        "relationshipId": "relationship:evaluation-supports-eligibility"
+      }
+    },
+    {
+      "id": "calculation:C22",
+      "label": "Days from previous evaluation to reevaluation",
+      "operator": "DAYS_BETWEEN",
+      "inputs": [
+        "prior evaluation.completionDate",
+        "new evaluation.completionDate"
+      ],
+      "units": "calendar days",
+      "formula": "end - start",
+      "rounding": "none",
+      "preconditions": [
+        "Two evaluation instances ordered"
+      ],
+      "invalidInputConditions": [
+        "Self-join"
+      ],
+      "limitations": [
+        "Self-relationship join unsupported."
+      ],
+      "authorityIds": [
+        "AUTH-CFR-300.303-b-1",
+        "AUTH-CFR-300.303-b-2"
+      ],
+      "permittedInterpretation": "Descriptive.",
+      "executionStatus": "NOT_EXECUTABLE_JOIN_DEPTH",
+      "proposedBindings": [],
+      "legacyInputs": null,
+      "scope": "case",
+      "dateSemantics": "Civil calendar dates; calendar days per §300.11(a); end-start, may be negative."
+    }
+  ],
+  "workflowCoverage": {
+    "questions": [
+      "inV7",
+      "entities",
+      "documents",
+      "relationships",
+      "legalResearched",
+      "exceptions",
+      "professionalCriteria",
+      "calculations",
+      "conflicts",
+      "questions",
+      "reports",
+      "everyClaimReferenced",
+      "dp2Executable",
+      "remainingClassified"
+    ],
+    "rows": [
+      {
+        "workflow": "Initial evaluation and eligibility",
+        "answers": {
+          "inV7": "YES",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "YES",
+          "legalResearched": "YES",
+          "exceptions": "PARTIAL",
+          "professionalCriteria": "YES",
+          "calculations": "PARTIAL",
+          "conflicts": "YES",
+          "questions": "YES",
+          "reports": "YES",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "PARTIAL",
+          "remainingClassified": "YES"
+        },
+        "note": "Category-specific criteria beyond SLD deferred (§300.8)."
+      },
+      {
+        "workflow": "Initial IEP development",
+        "answers": {
+          "inV7": "YES",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "YES",
+          "legalResearched": "YES",
+          "exceptions": "YES",
+          "professionalCriteria": "YES",
+          "calculations": "PARTIAL",
+          "conflicts": "YES",
+          "questions": "YES",
+          "reports": "YES",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "PARTIAL",
+          "remainingClassified": "YES"
+        },
+        "note": "Quantified checks (each need/goal) need EVERY/EXISTS operators."
+      },
+      {
+        "workflow": "Annual review",
+        "answers": {
+          "inV7": "PARTIAL (T0 only)",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "YES (CH6)",
+          "legalResearched": "YES",
+          "exceptions": "PARTIAL",
+          "professionalCriteria": "YES",
+          "calculations": "PARTIAL",
+          "conflicts": "YES",
+          "questions": "STAGE4",
+          "reports": "PARTIAL (no annual-review report variant)",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "PARTIAL",
+          "remainingClassified": "YES"
+        },
+        "note": "Needs annual-review report template and progress-vs-goal questions."
+      },
+      {
+        "workflow": "Reevaluation",
+        "answers": {
+          "inV7": "NO (C7b only)",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "YES",
+          "legalResearched": "YES",
+          "exceptions": "YES",
+          "professionalCriteria": "PARTIAL",
+          "calculations": "PARTIAL",
+          "conflicts": "PARTIAL",
+          "questions": "STAGE4",
+          "reports": "NO",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "PARTIAL",
+          "remainingClassified": "YES"
+        },
+        "note": "New checks RV1-RV4 (Stage 4)."
+      },
+      {
+        "workflow": "Amendments and versions",
+        "answers": {
+          "inV7": "NO",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "YES (CH6)",
+          "legalResearched": "YES",
+          "exceptions": "PARTIAL",
+          "professionalCriteria": "YES",
+          "calculations": "PARTIAL",
+          "conflicts": "YES",
+          "questions": "STAGE4",
+          "reports": "NO",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "NO (self-join)",
+          "remainingClassified": "YES"
+        },
+        "note": "Version comparison needs self-relationship join."
+      },
+      {
+        "workflow": "Progress review",
+        "answers": {
+          "inV7": "PARTIAL (G4, SQ3, SQ7)",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "YES (CH5)",
+          "legalResearched": "YES",
+          "exceptions": "N/A",
+          "professionalCriteria": "PARTIAL",
+          "calculations": "DECLARED",
+          "conflicts": "YES",
+          "questions": "STAGE4",
+          "reports": "NO",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "NO (operators)",
+          "remainingClassified": "YES"
+        },
+        "note": "Rate/trajectory operators unsupported."
+      },
+      {
+        "workflow": "Transfers",
+        "answers": {
+          "inV7": "NO",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "PARTIAL",
+          "legalResearched": "YES",
+          "exceptions": "YES",
+          "professionalCriteria": "N/A",
+          "calculations": "NO",
+          "conflicts": "NO",
+          "questions": "STAGE4",
+          "reports": "NO",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "PARTIAL",
+          "remainingClassified": "YES"
+        },
+        "note": "Comparable-services judgment is review-only."
+      },
+      {
+        "workflow": "Transition (16+)",
+        "answers": {
+          "inV7": "PARTIAL (A4)",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "PARTIAL",
+          "legalResearched": "YES",
+          "exceptions": "STATE",
+          "professionalCriteria": "PARTIAL",
+          "calculations": "NO",
+          "conflicts": "NO",
+          "questions": "STAGE4",
+          "reports": "NO",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "FIELD_PRESENT only",
+          "remainingClassified": "YES"
+        },
+        "note": "State transition age overlay required."
+      },
+      {
+        "workflow": "ESY",
+        "answers": {
+          "inV7": "PARTIAL (A3)",
+          "entities": "YES",
+          "documents": "NO",
+          "relationships": "NO",
+          "legalResearched": "YES",
+          "exceptions": "STATE",
+          "professionalCriteria": "NO",
+          "calculations": "NO",
+          "conflicts": "NO",
+          "questions": "STAGE4",
+          "reports": "NO",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "NO",
+          "remainingClassified": "YES"
+        },
+        "note": "ESY criteria State/case-law - research backlog."
+      },
+      {
+        "workflow": "Behavior / FBA / BIP",
+        "answers": {
+          "inV7": "PARTIAL (A2)",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "NO",
+          "legalResearched": "PARTIAL",
+          "exceptions": "NO",
+          "professionalCriteria": "NO",
+          "calculations": "NO",
+          "conflicts": "NO",
+          "questions": "STAGE4",
+          "reports": "NO",
+          "everyClaimReferenced": "PARTIAL",
+          "dp2Executable": "NO",
+          "remainingClassified": "YES"
+        },
+        "note": "FBA/BIP methodology deferred."
+      },
+      {
+        "workflow": "IEE and records access",
+        "answers": {
+          "inV7": "NO",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "N/A",
+          "legalResearched": "YES",
+          "exceptions": "YES",
+          "professionalCriteria": "N/A",
+          "calculations": "DECLARED",
+          "conflicts": "NO",
+          "questions": "STAGE4",
+          "reports": "NO",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "PARTIAL",
+          "remainingClassified": "YES"
+        },
+        "note": "C14/C20 day counts."
+      },
+      {
+        "workflow": "Parent participation",
+        "answers": {
+          "inV7": "PARTIAL (T4, P3, M1)",
+          "entities": "YES",
+          "documents": "YES",
+          "relationships": "YES (CH7)",
+          "legalResearched": "YES",
+          "exceptions": "YES",
+          "professionalCriteria": "PARTIAL",
+          "calculations": "DECLARED (C15)",
+          "conflicts": "YES",
+          "questions": "STAGE4",
+          "reports": "PARTIAL",
+          "everyClaimReferenced": "YES",
+          "dp2Executable": "PARTIAL",
+          "remainingClassified": "YES"
+        },
+        "note": ""
+      },
+      {
+        "workflow": "Discipline",
+        "answers": {
+          "inV7": "NO",
+          "entities": "NO",
+          "documents": "NO",
+          "relationships": "NO",
+          "legalResearched": "PARTIAL (§300.530(e) snippet)",
+          "exceptions": "NO",
+          "professionalCriteria": "NO",
+          "calculations": "NO",
+          "conflicts": "NO",
+          "questions": "NO",
+          "reports": "NO",
+          "everyClaimReferenced": "NO",
+          "dp2Executable": "NO",
+          "remainingClassified": "DEFERRED"
+        },
+        "note": "Deferred module."
+      },
+      {
+        "workflow": "Preschool / Part C transition",
+        "answers": {
+          "inV7": "NO",
+          "entities": "PARTIAL",
+          "documents": "NO",
+          "relationships": "NO",
+          "legalResearched": "PARTIAL",
+          "exceptions": "NO",
+          "professionalCriteria": "NO",
+          "calculations": "NO",
+          "conflicts": "NO",
+          "questions": "NO",
+          "reports": "NO",
+          "everyClaimReferenced": "NO",
+          "dp2Executable": "NO",
+          "remainingClassified": "DEFERRED"
+        },
+        "note": "Deferred module."
+      }
+    ]
+  },
+  "dp2Constraints": [
+    "At most one relationship definition per unordered entity pair (else AMBIGUOUS_RELATIONSHIP).",
+    "Rules join at most two entities.",
+    "Self-relationships (iep-supersedes-iep) cannot drive a two-instance join.",
+    "Only DAYS_BETWEEN executes; bindings shape inferred (GAP-C1)."
+  ],
+  "validation": {
+    "relationshipPairDuplicates": {},
+    "brokenRefs": [],
+    "unknownAuthorityIds": []
+  },
+  "reconciliation": {
+    "stage": "4A",
+    "unsupportedSpecs": [
+      "iep-domain-conflict-patterns.v1.json",
+      "iep-domain-state-overlays.v1.json",
+      "iep-domain-fact-classes.v1.json",
+      "iep-domain-workflow-coverage.v1.json",
+      "iep-domain-unsupported-operators.v1.json"
+    ],
+    "note": "conflictPatterns, factClasses, workflowCoverage, and the EVERY/EXISTS note stay in this ontology and are copied to the versioned specs. They are not DP-1 fields."
+  }
+}

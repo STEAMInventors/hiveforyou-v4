@@ -16,6 +16,7 @@ const PACK_TRACE_GLOBS = [
   "../../packs/*.md",
   "../../packs/archive/*.md",
   "../../packs/drafts/*/v0.4.0/**/*",
+  "../../packs/drafts/*/v0.5.0/**/*",
 ] as const;
 
 const nextConfig: NextConfig = {

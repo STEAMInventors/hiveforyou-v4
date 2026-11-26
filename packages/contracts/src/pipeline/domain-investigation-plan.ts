@@ -4,13 +4,14 @@
  * Does not evaluate a case, call a model, bind candidates, or edit DP-1 / DP-2.
  * Per-instance rows (NO_INSTANCE, UNRESOLVED_INSTANCE) are contracted here and built later.
  */
-import type { PackCompileIssue } from "./domain-pack-source";
 import { packDigest } from "./domain-pack-compiler";
 import {
+  calculationFieldBindings,
   DOMAIN_PACK_RUNTIME_SCHEMA,
   type CompiledDomainPack,
   type EffectiveDefinition,
   type PackAuthority,
+  type PackCompileIssue,
   type PackPredicate,
 } from "./domain-pack-source";
 
@@ -40,6 +41,7 @@ export const INVESTIGATION_TASK_KINDS = [
   "EVALUATE_CHECK",
   "DECLARED_CALCULATION",
   "COMPUTE_DAYS_BETWEEN",
+  "COMPUTE_CALCULATION",
   "TRACE_CHAIN",
   "ASK_QUESTION",
   "APPLY_CONFLICT_PATTERN",
@@ -963,10 +965,10 @@ function decideCalculationJoin(
   relationships: Map<string, Extract<EffectiveDefinition, { kind: "relationship" }>>,
   pairCounts: Map<string, number>,
 ): JoinDecision {
-  const bindings = definition.bindings ?? [];
+  const bindings = calculationFieldBindings(definition.bindings);
   const entities = [...new Set(bindings.map((binding) => binding.entityId))];
-  const start = bindings.find((binding) => binding.role === "start")?.entityId;
-  const end = bindings.find((binding) => binding.role === "end")?.entityId;
+  const start = bindings.find((binding) => binding.role === "start")?.entityId ?? bindings[0]?.entityId;
+  const end = bindings.find((binding) => binding.role === "end")?.entityId ?? bindings[bindings.length - 1]?.entityId;
   const present = declared !== undefined;
   if (entities.length === 0 && !present) return { joinGate: "NOT_APPLICABLE", reasons: [] };
   if (entities.length <= 1 && declared === null) return { join: null, joinGate: "PASSED", reasons: [] };
@@ -1350,26 +1352,24 @@ function definitionTask(
       reasonCodes: uniqueReasons(cited.reasons),
     };
   }
-  const executable = definition.state === "EXECUTABLE" && definition.operator === "DAYS_BETWEEN";
-  const unsupported = definition.state === "EXECUTABLE" && definition.operator !== "DAYS_BETWEEN";
+  const executable = definition.state === "EXECUTABLE" && !!definition.bindings;
   const decision = executable || definition.bindings?.length || ontology.joins.has(definition.id)
     ? decideCalculationJoin(definition, ontology.joins.get(definition.id), relationships, pairCounts)
     : { joinGate: "NOT_APPLICABLE" as const, reasons: [] as PlannerReasonCode[] };
   const resultBinding: CalculationResultBinding | undefined = executable && decision.joinGate === "PASSED" && decision.join
     ? { relationshipId: decision.join.relationshipId, fromEntityId: decision.join.fromEntityId, toEntityId: decision.join.toEntityId }
     : undefined;
-  const extra: PlannerReasonCode[] = unsupported ? ["OPERATOR_UNSUPPORTED"] : [];
   return {
     ...base,
     sourceKind: "calculation",
-    taskKind: unsupported ? "NOTE_UNSUPPORTED" : executable ? "COMPUTE_DAYS_BETWEEN" : "DECLARED_CALCULATION",
+    taskKind: !executable ? "DECLARED_CALCULATION" : definition.operator === "DAYS_BETWEEN" ? "COMPUTE_DAYS_BETWEEN" : "COMPUTE_CALCULATION",
     ...(subjectEntityId ? { subjectEntityId } : {}),
     ...(decision.join !== undefined ? { join: decision.join } : {}),
     ...(resultBinding ? { resultBinding } : {}),
     joinGate: decision.joinGate,
     dp2Eligible: executable && decision.joinGate === "PASSED",
     coverage,
-    reasonCodes: uniqueReasons([...cited.reasons, ...(resultBinding ? [] : subjectReasons), ...decision.reasons, ...extra]),
+    reasonCodes: uniqueReasons([...cited.reasons, ...(resultBinding ? [] : subjectReasons), ...decision.reasons]),
   };
 }
 
@@ -1412,7 +1412,7 @@ function buildDependencies(
     const task = byId.get(definition.id);
     if (task?.coverage.population === "PER_SUBJECT_INSTANCE") add(task.coverage.subjectEntityId, definition.id, "subject_entity");
     if (definition.kind === "calculation") {
-      for (const binding of definition.bindings ?? []) add(binding.entityId, definition.id, "binding_entity");
+      for (const binding of calculationFieldBindings(definition.bindings)) add(binding.entityId, definition.id, "binding_entity");
     }
     if ((task?.joinGate === "PASSED" || task?.joinGate === "AMBIGUOUS_RELATIONSHIP") && task.join) {
       add(task.join.relationshipId, definition.id, "declared_join");

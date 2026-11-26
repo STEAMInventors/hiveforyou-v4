@@ -14,10 +14,14 @@ import {
 } from "../analysis/decimal-formula";
 import {
   DOMAIN_PACK_RUNTIME_SCHEMA,
+  INTERVAL_UNITS,
+  calculationFieldBindings,
   type CompiledDomainPack,
   type EffectiveDefinition,
   type FieldValueType,
+  type PackCalculationBinding,
   type PackCalculationOperator,
+  type PackLiteralCalculationBinding,
   type PackOperand,
   type PackPredicate,
 } from "./domain-pack-source";
@@ -45,6 +49,8 @@ export const DOMAIN_RULE_REASON_CODES = [
   "CALCULATION_UNSUPPORTED",
   "CALCULATION_NOT_EXECUTABLE",
   "CALCULATION_COMPUTED",
+  "PERIOD_INVALID",
+  "REFERENCE_UNAVAILABLE",
   "CROSS_ENTITY",
   "AMBIGUOUS_RELATIONSHIP",
   "NO_INSTANCE",
@@ -120,6 +126,8 @@ export type DomainRuleResult = {
   reasonCodes: DomainRuleReasonCode[];
   operator?: PackCalculationOperator;
   daysBetween?: string;
+  computedValue?: string;
+  computedUnit?: string;
 };
 
 export type DomainRuleIssue = { code: string; path: string; message: string };
@@ -148,6 +156,8 @@ type PartialEval = {
   missing: string[];
   reasons: DomainRuleReasonCode[];
   daysBetween?: string;
+  computedValue?: string;
+  computedUnit?: string;
   scalar?: Canonical;
 };
 
@@ -214,6 +224,17 @@ export function calendarDayIndex(iso: string): bigint | null {
   const probe = new Date(utc);
   if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
   return BigInt(utc / 86_400_000);
+}
+
+function formatDate(decimal: Decimal): string | null {
+  if (decimal.scale !== 0) return null;
+  const utc = Number(decimal.units) * 86_400_000;
+  if (!Number.isSafeInteger(utc)) return null;
+  const probe = new Date(utc);
+  const year = probe.getUTCFullYear();
+  const month = String(probe.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(probe.getUTCDate()).padStart(2, "0");
+  return `${String(year).padStart(4, "0")}-${month}-${day}`;
 }
 
 function blank(reasons: DomainRuleReasonCode[], missing: string[] = []): PartialEval {
@@ -384,8 +405,8 @@ function evaluateDays(
 ): PartialEval {
   if (definition.state !== "EXECUTABLE") return blank(["CALCULATION_NOT_EXECUTABLE"]);
   if (definition.operator !== "DAYS_BETWEEN") return blank(["CALCULATION_UNSUPPORTED"]);
-  const bindings = definition.bindings;
-  if (!bindings) return blank(["OPERAND_UNTYPED"]);
+  const bindings = calculationFieldBindings(definition.bindings);
+  if (bindings.length === 0) return blank(["OPERAND_UNTYPED"]);
   const start = bindings.find((binding) => binding.role === "start");
   const end = bindings.find((binding) => binding.role === "end");
   if (!start || !end || bindings.length !== 2) return blank(["OPERAND_UNTYPED"]);
@@ -461,6 +482,315 @@ function evaluateOperand(operand: PackOperand, plan: InstancePlan, index: Eviden
   return evaluateCalculation(definition, plan, index, pack);
 }
 
+function roleBinding(definition: Extract<EffectiveDefinition, { kind: "calculation" }>, role: string): PackCalculationBinding | undefined {
+  return definition.bindings?.find((binding) => binding.role === role);
+}
+
+function literalBinding(binding: PackCalculationBinding | undefined): PackLiteralCalculationBinding | null {
+  return binding && "literal" in binding ? binding : null;
+}
+
+function readRole(
+  definition: Extract<EffectiveDefinition, { kind: "calculation" }>,
+  role: string,
+  allowed: readonly FieldValueType[],
+  plan: InstancePlan,
+  index: EvidenceIndex,
+  pack: CompiledDomainPack,
+): PartialEval {
+  const binding = roleBinding(definition, role);
+  if (!binding || !("entityId" in binding)) return blank(["OPERAND_UNTYPED"]);
+  const instanceId = plan.instances.get(binding.entityId);
+  if (!instanceId) return blank(["CROSS_ENTITY"], [requirementField(binding.entityId, binding.fieldId)]);
+  const actual = fieldType(pack, binding.entityId, binding.fieldId);
+  if (!actual || !allowed.includes(actual)) return blank(["TYPE_MISMATCH"]);
+  return readField(binding.entityId, binding.fieldId, instanceId, actual, index);
+}
+
+function readInstanceField(
+  entityId: string,
+  fieldId: string,
+  instanceId: string,
+  allowed: readonly FieldValueType[],
+  index: EvidenceIndex,
+  pack: CompiledDomainPack,
+): PartialEval {
+  const actual = fieldType(pack, entityId, fieldId);
+  if (!actual || !allowed.includes(actual)) return blank(["TYPE_MISMATCH"]);
+  return readField(entityId, fieldId, instanceId, actual, index);
+}
+
+function decimalOf(scalar: Canonical | undefined): Decimal | null {
+  return scalar && "decimal" in scalar ? scalar.decimal : null;
+}
+
+function sameMeasure(left: Canonical, right: Canonical): boolean {
+  if (left.valueType !== right.valueType || !("decimal" in left) || !("decimal" in right)) return false;
+  if (left.valueType === "MONEY" && right.valueType === "MONEY") return left.currency === right.currency;
+  if (left.valueType === "QUANTITY" && right.valueType === "QUANTITY") return left.unit === right.unit;
+  return left.valueType === "NUMBER";
+}
+
+function measureUnit(scalar: Canonical): string {
+  if (scalar.valueType === "QUANTITY") return scalar.unit;
+  if (scalar.valueType === "MONEY") return scalar.currency;
+  return "";
+}
+
+function computedNumber(combined: PartialEval, value: string, unit: string, decimal: Decimal, valueType: "NUMBER" | "MONEY" | "QUANTITY", scalar: Canonical): PartialEval {
+  const next: Canonical = valueType === "MONEY" && scalar.valueType === "MONEY"
+    ? { valueType: "MONEY", decimal, currency: scalar.currency }
+    : valueType === "QUANTITY" && scalar.valueType === "QUANTITY"
+      ? { valueType: "QUANTITY", decimal, unit: scalar.unit }
+      : { valueType: "NUMBER", decimal };
+  return {
+    ...combined,
+    outcome: "COMPUTED",
+    reasons: dedupe([...combined.reasons, "CALCULATION_COMPUTED"]),
+    computedValue: value,
+    computedUnit: unit,
+    scalar: next,
+  };
+}
+
+function subtractMeasures(left: Canonical, right: Canonical): { value: string; decimal: Decimal } | null {
+  const leftDecimal = decimalOf(left);
+  const rightDecimal = decimalOf(right);
+  if (!leftDecimal || !rightDecimal) return null;
+  const evaluated = evaluateFormula(
+    { op: "-", args: [{ value: formatDecimal(leftDecimal) }, { value: formatDecimal(rightDecimal) }] },
+    () => null,
+  );
+  if (!evaluated.ok) return null;
+  return { value: formatDecimal(evaluated.value), decimal: evaluated.value };
+}
+
+function evaluateDifference(
+  definition: Extract<EffectiveDefinition, { kind: "calculation" }>,
+  plan: InstancePlan,
+  index: EvidenceIndex,
+  pack: CompiledDomainPack,
+): PartialEval {
+  const minuend = readRole(definition, "minuend", ["NUMBER", "MONEY", "QUANTITY"], plan, index, pack);
+  const subtrahend = readRole(definition, "subtrahend", ["NUMBER", "MONEY", "QUANTITY"], plan, index, pack);
+  const combined = merge(minuend, subtrahend);
+  if (!ready(minuend) || !ready(subtrahend) || !minuend.scalar || !subtrahend.scalar) {
+    return { ...combined, outcome: worse(ready(minuend) ? "ESTABLISHED" : minuend.outcome, ready(subtrahend) ? "ESTABLISHED" : subtrahend.outcome) };
+  }
+  if (!sameMeasure(minuend.scalar, subtrahend.scalar)) {
+    return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "TYPE_MISMATCH"]) };
+  }
+  const difference = subtractMeasures(minuend.scalar, subtrahend.scalar);
+  if (!difference || minuend.scalar.valueType === "DATE" || minuend.scalar.valueType === "TEXT" || minuend.scalar.valueType === "BOOLEAN") {
+    return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "CALCULATION_UNSUPPORTED"]) };
+  }
+  const valueType = minuend.scalar.valueType;
+  return computedNumber(combined, difference.value, measureUnit(minuend.scalar), difference.decimal, valueType, minuend.scalar);
+}
+
+function evaluateRate(
+  definition: Extract<EffectiveDefinition, { kind: "calculation" }>,
+  plan: InstancePlan,
+  index: EvidenceIndex,
+  pack: CompiledDomainPack,
+): PartialEval {
+  const from = readRole(definition, "from", ["NUMBER", "QUANTITY"], plan, index, pack);
+  const to = readRole(definition, "to", ["NUMBER", "QUANTITY"], plan, index, pack);
+  const start = readRole(definition, "start", ["DATE"], plan, index, pack);
+  const end = readRole(definition, "end", ["DATE"], plan, index, pack);
+  const combined = merge(from, to, start, end);
+  if (!ready(from) || !ready(to) || !ready(start) || !ready(end) || !from.scalar || !to.scalar || !start.scalar || !end.scalar) {
+    const outcomes = [from, to, start, end].map((item) => ready(item) ? "ESTABLISHED" as const : item.outcome);
+    return { ...combined, outcome: outcomes.reduce(worse) };
+  }
+  if (!sameMeasure(from.scalar, to.scalar) || start.scalar.valueType !== "DATE" || end.scalar.valueType !== "DATE") {
+    return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "TYPE_MISMATCH"]) };
+  }
+  const startDay = dayNumber(start.scalar.decimal);
+  const endDay = dayNumber(end.scalar.decimal);
+  if (startDay === null || endDay === null) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "DATE_INVALID"]) };
+  const days = subtractDays(endDay, startDay);
+  const dayDecimal = days ? decimalFromPlain(days) : null;
+  if (!days || !dayDecimal || compareDecimal(dayDecimal, { units: 0n, scale: 0 }) <= 0) {
+    return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "PERIOD_INVALID"]) };
+  }
+  const fromDecimal = decimalOf(from.scalar);
+  const toDecimal = decimalOf(to.scalar);
+  if (!fromDecimal || !toDecimal) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "TYPE_MISMATCH"]) };
+  const evaluated = evaluateFormula({
+    op: "round",
+    places: 1,
+    args: [{
+      op: "/",
+      args: [
+        { op: "-", args: [{ value: formatDecimal(toDecimal) }, { value: formatDecimal(fromDecimal) }] },
+        { op: "/", args: [{ value: days }, { value: "7" }] },
+      ],
+    }],
+  }, () => null);
+  if (!evaluated.ok) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "CALCULATION_UNSUPPORTED"]) };
+  const unit = measureUnit(from.scalar);
+  return computedNumber(combined, formatDecimal(evaluated.value), unit ? unit + " per week" : "per week", evaluated.value, "NUMBER", from.scalar);
+}
+
+function evaluateSum(
+  definition: Extract<EffectiveDefinition, { kind: "calculation" }>,
+  plan: InstancePlan,
+  index: EvidenceIndex,
+  pack: CompiledDomainPack,
+): PartialEval {
+  const valueBinding = roleBinding(definition, "value");
+  const groupBinding = roleBinding(definition, "group");
+  if (!valueBinding || !("entityId" in valueBinding) || !groupBinding || !("entityId" in groupBinding)) return blank(["OPERAND_UNTYPED"]);
+  if (valueBinding.entityId !== groupBinding.entityId) return blank(["CROSS_ENTITY"]);
+  const own = readRole(definition, "value", ["NUMBER", "MONEY", "QUANTITY"], plan, index, pack);
+  const group = readRole(definition, "group", ["TEXT"], plan, index, pack);
+  const combined = merge(own, group);
+  if (!ready(own) || !ready(group) || !own.scalar || group.scalar?.valueType !== "TEXT") {
+    return { ...combined, outcome: worse(ready(own) ? "ESTABLISHED" : own.outcome, ready(group) ? "ESTABLISHED" : group.outcome) };
+  }
+  const entityId = valueBinding.entityId;
+  const groupText = group.scalar.text;
+  const peers = index.instances.get(entityId) ?? [];
+  let total = decimalOf(own.scalar);
+  const factIds = [...own.factIds, ...group.factIds];
+  const sourceRefs = [...own.sourceRefs, ...group.sourceRefs];
+  if (!total) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "TYPE_MISMATCH"]) };
+  for (const instanceId of peers) {
+    if (instanceId === plan.instances.get(entityId)) continue;
+    const peerGroup = readInstanceField(entityId, groupBinding.fieldId, instanceId, ["TEXT"], index, pack);
+    if (peerGroup.outcome === "CONFLICT") {
+      return { ...merge(combined, peerGroup), outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "CONFLICTING_EVIDENCE"]) };
+    }
+    if (!ready(peerGroup) || peerGroup.scalar?.valueType !== "TEXT" || peerGroup.scalar.text !== groupText) continue;
+    const peerValue = readInstanceField(entityId, valueBinding.fieldId, instanceId, ["NUMBER", "MONEY", "QUANTITY"], index, pack);
+    if (!ready(peerValue) || !peerValue.scalar || !sameMeasure(own.scalar, peerValue.scalar)) {
+      return {
+        ...merge(combined, peerValue),
+        outcome: "NOT_EVALUATED",
+        reasons: dedupe([...combined.reasons, ...peerValue.reasons, peerValue.outcome === "CONFLICT" ? "CONFLICTING_EVIDENCE" : "TYPE_MISMATCH"]),
+      };
+    }
+    const peerDecimal = decimalOf(peerValue.scalar);
+    if (!peerDecimal) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "TYPE_MISMATCH"]) };
+    const added = evaluateFormula({ op: "+", args: [{ value: formatDecimal(total) }, { value: formatDecimal(peerDecimal) }] }, () => null);
+    if (!added.ok) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "CALCULATION_UNSUPPORTED"]) };
+    total = added.value;
+    factIds.push(...peerValue.factIds, ...peerGroup.factIds);
+    sourceRefs.push(...peerValue.sourceRefs, ...peerGroup.sourceRefs);
+  }
+  return computedNumber(
+    { ...combined, factIds: dedupe(factIds), sourceRefs: dedupeRefs(sourceRefs) },
+    formatDecimal(total),
+    measureUnit(own.scalar),
+    total,
+    own.scalar.valueType === "MONEY" || own.scalar.valueType === "QUANTITY" ? own.scalar.valueType : "NUMBER",
+    own.scalar,
+  );
+}
+
+function intervalUnit(unit: string): "day" | "week" | "month" | "year" | null {
+  const token = unit.trim().toLowerCase();
+  if (!(INTERVAL_UNITS as readonly string[]).includes(token)) return null;
+  if (token.startsWith("day")) return "day";
+  if (token.startsWith("week")) return "week";
+  if (token.startsWith("month")) return "month";
+  return "year";
+}
+
+function monthLength(year: number, month: number): number {
+  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  return [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+}
+
+function addCivil(iso: string, count: number, unit: "day" | "week" | "month" | "year"): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > monthLength(year, month)) return null;
+  if (unit === "day" || unit === "week") {
+    const days = unit === "week" ? count * 7 : count;
+    const shifted = new Date(Date.UTC(year, month - 1, day) + days * 86_400_000);
+    const nextYear = shifted.getUTCFullYear();
+    const nextMonth = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+    const nextDay = String(shifted.getUTCDate()).padStart(2, "0");
+    return `${nextYear}-${nextMonth}-${nextDay}`;
+  }
+  const months = unit === "year" ? count * 12 : count;
+  const absolute = year * 12 + (month - 1) + months;
+  const nextYear = Math.floor(absolute / 12);
+  const nextMonth = absolute % 12 + 1;
+  if (nextYear < 1 || nextYear > 9999) return null;
+  const nextDay = Math.min(day, monthLength(nextYear, nextMonth));
+  return `${String(nextYear).padStart(4, "0")}-${String(nextMonth).padStart(2, "0")}-${String(nextDay).padStart(2, "0")}`;
+}
+
+function evaluateInterval(
+  definition: Extract<EffectiveDefinition, { kind: "calculation" }>,
+  plan: InstancePlan,
+  index: EvidenceIndex,
+  pack: CompiledDomainPack,
+): PartialEval {
+  const date = readRole(definition, "date", ["DATE"], plan, index, pack);
+  const interval = literalBinding(roleBinding(definition, "interval"));
+  if (!interval) return blank(["OPERAND_UNTYPED"]);
+  const amount = decimalFromPlain(interval.literal.value);
+  const unit = intervalUnit(interval.literal.unit);
+  if (!amount || amount.scale !== 0 || amount.units > 10000n || amount.units < -10000n || !unit) return blank(["PERIOD_INVALID"]);
+  if (!ready(date) || date.scalar?.valueType !== "DATE") return date;
+  const written = formatDate(date.scalar.decimal);
+  const next = written ? addCivil(written, Number(amount.units), unit) : null;
+  const indexDay = next ? calendarDayIndex(next) : null;
+  const decimal = indexDay === null ? null : decimalFromPlain(indexDay.toString());
+  if (!next || !decimal) return { ...date, outcome: "NOT_EVALUATED", reasons: dedupe([...date.reasons, "DATE_INVALID"]) };
+  return {
+    ...date,
+    outcome: "COMPUTED",
+    reasons: dedupe([...date.reasons, "CALCULATION_COMPUTED"]),
+    computedValue: next,
+    computedUnit: "date",
+    scalar: { valueType: "DATE", decimal },
+  };
+}
+
+export function referenceTableCell(pack: CompiledDomainPack, tableId: string, rowKey: string, column: string): string | null {
+  const table = definitionMap(pack).get(tableId);
+  if (table?.kind !== "referenceTable") return null;
+  const columnIndex = table.columns.findIndex((header) => header === column);
+  if (columnIndex < 0) return null;
+  const rows = table.rows.filter((row) => row[0] === rowKey);
+  if (rows.length !== 1) return null;
+  const cell = rows[0]?.[columnIndex] ?? "";
+  return /^-?\d+(\.\d+)?$/.test(cell) ? cell : null;
+}
+
+function evaluateReferenceGap(
+  definition: Extract<EffectiveDefinition, { kind: "calculation" }>,
+  plan: InstancePlan,
+  index: EvidenceIndex,
+  pack: CompiledDomainPack,
+): PartialEval {
+  const value = readRole(definition, "value", ["NUMBER", "QUANTITY"], plan, index, pack);
+  const row = readRole(definition, "row", ["TEXT"], plan, index, pack);
+  const column = readRole(definition, "column", ["TEXT"], plan, index, pack);
+  const table = roleBinding(definition, "table");
+  const combined = merge(value, row, column);
+  if (!table || !("referenceTableId" in table)) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "OPERAND_UNTYPED"]) };
+  if (!ready(value) || !ready(row) || !ready(column) || !value.scalar || row.scalar?.valueType !== "TEXT" || column.scalar?.valueType !== "TEXT") {
+    const outcomes = [value, row, column].map((item) => ready(item) ? "ESTABLISHED" as const : item.outcome);
+    return { ...combined, outcome: outcomes.reduce(worse) };
+  }
+  const cell = referenceTableCell(pack, table.referenceTableId, row.scalar.text, column.scalar.text);
+  const cellDecimal = cell ? decimalFromPlain(cell) : null;
+  if (!cell || !cellDecimal) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "REFERENCE_UNAVAILABLE"]) };
+  const difference = subtractMeasures(value.scalar, { valueType: "NUMBER", decimal: cellDecimal });
+  if (!difference) return { ...combined, outcome: "NOT_EVALUATED", reasons: dedupe([...combined.reasons, "TYPE_MISMATCH"]) };
+  const valueType = value.scalar.valueType === "QUANTITY" ? "QUANTITY" : "NUMBER";
+  return computedNumber(combined, difference.value, measureUnit(value.scalar), difference.decimal, valueType, value.scalar);
+}
+
 function evaluateCalculation(
   definition: Extract<EffectiveDefinition, { kind: "calculation" }>,
   plan: InstancePlan,
@@ -468,8 +798,23 @@ function evaluateCalculation(
   pack: CompiledDomainPack,
 ): PartialEval {
   if (definition.state !== "EXECUTABLE") return blank(["CALCULATION_NOT_EXECUTABLE"]);
-  if (definition.operator !== "DAYS_BETWEEN") return blank(["CALCULATION_UNSUPPORTED"]);
-  return evaluateDays(definition, plan, index, pack);
+  if (!definition.bindings) return blank(["OPERAND_UNTYPED"]);
+  switch (definition.operator) {
+    case "DAYS_BETWEEN":
+      return evaluateDays(definition, plan, index, pack);
+    case "DIFFERENCE":
+      return evaluateDifference(definition, plan, index, pack);
+    case "RATE_PER_WEEK":
+      return evaluateRate(definition, plan, index, pack);
+    case "SUM_BY":
+      return evaluateSum(definition, plan, index, pack);
+    case "ADD_INTERVAL":
+      return evaluateInterval(definition, plan, index, pack);
+    case "REFERENCE_GAP":
+      return evaluateReferenceGap(definition, plan, index, pack);
+    default:
+      return blank(["CALCULATION_UNSUPPORTED"]);
+  }
 }
 
 function compareScalars(left: Canonical, right: Canonical, comparator: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE"): boolean | "MISMATCH" {
@@ -596,7 +941,7 @@ function entitiesInOperand(operand: string | PackOperand, pack: CompiledDomainPa
   if (operand.ref === "LITERAL") return [];
   const definition = definitionMap(pack).get(operand.calculationId);
   if (definition?.kind !== "calculation" || !definition.bindings) return [];
-  return definition.bindings.map((binding) => binding.entityId);
+  return calculationFieldBindings(definition.bindings).map((binding) => binding.entityId);
 }
 
 function entitiesInPredicate(predicate: PackPredicate, pack: CompiledDomainPack): string[] {
@@ -647,7 +992,7 @@ function compareRequirements(predicate: Extract<PackPredicate, { op: "COMPARE" }
     if (operand.ref === "CALCULATION") {
       const definition = definitionMap(pack).get(operand.calculationId);
       if (definition?.kind === "calculation") {
-        for (const binding of definition.bindings ?? []) requirements.push(requirementField(binding.entityId, binding.fieldId));
+        for (const binding of calculationFieldBindings(definition.bindings)) requirements.push(requirementField(binding.entityId, binding.fieldId));
       }
     }
   }
@@ -710,7 +1055,15 @@ function applyCoverage(partial: PartialEval, coverage: VerifiedCaseFacts["covera
     return { ...partial, reasons: dedupe([...partial.reasons, "INCOMPLETE_COVERAGE"]) };
   }
   if (kind === "check" && (partial.outcome === "ESTABLISHED" || partial.outcome === "NOT_SATISFIED" || partial.outcome === "NOT_ESTABLISHED")) {
-    return { ...partial, outcome: "NOT_ESTABLISHED", reasons: dedupe([...partial.reasons, "INCOMPLETE_COVERAGE"]), daysBetween: undefined, scalar: undefined };
+    return {
+      ...partial,
+      outcome: "NOT_ESTABLISHED",
+      reasons: dedupe([...partial.reasons, "INCOMPLETE_COVERAGE"]),
+      daysBetween: undefined,
+      computedValue: undefined,
+      computedUnit: undefined,
+      scalar: undefined,
+    };
   }
   return partial;
 }
@@ -756,6 +1109,10 @@ function toRow(
   };
   if (operator) row.operator = operator;
   if (kind === "calculation" && outcome === "COMPUTED" && partial.daysBetween !== undefined) row.daysBetween = partial.daysBetween;
+  if (kind === "calculation" && outcome === "COMPUTED" && partial.computedValue !== undefined) {
+    row.computedValue = partial.computedValue;
+    row.computedUnit = partial.computedUnit ?? "";
+  }
   return row;
 }
 
@@ -940,14 +1297,11 @@ export function evaluateDomainRules(pack: CompiledDomainPack, evidence: Verified
   const results: DomainRuleResult[] = [];
   for (const definition of pack.definitions) {
     if (definition.kind === "calculation") {
-      const entities = unique((definition.bindings ?? []).map((binding) => binding.entityId));
-      const missing = (definition.bindings ?? []).map((binding) => requirementField(binding.entityId, binding.fieldId));
-      if (definition.state !== "EXECUTABLE" || definition.operator !== "DAYS_BETWEEN" || !definition.bindings) {
-        const reason: DomainRuleReasonCode = definition.state !== "EXECUTABLE"
-          ? "CALCULATION_NOT_EXECUTABLE"
-          : definition.operator !== "DAYS_BETWEEN"
-            ? "CALCULATION_UNSUPPORTED"
-            : "OPERAND_UNTYPED";
+      const fields = calculationFieldBindings(definition.bindings);
+      const entities = unique(fields.map((binding) => binding.entityId));
+      const missing = fields.map((binding) => requirementField(binding.entityId, binding.fieldId));
+      if (definition.state !== "EXECUTABLE" || !definition.bindings) {
+        const reason: DomainRuleReasonCode = definition.state !== "EXECUTABLE" ? "CALCULATION_NOT_EXECUTABLE" : "OPERAND_UNTYPED";
         results.push(toRow("calculation", definition.id, null, blank([reason]), definition.operator));
         continue;
       }

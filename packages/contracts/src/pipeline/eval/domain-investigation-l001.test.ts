@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CoordinatedInvestigationLedger } from "../domain-investigation-agent";
 import type { AuthorizedDocument } from "../domain-investigation-binder";
+import { compileDomainPack } from "../domain-pack-compiler";
 import { prepareInvestigationStudy, runInvestigationStudyEngine } from "../investigation-study-engine";
 import type { DocExtraction, ExtractionFact } from "../extraction-contracts";
 import type { DomainPackSource } from "../domain-pack-source";
@@ -229,6 +230,10 @@ describe("synthetic L001 coordinated investigation", () => {
     expect(missingDocument?.title.toLowerCase()).toContain("progress");
     expect(missingInformation?.statement).toContain("Missing information");
     expect(study.study.checklist?.some((item) => item.verdict === "NOT_ASSESSED")).toBe(true);
+    expect(study.study.checklist?.every((item) => item.verdict !== "SHOWN" && item.verdict !== "NOT_SHOWN")).toBe(true);
+    expect(study.study.checklist?.every((item) => item.note.includes("not a legal conclusion"))).toBe(true);
+    expect(study.study.spine.some((item) => item.kind === "progress" || item.kind === "calculation" || item.kind === "relationship")).toBe(false);
+    expect(JSON.stringify(study.study.outsideSpine)).toContain("was not published");
     for (const item of study.study.checklist ?? []) {
       if (item.verdict === "SHOWN" || item.verdict === "CONFLICT" || item.verdict === "PARTLY_SHOWN") {
         expect(item.factIds.length).toBeGreaterThan(0);
@@ -238,5 +243,86 @@ describe("synthetic L001 coordinated investigation", () => {
     expect(audiences.has("customer")).toBe(true);
     expect(audiences.has("professional")).toBe(true);
     expect(iep).toContain("Initial Individualized Education Program (IEP)");
+  });
+
+  it("keeps the v0.4.0 digest and publishes only source-supported v0.5.0 results", () => {
+    const preserved = compileDomainPack(loadJson("iep-domain-pack-source.v0.4.0.json"));
+    expect(preserved.ok).toBe(true);
+    if (!preserved.ok) return;
+    expect(preserved.value.identity.digest).toBe("809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f");
+    const root = join(ROOT, "packs/drafts/iep-us-federal/v0.5.0");
+    const read = (name: string) => JSON.parse(readFileSync(join(root, name), "utf8")) as unknown;
+    const next = prepareInvestigationStudy({
+      packSource: read("iep-domain-pack-source.v0.5.0.json") as DomainPackSource,
+      artifacts: {
+        ontology: read("iep-domain-ontology-spec.json"),
+        authorityRegister: read("iep-domain-authority-register.json"),
+        conflictPatterns: read("iep-domain-conflict-patterns.v1.json"),
+        stateOverlays: read("iep-domain-state-overlays.v1.json"),
+        factClasses: read("iep-domain-fact-classes.v1.json"),
+        workflowCoverage: read("iep-domain-workflow-coverage.v1.json"),
+        unsupportedOperators: read("iep-domain-unsupported-operators.v1.json"),
+      } as SupplementalArtifacts,
+    });
+    expect(next.ok).toBe(true);
+    if (!next.ok) return;
+    expect(next.prepared.pack.identity.digest).toBe("2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066");
+    const checks = next.prepared.pack.definitions.filter((definition) => definition.kind === "check");
+    expect(checks).toHaveLength(67);
+    const executable = checks.filter((definition) => definition.kind === "check" && definition.criterion.op !== "REVIEW_REQUIRED").map((definition) => definition.id).sort();
+    expect(executable).toEqual(["check:A3", "check:G2", "check:S1"]);
+    const pages: AuthorizedDocument[] = corpus.map((item) => ({
+      documentId: item.id,
+      pages: item.pages.map((text, index) => ({ pageNumber: index + 1, text })),
+    }));
+    const iep = corpus.find((item) => item.file === "08_initial_iep.pdf");
+    if (!iep) throw new Error("missing iep");
+    const extractions: DocExtraction[] = corpus.map((item) => item.file === "08_initial_iep.pdf"
+      ? extraction(item.id, item.file, item.pages, [
+        fact("F-eligible-date", "2024-11-01", 1, "Determination Date:\n2024-11-01"),
+        fact("F-baseline", "42", 2, "Baseline:\n42 WCPM"),
+        fact("F-target", "75", 2, "Target:\n75 WCPM"),
+      ])
+      : extraction(item.id, item.file, item.pages, []));
+    const ledger = new CoordinatedInvestigationLedger("run-l001-v5", next.prepared.pack, extractions, pages, "What should the family ask the school?");
+    const proposals = [
+      call("elig-date", "propose_field", { documentId: "08", extractionFactId: "F-eligible-date", entityId: "entity:eligibility-determination", instanceId: "elig", fieldId: "determinationDate", valueType: "DATE", value: "2024-11-01" }),
+      call("baseline", "propose_field", { documentId: "08", extractionFactId: "F-baseline", entityId: "entity:annual-goal", instanceId: "goal", fieldId: "baselineValue", valueType: "NUMBER", value: "42" }),
+      call("target", "propose_field", { documentId: "08", extractionFactId: "F-target", entityId: "entity:annual-goal", instanceId: "goal", fieldId: "targetValue", valueType: "NUMBER", value: "75" }),
+      call("met", "propose_assessment", { statement: "The annual goal has been met.", factIds: ["F-baseline", "F-target"] }),
+      call("done", "finish_investigation", { ready: true }),
+    ];
+    ledger.beginTurn();
+    for (const proposal of proposals) ledger.execute(proposal);
+    const assembled = ledger.assemble();
+    expect(assembled).not.toBeNull();
+    if (!assembled) return;
+    const study = runInvestigationStudyEngine({
+      prepared: next.prepared,
+      extractions,
+      pages,
+      proposal: assembled.proposal,
+      investigation: assembled.record,
+      studyDate: "2026-11-25",
+    });
+    expect(study.ok).toBe(true);
+    if (!study.ok) return;
+    expect(study.study.spine.some((item) => item.kind === "calculation" && item.label.includes("2027-11-01"))).toBe(true);
+    expect(study.study.spine.some((item) => item.kind === "relationship")).toBe(false);
+    expect(study.study.timeline).toEqual(expect.arrayContaining([expect.objectContaining({ date: "2024-11-01", factIds: ["F-eligible-date"] })]));
+    expect(study.study.spine.some((item) => /has been met/i.test(item.label))).toBe(false);
+    expect(JSON.stringify(study.study.outsideSpine)).toContain("No subsequent measurement supports a progress conclusion");
+    expect(study.study.checklist?.some((item) => item.verdict === "NOT_ASSESSED")).toBe(true);
+    expect(study.study.checklist?.find((item) => item.checkId === "check:T2")?.verdict).toBe("NOT_ASSESSED");
+    expect(study.study.checklist?.find((item) => item.checkId === "check:G2")?.verdict).toBe("NOT_SHOWN");
+    expect(study.study.checklist?.find((item) => item.checkId === "check:G2")?.factIds).toEqual(["F-baseline", "F-target"]);
+    expect(study.study.gaps.length).toBeGreaterThan(0);
+    expect(JSON.stringify(study.study.outsideSpine)).toContain("What should the family ask the school?");
+    const audiences = new Set(study.study.personaCoverage?.map((item) => item.audience));
+    expect(audiences.has("customer")).toBe(true);
+    expect(audiences.has("professional")).toBe(true);
+    const golden = JSON.parse(readFileSync(join(ROOT, "eval/corpora/special-ed-l001/golden.json"), "utf8")) as { negativeControls: { statement: string }[] };
+    const supported = study.study.spine.map((item) => item.label).join("\n");
+    for (const control of golden.negativeControls) expect(supported).not.toContain(control.statement);
   });
 });

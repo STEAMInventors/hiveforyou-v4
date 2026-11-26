@@ -110,6 +110,8 @@ function scalar(fieldId: string, value: string, valueType?: VerifiedScalar["valu
   if (valueType === "NUMBER") return { valueType: "NUMBER", value };
   if (valueType === "TEXT") return { valueType: "TEXT", value };
   if (valueType === "BOOLEAN") return { valueType: "BOOLEAN", value };
+  if (valueType === "DATE") return { valueType: "DATE", value };
+  if (valueType === "QUANTITY") return { valueType: "QUANTITY", value, unit: "count" };
   if (fieldId === "date" || fieldId === "consentDate" || fieldId === "evaluationCompleted" || fieldId === "occurred") {
     return { valueType: "DATE", value };
   }
@@ -389,7 +391,7 @@ describe("deterministic domain rules", () => {
     expect(labeled.outcome).toBe("NOT_EVALUATED");
     expect(labeled.reasonCodes).toContain("OPERAND_UNTYPED");
     expect(labeled.supportingFactIds).toEqual([]);
-    const difference = compile({
+    const difference = compileDomainPack({
       ...recordSource(),
       definitions: [
         { id: "entity:amount", kind: "entity", label: "Amount", fields: [{ id: "left", valueType: "NUMBER" }, { id: "right", valueType: "NUMBER" }] },
@@ -403,15 +405,8 @@ describe("deterministic domain rules", () => {
         },
       ],
     });
-    const diff = row(run(difference, evidence([
-      fact("a-left", "entity:amount", "a", "left", "10", "NUMBER"),
-      fact("a-right", "entity:amount", "a", "right", "3", "NUMBER"),
-    ])), "calculation:diff");
-    expect(diff.outcome).toBe("NOT_EVALUATED");
-    expect(diff.reasonCodes).toContain("CALCULATION_UNSUPPORTED");
-    expect(diff.daysBetween).toBeUndefined();
-    expect(diff.supportingFactIds).toEqual([]);
-    const unbound = compile({
+    expect(difference.ok).toBe(false);
+    const unbound = compileDomainPack({
       ...recordSource(),
       definitions: recordSource().definitions.map((definition) => {
         if (definition.id !== "calculation:C1" || definition.kind !== "calculation") return definition;
@@ -419,10 +414,8 @@ describe("deterministic domain rules", () => {
         return { ...rest, inputFields: ["consentDate", "evaluationCompleted"] };
       }),
     });
-    const ignored = row(run(unbound, evidence(caseFacts("c1", "2024-01-01", "2024-02-01"))), "calculation:C1");
-    expect(ignored.reasonCodes).toContain("OPERAND_UNTYPED");
-    expect(ignored.daysBetween).toBeUndefined();
-    expect(ignored.supportingFactIds).toEqual([]);
+    expect(unbound.ok).toBe(false);
+    if (!unbound.ok) expect(unbound.issues.some((issue) => issue.code === "calculation_binding")).toBe(true);
   });
 
   it("never turns review-required into a positive verdict", () => {
@@ -713,6 +706,135 @@ describe("deterministic domain rules", () => {
     expect(denied.outcome).toBe("NOT_SATISFIED");
     expect(denied.supportingFactIds).toEqual(["c1-occurred", "link-1", "n1-occurred"]);
     expect(denied.sourceRefs).toEqual(same.sourceRefs);
+  });
+
+  it("computes the supported operators and withholds a bad unit, period, or reference cell", () => {
+    const source: DomainPackSource = {
+      ...recordSource(),
+      definitions: [
+        {
+          id: "entity:measure", kind: "entity", label: "Measure",
+          fields: [
+            { id: "from", valueType: "NUMBER" },
+            { id: "to", valueType: "NUMBER" },
+            { id: "start", valueType: "DATE" },
+            { id: "end", valueType: "DATE" },
+            { id: "left", valueType: "QUANTITY", unit: "count" },
+            { id: "right", valueType: "QUANTITY", unit: "count" },
+            { id: "amount", valueType: "QUANTITY", unit: "count" },
+            { id: "group", valueType: "TEXT" },
+            { id: "when", valueType: "DATE" },
+            { id: "row", valueType: "TEXT" },
+            { id: "column", valueType: "TEXT" },
+          ],
+        },
+        {
+          id: "referenceTable:norms", kind: "referenceTable", label: "Norms",
+          columns: ["Grade", "Fall"],
+          rows: [["3", "83"], ["1", "-"]],
+        },
+        {
+          id: "calculation:diff", kind: "calculation", label: "Difference", operator: "DIFFERENCE",
+          inputFields: ["left", "right"], state: "EXECUTABLE",
+          bindings: [
+            { role: "minuend", entityId: "entity:measure", fieldId: "left" },
+            { role: "subtrahend", entityId: "entity:measure", fieldId: "right" },
+          ],
+        },
+        {
+          id: "calculation:rate", kind: "calculation", label: "Rate", operator: "RATE_PER_WEEK",
+          inputFields: ["from", "to", "start", "end"], state: "EXECUTABLE",
+          bindings: [
+            { role: "from", entityId: "entity:measure", fieldId: "from" },
+            { role: "to", entityId: "entity:measure", fieldId: "to" },
+            { role: "start", entityId: "entity:measure", fieldId: "start" },
+            { role: "end", entityId: "entity:measure", fieldId: "end" },
+          ],
+        },
+        {
+          id: "calculation:sum", kind: "calculation", label: "Sum", operator: "SUM_BY",
+          inputFields: ["amount", "group"], state: "EXECUTABLE",
+          bindings: [
+            { role: "value", entityId: "entity:measure", fieldId: "amount" },
+            { role: "group", entityId: "entity:measure", fieldId: "group" },
+          ],
+        },
+        {
+          id: "calculation:due", kind: "calculation", label: "Due", operator: "ADD_INTERVAL",
+          inputFields: ["when"], state: "EXECUTABLE",
+          bindings: [
+            { role: "date", entityId: "entity:measure", fieldId: "when" },
+            { role: "interval", literal: { valueType: "QUANTITY", value: "1", unit: "month" } },
+          ],
+        },
+        {
+          id: "calculation:gap", kind: "calculation", label: "Gap", operator: "REFERENCE_GAP",
+          inputFields: ["from", "row", "column"], state: "EXECUTABLE",
+          bindings: [
+            { role: "value", entityId: "entity:measure", fieldId: "from" },
+            { role: "row", entityId: "entity:measure", fieldId: "row" },
+            { role: "column", entityId: "entity:measure", fieldId: "column" },
+            { role: "table", referenceTableId: "referenceTable:norms" },
+          ],
+        },
+      ],
+    };
+    const pack = compile(source);
+    const measured = evidence([
+      fact("from", "entity:measure", "m", "from", "42", "NUMBER"),
+      fact("to", "entity:measure", "m", "to", "75", "NUMBER"),
+      fact("start", "entity:measure", "m", "start", "2024-01-01", "DATE"),
+      fact("end", "entity:measure", "m", "end", "2024-01-15", "DATE"),
+      fact("left", "entity:measure", "m", "left", "10", "QUANTITY"),
+      fact("right", "entity:measure", "m", "right", "3", "QUANTITY"),
+      fact("when", "entity:measure", "m", "when", "2024-01-31", "DATE"),
+      fact("row", "entity:measure", "m", "row", "3", "TEXT"),
+      fact("column", "entity:measure", "m", "column", "Fall", "TEXT"),
+      fact("a-amount", "entity:measure", "a", "amount", "10", "QUANTITY"),
+      fact("a-group", "entity:measure", "a", "group", "lab", "TEXT"),
+      fact("b-amount", "entity:measure", "b", "amount", "5", "QUANTITY"),
+      fact("b-group", "entity:measure", "b", "group", "lab", "TEXT"),
+      fact("c-amount", "entity:measure", "c", "amount", "9", "QUANTITY"),
+      fact("c-group", "entity:measure", "c", "group", "other", "TEXT"),
+    ]);
+    const evaluation = run(pack, measured);
+    expect(row(evaluation, "calculation:diff", "m")).toMatchObject({ outcome: "COMPUTED", computedValue: "7", computedUnit: "count" });
+    expect(row(evaluation, "calculation:rate", "m")).toMatchObject({ outcome: "COMPUTED", computedValue: "16.5", computedUnit: "per week" });
+    expect(row(evaluation, "calculation:sum", "a")).toMatchObject({ outcome: "COMPUTED", computedValue: "15", computedUnit: "count" });
+    expect(row(evaluation, "calculation:sum", "c")).toMatchObject({ outcome: "COMPUTED", computedValue: "9" });
+    expect(row(evaluation, "calculation:due", "m")).toMatchObject({ outcome: "COMPUTED", computedValue: "2024-02-29", computedUnit: "date" });
+    expect(row(evaluation, "calculation:gap", "m")).toMatchObject({ outcome: "COMPUTED", computedValue: "-41" });
+    const minute = fact("right-minute", "entity:measure", "m", "right", "3", "QUANTITY");
+    minute.value = { valueType: "QUANTITY", value: "3", unit: "minute" };
+    const mismatch = run(pack, evidence([
+      fact("left", "entity:measure", "m", "left", "10", "QUANTITY"),
+      minute,
+    ]));
+    expect(row(mismatch, "calculation:diff", "m").reasonCodes).toContain("TYPE_MISMATCH");
+    const zero = run(pack, evidence([
+      fact("from", "entity:measure", "m", "from", "42", "NUMBER"),
+      fact("to", "entity:measure", "m", "to", "75", "NUMBER"),
+      fact("start", "entity:measure", "m", "start", "2024-01-01", "DATE"),
+      fact("end", "entity:measure", "m", "end", "2024-01-01", "DATE"),
+    ]));
+    expect(row(zero, "calculation:rate", "m").reasonCodes).toContain("PERIOD_INVALID");
+    const blank = run(pack, evidence([
+      fact("from", "entity:measure", "m", "from", "42", "NUMBER"),
+      fact("row", "entity:measure", "m", "row", "1", "TEXT"),
+      fact("column", "entity:measure", "m", "column", "Fall", "TEXT"),
+    ]));
+    expect(row(blank, "calculation:gap", "m").reasonCodes).toContain("REFERENCE_UNAVAILABLE");
+    const leap = evidence([fact("when", "entity:measure", "leap", "when", "2024-02-29", "DATE")]);
+    const yearPack = compile({
+      ...source,
+      definitions: source.definitions.map((definition) => definition.id === "calculation:due" && definition.kind === "calculation"
+        ? { ...definition, bindings: [
+          { role: "date", entityId: "entity:measure", fieldId: "when" },
+          { role: "interval", literal: { valueType: "QUANTITY" as const, value: "1", unit: "year" } },
+        ] }
+        : definition),
+    });
+    expect(row(run(yearPack, leap), "calculation:due", "leap")).toMatchObject({ computedValue: "2025-02-28" });
   });
 
   it("keeps domain vocabulary out of the evaluator", () => {

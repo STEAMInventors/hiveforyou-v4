@@ -11,6 +11,9 @@ import {
   type InvestigationEnginePin,
   INVESTIGATION_AGENT_TOOL_NAMES,
   MAPPING_WINDOW_LIMITS,
+  RELATIONSHIP_SOURCE_STRUCTURE_SCHEMA,
+  authoredRelationshipDirection,
+  relationshipStructureDigest,
 } from "@hiveforyou/contracts/investigation";
 import { computeSha256Digest } from "@hiveforyou/contracts/document-read";
 import { describe, expect, it, vi } from "vitest";
@@ -20,6 +23,7 @@ import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
 import {
   CORRELATION_ID,
   DOC_1,
+  DOC_2,
   HIVE_ID,
   INTENTS,
   RUN_ID,
@@ -314,6 +318,111 @@ describe("rebuild study investigation engine", () => {
     expect(calls).not.toContain("accept_study_revision");
   });
 
+  it("admits a cross-document relationship only when the compiled structure matches the quoted text", async () => {
+    const drafted = source();
+    drafted.definitions.push(
+      { id: "entity:other", kind: "entity", label: "Other", fields: [{ id: "name", valueType: "TEXT" }] },
+      {
+        id: "relationship:item-other", kind: "relationship", label: "Item names other",
+        fromEntityId: "entity:item", toEntityId: "entity:other", evidenceRequired: true,
+      },
+    );
+    const companion = artifacts(drafted);
+    const ontology = companion.ontology as { entities: unknown[]; relationships: unknown[] };
+    ontology.entities.push({
+      id: "entity:other", factClass: "RECORD",
+      fields: [{ id: "name", valueType: "TEXT" }],
+      ruleIds: [], documentKinds: [], identityKeys: ["name"],
+    });
+    ontology.relationships.push({
+      id: "relationship:item-other", fromEntityId: "entity:item", toEntityId: "entity:other",
+    });
+    const first = extraction();
+    const second: DocExtraction = {
+      ...extraction(),
+      documentId: DOC_2,
+      fileName: "later.txt",
+      facts: [
+        fact("F-name", "South", "Other name: South."),
+        fact("F-link", "north->south North South.", "north->south North South."),
+      ],
+    };
+    const firstDocument = snapshotDocument(DOC_1, "record.txt", { verifiedPageCount: 1, totalPhysicalPages: 1 });
+    const secondDocument = snapshotDocument(DOC_2, "later.txt", { verifiedPageCount: 1, totalPhysicalPages: 1 });
+    const body = {
+      schema: RELATIONSHIP_SOURCE_STRUCTURE_SCHEMA,
+      relationshipId: "relationship:item-other",
+      direction: "AUTHORED_FROM_TO" as const,
+      polarity: "HOLDS" as const,
+      slots: [
+        { role: "FROM_IDENTITY" as const, value: "North" },
+        { role: "TO_IDENTITY" as const, value: "South" },
+        { role: "POLARITY" as const, value: "North" },
+        { role: "DIRECTION" as const, value: authoredRelationshipDirection("north", "south") },
+      ],
+    };
+    const structure = { ...body, structureDigest: relationshipStructureDigest(body) };
+    const calls = [
+      { id: "c1", name: "propose_field", arguments: { documentId: DOC_1, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north", fieldId: "label", valueType: "TEXT", value: "North" } },
+      { id: "c2", name: "propose_field", arguments: { documentId: DOC_2, extractionFactId: "F-name", entityId: "entity:other", instanceId: "south", fieldId: "name", valueType: "TEXT", value: "South" } },
+      { id: "c3", name: "propose_relationship", arguments: { documentId: DOC_2, extractionFactId: "F-link", relationshipId: "relationship:item-other", fromInstanceId: "north", toInstanceId: "south" } },
+      { id: "c4", name: "finish_investigation", arguments: { ready: true } },
+    ];
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === "get_doc_extractions_for_run") {
+        return {
+          data: {
+            extractions: [
+              { sourceDocumentId: DOC_1, contentDigest: firstDocument.pageSetDigest, extraction: first },
+              { sourceDocumentId: DOC_2, contentDigest: secondDocument.pageSetDigest, extraction: second },
+            ],
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    });
+    const run = (structures: readonly unknown[]) => runCanonicalizeForRun({
+      deps: deps(mappingCalls(calls).fetchFn, rpc),
+      run: runJson("CANONICALIZING", { preparationMode: "REBUILD" }) as never,
+      extractions: [first, second],
+      sourceSnapshot: sourceSnapshot({ documents: [firstDocument, secondDocument] }),
+      catalog: loadPromptCatalog(),
+      correlationId: "corr",
+      stageAttempt: 1,
+      now: () => new Date("2026-11-25T12:00:00.000Z"),
+      rebuildMode: true,
+      investigationEngine: {
+        hiveId: HIVE_ID,
+        packSource: drafted,
+        artifacts: companion,
+        pages: [
+          { documentId: DOC_1, pages: [{ pageNumber: 1, text: PAGE }] },
+          { documentId: DOC_2, pages: [{ pageNumber: 1, text: "Other name: South. north->south North South." }] },
+        ],
+        relationshipStructures: structures,
+      },
+    });
+    const admitted = await run([structure]);
+    expect(admitted.ok).toBe(true);
+    if (!admitted.ok) return;
+    expect(admitted.study.spine).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "relationship", status: "SUPPORTED", supportingFactIds: expect.arrayContaining(["F-link"]) }),
+    ]));
+    const mismatchedBody = {
+      ...body,
+      slots: body.slots.map((slot) => slot.role === "POLARITY" ? { ...slot, value: "not-in-the-quote" } : slot),
+    };
+    const mismatched = { ...mismatchedBody, structureDigest: relationshipStructureDigest(mismatchedBody) };
+    const withheld = await run([mismatched]);
+    expect(withheld.ok).toBe(true);
+    if (!withheld.ok) return;
+    expect(withheld.study.spine?.some((item) => item.kind === "relationship")).toBe(false);
+    expect(withheld.study.outsideSpine).toEqual(expect.arrayContaining([
+      expect.objectContaining({ factIds: ["F-link"], statement: expect.stringContaining("is not verified") }),
+    ]));
+  });
+
   it("keeps the earlier study when a pinned rebuild fails and does not call legacy canonicalization", async () => {
     const row = extraction();
     const drafted = source();
@@ -599,7 +708,7 @@ function acceptanceHarness(input: { selection: unknown; content: unknown; select
 }
 
 describe("pinned rebuild acceptance", () => {
-  it("pins only the compiled iep-us-federal 0.4.0 digest", () => {
+  it("pins only the compiled iep-us-federal 0.5.0 digest", () => {
     const pinned = loadPinnedDomainPack();
     expect(pinned.source.identity).toMatchObject(PINNED_DOMAIN_PACK);
     expect(pinned.compiledDigest).toMatch(/^[0-9a-f]{64}$/);

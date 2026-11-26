@@ -408,7 +408,7 @@ describe("prepareInvestigationEvidencePin", () => {
     expect(packDigest(body)).toBe(pinId);
     expect(prepared.pin.verified).toEqual(bound.verified);
     expect(prepared.pin.unresolved).toEqual(bound.unresolved);
-    expect(prepared.pin.verified.coverage).toBe("INCOMPLETE");
+    expect(prepared.pin.verified.coverage).toBe("COMPLETE");
     expect(prepared.pin.verified.facts).toHaveLength(4);
     expect(prepared.pin.verified.documents).toHaveLength(1);
     expect(prepared.pin.verified.relationships).toEqual([]);
@@ -452,7 +452,7 @@ describe("prepareInvestigationEvidencePin", () => {
     expect(JSON.stringify(prepared.pin)).not.toContain(PAGE_1);
   });
 
-  it("pins a completed investigation with zero candidates and incomplete coverage", () => {
+  it("pins a completed investigation with zero candidates when every declared page was read", () => {
     const { pack, plan, extractions } = world();
     const prepared = expectPin(prepareInvestigationEvidencePin({
       pack,
@@ -461,7 +461,7 @@ describe("prepareInvestigationEvidencePin", () => {
       sourceGenerations: generations(),
       candidates: envelope(plan, pack, extractions, []),
     }));
-    expect(prepared.pin.verified.coverage).toBe("INCOMPLETE");
+    expect(prepared.pin.verified.coverage).toBe("COMPLETE");
     expect(prepared.pin.verified.facts).toEqual([]);
     expect(prepared.pin.verified.documents).toEqual([]);
     expect(prepared.pin.verified.relationships).toEqual([]);

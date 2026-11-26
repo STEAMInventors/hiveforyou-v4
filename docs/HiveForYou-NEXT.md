@@ -1,6 +1,6 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-26): Stage 5E.2 — Comprehensive Agentic Investigation.** Local only. Pinned Rebuild Study uses one `study-agent-turn` loop, `task: "investigation"`, on `PLANNER_STUDY_LITELLM_ALIAS`. The D-064 provider gate is unchanged. `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` stays empty. No live model, deploy, Hive pin, or `supabase db push`. IEP v0.4.0 is not global. Compiled digest `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
+> **Active ticket (2026-11-26): Stage 5E.2 — Comprehensive Agentic Investigation.** Local only. Pinned Rebuild Study uses one `study-agent-turn` loop, `task: "investigation"`, on `PLANNER_STUDY_LITELLM_ALIAS`. The D-064 provider gate is unchanged. `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` stays empty. No live model, deploy, Hive pin, or `supabase db push`. The local selectable edition is iep-us-federal 0.5.0, digest `2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066`. v0.4.0 remains on disk. Its compiled digest is unchanged: `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
 
 ## Active ticket — Stage 5E.2: Comprehensive Agentic Investigation
 
@@ -8,23 +8,24 @@
 
 **Decision:** D-065. Reuses the Study Agent transport, compiled Domain Pack, investigation plan, binder, ledger, and rule engine. No new alias, configuration variable, or migration.
 
-**Status (2026-11-26): local path passed synthetic regression. Not deployed.** Pinned Rebuild posts `hive.domain-investigation/1` with the twelve investigation tools. The planner returns those calls unexecuted. Trusted code checks quotes and written values, evaluates rules it can decide, and assembles `hive.canonical-study/1`. A failed run does not accept a revision or replace Customer or Pro reports. Unpinned Hives stay on `hive-canonicalize/1`. Hive Board is unchanged.
+**Status (2026-11-26): local integrated study path passed synthetic regression. Not deployed.** Pinned Rebuild posts `hive.domain-investigation/1` with the twelve investigation tools and passes any compiled relationship structures stored with the pack pin. The planner returns those calls unexecuted. Trusted code checks quotes and written values, decides executable criteria from verified evidence, admits a relationship only when a compiled source structure matches, publishes a supported calculation with its inputs, unit, and provenance, compares a later measurement with the baseline and planned target, and assembles `hive.canonical-study/1`. A failed run does not accept a revision or replace Customer or Pro reports. A stored selection whose version or digest is not 0.5.0 fails closed. Unpinned Hives stay on `hive-canonicalize/1`. Hive Board is unchanged.
 
 **Execution path**
 
 1. Rebuild loads the per-Hive pack pin, saved extractions, and authorized pages.
 2. `selectInvestigationWindows` sends one bounded catalog slice, the document manifest, and written fact values. Page text is not in that payload.
 3. The model may call `search_case`, `read_pages`, `propose_field`, `propose_relationship`, `propose_document_role`, `propose_measurement`, `propose_assessment`, `propose_determination`, `propose_conflict`, `propose_gap`, `propose_answer`, and `finish_investigation`.
-4. The binder accepts a field only when the proposed value is the written value and the quote is on an authorized page. Relationship semantics stay unverified.
-5. The ledger and rule engine own calculations and applicability that the pack can decide. `REVIEW_REQUIRED` checks stay `NOT_ASSESSED`.
-6. `projectStudy` writes human-readable findings, document roles, chronology, conflicts, gaps, checklist rows, and persona coverage. Professional determinations stay open and outside the spine.
+4. The binder accepts a field only when the proposed value is the written value and the quote is on an authorized page. It does not admit a relationship. A compiled source structure may admit one later, and only when the quoted text and the verified endpoints match. A model proposal alone stays unresolved, with its reason kept.
+5. The ledger and rule engine decide applicability, evidence coverage, and outcomes the pack marks executable. `REVIEW_REQUIRED` checks and incomplete evidence stay `NOT_ASSESSED`. A field-presence check with complete coverage is `SHOWN` or `NOT_SHOWN`. A supported calculation (`DAYS_BETWEEN`, `DIFFERENCE`, `RATE_PER_WEEK`, `SUM_BY`, `ADD_INTERVAL`, `REFERENCE_GAP`) is published only when its bindings match the operator contract and its units, period, and provenance validate. Anything else stays unpublished, with the reason kept.
+6. `projectStudy` writes human-readable findings, document roles, chronology, conflicts, gaps, checklist rows, calculations, progress comparisons, and persona coverage. Professional determinations stay open and outside the spine. A progress comparison is published only when a later measurement exists, and it keeps baseline, planned target, and observed value distinct.
 
 **Known limits**
 
-- The binder still records `RELATIONSHIP_SEMANTICS_UNVERIFIED`. A proposed link is kept as an unverified item. It is not an established cross-document link.
-- IEP v0.4.0 checks remain `REVIEW_REQUIRED`, so this path does not reproduce legacy v7 SHOWN / NOT SHOWN verdicts.
-- A progress sentence is withheld unless a later measurement is accepted. The synthetic L001 run has no later measurement, so no progress conclusion is published.
-- No external model was called. The eight-PDF check drives the ledger with scripted tool calls over text extracted from the synthetic corpus.
+- The local selectable edition is iep-us-federal 0.5.0. Three checks are field presence on one subject: `check:G2`, `check:S1`, and `check:A3`. The other 64 of 67 stay `REVIEW_REQUIRED`. Timing limits, adequacy, and professional judgments are not legal verdicts. v0.4.0 is unchanged and still compiles to `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`. The 0.5.0 digest is `2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066`.
+- Executable calculations on 0.5.0 are `calculation:C4` (rate per week), `calculation:C5` (sum by setting), `calculation:C7a` (meeting date plus one year), and `calculation:C7b` (determination date plus three years), plus the existing day-count calculations whose bindings already matched `DAYS_BETWEEN`. `C6`, `C8`, `C9`, `C11`, and `C12` stay declarations because their inputs are not one same-entity operator contract. A rate does not compare separate unit text on number fields. A due date is an estimate, not a deadline verdict, while jurisdiction is `UNVERIFIED`.
+- Relationship structures are case companions. The shipped pack has none, so a pinned Hive keeps proposed links unresolved until a structure whose slots appear in the quoted page is supplied. Endpoint co-occurrence is not acceptance.
+- On the synthetic L001 documents, the 0.5.0 study publishes the reevaluation date `2027-11-01` from the written determination date `2024-11-01`, records that date on the timeline, marks the incomplete goal check `NOT_SHOWN`, and leaves the timing checks `NOT_ASSESSED`. It does not publish a progress conclusion, a relationship, or a rate, because the corpus has no later measurement, no compiled relationship structure, and no baseline date or goal date in the mapped facts. The four golden negative controls stay out of the findings.
+- No external model was called. The eight-PDF check drives the ledger with scripted tool calls over text extracted from the synthetic corpus. A controlled live-model run still needs a separate approval, an allowlisted synthetic Hive, and one stored 0.5.0 selection.
 
 **Not done:** sign in, create a Hive, set the allowlist, pin a pack, click Rebuild Study, deploy the planner or web app, or apply SQL.
 
