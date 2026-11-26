@@ -253,8 +253,8 @@ describe("investigation study engine", () => {
     if (!result.ok) return;
     expect(result.study.schema).toBe("hive.canonical-study/1");
     expect(result.study.spine).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: "label: North (page 1)", supportingFactIds: ["F-label"], status: "SUPPORTED" }),
-      expect.objectContaining({ label: "startDate: 2024-01-02 (page 1)", supportingFactIds: ["F-start"], status: "SUPPORTED" }),
+      expect.objectContaining({ label: "Item label is North (page 1)", supportingFactIds: ["F-label"], status: "SUPPORTED" }),
+      expect.objectContaining({ label: "Item start date is 2024-01-02 (page 1)", supportingFactIds: ["F-start"], status: "SUPPORTED" }),
     ]));
     expect(result.study.timeline).toEqual(expect.arrayContaining([
       expect.objectContaining({ date: "2024-01-02", asWritten: "2024-01-02", factIds: ["F-start"] }),
@@ -315,6 +315,36 @@ describe("investigation study engine", () => {
       ],
     });
     expect(result).toEqual({ ok: false, code: "INVALID_EVIDENCE" });
+  });
+
+  it("keeps a progress claim, a false conflict, and a professional decision out of the findings", () => {
+    const input = proposal();
+    const result = runInvestigationStudyEngine({
+      prepared: input.prepared,
+      extractions: extractions(),
+      pages,
+      proposal: input.proposal,
+      studyDate: "2026-11-25",
+      investigation: {
+        intentText: "Should the family schedule a dentist visit before signing?",
+        documentRoles: [],
+        measurements: [],
+        assessments: [{ statement: "The goal has been met.", factIds: ["F-label"] }],
+        determinations: [{ statement: "A professional still has to decide." }],
+        conflicts: [{ statement: "North and South disagree.", factIds: ["F-label", "F-name"] }],
+        gaps: [],
+        answers: [],
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const text = JSON.stringify(result.study);
+    expect(text).toContain("No subsequent measurement supports a progress conclusion");
+    expect(result.study.spine.some((item) => /has been met/i.test(item.label))).toBe(false);
+    expect(result.study.conflicts).toEqual([]);
+    expect(text).toContain("not two values of the same field");
+    expect(text).toContain("Open for a professional");
+    expect(text).toContain("dentist");
   });
 
   it("rejects an empty candidate envelope and a study-shaped model answer", () => {

@@ -6,8 +6,9 @@
  * and accepts a study only after the binder, the ledger, and canonical verification agree.
  * This module does not call a model, invent a relationship, or compute a day count.
  */
-import type { CanonicalStudy } from "./canonical-study-contracts";
+import type { CanonicalGap, CanonicalStudy, SpineSource } from "./canonical-study-contracts";
 import { parseCanonicalStudy, verifyCanonicalStudy } from "./canonical-study-contracts";
+import type { CoordinatedInvestigationRecord } from "./domain-investigation-agent";
 import { compileDomainPack, packDigest } from "./domain-pack-compiler";
 import {
   authorizedExtractionDigest,
@@ -17,7 +18,7 @@ import {
   type AuthorizedDocument,
   type CandidateEvidence,
 } from "./domain-investigation-binder";
-import { buildCoverageLedger, investigationEvidenceDigest } from "./domain-investigation-ledger";
+import { buildCoverageLedger, investigationEvidenceDigest, type DomainInvestigationLedger, type LedgerRow } from "./domain-investigation-ledger";
 import {
   compileInvestigationPlan,
   type DomainInvestigationPlan,
@@ -30,6 +31,7 @@ import {
   type FieldValueType,
 } from "./domain-pack-source";
 import type { DocExtraction, ExtractionFact } from "./extraction-contracts";
+import type { CheckVerdict, PersonaCoverageItem } from "./pack-canonicalize";
 import { normalizeQuoteText } from "./verify-quotes";
 
 export const FIELD_MAPPING_REQUEST_SCHEMA = "hive.field-mapping-request/1" as const;
@@ -351,44 +353,222 @@ function evidenceFactId(excerptId: string | undefined, known: ReadonlySet<string
   return excerptId && known.has(excerptId) ? excerptId : null;
 }
 
+const PROGRESS_CLAIM = /\b(met|achieved|mastered|improved|on track|made progress|has been met)\b/i;
+const EMPTY_RECORD: CoordinatedInvestigationRecord = {
+  intentText: "",
+  documentRoles: [],
+  measurements: [],
+  assessments: [],
+  determinations: [],
+  conflicts: [],
+  gaps: [],
+  answers: [],
+};
+
+function measurementRoleForField(entityLabel: string, fieldId: string): "BASELINE" | "TARGET" | "ACTUAL" | null {
+  const field = fieldId.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+  if (/\bbaseline\b/.test(field)) return "BASELINE";
+  if (/\btarget\b/.test(field)) return "TARGET";
+  if (/\b(actual|observed|measured)\b/.test(field)) return "ACTUAL";
+  if (/\bprogress\b/.test(entityLabel.toLowerCase()) && /\bvalue\b/.test(field)) return "ACTUAL";
+  return null;
+}
+
+function readableField(fieldId: string): string {
+  return fieldId.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase();
+}
+
+function definitionLabel(pack: CompiledDomainPack, id: string): string {
+  return pack.definitions.find((definition) => definition.id === id)?.label ?? id;
+}
+
+function findingLabel(pack: CompiledDomainPack, entityId: string, fieldId: string, value: string, page: string | undefined): string {
+  const entity = definitionLabel(pack, entityId);
+  const role = measurementRoleForField(entity, fieldId);
+  const prefix = role === "BASELINE" ? "Baseline" : role === "TARGET" ? "Target" : role === "ACTUAL" ? "Later measurement" : null;
+  const sentence = `${entity} ${readableField(fieldId)} is ${value}${page ? ` (page ${page})` : ""}`;
+  const text = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+  return prefix ? `${prefix}: ${text}` : text;
+}
+
+function excerptIds(refs: readonly { excerptId?: string }[], known: ReadonlySet<string>): string[] {
+  return [...new Set(refs.flatMap((ref) => ref.excerptId && known.has(ref.excerptId) ? [ref.excerptId] : []))];
+}
+
+function verdictFor(row: LedgerRow): CheckVerdict {
+  if (
+    row.taskKind === "REVIEW_CHECK"
+    || row.reasonCodes.includes("REVIEW_REQUIRED")
+    || row.disposition === "NOT_EVALUATED"
+    || row.disposition === "DEFERRED"
+    || row.disposition === "UNRESOLVED_INSTANCE"
+    || row.disposition === "PRESENTATION"
+  ) return "NOT_ASSESSED";
+  if (row.disposition === "DISABLED") return "NOT_APPLICABLE";
+  if (row.disposition === "CONFLICT") return "CONFLICT";
+  if (row.disposition === "ESTABLISHED" || row.disposition === "COMPUTED") return "SHOWN";
+  if (row.disposition === "NOT_SATISFIED" || row.disposition === "NOT_ESTABLISHED") return "NOT_SHOWN";
+  return "NOT_ASSESSED";
+}
+
+function checklistFrom(ledger: DomainInvestigationLedger, known: ReadonlySet<string>, packDigestValue: string, planDigestValue: string) {
+  const grouped = new Map<string, { verdict: CheckVerdict; factIds: string[] }>();
+  const rank: Record<CheckVerdict, number> = { CONFLICT: 5, SHOWN: 4, PARTLY_SHOWN: 3, NOT_SHOWN: 2, NOT_APPLICABLE: 1, NOT_ASSESSED: 0 };
+  for (const row of ledger.rows) {
+    if (row.taskKind !== "REVIEW_CHECK" && row.taskKind !== "EVALUATE_CHECK") continue;
+    const verdict = verdictFor(row);
+    const factIds = excerptIds(row.sourceRefs, known);
+    const current = grouped.get(row.definitionId);
+    if (!current || rank[verdict] > rank[current.verdict]) grouped.set(row.definitionId, { verdict, factIds });
+    else if (verdict === current.verdict) current.factIds = [...new Set([...current.factIds, ...factIds])];
+  }
+  return [...grouped.entries()]
+    .sort((left, right) => left[0].localeCompare(right[0]))
+    .map(([checkId, item]) => {
+      let verdict = item.verdict;
+      let factIds = item.factIds;
+      if ((verdict === "SHOWN" || verdict === "PARTLY_SHOWN" || verdict === "CONFLICT") && factIds.length === 0) {
+        verdict = "NOT_ASSESSED";
+      }
+      const note = verdict === "NOT_ASSESSED"
+        ? `Review required. pack ${packDigestValue} plan ${planDigestValue}`
+        : verdict === "SHOWN"
+          ? "Established from cited evidence."
+          : verdict === "NOT_SHOWN"
+            ? "The saved documents do not show this."
+            : verdict === "CONFLICT"
+              ? "Cited values conflict."
+              : "This check does not apply to the saved record.";
+      return { checkId, verdict, factIds, note };
+    });
+}
+
+function caseText(extractions: readonly DocExtraction[]): string {
+  return extractions.flatMap((extraction) => [
+    ...extraction.referencedDocuments.map((item) => `${item.description}\n${item.quote}`),
+    ...extraction.facts.flatMap((fact) => fact.evidence.map((item) => item.quote)),
+  ]).join("\n").toLowerCase();
+}
+
+function documentMatches(extraction: DocExtraction, phrases: readonly string[]): boolean {
+  const haystack = `${extraction.fileName} ${extraction.document.documentType} ${extraction.document.titleAsPrinted}`.toLowerCase();
+  return phrases.some((phrase) => phrase.trim().length >= 3 && haystack.includes(phrase.trim().toLowerCase()));
+}
+
+function intentQuestions(text: string): string[] {
+  return text.split("?").map((part) => part.trim()).filter((part) => part.length >= 8).map((part) => `${part}?`);
+}
+
+function tokensOf(value: string): Set<string> {
+  return new Set(value.toLowerCase().split(/[^a-z0-9]+/).filter((part) => part.length >= 4));
+}
+
 function projectStudy(input: {
   prepared: PreparedStudy;
   extractions: readonly DocExtraction[];
-  verifiedFacts: ReadonlyArray<{ fieldId: string; value: string; documentId: string; extractionFactId: string; page: string | undefined }>;
+  pages: readonly AuthorizedDocument[];
+  verifiedFacts: ReadonlyArray<{ entityId: string; fieldId: string; value: string; documentId: string; extractionFactId: string; page: string | undefined }>;
+  verifiedRelationships: ReadonlyArray<{ relationshipId: string; factIds: string[] }>;
   unresolvedRelationships: ReadonlyArray<{ relationshipId: string; extractionFactId: string; page: number | null }>;
   unsupported: readonly UnsupportedConversion[];
+  ledger: DomainInvestigationLedger;
+  proposalFacts: ReadonlySet<string>;
+  record: CoordinatedInvestigationRecord;
   studyDate: string;
 }): CanonicalStudy {
   const known = new Set(input.extractions.flatMap((extraction) => extraction.facts.map((fact) => fact.id)));
   const packDigestValue = input.prepared.pack.identity.digest;
   const planDigestValue = input.prepared.plan.digest;
-  const documents = [...input.extractions]
-    .sort((left, right) => left.documentId.localeCompare(right.documentId))
-    .map((extraction) => {
-      const dated = extraction.document.keyDates.find((item) => item.date && ISO_DATE.test(item.date));
-      return {
-        sourceDocumentId: extraction.documentId,
-        role: "SUPPORTING" as const,
-        typeInPlainWords: extraction.document.documentType || extraction.fileName,
-        date: dated?.date ?? null,
-        version: null,
-        chainPosition: null,
-      };
-    });
+  const pack = input.prepared.pack;
+  const quotedRole = (documentId: string, page: number, quote: string) => {
+    const document = input.pages.find((item) => item.documentId === documentId);
+    const text = document?.pages.find((item) => item.pageNumber === page)?.text ?? "";
+    const needle = normalizeQuoteText(quote);
+    return needle.length > 0 && normalizeQuoteText(text).includes(needle);
+  };
+  const acceptedRoles = input.record.documentRoles.filter((role) => quotedRole(role.documentId, role.page, role.quote));
+  const anchors = acceptedRoles.filter((role) => role.role === "ANCHOR");
+  const dated = [...input.extractions].map((extraction) => ({
+    extraction,
+    date: extraction.document.keyDates.find((item) => item.date && ISO_DATE.test(item.date))?.date ?? null,
+  })).sort((left, right) => left.extraction.documentId.localeCompare(right.extraction.documentId));
+  const chainOrder = [...anchors].sort((left, right) => {
+    const leftDate = dated.find((item) => item.extraction.documentId === left.documentId)?.date ?? "";
+    const rightDate = dated.find((item) => item.extraction.documentId === right.documentId)?.date ?? "";
+    return leftDate.localeCompare(rightDate) || left.documentId.localeCompare(right.documentId);
+  });
+  const documents = dated.map((item) => {
+    const proposed = acceptedRoles.find((role) => role.documentId === item.extraction.documentId);
+    const chainIndex = chainOrder.findIndex((role) => role.documentId === item.extraction.documentId);
+    let role: "ANCHOR" | "SUPPORTING" | "REFERENCE" = "SUPPORTING";
+    if (proposed) role = proposed.role;
+    else if (dated.length === 1) role = "ANCHOR";
+    return {
+      sourceDocumentId: item.extraction.documentId,
+      role,
+      typeInPlainWords: item.extraction.document.documentType || item.extraction.fileName,
+      date: item.date,
+      version: null,
+      chainPosition: chainOrder.length > 1 && chainIndex >= 0 ? chainIndex + 1 : null,
+    };
+  });
   const spine = input.verifiedFacts
     .filter((fact) => known.has(fact.extractionFactId))
     .sort((left, right) => left.extractionFactId.localeCompare(right.extractionFactId))
-    .map((fact, index) => ({
-      id: `S${index + 1}`,
-      label: `${fact.fieldId}: ${fact.value}${fact.page ? ` (page ${fact.page})` : ""}`,
+    .map((fact) => ({
+      id: fact.extractionFactId,
+      label: findingLabel(pack, fact.entityId, fact.fieldId, fact.value, fact.page),
       kind: fact.fieldId,
       status: "SUPPORTED" as const,
       supportingFactIds: [fact.extractionFactId],
+      contradictingFactIds: [] as string[],
+      updatingFactIds: [] as string[],
+      missing: [] as string[],
+    }));
+  for (const link of input.verifiedRelationships) {
+    const factIds = link.factIds.filter((id) => known.has(id));
+    if (factIds.length === 0) continue;
+    spine.push({
+      id: `rel:${link.relationshipId}:${factIds[0]}`,
+      label: `${definitionLabel(pack, link.relationshipId)} is supported by the cited record.`,
+      kind: "relationship",
+      status: "SUPPORTED",
+      supportingFactIds: factIds,
       contradictingFactIds: [],
       updatingFactIds: [],
       missing: [],
-    }));
-  const outside = [
+    });
+  }
+  for (const row of input.ledger.rows) {
+    if (row.disposition !== "COMPUTED" || row.daysBetween === undefined) continue;
+    const factIds = excerptIds(row.sourceRefs, known);
+    if (factIds.length === 0) continue;
+    spine.push({
+      id: row.rowId,
+      label: `${definitionLabel(pack, row.definitionId)}: ${row.daysBetween} calendar days, counted from the cited dates.`,
+      kind: "calculation",
+      status: "SUPPORTED",
+      supportingFactIds: factIds,
+      contradictingFactIds: [],
+      updatingFactIds: [],
+      missing: [],
+    });
+  }
+  const measurements = input.verifiedFacts.map((fact) => ({
+    ...fact,
+    role: input.record.measurements.find((item) => item.extractionFactId === fact.extractionFactId)?.role
+      ?? measurementRoleForField(definitionLabel(pack, fact.entityId), fact.fieldId),
+  }));
+  const baselineDate = measurements.find((item) => item.role === "BASELINE" && ISO_DATE.test(item.value))?.value ?? null;
+  const targetNumber = measurements.find((item) => item.role === "TARGET" && /^[0-9]+(?:\.[0-9]+)?$/.test(item.value));
+  const later = measurements.filter((item) => item.role === "ACTUAL");
+  const laterAfterBaseline = later.filter((item) => {
+    const datedFact = input.verifiedFacts.find((fact) => fact.extractionFactId !== item.extractionFactId && ISO_DATE.test(fact.value) && fact.documentId === item.documentId);
+    const date = ISO_DATE.test(item.value) ? item.value : datedFact?.value ?? null;
+    return date !== null && (baselineDate === null || date > baselineDate);
+  });
+  const progressReady = laterAfterBaseline.length > 0 && (!targetNumber || laterAfterBaseline.some((item) => /^[0-9]+(?:\.[0-9]+)?$/.test(item.value) && Number(item.value) >= Number(targetNumber.value)));
+  const outside: { statement: string; factIds: string[] }[] = [
     ...input.unsupported.map((item) => ({
       statement: `Written value was not converted: ${item.valueAsWritten}.${item.page ? ` Page ${item.page}.` : ""}`,
       factIds: known.has(item.extractionFactId) ? [item.extractionFactId] : [],
@@ -397,36 +577,218 @@ function projectStudy(input: {
       statement: `Relationship ${item.relationshipId} is not verified.${item.page ? ` Page ${item.page}.` : ""}`,
       factIds: known.has(item.extractionFactId) ? [item.extractionFactId] : [],
     })),
-  ].sort((left, right) => left.statement.localeCompare(right.statement));
-  const checklist = input.prepared.plan.tasks
-    .filter((task) => task.taskKind === "REVIEW_CHECK")
-    .sort((left, right) => left.definitionId.localeCompare(right.definitionId))
-    .map((task) => ({
-      checkId: task.definitionId,
-      verdict: "NOT_ASSESSED" as const,
-      factIds: [],
-      note: `Review required. pack ${packDigestValue} plan ${planDigestValue}`,
-    }));
+  ];
+  for (const extraction of input.extractions) {
+    for (const fact of extraction.facts) {
+      const key = factKey(extraction.documentId, fact.id);
+      if (input.proposalFacts.has(key) || fact.evidence.length === 0) continue;
+      outside.push({
+        statement: `Verified fact was not joined to a catalog field: ${fact.valueAsWritten}.`,
+        factIds: [fact.id],
+      });
+    }
+  }
+  for (const assessment of input.record.assessments) {
+    const factIds = assessment.factIds.filter((id) => known.has(id));
+    if (PROGRESS_CLAIM.test(assessment.statement) && !progressReady) {
+      outside.push({
+        statement: `No subsequent measurement supports a progress conclusion. ${assessment.statement}`,
+        factIds,
+      });
+      continue;
+    }
+    if (factIds.length === 0) continue;
+    spine.push({
+      id: `assessment:${factIds[0]}`,
+      label: assessment.statement,
+      kind: "assessment",
+      status: "SUPPORTED",
+      supportingFactIds: factIds,
+      contradictingFactIds: [],
+      updatingFactIds: [],
+      missing: [],
+    });
+  }
+  for (const determination of input.record.determinations) {
+    outside.push({ statement: `Open for a professional: ${determination.statement}`, factIds: [] });
+  }
+  const conflicts = input.record.conflicts.flatMap((conflict) => {
+    const factIds = conflict.factIds.filter((id) => known.has(id));
+    const rows = factIds.flatMap((id) => input.verifiedFacts.filter((fact) => fact.extractionFactId === id));
+    const sameField = rows.length >= 2
+      && rows.every((row) => row.entityId === rows[0]?.entityId && row.fieldId === rows[0]?.fieldId && row.documentId.length >= 0)
+      && new Set(rows.map((row) => `${row.entityId}\0${row.fieldId}\0${row.value}`)).size > 1
+      && new Set(rows.map((row) => `${row.entityId}\0${row.fieldId}`)).size === 1;
+    if (!sameField) {
+      outside.push({
+        statement: `The proposed disagreement is not two values of the same field. ${conflict.statement}`,
+        factIds,
+      });
+      return [];
+    }
+    return [{ statement: conflict.statement, factIds }];
+  });
+  const mentioned = caseText(input.extractions);
+  const gaps: CanonicalGap[] = [];
+  const pushGap = (gap: Omit<CanonicalGap, "id" | "relatedSpineIds">) => {
+    gaps.push({ ...gap, id: `G${gaps.length + 1}`, relatedSpineIds: [] });
+  };
+  for (const gap of input.record.gaps) {
+    if (gap.kind === "MISSING_DOCUMENT") {
+      const definition = pack.definitions.find((item) => item.kind === "document" && item.id === gap.documentKindId);
+      const phrases = definition && definition.kind === "document" ? [definition.label, ...definition.aliases] : [];
+      const present = input.extractions.some((extraction) => documentMatches(extraction, phrases));
+      const named = phrases.some((phrase) => phrase.length >= 3 && mentioned.includes(phrase.toLowerCase()));
+      if (present || !named) {
+        if (gap.entityId && gap.fieldId) {
+          pushGap({
+            statement: gap.statement,
+            kind: "OBSERVATION",
+            title: `${definitionLabel(pack, gap.entityId)} ${readableField(gap.fieldId)}`,
+            why: "The record is present and this information is not in it.",
+            holder: "",
+            holderType: null,
+            when: null,
+            basisType: null,
+            relatedFactIds: [],
+          });
+        }
+        continue;
+      }
+      pushGap({
+        statement: gap.statement,
+        kind: "REQUESTABLE_DOCUMENT",
+        title: definition && definition.kind === "document" ? definition.label : gap.statement.slice(0, 80),
+        why: "A saved page names this record, and it is not in the document inventory.",
+        holder: "",
+        holderType: null,
+        when: null,
+        basisType: "MENTIONED",
+        relatedFactIds: [],
+      });
+      continue;
+    }
+    pushGap({
+      statement: gap.statement,
+      kind: "OBSERVATION",
+      title: gap.fieldId ? `${definitionLabel(pack, gap.entityId ?? "")} ${readableField(gap.fieldId)}` : "Missing information",
+      why: "This information is not in a document that is already saved.",
+      holder: "",
+      holderType: null,
+      when: null,
+      basisType: null,
+      relatedFactIds: [],
+    });
+  }
+  const instances = new Map<string, { entityId: string; factIds: string[] }>();
+  for (const fact of input.verifiedFacts) {
+    const bucket = instances.get(`${fact.entityId}\0${fact.documentId}`) ?? { entityId: fact.entityId, factIds: [] };
+    bucket.factIds.push(fact.extractionFactId);
+    instances.set(`${fact.entityId}\0${fact.documentId}`, bucket);
+  }
+  for (const bucket of instances.values()) {
+    const entity = pack.definitions.find((item) => item.kind === "entity" && item.id === bucket.entityId);
+    if (!entity || entity.kind !== "entity") continue;
+    const presentFields = new Set(input.verifiedFacts.filter((fact) => fact.entityId === bucket.entityId).map((fact) => fact.fieldId));
+    for (const field of entity.fields) {
+      if (!field.required || presentFields.has(field.id)) continue;
+      pushGap({
+        statement: `Missing information: ${entity.label} ${readableField(field.id)} is not in the saved record.`,
+        kind: "OBSERVATION",
+        title: `${entity.label} ${readableField(field.id)}`,
+        why: "Other fields of this record are present. The missing item is information, not a missing document.",
+        holder: "",
+        holderType: null,
+        when: null,
+        basisType: null,
+        relatedFactIds: bucket.factIds.filter((id) => known.has(id)),
+      });
+    }
+  }
+  for (const extraction of input.extractions) {
+    for (const referenced of extraction.referencedDocuments) {
+      const present = input.extractions.some((item) => documentMatches(item, [referenced.description]));
+      if (present || referenced.description.trim().length < 3) continue;
+      pushGap({
+        statement: `A saved page names ${referenced.description}, and that record is not in the inventory.`,
+        kind: "REQUESTABLE_DOCUMENT",
+        title: referenced.description.slice(0, 80),
+        why: "The page mentions the record. No saved document matches it.",
+        holder: "",
+        holderType: null,
+        when: null,
+        basisType: "MENTIONED",
+        relatedFactIds: [],
+      });
+    }
+  }
+  const questions = pack.definitions.flatMap((definition) => definition.kind === "question" ? [definition] : []);
+  const personas = pack.definitions.flatMap((definition) => definition.kind === "persona" ? [definition] : []);
+  const personaCoverage: PersonaCoverageItem[] = [];
+  for (const persona of personas) {
+    for (const questionId of persona.questionIds) {
+      const answer = input.record.answers.find((item) => item.questionId === questionId && (item.audience === persona.audience || item.audience === "all"));
+      let status: PersonaCoverageItem["status"] = "NOT_ASSESSED";
+      let factIds: string[] = [];
+      let missing = "";
+      if (answer) {
+        factIds = answer.factIds.filter((id) => known.has(id));
+        missing = (answer.uncertainty ?? "").slice(0, 120);
+        status = factIds.length === 0 ? "NOT_ANSWERABLE" : answer.uncertainty ? "PARTLY" : "ANSWERABLE";
+      }
+      personaCoverage.push({ audience: persona.audience, questionId, status, factIds, checkIds: [], missing });
+    }
+  }
+  const asked = intentQuestions(input.record.intentText);
+  asked.forEach((question, index) => {
+    const overlap = questions.some((item) => {
+      const left = tokensOf(item.text);
+      const shared = [...tokensOf(question)].filter((token) => left.has(token));
+      return shared.length >= 4;
+    });
+    if (overlap) return;
+    const answer = input.record.answers.find((item) => item.questionId === `intent:${index + 1}`);
+    const factIds = answer?.factIds.filter((id) => known.has(id)) ?? [];
+    outside.push({
+      statement: factIds.length > 0
+        ? `Request not in the catalog: ${question}`
+        : `Request not in the catalog, and not answered from the saved evidence: ${question}`,
+      factIds,
+    });
+  });
+  outside.sort((left, right) => left.statement.localeCompare(right.statement));
+  const anchorCount = documents.filter((document) => document.role === "ANCHOR").length;
   const dates = input.verifiedFacts
     .filter((fact) => ISO_DATE.test(fact.value))
     .sort((left, right) => left.extractionFactId.localeCompare(right.extractionFactId))
     .map((fact) => ({
       date: fact.value,
       asWritten: fact.value,
-      statement: `${fact.fieldId}: ${fact.value}${fact.page ? ` (page ${fact.page})` : ""}`,
+      statement: findingLabel(pack, fact.entityId, fact.fieldId, fact.value, fact.page),
       factIds: [fact.extractionFactId],
     }));
+  const spineSource: SpineSource | null = anchorCount > 1
+    ? "ANCHOR_CHAIN"
+    : anchorCount === 1
+      ? "ANCHOR"
+      : dates.length > 0
+        ? "TIMELINE"
+        : spine.length > 0
+          ? "PARTIES_AND_OBLIGATIONS"
+          : null;
+  const checklist = checklistFrom(input.ledger, known, packDigestValue, planDigestValue);
   return {
     schema: "hive.canonical-study/1",
     documents,
-    spineSource: spine.length > 0 ? "TIMELINE" : null,
+    spineSource,
     spine,
     outsideSpine: outside.map((item, index) => ({ id: `O${index + 1}`, statement: item.statement, factIds: item.factIds })),
-    conflicts: [],
+    conflicts: conflicts.map((item, index) => ({ id: `C${index + 1}`, statement: item.statement, factIds: item.factIds })),
     timeline: dates,
-    gaps: [],
-    domainLabel: input.prepared.pack.identity.title,
+    gaps,
+    domainLabel: pack.identity.title,
     ...(checklist.length > 0 ? { checklist } : {}),
+    ...(personaCoverage.length > 0 ? { personaCoverage } : {}),
     questionOrder: [`pack-digest:${packDigestValue}`, `plan-digest:${planDigestValue}`],
     studyDate: ISO_DATE.test(input.studyDate) ? input.studyDate : undefined,
   };
@@ -462,6 +824,7 @@ export function runInvestigationStudyEngine(input: {
   pages: readonly AuthorizedDocument[];
   proposal: unknown;
   studyDate: string;
+  investigation?: CoordinatedInvestigationRecord;
 }): InvestigationEngineResult {
   const proposal = readProposal(input.proposal);
   if (!proposal) return { ok: false, code: "MAPPING_INVALID" };
@@ -482,7 +845,6 @@ export function runInvestigationStudyEngine(input: {
     candidates: envelope,
   });
   if (!bound.ok) return { ok: false, code: "BIND_FAILED" };
-  if (bound.verified.relationships.length > 0) return { ok: false, code: "LEDGER_FAILED" };
   if (bound.unresolved.candidates.some((candidate) => candidate.reasons.some((reason) => binderReasonRejectsRun(reason)))) {
     return { ok: false, code: "INVALID_EVIDENCE" };
   }
@@ -495,7 +857,6 @@ export function runInvestigationStudyEngine(input: {
     evidenceDigest,
   });
   if (!ledger.ok) return { ok: false, code: "LEDGER_FAILED" };
-  if (ledger.value.rows.some((row) => row.daysBetween !== undefined)) return { ok: false, code: "LEDGER_FAILED" };
   if (ledger.value.rows.some((row) => row.taskKind === "REVIEW_CHECK" && (row.disposition === "ESTABLISHED" || row.disposition === "COMPUTED" || row.disposition === "NOT_SATISFIED"))) {
     return { ok: false, code: "LEDGER_FAILED" };
   }
@@ -505,6 +866,7 @@ export function runInvestigationStudyEngine(input: {
     if (!extractionFactId) return [];
     const page = fact.sourceRefs.find((ref) => ref.page)?.page;
     return [{
+      entityId: fact.entityId,
       fieldId: fact.fieldId,
       value: fact.value.value,
       documentId: fact.sourceRefs[0]?.documentId ?? "",
@@ -521,12 +883,25 @@ export function runInvestigationStudyEngine(input: {
       const page = candidate.evidence[0]?.page ?? null;
       return [{ relationshipId: candidate.relationshipId!, extractionFactId: match.extractionFactId, page }];
     });
+  const verifiedRelationships = bound.verified.relationships.flatMap((link) => {
+    const factIds = excerptIds(link.sourceRefs, known);
+    return factIds.length > 0 ? [{ relationshipId: link.relationshipId, factIds }] : [];
+  });
+  const proposalFacts = new Set<string>([
+    ...proposal.mappings.map((row) => factKey(row.documentId, row.extractionFactId)),
+    ...proposal.relationships.map((row) => factKey(row.documentId, row.extractionFactId)),
+  ]);
   const drafted = projectStudy({
     prepared: input.prepared,
     extractions: input.extractions,
+    pages: input.pages,
     verifiedFacts,
+    verifiedRelationships,
     unresolvedRelationships,
     unsupported: adapted.adapted.unsupported,
+    ledger: ledger.value,
+    proposalFacts,
+    record: input.investigation ?? EMPTY_RECORD,
     studyDate: input.studyDate,
   });
   const assessed = assessCanonicalProjection(drafted, input.extractions);

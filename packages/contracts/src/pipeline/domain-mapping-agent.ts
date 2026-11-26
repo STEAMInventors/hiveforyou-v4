@@ -392,6 +392,11 @@ export class DomainMappingLedger {
     return this.acceptedFields.length;
   }
 
+  /** Accepted rows before finish. The investigation loop uses these to check later proposals. */
+  acceptedMappings(): FieldRow[] {
+    return this.acceptedFields.map((row) => ({ ...row }));
+  }
+
   get rejectionCounts(): Record<string, number> {
     return Object.fromEntries(this.rejectionCountsByCode);
   }

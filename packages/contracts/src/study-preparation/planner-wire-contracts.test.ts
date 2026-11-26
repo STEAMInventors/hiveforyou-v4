@@ -21,8 +21,8 @@ import {
 describe("planner tasks", () => {
   it("runs intent intelligence before deterministic prompt construction", () => {
     expect(PREPARATION_PLANNER_TASKS).toEqual(["intent", "domain", "intelligence"]);
-    expect(STUDY_AGENT_TURN_TASKS).toEqual(["study", "writer", "mapping"]);
-    expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "study", "writer", "mapping"]);
+    expect(STUDY_AGENT_TURN_TASKS).toEqual(["study", "writer", "mapping", "investigation"]);
+    expect(PLANNER_TASKS).toEqual(["intent", "domain", "intelligence", "study", "writer", "mapping", "investigation"]);
     expect(PLANNER_TASK_PROMPT_IDS.mapping).toBe(FIELD_MAPPING_PROMPT_ID);
     expect(PLANNER_TASK_PROMPT_IDS.intelligence).toBe("hive-intent-intelligence/1");
     expect(PLANNER_COMPLETION_TASKS).toEqual([

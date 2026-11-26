@@ -4,3 +4,4 @@
  */
 export * from "./investigation-study-engine";
 export * from "./domain-mapping-agent";
+export * from "./domain-investigation-agent";
