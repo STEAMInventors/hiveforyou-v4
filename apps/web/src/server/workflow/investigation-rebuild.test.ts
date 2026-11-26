@@ -753,6 +753,15 @@ describe("pinned rebuild acceptance", () => {
       outsideSpine?: { statement: string; factIds: string[] }[];
     };
     expect(study.questionOrder?.[0]).toBe(`pack-digest:${pinned.compiledDigest}`);
+    const counts = (revision?.verification as { counts?: Record<string, unknown> } | undefined)?.counts;
+    expect(counts?.documentFindings).toBeUndefined();
+    expect(counts?.verifiedFacts).toBeGreaterThan(0);
+    expect(counts).toMatchObject({
+      investigationEngine: "hive.domain-investigation/1",
+      domainPackId: "iep-us-federal",
+      domainPackVersion: "0.5.0",
+      revisionStatus: "accepted",
+    });
     expect(study.checklist?.length).toBeGreaterThan(0);
     expect(study.checklist?.every((item) => item.verdict === "NOT_ASSESSED")).toBe(true);
     expect(study.spine).toEqual(expect.arrayContaining([
@@ -797,6 +806,21 @@ describe("pinned rebuild acceptance", () => {
       reports: typeof PREVIOUS_REPORTS;
     };
     expect(view).toMatchObject({ revisionNumber: 1, revisionId: PREVIOUS_REVISION, reports: PREVIOUS_REPORTS });
+  });
+
+  it("refuses a 0.4.0 selection without calling the model or replacing the earlier revision", async () => {
+    const pinned = loadPinnedDomainPack();
+    const harness = acceptanceHarness({
+      selection: { packId: PINNED_DOMAIN_PACK.packId, version: "0.4.0", compiledDigest: pinned.compiledDigest },
+      content: fieldProposal(),
+    });
+    const status = await processAnalysisRun(harness.workflowDeps, RUN_ID);
+    expect(status).toBe("FAILED");
+    expect(harness.bodies).toEqual([]);
+    expect(harness.failure()?.failure_diagnostic).toMatchObject({ diagnosticReason: "investigation_pack_pin_mismatch" });
+    expect(harness.calls).not.toContain("accept_study_revision");
+    expect(harness.current.revisionNumber).toBe(1);
+    expect(harness.current.reports).toEqual(PREVIOUS_REPORTS);
   });
 
   it("refuses a selection whose digest is not the compiled pack and does not call the model", async () => {

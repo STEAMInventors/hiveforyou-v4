@@ -1,8 +1,48 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-26): Stage 5E.2 — Comprehensive Agentic Investigation.** Local only. Pinned Rebuild Study uses one `study-agent-turn` loop, `task: "investigation"`, on `PLANNER_STUDY_LITELLM_ALIAS`. The D-064 provider gate is unchanged. `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` stays empty. No live model, deploy, Hive pin, or `supabase db push`. The local selectable edition is iep-us-federal 0.5.0, digest `2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066`. v0.4.0 remains on disk. Its compiled digest is unchanged: `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
+> **Active ticket (2026-11-26): Stage 5E.3 — Fix production activation and Study UI.** Local only. No deploy, no `supabase db push`, no live model, and no change to the investigation algorithms. Pinned Rebuild still requires one explicit `iep-us-federal` `0.5.0` row whose digest is `2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066`. v0.4.0 remains on disk and its compiled digest is unchanged: `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
 
-## Active ticket — Stage 5E.2: Comprehensive Agentic Investigation
+## Active ticket — Stage 5E.3: Fix production activation and Study UI
+
+**Objective:** A production Rebuild accepted revision 10 on legacy IEP v7 (`hive-canonicalize/1`, pack `iep-initial` 7) and the success line read `8 sources · 0 verified claims`. The new investigation engine and pack 0.5.0 were already in the application, but the database check allowed only 0.4.0, so no Hive could store the required edition. Unpinned Hives stay on `hive-canonicalize/1`.
+
+**Status (2026-11-26): local only. Migrations not applied. No Hive pinned. No deploy.**
+
+**Verification:** `packages/contracts` acceptance-summary tests passed (8). Web `DocumentsPanel` (17), `StudyView` (28), and `investigation-rebuild` tests passed. `tsc --noEmit` passed for contracts and web. `supabase/tests/database/domain_pack_selection_050.test.sql` is written and was not executed: the Supabase CLI is not installed in this environment, and the migrations were not applied. A signed-in browser rebuild was not run.
+
+1. Acceptance detail uses `verifiedFacts` when that count was stored. A canonical `documentFindings: 0` is not shown as zero claims. A count that was not stored is omitted.
+2. `supabase/migrations/20261126130000_domain_pack_selection_050.sql` widens the check to `0.4.0` and `0.5.0` and does not update any row. `public.set_domain_pack_selection` inserts `0.5.0` for one Hive and refuses to replace a different existing selection. `authenticated` cannot execute it.
+3. `supabase/migrations/20261126140000_study_revision_acceptance_counts.sql` replaces the summary function only. A missing count is null. Reading it does not rewrite revisions.
+4. Rebuild success and Findings show the investigation engine, Domain Pack id and version, and `Revision N accepted`. Hive Board stays the communication workspace. The success link opens `/hives/{id}/findings`.
+5. New accepts record the engine and pack on `verification.counts`. They no longer store `documentFindings: 0`.
+
+**Safe production activation (not performed here):**
+
+1. Apply `20261126130000` and `20261126140000` only. Do not run `UPDATE hive.domain_pack_selections`. Do not apply `20261125140000` again.
+2. Deploy the web app that contains this ticket. Leave `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` empty until a separate approval names one synthetic Hive.
+3. Confirm the Hive id is the synthetic one. Confirm it has no `hive.domain_pack_selections` row, or that the row is already this exact edition and digest.
+4. Recompute the digest in the deployed app (`loadPinnedDomainPack().compiledDigest`). The 5E.2 value is `2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066`. A different digest means the shipped source changed; do not reuse the old value.
+5. Insert that one row, either with the service-role RPC or one explicit insert. Do not omit the Hive id.
+
+```sql
+SELECT public.set_domain_pack_selection(
+  '<synthetic-hive-uuid>'::uuid,
+  'iep-us-federal',
+  '0.5.0',
+  '<compiled-digest>'
+);
+```
+
+A dashboard session that is not `service_role` cannot call the RPC. The equivalent single-row insert, and only when that Hive has no row, is:
+
+```sql
+INSERT INTO hive.domain_pack_selections (hive_id, pack_id, version, compiled_digest)
+VALUES ('<synthetic-hive-uuid>'::uuid, 'iep-us-federal', '0.5.0', '<compiled-digest>');
+```
+
+6. Rebuild Study on that Hive only. The new revision should name `hive.domain-investigation/1` and `iep-us-federal 0.5.0`. The previous revision and its reports stay. Any other Hive stays on its current engine. A 0.4.0 row or a mismatched digest fails closed and does not call the model.
+
+## Previous ticket — Stage 5E.2: Comprehensive Agentic Investigation
 
 **Objective:** One domain-agnostic investigation produces a complete, evidence-checked Canonical Study from the compiled Domain Pack. Mapping remains only the deterministic normalization of written values. There is no second model investigation.
 

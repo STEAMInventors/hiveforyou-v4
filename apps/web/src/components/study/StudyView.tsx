@@ -21,6 +21,8 @@ type StudyViewProps = {
   documentPages?: Readonly<Record<string, number>>;
   revisionActions?: ReactNode;
   workspaceSurface?: StudyWorkspaceSurface;
+  /** Engine, Domain Pack edition, and revision status. Omitted when the page has not resolved them. */
+  identityLine?: string | null;
 };
 
 const NOTICE_CLASS = "flex flex-col gap-3 rounded-input border border-line bg-paper p-5 sm:p-7";
@@ -40,10 +42,17 @@ export function StudyView({
   documentPages,
   revisionActions,
   workspaceSurface,
+  identityLine,
 }: StudyViewProps) {
+  const identity = identityLine ? (
+    <p className="m-0 text-small text-ink-3" data-testid="study-revision-identity">
+      {identityLine}
+    </p>
+  ) : null;
   if (revisionFormat !== "canonical-study-1") {
     return (
       <section role="status" className={NOTICE_CLASS} data-testid="study-legacy-notice">
+        {identity}
         <h2 className={NOTICE_HEADING}>This study was built the earlier way</h2>
         {typeof revisionNumber === "number" ? (
           <p className="m-0 text-meta text-ink-3" data-testid="accepted-study-revision">
@@ -67,6 +76,7 @@ export function StudyView({
   if (!view) {
     return (
       <section role="alert" className={NOTICE_CLASS} data-testid="study-view-unavailable">
+        {identity}
         <h2 className={NOTICE_HEADING}>Study layout isn&apos;t available</h2>
         <p className="m-0 max-w-prose text-body text-ink-2">
           We couldn&apos;t build this page from your accepted study. Try again from Documents, or contact support if it keeps
@@ -83,16 +93,19 @@ export function StudyView({
     );
   }
   return (
-    <StudyReport
-      hiveId={hiveId}
-      view={view}
-      sources={sources}
-      header={{ kind: "study", revisionNumber: revisionNumber ?? null }}
-      coverageGaps={coverageGaps}
-      documentPages={documentPages}
-      revisionActions={revisionActions}
-      showStateBar={false}
-      workspaceSurface={workspaceSurface}
-    />
+    <div className="flex flex-col gap-3">
+      {identity}
+      <StudyReport
+        hiveId={hiveId}
+        view={view}
+        sources={sources}
+        header={{ kind: "study", revisionNumber: revisionNumber ?? null }}
+        coverageGaps={coverageGaps}
+        documentPages={documentPages}
+        revisionActions={revisionActions}
+        showStateBar={false}
+        workspaceSurface={workspaceSurface}
+      />
+    </div>
   );
 }

@@ -1,4 +1,8 @@
-import { parseStudyRevisionAcceptanceCounts, type StudyRevisionAcceptanceCounts } from "./acceptance-summary";
+import {
+  parseStudyRevisionAcceptanceCounts,
+  studyIdentityToken,
+  type StudyRevisionAcceptanceCounts,
+} from "./acceptance-summary";
 import { isValidUuid } from "../hives/hive-contracts";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
 import type { ProgressEstimate } from "../pipeline/pipeline-timing";
@@ -321,6 +325,11 @@ export type StudyRevisionSummary = {
   documentFindingCount?: number;
   /** V5 acceptance rollup from `verification.counts` on the revision. */
   acceptanceCounts?: StudyRevisionAcceptanceCounts;
+  /** Prompt that accepted this revision, when the summary or the stored counts record it. */
+  investigationEngine?: string;
+  domainPackId?: string;
+  domainPackVersion?: string;
+  revisionStatus?: "accepted";
 };
 
 /** One Writer run for one audience over one accepted revision (D-041). */
@@ -744,11 +753,25 @@ export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummar
   if (ids.some((id) => typeof id !== "string" || !isValidUuid(id.toLowerCase()))) return null;
   if (typeof record.revisionNumber !== "number" || typeof record.createdAt !== "string") return null;
   const sourceCount = nonNegativeInteger(record.sourceCount);
-  const documentFindingCount = nonNegativeInteger(record.documentFindingCount);
+  const countsRecord =
+    record.counts && typeof record.counts === "object" && !Array.isArray(record.counts)
+      ? (record.counts as Record<string, unknown>)
+      : null;
   const acceptanceCounts = parseStudyRevisionAcceptanceCounts(record.counts);
+  let documentFindingCount = nonNegativeInteger(record.documentFindingCount);
   const formatRaw = record.format;
   const format: StudyRevisionFormat | undefined =
     formatRaw === "canonical-study-1" || formatRaw === "investigation-1" ? formatRaw : undefined;
+  if (format === "canonical-study-1" && documentFindingCount === 0 && acceptanceCounts?.verifiedFacts !== 0) {
+    documentFindingCount = undefined;
+  }
+  const investigationEngine =
+    studyIdentityToken(record.investigationEngine) ?? studyIdentityToken(countsRecord?.investigationEngine) ?? undefined;
+  const domainPackId = studyIdentityToken(record.domainPackId) ?? studyIdentityToken(countsRecord?.domainPackId) ?? undefined;
+  const domainPackVersion =
+    studyIdentityToken(record.domainPackVersion) ?? studyIdentityToken(countsRecord?.domainPackVersion) ?? undefined;
+  const revisionStatus =
+    record.revisionStatus === "accepted" || countsRecord?.revisionStatus === "accepted" ? ("accepted" as const) : undefined;
   return {
     id: (record.id as string).toLowerCase(),
     canonicalStudyId: (record.canonicalStudyId as string).toLowerCase(),
@@ -770,6 +793,10 @@ export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummar
     ...(sourceCount !== undefined ? { sourceCount } : {}),
     ...(documentFindingCount !== undefined ? { documentFindingCount } : {}),
     ...(acceptanceCounts ? { acceptanceCounts } : {}),
+    ...(investigationEngine ? { investigationEngine } : {}),
+    ...(domainPackId ? { domainPackId } : {}),
+    ...(domainPackVersion ? { domainPackVersion } : {}),
+    ...(revisionStatus ? { revisionStatus } : {}),
   };
 }
 

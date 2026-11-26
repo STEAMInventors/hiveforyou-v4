@@ -410,6 +410,22 @@ describe("StudyView", () => {
     expect(screen.queryByTestId("study-view")).toBeNull();
   });
 
+  it("shows the investigation engine and pack edition without leaving the study page", () => {
+    render(
+      <StudyView
+        hiveId={HIVE_ID}
+        revisionFormat="investigation-1"
+        view={null}
+        sources={null}
+        revisionNumber={10}
+        identityLine="Investigation engine hive-canonicalize/1. Domain pack iep-initial 7. Revision 10 accepted."
+      />,
+    );
+    expect(screen.getByTestId("study-revision-identity").textContent).toContain("iep-initial 7");
+    expect(screen.getByTestId("study-revision-identity").textContent).not.toContain("0.5.0");
+    expect(screen.getByTestId("study-legacy-rebuild").getAttribute("href")).toContain("/documents");
+  });
+
   it("treats a revision without a format as investigation-1", () => {
     render(<StudyView hiveId={HIVE_ID} revisionFormat={undefined} view={null} sources={null} />);
     expect(screen.getByTestId("study-legacy-notice")).toBeTruthy();

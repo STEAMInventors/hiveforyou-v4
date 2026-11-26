@@ -6,7 +6,15 @@ export type StudyRevisionAcceptanceCounts = {
   documents: number;
   checklistShown?: number;
   checklistNotShown?: number;
-  packReview?: { id: string; version: number; title: string };
+  packReview?: { id: string; version: number | string; title: string };
+};
+
+/** What produced an accepted revision. Missing fields stay null; they are not guessed as zero or as v0.5.0. */
+export type StudyRevisionIdentity = {
+  investigationEngine: string | null;
+  domainPackId: string | null;
+  domainPackVersion: string | null;
+  revisionStatus: "accepted" | null;
 };
 
 const SHOWN_VERDICTS = new Set(["SHOWN", "PARTLY_SHOWN"]);
@@ -63,11 +71,21 @@ export function buildV5AcceptanceCounts(
   };
 }
 
+const IDENTITY_TOKEN = /^[\w./:-]{1,80}$/;
+
+export function studyIdentityToken(value: unknown): string | null {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  return IDENTITY_TOKEN.test(text) ? text : null;
+}
+
 function parsePackReview(value: unknown): StudyRevisionAcceptanceCounts["packReview"] | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const row = value as Record<string, unknown>;
-  if (typeof row.id !== "string" || typeof row.title !== "string" || typeof row.version !== "number") return undefined;
-  return { id: row.id, version: row.version, title: row.title };
+  const version = typeof row.version === "number" && Number.isFinite(row.version) ? row.version : studyIdentityToken(row.version);
+  if (typeof row.id !== "string" || typeof row.title !== "string" || version === null) return undefined;
+  return { id: row.id, version, title: row.title };
 }
 
 export function parseStudyRevisionAcceptanceCounts(raw: unknown): StudyRevisionAcceptanceCounts | null {
@@ -96,29 +114,104 @@ function documentLabel(count: number): string {
   return `${count} ${count === 1 ? "document" : "documents"}`;
 }
 
-/** Owner-facing acceptance detail lines (brand voice, no V4 investigation jargon). */
+function counted(value: number | undefined): number | null {
+  return typeof value === "number" ? value : null;
+}
+
+function sourcePhrase(count: number): string {
+  return `${count} ${count === 1 ? "source" : "sources"}`;
+}
+
+/**
+ * Owner-facing acceptance detail.
+ * A missing count is omitted. `documentFindingCount: 0` on a canonical study is not a measured claim count.
+ */
 export function formatStudyRevisionAcceptanceDetail(revision: StudyRevisionSummary): string {
-  if (revision.format === "canonical-study-1" && revision.acceptanceCounts) {
-    const { verifiedFacts, documents, checklistShown, checklistNotShown, packReview } = revision.acceptanceCounts;
-    const parts = [factLabel(verifiedFacts), documentLabel(documents)];
-    if (
-      typeof checklistShown === "number" &&
-      typeof checklistNotShown === "number" &&
-      checklistShown + checklistNotShown > 0
-    ) {
-      parts.push(
-        `${checklistShown} checks shown · ${checklistNotShown} not shown`,
-      );
+  const counts = revision.acceptanceCounts;
+  const verifiedFacts = counted(counts?.verifiedFacts);
+  const documents = counted(counts?.documents) ?? counted(revision.sourceCount);
+  const measuredClaims =
+    verifiedFacts === null && revision.format !== "canonical-study-1" ? counted(revision.documentFindingCount) : null;
+  const parts: string[] = [];
+  if (verifiedFacts !== null) {
+    parts.push(factLabel(verifiedFacts));
+    if (documents !== null) parts.push(documentLabel(documents));
+  } else {
+    if (documents !== null) parts.push(revision.format === "canonical-study-1" ? documentLabel(documents) : sourcePhrase(documents));
+    if (measuredClaims !== null) {
+      parts.push(`${measuredClaims} verified ${measuredClaims === 1 ? "claim" : "claims"}`);
     }
-    let text = parts.join(" · ");
-    if (packReview) {
-      text += `. Reviewed with: ${packReview.title} (v${packReview.version})`;
-    }
-    return text;
   }
-  const sources = revision.sourceCount ?? 0;
-  const findings = revision.documentFindingCount ?? 0;
-  return `${documentLabel(sources).replace(/documents?$/, sources === 1 ? "source" : "sources")} · ${findings} verified ${findings === 1 ? "claim" : "claims"}`;
+  if (
+    counts &&
+    typeof counts.checklistShown === "number" &&
+    typeof counts.checklistNotShown === "number" &&
+    counts.checklistShown + counts.checklistNotShown > 0
+  ) {
+    parts.push(`${counts.checklistShown} checks shown · ${counts.checklistNotShown} not shown`);
+  }
+  if (parts.length === 0) return "Counts were not recorded with this revision.";
+  let text = parts.join(" · ");
+  if (verifiedFacts === null && measuredClaims === null) text += ". Verified claim count was not recorded";
+  else if (documents === null) text += ". Source count was not recorded";
+  if (counts?.packReview) {
+    text += `. Reviewed with: ${counts.packReview.title} (v${counts.packReview.version})`;
+  }
+  return text;
+}
+
+export function readStudyRevisionIdentity(input: {
+  revision: Pick<
+    StudyRevisionSummary,
+    "format" | "acceptanceCounts" | "investigationEngine" | "domainPackId" | "domainPackVersion" | "revisionStatus"
+  >;
+  study?: {
+    packRef?: { id: string; version: number | string } | null;
+    questionOrder?: readonly string[] | null;
+  } | null;
+  knownInvestigationPack?: { packId: string; version: string; compiledDigest: string } | null;
+}): StudyRevisionIdentity {
+  const revision = input.revision;
+  const study = input.study ?? null;
+  const known = input.knownInvestigationPack ?? null;
+  const digestNote = (study?.questionOrder ?? []).find((item) => item.startsWith("pack-digest:")) ?? null;
+  const digestMatches = Boolean(known && digestNote === `pack-digest:${known.compiledDigest}`);
+  const packReview = revision.acceptanceCounts?.packReview;
+  const investigationEngine =
+    studyIdentityToken(revision.investigationEngine) ??
+    (digestNote ? "hive.domain-investigation/1" : null) ??
+    (study?.packRef?.id ? "hive-canonicalize/1" : null) ??
+    (revision.format === "investigation-1" ? "hive.study-investigation/1" : null);
+  const domainPackId =
+    studyIdentityToken(revision.domainPackId) ??
+    (digestMatches && known ? known.packId : null) ??
+    studyIdentityToken(study?.packRef?.id) ??
+    studyIdentityToken(packReview?.id);
+  const domainPackVersion =
+    studyIdentityToken(revision.domainPackVersion) ??
+    (digestMatches && known ? known.version : null) ??
+    (study?.packRef ? studyIdentityToken(study.packRef.version) : null) ??
+    (packReview ? studyIdentityToken(packReview.version) : null);
+  return {
+    investigationEngine,
+    domainPackId,
+    domainPackVersion,
+    revisionStatus: "accepted",
+  };
+}
+
+export function formatStudyRevisionProvenance(identity: StudyRevisionIdentity, revisionNumber: number): string {
+  const engine = identity.investigationEngine
+    ? `Investigation engine ${identity.investigationEngine}`
+    : "Investigation engine was not recorded";
+  const pack =
+    identity.domainPackId && identity.domainPackVersion
+      ? `Domain pack ${identity.domainPackId} ${identity.domainPackVersion}`
+      : identity.domainPackId
+        ? `Domain pack ${identity.domainPackId}. Domain pack version was not recorded`
+        : "Domain pack version was not recorded";
+  const status = identity.revisionStatus === "accepted" ? `Revision ${revisionNumber} accepted` : `Revision ${revisionNumber}`;
+  return `${engine}. ${pack}. ${status}.`;
 }
 
 export function studyRevisionAcceptanceSubtext(

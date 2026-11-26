@@ -2737,6 +2737,29 @@ export async function runCanonicalizeForRun(input: {
   return { ok: true, study: result.study, metric };
 }
 
+/** Labels the engine that accepted this revision. Only the pinned 0.5.0 edition can reach this path. */
+export function acceptanceProvenance(
+  study: CanonicalStudy,
+  promptId: string | null,
+): { investigationEngine: string; domainPackId: string | null; domainPackVersion: string | null } {
+  const usesInvestigation =
+    promptId === "hive.domain-investigation/1" ||
+    (study.questionOrder ?? []).some((item) => item.startsWith("pack-digest:"));
+  if (usesInvestigation) {
+    return {
+      investigationEngine: "hive.domain-investigation/1",
+      domainPackId: PINNED_DOMAIN_PACK.packId,
+      domainPackVersion: PINNED_DOMAIN_PACK.version,
+    };
+  }
+  const legacyEngine = promptId === "hive-canonicalize/1" || promptId === "hive-canonicalize/2" ? promptId : "hive-canonicalize/1";
+  return {
+    investigationEngine: legacyEngine,
+    domainPackId: study.packRef?.id ?? null,
+    domainPackVersion: study.packRef != null ? String(study.packRef.version) : null,
+  };
+}
+
 export function buildV5AcceptRevision(input: {
   study: CanonicalStudy;
   intents: readonly StoredIntent[];
@@ -2748,20 +2771,23 @@ export function buildV5AcceptRevision(input: {
   const investigationDigest = sha256Digest(canonicalJson(input.study));
   const canonicalMetric = input.canonicalMetric;
   const acceptanceCounts = buildV5AcceptanceCounts(input.study, input.packTitle ?? null);
+  const provenance = acceptanceProvenance(input.study, canonicalMetric?.promptId ?? null);
   return {
     format: "canonical-study-1",
     investigation: input.study,
     verification: {
       schema: STUDY_VERIFICATION_SCHEMA,
       counts: {
-        documentFindings: 0,
-        claims: 0,
         verifiedFacts: acceptanceCounts.verifiedFacts,
         documents: acceptanceCounts.documents,
         ...(acceptanceCounts.checklistShown !== undefined
           ? { checklistShown: acceptanceCounts.checklistShown, checklistNotShown: acceptanceCounts.checklistNotShown ?? 0 }
           : {}),
         ...(acceptanceCounts.packReview ? { packReview: acceptanceCounts.packReview } : {}),
+        investigationEngine: provenance.investigationEngine,
+        ...(provenance.domainPackId ? { domainPackId: provenance.domainPackId } : {}),
+        ...(provenance.domainPackVersion ? { domainPackVersion: provenance.domainPackVersion } : {}),
+        revisionStatus: "accepted",
       },
       findings: [],
       documentCoverage: [],

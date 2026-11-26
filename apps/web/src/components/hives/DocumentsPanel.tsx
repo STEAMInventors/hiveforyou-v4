@@ -5,6 +5,8 @@ import {
   type CanonicalStudy,
   type CoverageGap,
   formatStudyRevisionAcceptanceDetail,
+  formatStudyRevisionProvenance,
+  readStudyRevisionIdentity,
   type FindingsOpenItem,
   type FindingsTopic,
   type GetStudyPreparationResponse,
@@ -26,7 +28,7 @@ import { shortDocumentLabels, shortTypeChipLabels } from "@/components/study/Sou
 import { Button } from "@/components/ui/Button";
 import { MetaDot, MetaLine } from "@/components/ui/MetaLine";
 import { EMPTY_OMNI_CATALOG, useRegisterOmniCatalog } from "@/components/ui/omni-catalog";
-import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
+import { hiveFindingsPath, hiveReportsPath } from "@/lib/hive-routes";
 import { studyAvailability } from "@/lib/hives/study-availability";
 import {
   mergeOmniCatalog,
@@ -427,7 +429,10 @@ export function DocumentsPanel({
         <div role="status" data-testid="rebuild-study-status" className="flex flex-col gap-1 text-meta text-ink">
           <p className="m-0 font-medium">Study revision {acceptedRebuild.revisionNumber} accepted.</p>
           <p className="m-0 text-ink-2">{formatStudyRevisionAcceptanceDetail(acceptedRebuild)}</p>
-          <Link href={hiveStudyPath(hiveId)} className={QUIET_LINK_CLASS} data-testid="rebuild-study-link">
+          <p className="m-0 text-ink-3" data-testid="rebuild-study-identity">
+            {formatStudyRevisionProvenance(readStudyRevisionIdentity({ revision: acceptedRebuild }), acceptedRebuild.revisionNumber)}
+          </p>
+          <Link href={hiveFindingsPath(hiveId)} className={QUIET_LINK_CLASS} data-testid="rebuild-study-link">
             Open study revision {acceptedRebuild.revisionNumber}
           </Link>
         </div>

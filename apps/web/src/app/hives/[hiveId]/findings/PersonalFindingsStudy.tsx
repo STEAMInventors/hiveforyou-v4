@@ -1,10 +1,13 @@
 import Link from "next/link";
 
+import { formatStudyRevisionProvenance, readStudyRevisionIdentity } from "@hiveforyou/contracts";
+
 import { StudyView } from "@/components/study/StudyView";
 import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 import { documentPageCounts, loadHiveOverview, workspaceStudyView } from "@/server/hives/hive-summary";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
+import { loadPinnedDomainPack, PINNED_DOMAIN_PACK } from "@/server/workflow/domain-pack-selection";
 
 /** The accepted study for a personal Hive. Firm hives keep this content on Home. */
 export async function PersonalFindingsStudy({ hiveId }: { hiveId: string }) {
@@ -35,6 +38,21 @@ export async function PersonalFindingsStudy({ hiveId }: { hiveId: string }) {
     );
   }
   const workspace = workspaceStudyView(overview);
+  let knownInvestigationPack: { packId: string; version: string; compiledDigest: string } | null = null;
+  try {
+    const pinned = loadPinnedDomainPack();
+    knownInvestigationPack = {
+      packId: PINNED_DOMAIN_PACK.packId,
+      version: PINNED_DOMAIN_PACK.version,
+      compiledDigest: pinned.compiledDigest,
+    };
+  } catch {
+    knownInvestigationPack = null;
+  }
+  const identityLine = formatStudyRevisionProvenance(
+    readStudyRevisionIdentity({ revision, study: overview.canonicalStudy, knownInvestigationPack }),
+    revision.revisionNumber,
+  );
   return (
     <StudyView
       hiveId={hiveId}
@@ -44,6 +62,7 @@ export async function PersonalFindingsStudy({ hiveId }: { hiveId: string }) {
       revisionNumber={revision.revisionNumber}
       coverageGaps={revision.coverageGaps}
       documentPages={documentPageCounts(overview.preparation)}
+      identityLine={identityLine}
     />
   );
 }

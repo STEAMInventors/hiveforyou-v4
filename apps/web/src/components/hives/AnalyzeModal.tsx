@@ -4,6 +4,8 @@ import {
   type CoverageGap,
   documentsToRead,
   formatStudyRevisionAcceptanceDetail,
+  formatStudyRevisionProvenance,
+  readStudyRevisionIdentity,
   knownGapsToAcknowledge,
   knownLimitations,
   type ProcessingRun,
@@ -17,7 +19,7 @@ import { useEffect, useId, useRef } from "react";
 import { PRIMARY_BUTTON_CLASS, SECONDARY_BUTTON_CLASS } from "@/components/button-classes";
 import { handleModalTabKeyDown, safeReturnFocus } from "@/lib/a11y/modal-focus";
 import { usePrefersReducedMotion } from "@/lib/a11y/reduced-motion";
-import { hiveReportsPath, hiveStudyPath } from "@/lib/hive-routes";
+import { hiveFindingsPath, hiveReportsPath } from "@/lib/hive-routes";
 
 import type { ReadPollState } from "./document-read-progress";
 import { HoneycombActivity, type LivingHiveMode } from "./HoneycombActivity";
@@ -280,6 +282,12 @@ function AnalyzeDialog({
               <span className="text-[14.5px] leading-[1.55] text-ink-2">
                 {formatStudyRevisionAcceptanceDetail(acceptedRebuild)}
               </span>
+              <span className="text-small leading-[1.45] text-ink-3" data-testid="rebuild-study-identity">
+                {formatStudyRevisionProvenance(
+                  readStudyRevisionIdentity({ revision: acceptedRebuild }),
+                  acceptedRebuild.revisionNumber,
+                )}
+              </span>
             </div>
           ) : null}
           {reports.length > 0 ? (
@@ -373,7 +381,7 @@ function AnalyzeDialog({
                 </button>
                 {acceptedRebuild ? (
                   <Link
-                    href={hiveStudyPath(hiveId)}
+                    href={hiveFindingsPath(hiveId)}
                     className={PRIMARY_BUTTON_CLASS}
                     data-testid="rebuild-open-study"
                   >

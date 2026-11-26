@@ -562,7 +562,20 @@ describe("DocumentsPanel — Analyze", () => {
     expect(status.textContent).toContain("3 documents");
     expect(status.textContent).toContain("4 checks shown");
     expect(status.textContent).toContain("Reviewed with: Widget batch review (v2)");
-    expect(screen.getByTestId("rebuild-study-link").getAttribute("href")).toBe(`/hives/${HIVE_ID}/study`);
+    const panelLink = within(status).getByTestId("rebuild-study-link");
+    expect(panelLink.getAttribute("href")).toBe(`/hives/${HIVE_ID}/findings`);
+    expect(panelLink.getAttribute("href")).not.toContain("/board");
+    expect(panelLink.getAttribute("href")).not.toContain("/study");
+    expect(within(status).getByTestId("rebuild-study-identity").textContent).toContain("Revision 7 accepted");
+    expect(within(status).getByTestId("rebuild-study-identity").textContent).toContain("widget-review 2");
+
+    const dialog = screen.getByTestId("analyze-modal");
+    const dialogLink = within(dialog).getByTestId("rebuild-open-study");
+    expect(dialogLink.getAttribute("href")).toBe(`/hives/${HIVE_ID}/findings`);
+    expect(dialogLink.getAttribute("href")).not.toContain("/board");
+    expect(dialogLink.getAttribute("href")).not.toContain("/study");
+    expect(within(dialog).getByTestId("rebuild-study-identity").textContent).toContain("Revision 7 accepted");
+    expect(within(dialog).getByTestId("rebuild-study-identity").textContent).toContain("widget-review 2");
   });
 
   it("does not offer rebuild until a study exists and the documents are already read", async () => {
