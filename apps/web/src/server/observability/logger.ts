@@ -252,6 +252,7 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "instance_entity_conflict",
   "mapping_incomplete",
   "mapping_finished",
+  "investigation_incomplete",
   "mapping_agent_budget_exhausted",
   "invalid_arguments",
   "page_not_authorized",

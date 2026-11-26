@@ -98,19 +98,26 @@ export function buildChainBlockRows(
     label: labels.get(chain.chainId) ?? chain.chainId,
     rows: chain.rows.map((row, index) => {
       let missingIndex = -1;
+      let unresolvedIndex = -1;
       row.links.forEach((link, linkIndex) => {
         if (missingIndex < 0 && "missing" in link && link.missing) missingIndex = linkIndex;
+        if (unresolvedIndex < 0 && ("unresolved" in link && link.unresolved || ("factIds" in link && link.factIds.length === 0))) {
+          unresolvedIndex = linkIndex;
+        }
       });
       const hasMissing = missingIndex >= 0;
+      const hasUnresolved = unresolvedIndex >= 0;
       const start = row.label.trim() || "This item";
       const statement = hasMissing
         ? `${start}: the documents do not show ${missingLinkLabel(pack, chain.chainId, missingIndex)}.`
-        : `${start}: the chain is complete in these documents.`;
+        : hasUnresolved
+          ? `${start}: ${missingLinkLabel(pack, chain.chainId, unresolvedIndex)} is unresolved.`
+          : `${start}: the chain is complete in these documents.`;
       return {
         id: `${chain.chainId}-R${index + 1}`,
         label: row.label,
         statement,
-        kind: hasMissing ? "worth-asking" : "matches",
+        kind: hasMissing || hasUnresolved ? "worth-asking" : "matches",
         missing: hasMissing ? [`link-${missingIndex + 1}`] : [],
         values: row.links.flatMap((link) => ("factIds" in link ? valuesForFactIds(link.factIds, facts) : [])),
       };

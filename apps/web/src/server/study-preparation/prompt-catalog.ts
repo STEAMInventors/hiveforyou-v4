@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   DOMAIN_INVESTIGATION_PROMPT_ID,
+  DOMAIN_INVESTIGATION_PROMPT_V2_ID,
   FIELD_MAPPING_PROMPT_ID,
   PLANNER_TASK_PROMPT_IDS,
   WRITER_SEMANTIC_REVIEW_PROMPT_ID,
@@ -35,6 +36,7 @@ const CANONICALIZE_PROMPT_FILE = "hive-canonicalize/HiveForYou-Canonicalize-v1.m
 const CANONICALIZE_PROMPT_V2_FILE = "hive-canonicalize/HiveForYou-Canonicalize-v2.md";
 const FIELD_MAPPING_PROMPT_FILE = "hive-field-mapping/HiveForYou-Field-Mapping-v1.md";
 const DOMAIN_INVESTIGATION_PROMPT_FILE = "hive-domain-investigation/HiveForYou-Domain-Investigation-v1.md";
+const DOMAIN_INVESTIGATION_PROMPT_V2_FILE = "hive-domain-investigation/HiveForYou-Domain-Investigation-v2.md";
 const WRITE_PROMPT_FILE = "hive-write/HiveForYou-Write-v1.md";
 const WRITE_PROMPT_V2_FILE = "hive-write/HiveForYou-Write-v2.md";
 
@@ -76,6 +78,8 @@ export type PromptCatalog = {
   readonly canonicalizeV2: CanonicalizePrompt;
   readonly fieldMapping: CanonicalizePrompt;
   readonly investigation: CanonicalizePrompt;
+  /** Pinned iep-us-federal 0.5.0 investigation. `investigation` stays `hive.domain-investigation/1`. */
+  readonly investigationV2: CanonicalizePrompt;
   readonly write: WritePrompt;
   readonly writeV2: WritePrompt;
   readonly studyTemplate: { readonly id: string; readonly version: string; readonly digest: string; readonly text: string };
@@ -187,6 +191,8 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
   readPromptId(fieldMappingFile, FIELD_MAPPING_PROMPT_ID);
   const investigationFile = normalize(readText(DOMAIN_INVESTIGATION_PROMPT_FILE));
   readPromptId(investigationFile, DOMAIN_INVESTIGATION_PROMPT_ID);
+  const investigationV2File = normalize(readText(DOMAIN_INVESTIGATION_PROMPT_V2_FILE));
+  readPromptId(investigationV2File, DOMAIN_INVESTIGATION_PROMPT_V2_ID);
   const writeFile = normalize(readText(WRITE_PROMPT_FILE));
   readPromptId(writeFile, PLANNER_TASK_PROMPT_IDS.write);
   const writeV2File = normalize(readText(WRITE_PROMPT_V2_FILE));
@@ -223,6 +229,12 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
       id: DOMAIN_INVESTIGATION_PROMPT_ID,
       digest: sha256Digest(investigationFile),
       systemPrompt: `${extractSection(investigationFile, "System")}\n\n${extractSection(investigationFile, "Output", true)}`,
+    },
+    investigationV2: {
+      task: "canonicalize",
+      id: DOMAIN_INVESTIGATION_PROMPT_V2_ID,
+      digest: sha256Digest(investigationV2File),
+      systemPrompt: `${extractSection(investigationV2File, "System")}\n\n${extractSection(investigationV2File, "Output", true)}`,
     },
     write: {
       task: "write",

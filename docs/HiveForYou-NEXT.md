@@ -1,8 +1,88 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-26): Stage 5E.3 — Fix production activation and Study UI.** Local only. No deploy, no `supabase db push`, no live model, and no change to the investigation algorithms. Pinned Rebuild still requires one explicit `iep-us-federal` `0.5.0` row whose digest is `2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066`. v0.4.0 remains on disk and its compiled digest is unchanged: `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
+> **Active ticket (2026-11-26): Stage 5E.4C — Load domain investigation v2 on the pinned 0.5.0 path.** Implemented locally. No deploy, no `supabase db push`, and no live model. The v2 prompt file is unchanged. v1 and the legacy canonicalize routes stay loaded.
 
-## Active ticket — Stage 5E.3: Fix production activation and Study UI
+## Active ticket — Stage 5E.4C: Load domain investigation v2 on the pinned 0.5.0 path
+
+**Objective:** A pinned iep-us-federal 0.5.0 Rebuild posts the existing `hive.domain-investigation/2` prompt. v1 stays the catalog investigation id. Unpinned Hives stay on `hive-canonicalize/1`. `hive-canonicalize/2`, `hive-study-preview/1`, and the mapping task stay on their own prompts.
+
+**Status (2026-11-26): local only.** The prompt file was not edited. The catalog digest of that LF-normalized file is `sha256:378d9b3d76262f0feb00d11b4738f02ce916397258a2ba37288a3a9c9f157304`. `runPinnedInvestigationEngine` sends `catalog.investigationV2`. The planner accepts that id and `hive.domain-investigation/1` on `task: "investigation"`, and `/v1/plan-completion` rejects both. A v2 acceptance records that prompt id and digest. A study that only carries a pack digest, with no v2 prompt id, still records v1.
+
+**Still open:** no Hive is pinned, the planner is not deployed, and no live model has been called. The role enum, eight-character chain match, short document-name limit, 32-round cap, and empty version field are unchanged from 5E.4B.
+
+## Previous ticket — Stage 5E.4B: Close investigation acceptance gaps
+
+**Objective:** Make incomplete investigations and unsupported missing-evidence claims impossible to publish as verified Studies.
+
+**Status (2026-11-26): local only. v2 is not activated.** No Hive was pinned. No external model was called. No SQL and no deploy.
+
+**Completeness contract:** `runInvestigationStudyEngine` still returns the projected study and `completeness`. `acceptCanonicalInvestigation` is the final acceptance boundary. It returns the study only when `completeness.complete === true`. Otherwise it returns `INVESTIGATION_INCOMPLETE`. The pinned rebuild uses that boundary, does not call `accept_study_revision`, and does not replace Customer or Pro reports. An earlier accepted revision stays.
+
+A ledger execution requires a valid schedule before any tool call. The schedule's window count must be a positive integer, and its document ids must be exactly the authorized pages. A missing or invalid schedule refuses the call, including a direct ledger caller. `finish_investigation` still refuses until the presented windows, quoted roles, anchor pages, shown questions, and request questions are done.
+
+An unquoted document keeps a schema role only so the document stays in the study. `classification` is `UNRESOLVED`. The study view shows "Unresolved" and does not treat that role as evidence-backed. A quoted role is `QUOTED`.
+
+An unmapped required field does not become a missing-information gap. A blank-field gap is admitted only when the empty-field quote is on the authorized page. A search that found nothing is labeled `Searched and not found` on the outside spine. A missing-document request is admitted only when a verified quote names that record and the authorized inventory does not contain it.
+
+A Domain Pack chain is still written. A link is `{ factIds }` only when an admitted relationship's label matches that link. Otherwise the link is `{ unresolved: true }`. Label overlap with a fact value does not establish a link.
+
+Phase D of the proposed `hive.domain-investigation/2` prompt now matches those distinctions. The file changed, so its digest is `sha256:becaa71b577cf56d1a2c9326e1de5f787083b2e2fed16c88ae8ea321d98fe25c`. v1 stays loaded.
+
+**Verification (2026-11-26):**
+
+- `packages/contracts`: `npx vitest run src/pipeline/eval/domain-investigation-l001-golden.test.ts src/pipeline/eval/domain-investigation-l001.test.ts src/pipeline/investigation-study-engine.test.ts src/pipeline/domain-investigation-ledger.test.ts src/pipeline/domain-investigation-binder.test.ts src/pipeline/domain-mapping-agent.test.ts src/hives/findings-page-model.test.ts src/pipeline/pack-canonicalize.test.ts src/pipeline/canonical-study-contracts.test.ts` — 51 passed, exit 0.
+- `packages/contracts`: `npx vitest run src/pipeline/pack-study-view.test.ts src/pipeline/pack-report-view.test.ts` — 6 passed, exit 0.
+- `apps/web`: `npx vitest run src/server/workflow/investigation-rebuild.test.ts src/server/workflow/study-investigation.test.ts --pool=forks` — 26 passed, exit 0.
+
+The Maya L001 golden run still has all 15 supported findings, excludes N1–N4 and the progress conclusion, quotes a role for all eight documents, writes no gaps, writes all seven chains with every link unresolved, and accepts only because `completeness.complete` is true.
+
+**Still open before any v2 activation:**
+
+- `hive.domain-investigation/1` remains the loaded prompt. v2 is not in the catalog.
+- The canonical role enum is still `ANCHOR`, `SUPPORTING`, or `REFERENCE`. An unresolved document stores `REFERENCE` plus `classification: "UNRESOLVED"`. A reader that ignores `classification` would still see a role.
+- A chain link matches an admitted relationship by label overlap of at least eight characters. The pack does not give each link its own relationship id.
+- A document name shorter than eight characters is not admitted as a missing-document request.
+- The round cap remains 32. A larger corpus that cannot close Phase F inside that cap fails closed.
+- Version stays empty unless a verified field id contains `version`. Chain position stays empty when fewer than two documents have a quoted anchor role.
+
+## Previous ticket — Stage 5E.4A: Investigation completeness and evidence safety
+
+**Objective:** Make the proposed `hive.domain-investigation/2` prompt safe to load later. Trusted code rejects an early finish, requires a quoted role for every authorized document before that finish, keeps assessments off the supported spine, retains unanswered-question uncertainty, and projects document dates and Domain Pack chains. `hive.domain-investigation/1` stays loaded.
+
+**Status (2026-11-26): local only. v2 is not activated.** No Hive was pinned. No external model was called. No SQL and no deploy.
+
+The v2 prompt's six phases use the existing twelve tools. Phase F matches the finish gate: the call stops the loop and does not declare the study complete. The prompt text was not edited, so its digest is unchanged: `sha256:cca22e6c90b6f6a530b266a69d18ba5414f2d820ed5161491fd85a000b741fc1`.
+
+**Verification (2026-11-26):**
+
+- `packages/contracts`: `npx vitest run src/pipeline/eval/domain-investigation-l001-golden.test.ts src/pipeline/eval/domain-investigation-l001.test.ts src/pipeline/investigation-study-engine.test.ts` — 18 passed.
+- `packages/contracts`: `npx vitest run src/pipeline/domain-investigation-ledger.test.ts src/pipeline/domain-investigation-binder.test.ts` — 14 passed.
+- `apps/web`: `npx vitest run src/server/workflow/investigation-rebuild.test.ts` — 13 passed.
+
+The Maya L001 golden run used the coordinated ledger and `runInvestigationStudyEngine` on the eight synthetic PDFs and pack `iep-us-federal` 0.5.0. Early finish was refused until the windows, quoted roles, anchor pages, shown questions, and request questions were handled. The projected study had eight classified documents, the IEP dated 2024-11-12 as the only anchor, all 15 golden findings on the supported spine, the unsupported `150` minutes withheld, N1–N4 and the met-goal sentence off that spine, an empty conflict list, progress and meeting uncertainty kept, no requestable-document gap, `check:T2` left `NOT_ASSESSED`, and all seven chains present. `completeness.complete` was true.
+
+**Still open before any v2 activation:**
+
+- `hive.domain-investigation/1` remains the loaded prompt. v2 is not in the catalog.
+- A ledger that was never given a window schedule can still finish after one accepted field. The production loop always arms that schedule.
+- The canonical document role is still `ANCHOR`, `SUPPORTING`, or `REFERENCE`. An unquoted document keeps a schema role and an outside-spine note that the role is not evidence-backed. A scheduled finish refuses to stop until every manifest document has a quoted role.
+- An unmapped required field still becomes an observation gap. A document named by the extraction can still become a requestable-document gap. The golden corpus has no referenced documents, so that run created none.
+- Version stays empty unless a verified field id contains `version`. This pack has no such field. Chain position stays empty when fewer than two documents have a quoted anchor role.
+- A chain link stays unresolved unless its label overlaps a verified fact value. The seven chains are still written.
+- `completeness.complete` false does not by itself refuse a revision after a successful finish. An early finish never succeeds, so that run does not accept a revision.
+- The round cap remains 32. A larger corpus that cannot close Phase F inside that cap fails closed.
+
+## Previous ticket — Stage 5E.4: Domain Pack–driven investigation prompt and Study
+
+**Objective:** A pinned Rebuild investigates the case from the person's request, the authorized records, and the compiled Domain Pack. The prompt is domain-agnostic. Domain knowledge comes from the pack and the request. Trusted code still checks quotes, written values, rules, calculations, provenance, and relationships.
+
+**Status (2026-11-26): proposal accepted into 5E.4A.** The v2 prompt and the specification remain unloaded.
+
+The proposed prompt keeps the twelve investigation tools and adds the document-centered work that `hive-study-preview/1` and `hive-canonicalize/2` already required, where those tools can carry it: six phases, an anchor or an explicit lack of one, a full central-document pass, cross-document search, five distinct absences, user questions as bindings, and a completeness review before finish. It does not copy the older evidence, finding, or finish tools, and it does not put Maya's case into the prompt.
+
+The scripted tool-contract check stays in `domain-investigation-l001.test.ts`. The six-measure golden check is `domain-investigation-l001-golden.test.ts`. 5E.4A implemented the finish gate, window payload, quantity withholding, date and chain projection, and assessment withholding. v2 is still not in the catalog. No deploy, SQL, or model call.
+
+## Previous ticket — Stage 5E.3: Fix production activation and Study UI
 
 **Objective:** A production Rebuild accepted revision 10 on legacy IEP v7 (`hive-canonicalize/1`, pack `iep-initial` 7) and the success line read `8 sources · 0 verified claims`. The new investigation engine and pack 0.5.0 were already in the application, but the database check allowed only 0.4.0, so no Hive could store the required edition. Unpinned Hives stay on `hive-canonicalize/1`.
 
@@ -42,7 +122,7 @@ INSERT INTO hive.domain_pack_selections (hive_id, pack_id, version, compiled_dig
 VALUES ('<synthetic-hive-uuid>'::uuid, 'iep-us-federal', '0.5.0', '<compiled-digest>');
 ```
 
-6. Rebuild Study on that Hive only. The new revision should name `hive.domain-investigation/1` and `iep-us-federal 0.5.0`. The previous revision and its reports stay. Any other Hive stays on its current engine. A 0.4.0 row or a mismatched digest fails closed and does not call the model.
+6. Rebuild Study on that Hive only. The new revision should name `hive.domain-investigation/2` and `iep-us-federal 0.5.0`. The previous revision and its reports stay. Any other Hive stays on its current engine. A 0.4.0 row or a mismatched digest fails closed and does not call the model.
 
 ## Previous ticket — Stage 5E.2: Comprehensive Agentic Investigation
 

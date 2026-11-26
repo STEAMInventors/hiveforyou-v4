@@ -17,7 +17,7 @@ import type { CompiledDomainPack } from "./domain-pack-source";
 import type { DocExtraction } from "./extraction-contracts";
 import { normalizeQuoteText } from "./verify-quotes";
 
-export { DOMAIN_INVESTIGATION_PROMPT_ID } from "./domain-investigation-prompt";
+export { DOMAIN_INVESTIGATION_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_V2_ID } from "./domain-investigation-prompt";
 export const INVESTIGATION_WINDOW_SCHEMA = "hive.field-mapping-window/1" as const;
 
 export const INVESTIGATION_AGENT_TOOL_NAMES = [
@@ -47,6 +47,7 @@ export const INVESTIGATION_REJECTION_CODES = [
   "instance_entity_conflict",
   "mapping_incomplete",
   "mapping_finished",
+  "investigation_incomplete",
   "tool_call_conflict",
   "too_many_calls",
   "no_tool_call",
@@ -285,6 +286,10 @@ export type CoordinatedInvestigationRecord = {
   conflicts: ConflictProposal[];
   gaps: GapProposal[];
   answers: AnswerProposal[];
+  /** Pages returned by read_pages. Absent on a record built without the ledger. */
+  examinedPages?: readonly { documentId: string; page: number }[];
+  /** Question ids included in a window that was actually sent. Absent when no schedule was armed. */
+  shownQuestionIds?: readonly string[];
 };
 
 type ObjectMap = Record<string, unknown>;
@@ -293,13 +298,22 @@ type ToolResult = { toolCallId: string; ok: boolean; content: string };
 const isObject = (value: unknown): value is ObjectMap => !!value && typeof value === "object" && !Array.isArray(value);
 
 class InvestigationRejection extends Error {
-  constructor(readonly code: InvestigationRejectionCode, message: string) {
+  constructor(
+    readonly code: InvestigationRejectionCode,
+    message: string,
+    /** A completeness refusal is ordinary control flow. It does not spend the invalid-call budget. */
+    readonly countsAsInvalid = true,
+  ) {
     super(message);
   }
 }
 
-function refuse(code: InvestigationRejectionCode, message: string): never {
-  throw new InvestigationRejection(code, message);
+function refuse(code: InvestigationRejectionCode, message: string, countsAsInvalid = true): never {
+  throw new InvestigationRejection(code, message, countsAsInvalid);
+}
+
+function intentQuestionCount(text: string): number {
+  return text.split("?").map((part) => part.trim()).filter((part) => part.length >= 8).length;
 }
 
 function identifier(value: unknown): string | null {
@@ -329,6 +343,8 @@ type CatalogSlice = {
   checks: { id: string; label: string }[];
   documents: { id: string; label: string; aliases: string[] }[];
   personas: { id: string; audience: string; questionIds: string[] }[];
+  chains: { id: string; label: string; links: string[] }[];
+  calculations: { id: string; label: string; operator: string; state: string }[];
 };
 
 function catalogSlice(pack: CompiledDomainPack): CatalogSlice {
@@ -340,7 +356,13 @@ function catalogSlice(pack: CompiledDomainPack): CatalogSlice {
     definition.kind === "document" ? [{ id: definition.id, label: definition.label, aliases: definition.aliases }] : []);
   const personas = pack.definitions.flatMap((definition) =>
     definition.kind === "persona" ? [{ id: definition.id, audience: definition.audience, questionIds: definition.questionIds }] : []);
-  return { questions, checks, documents, personas };
+  const chains = pack.definitions.flatMap((definition) =>
+    definition.kind === "chain" ? [{ id: definition.id, label: definition.label, links: definition.links }] : []);
+  const calculations = pack.definitions.flatMap((definition) =>
+    definition.kind === "calculation"
+      ? [{ id: definition.id, label: definition.label, operator: definition.operator, state: definition.state }]
+      : []);
+  return { questions, checks, documents, personas, chains, calculations };
 }
 
 export type InvestigationWindow = MappingWindow & { readonly slice: CatalogSlice };
@@ -371,6 +393,8 @@ export function renderInvestigationWindow(input: {
   }));
   const checks = window.slice.checks.slice(start * 8, start * 8 + 8).map((check) => ({ id: check.id, label: check.label }));
   const documents = window.slice.documents.slice(start * 8, start * 8 + 8);
+  const chains = window.slice.chains.slice(start * 8, start * 8 + 8);
+  const calculations = window.slice.calculations.slice(start * 8, start * 8 + 8);
   const manifest = [...extractions]
     .sort((left, right) => left.documentId.localeCompare(right.documentId))
     .map((extraction) => ({
@@ -379,16 +403,35 @@ export function renderInvestigationWindow(input: {
       documentType: extraction.document.documentType,
       pageCount: extraction.coverage.pageCount,
     }));
+  const referencedDocuments = [...extractions]
+    .sort((left, right) => left.documentId.localeCompare(right.documentId))
+    .flatMap((extraction) => extraction.referencedDocuments.map((item) => ({
+      documentId: extraction.documentId,
+      description: item.description,
+      page: item.page,
+    })));
+  const blankFields = [...extractions]
+    .sort((left, right) => left.documentId.localeCompare(right.documentId))
+    .flatMap((extraction) => extraction.emptyFields.map((item) => ({
+      documentId: extraction.documentId,
+      label: item.label,
+      page: item.page,
+    })));
   return {
     schema: INVESTIGATION_WINDOW_SCHEMA,
     windowIndex: window.index,
     windowCount: window.count,
-    instruction: "Investigate this subset. Copy written values exactly. Read pages before quoting them. Do not state a legal conclusion or a progress result without a later measurement.",
-    ...(window.index === 0 ? { intent: intentText.slice(0, 2000), personas: window.slice.personas.slice(0, 6) } : {}),
+    instruction: "Investigate this subset. The person's request still governs. Copy written values exactly. Read pages before quoting them. Do not finish because some fields were accepted. Do not state a legal conclusion or a progress result without a later measurement.",
+    intent: intentText.slice(0, 2000),
+    ...(window.index === 0 ? { personas: window.slice.personas.slice(0, 6) } : {}),
     manifest,
     questions,
     checks,
     documentKinds: documents,
+    chains,
+    calculations,
+    referencedDocuments,
+    blankFields,
     fields: window.fields,
     relationships: window.relationships,
     facts: window.facts,
@@ -415,6 +458,11 @@ export class CoordinatedInvestigationLedger {
   private readonly conflicts: ConflictProposal[] = [];
   private readonly gaps: GapProposal[] = [];
   private readonly answers: AnswerProposal[] = [];
+  private readonly pagesRead = new Set<string>();
+  private readonly presentedWindows = new Set<number>();
+  private readonly shownQuestionIds = new Set<string>();
+  private schedule: { windowCount: number; documentIds: ReadonlySet<string> } | null = null;
+  private scheduleError = "The investigation has no schedule.";
   private toolCallCount = 0;
   private invalidCallCount = 0;
   private invalidBudgetCount = 0;
@@ -465,6 +513,36 @@ export class CoordinatedInvestigationLedger {
     return Object.fromEntries(this.turnRejectionCounts);
   }
 
+  /**
+   * Arms the Phase F gate for this ledger execution. A missing or invalid schedule
+   * refuses every later tool call. The document ids must be exactly the authorized pages.
+   */
+  armCompletion(input: { windowCount: number; documentIds: readonly string[] }): boolean {
+    const authorized = new Set(this.pages.map((document) => document.documentId));
+    const unique = new Set(input.documentIds.filter((id) => id.trim() !== ""));
+    const valid = Number.isInteger(input.windowCount)
+      && input.windowCount > 0
+      && authorized.size > 0
+      && unique.size === authorized.size
+      && [...authorized].every((id) => unique.has(id));
+    if (!valid) {
+      this.schedule = null;
+      this.scheduleError = "The investigation schedule is not valid.";
+      return false;
+    }
+    this.schedule = { windowCount: input.windowCount, documentIds: unique };
+    this.scheduleError = "";
+    return true;
+  }
+
+  presentWindow(index: number, shown: { questionIds: readonly string[] }): void {
+    if (!this.schedule || !Number.isInteger(index) || index < 0 || index >= this.schedule.windowCount) return;
+    this.presentedWindows.add(index);
+    for (const questionId of shown.questionIds) {
+      if (questionId.trim() !== "") this.shownQuestionIds.add(questionId.trim());
+    }
+  }
+
   beginTurn(): void {
     this.inTurn = true;
     this.turnHasRejection = false;
@@ -496,6 +574,7 @@ export class CoordinatedInvestigationLedger {
       if (previous.name === call.name && previous.arguments === call.arguments) return previous.result;
       return this.decline(call, "tool_call_conflict", "This tool call id was already used for a different call.");
     }
+    if (!this.schedule) return this.decline(call, "investigation_incomplete", this.scheduleError);
     this.toolCallCount += 1;
     let result: ToolResult;
     try {
@@ -515,28 +594,40 @@ export class CoordinatedInvestigationLedger {
       }
     } catch (error) {
       if (!(error instanceof InvestigationRejection)) throw error;
-      if (!this.finished) this.recordRejection(error.code);
+      if (!this.finished && error.countsAsInvalid) this.recordRejection(error.code);
       result = { toolCallId: call.id, ok: false, content: JSON.stringify({ ok: false, error: error.code, message: error.message }) };
     }
     this.calls.set(key, { name: call.name, arguments: call.arguments, result });
     return result;
   }
 
+  /** Accepted proposals so far. This is not acceptance; assemble() still requires a successful finish. */
+  draft(): { proposal: ReturnType<DomainMappingLedger["draft"]>; record: CoordinatedInvestigationRecord } {
+    return { proposal: this.mapping.draft(), record: this.currentRecord() };
+  }
+
   assemble(): { proposal: NonNullable<ReturnType<DomainMappingLedger["assemble"]>>; record: CoordinatedInvestigationRecord } | null {
     const proposal = this.mapping.assemble();
     if (!proposal) return null;
+    return { proposal, record: this.currentRecord() };
+  }
+
+  private currentRecord(): CoordinatedInvestigationRecord {
     return {
-      proposal,
-      record: {
-        intentText: this.intentText,
-        documentRoles: this.documentRoles.map((row) => ({ ...row })),
-        measurements: this.measurements.map((row) => ({ ...row })),
-        assessments: this.assessments.map((row) => ({ ...row, factIds: [...row.factIds] })),
-        determinations: this.determinations.map((row) => ({ ...row })),
-        conflicts: this.conflicts.map((row) => ({ ...row, factIds: [...row.factIds] })),
-        gaps: this.gaps.map((row) => ({ ...row })),
-        answers: this.answers.map((row) => ({ ...row, factIds: [...row.factIds] })),
-      },
+      intentText: this.intentText,
+      documentRoles: this.documentRoles.map((row) => ({ ...row })),
+      measurements: this.measurements.map((row) => ({ ...row })),
+      assessments: this.assessments.map((row) => ({ ...row, factIds: [...row.factIds] })),
+      determinations: this.determinations.map((row) => ({ ...row })),
+      conflicts: this.conflicts.map((row) => ({ ...row, factIds: [...row.factIds] })),
+      gaps: this.gaps.map((row) => ({ ...row })),
+      answers: this.answers.map((row) => ({ ...row, factIds: [...row.factIds] })),
+      examinedPages: [...this.pagesRead].map((key) => {
+        const splitAt = key.lastIndexOf("\0");
+        return { documentId: key.slice(0, splitAt), page: Number(key.slice(splitAt + 1)) };
+      }).filter((item) => item.documentId !== "" && Number.isInteger(item.page))
+        .sort((left, right) => left.documentId.localeCompare(right.documentId) || left.page - right.page),
+      ...(this.schedule ? { shownQuestionIds: [...this.shownQuestionIds].sort() } : {}),
     };
   }
 
@@ -618,6 +709,7 @@ export class CoordinatedInvestigationLedger {
       const page = document.pages.find((item) => item.pageNumber === pageNumber);
       if (!page) refuse("page_not_authorized", "That page is not in the authorized corpus.");
       pages.push({ page: pageNumber, text: page.text });
+      if (page.text.trim() !== "") this.pagesRead.add(`${documentId}\0${pageNumber}`);
     }
     return { kind: "pages", documentId, pages };
   }
@@ -717,12 +809,51 @@ export class CoordinatedInvestigationLedger {
     const factIds = this.factIds(args.factIds, true);
     const uncertainty = typeof args.uncertainty === "string" && args.uncertainty.trim() !== "" ? args.uncertainty.trim() : undefined;
     if (factIds.length === 0 && !uncertainty) refuse("invalid_arguments", "An unanswered question must say what is uncertain.");
-    this.answers.push({ questionId, audience: audience as AnswerProposal["audience"], factIds, uncertainty });
+    const proposal = { questionId, audience: audience as AnswerProposal["audience"], factIds, uncertainty };
+    const existing = this.answers.findIndex((item) => item.questionId === questionId);
+    if (existing >= 0) this.answers[existing] = proposal;
+    else this.answers.push(proposal);
     return { kind: "answer", questionId };
+  }
+
+  private unfinishedCompletion(): string | null {
+    const schedule = this.schedule;
+    if (!schedule) return this.scheduleError;
+    for (let index = 0; index < schedule.windowCount; index += 1) {
+      if (!this.presentedWindows.has(index)) return "A later investigation window has not been examined.";
+    }
+    for (const documentId of schedule.documentIds) {
+      if (!this.documentRoles.some((role) => role.documentId === documentId)) {
+        return "A manifest document has no evidence-backed role.";
+      }
+    }
+    for (const role of this.documentRoles) {
+      if (role.role !== "ANCHOR") continue;
+      const document = this.pages.find((item) => item.documentId === role.documentId);
+      if (!document) continue;
+      for (const page of document.pages) {
+        if (page.text.trim() === "") continue;
+        if (!this.pagesRead.has(`${role.documentId}\0${page.pageNumber}`)) return "An anchor page has not been read.";
+      }
+    }
+    for (const questionId of this.shownQuestionIds) {
+      const answer = this.answers.find((item) => item.questionId === questionId);
+      if (!answer || (answer.factIds.length === 0 && !answer.uncertainty)) return "A shown question has no answer or uncertainty.";
+    }
+    const intentCount = intentQuestionCount(this.intentText);
+    for (let index = 1; index <= intentCount; index += 1) {
+      const answer = this.answers.find((item) => item.questionId === `intent:${index}`);
+      if (!answer || (answer.factIds.length === 0 && !answer.uncertainty)) {
+        return "A question from the request has no facts and no uncertainty.";
+      }
+    }
+    return null;
   }
 
   private finish(args: ObjectMap): Record<string, unknown> {
     if (args.ready !== true) refuse("invalid_arguments", "finish_investigation requires ready true.");
+    const unfinished = this.unfinishedCompletion();
+    if (unfinished) refuse("investigation_incomplete", unfinished, false);
     const done = this.mapping.execute({
       id: `finish:${this.toolCallCount}`,
       name: "finish_mapping",

@@ -5,3 +5,5 @@
  * on `@hiveforyou/contracts/investigation` because it hashes with node:crypto.
  */
 export const DOMAIN_INVESTIGATION_PROMPT_ID = "hive.domain-investigation/1" as const;
+/** Pinned iep-us-federal 0.5.0 rebuild only. v1 stays the default investigation id. */
+export const DOMAIN_INVESTIGATION_PROMPT_V2_ID = "hive.domain-investigation/2" as const;

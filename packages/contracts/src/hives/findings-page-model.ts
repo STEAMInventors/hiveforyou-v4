@@ -145,6 +145,12 @@ export function chainLinkStatusLabel(missing: boolean): string {
   return missing ? "Not shown in these documents" : "Shown in these documents";
 }
 
+export function chainLinkAdmissionLabel(state: "shown" | "missing" | "unresolved"): string {
+  if (state === "missing") return chainLinkStatusLabel(true);
+  if (state === "shown") return chainLinkStatusLabel(false);
+  return "Unresolved";
+}
+
 export function findingsFileReadCounts(
   documents: readonly SnapshotDocument[],
 ): { filesRead: number; uniqueFiles: number; exactDuplicates: number } | null {
@@ -293,27 +299,43 @@ export function buildFindingsChainEvidence(
       const links: FindingsChainEvidenceLink[] = [];
       row.links.forEach((link, index) => {
         const linkLabel = def?.links[index]?.trim() || `Step ${index + 1}`;
-        if ("missing" in link && link.missing) {
+        if ("unresolved" in link && link.unresolved) {
           links.push({
             linkLabel,
-            statusLabel: chainLinkStatusLabel(true),
+            statusLabel: chainLinkAdmissionLabel("unresolved"),
             valueText: "",
             values: [],
           });
           return;
         }
-        if ("factIds" in link) {
+        if ("missing" in link && link.missing) {
+          links.push({
+            linkLabel,
+            statusLabel: chainLinkAdmissionLabel("missing"),
+            valueText: "",
+            values: [],
+          });
+          return;
+        }
+        if ("factIds" in link && link.factIds.length > 0) {
           const values = link.factIds
             .map((factId) => valueByFact.get(factId))
             .filter((value): value is StudyViewValue => value !== undefined);
           const parts = values.map((value) => value.valueAsWritten.trim()).filter((part) => part !== "");
           links.push({
             linkLabel,
-            statusLabel: chainLinkStatusLabel(false),
+            statusLabel: chainLinkAdmissionLabel("shown"),
             valueText: parts.length > 0 ? parts.join(" · ") : linkLabel,
             values,
           });
+          return;
         }
+        links.push({
+          linkLabel,
+          statusLabel: chainLinkAdmissionLabel("unresolved"),
+          valueText: "",
+          values: [],
+        });
       });
       if (links.length > 0) {
         sections.push({

@@ -1,6 +1,6 @@
 import type { StudyAgentToolDefinition } from "../analysis/study-agent";
 import type { InvestigationAgentToolDefinition } from "../pipeline/domain-investigation-agent";
-import { DOMAIN_INVESTIGATION_PROMPT_ID } from "../pipeline/domain-investigation-prompt";
+import { DOMAIN_INVESTIGATION_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_V2_ID } from "../pipeline/domain-investigation-prompt";
 import type { MappingAgentToolDefinition } from "../pipeline/domain-mapping-agent";
 import type { WriterAgentToolDefinition } from "../reports/writer-agent";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
@@ -41,7 +41,7 @@ export type PlannerTask = (typeof PLANNER_TASKS)[number];
  * Unpinned Hives keep `hive-canonicalize/1` and `hive-canonicalize/2`.
  */
 export const FIELD_MAPPING_PROMPT_ID = "hive.field-mapping-proposal/1" as const;
-export { DOMAIN_INVESTIGATION_PROMPT_ID };
+export { DOMAIN_INVESTIGATION_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_V2_ID };
 
 export const PLANNER_TASK_PROMPT_IDS: Record<PlannerTask | PipelinePlannerTask | AuxiliaryPlannerTask, string> = {
   intent: "hive.intent-analysis/1",

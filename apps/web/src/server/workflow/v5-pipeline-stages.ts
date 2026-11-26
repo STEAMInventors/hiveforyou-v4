@@ -1,6 +1,8 @@
 import {
   type CanonicalStudy,
   CANONICAL_STUDY_SCHEMA,
+  DOMAIN_INVESTIGATION_PROMPT_ID,
+  DOMAIN_INVESTIGATION_PROMPT_V2_ID,
   cloudflareProxyLimitSuspect,
   computeExtractPlannerCallTimeoutMs,
   resolveExtractPlannerCallDeadlineMs,
@@ -38,6 +40,7 @@ import {
 import { normalizeContentDigest } from "@hiveforyou/contracts/document-read";
 import {
   type InvestigationEnginePin,
+  acceptCanonicalInvestigation,
   prepareInvestigationStudy,
   runInvestigationStudyEngine,
 } from "@hiveforyou/contracts/investigation";
@@ -2393,6 +2396,7 @@ const INVESTIGATION_FAILURE_REASONS = {
   PLAN_COMPILE_FAILED: "investigation_engine_failed",
   BIND_FAILED: "investigation_engine_failed",
   LEDGER_FAILED: "investigation_engine_failed",
+  INVESTIGATION_INCOMPLETE: "investigation_incomplete",
 } as const;
 
 function investigationFailure(input: {
@@ -2406,13 +2410,15 @@ function investigationFailure(input: {
       ? "A quotation did not match the saved page, so the study was not accepted. Your earlier study is unchanged."
       : input.code === "INCOMPLETE_DOCUMENTS"
         ? "The study did not record every saved document, so it was not accepted. Your earlier study is unchanged."
-        : input.code === "EMPTY_CANDIDATES"
-          ? "The rebuild did not produce evidence to accept. Your earlier study is unchanged."
-          : input.code === "RECORD_TEXT_BOUNDARY"
+        :     input.code === "EMPTY_CANDIDATES"
+      ? "The rebuild did not produce evidence to accept. Your earlier study is unchanged."
+      : input.code === "INVESTIGATION_INCOMPLETE"
+        ? "The investigation is not complete, so the study was not accepted. Your earlier study is unchanged."
+        : input.code === "RECORD_TEXT_BOUNDARY"
             ? "The analysis stopped before sending the record. Your earlier study is unchanged."
             : "The study could not be checked against the saved evidence. Your earlier study is unchanged.";
   return createHiveError({
-    errorCode: input.code === "EMPTY_CANDIDATES" || input.code === "INCOMPLETE_DOCUMENTS" ? "COVERAGE_INCOMPLETE" : "MODEL_OUTPUT_INVALID",
+    errorCode: input.code === "EMPTY_CANDIDATES" || input.code === "INCOMPLETE_DOCUMENTS" || input.code === "INVESTIGATION_INCOMPLETE" ? "COVERAGE_INCOMPLETE" : "MODEL_OUTPUT_INVALID",
     category: "VALIDATION",
     stage: "ANALYZE",
     retryable: false,
@@ -2455,7 +2461,7 @@ async function runPinnedInvestigationEngine(input: {
   if (!prepared.ok) {
     return { ok: false, error: investigationFailure({ code: prepared.code, correlationId, runId: run.id }), metric: null };
   }
-  const prompt = catalog.investigation;
+  const prompt = catalog.investigationV2;
   const startedAt = now().toISOString();
   const mapped = await runDomainMappingInvestigation({
     planner: deps.planner,
@@ -2499,7 +2505,8 @@ async function runPinnedInvestigationEngine(input: {
     studyDate: now().toISOString().slice(0, 10),
     relationshipStructures: pin.relationshipStructures,
   });
-  if (!engine.ok) {
+  const accepted = acceptCanonicalInvestigation(engine);
+  if (!accepted.ok) {
     emitStructuredEvent({
       eventName: "pipeline.canonicalize.investigation_engine_failed",
       severity: "ERROR",
@@ -2510,11 +2517,11 @@ async function runPinnedInvestigationEngine(input: {
       correlationId,
       hiveId: run.hiveId,
       processingRunId: run.id,
-      diagnosticReason: INVESTIGATION_FAILURE_REASONS[engine.code],
+      diagnosticReason: INVESTIGATION_FAILURE_REASONS[accepted.code],
     });
     return {
       ok: false,
-      error: investigationFailure({ code: engine.code, correlationId, runId: run.id }),
+      error: investigationFailure({ code: accepted.code, correlationId, runId: run.id }),
       metric: null,
     };
   }
@@ -2546,7 +2553,7 @@ async function runPinnedInvestigationEngine(input: {
     startedAt,
     completedAt: now().toISOString(),
   };
-  return { ok: true, study: engine.study, metric };
+  return { ok: true, study: accepted.study, metric };
 }
 
 export async function runCanonicalizeForRun(input: {
@@ -2742,12 +2749,17 @@ export function acceptanceProvenance(
   study: CanonicalStudy,
   promptId: string | null,
 ): { investigationEngine: string; domainPackId: string | null; domainPackVersion: string | null } {
+  const packDigest = (study.questionOrder ?? []).some((item) => item.startsWith("pack-digest:"));
   const usesInvestigation =
-    promptId === "hive.domain-investigation/1" ||
-    (study.questionOrder ?? []).some((item) => item.startsWith("pack-digest:"));
+    promptId === DOMAIN_INVESTIGATION_PROMPT_V2_ID ||
+    promptId === DOMAIN_INVESTIGATION_PROMPT_ID ||
+    packDigest;
   if (usesInvestigation) {
     return {
-      investigationEngine: "hive.domain-investigation/1",
+      investigationEngine:
+        promptId === DOMAIN_INVESTIGATION_PROMPT_V2_ID
+          ? DOMAIN_INVESTIGATION_PROMPT_V2_ID
+          : DOMAIN_INVESTIGATION_PROMPT_ID,
       domainPackId: PINNED_DOMAIN_PACK.packId,
       domainPackVersion: PINNED_DOMAIN_PACK.version,
     };
@@ -2772,6 +2784,9 @@ export function buildV5AcceptRevision(input: {
   const canonicalMetric = input.canonicalMetric;
   const acceptanceCounts = buildV5AcceptanceCounts(input.study, input.packTitle ?? null);
   const provenance = acceptanceProvenance(input.study, canonicalMetric?.promptId ?? null);
+  const pinnedInvestigation =
+    canonicalMetric?.promptId === DOMAIN_INVESTIGATION_PROMPT_V2_ID ||
+    canonicalMetric?.promptId === DOMAIN_INVESTIGATION_PROMPT_ID;
   return {
     format: "canonical-study-1",
     investigation: input.study,
@@ -2794,7 +2809,10 @@ export function buildV5AcceptRevision(input: {
     },
     audience_configuration: resolveAudienceConfiguration({ analysis: null, intelligence: null }),
     investigation_digest: investigationDigest,
-    prompt_digest: input.catalog.canonicalize.digest,
+    prompt_digest:
+      pinnedInvestigation && canonicalMetric?.promptDigest
+        ? canonicalMetric.promptDigest
+        : input.catalog.canonicalize.digest,
     model_alias: canonicalMetric?.modelAliasRequested ?? null,
     resolved_model: canonicalMetric?.resolvedModel ?? null,
     ...(input.runTimingMetric ? { stage_metric: input.runTimingMetric } : {}),

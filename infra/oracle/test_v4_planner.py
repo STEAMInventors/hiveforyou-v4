@@ -1590,19 +1590,35 @@ def investigation_turn_body(**overrides: object) -> dict[str, object]:
     return payload
 
 
-def test_investigation_prompt_is_not_a_completion_route(client: TestClient, pipeline_aliases: None) -> None:
+@pytest.mark.parametrize("prompt_id", ["hive.domain-investigation/1", "hive.domain-investigation/2"])
+def test_investigation_prompt_is_not_a_completion_route(
+    client: TestClient, pipeline_aliases: None, prompt_id: str
+) -> None:
     seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
     response = post(
         client,
         pipeline_body(
             "canonicalize",
-            prompt_id=DOMAIN_INVESTIGATION_PROMPT,
-            system_prompt="Return hive.domain-investigation/1.",
-            user_payload={"schema": DOMAIN_INVESTIGATION_PROMPT},
+            prompt_id=prompt_id,
+            system_prompt="Return the investigation tools.",
+            user_payload={"schema": prompt_id},
         ),
     )
     assert response.status_code == 400
     assert response.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+
+
+def test_investigation_turn_accepts_v2_and_rejects_an_unknown_prompt(
+    client: TestClient, pipeline_aliases: None
+) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    accepted = post_agent(client, investigation_turn_body(prompt_id="hive.domain-investigation/2"))
+    assert accepted.status_code == 503
+    assert accepted.json()["diagnostic_reason"] == "model_alias_unconfigured"
+    rejected = post_agent(client, investigation_turn_body(prompt_id="hive.domain-investigation/9"))
+    assert rejected.status_code == 400
+    assert rejected.json()["error_code"] == "INVALID_REQUEST"
     assert seen == []
 
 

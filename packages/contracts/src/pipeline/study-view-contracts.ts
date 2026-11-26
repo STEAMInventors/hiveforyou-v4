@@ -362,7 +362,7 @@ function buildDocumentsBlock(study: CanonicalStudy): StudyViewRow[] {
   return dedupeRows(
     study.documents.map((doc) => ({
       id: doc.sourceDocumentId,
-      role: doc.role,
+      role: doc.classification === "UNRESOLVED" ? "UNRESOLVED" : doc.role,
       typeInPlainWords: doc.typeInPlainWords || null,
       date: doc.date,
       version: doc.version,

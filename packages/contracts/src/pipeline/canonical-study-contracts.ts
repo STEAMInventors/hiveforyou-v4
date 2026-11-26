@@ -21,6 +21,8 @@ export const CANONICALIZE_PROMPT_ID_V2 = "hive-canonicalize/2";
 
 export const DOCUMENT_ROLES = ["ANCHOR", "SUPPORTING", "REFERENCE"] as const;
 export type DocumentRole = (typeof DOCUMENT_ROLES)[number];
+export const DOCUMENT_CLASSIFICATIONS = ["QUOTED", "UNRESOLVED"] as const;
+export type DocumentClassification = (typeof DOCUMENT_CLASSIFICATIONS)[number];
 
 export const SPINE_SOURCES = ["ANCHOR", "ANCHOR_CHAIN", "TIMELINE", "PARTIES_AND_OBLIGATIONS"] as const;
 export type SpineSource = (typeof SPINE_SOURCES)[number];
@@ -36,6 +38,8 @@ export type CanonicalDocument = {
   version: string | null;
   /** 1 = earliest version in an anchor chain; null outside a chain. */
   chainPosition: number | null;
+  /** QUOTED when a page quote supports the role. UNRESOLVED when it does not. Absent on older studies. */
+  classification?: DocumentClassification;
 };
 
 export type SpineElement = {
@@ -151,6 +155,7 @@ function document(value: unknown, tally: Tally): CanonicalDocument | null {
   const role = oneOf(DOCUMENT_ROLES, value.role);
   if (role === null) return tally.drop("document_role_invalid");
   const position = value.chainPosition;
+  const classification = value.classification === "QUOTED" || value.classification === "UNRESOLVED" ? value.classification : undefined;
   return {
     sourceDocumentId,
     role,
@@ -158,6 +163,7 @@ function document(value: unknown, tally: Tally): CanonicalDocument | null {
     date: isoDate(value.date),
     version: nullableStr(value.version),
     chainPosition: typeof position === "number" && Number.isInteger(position) && position >= 1 ? position : null,
+    ...(classification ? { classification } : {}),
   };
 }
 
@@ -297,8 +303,12 @@ function parseOptionalChains(raw: unknown, tally: Tally): CanonicalChainItem[] |
       const links: CanonicalChainItem["rows"][number]["links"] = [];
       for (const link of arr(row.links)) {
         if (!isRecord(link)) continue;
-        if (link.missing === true) links.push({ missing: true });
-        else links.push({ factIds: strings(link.factIds) });
+        if (link.unresolved === true) links.push({ unresolved: true });
+        else if (link.missing === true) links.push({ missing: true });
+        else {
+          const factIds = strings(link.factIds);
+          links.push(factIds.length > 0 ? { factIds } : { unresolved: true });
+        }
       }
       rows.push({ label, links });
     }

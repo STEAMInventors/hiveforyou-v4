@@ -1,5 +1,7 @@
 import {
+  type CanonicalStudy,
   DOMAIN_INVESTIGATION_PROMPT_ID,
+  DOMAIN_INVESTIGATION_PROMPT_V2_ID,
   DOMAIN_PACK_SOURCE_SCHEMA,
   PLANNER_CONTRACT_VERSION,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
@@ -34,7 +36,7 @@ import {
 
 import { processAnalysisRun, type AnalysisWorkflowDeps } from "./analysis-workflow";
 import { loadPinnedDomainPack, PINNED_DOMAIN_PACK } from "./domain-pack-selection";
-import { resolveInvestigationEnginePin, runCanonicalizeForRun } from "./v5-pipeline-stages";
+import { acceptanceProvenance, buildV5AcceptRevision, resolveInvestigationEnginePin, runCanonicalizeForRun } from "./v5-pipeline-stages";
 
 const PAGE = "Name: North. Started 2024-01-02.";
 
@@ -267,7 +269,8 @@ describe("rebuild study investigation engine", () => {
     const { fetchFn, bodies, urls } = mappingCalls([
       { id: "c1", name: "propose_field", arguments: { documentId: DOC_1, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north", fieldId: "label", valueType: "TEXT", value: "North" } },
       { id: "c2", name: "propose_field", arguments: { documentId: DOC_1, extractionFactId: "F-start", entityId: "entity:item", instanceId: "north", fieldId: "startDate", valueType: "DATE", value: "2024-01-02" } },
-      { id: "c3", name: "finish_investigation", arguments: { ready: true } },
+      { id: "c3", name: "propose_document_role", arguments: { documentId: DOC_1, role: "SUPPORTING", page: 1, quote: "Name: North." } },
+      { id: "c4", name: "finish_investigation", arguments: { ready: true } },
     ]);
     const { rpc, calls, document } = client(row);
     const result = await runCanonicalizeForRun({
@@ -295,6 +298,19 @@ describe("rebuild study investigation engine", () => {
     ]));
     expect(result.study.checklist?.[0]).toMatchObject({ checkId: "check:review", verdict: "NOT_ASSESSED" });
     expect(result.study.questionOrder?.[0]).toMatch(/^pack-digest:[0-9a-f]{64}$/);
+    expect(result.metric.promptId).toBe(DOMAIN_INVESTIGATION_PROMPT_V2_ID);
+    expect(result.metric.promptDigest).toBe(loadPromptCatalog().investigationV2.digest);
+    expect(acceptanceProvenance(result.study, result.metric.promptId)).toMatchObject({
+      investigationEngine: DOMAIN_INVESTIGATION_PROMPT_V2_ID,
+      domainPackId: PINNED_DOMAIN_PACK.packId,
+      domainPackVersion: PINNED_DOMAIN_PACK.version,
+    });
+    expect(buildV5AcceptRevision({
+      study: result.study,
+      intents: [],
+      canonicalMetric: result.metric,
+      catalog: loadPromptCatalog(),
+    }).prompt_digest).toBe(loadPromptCatalog().investigationV2.digest);
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(urls[0]).toBe("https://planner.test/v1/study-agent-turn");
     const body = bodies[0] as {
@@ -308,7 +324,9 @@ describe("rebuild study investigation engine", () => {
     expect(body.hive_id).toBe(HIVE_ID);
     expect(body).not.toHaveProperty("synthetic");
     expect(body).not.toHaveProperty("content_class");
-    expect(body.prompt_id).toBe(DOMAIN_INVESTIGATION_PROMPT_ID);
+    expect(body.prompt_id).toBe(DOMAIN_INVESTIGATION_PROMPT_V2_ID);
+    expect((bodies[0] as { prompt_digest: string }).prompt_digest).toBe(loadPromptCatalog().investigationV2.digest);
+    expect(loadPromptCatalog().investigation.id).toBe(DOMAIN_INVESTIGATION_PROMPT_ID);
     expect(body.tools.map((tool) => tool.function.name)).toEqual([...INVESTIGATION_AGENT_TOOL_NAMES]);
     const window = JSON.parse(body.messages[0]?.content ?? "{}") as { schema: string; fields: unknown[] };
     expect(window.schema).toBe("hive.field-mapping-window/1");
@@ -366,6 +384,8 @@ describe("rebuild study investigation engine", () => {
       { id: "c1", name: "propose_field", arguments: { documentId: DOC_1, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north", fieldId: "label", valueType: "TEXT", value: "North" } },
       { id: "c2", name: "propose_field", arguments: { documentId: DOC_2, extractionFactId: "F-name", entityId: "entity:other", instanceId: "south", fieldId: "name", valueType: "TEXT", value: "South" } },
       { id: "c3", name: "propose_relationship", arguments: { documentId: DOC_2, extractionFactId: "F-link", relationshipId: "relationship:item-other", fromInstanceId: "north", toInstanceId: "south" } },
+      { id: "c5", name: "propose_document_role", arguments: { documentId: DOC_1, role: "SUPPORTING", page: 1, quote: "Name: North." } },
+      { id: "c6", name: "propose_document_role", arguments: { documentId: DOC_2, role: "SUPPORTING", page: 1, quote: "Other name: South." } },
       { id: "c4", name: "finish_investigation", arguments: { ready: true } },
     ];
     const rpc = vi.fn(async (fn: string) => {
@@ -714,14 +734,14 @@ describe("pinned rebuild acceptance", () => {
     expect(pinned.compiledDigest).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("accepts a new revision and retrieves it without replacing earlier reports", async () => {
+  it("rejects an early finish and keeps the previous revision and reports", async () => {
     const pinned = loadPinnedDomainPack();
     const harness = acceptanceHarness({
       selection: { packId: PINNED_DOMAIN_PACK.packId, version: PINNED_DOMAIN_PACK.version, compiledDigest: pinned.compiledDigest },
       content: fieldProposal(),
     });
-    const canonicalizing = await processAnalysisRun(harness.workflowDeps, RUN_ID);
-    expect(canonicalizing).toBe("ACCEPTING_STUDY");
+    const status = await processAnalysisRun(harness.workflowDeps, RUN_ID);
+    expect(status).toBe("FAILED");
     const body = harness.bodies[0] as {
       task: string;
       hive_id: string;
@@ -733,59 +753,50 @@ describe("pinned rebuild acceptance", () => {
     expect(body.hive_id).toBe(HIVE_ID);
     expect(body).not.toHaveProperty("synthetic");
     expect(body).not.toHaveProperty("content_class");
-    expect(body.prompt_id).toBe(DOMAIN_INVESTIGATION_PROMPT_ID);
+    expect(body.prompt_id).toBe(DOMAIN_INVESTIGATION_PROMPT_V2_ID);
+    expect((harness.bodies[0] as { prompt_digest?: string; system_prompt?: string }).prompt_digest).toBe(
+      loadPromptCatalog().investigationV2.digest,
+    );
+    expect((harness.bodies[0] as { system_prompt?: string }).system_prompt).toContain("Phase F — Completeness review");
+    expect(loadPromptCatalog().investigation.id).toBe(DOMAIN_INVESTIGATION_PROMPT_ID);
     expect(body.tools.map((tool) => tool.function.name)).toEqual([...INVESTIGATION_AGENT_TOOL_NAMES]);
-    const window = JSON.parse(body.messages[0]?.content ?? "{}") as { fields: unknown[]; relationships: unknown[] };
+    const window = JSON.parse(body.messages[0]?.content ?? "{}") as {
+      schema?: string;
+      manifest?: unknown[];
+      questions?: unknown[];
+      checks?: unknown[];
+      documentKinds?: unknown[];
+      facts?: unknown[];
+      fields: unknown[];
+      relationships: unknown[];
+      intent?: string;
+      chains?: unknown[];
+      calculations?: unknown[];
+    };
+    expect(window.schema).toBe("hive.field-mapping-window/1");
+    expect(Array.isArray(window.manifest)).toBe(true);
+    expect(Array.isArray(window.questions)).toBe(true);
+    expect(Array.isArray(window.checks)).toBe(true);
+    expect(Array.isArray(window.documentKinds)).toBe(true);
+    expect(Array.isArray(window.facts)).toBe(true);
     expect(window.fields.length).toBeLessThanOrEqual(MAPPING_WINDOW_LIMITS.maxFields);
     expect(window.relationships.length).toBeLessThanOrEqual(MAPPING_WINDOW_LIMITS.maxRelationships);
+    expect(typeof window.intent).toBe("string");
+    expect(window.intent?.length).toBeGreaterThan(0);
+    expect(Array.isArray(window.chains)).toBe(true);
+    expect(Array.isArray(window.calculations)).toBe(true);
     expect(JSON.stringify(body)).not.toContain(RECORD);
+    expect(JSON.stringify(harness.bodies)).not.toContain("if the accepted fields are complete");
     expect(harness.calls).not.toContain("get_hive_chosen_pack");
     expect(harness.calls).not.toContain("accept_study_revision");
-
-    const accepted = await processAnalysisRun(harness.workflowDeps, RUN_ID);
-    expect(accepted).toBe("SUCCEEDED");
-    const revision = harness.accepted();
-    expect(revision).toMatchObject({ format: "canonical-study-1" });
-    const study = revision?.investigation as {
-      questionOrder?: string[];
-      checklist?: { verdict: string }[];
-      spine?: { supportingFactIds: string[]; label: string }[];
-      outsideSpine?: { statement: string; factIds: string[] }[];
-    };
-    expect(study.questionOrder?.[0]).toBe(`pack-digest:${pinned.compiledDigest}`);
-    const counts = (revision?.verification as { counts?: Record<string, unknown> } | undefined)?.counts;
-    expect(counts?.documentFindings).toBeUndefined();
-    expect(counts?.verifiedFacts).toBeGreaterThan(0);
-    expect(counts).toMatchObject({
-      investigationEngine: "hive.domain-investigation/1",
-      domainPackId: "iep-us-federal",
-      domainPackVersion: "0.5.0",
-      revisionStatus: "accepted",
-    });
-    expect(study.checklist?.length).toBeGreaterThan(0);
-    expect(study.checklist?.every((item) => item.verdict === "NOT_ASSESSED")).toBe(true);
-    expect(study.spine).toEqual(expect.arrayContaining([
-      expect.objectContaining({ supportingFactIds: ["F-name"], label: expect.stringContaining("page 1") }),
-    ]));
-    expect(study.outsideSpine).toEqual(expect.arrayContaining([
-      expect.objectContaining({ statement: expect.stringContaining("is not verified"), factIds: ["F-link"] }),
-    ]));
-    expect(study.spine?.some((item) => item.supportingFactIds.includes("F-birth"))).toBe(false);
-    expect(JSON.stringify(study)).not.toContain("daysBetween");
-    expect(JSON.stringify(study)).not.toContain("2024-03-01");
+    expect(harness.accepted()).toBeNull();
     expect(harness.dispatches.every((work) => work.kind !== "report")).toBe(true);
-
     const view = await getStudyTabView(harness.workflowDeps.client, { hiveId: HIVE_ID, correlationId: CORRELATION_ID }) as {
       revisionNumber: number;
       revisionId: string;
-      investigation: typeof study;
-      reports: { studyRevisionId: string }[];
+      reports: typeof PREVIOUS_REPORTS;
     };
-    expect(view.revisionNumber).toBe(2);
-    expect(view.revisionId).toBe(NEXT_REVISION);
-    expect(view.investigation).toEqual(study);
-    expect(view.reports).toEqual(PREVIOUS_REPORTS);
-    expect(view.reports.every((report) => report.studyRevisionId === PREVIOUS_REVISION)).toBe(true);
+    expect(view).toMatchObject({ revisionNumber: 1, revisionId: PREVIOUS_REVISION, reports: PREVIOUS_REPORTS });
   });
 
   it("keeps the previous revision and reports when a pinned rebuild fails", async () => {
@@ -835,6 +846,22 @@ describe("pinned rebuild acceptance", () => {
     expect(harness.calls).not.toContain("accept_study_revision");
     expect(harness.calls).not.toContain("get_hive_chosen_pack");
     expect(harness.current.revisionNumber).toBe(1);
+  });
+
+  it("keeps a v1 prompt id and a legacy canonicalize id on their own engines", () => {
+    const investigation = { documents: [], questionOrder: [`pack-digest:${"a".repeat(64)}`] } as unknown as CanonicalStudy;
+    expect(acceptanceProvenance(investigation, DOMAIN_INVESTIGATION_PROMPT_ID).investigationEngine).toBe(
+      DOMAIN_INVESTIGATION_PROMPT_ID,
+    );
+    expect(acceptanceProvenance(investigation, null)).toMatchObject({
+      investigationEngine: DOMAIN_INVESTIGATION_PROMPT_ID,
+      domainPackId: PINNED_DOMAIN_PACK.packId,
+      domainPackVersion: "0.5.0",
+    });
+    const legacy = { documents: [], questionOrder: [] } as unknown as CanonicalStudy;
+    expect(acceptanceProvenance(legacy, "hive-canonicalize/1").investigationEngine).toBe("hive-canonicalize/1");
+    expect(acceptanceProvenance(legacy, "hive-canonicalize/2").investigationEngine).toBe("hive-canonicalize/2");
+    expect(acceptanceProvenance(legacy, "hive-study-preview/1").investigationEngine).toBe("hive-canonicalize/1");
   });
 
   it("keeps an unpinned hive on the legacy canonicalize prompt", async () => {

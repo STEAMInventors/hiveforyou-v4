@@ -27,7 +27,7 @@ export type CanonicalChecklistItem = {
   note: string;
 };
 
-export type CanonicalChainLinkCell = { factIds: string[] } | { missing: true };
+export type CanonicalChainLinkCell = { factIds: string[] } | { missing: true } | { unresolved: true };
 
 export type CanonicalChainRow = {
   label: string;
@@ -144,12 +144,16 @@ function parseChains(raw: unknown, pack: Pack, known: ReadonlySet<string>, drops
       const links: CanonicalChainLinkCell[] = [];
       for (const link of arr(row.links)) {
         if (!isRecord(link)) continue;
+        if (link.unresolved === true) {
+          links.push({ unresolved: true });
+          continue;
+        }
         if (link.missing === true) {
           links.push({ missing: true });
           continue;
         }
         const factIds = keepFacts(strings(link.factIds), known);
-        links.push({ factIds });
+        links.push(factIds.length > 0 ? { factIds } : { unresolved: true });
       }
       rows.push({ label, links });
     }

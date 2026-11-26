@@ -33,6 +33,7 @@ import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation
  */
 
 const NUDGE_MESSAGE = "No tool was called. Continue the investigation with the provided tools. Copy written values exactly.";
+const FINISH_NUDGE = "Phase F is still open. Call finish_investigation with ready true only after every manifest document has an evidence-backed role, every shown question has an answer or uncertainty, and every non-empty anchor page has been read. Accepted fields do not close the investigation. The call only asks Hive to stop.";
 
 export type MappingAgentTotals = {
   rounds: number;
@@ -49,13 +50,27 @@ export type MappingAgentTotals = {
   finishReason: string | null;
 };
 
-function allowance(windows: number) {
-  const rounds = Math.min(STUDY_AGENT_BUDGET.maxRounds, Math.max(4, windows + 2));
+function allowance(input: { windows: number; pages: number; questions: number }) {
+  const pageTurns = Math.ceil(Math.max(input.pages, 0) / 3);
+  const questionTurns = Math.ceil(Math.max(input.questions, 0) / 8);
+  const rounds = Math.min(
+    STUDY_AGENT_BUDGET.maxRounds,
+    Math.max(4, input.windows + 2, pageTurns, questionTurns),
+  );
   return {
     rounds,
     toolCalls: Math.min(STUDY_AGENT_BUDGET.maxToolCalls, rounds * STUDY_AGENT_BUDGET.maxCallsPerTurn),
-    invalidCalls: Math.min(STUDY_AGENT_BUDGET.maxInvalidCalls, Math.max(4, windows)),
+    invalidCalls: Math.min(STUDY_AGENT_BUDGET.maxInvalidCalls, Math.max(4, input.windows)),
   };
+}
+
+function questionIdsOf(rendered: Record<string, unknown>): string[] {
+  if (!Array.isArray(rendered.questions)) return [];
+  return rendered.questions.flatMap((item) => {
+    if (!item || typeof item !== "object" || !("id" in item)) return [];
+    const id = (item as { id?: unknown }).id;
+    return typeof id === "string" && id.trim() !== "" ? [id] : [];
+  });
 }
 
 export async function runDomainMappingInvestigation(input: {
@@ -79,7 +94,9 @@ export async function runDomainMappingInvestigation(input: {
   const startedAt = clock();
   const deadline = input.deadline ?? startedAt + 120_000;
   const windows = selectInvestigationWindows({ plan: input.plan, pack: input.pack, extractions: input.extractions });
-  const limits = allowance(windows.length);
+  const pageCount = input.pages.reduce((sum, document) => sum + document.pages.length, 0);
+  const questionCount = input.pack.definitions.filter((definition) => definition.kind === "question").length;
+  const limits = allowance({ windows: windows.length, pages: pageCount, questions: questionCount });
   const ledger = new CoordinatedInvestigationLedger(input.runId, input.pack, input.extractions, input.pages, input.intentText ?? "");
   const pageTexts = input.pages.flatMap((document) => document.pages.map((page) => ({ text: page.text })));
   let windowIndex = 0;
@@ -134,8 +151,13 @@ export async function runDomainMappingInvestigation(input: {
     };
   };
   const boundary = (payload: unknown) => fieldMappingRequestLeaksRecordText(payload, pageTexts);
+  if (!ledger.armCompletion({
+    windowCount: windows.length,
+    documentIds: input.pages.map((document) => document.documentId),
+  })) return fail("investigation_incomplete");
   const firstWindow = renderInvestigationWindow({ window: windows[0]!, extractions: input.extractions, intentText: input.intentText ?? "" });
   if (boundary(firstWindow)) return fail("investigation_record_text_boundary");
+  ledger.presentWindow(windows[0]!.index, { questionIds: questionIdsOf(firstWindow) });
   const messages: StudyAgentMessage[] = [{ role: "user", content: JSON.stringify(firstWindow) }];
 
   while (!ledger.finished) {
@@ -216,6 +238,7 @@ export async function runDomainMappingInvestigation(input: {
     if (next) {
       const rendered = renderInvestigationWindow({ window: next, extractions: input.extractions, intentText: input.intentText ?? "" });
       if (boundary(rendered)) return fail("investigation_record_text_boundary");
+      ledger.presentWindow(next.index, { questionIds: questionIdsOf(rendered) });
       windowIndex = next.index;
       nudged = false;
       messages.push({ role: "user", content: JSON.stringify(rendered) });
@@ -223,7 +246,7 @@ export async function runDomainMappingInvestigation(input: {
     }
     if (!nudged) {
       nudged = true;
-      messages.push({ role: "user", content: "Call finish_investigation with ready true if the accepted fields are complete." });
+      messages.push({ role: "user", content: FINISH_NUDGE });
       continue;
     }
     return fail("mapping_incomplete");

@@ -22,6 +22,8 @@ export function documentRoleLabel(row: StudyViewRow, latestChainPosition: number
       return "Supporting";
     case "REFERENCE":
       return "Reference";
+    case "UNRESOLVED":
+      return "Unresolved";
     default:
       return "";
   }

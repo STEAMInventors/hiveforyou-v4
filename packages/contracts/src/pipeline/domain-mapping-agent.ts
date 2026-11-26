@@ -450,13 +450,17 @@ export class DomainMappingLedger {
     return result;
   }
 
-  assemble(): { schema: typeof FIELD_MAPPING_PROPOSAL_SCHEMA; mappings: FieldRow[]; relationships: RelationshipRow[] } | null {
-    if (!this.done) return null;
+  draft(): { schema: typeof FIELD_MAPPING_PROPOSAL_SCHEMA; mappings: FieldRow[]; relationships: RelationshipRow[] } {
     return {
       schema: FIELD_MAPPING_PROPOSAL_SCHEMA,
       mappings: this.acceptedFields.map((row) => ({ ...row })),
       relationships: this.acceptedRelationships.map((row) => ({ ...row })),
     };
+  }
+
+  assemble(): { schema: typeof FIELD_MAPPING_PROPOSAL_SCHEMA; mappings: FieldRow[]; relationships: RelationshipRow[] } | null {
+    if (!this.done) return null;
+    return this.draft();
   }
 
   private recordRejection(code: string): void {

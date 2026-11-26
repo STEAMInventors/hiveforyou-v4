@@ -6,6 +6,8 @@ import {
   normalizeStudyAgentTurn,
   PIPELINE_PLANNER_TASKS,
   PLANNER_COMPLETION_TASKS,
+  DOMAIN_INVESTIGATION_PROMPT_ID,
+  DOMAIN_INVESTIGATION_PROMPT_V2_ID,
   FIELD_MAPPING_PROMPT_ID,
   PLANNER_CONTRACT_VERSION,
   PLANNER_MAX_OUTPUT_TOKENS,
@@ -68,6 +70,9 @@ describe("planner tasks", () => {
   });
 
   it("keeps the study and writer off the single-completion transport", () => {
+    expect(PLANNER_TASK_PROMPT_IDS.investigation).toBe(DOMAIN_INVESTIGATION_PROMPT_ID);
+    expect(PLANNER_TASK_PROMPT_IDS.investigation).not.toBe(DOMAIN_INVESTIGATION_PROMPT_V2_ID);
+    expect(DOMAIN_INVESTIGATION_PROMPT_V2_ID).toBe("hive.domain-investigation/2");
     expect(PLANNER_TASK_PROMPT_IDS.study).toBe("hive-study-preview/1");
     expect(PLANNER_TASK_PROMPT_IDS.writer).toBe("hive-writer/1");
     expect(PLANNER_COMPLETION_TASKS).not.toContain("study");

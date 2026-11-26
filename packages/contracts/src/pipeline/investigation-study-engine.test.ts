@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { DocExtraction, ExtractionFact } from "./extraction-contracts";
+import { CoordinatedInvestigationLedger } from "./domain-investigation-agent";
 import {
+  acceptCanonicalInvestigation,
   assessCanonicalProjection,
   buildFieldMappingRequest,
   fieldMappingRequestLeaksRecordText,
@@ -391,6 +393,81 @@ describe("investigation study engine", () => {
     expect(fieldMappingRequestLeaksRecordText({ ...request, facts: [...request.facts, { valueAsWritten: PAGE_1 }] }, [{ text: PAGE_1 }])).toBe(false);
     expect(fieldMappingRequestLeaksRecordText({ ...request, quote: PAGE_1 }, [{ text: PAGE_1 }])).toBe(true);
   });
+
+  it("rejects a ledger execution with a missing or invalid schedule", () => {
+    const prepared = world();
+    const missing = new CoordinatedInvestigationLedger("run-schedule", prepared.pack, extractions(), pages, "");
+    const refused = JSON.parse(missing.execute({ id: "finish", name: "finish_investigation", arguments: JSON.stringify({ ready: true }) }).content) as { ok: boolean; error?: string };
+    expect(refused).toMatchObject({ ok: false, error: "investigation_incomplete" });
+    expect(missing.assemble()).toBeNull();
+    expect(missing.armCompletion({ windowCount: 0, documentIds: [DOC, OTHER_DOC] })).toBe(false);
+    expect(missing.armCompletion({ windowCount: 1, documentIds: [DOC] })).toBe(false);
+    const stillRefused = JSON.parse(missing.execute({ id: "finish-2", name: "propose_field", arguments: "{}" }).content) as { error?: string };
+    expect(stillRefused.error).toBe("investigation_incomplete");
+  });
+
+  it("refuses acceptance when completeness is not true", () => {
+    const result = run();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.completeness.complete).toBe(false);
+    expect(acceptCanonicalInvestigation(result)).toEqual({ ok: false, code: "INVESTIGATION_INCOMPLETE" });
+    expect(result.study.documents.every((document) => document.classification === "UNRESOLVED")).toBe(true);
+    expect(JSON.stringify(result.study.gaps)).not.toContain("Missing information");
+  });
+
+  it("admits a blank field and a named missing document, and does not invent either", () => {
+    const rows = extractions();
+    const page = `${PAGE_1} Flag: . See the prior schedule for the review.`;
+    rows[0] = {
+      ...rows[0]!,
+      emptyFields: [{ id: "E-flag", modelId: null, label: "flag", page: 1, quote: "Flag:" }],
+      referencedDocuments: [
+        { id: "R-unquoted", modelId: null, description: "IEP progress report", date: null, page: 1, quote: "Answer: yes." },
+        { id: "R-named", modelId: null, description: "prior schedule", date: null, page: 1, quote: "See the prior schedule for the review." },
+      ],
+    };
+    const drafted = source();
+    const item = drafted.definitions.find((definition) => definition.id === "entity:item");
+    if (item && item.kind === "entity") {
+      const flag = item.fields.find((field) => field.id === "flag");
+      if (flag) flag.required = true;
+    }
+    const prepared = prepareInvestigationStudy({
+      packSource: drafted,
+      artifacts: companions({ identity: { ...drafted.identity, digest: "pending" } } as CompiledDomainPack),
+    });
+    if (!prepared.ok) throw new Error(prepared.code);
+    const result = runInvestigationStudyEngine({
+      prepared: prepared.prepared,
+      extractions: rows,
+      pages: [
+        { documentId: DOC, pages: [{ pageNumber: 1, text: page }] },
+        { documentId: OTHER_DOC, pages: [{ pageNumber: 1, text: "Second record cover." }] },
+      ],
+      proposal: proposal().proposal,
+      studyDate: "2026-11-25",
+      investigation: {
+        intentText: "",
+        documentRoles: [],
+        measurements: [],
+        assessments: [],
+        determinations: [],
+        conflicts: [],
+        gaps: [{ kind: "MISSING_INFORMATION", statement: "The unused note was not mapped.", entityId: "entity:item", fieldId: "label" }],
+        answers: [],
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.study.gaps.map((gap) => gap.statement)).toEqual([
+      "The page shows flag blank.",
+      "A verified quote names prior schedule, and that record is not in the authorized inventory.",
+    ]);
+    expect(JSON.stringify(result.study.outsideSpine)).toContain("Searched and not found: The unused note was not mapped.");
+    expect(JSON.stringify(result.study.gaps)).not.toContain("IEP progress report");
+    expect(JSON.stringify(result.study.gaps)).not.toContain("Missing information");
+  });
 });
 
 const PARITY_PAGE = [
@@ -425,6 +502,7 @@ function paritySource(): DomainPackSource {
     { id: "question:skipped", kind: "question", label: "Skipped question", audience: "customer", text: "What flag is recorded?", appliesWhen: { op: "FIELD_PRESENT", entityId: "entity:item", fieldId: "flag" } },
     { id: "persona:customer", kind: "persona", label: "Customer", audience: "customer", context: "The person asking.", questionIds: ["question:customer", "question:skipped"] },
     { id: "persona:professional", kind: "persona", label: "Professional", audience: "professional", context: "The reviewer.", questionIds: ["question:professional"] },
+    { id: "chain:path", kind: "chain", label: "Item path", links: ["Item to other", "2024-01-02"] },
   );
   return drafted;
 }
@@ -555,12 +633,17 @@ describe("investigation quality parity", () => {
     expect(JSON.stringify(result.study.outsideSpine)).toContain("not two values of the same field");
     expect(JSON.stringify(result.study.outsideSpine)).toContain("Open for a professional");
     expect(result.study.outsideSpine.some((item) => item.statement.includes("relationship:item-other") && item.statement.includes("RELATIONSHIP_SEMANTICS_UNVERIFIED"))).toBe(true);
+    expect(result.study.chains?.[0]?.rows[0]?.links).toEqual([{ unresolved: true }, { unresolved: true }]);
     expect(result.study.spine.some((item) => item.kind === "calculation")).toBe(false);
     expect(JSON.stringify(result.study)).not.toMatch(/\b30 calendar days\b/);
     const coverage = result.study.personaCoverage ?? [];
     expect(coverage.find((item) => item.questionId === "question:customer")).toMatchObject({ audience: "customer", status: "ANSWERABLE", factIds: ["F-label"] });
     expect(coverage.find((item) => item.questionId === "question:professional")).toMatchObject({ status: "NOT_ANSWERABLE", missing: "Still open." });
-    expect(coverage.find((item) => item.questionId === "question:skipped")?.missing).toContain("does not apply");
+    expect(coverage.find((item) => item.questionId === "question:skipped")).toMatchObject({
+      status: "NOT_ASSESSED",
+      factIds: [],
+      missing: "",
+    });
   });
 
   it("admits a cross-document relationship and publishes the day count only when the compiled structure matches", () => {
@@ -576,6 +659,8 @@ describe("investigation quality parity", () => {
     expect(calculation?.label).toContain("end 2024-02-01");
     expect(calculation?.supportingFactIds).toEqual(expect.arrayContaining(["F-start", "F-when", "F-link"]));
     expect(admitted.study.outsideSpine.some((item) => item.statement.includes("relationship:item-other is not verified"))).toBe(false);
+    expect(admitted.study.chains?.[0]?.rows[0]?.links[0]).toEqual({ factIds: ["F-link"] });
+    expect(admitted.study.chains?.[0]?.rows[0]?.links[1]).toEqual({ unresolved: true });
 
     const withheld = parityCase([holdingStructure("HOLDS", "West")]);
     expect(withheld.ok).toBe(true);

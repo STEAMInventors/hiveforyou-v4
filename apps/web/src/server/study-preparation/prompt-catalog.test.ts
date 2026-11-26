@@ -102,6 +102,13 @@ describe("loadPromptCatalog", () => {
     expect(loadPromptCatalog().investigation).toMatchObject({ task: "canonicalize", id: "hive.domain-investigation/1" });
     expect(loadPromptCatalog().investigation.systemPrompt).toContain("finish_investigation");
     expect(loadPromptCatalog().investigation.systemPrompt).toContain("Do not return a canonical study.");
+    expect(loadPromptCatalog().investigationV2).toMatchObject({ task: "canonicalize", id: "hive.domain-investigation/2" });
+    expect(loadPromptCatalog().investigationV2.digest).toBe(
+      "sha256:378d9b3d76262f0feb00d11b4738f02ce916397258a2ba37288a3a9c9f157304",
+    );
+    expect(loadPromptCatalog().investigationV2.systemPrompt).toContain("Phase F — Completeness review");
+    expect(loadPromptCatalog().investigationV2.systemPrompt).toContain("finish_investigation");
+    expect(loadPromptCatalog().investigationV2.digest).not.toBe(loadPromptCatalog().investigation.digest);
     expect(canonicalizeV2.systemPrompt).toContain(
       "Notes describe what the documents show or do not show. Never state a requirement or obligation; do not use must, required, should or shall.",
     );
@@ -146,6 +153,7 @@ describe("buildPromptCatalog", () => {
       "hive-canonicalize/HiveForYou-Canonicalize-v2.md": [planner("hive-canonicalize/2"), "## Output", "Return JSON."].join(eol),
       "hive-field-mapping/HiveForYou-Field-Mapping-v1.md": [planner("hive.field-mapping-proposal/1"), "## Output", "Return hive.field-mapping-proposal/1."].join(eol),
       "hive-domain-investigation/HiveForYou-Domain-Investigation-v1.md": [planner("hive.domain-investigation/1"), "## Output", "Return tool results."].join(eol),
+      "hive-domain-investigation/HiveForYou-Domain-Investigation-v2.md": [planner("hive.domain-investigation/2"), "## Output", "Return tool results."].join(eol),
       "hive-write/HiveForYou-Write-v1.md": [planner("hive-write/1"), "## Output", "Return write JSON."].join(eol),
       "hive-write/HiveForYou-Write-v2.md": [planner("hive-write/2"), "## Output", "Return write JSON."].join(eol),
     };

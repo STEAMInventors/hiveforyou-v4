@@ -167,6 +167,7 @@ describe("synthetic L001 coordinated investigation", () => {
       }]);
     });
     const ledger = new CoordinatedInvestigationLedger("run-l001", prepared.prepared.pack, extractions, pages, "Should the family schedule a dentist visit before signing?");
+    expect(ledger.armCompletion({ windowCount: 1, documentIds: extractions.map((item) => item.documentId) })).toBe(true);
     const iepId = "08";
     const proposals = [
       call("name", "propose_field", { documentId: iepId, extractionFactId: "F-name", entityId: "entity:student", instanceId: "maya", fieldId: "displayName", valueType: "TEXT", value: "Maya Carter" }),
@@ -197,9 +198,9 @@ describe("synthetic L001 coordinated investigation", () => {
     expect(JSON.parse(results.find((item) => item.toolCallId === "invented")?.content ?? "{}").error).toBe("invented_value");
     expect(JSON.parse(results.find((item) => item.toolCallId === "bad-anchor")?.content ?? "{}").error).toBe("quote_not_on_page");
     const finished = ledger.execute(call("done", "finish_investigation", { ready: true }));
-    expect(JSON.parse(finished.content).ok).toBe(true);
-    const assembled = ledger.assemble();
-    expect(assembled).not.toBeNull();
+    expect(JSON.parse(finished.content)).toMatchObject({ ok: false, error: "investigation_incomplete" });
+    expect(ledger.assemble()).toBeNull();
+    const assembled = ledger.draft();
     if (!assembled) return;
     const study = runInvestigationStudyEngine({
       prepared: prepared.prepared,
@@ -229,10 +230,9 @@ describe("synthetic L001 coordinated investigation", () => {
     expect(JSON.stringify(study.study.outsideSpine)).toContain("Open for a professional");
     expect(JSON.stringify(study.study.outsideSpine)).toContain("No separate speech-language educational need");
     expect(JSON.stringify(study.study.outsideSpine)).toContain("dentist");
-    const missingDocument = study.study.gaps.find((gap) => gap.kind === "REQUESTABLE_DOCUMENT");
-    const missingInformation = study.study.gaps.find((gap) => gap.kind === "OBSERVATION");
-    expect(missingDocument?.title.toLowerCase()).toContain("progress");
-    expect(missingInformation?.statement).toContain("Missing information");
+    expect(study.study.gaps.filter((gap) => gap.kind === "REQUESTABLE_DOCUMENT")).toEqual([]);
+    expect(JSON.stringify(study.study.gaps)).not.toContain("Missing information");
+    expect(study.study.documents.filter((document) => document.sourceDocumentId !== iepId).every((document) => document.classification === "UNRESOLVED")).toBe(true);
     expect(study.study.checklist?.some((item) => item.verdict === "NOT_ASSESSED")).toBe(true);
     expect(study.study.checklist?.every((item) => item.verdict !== "SHOWN" && item.verdict !== "NOT_SHOWN")).toBe(true);
     expect(study.study.checklist?.every((item) => item.note.includes("not a legal conclusion"))).toBe(true);
@@ -289,6 +289,7 @@ describe("synthetic L001 coordinated investigation", () => {
       ])
       : extraction(item.id, item.file, item.pages, []));
     const ledger = new CoordinatedInvestigationLedger("run-l001-v5", next.prepared.pack, extractions, pages, "What should the family ask the school?");
+    expect(ledger.armCompletion({ windowCount: 1, documentIds: extractions.map((item) => item.documentId) })).toBe(true);
     const proposals = [
       call("elig-date", "propose_field", { documentId: "08", extractionFactId: "F-eligible-date", entityId: "entity:eligibility-determination", instanceId: "elig", fieldId: "determinationDate", valueType: "DATE", value: "2024-11-01" }),
       call("baseline", "propose_field", { documentId: "08", extractionFactId: "F-baseline", entityId: "entity:annual-goal", instanceId: "goal", fieldId: "baselineValue", valueType: "NUMBER", value: "42" }),
@@ -298,8 +299,8 @@ describe("synthetic L001 coordinated investigation", () => {
     ];
     ledger.beginTurn();
     for (const proposal of proposals) ledger.execute(proposal);
-    const assembled = ledger.assemble();
-    expect(assembled).not.toBeNull();
+    expect(ledger.assemble()).toBeNull();
+    const assembled = ledger.draft();
     if (!assembled) return;
     const study = runInvestigationStudyEngine({
       prepared: next.prepared,
@@ -320,7 +321,8 @@ describe("synthetic L001 coordinated investigation", () => {
     expect(study.study.checklist?.find((item) => item.checkId === "check:T2")?.verdict).toBe("NOT_ASSESSED");
     expect(study.study.checklist?.find((item) => item.checkId === "check:G2")?.verdict).toBe("NOT_SHOWN");
     expect(study.study.checklist?.find((item) => item.checkId === "check:G2")?.factIds).toEqual(["F-baseline", "F-target"]);
-    expect(study.study.gaps.length).toBeGreaterThan(0);
+    expect(study.study.gaps.every((gap) => gap.kind !== "REQUESTABLE_DOCUMENT")).toBe(true);
+    expect(JSON.stringify(study.study.gaps)).not.toContain("Missing information");
     expect(JSON.stringify(study.study.outsideSpine)).toContain("What should the family ask the school?");
     const audiences = new Set(study.study.personaCoverage?.map((item) => item.audience));
     expect(audiences.has("customer")).toBe(true);

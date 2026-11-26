@@ -47,7 +47,7 @@ import {
   type PackPredicate,
 } from "./domain-pack-source";
 import type { DocExtraction, ExtractionFact } from "./extraction-contracts";
-import type { CheckVerdict, PersonaCoverageItem } from "./pack-canonicalize";
+import type { CanonicalChainItem, CheckVerdict, PersonaCoverageItem } from "./pack-canonicalize";
 import { normalizeQuoteText } from "./verify-quotes";
 
 export const FIELD_MAPPING_REQUEST_SCHEMA = "hive.field-mapping-request/1" as const;
@@ -85,9 +85,15 @@ export type InvestigationEnginePin = {
   readonly relationshipStructures?: readonly unknown[];
 };
 
+export type InvestigationCompleteness = {
+  readonly complete: boolean;
+  readonly unfinished: readonly string[];
+};
+
 export type InvestigationEngineSuccess = {
   readonly ok: true;
   readonly study: CanonicalStudy;
+  readonly completeness: InvestigationCompleteness;
   readonly packDigest: string;
   readonly planDigest: string;
   readonly evidenceDigest: string;
@@ -323,6 +329,35 @@ function adaptCandidates(
       });
       continue;
     }
+    if (expectedType === "QUANTITY") {
+      const unit = fieldUnit(prepared.pack, mapping.entityId, mapping.fieldId);
+      const quotes = fact.evidence.map((item) => item.quote);
+      if (!unit || !quotes.some((quote) => phraseInQuote(quote, unit))) {
+        unsupported.push({
+          extractionFactId: fact.id,
+          documentId: mapping.documentId,
+          valueAsWritten: fact.valueAsWritten,
+          page: fact.evidence[0]?.page ?? null,
+        });
+        continue;
+      }
+      if (!fact.evidence.some((item) => phraseInQuote(item.quote, mapping.value))) return { ok: false, code: "INVALID_EVIDENCE" };
+      const quantityId = candidateId("c", { kind: "FIELD", documentId: mapping.documentId, extractionFactId: fact.id, fieldId: mapping.fieldId });
+      if (seen.has(quantityId)) return { ok: false, code: "INVALID_EVIDENCE" };
+      seen.add(quantityId);
+      candidates.push({
+        candidateId: quantityId,
+        taskId: bindTask,
+        kind: "FIELD",
+        entityId: mapping.entityId,
+        instanceId: mapping.instanceId,
+        fieldId: mapping.fieldId,
+        documentId: mapping.documentId,
+        extractionFactId: fact.id,
+        value: { valueType: "QUANTITY", value: fact.valueAsWritten, unit },
+      });
+      continue;
+    }
     if (!fact.evidence.some((item) => phraseInQuote(item.quote, mapping.value))) return { ok: false, code: "INVALID_EVIDENCE" };
     const id = candidateId("c", { kind: "FIELD", documentId: mapping.documentId, extractionFactId: fact.id, fieldId: mapping.fieldId });
     if (seen.has(id)) return { ok: false, code: "INVALID_EVIDENCE" };
@@ -363,7 +398,7 @@ function adaptCandidates(
       evidence,
     });
   }
-  if (candidates.length === 0) return { ok: false, code: "EMPTY_CANDIDATES" };
+  if (candidates.length === 0 && unsupported.length === 0) return { ok: false, code: "EMPTY_CANDIDATES" };
   return { ok: true, adapted: { candidates, unsupported } };
 }
 
@@ -469,16 +504,48 @@ function checklistFrom(ledger: DomainInvestigationLedger, known: ReadonlySet<str
     });
 }
 
-function caseText(extractions: readonly DocExtraction[]): string {
-  return extractions.flatMap((extraction) => [
-    ...extraction.referencedDocuments.map((item) => `${item.description}\n${item.quote}`),
-    ...extraction.facts.flatMap((fact) => fact.evidence.map((item) => item.quote)),
-  ]).join("\n").toLowerCase();
-}
-
 function documentMatches(extraction: DocExtraction, phrases: readonly string[]): boolean {
   const haystack = `${extraction.fileName} ${extraction.document.documentType} ${extraction.document.titleAsPrinted}`.toLowerCase();
-  return phrases.some((phrase) => phrase.trim().length >= 3 && haystack.includes(phrase.trim().toLowerCase()));
+  return phrases.some((phrase) => phrase.trim().length >= 8 && haystack.includes(phrase.trim().toLowerCase()));
+}
+
+function quoteNames(quote: string, name: string): boolean {
+  const left = normalizeQuoteText(name).toLowerCase();
+  const right = normalizeQuoteText(quote).toLowerCase();
+  return left.length >= 8 && right.includes(left);
+}
+
+function quoteBacked(pages: readonly AuthorizedDocument[], documentId: string, page: number, quote: string): boolean {
+  return quoteBackedRole({ documentId, page, quote }, pages);
+}
+
+function namedByVerifiedQuote(
+  extractions: readonly DocExtraction[],
+  pages: readonly AuthorizedDocument[],
+  names: readonly string[],
+): boolean {
+  for (const extraction of extractions) {
+    for (const fact of extraction.facts) {
+      for (const evidence of fact.evidence) {
+        if (!quoteBacked(pages, extraction.documentId, evidence.page, evidence.quote)) continue;
+        if (names.some((name) => quoteNames(evidence.quote, name))) return true;
+      }
+    }
+    for (const referenced of extraction.referencedDocuments) {
+      if (!quoteBacked(pages, extraction.documentId, referenced.page, referenced.quote)) continue;
+      if (names.some((name) => quoteNames(referenced.quote, name))) return true;
+    }
+  }
+  return false;
+}
+
+function blankLabelMatches(label: string, entityLabel: string, fieldId: string): boolean {
+  const needle = normalizeQuoteText(label).toLowerCase();
+  if (needle.length < 3) return false;
+  const field = normalizeQuoteText(readableField(fieldId)).toLowerCase();
+  const id = normalizeQuoteText(fieldId).toLowerCase();
+  const combined = normalizeQuoteText(`${entityLabel} ${readableField(fieldId)}`).toLowerCase();
+  return needle === field || needle === id || needle === combined;
 }
 
 function intentQuestions(text: string): string[] {
@@ -500,6 +567,55 @@ type StudyFact = {
 };
 
 const NUMBER_VALUE = /^[0-9]+(?:\.[0-9]+)?$/;
+const DOCUMENT_DATE_FIELDS = ["effectiveStartDate", "startDate", "documentDate", "determinationDate", "meetingDate", "noticeDate"];
+
+function documentedOrientation(
+  documentId: string,
+  facts: readonly StudyFact[],
+  keyDate: string | null,
+): { date: string | null; version: string | null } {
+  let date = keyDate;
+  for (const fieldId of DOCUMENT_DATE_FIELDS) {
+    const fact = facts.find((item) => item.documentId === documentId && item.fieldId === fieldId && ISO_DATE.test(item.value));
+    if (fact) {
+      date = fact.value;
+      break;
+    }
+  }
+  const version = facts.find((item) => item.documentId === documentId && /version/i.test(item.fieldId) && item.value.trim() !== "");
+  return { date, version: version?.value ?? null };
+}
+
+function chainLinkMatches(link: string, value: string): boolean {
+  const left = normalizeQuoteText(link).toLowerCase();
+  const right = normalizeQuoteText(value).toLowerCase();
+  if (left.length < 8 || right.length < 8) return false;
+  return right.includes(left) || left.includes(right);
+}
+
+function projectChains(
+  pack: CompiledDomainPack,
+  relationships: ReadonlyArray<{ relationshipId: string; factIds: readonly string[] }>,
+): CanonicalChainItem[] {
+  const admitted = relationships.flatMap((link) => {
+    const definition = pack.definitions.find((item) => item.kind === "relationship" && item.id === link.relationshipId);
+    if (!definition || definition.kind !== "relationship" || link.factIds.length === 0) return [];
+    return [{ label: definition.label, factIds: [...link.factIds].sort() }];
+  });
+  return pack.definitions.flatMap((definition) => {
+    if (definition.kind !== "chain") return [];
+    return [{
+      chainId: definition.id,
+      rows: [{
+        label: definition.label,
+        links: definition.links.map((link) => {
+          const match = admitted.find((item) => chainLinkMatches(link, item.label));
+          return match ? { factIds: match.factIds } : { unresolved: true as const };
+        }),
+      }],
+    }];
+  });
+}
 
 function plainDifference(left: string, right: string): string | null {
   const evaluated = evaluateFormula({ op: "-", args: [{ value: left }, { value: right }] }, () => null);
@@ -523,7 +639,8 @@ function applicabilityOf(predicate: PackPredicate, facts: readonly StudyFact[]):
     case "DOCUMENT_PRESENT":
       return "UNDECIDED";
     case "FIELD_PRESENT":
-      return facts.some((fact) => fact.entityId === predicate.entityId && fact.fieldId === predicate.fieldId) ? "APPLIES" : "DOES_NOT_APPLY";
+      // A missing field is unexamined, not proof that the condition is absent.
+      return facts.some((fact) => fact.entityId === predicate.entityId && fact.fieldId === predicate.fieldId) ? "APPLIES" : "UNDECIDED";
     case "ALL": {
       const states = predicate.conditions.map((condition) => applicabilityOf(condition, facts));
       if (states.includes("UNDECIDED")) return "UNDECIDED";
@@ -678,16 +795,17 @@ function projectStudy(input: {
   });
   const documents = dated.map((item) => {
     const proposed = acceptedRoles.find((role) => role.documentId === item.extraction.documentId);
-    const chainIndex = chainOrder.findIndex((role) => role.documentId === item.extraction.documentId);
-    let role: "ANCHOR" | "SUPPORTING" | "REFERENCE" = "SUPPORTING";
-    if (proposed) role = proposed.role;
-    else if (dated.length === 1) role = "ANCHOR";
+    const chainIndex = proposed?.role === "ANCHOR"
+      ? chainOrder.findIndex((role) => role.documentId === item.extraction.documentId)
+      : -1;
+    const orientation = documentedOrientation(item.extraction.documentId, input.verifiedFacts, item.date);
     return {
       sourceDocumentId: item.extraction.documentId,
-      role,
+      role: proposed?.role ?? "REFERENCE",
+      classification: proposed ? "QUOTED" as const : "UNRESOLVED" as const,
       typeInPlainWords: item.extraction.document.documentType || item.extraction.fileName,
-      date: item.date,
-      version: null,
+      date: orientation.date,
+      version: orientation.version,
       chainPosition: chainOrder.length > 1 && chainIndex >= 0 ? chainIndex + 1 : null,
     };
   });
@@ -792,17 +910,9 @@ function projectStudy(input: {
       });
       continue;
     }
-    if (PROGRESS_CLAIM.test(assessment.statement)) continue;
-    if (factIds.length === 0) continue;
-    spine.push({
-      id: `assessment:${factIds[0]}`,
-      label: assessment.statement,
-      kind: "assessment",
-      status: "SUPPORTED",
-      supportingFactIds: factIds,
-      contradictingFactIds: [],
-      updatingFactIds: [],
-      missing: [],
+    outside.push({
+      statement: `Assessment is not a supported finding. ${assessment.statement}`,
+      factIds,
     });
   }
   for (const determination of input.record.determinations) {
@@ -835,98 +945,88 @@ function projectStudy(input: {
       factIds,
     });
   }
-  const mentioned = caseText(input.extractions);
   const gaps: CanonicalGap[] = [];
   const pushGap = (gap: Omit<CanonicalGap, "id" | "relatedSpineIds">) => {
     gaps.push({ ...gap, id: `G${gaps.length + 1}`, relatedSpineIds: [] });
   };
-  for (const gap of input.record.gaps) {
-    if (gap.kind === "MISSING_DOCUMENT") {
-      const definition = pack.definitions.find((item) => item.kind === "document" && item.id === gap.documentKindId);
-      const phrases = definition && definition.kind === "document" ? [definition.label, ...definition.aliases] : [];
-      const present = input.extractions.some((extraction) => documentMatches(extraction, phrases));
-      const named = phrases.some((phrase) => phrase.length >= 3 && mentioned.includes(phrase.toLowerCase()));
-      if (present || !named) {
-        if (gap.entityId && gap.fieldId) {
-          pushGap({
-            statement: gap.statement,
-            kind: "OBSERVATION",
-            title: `${definitionLabel(pack, gap.entityId)} ${readableField(gap.fieldId)}`,
-            why: "The record is present and this information is not in it.",
-            holder: "",
-            holderType: null,
-            when: null,
-            basisType: null,
-            relatedFactIds: [],
-          });
-        }
-        continue;
-      }
-      pushGap({
-        statement: gap.statement,
-        kind: "REQUESTABLE_DOCUMENT",
-        title: definition && definition.kind === "document" ? definition.label : gap.statement.slice(0, 80),
-        why: "A saved page names this record, and it is not in the document inventory.",
-        holder: "",
-        holderType: null,
-        when: null,
-        basisType: "MENTIONED",
-        relatedFactIds: [],
-      });
-      continue;
-    }
+  const blankKeys = new Set<string>();
+  const recordBlank = (documentId: string, label: string) => {
+    const key = `${documentId}\0${normalizeQuoteText(label).toLowerCase()}`;
+    if (blankKeys.has(key)) return;
+    blankKeys.add(key);
     pushGap({
-      statement: gap.statement,
+      statement: `The page shows ${label} blank.`,
       kind: "OBSERVATION",
-      title: gap.fieldId ? `${definitionLabel(pack, gap.entityId ?? "")} ${readableField(gap.fieldId)}` : "Missing information",
-      why: "This information is not in a document that is already saved.",
+      title: label.slice(0, 80),
+      why: "A saved page shows this field blank.",
       holder: "",
       holderType: null,
       when: null,
       basisType: null,
       relatedFactIds: [],
     });
-  }
-  const instances = new Map<string, { entityId: string; factIds: string[] }>();
-  for (const fact of input.verifiedFacts) {
-    const bucket = instances.get(`${fact.entityId}\0${fact.documentId}`) ?? { entityId: fact.entityId, factIds: [] };
-    bucket.factIds.push(fact.extractionFactId);
-    instances.set(`${fact.entityId}\0${fact.documentId}`, bucket);
-  }
-  for (const bucket of instances.values()) {
-    const entity = pack.definitions.find((item) => item.kind === "entity" && item.id === bucket.entityId);
-    if (!entity || entity.kind !== "entity") continue;
-    const presentFields = new Set(input.verifiedFacts.filter((fact) => fact.entityId === bucket.entityId).map((fact) => fact.fieldId));
-    for (const field of entity.fields) {
-      if (!field.required || presentFields.has(field.id)) continue;
-      pushGap({
-        statement: `Missing information: ${entity.label} ${readableField(field.id)} is not in the saved record.`,
-        kind: "OBSERVATION",
-        title: `${entity.label} ${readableField(field.id)}`,
-        why: "Other fields of this record are present. The missing item is information, not a missing document.",
-        holder: "",
-        holderType: null,
-        when: null,
-        basisType: null,
-        relatedFactIds: bucket.factIds.filter((id) => known.has(id)),
-      });
+  };
+  for (const extraction of input.extractions) {
+    for (const blank of extraction.emptyFields) {
+      const label = blank.label.trim();
+      if (label.length < 3) continue;
+      if (!quoteBacked(input.pages, extraction.documentId, blank.page, blank.quote)) continue;
+      recordBlank(extraction.documentId, label);
     }
+  }
+  const requestKeys = new Set<string>();
+  const recordRequest = (title: string, statement: string) => {
+    const key = normalizeQuoteText(title).toLowerCase();
+    if (requestKeys.has(key)) return;
+    requestKeys.add(key);
+    pushGap({
+      statement,
+      kind: "REQUESTABLE_DOCUMENT",
+      title: title.slice(0, 80),
+      why: "A verified quote names this record, and the authorized inventory does not contain it.",
+      holder: "",
+      holderType: null,
+      when: null,
+      basisType: "MENTIONED",
+      relatedFactIds: [],
+    });
+  };
+  for (const gap of input.record.gaps) {
+    if (gap.kind === "MISSING_DOCUMENT") {
+      const definition = pack.definitions.find((item) => item.kind === "document" && item.id === gap.documentKindId);
+      const names = definition && definition.kind === "document"
+        ? [definition.label, ...definition.aliases].map((name) => name.trim()).filter((name) => name.length >= 8)
+        : [];
+      if (names.length === 0 || input.extractions.some((extraction) => documentMatches(extraction, names))) continue;
+      if (!namedByVerifiedQuote(input.extractions, input.pages, names)) continue;
+      const title = definition && definition.kind === "document" ? definition.label : names[0] ?? gap.statement;
+      recordRequest(title, gap.statement);
+      continue;
+    }
+    const entity = pack.definitions.find((item) => item.kind === "entity" && item.id === gap.entityId);
+    const fieldId = gap.fieldId ?? "";
+    const matched = entity && entity.kind === "entity" && fieldId !== ""
+      ? input.extractions.flatMap((extraction) => extraction.emptyFields.flatMap((blank) => {
+        if (!quoteBacked(input.pages, extraction.documentId, blank.page, blank.quote)) return [];
+        return blankLabelMatches(blank.label, entity.label, fieldId) ? [extraction.documentId] : [];
+      }))
+      : [];
+    if (matched.length > 0 && entity && entity.kind === "entity") {
+      recordBlank(matched[0] ?? "", `${entity.label} ${readableField(fieldId)}`);
+      continue;
+    }
+    outside.push({
+      statement: `Searched and not found: ${gap.statement}`,
+      factIds: [],
+    });
   }
   for (const extraction of input.extractions) {
     for (const referenced of extraction.referencedDocuments) {
-      const present = input.extractions.some((item) => documentMatches(item, [referenced.description]));
-      if (present || referenced.description.trim().length < 3) continue;
-      pushGap({
-        statement: `A saved page names ${referenced.description}, and that record is not in the inventory.`,
-        kind: "REQUESTABLE_DOCUMENT",
-        title: referenced.description.slice(0, 80),
-        why: "The page mentions the record. No saved document matches it.",
-        holder: "",
-        holderType: null,
-        when: null,
-        basisType: "MENTIONED",
-        relatedFactIds: [],
-      });
+      const name = referenced.description.trim();
+      if (!quoteBacked(input.pages, extraction.documentId, referenced.page, referenced.quote)) continue;
+      if (!quoteNames(referenced.quote, name)) continue;
+      if (input.extractions.some((item) => documentMatches(item, [name]))) continue;
+      recordRequest(name, `A verified quote names ${name}, and that record is not in the authorized inventory.`);
     }
   }
   const questions = pack.definitions.flatMap((definition) => definition.kind === "question" ? [definition] : []);
@@ -976,15 +1076,24 @@ function projectStudy(input: {
     if (overlap) return;
     const answer = input.record.answers.find((item) => item.questionId === `intent:${index + 1}`);
     const factIds = answer?.factIds.filter((id) => known.has(id)) ?? [];
+    const uncertainty = answer?.uncertainty?.trim() ?? "";
+    const base = factIds.length > 0
+      ? `Request not in the catalog: ${question}`
+      : `Request not in the catalog, and not answered from the saved evidence: ${question}`;
     outside.push({
-      statement: factIds.length > 0
-        ? `Request not in the catalog: ${question}`
-        : `Request not in the catalog, and not answered from the saved evidence: ${question}`,
+      statement: uncertainty === "" ? base : `${base} ${uncertainty}`,
       factIds,
     });
   });
+  for (const item of dated) {
+    if (acceptedRoles.some((role) => role.documentId === item.extraction.documentId)) continue;
+    outside.push({
+      statement: `Document ${item.extraction.fileName} has no evidence-backed role. Classification is unresolved.`,
+      factIds: [],
+    });
+  }
   outside.sort((left, right) => left.statement.localeCompare(right.statement));
-  const anchorCount = documents.filter((document) => document.role === "ANCHOR").length;
+  const anchorCount = documents.filter((document) => document.classification === "QUOTED" && document.role === "ANCHOR").length;
   const dates = input.verifiedFacts
     .filter((fact) => ISO_DATE.test(fact.value))
     .sort((left, right) => left.extractionFactId.localeCompare(right.extractionFactId))
@@ -1004,6 +1113,7 @@ function projectStudy(input: {
           ? "PARTIES_AND_OBLIGATIONS"
           : null;
   const checklist = checklistFrom(input.ledger, known, packDigestValue, planDigestValue);
+  const chains = projectChains(pack, input.verifiedRelationships);
   return {
     schema: "hive.canonical-study/1",
     documents,
@@ -1015,6 +1125,7 @@ function projectStudy(input: {
     gaps,
     domainLabel: pack.identity.title,
     ...(checklist.length > 0 ? { checklist } : {}),
+    ...(chains.length > 0 ? { chains } : {}),
     ...(personaCoverage.length > 0 ? { personaCoverage } : {}),
     questionOrder: [`pack-digest:${packDigestValue}`, `plan-digest:${planDigestValue}`],
     studyDate: ISO_DATE.test(input.studyDate) ? input.studyDate : undefined,
@@ -1043,6 +1154,62 @@ export function assessCanonicalProjection(
     return { ok: false, code: "VERIFICATION_FAILED" };
   }
   return { ok: true, study: verified.study };
+}
+
+function quoteBackedRole(
+  role: { documentId: string; page: number; quote: string },
+  pages: readonly AuthorizedDocument[],
+): boolean {
+  const document = pages.find((item) => item.documentId === role.documentId);
+  const text = document?.pages.find((item) => item.pageNumber === role.page)?.text ?? "";
+  const needle = normalizeQuoteText(role.quote);
+  return needle.length > 0 && normalizeQuoteText(text).includes(needle);
+}
+
+/** Separates a stopped investigation from a complete one. A failed gate does not drop accepted quotes. */
+export function assessInvestigationCompleteness(input: {
+  pack: CompiledDomainPack;
+  extractions: readonly DocExtraction[];
+  pages: readonly AuthorizedDocument[];
+  record: CoordinatedInvestigationRecord;
+  study: CanonicalStudy;
+}): InvestigationCompleteness {
+  const unfinished: string[] = [];
+  const quoted = new Set(
+    input.record.documentRoles
+      .filter((role) => quoteBackedRole(role, input.pages))
+      .map((role) => role.documentId),
+  );
+  for (const extraction of [...input.extractions].sort((left, right) => left.documentId.localeCompare(right.documentId))) {
+    if (!quoted.has(extraction.documentId)) unfinished.push(`document-role:${extraction.documentId}`);
+  }
+  const intentCount = input.record.intentText.split("?").map((part) => part.trim()).filter((part) => part.length >= 8).length;
+  for (let index = 1; index <= intentCount; index += 1) {
+    const answer = input.record.answers.find((item) => item.questionId === `intent:${index}`);
+    if (!answer || (answer.factIds.length === 0 && !answer.uncertainty)) unfinished.push(`intent:${index}`);
+  }
+  if (input.record.shownQuestionIds) {
+    for (const questionId of [...input.record.shownQuestionIds].sort()) {
+      const answer = input.record.answers.find((item) => item.questionId === questionId);
+      if (!answer || (answer.factIds.length === 0 && !answer.uncertainty)) unfinished.push(`question:${questionId}`);
+    }
+  }
+  const examined = new Set((input.record.examinedPages ?? []).map((item) => `${item.documentId}\0${item.page}`));
+  for (const role of input.record.documentRoles) {
+    if (role.role !== "ANCHOR" || !quoted.has(role.documentId)) continue;
+    const document = input.pages.find((item) => item.documentId === role.documentId);
+    if (!document) continue;
+    for (const page of document.pages) {
+      if (page.text.trim() === "") continue;
+      if (!examined.has(`${role.documentId}\0${page.pageNumber}`)) unfinished.push(`anchor-page:${role.documentId}:${page.pageNumber}`);
+    }
+  }
+  const chainIds = new Set((input.study.chains ?? []).map((chain) => chain.chainId));
+  for (const definition of input.pack.definitions) {
+    if (definition.kind === "chain" && !chainIds.has(definition.id)) unfinished.push(`chain:${definition.id}`);
+  }
+  unfinished.sort();
+  return { complete: unfinished.length === 0, unfinished };
 }
 
 function studyInstant(studyDate: string): string | null {
@@ -1248,12 +1415,32 @@ export function runInvestigationStudyEngine(input: {
   });
   const assessed = assessCanonicalProjection(drafted, input.extractions);
   if (!assessed.ok) return assessed;
+  const completeness = assessInvestigationCompleteness({
+    pack: input.prepared.pack,
+    extractions: input.extractions,
+    pages: input.pages,
+    record: input.investigation ?? EMPTY_RECORD,
+    study: assessed.study,
+  });
   return {
     ok: true,
     study: assessed.study,
+    completeness,
     packDigest: input.prepared.pack.identity.digest,
     planDigest: input.prepared.plan.digest,
     evidenceDigest,
     ledgerDigest: ledger.value.digest,
   };
+}
+
+/**
+ * Final Canonical Study acceptance boundary. Projection may describe an incomplete
+ * investigation. Acceptance requires completeness.complete and does not replace an earlier revision.
+ */
+export function acceptCanonicalInvestigation(
+  result: InvestigationEngineResult,
+): { ok: true; study: CanonicalStudy } | { ok: false; code: InvestigationEngineFailureCode | "INVESTIGATION_INCOMPLETE" } {
+  if (!result.ok) return result;
+  if (result.completeness.complete !== true) return { ok: false, code: "INVESTIGATION_INCOMPLETE" };
+  return { ok: true, study: result.study };
 }

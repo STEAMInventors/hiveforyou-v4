@@ -77,6 +77,9 @@ PIPELINE_PROMPT_IDS_V2: dict[str, str] = {
 FIELD_MAPPING_PROMPT_ID = "hive.field-mapping-proposal/1"
 FIELD_MAPPING_REQUEST_SCHEMA = "hive.field-mapping-request/1"
 DOMAIN_INVESTIGATION_PROMPT_ID = "hive.domain-investigation/1"
+# Pinned iep-us-federal 0.5.0 posts v2. v1 stays accepted on the same task.
+DOMAIN_INVESTIGATION_PROMPT_V2_ID = "hive.domain-investigation/2"
+INVESTIGATION_PROMPT_IDS = frozenset({DOMAIN_INVESTIGATION_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_V2_ID})
 FIELD_MAPPING_ALIAS_ENV = "PLANNER_FIELD_MAPPING_LITELLM_ALIAS"
 # Server allowlist. Empty means no external mapping post. Client claims are not read.
 EXTERNAL_MAPPING_HIVE_IDS_ENV = "PLANNER_EXTERNAL_MAPPING_HIVE_IDS"
@@ -123,7 +126,7 @@ PUBLIC_MODEL_PREFIXES = (
 
 
 def _prompt_id_allowed(task: str, prompt_id: str) -> bool:
-    if prompt_id in (FIELD_MAPPING_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_ID):
+    if prompt_id == FIELD_MAPPING_PROMPT_ID or prompt_id in INVESTIGATION_PROMPT_IDS:
         return False
     if prompt_id == TASK_PROMPT_IDS.get(task):
         return True
@@ -515,7 +518,7 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
         if parsed.prompt_id != FIELD_MAPPING_PROMPT_ID:
             raise _invalid_request("Prompt does not match the task.")
     elif parsed.task == "investigation":
-        if parsed.prompt_id != DOMAIN_INVESTIGATION_PROMPT_ID:
+        if parsed.prompt_id not in INVESTIGATION_PROMPT_IDS:
             raise _invalid_request("Prompt does not match the task.")
     elif parsed.prompt_id == WRITER_SEMANTIC_REVIEW_PROMPT_ID:
         if parsed.task != "writer":
