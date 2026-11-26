@@ -2,10 +2,10 @@
  * Synthetic L001 corpus through the coordinated investigation ledger and the study engine.
  * Field ids below are the shipped pack's data. The engine does not special-case them.
  */
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { extractText } from "unpdf";
+import { beforeAll, describe, expect, it } from "vitest";
 import { CoordinatedInvestigationLedger } from "../domain-investigation-agent";
 import type { AuthorizedDocument } from "../domain-investigation-binder";
 import { compileDomainPack } from "../domain-pack-compiler";
@@ -32,10 +32,11 @@ function loadJson(name: string): unknown {
   return JSON.parse(readFileSync(join(PACK, name), "utf8")) as unknown;
 }
 
-function pageText(file: string): string[] {
-  const script = "import json,pymupdf,sys; doc=pymupdf.open(sys.argv[1]); print(json.dumps([page.get_text('text') for page in doc]))";
-  const raw = execFileSync("python", ["-c", script, join(DOCS, file)], { encoding: "utf8" });
-  return JSON.parse(raw) as string[];
+/** Page text from the synthetic PDFs. Node-only so unit tests do not need pymupdf. */
+async function pageText(file: string): Promise<string[]> {
+  const bytes = new Uint8Array(readFileSync(join(DOCS, file)));
+  const extracted = await extractText(bytes, { mergePages: false });
+  return extracted.text;
 }
 
 function fact(id: string, written: string, page: number, quote: string): ExtractionFact {
@@ -94,7 +95,10 @@ function call(id: string, name: string, args: Record<string, unknown>) {
 }
 
 describe("synthetic L001 coordinated investigation", () => {
-  const corpus = FILES.map((file) => ({ file, id: file.slice(0, 2), pages: pageText(file) }));
+  let corpus: { file: string; id: string; pages: string[] }[] = [];
+  beforeAll(async () => {
+    corpus = await Promise.all(FILES.map(async (file) => ({ file, id: file.slice(0, 2), pages: await pageText(file) })));
+  }, 60_000);
   const textOf = (file: string) => corpus.find((item) => item.file === file)?.pages.join("\n") ?? "";
   const prepared = prepareInvestigationStudy({
     packSource: loadJson("iep-domain-pack-source.v0.4.0.json") as DomainPackSource,

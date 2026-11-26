@@ -89,3 +89,5 @@ export {
   verifyExtraction,
 } from "./pipeline/verify-quotes";
 // Reader contracts use node:crypto and are server-only: import from "@hiveforyou/contracts/document-read".
+// The investigation engine also hashes with node:crypto: import from "@hiveforyou/contracts/investigation".
+// Its prompt id is domain-investigation-prompt.ts so this barrel can name the prompt.

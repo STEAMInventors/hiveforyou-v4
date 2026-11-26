@@ -17,8 +17,8 @@ import type { CompiledDomainPack } from "./domain-pack-source";
 import type { DocExtraction } from "./extraction-contracts";
 import { normalizeQuoteText } from "./verify-quotes";
 
+export { DOMAIN_INVESTIGATION_PROMPT_ID } from "./domain-investigation-prompt";
 export const INVESTIGATION_WINDOW_SCHEMA = "hive.field-mapping-window/1" as const;
-export const DOMAIN_INVESTIGATION_PROMPT_ID = "hive.domain-investigation/1" as const;
 
 export const INVESTIGATION_AGENT_TOOL_NAMES = [
   "search_case",

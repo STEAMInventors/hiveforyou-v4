@@ -1,6 +1,6 @@
 import type { StudyAgentToolDefinition } from "../analysis/study-agent";
 import type { InvestigationAgentToolDefinition } from "../pipeline/domain-investigation-agent";
-import { DOMAIN_INVESTIGATION_PROMPT_ID } from "../pipeline/domain-investigation-agent";
+import { DOMAIN_INVESTIGATION_PROMPT_ID } from "../pipeline/domain-investigation-prompt";
 import type { MappingAgentToolDefinition } from "../pipeline/domain-mapping-agent";
 import type { WriterAgentToolDefinition } from "../reports/writer-agent";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
