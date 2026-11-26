@@ -1,6 +1,6 @@
 import {
+  DOMAIN_INVESTIGATION_PROMPT_ID,
   DOMAIN_PACK_SOURCE_SCHEMA,
-  FIELD_MAPPING_PROMPT_ID,
   PLANNER_CONTRACT_VERSION,
   STUDY_AGENT_TURN_CONTRACT_VERSION,
   type DocExtraction,
@@ -9,7 +9,7 @@ import {
 } from "@hiveforyou/contracts";
 import {
   type InvestigationEnginePin,
-  MAPPING_AGENT_TOOL_NAMES,
+  INVESTIGATION_AGENT_TOOL_NAMES,
   MAPPING_WINDOW_LIMITS,
 } from "@hiveforyou/contracts/investigation";
 import { computeSha256Digest } from "@hiveforyou/contracts/document-read";
@@ -263,7 +263,7 @@ describe("rebuild study investigation engine", () => {
     const { fetchFn, bodies, urls } = mappingCalls([
       { id: "c1", name: "propose_field", arguments: { documentId: DOC_1, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north", fieldId: "label", valueType: "TEXT", value: "North" } },
       { id: "c2", name: "propose_field", arguments: { documentId: DOC_1, extractionFactId: "F-start", entityId: "entity:item", instanceId: "north", fieldId: "startDate", valueType: "DATE", value: "2024-01-02" } },
-      { id: "c3", name: "finish_mapping", arguments: { ready: true } },
+      { id: "c3", name: "finish_investigation", arguments: { ready: true } },
     ]);
     const { rpc, calls, document } = client(row);
     const result = await runCanonicalizeForRun({
@@ -300,12 +300,12 @@ describe("rebuild study investigation engine", () => {
       tools: { function: { name: string } }[];
       messages: { content: string }[];
     };
-    expect(body.task).toBe("mapping");
+    expect(body.task).toBe("investigation");
     expect(body.hive_id).toBe(HIVE_ID);
     expect(body).not.toHaveProperty("synthetic");
     expect(body).not.toHaveProperty("content_class");
-    expect(body.prompt_id).toBe(FIELD_MAPPING_PROMPT_ID);
-    expect(body.tools.map((tool) => tool.function.name)).toEqual([...MAPPING_AGENT_TOOL_NAMES]);
+    expect(body.prompt_id).toBe(DOMAIN_INVESTIGATION_PROMPT_ID);
+    expect(body.tools.map((tool) => tool.function.name)).toEqual([...INVESTIGATION_AGENT_TOOL_NAMES]);
     const window = JSON.parse(body.messages[0]?.content ?? "{}") as { schema: string; fields: unknown[] };
     expect(window.schema).toBe("hive.field-mapping-window/1");
     expect(window.fields.length).toBeLessThanOrEqual(MAPPING_WINDOW_LIMITS.maxFields);
@@ -318,7 +318,7 @@ describe("rebuild study investigation engine", () => {
     const row = extraction();
     const drafted = source();
     const { fetchFn, bodies } = mappingCalls([
-      { id: "c1", name: "finish_mapping", arguments: { ready: true } },
+      { id: "c1", name: "finish_investigation", arguments: { ready: true } },
     ]);
     const { rpc, calls, document } = client(row);
     const result = await runCanonicalizeForRun({
@@ -342,8 +342,8 @@ describe("rebuild study investigation engine", () => {
     if (result.ok) return;
     expect(result.error.diagnosticReason).toBe("mapping_incomplete");
     expect(fetchFn).toHaveBeenCalled();
-    expect((bodies[0] as { task: string }).task).toBe("mapping");
-    expect(bodies.every((body) => (body as { task: string }).task === "mapping")).toBe(true);
+    expect((bodies[0] as { task: string }).task).toBe("investigation");
+    expect(bodies.every((body) => (body as { task: string }).task === "investigation")).toBe(true);
     expect(calls).not.toContain("get_hive_chosen_pack");
     expect(calls).not.toContain("accept_study_revision");
   });
@@ -552,7 +552,7 @@ function acceptanceHarness(input: { selection: unknown; content: unknown; select
   const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
     const request = JSON.parse(String(init?.body));
     bodies.push(request);
-    if (String(url).endsWith("/v1/study-agent-turn") || request.task === "mapping") {
+    if (String(url).endsWith("/v1/study-agent-turn") || request.task === "investigation") {
       return new Response(JSON.stringify({
         contract_version: STUDY_AGENT_TURN_CONTRACT_VERSION,
         model_alias: "heavy_lifter",
@@ -560,12 +560,12 @@ function acceptanceHarness(input: { selection: unknown; content: unknown; select
         message: {
           content: null,
           tool_calls: input.mapping === "incomplete"
-            ? [{ id: "done", name: "finish_mapping", arguments: JSON.stringify({ ready: true }) }]
+            ? [{ id: "done", name: "finish_investigation", arguments: JSON.stringify({ ready: true }) }]
             : [
                 { id: "bad-date", name: "propose_field", arguments: JSON.stringify({ documentId: DOC_1, extractionFactId: "F-birth", entityId: "entity:student", instanceId: "north", fieldId: "dateOfBirth", valueType: "DATE", value: "2024-03-01" }) },
                 { id: "name", name: "propose_field", arguments: JSON.stringify({ documentId: DOC_1, extractionFactId: "F-name", entityId: "entity:student", instanceId: "north", fieldId: "displayName", valueType: "TEXT", value: "North" }) },
                 { id: "link", name: "propose_relationship", arguments: JSON.stringify({ documentId: DOC_1, extractionFactId: "F-link", relationshipId: "relationship:concern-addressed-by-referral", fromInstanceId: "concern-1", toInstanceId: "referral-1" }) },
-                { id: "done", name: "finish_mapping", arguments: JSON.stringify({ ready: true }) },
+                { id: "done", name: "finish_investigation", arguments: JSON.stringify({ ready: true }) },
               ],
         },
         usage: { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14 },
@@ -620,12 +620,12 @@ describe("pinned rebuild acceptance", () => {
       tools: { function: { name: string } }[];
       messages: { content: string }[];
     };
-    expect(body.task).toBe("mapping");
+    expect(body.task).toBe("investigation");
     expect(body.hive_id).toBe(HIVE_ID);
     expect(body).not.toHaveProperty("synthetic");
     expect(body).not.toHaveProperty("content_class");
-    expect(body.prompt_id).toBe(FIELD_MAPPING_PROMPT_ID);
-    expect(body.tools.map((tool) => tool.function.name)).toEqual([...MAPPING_AGENT_TOOL_NAMES]);
+    expect(body.prompt_id).toBe(DOMAIN_INVESTIGATION_PROMPT_ID);
+    expect(body.tools.map((tool) => tool.function.name)).toEqual([...INVESTIGATION_AGENT_TOOL_NAMES]);
     const window = JSON.parse(body.messages[0]?.content ?? "{}") as { fields: unknown[]; relationships: unknown[] };
     expect(window.fields.length).toBeLessThanOrEqual(MAPPING_WINDOW_LIMITS.maxFields);
     expect(window.relationships.length).toBeLessThanOrEqual(MAPPING_WINDOW_LIMITS.maxRelationships);

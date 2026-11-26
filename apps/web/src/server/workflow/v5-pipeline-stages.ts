@@ -2431,6 +2431,7 @@ async function runPinnedInvestigationEngine(input: {
   correlationId: string;
   stageAttempt: number;
   now: () => Date;
+  intentText?: string;
 }): Promise<CanonicalizeRunResult> {
   const { deps, run, catalog, correlationId, stageAttempt, now, pin } = input;
   if (pin.hiveId !== run.hiveId) {
@@ -2453,7 +2454,7 @@ async function runPinnedInvestigationEngine(input: {
   if (!prepared.ok) {
     return { ok: false, error: investigationFailure({ code: prepared.code, correlationId, runId: run.id }), metric: null };
   }
-  const prompt = catalog.fieldMapping;
+  const prompt = catalog.investigation;
   const startedAt = now().toISOString();
   const mapped = await runDomainMappingInvestigation({
     planner: deps.planner,
@@ -2465,6 +2466,7 @@ async function runPinnedInvestigationEngine(input: {
     pack: prepared.prepared.pack,
     extractions: input.extractions,
     pages: pin.pages,
+    intentText: input.intentText ?? "",
     clock: () => now().getTime(),
   });
   if (!mapped.ok) {
@@ -2492,6 +2494,7 @@ async function runPinnedInvestigationEngine(input: {
     extractions: input.extractions,
     pages: pin.pages,
     proposal: mapped.proposal,
+    investigation: mapped.record,
     studyDate: now().toISOString().slice(0, 10),
   });
   if (!engine.ok) {
@@ -2613,6 +2616,7 @@ export async function runCanonicalizeForRun(input: {
       correlationId,
       stageAttempt,
       now,
+      intentText: input.requestText,
     });
   }
   const pendingJob = input.extractProgress?.plannerJobs?.canonicalize;

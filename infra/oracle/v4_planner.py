@@ -76,6 +76,7 @@ PIPELINE_PROMPT_IDS_V2: dict[str, str] = {
 # Unpinned canonicalize stays on hive-canonicalize/1 and hive-canonicalize/2.
 FIELD_MAPPING_PROMPT_ID = "hive.field-mapping-proposal/1"
 FIELD_MAPPING_REQUEST_SCHEMA = "hive.field-mapping-request/1"
+DOMAIN_INVESTIGATION_PROMPT_ID = "hive.domain-investigation/1"
 FIELD_MAPPING_ALIAS_ENV = "PLANNER_FIELD_MAPPING_LITELLM_ALIAS"
 # Server allowlist. Empty means no external mapping post. Client claims are not read.
 EXTERNAL_MAPPING_HIVE_IDS_ENV = "PLANNER_EXTERNAL_MAPPING_HIVE_IDS"
@@ -122,7 +123,7 @@ PUBLIC_MODEL_PREFIXES = (
 
 
 def _prompt_id_allowed(task: str, prompt_id: str) -> bool:
-    if prompt_id == FIELD_MAPPING_PROMPT_ID:
+    if prompt_id in (FIELD_MAPPING_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_ID):
         return False
     if prompt_id == TASK_PROMPT_IDS.get(task):
         return True
@@ -259,10 +260,25 @@ WRITER_ALLOWED_TOOL_SETS: tuple[frozenset[str], ...] = (
     WRITER_EDITORIAL_TOOL_NAMES | WRITER_COMPOSE_TOOL_NAMES | WRITER_AGENT_TOOL_NAMES,
 )
 MAPPING_AGENT_TOOL_NAMES = frozenset({"propose_field", "propose_relationship", "finish_mapping"})
+INVESTIGATION_AGENT_TOOL_NAMES = frozenset({
+    "search_case",
+    "read_pages",
+    "propose_field",
+    "propose_relationship",
+    "propose_document_role",
+    "propose_measurement",
+    "propose_assessment",
+    "propose_determination",
+    "propose_conflict",
+    "propose_gap",
+    "propose_answer",
+    "finish_investigation",
+})
 AGENT_TASK_TOOLS: dict[str, frozenset[str]] = {
     "study": STUDY_AGENT_TOOL_NAMES,
     "writer": WRITER_AGENT_TOOL_NAMES,
     "mapping": MAPPING_AGENT_TOOL_NAMES,
+    "investigation": INVESTIGATION_AGENT_TOOL_NAMES,
 }
 STUDY_AGENT_MAX_REQUEST_BYTES = 1024 * 1024
 STUDY_AGENT_MAX_SYSTEM_PROMPT_CHARS = 200_000
@@ -355,7 +371,7 @@ class _ToolDefinition(_Strict):
 
 class StudyAgentTurnRequest(_Strict):
     contract_version: Literal["study-agent-turn@1"]
-    task: Literal["study", "writer", "mapping"] = "study"
+    task: Literal["study", "writer", "mapping", "investigation"] = "study"
     prompt_id: str = Field(min_length=1, max_length=64)
     prompt_digest: str = Field(min_length=1, max_length=80)
     system_prompt: str = Field(min_length=1, max_length=STUDY_AGENT_MAX_SYSTEM_PROMPT_CHARS)
@@ -498,6 +514,9 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
     if parsed.task == "mapping":
         if parsed.prompt_id != FIELD_MAPPING_PROMPT_ID:
             raise _invalid_request("Prompt does not match the task.")
+    elif parsed.task == "investigation":
+        if parsed.prompt_id != DOMAIN_INVESTIGATION_PROMPT_ID:
+            raise _invalid_request("Prompt does not match the task.")
     elif parsed.prompt_id == WRITER_SEMANTIC_REVIEW_PROMPT_ID:
         if parsed.task != "writer":
             raise _invalid_request("Semantic review requires task writer.")
@@ -523,6 +542,9 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
     elif parsed.task == "mapping":
         if len(names) != len(name_set) or name_set != MAPPING_AGENT_TOOL_NAMES:
             raise _invalid_request("Tools do not match the mapping tool set.")
+    elif parsed.task == "investigation":
+        if len(names) != len(name_set) or name_set != INVESTIGATION_AGENT_TOOL_NAMES:
+            raise _invalid_request("Tools do not match the investigation tool set.")
     elif len(names) != len(expected_tools) or name_set != expected_tools:
         raise _invalid_request(f"Tools do not match the {parsed.task} tool set.")
     for tool in parsed.tools:
@@ -548,7 +570,7 @@ def _parse_agent_request(body: bytes) -> StudyAgentTurnRequest:
 
 
 def _model_alias(task: str, settings: dict[str, str]) -> str | None:
-    if task == "mapping":
+    if task in ("mapping", "investigation"):
         return _model_alias("study", settings)
     if task in REQUIRED_TASK_ALIAS_ENV:
         alias = settings.get(f"{task}_alias", "")
@@ -1149,7 +1171,7 @@ async def _agent_turn(request: StudyAgentTurnRequest, settings: dict[str, str]) 
     """Relays one Study, Writer, or mapping tool-calling turn. Returns the model's tool calls; never executes them."""
     _require_litellm(settings)
     alias = _require_alias(request.task, settings)
-    if request.task == "mapping":
+    if request.task in ("mapping", "investigation"):
         await _assert_mapping_provider(settings, alias, request.hive_id)
     payload: dict[str, object] = {
         "model": alias,
@@ -1362,7 +1384,7 @@ async def study_agent_turn(request: Request) -> JSONResponse:
         raw_body = await request.body()
         try:
             peek = json.loads(raw_body)
-            if isinstance(peek, dict) and peek.get("task") in ("study", "writer", "mapping"):
+            if isinstance(peek, dict) and peek.get("task") in ("study", "writer", "mapping", "investigation"):
                 task = str(peek["task"])
         except ValueError:
             pass

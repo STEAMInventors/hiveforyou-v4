@@ -13,25 +13,26 @@ import {
   type AuthorizedDocument,
 } from "@hiveforyou/contracts";
 import {
-  DomainMappingLedger,
+  CoordinatedInvestigationLedger,
   fieldMappingRequestLeaksRecordText,
-  formatMappingRejectionSummary,
-  MAPPING_AGENT_TOOLS,
-  type MappingWindow,
-  renderMappingWindow,
-  selectMappingWindows,
+  formatInvestigationRejectionSummary,
+  INVESTIGATION_AGENT_TOOLS,
+  type InvestigationWindow,
+  renderInvestigationWindow,
+  selectInvestigationWindows,
 } from "@hiveforyou/contracts/investigation";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation/planner-client";
 
 /**
- * Pinned Rebuild mapping loop. One study-agent turn at a time, executed by `DomainMappingLedger`.
- * Each turn sees one investigation-plan window, not the whole catalog. The ledger's proposal is the
- * only model output the investigation engine accepts.
+ * Pinned Rebuild investigation loop. One study-agent turn at a time, executed by
+ * `CoordinatedInvestigationLedger`. Each turn sees one catalog window, not the whole pack or corpus.
+ * Page text arrives only through `read_pages`. The ledger's proposal is the only model output
+ * the investigation engine accepts.
  */
 
-const NUDGE_MESSAGE = "No tool was called. Continue with propose_field, propose_relationship, or finish_mapping. Copy written values exactly.";
+const NUDGE_MESSAGE = "No tool was called. Continue the investigation with the provided tools. Copy written values exactly.";
 
 export type MappingAgentTotals = {
   rounds: number;
@@ -67,18 +68,19 @@ export async function runDomainMappingInvestigation(input: {
   pack: CompiledDomainPack;
   extractions: readonly DocExtraction[];
   pages: readonly AuthorizedDocument[];
+  intentText?: string;
   deadline?: number;
   clock?: () => number;
 }): Promise<
-  | { ok: true; proposal: NonNullable<ReturnType<DomainMappingLedger["assemble"]>>; totals: MappingAgentTotals }
+  | { ok: true; proposal: NonNullable<ReturnType<CoordinatedInvestigationLedger["assemble"]>>["proposal"]; record: NonNullable<ReturnType<CoordinatedInvestigationLedger["assemble"]>>["record"]; totals: MappingAgentTotals }
   | { ok: false; error: HiveError; totals: MappingAgentTotals }
 > {
   const clock = input.clock ?? Date.now;
   const startedAt = clock();
   const deadline = input.deadline ?? startedAt + 120_000;
-  const windows = selectMappingWindows({ plan: input.plan, pack: input.pack, extractions: input.extractions });
+  const windows = selectInvestigationWindows({ plan: input.plan, pack: input.pack, extractions: input.extractions });
   const limits = allowance(windows.length);
-  const ledger = new DomainMappingLedger(input.runId, input.pack, input.extractions, input.pages);
+  const ledger = new CoordinatedInvestigationLedger(input.runId, input.pack, input.extractions, input.pages, input.intentText ?? "");
   const pageTexts = input.pages.flatMap((document) => document.pages.map((page) => ({ text: page.text })));
   let windowIndex = 0;
   let nudged = false;
@@ -132,7 +134,7 @@ export async function runDomainMappingInvestigation(input: {
     };
   };
   const boundary = (payload: unknown) => fieldMappingRequestLeaksRecordText(payload, pageTexts);
-  const firstWindow = renderMappingWindow(windows[0]!);
+  const firstWindow = renderInvestigationWindow({ window: windows[0]!, extractions: input.extractions, intentText: input.intentText ?? "" });
   if (boundary(firstWindow)) return fail("investigation_record_text_boundary");
   const messages: StudyAgentMessage[] = [{ role: "user", content: JSON.stringify(firstWindow) }];
 
@@ -145,13 +147,13 @@ export async function runDomainMappingInvestigation(input: {
     const turnMs = Math.min(STUDY_AGENT_BUDGET.maxTurnMs, deadline - clock());
     if (turnMs < STUDY_AGENT_BUDGET.minTurnMs) return fail("mapping_agent_budget_exhausted", "wall_clock");
     const request: Omit<StudyAgentTurnRequest, "contract_version"> = {
-      task: "mapping",
+      task: "investigation",
       hive_id: input.hiveId,
       prompt_id: input.prompt.id,
       prompt_digest: input.prompt.digest,
       system_prompt: input.prompt.systemPrompt,
       messages,
-      tools: MAPPING_AGENT_TOOLS,
+      tools: INVESTIGATION_AGENT_TOOLS,
       max_output_tokens: outputTokens,
       timeout_seconds: Math.floor((turnMs - STUDY_AGENT_BUDGET.turnAbortMarginMs) / 1000),
     };
@@ -202,7 +204,7 @@ export async function runDomainMappingInvestigation(input: {
         const result = index >= STUDY_AGENT_BUDGET.maxCallsPerTurn
           ? ledger.decline(call, "too_many_calls", `At most ${STUDY_AGENT_BUDGET.maxCallsPerTurn} tool calls per turn.`)
           : ledger.finished
-            ? ledger.decline(call, "mapping_finished", "Mapping is already finished.")
+            ? ledger.decline(call, "mapping_finished", "Investigation is already finished.")
             : ledger.execute(call);
         messages.push({ role: "tool", tool_call_id: result.toolCallId, content: result.content });
       });
@@ -212,7 +214,7 @@ export async function runDomainMappingInvestigation(input: {
     }
     const next = nextWindow(windows, windowIndex);
     if (next) {
-      const rendered = renderMappingWindow(next);
+      const rendered = renderInvestigationWindow({ window: next, extractions: input.extractions, intentText: input.intentText ?? "" });
       if (boundary(rendered)) return fail("investigation_record_text_boundary");
       windowIndex = next.index;
       nudged = false;
@@ -221,29 +223,29 @@ export async function runDomainMappingInvestigation(input: {
     }
     if (!nudged) {
       nudged = true;
-      messages.push({ role: "user", content: "Call finish_mapping with ready true if the accepted fields are complete." });
+      messages.push({ role: "user", content: "Call finish_investigation with ready true if the accepted fields are complete." });
       continue;
     }
     return fail("mapping_incomplete");
   }
   sync();
-  const proposal = ledger.assemble();
-  if (!proposal) return fail("mapping_incomplete");
-  return { ok: true, proposal, totals };
+  const assembled = ledger.assemble();
+  if (!assembled) return fail("mapping_incomplete");
+  return { ok: true, proposal: assembled.proposal, record: assembled.record, totals };
 }
 
-function nextWindow(windows: readonly MappingWindow[], windowIndex: number): MappingWindow | null {
+function nextWindow(windows: readonly InvestigationWindow[], windowIndex: number): InvestigationWindow | null {
   return windows[windowIndex + 1] ?? null;
 }
 
 function emitRejection(
   input: { correlationId: string; runId: string },
-  ledger: DomainMappingLedger,
+  ledger: CoordinatedInvestigationLedger,
   clock: () => number,
   startedAt: number,
   rounds: number,
 ): void {
-  const summary = formatMappingRejectionSummary(ledger.lastTurnRejectionCounts);
+  const summary = formatInvestigationRejectionSummary(ledger.lastTurnRejectionCounts);
   if (!summary) return;
   emitStructuredEvent({
     eventName: "mapping.turn.rejected",
@@ -252,7 +254,7 @@ function emitRejection(
     component: "pipeline",
     operation: "canonicalize",
     stage: "ANALYZE",
-    task: "mapping",
+    task: "investigation",
     correlationId: input.correlationId,
     processingRunId: input.runId,
     durationMs: Math.max(0, Math.trunc(clock() - startedAt)),

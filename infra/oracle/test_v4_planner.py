@@ -1569,3 +1569,73 @@ def test_legacy_canonicalize_does_not_require_a_private_route(
     assert sent["model"] == "heavy_lifter"
     assert seen[0].url.path == "/v1/chat/completions"
     assert seen[0].extensions["timeout"]["read"] == 600.0
+
+
+DOMAIN_INVESTIGATION_PROMPT = "hive.domain-investigation/1"
+
+
+def investigation_turn_body(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "contract_version": "study-agent-turn@1",
+        "task": "investigation",
+        "prompt_id": DOMAIN_INVESTIGATION_PROMPT,
+        "prompt_digest": DIGEST,
+        "system_prompt": "Investigate with the tools.",
+        "messages": [{"role": "user", "content": json.dumps({"facts": [{"valueAsWritten": SECRET_FACT}]})}],
+        "tools": agent_tools(v4_planner.INVESTIGATION_AGENT_TOOL_NAMES),
+        "max_output_tokens": 1000,
+        "timeout_seconds": 30,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_investigation_prompt_is_not_a_completion_route(client: TestClient, pipeline_aliases: None) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(
+        client,
+        pipeline_body(
+            "canonicalize",
+            prompt_id=DOMAIN_INVESTIGATION_PROMPT,
+            system_prompt="Return hive.domain-investigation/1.",
+            user_payload={"schema": DOMAIN_INVESTIGATION_PROMPT},
+        ),
+    )
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+
+
+def test_investigation_turn_uses_the_same_provider_gate_as_mapping(client: TestClient, study_alias: None) -> None:
+    external = use_litellm(
+        route_transport(model_info("anthropic/claude-opus-4-6", "https://api.anthropic.com", alias="heavy_lifter"), "{}")
+    )
+    refused = post_agent(client, investigation_turn_body())
+    assert refused.status_code == 503
+    assert refused.json()["diagnostic_reason"] == "provider_not_authorized"
+    assert [request.url.path for request in external] == ["/v1/model/info"]
+    assert SECRET_FACT.encode() not in external[0].content
+
+    wrong_tools = post_agent(client, investigation_turn_body(tools=agent_tools(v4_planner.MAPPING_AGENT_TOOL_NAMES)))
+    assert wrong_tools.status_code == 400
+    assert wrong_tools.json()["error_code"] == "INVALID_REQUEST"
+
+    private = use_litellm(
+        route_transport(
+            model_info("ollama/llama3", "http://10.0.0.8:11434", alias="heavy_lifter"),
+            "{}",
+            OLLAMA_PROBE,
+        )
+    )
+    accepted = post_agent(client, investigation_turn_body())
+    assert accepted.status_code == 200
+    assert accepted.json()["model_alias"] == "heavy_lifter"
+    assert [request.url.path for request in private] == ["/v1/model/info", "/api/tags", "/v1/chat/completions"]
+    assert SECRET_FACT.encode() not in private[0].content
+    assert SECRET_FACT.encode() not in private[1].content
+    sent = json.loads(private[2].content)
+    assert sent["model"] == "heavy_lifter"
+    assert {tool["function"]["name"] for tool in sent["tools"]} == set(v4_planner.INVESTIGATION_AGENT_TOOL_NAMES)
+    assert SECRET_FACT.encode() in private[2].content
+    health = client.get("/health").json()
+    assert "investigation" not in health["task_model_aliases"]

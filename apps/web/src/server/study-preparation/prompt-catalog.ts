@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
+  DOMAIN_INVESTIGATION_PROMPT_ID,
   FIELD_MAPPING_PROMPT_ID,
   PLANNER_TASK_PROMPT_IDS,
   WRITER_SEMANTIC_REVIEW_PROMPT_ID,
@@ -33,6 +34,7 @@ const EXTRACT_PROMPT_FILE = "hive-extract/HiveForYou-Extract-v1.md";
 const CANONICALIZE_PROMPT_FILE = "hive-canonicalize/HiveForYou-Canonicalize-v1.md";
 const CANONICALIZE_PROMPT_V2_FILE = "hive-canonicalize/HiveForYou-Canonicalize-v2.md";
 const FIELD_MAPPING_PROMPT_FILE = "hive-field-mapping/HiveForYou-Field-Mapping-v1.md";
+const DOMAIN_INVESTIGATION_PROMPT_FILE = "hive-domain-investigation/HiveForYou-Domain-Investigation-v1.md";
 const WRITE_PROMPT_FILE = "hive-write/HiveForYou-Write-v1.md";
 const WRITE_PROMPT_V2_FILE = "hive-write/HiveForYou-Write-v2.md";
 
@@ -73,6 +75,7 @@ export type PromptCatalog = {
   readonly canonicalize: CanonicalizePrompt;
   readonly canonicalizeV2: CanonicalizePrompt;
   readonly fieldMapping: CanonicalizePrompt;
+  readonly investigation: CanonicalizePrompt;
   readonly write: WritePrompt;
   readonly writeV2: WritePrompt;
   readonly studyTemplate: { readonly id: string; readonly version: string; readonly digest: string; readonly text: string };
@@ -182,6 +185,8 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
   readPromptId(canonicalizeV2File, "hive-canonicalize/2");
   const fieldMappingFile = normalize(readText(FIELD_MAPPING_PROMPT_FILE));
   readPromptId(fieldMappingFile, FIELD_MAPPING_PROMPT_ID);
+  const investigationFile = normalize(readText(DOMAIN_INVESTIGATION_PROMPT_FILE));
+  readPromptId(investigationFile, DOMAIN_INVESTIGATION_PROMPT_ID);
   const writeFile = normalize(readText(WRITE_PROMPT_FILE));
   readPromptId(writeFile, PLANNER_TASK_PROMPT_IDS.write);
   const writeV2File = normalize(readText(WRITE_PROMPT_V2_FILE));
@@ -212,6 +217,12 @@ export function buildPromptCatalog(readText: (relativePath: string) => string): 
       id: FIELD_MAPPING_PROMPT_ID,
       digest: sha256Digest(fieldMappingFile),
       systemPrompt: `${extractSection(fieldMappingFile, "System")}\n\n${extractSection(fieldMappingFile, "Output", true)}`,
+    },
+    investigation: {
+      task: "canonicalize",
+      id: DOMAIN_INVESTIGATION_PROMPT_ID,
+      digest: sha256Digest(investigationFile),
+      systemPrompt: `${extractSection(investigationFile, "System")}\n\n${extractSection(investigationFile, "Output", true)}`,
     },
     write: {
       task: "write",
