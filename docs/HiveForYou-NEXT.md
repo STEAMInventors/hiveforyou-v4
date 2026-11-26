@@ -1,8 +1,34 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-25): Stage 5D.4 — Approved Frontier-Model Processing.** **Web and Oracle planner are deployed. Live rebuild is stopped at sign-in.** Mapping stays on `PLANNER_STUDY_LITELLM_ALIAS` and `POST /v1/study-agent-turn` (`task: "mapping"`). `anthropic/claude-opus-4-6` may proceed only for a Hive UUID in `PLANNER_EXTERNAL_MAPPING_HIVE_IDS`. That list is empty (`external_mapping_hive_count` 0). Real IEP, Medicaid, financial, legal, and health records stay blocked. Do not run `supabase db push`: `supabase_migrations.schema_migrations` is absent, while the Domain Pack selection objects and the relationship-append objects are already present. Do not apply either SQL file again. Do not pin a Hive until a new synthetic Hive exists. IEP v0.4.0 is not global. Compiled digest `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
+> **Active ticket (2026-11-26): Stage 5E.2 — Comprehensive Agentic Investigation.** Local only. Pinned Rebuild Study uses one `study-agent-turn` loop, `task: "investigation"`, on `PLANNER_STUDY_LITELLM_ALIAS`. The D-064 provider gate is unchanged. `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` stays empty. No live model, deploy, Hive pin, or `supabase db push`. IEP v0.4.0 is not global. Compiled digest `809565eb3826b773aec305010d8e8ac7ce7bf022875ab10e977c17608bdddf0f`.
 
-## Active ticket — Stage 5D.4: Approved Frontier-Model Processing
+## Active ticket — Stage 5E.2: Comprehensive Agentic Investigation
+
+**Objective:** One domain-agnostic investigation produces a complete, evidence-checked Canonical Study from the compiled Domain Pack. Mapping remains only the deterministic normalization of written values. There is no second model investigation.
+
+**Decision:** D-065. Reuses the Study Agent transport, compiled Domain Pack, investigation plan, binder, ledger, and rule engine. No new alias, configuration variable, or migration.
+
+**Status (2026-11-26): local path passed synthetic regression. Not deployed.** Pinned Rebuild posts `hive.domain-investigation/1` with the twelve investigation tools. The planner returns those calls unexecuted. Trusted code checks quotes and written values, evaluates rules it can decide, and assembles `hive.canonical-study/1`. A failed run does not accept a revision or replace Customer or Pro reports. Unpinned Hives stay on `hive-canonicalize/1`. Hive Board is unchanged.
+
+**Execution path**
+
+1. Rebuild loads the per-Hive pack pin, saved extractions, and authorized pages.
+2. `selectInvestigationWindows` sends one bounded catalog slice, the document manifest, and written fact values. Page text is not in that payload.
+3. The model may call `search_case`, `read_pages`, `propose_field`, `propose_relationship`, `propose_document_role`, `propose_measurement`, `propose_assessment`, `propose_determination`, `propose_conflict`, `propose_gap`, `propose_answer`, and `finish_investigation`.
+4. The binder accepts a field only when the proposed value is the written value and the quote is on an authorized page. Relationship semantics stay unverified.
+5. The ledger and rule engine own calculations and applicability that the pack can decide. `REVIEW_REQUIRED` checks stay `NOT_ASSESSED`.
+6. `projectStudy` writes human-readable findings, document roles, chronology, conflicts, gaps, checklist rows, and persona coverage. Professional determinations stay open and outside the spine.
+
+**Known limits**
+
+- The binder still records `RELATIONSHIP_SEMANTICS_UNVERIFIED`. A proposed link is kept as an unverified item. It is not an established cross-document link.
+- IEP v0.4.0 checks remain `REVIEW_REQUIRED`, so this path does not reproduce legacy v7 SHOWN / NOT SHOWN verdicts.
+- A progress sentence is withheld unless a later measurement is accepted. The synthetic L001 run has no later measurement, so no progress conclusion is published.
+- No external model was called. The eight-PDF check drives the ledger with scripted tool calls over text extracted from the synthetic corpus.
+
+**Not done:** sign in, create a Hive, set the allowlist, pin a pack, click Rebuild Study, deploy the planner or web app, or apply SQL.
+
+## Previous ticket — Stage 5D.4: Approved Frontier-Model Processing
 
 **Objective:** Use the existing LiteLLM study alias for Domain Pack mapping on one explicitly designated synthetic Hive, and keep real regulated records off that route until data-use approvals are documented.
 
