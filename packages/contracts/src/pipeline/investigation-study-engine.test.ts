@@ -421,7 +421,7 @@ describe("investigation study engine", () => {
     const page = `${PAGE_1} Flag: . See the prior schedule for the review.`;
     rows[0] = {
       ...rows[0]!,
-      emptyFields: [{ id: "E-flag", modelId: null, label: "flag", page: 1, quote: "Flag:" }],
+      emptyFields: [{ id: "E-flag", modelId: null, label: "flag", page: 1, quote: "Flag:", gapKind: "field_present_but_empty" }],
       referencedDocuments: [
         { id: "R-unquoted", modelId: null, description: "IEP progress report", date: null, page: 1, quote: "Answer: yes." },
         { id: "R-named", modelId: null, description: "prior schedule", date: null, page: 1, quote: "See the prior schedule for the review." },
