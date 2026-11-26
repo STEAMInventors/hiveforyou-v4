@@ -10,6 +10,8 @@
 
 **Verification:** `packages/contracts` acceptance-summary tests passed (8). Web `DocumentsPanel` (17), `StudyView` (28), and `investigation-rebuild` tests passed. `tsc --noEmit` passed for contracts and web. `supabase/tests/database/domain_pack_selection_050.test.sql` is written and was not executed: the Supabase CLI is not installed in this environment, and the migrations were not applied. A signed-in browser rebuild was not run.
 
+**CI follow-up (2026-11-26, local, not deployed):** Commit `6897c55` failed the RPC coverage script and the domain-word lint. `rpc_smoke_check.sql` now lists `get_domain_pack_selection` and `activate_professional_membership`. `node scripts/assert-app-rpc-coverage.mjs` printed `RPC coverage OK: 104 names`. The acceptance-summary test uses pack ids `pack-alpha` and `pack-beta`, so the domain-word lint no longer sees `iep`. That lint and the acceptance-summary tests passed (12). `npm run typecheck` and `npm run build` passed. The smoke SQL was not executed.
+
 1. Acceptance detail uses `verifiedFacts` when that count was stored. A canonical `documentFindings: 0` is not shown as zero claims. A count that was not stored is omitted.
 2. `supabase/migrations/20261126130000_domain_pack_selection_050.sql` widens the check to `0.4.0` and `0.5.0` and does not update any row. `public.set_domain_pack_selection` inserts `0.5.0` for one Hive and refuses to replace a different existing selection. `authenticated` cannot execute it.
 3. `supabase/migrations/20261126140000_study_revision_acceptance_counts.sql` replaces the summary function only. A missing count is null. Reading it does not rewrite revisions.

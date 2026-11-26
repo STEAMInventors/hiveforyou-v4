@@ -18,6 +18,7 @@
 -- - accept_invitation
 -- - accept_study_revision
 -- - acknowledge_study_coverage
+-- - activate_professional_membership
 -- - add_request
 -- - add_team_note
 -- - apply_vault_transaction
@@ -42,6 +43,7 @@
 -- - get_doc_extraction_gap_pages_for_run
 -- - get_doc_extraction_ranges_for_run
 -- - get_doc_extractions_for_run
+-- - get_domain_pack_selection
 -- - get_failure_diagnostics
 -- - get_hive
 -- - get_hive_chosen_pack
@@ -572,6 +574,14 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.acknowledge_study_coverage(%L, %L, 'sha256:' || repeat('3', 64))$fmt$, v_hive, v_run));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.acknowledge_study_coverage(%L, %L, 'sha256:' || repeat('3', 64))$fmt$, v_hive, v_run));
 
+  -- rpc: activate_professional_membership
+  -- The fixture professional is already active, so the call replays. Other roles are not that member.
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.activate_professional_membership(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.activate_professional_membership(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.activate_professional_membership(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_ok(v_pro, format($fmt$SELECT public.activate_professional_membership(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.activate_professional_membership(%L)$fmt$, v_hive));
+
   -- rpc: add_team_note
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid()::text)$fmt$, v_hive));
   PERFORM pg_temp.smoke_expect_ok(v_member, format($fmt$SELECT public.add_team_note(%L, 'smoke note', gen_random_uuid()::text)$fmt$, v_hive));
@@ -721,6 +731,13 @@ BEGIN
   PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.get_doc_extractions_for_run(%L)$fmt$, v_run));
   PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.get_doc_extractions_for_run(%L)$fmt$, v_run));
   PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.get_doc_extractions_for_run(%L)$fmt$, v_run));
+
+  -- rpc: get_domain_pack_selection (service_role only)
+  PERFORM pg_temp.smoke_expect_refusal(v_owner, format($fmt$SELECT public.get_domain_pack_selection(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_member, format($fmt$SELECT public.get_domain_pack_selection(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_client, format($fmt$SELECT public.get_domain_pack_selection(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_pro, format($fmt$SELECT public.get_domain_pack_selection(%L)$fmt$, v_hive));
+  PERFORM pg_temp.smoke_expect_refusal(v_stranger, format($fmt$SELECT public.get_domain_pack_selection(%L)$fmt$, v_hive));
 
   -- rpc: get_failure_diagnostics
   PERFORM pg_temp.smoke_expect_ok(v_owner, format($fmt$SELECT public.get_failure_diagnostics(%L, %L)$fmt$, v_hive, v_correlation));

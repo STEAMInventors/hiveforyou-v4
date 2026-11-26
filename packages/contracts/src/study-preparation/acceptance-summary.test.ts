@@ -124,20 +124,20 @@ describe("acceptance-summary", () => {
         verifiedFacts: 11,
         documents: 8,
         investigationEngine: "hive-canonicalize/1",
-        domainPackId: "iep-initial",
+        domainPackId: "pack-alpha",
         domainPackVersion: "7",
         revisionStatus: "accepted",
-        packReview: { id: "iep-initial", version: 7, title: "IEP review" },
+        packReview: { id: "pack-alpha", version: 7, title: "Alpha catalog" },
       },
     };
     const revision = normalizeStudyRevisionSummary(raw);
     expect(revision?.documentFindingCount).toBeUndefined();
     expect(formatStudyRevisionAcceptanceDetail(revision!)).toBe(
-      "11 verified facts · 8 documents. Reviewed with: IEP review (v7)",
+      "11 verified facts · 8 documents. Reviewed with: Alpha catalog (v7)",
     );
     expect(formatStudyRevisionAcceptanceDetail(revision!)).not.toContain("0 verified");
     expect(formatStudyRevisionProvenance(readStudyRevisionIdentity({ revision: revision! }), 10)).toBe(
-      "Investigation engine hive-canonicalize/1. Domain pack iep-initial 7. Revision 10 accepted.",
+      "Investigation engine hive-canonicalize/1. Domain pack pack-alpha 7. Revision 10 accepted.",
     );
   });
 
@@ -174,27 +174,27 @@ describe("acceptance-summary", () => {
     expect(earlier.revisionNumber).toBe(6);
   });
 
-  it("distinguishes legacy IEP v7 from a matching 0.5.0 digest and refuses a mismatched digest", () => {
+  it("distinguishes a stored pack edition from a matching digest and refuses a mismatched digest", () => {
     const digest = "ab".repeat(32);
     const legacy = readStudyRevisionIdentity({
       revision: summary({ revisionNumber: 10, format: "canonical-study-1" }),
-      study: { packRef: { id: "iep-initial", version: 7 } },
+      study: { packRef: { id: "pack-alpha", version: 7 } },
     });
     const matched = readStudyRevisionIdentity({
       revision: summary({ revisionNumber: 11, format: "canonical-study-1" }),
       study: { questionOrder: [`pack-digest:${digest}`] },
-      knownInvestigationPack: { packId: "iep-us-federal", version: "0.5.0", compiledDigest: digest },
+      knownInvestigationPack: { packId: "pack-beta", version: "0.5.0", compiledDigest: digest },
     });
     const mismatched = readStudyRevisionIdentity({
       revision: summary({ revisionNumber: 11, format: "canonical-study-1" }),
       study: { questionOrder: [`pack-digest:${"cd".repeat(32)}`] },
-      knownInvestigationPack: { packId: "iep-us-federal", version: "0.5.0", compiledDigest: digest },
+      knownInvestigationPack: { packId: "pack-beta", version: "0.5.0", compiledDigest: digest },
     });
     expect(formatStudyRevisionProvenance(legacy, 10)).toBe(
-      "Investigation engine hive-canonicalize/1. Domain pack iep-initial 7. Revision 10 accepted.",
+      "Investigation engine hive-canonicalize/1. Domain pack pack-alpha 7. Revision 10 accepted.",
     );
     expect(formatStudyRevisionProvenance(matched, 11)).toBe(
-      "Investigation engine hive.domain-investigation/1. Domain pack iep-us-federal 0.5.0. Revision 11 accepted.",
+      "Investigation engine hive.domain-investigation/1. Domain pack pack-beta 0.5.0. Revision 11 accepted.",
     );
     expect(mismatched.investigationEngine).toBe("hive.domain-investigation/1");
     expect(mismatched.domainPackVersion).toBeNull();
