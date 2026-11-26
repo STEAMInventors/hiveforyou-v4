@@ -7,6 +7,8 @@ export type StudyRevisionAcceptanceCounts = {
   checklistShown?: number;
   checklistNotShown?: number;
   packReview?: { id: string; version: number | string; title: string };
+  /** Compiled Domain Pack digest recorded with an investigation revision. */
+  domainPackDigest?: string;
 };
 
 /** What produced an accepted revision. Missing fields stay null; they are not guessed as zero or as v0.5.0. */
@@ -97,12 +99,17 @@ export function parseStudyRevisionAcceptanceCounts(raw: unknown): StudyRevisionA
   const checklistShown = typeof record.checklistShown === "number" ? record.checklistShown : undefined;
   const checklistNotShown = typeof record.checklistNotShown === "number" ? record.checklistNotShown : undefined;
   const packReview = parsePackReview(record.packReview);
+  const domainPackDigest =
+    typeof record.domainPackDigest === "string" && /^[0-9a-f]{64}$/.test(record.domainPackDigest)
+      ? record.domainPackDigest
+      : undefined;
   return {
     verifiedFacts,
     documents,
     ...(checklistShown !== undefined ? { checklistShown } : {}),
     ...(checklistNotShown !== undefined ? { checklistNotShown } : {}),
     ...(packReview ? { packReview } : {}),
+    ...(domainPackDigest ? { domainPackDigest } : {}),
   };
 }
 

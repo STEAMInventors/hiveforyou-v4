@@ -7,7 +7,7 @@ import { WorkspaceLoadError } from "@/components/workspace/WorkspaceLoadError";
 import { hiveDocumentsPath } from "@/lib/hive-routes";
 import { documentPageCounts, loadHiveOverview, workspaceStudyView } from "@/server/hives/hive-summary";
 import { requireAuthenticatedUser } from "@/server/supabase/server-client";
-import { loadPinnedDomainPack, PINNED_DOMAIN_PACK } from "@/server/workflow/domain-pack-selection";
+import { loadApprovedDomainPacks } from "@/server/workflow/domain-pack-selection";
 
 /** The accepted study for a personal Hive. Firm hives keep this content on Home. */
 export async function PersonalFindingsStudy({ hiveId }: { hiveId: string }) {
@@ -40,12 +40,16 @@ export async function PersonalFindingsStudy({ hiveId }: { hiveId: string }) {
   const workspace = workspaceStudyView(overview);
   let knownInvestigationPack: { packId: string; version: string; compiledDigest: string } | null = null;
   try {
-    const pinned = loadPinnedDomainPack();
-    knownInvestigationPack = {
-      packId: PINNED_DOMAIN_PACK.packId,
-      version: PINNED_DOMAIN_PACK.version,
-      compiledDigest: pinned.compiledDigest,
-    };
+    const loaded = loadApprovedDomainPacks();
+    const digest = (overview.canonicalStudy?.questionOrder ?? []).find((item) => item.startsWith("pack-digest:"))?.slice("pack-digest:".length);
+    const match = digest ? loaded.packs.find((pack) => pack.compiledDigest === digest) : undefined;
+    knownInvestigationPack = match
+      ? {
+          packId: match.source.identity.packId,
+          version: match.source.identity.version,
+          compiledDigest: match.compiledDigest,
+        }
+      : null;
   } catch {
     knownInvestigationPack = null;
   }

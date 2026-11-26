@@ -65,6 +65,7 @@ export type { DomainInvestigationPlan } from "./pipeline/domain-investigation-pl
 export type { AuthorizedDocument } from "./pipeline/domain-investigation-binder";
 export * from "./pipeline/pack-canonicalize";
 export * from "./pipeline/pack-selection";
+export * from "./pipeline/published-domain-pack";
 export * from "./pipeline/pack-study-view";
 export * from "./pipeline/pack-write";
 export * from "./pipeline/pack-report-view";

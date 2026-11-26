@@ -1252,6 +1252,8 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
           run: inputs.run,
           sourceSnapshot: inputs.sourceSnapshot,
           correlationId: context.correlationId,
+          requestText,
+          extractions,
         })
       : { ok: true as const, pin: null };
   if (!resolved.ok) throw new StageFailure(resolved.error, null);

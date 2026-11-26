@@ -83,6 +83,8 @@ export type InvestigationEnginePin = {
   readonly pages: readonly AuthorizedDocument[];
   /** Compiled relationship structures. Absent means the case has no typed source. */
   readonly relationshipStructures?: readonly unknown[];
+  /** Prompt named by the published edition. Absent keeps the current investigation prompt. */
+  readonly investigationPromptId?: string;
 };
 
 export type InvestigationCompleteness = {

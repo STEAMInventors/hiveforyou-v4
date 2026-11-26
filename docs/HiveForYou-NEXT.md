@@ -1,8 +1,16 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-26): Stage 5E.4C — Load domain investigation v2 on the pinned 0.5.0 path.** Implemented locally. No deploy, no `supabase db push`, and no live model. The v2 prompt file is unchanged. v1 and the legacy canonicalize routes stay loaded.
+> **Active ticket (2026-11-26): Stage 5E.5 — Resolve the published Domain Pack on Rebuild Study.** Implemented locally. No deploy, no `supabase db push`, and no live model. A stored selection row is not required.
 
-## Active ticket — Stage 5E.4C: Load domain investigation v2 on the pinned 0.5.0 path
+## Active ticket — Stage 5E.5: Resolve the published Domain Pack on Rebuild Study
+
+**Objective:** Rebuild Study chooses the latest published, approved Domain Pack for the Hive from the pack's own applicability hints. It loads that edition's compiled definitions, investigation prompt, tools, rules, and calculations, and records the pack id, version, digest, prompt, and engine on the new revision. Previous revisions and reports stay. An applicable edition that fails validation does not fall back to legacy processing.
+
+**Status (2026-11-26): local only.** No production SQL was edited or applied. No Hive was rebuilt in a browser. No external model was called.
+
+The catalog is `packs/published/domain-pack-catalog.json`. The only published, approved edition is `iep-us-federal` `0.5.0` with prompt `hive.domain-investigation/2`. A Hive whose saved intent and document names match that edition's hints, including Maya's synthetic IEP Hive, uses it without `hive.domain_pack_selections`. A Hive that does not match stays on `hive-canonicalize/1`. A stored row must be that same edition and compiled digest; `0.4.0` or a different digest fails closed. Evidence checks, the provider gate, and external-model authorization are unchanged.
+
+## Previous ticket — Stage 5E.4C: Load domain investigation v2 on the pinned 0.5.0 path
 
 **Objective:** A pinned iep-us-federal 0.5.0 Rebuild posts the existing `hive.domain-investigation/2` prompt. v1 stays the catalog investigation id. Unpinned Hives stay on `hive-canonicalize/1`. `hive-canonicalize/2`, `hive-study-preview/1`, and the mapping task stay on their own prompts.
 

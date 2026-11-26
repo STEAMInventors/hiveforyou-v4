@@ -68,9 +68,11 @@ import { refreshProcessingRunProgressEstimateInWorker } from "@/server/pipeline/
 import { loadPipelineThroughput, recordPipelineModelCall } from "@/server/pipeline/pipeline-throughput";
 import { listDocumentPagesForSource } from "@/server/source-documents/document-pages-persistence";
 import {
-  loadPinnedDomainPack,
-  PINNED_DOMAIN_PACK,
+  hiveDomainText,
+  loadApprovedDomainPacks,
+  loadApprovedEdition,
   readDomainPackSelection,
+  resolvePublishedDomainPack,
 } from "@/server/workflow/domain-pack-selection";
 import { sha256Digest } from "@/server/study-preparation/prompt-catalog";
 import type { PromptCatalog } from "@/server/study-preparation/prompt-catalog";
@@ -2307,10 +2309,23 @@ function pinMismatch(correlationId: string, runId: string): HiveError {
   });
 }
 
+function sameEdition(
+  pack: { source: { identity: { packId: string; version: string } }; compiledDigest: string },
+  selection: { packId: string; version: string; compiledDigest: string },
+): boolean {
+  return (
+    selection.packId === pack.source.identity.packId &&
+    selection.version === pack.source.identity.version &&
+    selection.compiledDigest === pack.compiledDigest
+  );
+}
+
 /**
- * Loads the durable Domain Pack selection for one Hive.
- * No row, or a selection table that is not installed yet, leaves the Hive on legacy canonicalization.
- * A row that is not the compiled iep-us-federal 0.5.0 digest fails closed and does not fall back.
+ * Chooses the investigation pack for one Rebuild.
+ * The latest published, approved edition that matches the Hive text is used without a stored row.
+ * A stored row must name that same edition and digest. A different row fails closed.
+ * No applicable edition leaves the Hive on legacy canonicalization.
+ * An applicable edition that fails validation fails closed and does not fall back.
  * `get_hive_chosen_pack` remains the legacy checklist pack and is not consulted here.
  */
 export async function resolveInvestigationEnginePin(input: {
@@ -2318,9 +2333,10 @@ export async function resolveInvestigationEnginePin(input: {
   run: ProcessingRun;
   sourceSnapshot: SourceSnapshot;
   correlationId: string;
+  requestText?: string;
+  extractions?: readonly DocExtraction[];
 }): Promise<InvestigationPinResolution> {
   const read = await readDomainPackSelection(input.client, input.run.hiveId);
-  if (read.status === "none" || read.status === "unavailable") return { ok: true, pin: null };
   if (read.status === "error") {
     return {
       ok: false,
@@ -2337,20 +2353,27 @@ export async function resolveInvestigationEnginePin(input: {
       }),
     };
   }
-  let pinned: ReturnType<typeof loadPinnedDomainPack>;
-  try {
-    pinned = loadPinnedDomainPack();
-  } catch {
+  const published = resolvePublishedDomainPack(
+    hiveDomainText({
+      intentText: input.requestText,
+      fileNames: input.sourceSnapshot.documents.map((document) => document.fileName),
+      extractions: input.extractions,
+    }),
+  );
+  if (published.status === "invalid") return { ok: false, error: pinMismatch(input.correlationId, input.run.id) };
+  const stored = read.status === "selected" ? read.selection : null;
+  let pack = published.status === "selected" ? published.pack : null;
+  if (pack && stored && !sameEdition(pack, stored)) {
     return { ok: false, error: pinMismatch(input.correlationId, input.run.id) };
   }
-  const selection = read.selection;
-  if (
-    selection.packId !== PINNED_DOMAIN_PACK.packId ||
-    selection.version !== PINNED_DOMAIN_PACK.version ||
-    selection.compiledDigest !== pinned.compiledDigest
-  ) {
-    return { ok: false, error: pinMismatch(input.correlationId, input.run.id) };
+  if (!pack && stored) {
+    const approved = loadApprovedEdition(stored.packId, stored.version);
+    if (!approved || approved.compiledDigest !== stored.compiledDigest) {
+      return { ok: false, error: pinMismatch(input.correlationId, input.run.id) };
+    }
+    pack = approved;
   }
+  if (!pack) return { ok: true, pin: null };
   const pages: InvestigationEnginePin["pages"][number][] = [];
   for (const document of input.sourceSnapshot.documents) {
     let listed: { pageNumber: number; text: string }[];
@@ -2377,10 +2400,11 @@ export async function resolveInvestigationEnginePin(input: {
     ok: true,
     pin: {
       hiveId: input.run.hiveId,
-      packSource: pinned.source,
-      artifacts: pinned.artifacts,
+      packSource: pack.source,
+      artifacts: pack.artifacts,
       pages,
-      relationshipStructures: pinned.relationshipStructures,
+      relationshipStructures: pack.relationshipStructures,
+      investigationPromptId: pack.investigationPromptId,
     },
   };
 }
@@ -2461,7 +2485,16 @@ async function runPinnedInvestigationEngine(input: {
   if (!prepared.ok) {
     return { ok: false, error: investigationFailure({ code: prepared.code, correlationId, runId: run.id }), metric: null };
   }
-  const prompt = catalog.investigationV2;
+  const promptId = pin.investigationPromptId ?? DOMAIN_INVESTIGATION_PROMPT_V2_ID;
+  const prompt =
+    promptId === catalog.investigationV2.id
+      ? catalog.investigationV2
+      : promptId === catalog.investigation.id
+        ? catalog.investigation
+        : null;
+  if (!prompt) {
+    return { ok: false, error: investigationFailure({ code: "PACK_COMPILE_FAILED", correlationId, runId: run.id }), metric: null };
+  }
   const startedAt = now().toISOString();
   const mapped = await runDomainMappingInvestigation({
     planner: deps.planner,
@@ -2553,7 +2586,19 @@ async function runPinnedInvestigationEngine(input: {
     startedAt,
     completedAt: now().toISOString(),
   };
-  return { ok: true, study: accepted.study, metric };
+  const identity = pin.packSource.identity;
+  return {
+    ok: true,
+    study: {
+      ...accepted.study,
+      questionOrder: [
+        ...(accepted.study.questionOrder ?? []),
+        `pack-id:${identity.packId}`,
+        `pack-version:${identity.version}`,
+      ],
+    },
+    metric,
+  };
 }
 
 export async function runCanonicalizeForRun(input: {
@@ -2744,24 +2789,46 @@ export async function runCanonicalizeForRun(input: {
   return { ok: true, study: result.study, metric };
 }
 
-/** Labels the engine that accepted this revision. Only the pinned 0.5.0 edition can reach this path. */
+function questionNote(study: CanonicalStudy, prefix: string): string | null {
+  const note = (study.questionOrder ?? []).find((item) => item.startsWith(prefix));
+  if (!note) return null;
+  const value = note.slice(prefix.length).trim();
+  return value === "" ? null : value;
+}
+
+function publishedPackForDigest(digest: string): { packId: string; version: string } | null {
+  try {
+    const loaded = loadApprovedDomainPacks();
+    if (loaded.invalid) return null;
+    const match = loaded.packs.find((pack) => pack.compiledDigest === digest);
+    return match ? { packId: match.source.identity.packId, version: match.source.identity.version } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Labels the engine and pack that accepted this revision. A missing pack is left empty. */
 export function acceptanceProvenance(
   study: CanonicalStudy,
   promptId: string | null,
-): { investigationEngine: string; domainPackId: string | null; domainPackVersion: string | null } {
-  const packDigest = (study.questionOrder ?? []).some((item) => item.startsWith("pack-digest:"));
+): { investigationEngine: string; domainPackId: string | null; domainPackVersion: string | null; domainPackDigest: string | null } {
+  const packDigest = questionNote(study, "pack-digest:");
   const usesInvestigation =
     promptId === DOMAIN_INVESTIGATION_PROMPT_V2_ID ||
     promptId === DOMAIN_INVESTIGATION_PROMPT_ID ||
-    packDigest;
+    packDigest !== null;
   if (usesInvestigation) {
+    const notedId = questionNote(study, "pack-id:");
+    const notedVersion = questionNote(study, "pack-version:");
+    const fromDigest = !notedId || !notedVersion ? publishedPackForDigest(packDigest ?? "") : null;
     return {
       investigationEngine:
         promptId === DOMAIN_INVESTIGATION_PROMPT_V2_ID
           ? DOMAIN_INVESTIGATION_PROMPT_V2_ID
           : DOMAIN_INVESTIGATION_PROMPT_ID,
-      domainPackId: PINNED_DOMAIN_PACK.packId,
-      domainPackVersion: PINNED_DOMAIN_PACK.version,
+      domainPackId: notedId ?? fromDigest?.packId ?? null,
+      domainPackVersion: notedVersion ?? fromDigest?.version ?? null,
+      domainPackDigest: packDigest,
     };
   }
   const legacyEngine = promptId === "hive-canonicalize/1" || promptId === "hive-canonicalize/2" ? promptId : "hive-canonicalize/1";
@@ -2769,6 +2836,7 @@ export function acceptanceProvenance(
     investigationEngine: legacyEngine,
     domainPackId: study.packRef?.id ?? null,
     domainPackVersion: study.packRef != null ? String(study.packRef.version) : null,
+    domainPackDigest: null,
   };
 }
 
@@ -2802,6 +2870,7 @@ export function buildV5AcceptRevision(input: {
         investigationEngine: provenance.investigationEngine,
         ...(provenance.domainPackId ? { domainPackId: provenance.domainPackId } : {}),
         ...(provenance.domainPackVersion ? { domainPackVersion: provenance.domainPackVersion } : {}),
+        ...(provenance.domainPackDigest ? { domainPackDigest: provenance.domainPackDigest } : {}),
         revisionStatus: "accepted",
       },
       findings: [],

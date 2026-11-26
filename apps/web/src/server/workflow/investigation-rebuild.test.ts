@@ -18,6 +18,9 @@ import {
   relationshipStructureDigest,
 } from "@hiveforyou/contracts/investigation";
 import { computeSha256Digest } from "@hiveforyou/contracts/document-read";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { getStudyTabView } from "@/server/study-preparation/study-preparation";
@@ -35,7 +38,15 @@ import {
 } from "@/server/study-preparation/study-preparation.fixtures";
 
 import { processAnalysisRun, type AnalysisWorkflowDeps } from "./analysis-workflow";
-import { loadPinnedDomainPack, PINNED_DOMAIN_PACK } from "./domain-pack-selection";
+import { loadApprovedEdition, resolvePublishedDomainPack } from "./domain-pack-selection";
+
+const PUBLISHED_PACK = { packId: "iep-us-federal", version: "0.5.0" } as const;
+
+function publishedPack() {
+  const pack = loadApprovedEdition(PUBLISHED_PACK.packId, PUBLISHED_PACK.version);
+  if (!pack) throw new Error("published pack missing");
+  return pack;
+}
 import { acceptanceProvenance, buildV5AcceptRevision, resolveInvestigationEnginePin, runCanonicalizeForRun } from "./v5-pipeline-stages";
 
 const PAGE = "Name: North. Started 2024-01-02.";
@@ -302,8 +313,9 @@ describe("rebuild study investigation engine", () => {
     expect(result.metric.promptDigest).toBe(loadPromptCatalog().investigationV2.digest);
     expect(acceptanceProvenance(result.study, result.metric.promptId)).toMatchObject({
       investigationEngine: DOMAIN_INVESTIGATION_PROMPT_V2_ID,
-      domainPackId: PINNED_DOMAIN_PACK.packId,
-      domainPackVersion: PINNED_DOMAIN_PACK.version,
+      domainPackId: "example-review",
+      domainPackVersion: "1.0.0",
+      domainPackDigest: result.study.questionOrder?.find((item) => item.startsWith("pack-digest:"))?.slice("pack-digest:".length),
     });
     expect(buildV5AcceptRevision({
       study: result.study,
@@ -568,8 +580,15 @@ function fieldProposal() {
   };
 }
 
-function acceptanceHarness(input: { selection: unknown; content: unknown; selectionError?: string; mapping?: "accept" | "incomplete" }) {
-  const document = snapshotDocument(DOC_1, "record.txt", { verifiedPageCount: 1, totalPhysicalPages: 1 });
+function acceptanceHarness(input: {
+  selection: unknown;
+  content: unknown;
+  selectionError?: string;
+  mapping?: "accept" | "incomplete";
+  intentText?: string;
+  fileName?: string;
+}) {
+  const document = snapshotDocument(DOC_1, input.fileName ?? "record.txt", { verifiedPageCount: 1, totalPhysicalPages: 1 });
   const row = recordExtraction();
   let status = "CANONICALIZING";
   let leased = false;
@@ -602,7 +621,9 @@ function acceptanceHarness(input: { selection: unknown; content: unknown; select
           coverageDigest: `sha256:${"e".repeat(64)}`,
           snapshotCurrent: true,
           stageOutputs: { ...stageOutputs },
-          intents: INTENTS,
+          intents: input.intentText
+            ? [{ id: INTENTS[0]!.id, intentText: input.intentText, audience: null }]
+            : INTENTS,
         },
         error: null,
       };
@@ -728,16 +749,17 @@ function acceptanceHarness(input: { selection: unknown; content: unknown; select
 }
 
 describe("pinned rebuild acceptance", () => {
-  it("pins only the compiled iep-us-federal 0.5.0 digest", () => {
-    const pinned = loadPinnedDomainPack();
-    expect(pinned.source.identity).toMatchObject(PINNED_DOMAIN_PACK);
+  it("compiles the published edition named by the catalog", () => {
+    const pinned = publishedPack();
+    expect(pinned.source.identity).toMatchObject(PUBLISHED_PACK);
+    expect(pinned.investigationPromptId).toBe(DOMAIN_INVESTIGATION_PROMPT_V2_ID);
     expect(pinned.compiledDigest).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("rejects an early finish and keeps the previous revision and reports", async () => {
-    const pinned = loadPinnedDomainPack();
+    const pinned = publishedPack();
     const harness = acceptanceHarness({
-      selection: { packId: PINNED_DOMAIN_PACK.packId, version: PINNED_DOMAIN_PACK.version, compiledDigest: pinned.compiledDigest },
+      selection: { packId: PUBLISHED_PACK.packId, version: PUBLISHED_PACK.version, compiledDigest: pinned.compiledDigest },
       content: fieldProposal(),
     });
     const status = await processAnalysisRun(harness.workflowDeps, RUN_ID);
@@ -800,9 +822,9 @@ describe("pinned rebuild acceptance", () => {
   });
 
   it("keeps the previous revision and reports when a pinned rebuild fails", async () => {
-    const pinned = loadPinnedDomainPack();
+    const pinned = publishedPack();
     const harness = acceptanceHarness({
-      selection: { packId: PINNED_DOMAIN_PACK.packId, version: PINNED_DOMAIN_PACK.version, compiledDigest: pinned.compiledDigest },
+      selection: { packId: PUBLISHED_PACK.packId, version: PUBLISHED_PACK.version, compiledDigest: pinned.compiledDigest },
       content: { schema: "hive.canonical-study/1", documents: [] },
       mapping: "incomplete",
     });
@@ -820,9 +842,9 @@ describe("pinned rebuild acceptance", () => {
   });
 
   it("refuses a 0.4.0 selection without calling the model or replacing the earlier revision", async () => {
-    const pinned = loadPinnedDomainPack();
+    const pinned = publishedPack();
     const harness = acceptanceHarness({
-      selection: { packId: PINNED_DOMAIN_PACK.packId, version: "0.4.0", compiledDigest: pinned.compiledDigest },
+      selection: { packId: PUBLISHED_PACK.packId, version: "0.4.0", compiledDigest: pinned.compiledDigest },
       content: fieldProposal(),
     });
     const status = await processAnalysisRun(harness.workflowDeps, RUN_ID);
@@ -836,7 +858,7 @@ describe("pinned rebuild acceptance", () => {
 
   it("refuses a selection whose digest is not the compiled pack and does not call the model", async () => {
     const harness = acceptanceHarness({
-      selection: { packId: PINNED_DOMAIN_PACK.packId, version: PINNED_DOMAIN_PACK.version, compiledDigest: "0".repeat(64) },
+      selection: { packId: PUBLISHED_PACK.packId, version: PUBLISHED_PACK.version, compiledDigest: "0".repeat(64) },
       content: fieldProposal(),
     });
     const status = await processAnalysisRun(harness.workflowDeps, RUN_ID);
@@ -855,8 +877,8 @@ describe("pinned rebuild acceptance", () => {
     );
     expect(acceptanceProvenance(investigation, null)).toMatchObject({
       investigationEngine: DOMAIN_INVESTIGATION_PROMPT_ID,
-      domainPackId: PINNED_DOMAIN_PACK.packId,
-      domainPackVersion: "0.5.0",
+      domainPackId: null,
+      domainPackVersion: null,
     });
     const legacy = { documents: [], questionOrder: [] } as unknown as CanonicalStudy;
     expect(acceptanceProvenance(legacy, "hive-canonicalize/1").investigationEngine).toBe("hive-canonicalize/1");
@@ -875,5 +897,74 @@ describe("pinned rebuild acceptance", () => {
     expect(harness.calls).toContain("get_hive_chosen_pack");
     expect(harness.calls).toContain("get_domain_pack_selection");
     expect(harness.calls).not.toContain("accept_study_revision");
+  });
+
+  it("selects the published edition for an IEP hive without a stored row and keeps the earlier revision when the model stops early", async () => {
+    const harness = acceptanceHarness({
+      selection: null,
+      content: { schema: "not-a-study" },
+      mapping: "incomplete",
+      intentText: "I want to understand Maya's IEP and prepare for the evaluation",
+      fileName: "Maya IEP 2025.pdf",
+    });
+    const status = await processAnalysisRun(harness.workflowDeps, RUN_ID);
+    expect(status).toBe("FAILED");
+    const body = harness.bodies[0] as { task: string; prompt_id: string; prompt_digest: string };
+    expect(body.task).toBe("investigation");
+    expect(body.prompt_id).toBe(DOMAIN_INVESTIGATION_PROMPT_V2_ID);
+    expect(body.prompt_digest).toBe(loadPromptCatalog().investigationV2.digest);
+    expect(harness.bodies.every((item) => (item as { task?: string }).task === "investigation")).toBe(true);
+    expect(harness.calls).not.toContain("accept_study_revision");
+    expect(harness.calls).not.toContain("get_hive_chosen_pack");
+    expect(harness.current.revisionNumber).toBe(1);
+    expect(harness.current.reports).toEqual(PREVIOUS_REPORTS);
+  });
+});
+
+describe("published domain pack resolution", () => {
+  it("selects iep-us-federal 0.5.0 and the v2 prompt from the hive text alone", () => {
+    const resolved = resolvePublishedDomainPack({
+      intentText: "I want to understand Maya's IEP and prepare for the evaluation",
+      documents: ["Maya IEP 2025.pdf", "Psychoeducational evaluation.pdf"],
+    });
+    expect(resolved.status).toBe("selected");
+    if (resolved.status !== "selected") return;
+    expect(resolved.pack.source.identity).toMatchObject(PUBLISHED_PACK);
+    expect(resolved.pack.investigationPromptId).toBe(DOMAIN_INVESTIGATION_PROMPT_V2_ID);
+    expect(resolved.pack.compiledDigest).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("does not select a published edition for an unrelated hive", () => {
+    expect(
+      resolvePublishedDomainPack({
+        intentText: "Which supplier gave us the better deal across both quotes?",
+        documents: ["Quote A.pdf", "Quote B.pdf"],
+      }),
+    ).toEqual({ status: "none" });
+  });
+
+  it("fails closed when a published edition cannot be loaded", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "hive-packs-"));
+    mkdirSync(path.join(cwd, "packs", "published"), { recursive: true });
+    writeFileSync(
+      path.join(cwd, "packs", "published", "domain-pack-catalog.json"),
+      JSON.stringify({
+        schema: "hive.published-domain-pack-catalog/1",
+        editions: [
+          {
+            domain: "alpha",
+            packId: "pack-alpha",
+            version: "1.0.0",
+            publication: "PUBLISHED",
+            approval: "APPROVED",
+            investigationPromptId: "hive.domain-investigation/2",
+            directory: "drafts/missing",
+          },
+        ],
+      }),
+    );
+    expect(resolvePublishedDomainPack({ intentText: "unrelated notes", documents: ["note.txt"] }, cwd)).toEqual({
+      status: "invalid",
+    });
   });
 });
