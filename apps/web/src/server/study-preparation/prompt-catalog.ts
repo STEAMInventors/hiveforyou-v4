@@ -78,7 +78,7 @@ export type PromptCatalog = {
   readonly canonicalizeV2: CanonicalizePrompt;
   readonly fieldMapping: CanonicalizePrompt;
   readonly investigation: CanonicalizePrompt;
-  /** Pinned iep-us-federal 0.5.0 investigation. `investigation` stays `hive.domain-investigation/1`. */
+  /** Pinned 0.5.0 investigation. `investigation` stays `hive.domain-investigation/1`. */
   readonly investigationV2: CanonicalizePrompt;
   readonly write: WritePrompt;
   readonly writeV2: WritePrompt;

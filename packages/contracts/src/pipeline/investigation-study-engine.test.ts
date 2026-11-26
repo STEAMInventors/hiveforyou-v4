@@ -423,7 +423,7 @@ describe("investigation study engine", () => {
       ...rows[0]!,
       emptyFields: [{ id: "E-flag", modelId: null, label: "flag", page: 1, quote: "Flag:", gapKind: "field_present_but_empty" }],
       referencedDocuments: [
-        { id: "R-unquoted", modelId: null, description: "IEP progress report", date: null, page: 1, quote: "Answer: yes." },
+        { id: "R-unquoted", modelId: null, description: "marker folio", date: null, page: 1, quote: "Answer: yes." },
         { id: "R-named", modelId: null, description: "prior schedule", date: null, page: 1, quote: "See the prior schedule for the review." },
       ],
     };
@@ -465,7 +465,7 @@ describe("investigation study engine", () => {
       "A verified quote names prior schedule, and that record is not in the authorized inventory.",
     ]);
     expect(JSON.stringify(result.study.outsideSpine)).toContain("Searched and not found: The unused note was not mapped.");
-    expect(JSON.stringify(result.study.gaps)).not.toContain("IEP progress report");
+    expect(JSON.stringify(result.study.gaps)).not.toContain("marker folio");
     expect(JSON.stringify(result.study.gaps)).not.toContain("Missing information");
   });
 });
