@@ -18,6 +18,7 @@ import {
   formatInvestigationCompletionSummary,
   formatInvestigationRejectionSummary,
   INVESTIGATION_AGENT_TOOLS,
+  INVESTIGATION_QUESTIONS_PER_WINDOW,
   type InvestigationWindow,
   renderInvestigationWindow,
   selectInvestigationWindows,
@@ -36,7 +37,7 @@ import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation
 const NUDGE_MESSAGE = "No tool was called. Continue the investigation with the provided tools. Copy written values exactly.";
 const CONTINUE_MESSAGE = "Continue the valid investigation work, then call finish_investigation with ready true. Accepted fields do not close the investigation.";
 
-function steer(ledger: CoordinatedInvestigationLedger): string {
+function rejectionHints(ledger: CoordinatedInvestigationLedger): string[] {
   const counts = ledger.lastTurnRejectionCounts;
   const hints: string[] = [];
   if ((counts.unauthorized_evidence ?? 0) > 0) {
@@ -51,10 +52,42 @@ function steer(ledger: CoordinatedInvestigationLedger): string {
   if ((counts.invented_value ?? 0) > 0) {
     hints.push("Copy the written value exactly. Do not convert it.");
   }
+  if ((counts.invalid_arguments ?? 0) > 0) {
+    hints.push("Cite an accepted fact id, or state the uncertainty. Do not say the pages were searched unless search_case or read_pages has already run.");
+  }
+  return hints;
+}
+
+function steer(ledger: CoordinatedInvestigationLedger): string {
+  const hints = rejectionHints(ledger);
   const open = ledger.completionFeedback();
   if (open) hints.push(open);
   if (hints.length === 0) hints.push(CONTINUE_MESSAGE);
   return hints.join(" ");
+}
+
+function listAll(ids: readonly string[]): string {
+  return ids.join(", ");
+}
+
+/** Request questions first, then this window's catalog questions. Accepted mappings do not close either list. */
+function questionWork(ledger: CoordinatedInvestigationLedger, windowIndex: number): string | null {
+  const intent = ledger.pendingIntentQuestionIds();
+  const catalog = ledger.pendingWindowQuestionIds(windowIndex);
+  if (intent.length === 0 && catalog.length === 0) return null;
+  const parts: string[] = [];
+  if (intent.length > 0) {
+    parts.push(`Answer the request questions first: ${listAll(intent)}.`);
+  }
+  if (catalog.length > 0) {
+    parts.push(`This window's questions are still open: ${listAll(catalog)}. Accepted mappings do not close them.`);
+  }
+  const facts = ledger.acceptedFactIds();
+  if (facts.length > 0) parts.push(`Cite these accepted fact ids when they support the answer: ${listAll(facts)}.`);
+  parts.push("When no accepted fact supports the question, state the uncertainty. Do not invent an answer. Do not say the pages were searched unless search_case or read_pages has already run.");
+  const hints = rejectionHints(ledger);
+  if (hints.length > 0) parts.push(hints.join(" "));
+  return parts.join(" ");
 }
 
 export type MappingAgentTotals = {
@@ -72,18 +105,28 @@ export type MappingAgentTotals = {
   finishReason: string | null;
 };
 
-function allowance(input: { windows: number; pages: number; questions: number }) {
+/**
+ * Mapping turns and question turns are both required. The hard ceilings stay where they are.
+ * `roundsNeeded` and `callsNeeded` are the uncapped demand; the caller refuses when either exceeds a ceiling.
+ */
+function investigationDemand(input: { windows: number; pages: number; catalogQuestions: number; intentQuestions: number }) {
+  const batch = INVESTIGATION_QUESTIONS_PER_WINDOW;
+  const questionTurns = Math.ceil(Math.max(input.catalogQuestions, 0) / batch);
+  const intentTurns = Math.ceil(Math.max(input.intentQuestions, 0) / batch);
   const pageTurns = Math.ceil(Math.max(input.pages, 0) / 3);
-  const questionTurns = Math.ceil(Math.max(input.questions, 0) / 8);
-  const rounds = Math.min(
-    STUDY_AGENT_BUDGET.maxRounds,
-    Math.max(4, input.windows + 2, pageTurns, questionTurns),
+  const mappingTurns = Math.max(input.windows, 0);
+  const headroom = 2;
+  const roundsNeeded = Math.max(
+    4,
+    mappingTurns + questionTurns + intentTurns + headroom,
+    pageTurns + questionTurns + intentTurns + headroom,
   );
-  return {
-    rounds,
-    toolCalls: Math.min(STUDY_AGENT_BUDGET.maxToolCalls, rounds * STUDY_AGENT_BUDGET.maxCallsPerTurn),
-    invalidCalls: Math.min(STUDY_AGENT_BUDGET.maxInvalidCalls, Math.max(4, input.windows)),
-  };
+  const callsNeeded = Math.max(input.catalogQuestions, 0)
+    + Math.max(input.intentQuestions, 0)
+    + pageTurns
+    + Math.max(input.windows, 1)
+    + 1;
+  return { roundsNeeded, callsNeeded, questionTurns, intentTurns };
 }
 
 function questionIdsOf(rendered: Record<string, unknown>): string[] {
@@ -117,9 +160,26 @@ export async function runDomainMappingInvestigation(input: {
   const deadline = input.deadline ?? startedAt + 120_000;
   const windows = selectInvestigationWindows({ plan: input.plan, pack: input.pack, extractions: input.extractions });
   const pageCount = input.pages.reduce((sum, document) => sum + document.pages.length, 0);
-  const questionCount = input.pack.definitions.filter((definition) => definition.kind === "question").length;
-  const limits = allowance({ windows: windows.length, pages: pageCount, questions: questionCount });
   const ledger = new CoordinatedInvestigationLedger(input.runId, input.pack, input.extractions, input.pages, input.intentText ?? "");
+  const questionCounts = ledger.scheduledQuestionCounts();
+  const demand = investigationDemand({
+    windows: windows.length,
+    pages: pageCount,
+    catalogQuestions: questionCounts.catalog,
+    intentQuestions: questionCounts.intent,
+  });
+  const fits = demand.roundsNeeded <= STUDY_AGENT_BUDGET.maxRounds && demand.callsNeeded <= STUDY_AGENT_BUDGET.maxToolCalls;
+  const limits = {
+    rounds: fits ? demand.roundsNeeded : STUDY_AGENT_BUDGET.maxRounds,
+    toolCalls: Math.min(
+      STUDY_AGENT_BUDGET.maxToolCalls,
+      (fits ? demand.roundsNeeded : STUDY_AGENT_BUDGET.maxRounds) * STUDY_AGENT_BUDGET.maxCallsPerTurn,
+    ),
+    invalidCalls: Math.min(
+      STUDY_AGENT_BUDGET.maxInvalidCalls,
+      Math.max(4, fits ? demand.roundsNeeded : STUDY_AGENT_BUDGET.maxInvalidCalls),
+    ),
+  };
   const pageTexts = input.pages.flatMap((document) => document.pages.map((page) => ({ text: page.text })));
   let windowIndex = 0;
   let nudged = false;
@@ -143,9 +203,48 @@ export async function runDomainMappingInvestigation(input: {
     totals.invalidCalls = ledger.invalidCalls;
     totals.acceptedFields = ledger.acceptedFieldCount;
   };
-  const fail = (diagnosticReason: string, dimension?: StudyAgentBudgetDimension): { ok: false; error: HiveError; totals: MappingAgentTotals } => {
+  const fail = (
+    diagnosticReason: string,
+    dimension?: StudyAgentBudgetDimension,
+    progress?: {
+      roundsUsed?: number;
+      roundsAllowed?: number;
+      toolCalls?: number;
+      invalidCalls?: number;
+      questionsCompleted?: number;
+      questionsTotal?: number;
+    },
+  ): { ok: false; error: HiveError; totals: MappingAgentTotals } => {
     sync();
     const blockers = formatInvestigationCompletionSummary(ledger.completionCounts());
+    const diagnosticField = dimension
+      ? formatStudyAgentBudgetDiagnosticField({
+          dimension,
+          roundsUsed: progress?.roundsUsed ?? totals.rounds,
+          roundsAllowed: progress?.roundsAllowed ?? totals.roundsAllowed,
+          toolCalls: progress?.toolCalls ?? totals.toolCalls,
+          invalidCalls: progress?.invalidCalls ?? totals.invalidCalls,
+          questionsCompleted: progress?.questionsCompleted ?? totals.acceptedFields,
+          questionsTotal: progress?.questionsTotal ?? totals.windowCount,
+        })
+      : undefined;
+    if (diagnosticReason === "investigation_capacity") {
+      emitStructuredEvent({
+        eventName: "mapping.investigation.incomplete",
+        severity: "WARN",
+        timestamp: new Date().toISOString(),
+        component: "pipeline",
+        operation: "canonicalize",
+        stage: "ANALYZE",
+        task: "investigation",
+        correlationId: input.correlationId,
+        processingRunId: input.runId,
+        durationMs: Math.max(0, Math.trunc(clock() - startedAt)),
+        rounds: progress?.roundsUsed ?? totals.rounds,
+        diagnosticReason,
+        ...(diagnosticField ? { diagnosticField } : {}),
+      });
+    }
     if (blockers) {
       emitStructuredEvent({
         eventName: "mapping.investigation.incomplete",
@@ -175,23 +274,22 @@ export async function runDomainMappingInvestigation(input: {
         correlationId: input.correlationId,
         operationId: input.runId,
         diagnosticReason,
-        ...(dimension
-          ? {
-              diagnosticField: formatStudyAgentBudgetDiagnosticField({
-                dimension,
-                roundsUsed: totals.rounds,
-                roundsAllowed: totals.roundsAllowed,
-                toolCalls: totals.toolCalls,
-                invalidCalls: totals.invalidCalls,
-                questionsCompleted: totals.acceptedFields,
-                questionsTotal: totals.windowCount,
-              }),
-            }
-          : {}),
+        ...(diagnosticField ? { diagnosticField } : {}),
       }),
     };
   };
   const boundary = (payload: unknown) => fieldMappingRequestLeaksRecordText(payload, pageTexts);
+  if (!fits) {
+    const dimension = demand.roundsNeeded > STUDY_AGENT_BUDGET.maxRounds ? "rounds" : "tool_calls";
+    return fail("investigation_capacity", dimension, {
+      roundsUsed: demand.roundsNeeded,
+      roundsAllowed: STUDY_AGENT_BUDGET.maxRounds,
+      toolCalls: demand.callsNeeded,
+      invalidCalls: 0,
+      questionsCompleted: 0,
+      questionsTotal: questionCounts.catalog + questionCounts.intent,
+    });
+  }
   if (!ledger.armCompletion({
     windowCount: windows.length,
     documentIds: input.pages.map((document) => document.documentId),
@@ -279,6 +377,12 @@ export async function runDomainMappingInvestigation(input: {
     if (next && ledger.lastTurnNeedsRecovery() && recoveredWindow !== windowIndex) {
       recoveredWindow = windowIndex;
       messages.push({ role: "user", content: steer(ledger) });
+      continue;
+    }
+    const work = questionWork(ledger, windowIndex);
+    if (work) {
+      if (boundary(work)) return fail("investigation_record_text_boundary");
+      messages.push({ role: "user", content: work });
       continue;
     }
     if (next) {

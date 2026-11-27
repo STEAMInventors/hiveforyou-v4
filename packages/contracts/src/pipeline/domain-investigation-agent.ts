@@ -19,6 +19,8 @@ import { normalizeQuoteText } from "./verify-quotes";
 
 export { DOMAIN_INVESTIGATION_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_V2_ID } from "./domain-investigation-prompt";
 export const INVESTIGATION_WINDOW_SCHEMA = "hive.field-mapping-window/1" as const;
+/** Catalog questions sent with one window. A later window carries the next batch. */
+export const INVESTIGATION_QUESTIONS_PER_WINDOW = 8;
 
 export const INVESTIGATION_AGENT_TOOL_NAMES = [
   "search_case",
@@ -227,7 +229,7 @@ export const INVESTIGATION_AGENT_TOOLS: readonly InvestigationAgentToolDefinitio
     type: "function",
     function: {
       name: "propose_answer",
-      description: "Answer one catalog question, or one question from the person's request that is not in the catalog.",
+      description: "Answer one catalog question, or one question from the person's request. Cite accepted fact ids, or state uncertainty. Do not claim a search that has not run.",
       parameters: closed(
         {
           questionId: str("Catalog question id, or intent:<n> for a question in the request."),
@@ -312,9 +314,15 @@ function refuse(code: InvestigationRejectionCode, message: string, countsAsInval
   throw new InvestigationRejection(code, message, countsAsInvalid);
 }
 
-function intentQuestionCount(text: string): number {
-  return text.split("?").map((part) => part.trim()).filter((part) => part.length >= 8).length;
+function intentQuestionTexts(text: string): string[] {
+  return text.split("?").map((part) => part.trim()).filter((part) => part.length >= 8).map((part) => `${part}?`);
 }
+
+function intentQuestionCount(text: string): number {
+  return intentQuestionTexts(text).length;
+}
+
+const SEARCH_CLAIM = /\bsearch(?:ed|ing)?\b|\bnot found\b/i;
 
 function identifier(value: unknown): string | null {
   return typeof value === "string" && ID_PATTERN.test(value) ? value : null;
@@ -421,16 +429,24 @@ function catalogSlice(pack: CompiledDomainPack): CatalogSlice {
 
 export type InvestigationWindow = MappingWindow & { readonly slice: CatalogSlice };
 
-/** Mapping windows plus a rotating slice of questions, checks, document kinds, and personas. */
+/**
+ * Mapping windows plus enough later windows that every catalog question is in some batch.
+ * A question past `window count × INVESTIGATION_QUESTIONS_PER_WINDOW` still gets a window.
+ */
 export function selectInvestigationWindows(input: {
   plan: Pick<DomainInvestigationPlan, "tasks">;
   pack: CompiledDomainPack;
   extractions: readonly DocExtraction[];
 }): InvestigationWindow[] {
   const slice = catalogSlice(input.pack);
-  const windows = selectMappingWindows(input);
-  const count = Math.max(windows.length, 1);
-  return windows.map((window) => ({ ...window, count, slice }));
+  const mapped = selectMappingWindows(input);
+  const questionWindows = Math.ceil(slice.questions.length / INVESTIGATION_QUESTIONS_PER_WINDOW);
+  const count = Math.max(mapped.length, questionWindows, 1);
+  const windows: MappingWindow[] = mapped.map((window) => ({ ...window }));
+  while (windows.length < count) {
+    windows.push({ index: windows.length, count, fields: [], relationships: [], facts: [] });
+  }
+  return windows.map((window, index) => ({ ...window, index, count, slice }));
 }
 
 export function renderInvestigationWindow(input: {
@@ -440,7 +456,12 @@ export function renderInvestigationWindow(input: {
 }): Record<string, unknown> {
   const { window, extractions, intentText } = input;
   const start = window.index;
-  const questions = window.slice.questions.slice(start * 8, start * 8 + 8).map((item) => ({
+  const size = INVESTIGATION_QUESTIONS_PER_WINDOW;
+  const intentQuestions = intentQuestionTexts(intentText).map((question, index) => ({
+    id: `intent:${index + 1}`,
+    question,
+  }));
+  const questions = window.slice.questions.slice(start * size, start * size + size).map((item) => ({
     id: item.id,
     audience: item.audience,
     question: item.text,
@@ -475,8 +496,9 @@ export function renderInvestigationWindow(input: {
     schema: INVESTIGATION_WINDOW_SCHEMA,
     windowIndex: window.index,
     windowCount: window.count,
-    instruction: "Investigate this subset. The person's request still governs. Copy written values exactly. Read pages before quoting them. Do not finish because some fields were accepted. Do not state a legal conclusion or a progress result without a later measurement.",
+    instruction: "Investigate this subset. The person's request still governs. Copy written values exactly. Read pages before quoting them. Do not finish because some fields were accepted. Answer every request question, then every catalog question shown here, before leaving this window. Cite an accepted fact id when that fact supports the answer. Otherwise state the uncertainty. Do not invent an answer. Do not say the pages were searched unless search_case or read_pages has already run. Do not state a legal conclusion or a progress result without a later measurement.",
     intent: intentText.slice(0, 2000),
+    intentQuestions,
     ...(window.index === 0 ? { personas: window.slice.personas.slice(0, 6) } : {}),
     manifest,
     questions,
@@ -515,6 +537,8 @@ export class CoordinatedInvestigationLedger {
   private readonly pagesRead = new Set<string>();
   private readonly presentedWindows = new Set<number>();
   private readonly shownQuestionIds = new Set<string>();
+  private readonly windowQuestionIds = new Map<number, readonly string[]>();
+  private corpusExamined = false;
   private schedule: { windowCount: number; documentIds: ReadonlySet<string> } | null = null;
   private scheduleError = "The investigation has no schedule.";
   private toolCallCount = 0;
@@ -614,9 +638,8 @@ export class CoordinatedInvestigationLedger {
       ? ""
       : ` Saved extraction quotations that do not verify, leave unmapped: ${listIds(unverifiable)}. Do not propose them again.`;
     if (parts.length === 0) {
-      return unverifiable.length === 0
-        ? null
-        : `${unverifiableNote.trim()} The completion checks are done. Call finish_investigation with ready true.`;
+      const ready = "The completion checks are done. Call finish_investigation with ready true.";
+      return unverifiable.length === 0 ? ready : `${unverifiableNote.trim()} ${ready}`;
     }
     return `Phase F is still open. ${parts.join(" ")} Call finish_investigation with ready true only after these are done. Accepted fields do not close the investigation.${unverifiableNote}`;
   }
@@ -643,12 +666,36 @@ export class CoordinatedInvestigationLedger {
     return true;
   }
 
+  /** Catalog questions and request questions the schedule still has to answer. */
+  scheduledQuestionCounts(): { catalog: number; intent: number } {
+    return { catalog: this.questionIds.size, intent: intentQuestionCount(this.intentText) };
+  }
+
+  pendingIntentQuestionIds(): string[] {
+    const pending: string[] = [];
+    const count = intentQuestionCount(this.intentText);
+    for (let index = 1; index <= count; index += 1) {
+      const questionId = `intent:${index}`;
+      if (!this.answerSettled(questionId)) pending.push(questionId);
+    }
+    return pending;
+  }
+
+  pendingWindowQuestionIds(index: number): string[] {
+    const ids = this.windowQuestionIds.get(index) ?? [];
+    return ids.filter((questionId) => !this.answerSettled(questionId));
+  }
+
+  acceptedFactIds(): string[] {
+    return [...new Set(this.mapping.acceptedMappings().map((row) => row.extractionFactId))].sort();
+  }
+
   presentWindow(index: number, shown: { questionIds: readonly string[] }): void {
     if (!this.schedule || !Number.isInteger(index) || index < 0 || index >= this.schedule.windowCount) return;
     this.presentedWindows.add(index);
-    for (const questionId of shown.questionIds) {
-      if (questionId.trim() !== "") this.shownQuestionIds.add(questionId.trim());
-    }
+    const questionIds = [...new Set(shown.questionIds.map((questionId) => questionId.trim()).filter((questionId) => questionId !== ""))];
+    this.windowQuestionIds.set(index, questionIds);
+    for (const questionId of questionIds) this.shownQuestionIds.add(questionId);
   }
 
   beginTurn(): void {
@@ -789,6 +836,7 @@ export class CoordinatedInvestigationLedger {
     if (query.length < 2) refuse("invalid_arguments", "The search needs at least two characters.");
     const documentId = args.documentId === undefined ? null : identifier(args.documentId);
     if (args.documentId !== undefined && !documentId) refuse("invalid_arguments", "The document id is not valid.");
+    this.corpusExamined = true;
     const needle = normalizeQuoteText(query);
     const hits: { documentId: string; page: number; snippet: string }[] = [];
     for (const document of this.pages) {
@@ -824,7 +872,10 @@ export class CoordinatedInvestigationLedger {
       const page = document.pages.find((item) => item.pageNumber === pageNumber);
       if (!page) refuse("page_not_authorized", "That page is not in the authorized corpus.");
       pages.push({ page: pageNumber, text: page.text });
-      if (page.text.trim() !== "") this.pagesRead.add(`${documentId}\0${pageNumber}`);
+      if (page.text.trim() !== "") {
+        this.pagesRead.add(`${documentId}\0${pageNumber}`);
+        this.corpusExamined = true;
+      }
     }
     return { kind: "pages", documentId, pages };
   }
@@ -926,6 +977,9 @@ export class CoordinatedInvestigationLedger {
     const factIds = this.factIds(args.factIds, true);
     const uncertainty = typeof args.uncertainty === "string" && args.uncertainty.trim() !== "" ? args.uncertainty.trim() : undefined;
     if (factIds.length === 0 && !uncertainty) refuse("invalid_arguments", "An unanswered question must say what is uncertain.");
+    if (uncertainty && SEARCH_CLAIM.test(uncertainty) && !this.corpusExamined) {
+      refuse("invalid_arguments", "Do not say the pages were searched. Call search_case or read_pages before using that claim.");
+    }
     const proposal = { questionId, audience: audience as AnswerProposal["audience"], factIds, uncertainty };
     const existing = this.answers.findIndex((item) => item.questionId === questionId);
     if (existing >= 0) this.answers[existing] = proposal;
@@ -993,6 +1047,11 @@ export class CoordinatedInvestigationLedger {
       unansweredShownQuestions,
       unansweredIntentQuestions,
     };
+  }
+
+  private answerSettled(questionId: string): boolean {
+    const answer = this.answers.find((item) => item.questionId === questionId);
+    return !!answer && (answer.factIds.length > 0 || !!answer.uncertainty);
   }
 
   private unfinishedCompletion(): string | null {

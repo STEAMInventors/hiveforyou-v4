@@ -185,6 +185,10 @@ describe("domain mapping investigation recovery", () => {
           field("other", "F-label", "name"),
           tool("role", "propose_document_role", { documentId: DOC, role: "ANCHOR", page: 1, quote: "Name: North." }),
           tool("read", "read_pages", { documentId: DOC, startPage: 1, endPage: 2 }),
+        ]);
+      }
+      if (last.includes("Answer the request questions first") || last.includes("questions are still open")) {
+        return response([
           tool("shown", "propose_answer", { questionId: "question:label", audience: "customer", factIds: ["F-label"] }),
           tool("intent", "propose_answer", { questionId: "intent:1", audience: "customer", factIds: ["F-label"] }),
         ]);
@@ -226,8 +230,14 @@ describe("domain mapping investigation recovery", () => {
     expect(lastUser(bodies[1] ?? "")).not.toContain(BAD_QUOTE);
     expect(lastUser(bodies[1] ?? "")).not.toContain("Marker alpha");
     expect(lastUser(bodies[1] ?? "")).not.toContain("Marker beta");
-    expect(lastUser(bodies[2] ?? "")).toContain("\"windowIndex\":1");
-    const followUp = bodies[3] ?? "";
+    expect(lastUser(bodies[2] ?? "")).toContain("Answer the request questions first: intent:1");
+    expect(lastUser(bodies[2] ?? "")).toContain("questions are still open: question:label");
+    expect(lastUser(bodies[2] ?? "")).toContain("Cite these accepted fact ids when they support the answer: F-label");
+    expect(lastUser(bodies[2] ?? "")).not.toContain("\"windowIndex\":1");
+    expect(lastUser(bodies[2] ?? "")).not.toContain(BAD_QUOTE);
+    expect(lastUser(bodies[2] ?? "")).not.toContain("Marker alpha");
+    expect(lastUser(bodies[3] ?? "")).toContain("\"windowIndex\":1");
+    const followUp = bodies[4] ?? "";
     expect(followUp).toContain("duplicate_fact");
     expect(followUp).toContain("\\\"reused\\\":true");
     expect(lastUser(followUp)).toContain("The completion checks are done.");
@@ -281,5 +291,45 @@ describe("domain mapping investigation recovery", () => {
     expect(serialized).not.toContain("Marker alpha");
     expect(serialized).not.toContain("Marker beta");
     expect(serialized).not.toContain("What is the label");
+  });
+
+  it("reports a capacity failure before any model call when mapping and question work exceed the round ceiling", async () => {
+    const drafted = source();
+    const prepared = prepareInvestigationStudy({ packSource: drafted, artifacts: companions(drafted) });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const fetchFn = vi.fn(async () => {
+      throw new Error("model called");
+    });
+    const result = await runDomainMappingInvestigation({
+      planner: {
+        getConfig: () => ({ baseUrl: "https://planner.test", serviceToken: "token", timeoutMs: 1000 }),
+        fetchFn: fetchFn as unknown as typeof fetch,
+      },
+      runId: RUN_ID,
+      hiveId: HIVE_ID,
+      correlationId: "corr-capacity",
+      prompt: { id: "hive.domain-investigation/2", digest: "sha256:test", systemPrompt: "Investigate the record." },
+      plan: prepared.prepared.plan,
+      pack: prepared.prepared.pack,
+      extractions: [extraction()],
+      pages: [{
+        documentId: DOC,
+        pages: Array.from({ length: 200 }, (_, index) => ({ pageNumber: index + 1, text: "Marker capacity page." })),
+      }],
+      intentText: "What is the label of this record?",
+      clock: () => 1_700_000_000_000,
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.totals.rounds).toBe(0);
+    expect(result.error.diagnosticReason).toBe("investigation_capacity");
+    expect(result.error.safeMessage).toContain("earlier study is unchanged");
+    const match = /^budget\.rounds:r(\d+)\/32:tc(\d+):inv0:q0\/2$/.exec(result.error.diagnosticField ?? "");
+    expect(match).not.toBeNull();
+    expect(Number(match?.[1])).toBeGreaterThan(32);
+    expect(JSON.stringify(result.error)).not.toContain("Marker capacity");
+    expect(result.error.diagnosticField).not.toContain("Marker capacity");
   });
 });

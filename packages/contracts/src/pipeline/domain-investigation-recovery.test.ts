@@ -3,6 +3,8 @@ import { compileDomainPack } from "./domain-pack-compiler";
 import {
   CoordinatedInvestigationLedger,
   formatInvestigationCompletionSummary,
+  renderInvestigationWindow,
+  selectInvestigationWindows,
 } from "./domain-investigation-agent";
 import { DOMAIN_PACK_SOURCE_SCHEMA, type DomainPackSource } from "./domain-pack-source";
 import type { DocExtraction, ExtractionFact } from "./extraction-contracts";
@@ -216,5 +218,93 @@ describe("investigation recovery feedback", () => {
     expect(ledger.acceptedFieldCount).toBe(1);
     expect(ledger.completionCounts().unverifiableFacts).toBe(1);
     expect(compileDomainPack(drafted).ok).toBe(true);
+  });
+
+  it("presents a later window when catalog questions exceed the mapping windows", () => {
+    const drafted = source();
+    drafted.definitions = [
+      ...drafted.definitions,
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `question:q${index + 2}`,
+        kind: "question" as const,
+        label: `Question ${index + 2}`,
+        audience: "customer" as const,
+        text: `What is item ${index + 2}?`,
+        appliesWhen: { op: "REVIEW_REQUIRED" as const },
+      })),
+    ];
+    const prepared = prepareInvestigationStudy({
+      packSource: drafted,
+      artifacts: companions(drafted.identity.packId, drafted.identity.version),
+    });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const windows = selectInvestigationWindows({
+      plan: prepared.prepared.plan,
+      pack: prepared.prepared.pack,
+      extractions: [extraction()],
+    });
+    expect(windows.length).toBeGreaterThan(1);
+    expect(windows.length).toBeGreaterThanOrEqual(Math.ceil(9 / 8));
+    const ids = (windowIndex: number) => {
+      const rendered = renderInvestigationWindow({
+        window: windows[windowIndex]!,
+        extractions: [extraction()],
+        intentText: "What is the label of this record?",
+      });
+      const questions = Array.isArray(rendered.questions) ? rendered.questions : [];
+      return questions.flatMap((item) => {
+        if (!item || typeof item !== "object" || !("id" in item)) return [];
+        const id = (item as { id?: unknown }).id;
+        return typeof id === "string" ? [id] : [];
+      });
+    };
+    expect(ids(0)).toHaveLength(8);
+    expect(ids(0)).not.toContain("question:q9");
+    expect(ids(windows.length - 1)).toContain("question:q9");
+  });
+
+  it("rejects an ungrounded search claim and keeps the question pending", () => {
+    const drafted = source();
+    const prepared = prepareInvestigationStudy({
+      packSource: drafted,
+      artifacts: companions(drafted.identity.packId, drafted.identity.version),
+    });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    const pages = [{ documentId: DOC, pages: [{ pageNumber: 1, text: PAGE }] }];
+    const ledger = new CoordinatedInvestigationLedger(
+      "run-search-claim",
+      prepared.prepared.pack,
+      [extraction()],
+      pages,
+      "What is the label of this record?",
+    );
+    expect(ledger.armCompletion({ windowCount: 1, documentIds: [DOC] })).toBe(true);
+    ledger.presentWindow(0, { questionIds: ["question:label"] });
+    expect(ledger.pendingIntentQuestionIds()).toEqual(["intent:1"]);
+    expect(ledger.pendingWindowQuestionIds(0)).toEqual(["question:label"]);
+    const claim = "The pages were searched and the value was not found.";
+    const refused = JSON.parse(ledger.execute(call("search-claim", "propose_answer", {
+      questionId: "question:label",
+      audience: "customer",
+      factIds: [],
+      uncertainty: claim,
+    })).content) as { error?: string; message?: string };
+    expect(refused.error).toBe("invalid_arguments");
+    expect(refused.message).not.toContain(claim);
+    expect(refused.message).not.toContain(PAGE);
+    expect(ledger.pendingWindowQuestionIds(0)).toEqual(["question:label"]);
+    expect(JSON.parse(ledger.execute(call("read", "read_pages", {
+      documentId: DOC, startPage: 1, endPage: 1,
+    })).content).ok).toBe(true);
+    expect(JSON.parse(ledger.execute(call("after-read", "propose_answer", {
+      questionId: "question:label",
+      audience: "customer",
+      factIds: [],
+      uncertainty: claim,
+    })).content).ok).toBe(true);
+    expect(ledger.pendingWindowQuestionIds(0)).toEqual([]);
+    expect(ledger.pendingIntentQuestionIds()).toEqual(["intent:1"]);
   });
 });

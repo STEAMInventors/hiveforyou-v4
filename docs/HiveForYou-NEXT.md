@@ -1,8 +1,18 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-26): Remove the temporary per-Hive frontier-model authorization gate.** Local planner policy only. No deploy, no production SQL, and no live model.
+> **Active ticket (2026-11-26): Fix Domain Pack investigation scheduling.** Local only. No deploy, no production SQL, and no live model.
 
-## Active ticket — Remove the per-Hive frontier-model allowlist
+## Active ticket — Work-aware investigation schedule
+
+**Objective:** A pinned Rebuild must present every catalog question and every request question, and must leave room to answer them, under the existing model ceilings. Accepted mappings do not close a window's questions. Work that does not fit stops before a model call and leaves the earlier revision in place.
+
+**Status (2026-11-26): local only.** No production SQL was edited or applied. No external model was called. No Hive revision was replaced.
+
+The loop in `domain-mapping-investigation.ts` tracks pending catalog questions and request questions. Request questions are asked first. A window is not advanced while its shown questions are unanswered. When catalog questions exceed the mapping windows times eight, extra windows carry the rest. The round demand is mapping turns plus question turns plus request-question turns, and page-read turns when those are larger, plus the existing two-turn headroom, capped by `STUDY_AGENT_BUDGET` (32 rounds, 320 tool calls). A larger demand returns `investigation_capacity` with the required rounds and the ceiling. Answers cite accepted fact ids, or state uncertainty. Uncertainty that says the pages were searched is refused until `search_case` or `read_pages` has run. Invalid extraction quotations stay unmapped.
+
+**Capacity that still cannot finish inside the ceilings:** a corpus whose combined mapping windows, catalog-question batches, request-question batches, and page reads need more than 32 rounds, or whose necessary tool calls exceed 320. The run fails closed. Coverage is not reduced and the ceilings are not raised.
+
+## Previous ticket — Remove the per-Hive frontier-model allowlist
 
 **Objective:** `task: "investigation"` and `task: "mapping"` may use `PLANNER_STUDY_LITELLM_ALIAS` (`heavy_lifter`) when LiteLLM resolves that alias to an approved provider and model. `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` is removed. The Domain Pack resolver, investigation engine, evidence validation, and report generation stay as they are.
 
