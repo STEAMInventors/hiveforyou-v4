@@ -1,14 +1,24 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-26): Stage 5E.5 — Resolve the published Domain Pack on Rebuild Study.** Implemented locally. No deploy, no `supabase db push`, and no live model. A stored selection row is not required.
+> **Active ticket (2026-11-26): Remove the temporary per-Hive frontier-model authorization gate.** Local planner policy only. No deploy, no production SQL, and no live model.
 
-## Active ticket — Stage 5E.5: Resolve the published Domain Pack on Rebuild Study
+## Active ticket — Remove the per-Hive frontier-model allowlist
+
+**Objective:** `task: "investigation"` and `task: "mapping"` may use `PLANNER_STUDY_LITELLM_ALIAS` (`heavy_lifter`) when LiteLLM resolves that alias to an approved provider and model. `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` is removed. The Domain Pack resolver, investigation engine, evidence validation, and report generation stay as they are.
+
+**Decision:** D-064, revised 2026-11-26. D-065 uses that same check. No new alias, configuration variable, or migration.
+
+**Status (2026-11-26): local only.** The planner reads the study alias before posting a mapping or investigation turn. A verified private runtime may proceed. `anthropic/claude-opus-4-6` may proceed when `api_base` is absent or `https://api.anthropic.com`, for any Hive. Other providers and other Anthropic models return `provider_not_authorized` and are not called. A leftover `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` value is not read. `hive_id`, `content_class`, and a synthetic flag are not authorization. Service authentication, timeouts, budgets, and closed tool contracts stay. No Hive was rebuilt. No external model was called.
+
+**Remaining sensitive-data gap:** This route does not check consent, a BAA, zero-data retention, or the Hive's `content_class`. Those controls are not implemented here. A Rebuild on a real IEP, Medicaid, financial, legal, or health record can post the investigation window, written fact values, and `read_pages` text to the approved frontier model. D-017 and D-018 stay open. Legacy Study (`task: "study"`) and canonicalize already send case text to the same alias and do not pass this provider check. That existing disclosure is not a data-use approval.
+
+## Previous ticket — Stage 5E.5: Resolve the published Domain Pack on Rebuild Study
 
 **Objective:** Rebuild Study chooses the latest published, approved Domain Pack for the Hive from the pack's own applicability hints. It loads that edition's compiled definitions, investigation prompt, tools, rules, and calculations, and records the pack id, version, digest, prompt, and engine on the new revision. Previous revisions and reports stay. An applicable edition that fails validation does not fall back to legacy processing.
 
 **Status (2026-11-26): local only.** No production SQL was edited or applied. No Hive was rebuilt in a browser. No external model was called.
 
-The catalog is `packs/published/domain-pack-catalog.json`. The only published, approved edition is `iep-us-federal` `0.5.0` with prompt `hive.domain-investigation/2`. A Hive whose saved intent and document names match that edition's hints, including Maya's synthetic IEP Hive, uses it without `hive.domain_pack_selections`. A Hive that does not match stays on `hive-canonicalize/1`. A stored row must be that same edition and compiled digest; `0.4.0` or a different digest fails closed. Evidence checks, the provider gate, and external-model authorization are unchanged.
+The catalog is `packs/published/domain-pack-catalog.json`. The only published, approved edition is `iep-us-federal` `0.5.0` with prompt `hive.domain-investigation/2`. A Hive whose saved intent and document names match that edition's hints, including Maya's synthetic IEP Hive, uses it without `hive.domain_pack_selections`. A Hive that does not match stays on `hive-canonicalize/1`. A stored row must be that same edition and compiled digest; `0.4.0` or a different digest fails closed. Evidence checks are unchanged. The provider gate's Hive allowlist was removed in the later ticket.
 
 ## Previous ticket — Stage 5E.4C: Load domain investigation v2 on the pinned 0.5.0 path
 
@@ -109,7 +119,7 @@ The scripted tool-contract check stays in `domain-investigation-l001.test.ts`. T
 **Safe production activation (not performed here):**
 
 1. Apply `20261126130000` and `20261126140000` only. Do not run `UPDATE hive.domain_pack_selections`. Do not apply `20261125140000` again.
-2. Deploy the web app that contains this ticket. Leave `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` empty until a separate approval names one synthetic Hive.
+2. Deploy the web app that contains this ticket. The later removal of `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` supersedes the instruction to leave that variable empty.
 3. Confirm the Hive id is the synthetic one. Confirm it has no `hive.domain_pack_selections` row, or that the row is already this exact edition and digest.
 4. Recompute the digest in the deployed app (`loadPinnedDomainPack().compiledDigest`). The 5E.2 value is `2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066`. A different digest means the shipped source changed; do not reuse the old value.
 5. Insert that one row, either with the service-role RPC or one explicit insert. Do not omit the Hive id.
@@ -155,7 +165,7 @@ VALUES ('<synthetic-hive-uuid>'::uuid, 'iep-us-federal', '0.5.0', '<compiled-dig
 - Executable calculations on 0.5.0 are `calculation:C4` (rate per week), `calculation:C5` (sum by setting), `calculation:C7a` (meeting date plus one year), and `calculation:C7b` (determination date plus three years), plus the existing day-count calculations whose bindings already matched `DAYS_BETWEEN`. `C6`, `C8`, `C9`, `C11`, and `C12` stay declarations because their inputs are not one same-entity operator contract. A rate does not compare separate unit text on number fields. A due date is an estimate, not a deadline verdict, while jurisdiction is `UNVERIFIED`.
 - Relationship structures are case companions. The shipped pack has none, so a pinned Hive keeps proposed links unresolved until a structure whose slots appear in the quoted page is supplied. Endpoint co-occurrence is not acceptance.
 - On the synthetic L001 documents, the 0.5.0 study publishes the reevaluation date `2027-11-01` from the written determination date `2024-11-01`, records that date on the timeline, marks the incomplete goal check `NOT_SHOWN`, and leaves the timing checks `NOT_ASSESSED`. It does not publish a progress conclusion, a relationship, or a rate, because the corpus has no later measurement, no compiled relationship structure, and no baseline date or goal date in the mapped facts. The four golden negative controls stay out of the findings.
-- No external model was called. The eight-PDF check drives the ledger with scripted tool calls over text extracted from the synthetic corpus in Node. A controlled live-model run still needs a separate approval, an allowlisted synthetic Hive, and one stored 0.5.0 selection.
+- No external model was called. The eight-PDF check drives the ledger with scripted tool calls over text extracted from the synthetic corpus in Node. A controlled live-model run still needs a separate approval. The later D-064 revision removes the Hive allowlist; it does not by itself approve a live run.
 
 **Not done:** sign in, create a Hive, set the allowlist, pin a pack, click Rebuild Study, deploy the planner or web app, or apply SQL.
 
@@ -172,7 +182,7 @@ VALUES ('<synthetic-hive-uuid>'::uuid, 'iep-us-federal', '0.5.0', '<compiled-dig
 | Route | When a mapping turn may be posted |
 |---|---|
 | Private `ollama/`, `ollama_chat/`, `hosted_vllm/` | Loopback or private address, and the model server lists the model |
-| `anthropic/claude-opus-4-6` | `api_base` absent or `https://api.anthropic.com`, and `hive_id` is in `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` |
+| `anthropic/claude-opus-4-6` | `api_base` absent or `https://api.anthropic.com`, and `hive_id` is in `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` (removed 2026-11-26; see the active ticket) |
 | Any other provider or Anthropic model | Not posted (`provider_not_authorized`) |
 
 The Hive id is the id on the processing run. The Rebuild Study button already sends the Hive from the page URL; the worker copies `run.hiveId` onto the mapping turn. A `synthetic` field or `content_class` is rejected or ignored. Legacy canonicalize and Study turns are unchanged and are not treated as approval to map real records.
@@ -189,7 +199,7 @@ The Hive id is the id on the processing run. The Rebuild Study button already se
 | This key's permission to call `claude-opus-4-6` | **Unknown.** The running gateway was previously recorded as `heavy_lifter` → `anthropic/claude-opus-4-6` with no `api_base`. That configuration was not re-read in this gate. |
 | Real IEP, Medicaid, financial, legal, health records | **Blocked.** They are not an allowlisted Hive. |
 
-**Not done:** sign in through the existing UI, create one Hive from the eight synthetic L001 PDFs, verify the stored corpus, set `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` to that Hive only, insert one `hive.domain_pack_selections` row for the compiled digest, click Rebuild Study, and confirm the new revision, facts, citations, unresolved calculations and relationships, and the intact previous Study and reports.
+**Not done:** sign in through the existing UI, create one Hive from the eight synthetic L001 PDFs, verify the stored corpus, insert one `hive.domain_pack_selections` row for the compiled digest, click Rebuild Study, and confirm the new revision, facts, citations, unresolved calculations and relationships, and the intact previous Study and reports. The instruction to set `PLANNER_EXTERNAL_MAPPING_HIVE_IDS` was withdrawn on 2026-11-26.
 
 ## Previous ticket — Stage 5D.3: Unified Agentic Domain Investigation
 

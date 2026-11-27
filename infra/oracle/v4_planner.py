@@ -8,20 +8,21 @@ with a fixed model alias and a scoped virtual key that never leaves Oracle:
   (intent, domain, intelligence, plan) or pipeline stage (extract, canonicalize, write). Returns the
   parsed JSON plus usage metadata.
 - `study-agent-turn@1` (`POST /v1/study-agent-turn`): one native tool-calling turn of the Canonical
-  Study investigation (`task: "study"`), Writer report generation (`task: "writer"`), or Domain Pack
-  field mapping (`task: "mapping"`). Forwards the conversation and the fixed tool definitions and
+  Study investigation (`task: "study"`), Writer report generation (`task: "writer"`), Domain Pack
+  field mapping (`task: "mapping"`), or Domain Pack investigation (`task: "investigation"`). Forwards the conversation and the fixed tool definitions and
   returns the model's tool calls unexecuted. The planner never runs a Hive tool; the web workflow does.
 
 - Callers cannot choose the model. Preparation tasks use `TASK_MODEL_ALIASES[task]` when set,
-  otherwise `PLANNER_LITELLM_ALIAS` (`sorter`). `study` and `mapping` turns use
+  otherwise `PLANNER_LITELLM_ALIAS` (`sorter`). `study`, `mapping`, and `investigation` turns use
   `PLANNER_STUDY_LITELLM_ALIAS`; `writer` turns use `PLANNER_WRITER_LITELLM_ALIAS`; `extract`,
   `canonicalize` and `write` use `PLANNER_{EXTRACT,CANONICALIZE,WRITE}_LITELLM_ALIAS`. Those aliases
-  fail closed when unset. A mapping turn reuses the study alias. Before any case value is posted,
-  the planner reads that alias from LiteLLM. A verified private runtime may proceed. The one
-  approved external model may proceed only for a Hive id listed in
-  `PLANNER_EXTERNAL_MAPPING_HIVE_IDS`. A synthetic label, `content_class`, or any other
-  client claim is not authorization. Anything else is `provider_not_authorized` and is not
-  called. `PLANNER_FIELD_MAPPING_LITELLM_ALIAS` is no longer a route.
+  fail closed when unset. Before a mapping or investigation turn is posted, the planner reads the
+  study alias from LiteLLM. A verified private runtime may proceed. The one approved external
+  model, `anthropic/claude-opus-4-6` with no `api_base` or `https://api.anthropic.com`, may proceed
+  for any Hive. A Hive id, a synthetic label, `content_class`, or any other client claim is not
+  authorization. Anything else is `provider_not_authorized` and is not called. There is no
+  per-Hive allowlist and no unrestricted provider fallback.
+  `PLANNER_FIELD_MAPPING_LITELLM_ALIAS` is not a route.
 - Bearer `PLANNER_SERVICE_TOKEN` is compared in constant time; an unset token fails closed.
 - Logs carry identifiers, codes, token counts and latency only — never prompts, page text,
   messages, tool arguments, completions or credentials.
@@ -81,8 +82,6 @@ DOMAIN_INVESTIGATION_PROMPT_ID = "hive.domain-investigation/1"
 DOMAIN_INVESTIGATION_PROMPT_V2_ID = "hive.domain-investigation/2"
 INVESTIGATION_PROMPT_IDS = frozenset({DOMAIN_INVESTIGATION_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_V2_ID})
 FIELD_MAPPING_ALIAS_ENV = "PLANNER_FIELD_MAPPING_LITELLM_ALIAS"
-# Server allowlist. Empty means no external mapping post. Client claims are not read.
-EXTERNAL_MAPPING_HIVE_IDS_ENV = "PLANNER_EXTERNAL_MAPPING_HIVE_IDS"
 HIVE_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 # Model id already configured as the study alias. Other Anthropic models stay unauthorized.
 APPROVED_EXTERNAL_MODELS = {
@@ -382,7 +381,7 @@ class StudyAgentTurnRequest(_Strict):
     tools: list[_ToolDefinition] = Field(min_length=0, max_length=len(STUDY_AGENT_TOOL_NAMES))
     max_output_tokens: int = Field(ge=1, le=STUDY_AGENT_MAX_OUTPUT_TOKENS)
     timeout_seconds: int = Field(ge=5, le=240)
-    # Server-known Hive id. Not a synthetic claim. Study and Writer turns ignore it.
+    # Copied from the processing run. Not an authorization input for any task.
     hive_id: str | None = Field(default=None, pattern=HIVE_ID_RE.pattern)
 
 
@@ -424,7 +423,6 @@ def _settings() -> dict[str, str]:
             for task, env_name in REQUIRED_TASK_ALIAS_ENV.items()
         },
         "field_mapping_alias": os.environ.get(FIELD_MAPPING_ALIAS_ENV, "").strip(),
-        "external_mapping_hive_ids": os.environ.get(EXTERNAL_MAPPING_HIVE_IDS_ENV, "").strip(),
     }
 
 
@@ -766,7 +764,7 @@ def _provider_not_authorized() -> PlannerError:
         "MODEL_UNAVAILABLE",
         "dependency",
         False,
-        "This provider is not authorized for this hive.",
+        "This provider is not authorized.",
         "provider_not_authorized",
     )
 
@@ -927,16 +925,6 @@ async def _probe_private_endpoint(kind: str, model_id: str, api_base: str) -> No
         raise _private_route_unavailable()
 
 
-def _designated_external_mapping_hives(settings: dict[str, str]) -> frozenset[str]:
-    """UUIDs from the server allowlist only. A non-UUID token, including the word synthetic, is dropped."""
-    found: set[str] = set()
-    for part in settings.get("external_mapping_hive_ids", "").split(","):
-        hive_id = part.strip().lower()
-        if HIVE_ID_RE.match(hive_id):
-            found.add(hive_id)
-    return frozenset(found)
-
-
 def _approved_external_route(model: str, api_base: object) -> bool:
     """Official Anthropic host, or LiteLLM's default when no api_base is set. No other host."""
     expected_host = APPROVED_EXTERNAL_MODELS.get(model.strip())
@@ -969,8 +957,12 @@ def _classify_mapping_deployment(row: dict[str, Any]) -> tuple[str, tuple[str, s
     raise _provider_not_authorized()
 
 
-async def _assert_mapping_provider(settings: dict[str, str], alias: str, hive_id: str | None) -> None:
-    """Classifies the study alias before any fact value is posted. Does not read content_class or a synthetic flag."""
+async def _assert_mapping_provider(settings: dict[str, str], alias: str) -> None:
+    """Classifies the study alias before any case value is posted.
+
+    A verified private runtime may proceed. The one approved external model may proceed for any
+    Hive. hive_id, content_class, and a synthetic flag are not read.
+    """
     payload = await _read_model_info(settings)
     matches = [row for row in payload["data"] if isinstance(row, dict) and row.get("model_name") == alias]
     if not matches:
@@ -987,10 +979,6 @@ async def _assert_mapping_provider(settings: dict[str, str], alias: str, hive_id
     if kinds[0] == "private":
         for kind, model_id, api_base in private_targets:
             await _probe_private_endpoint(kind, model_id, api_base)
-        return
-    normalized = (hive_id or "").strip().lower()
-    if normalized not in _designated_external_mapping_hives(settings):
-        raise _provider_not_authorized()
 
 
 async def _complete(request: PlannerCompletionRequest, settings: dict[str, str]) -> dict[str, Any]:
@@ -1175,7 +1163,7 @@ async def _agent_turn(request: StudyAgentTurnRequest, settings: dict[str, str]) 
     _require_litellm(settings)
     alias = _require_alias(request.task, settings)
     if request.task in ("mapping", "investigation"):
-        await _assert_mapping_provider(settings, alias, request.hive_id)
+        await _assert_mapping_provider(settings, alias)
     payload: dict[str, object] = {
         "model": alias,
         "messages": [{"role": "system", "content": request.system_prompt}, *(_dump_message(m) for m in request.messages)],
@@ -1261,7 +1249,6 @@ async def health() -> dict[str, object]:
         "task_model_aliases": {task: _model_alias(task, settings) for task in TASK_PROMPT_IDS},
         "task_aliases_configured": all(_model_alias(task, settings) for task in TASK_PROMPT_IDS),
         "field_mapping_alias": _field_mapping_alias(settings),
-        "external_mapping_hive_count": len(_designated_external_mapping_hives(settings)),
         "litellm_configured": bool(settings["litellm_base_url"] and settings["litellm_api_key"]),
         "service_token_configured": bool(settings["service_token"]),
         "contracts": [CONTRACT_VERSION, STUDY_AGENT_CONTRACT_VERSION, "planner-job@1"],

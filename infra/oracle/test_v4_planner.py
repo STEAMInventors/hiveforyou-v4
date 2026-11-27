@@ -347,7 +347,7 @@ def test_health_reveals_no_secrets(client: TestClient, monkeypatch: pytest.Monke
     }
     assert data["task_aliases_configured"] is True
     assert data["field_mapping_alias"] is None
-    assert data["external_mapping_hive_count"] == 0
+    assert "external_mapping_hive_count" not in data
     assert data["litellm_configured"] is True
     assert data["service_token_configured"] is True
     assert data["contracts"] == ["planner-completion@1", "study-agent-turn@1", "planner-job@1"]
@@ -1360,42 +1360,24 @@ OTHER_HIVE = "22222222-2222-4222-8222-222222222222"
 INVENTED_FACT = "Invented student North started on 2024-01-02."
 
 
-def test_mapping_turn_fails_closed_for_an_external_provider(client: TestClient, study_alias: None) -> None:
-    seen = use_litellm(
-        route_transport(model_info("anthropic/claude-opus-4-6", "https://api.anthropic.com", alias="heavy_lifter"), "{}")
-    )
-    response = post_agent(client, mapping_turn_body())
-    assert response.status_code == 503
-    assert response.json()["diagnostic_reason"] == "provider_not_authorized"
-    assert response.json()["retryable"] is False
-    assert [request.url.path for request in seen] == ["/v1/model/info"]
-    assert SECRET_FACT.encode() not in seen[0].content
+def _approved_frontier_handler(tool_calls: list[dict[str, object]], api_base: str | None) -> Callable[[httpx.Request], httpx.Response]:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/model/info"):
+            return httpx.Response(200, json=model_info("anthropic/claude-opus-4-6", api_base, alias="heavy_lifter"))
+        if request.url.path.endswith("/chat/completions"):
+            return httpx.Response(200, json=tool_completion(tool_calls))
+        raise AssertionError(f"unexpected path {request.url.path}")
+
+    return handler
 
 
-def test_mapping_turn_ignores_a_client_synthetic_claim(client: TestClient, study_alias: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(v4_planner.EXTERNAL_MAPPING_HIVE_IDS_ENV, f"synthetic,{SYNTHETIC_HIVE}")
-    seen = use_litellm(
-        route_transport(model_info("anthropic/claude-opus-4-6", None, alias="heavy_lifter"), "{}")
-    )
-    claimed = mapping_turn_body(hive_id=SYNTHETIC_HIVE, synthetic=True, content_class="synthetic")
-    rejected = post_agent(client, claimed)
-    assert rejected.status_code == 400
-    assert rejected.json()["diagnostic_reason"] == "planner_invalid_request"
-    unlabeled = post_agent(
-        client,
-        mapping_turn_body(hive_id=OTHER_HIVE, messages=[{"role": "user", "content": "content_class is synthetic"}]),
-    )
-    assert unlabeled.status_code == 503
-    assert unlabeled.json()["diagnostic_reason"] == "provider_not_authorized"
-    assert [request.url.path for request in seen] == ["/v1/model/info"]
-    assert all(SECRET_FACT.encode() not in request.content for request in seen)
-
-
-def test_mapping_turn_posts_invented_facts_only_for_the_designated_hive(
+def test_approved_frontier_model_posts_without_a_hive_allowlist(
     client: TestClient, study_alias: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv(v4_planner.EXTERNAL_MAPPING_HIVE_IDS_ENV, SYNTHETIC_HIVE.upper())
-    tool_calls = [
+    """A leftover Hive-list variable does not restrict the approved model."""
+    monkeypatch.setenv("PLANNER_EXTERNAL_MAPPING_HIVE_IDS", SYNTHETIC_HIVE)
+    assert not hasattr(v4_planner, "EXTERNAL_MAPPING_HIVE_IDS_ENV")
+    mapping_calls = [
         wire_call(
             "c1",
             "propose_field",
@@ -1403,54 +1385,101 @@ def test_mapping_turn_posts_invented_facts_only_for_the_designated_hive(
         ),
         wire_call("c2", "finish_mapping", json.dumps({"ready": True})),
     ]
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/model/info"):
-            return httpx.Response(200, json=model_info("anthropic/claude-opus-4-6", "https://api.anthropic.com/v1", alias="heavy_lifter"))
-        if request.url.path.endswith("/chat/completions"):
-            return httpx.Response(200, json=tool_completion(tool_calls))
-        raise AssertionError(f"unexpected path {request.url.path}")
-
-    seen = use_litellm(handler)
-    response = post_agent(client, mapping_turn_body(
+    seen = use_litellm(_approved_frontier_handler(mapping_calls, "https://api.anthropic.com/v1"))
+    listed = post_agent(client, mapping_turn_body(
         hive_id=SYNTHETIC_HIVE,
         messages=[{"role": "user", "content": INVENTED_FACT}],
     ))
-    assert response.status_code == 200
-    body = response.json()
-    assert body["model_alias"] == "heavy_lifter"
-    assert [call["name"] for call in body["message"]["tool_calls"]] == ["propose_field", "finish_mapping"]
-    assert [request.url.path for request in seen] == ["/v1/model/info", "/v1/chat/completions"]
-    assert INVENTED_FACT.encode() not in seen[0].content
-    assert INVENTED_FACT.encode() in seen[1].content
-    sent = json.loads(seen[1].content)
+    assert listed.status_code == 200
+    assert listed.json()["model_alias"] == "heavy_lifter"
+    assert [call["name"] for call in listed.json()["message"]["tool_calls"]] == ["propose_field", "finish_mapping"]
+    other = post_agent(client, mapping_turn_body(
+        hive_id=OTHER_HIVE,
+        messages=[{"role": "user", "content": INVENTED_FACT}],
+    ))
+    assert other.status_code == 200
+    assert other.json()["model_alias"] == "heavy_lifter"
+    absent = post_agent(client, mapping_turn_body(messages=[{"role": "user", "content": INVENTED_FACT}]))
+    assert absent.status_code == 200
+    assert [request.url.path for request in seen] == [
+        "/v1/model/info",
+        "/v1/chat/completions",
+        "/v1/model/info",
+        "/v1/chat/completions",
+        "/v1/model/info",
+        "/v1/chat/completions",
+    ]
+    info_requests = [request for request in seen if request.url.path.endswith("/model/info")]
+    completion_requests = [request for request in seen if request.url.path.endswith("/chat/completions")]
+    assert all(INVENTED_FACT.encode() not in request.content for request in info_requests)
+    assert all(INVENTED_FACT.encode() in request.content for request in completion_requests)
+    sent = json.loads(completion_requests[0].content)
     assert sent["model"] == "heavy_lifter"
     assert sent["tool_choice"] == "required"
     assert {tool["function"]["name"] for tool in sent["tools"]} == set(v4_planner.MAPPING_AGENT_TOOL_NAMES)
-
-    refused = post_agent(client, mapping_turn_body(hive_id=OTHER_HIVE, messages=[{"role": "user", "content": INVENTED_FACT}]))
-    assert refused.status_code == 503
-    assert refused.json()["diagnostic_reason"] == "provider_not_authorized"
-    assert [request.url.path for request in seen].count("/v1/chat/completions") == 1
     health = client.get("/health").json()
-    assert health["external_mapping_hive_count"] == 1
+    assert "external_mapping_hive_count" not in health
     assert SYNTHETIC_HIVE not in json.dumps(health)
+    assert OTHER_HIVE not in json.dumps(health)
+
+    investigation_calls = [wire_call("c3", "search_case", json.dumps({"query": "start date"}))]
+    investigation = use_litellm(_approved_frontier_handler(investigation_calls, None))
+    for prompt_id, hive_id in (
+        ("hive.domain-investigation/1", OTHER_HIVE),
+        ("hive.domain-investigation/2", SYNTHETIC_HIVE),
+    ):
+        response = post_agent(client, investigation_turn_body(
+            prompt_id=prompt_id,
+            hive_id=hive_id,
+            messages=[{"role": "user", "content": INVENTED_FACT}],
+        ))
+        assert response.status_code == 200
+        assert response.json()["model_alias"] == "heavy_lifter"
+        assert [call["name"] for call in response.json()["message"]["tool_calls"]] == ["search_case"]
+    posted = [request for request in investigation if request.url.path.endswith("/chat/completions")]
+    assert len(posted) == 2
+    for request in posted:
+        body = json.loads(request.content)
+        assert body["model"] == "heavy_lifter"
+        assert {tool["function"]["name"] for tool in body["tools"]} == set(v4_planner.INVESTIGATION_AGENT_TOOL_NAMES)
+        assert INVENTED_FACT.encode() in request.content
+    assert all(INVENTED_FACT.encode() not in request.content for request in investigation if request.url.path.endswith("/model/info"))
 
 
-def test_mapping_turn_refuses_an_unlisted_anthropic_model_and_a_private_anthropic_host(
-    client: TestClient, study_alias: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv(v4_planner.EXTERNAL_MAPPING_HIVE_IDS_ENV, SYNTHETIC_HIVE)
+def test_client_synthetic_claim_does_not_authorize_a_provider(client: TestClient, study_alias: None) -> None:
+    claimed = mapping_turn_body(hive_id=SYNTHETIC_HIVE, synthetic=True, content_class="synthetic")
+    rejected = post_agent(client, claimed)
+    assert rejected.status_code == 400
+    assert rejected.json()["diagnostic_reason"] == "planner_invalid_request"
+
     sonnet = use_litellm(route_transport(model_info("anthropic/claude-sonnet-4-5", None, alias="heavy_lifter"), "{}"))
-    sonnet_response = post_agent(client, mapping_turn_body(hive_id=SYNTHETIC_HIVE))
+    unlabeled = post_agent(
+        client,
+        mapping_turn_body(hive_id=OTHER_HIVE, messages=[{"role": "user", "content": "content_class is synthetic"}]),
+    )
+    assert unlabeled.status_code == 503
+    assert unlabeled.json()["diagnostic_reason"] == "provider_not_authorized"
+    assert unlabeled.json()["retryable"] is False
+    assert [request.url.path for request in sonnet] == ["/v1/model/info"]
+    assert all(b"content_class is synthetic" not in request.content for request in sonnet)
+
+
+def test_unauthorized_providers_remain_blocked_for_mapping_and_investigation(
+    client: TestClient, study_alias: None
+) -> None:
+    sonnet = use_litellm(route_transport(model_info("anthropic/claude-sonnet-4-5", None, alias="heavy_lifter"), "{}"))
+    sonnet_response = post_agent(client, mapping_turn_body(hive_id=OTHER_HIVE))
     assert sonnet_response.status_code == 503
     assert sonnet_response.json()["diagnostic_reason"] == "provider_not_authorized"
+    investigation_sonnet = post_agent(client, investigation_turn_body(hive_id=OTHER_HIVE))
+    assert investigation_sonnet.status_code == 503
+    assert investigation_sonnet.json()["diagnostic_reason"] == "provider_not_authorized"
     assert all(not request.url.path.endswith("/chat/completions") for request in sonnet)
 
     private_host = use_litellm(
         route_transport(model_info("anthropic/claude-opus-4-6", "http://10.0.0.8:11434", alias="heavy_lifter"), "{}", OLLAMA_PROBE)
     )
-    private_response = post_agent(client, mapping_turn_body(hive_id=SYNTHETIC_HIVE))
+    private_response = post_agent(client, investigation_turn_body(hive_id=SYNTHETIC_HIVE))
     assert private_response.status_code == 503
     assert private_response.json()["diagnostic_reason"] == "provider_not_authorized"
     assert [request.url.path for request in private_host] == ["/v1/model/info"]
@@ -1626,11 +1655,19 @@ def test_investigation_turn_uses_the_same_provider_gate_as_mapping(client: TestC
     external = use_litellm(
         route_transport(model_info("anthropic/claude-opus-4-6", "https://api.anthropic.com", alias="heavy_lifter"), "{}")
     )
-    refused = post_agent(client, investigation_turn_body())
+    accepted = post_agent(client, investigation_turn_body())
+    assert accepted.status_code == 200
+    assert accepted.json()["model_alias"] == "heavy_lifter"
+    assert [request.url.path for request in external] == ["/v1/model/info", "/v1/chat/completions"]
+    assert SECRET_FACT.encode() not in external[0].content
+    assert SECRET_FACT.encode() in external[1].content
+    openai = use_litellm(
+        route_transport(model_info("openai/gpt-4o-mini", None, alias="heavy_lifter"), "{}")
+    )
+    refused = post_agent(client, investigation_turn_body(hive_id=OTHER_HIVE))
     assert refused.status_code == 503
     assert refused.json()["diagnostic_reason"] == "provider_not_authorized"
-    assert [request.url.path for request in external] == ["/v1/model/info"]
-    assert SECRET_FACT.encode() not in external[0].content
+    assert [request.url.path for request in openai] == ["/v1/model/info"]
 
     wrong_tools = post_agent(client, investigation_turn_body(tools=agent_tools(v4_planner.MAPPING_AGENT_TOOL_NAMES)))
     assert wrong_tools.status_code == 400
