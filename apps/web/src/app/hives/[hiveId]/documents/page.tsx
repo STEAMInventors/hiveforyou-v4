@@ -95,6 +95,7 @@ export default async function DocumentsPage({ params }: DocumentsPageProps) {
       topics={topics}
       initialPreparation={overview?.preparation}
       showLegacyRebuild={hive.membershipRole !== "client"}
+      viewerIsOwner={hive.isOwner === true}
     />
     </>
   );

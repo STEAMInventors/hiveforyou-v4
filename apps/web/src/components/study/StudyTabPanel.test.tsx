@@ -31,7 +31,6 @@ function json(body: unknown, status = 200): Response {
 type Server = {
   runStatus: string | null;
   rebuildPosts: Record<string, unknown>[];
-  syntheticStudyEngine: boolean;
 };
 
 let server: Server;
@@ -107,7 +106,6 @@ function preparationBody() {
       createdAt: "2026-11-01T22:00:00.000Z",
     },
     reportRuns: [],
-    syntheticStudyEngine: server.syntheticStudyEngine,
   };
 }
 
@@ -121,7 +119,7 @@ describe("StudyTabPanel", () => {
     vi.clearAllMocks();
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     sessionStorage.clear();
-    server = { runStatus: null, rebuildPosts: [], syntheticStudyEngine: false };
+    server = { runStatus: null, rebuildPosts: [] };
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -176,6 +174,7 @@ describe("StudyTabPanel", () => {
       fireEvent.click(button);
     });
     expect(server.rebuildPosts).toHaveLength(1);
+    expect(server.rebuildPosts[0]?.studyEngine).toBeUndefined();
     const dialog = await screen.findByTestId("analyze-modal");
     expect(within(dialog).getByRole("heading", { name: "Getting ready…" })).toBeTruthy();
   });
@@ -285,7 +284,7 @@ describe("StudyTabPanel", () => {
     expect(routerMock.refresh).toHaveBeenCalled();
   });
 
-  it("hides the new study engine until the server permits it", async () => {
+  it("hides the new study engine from a viewer who is not the Hive owner", async () => {
     render(
       <StudyTabPanel
         hiveId={HIVE_ID}
@@ -301,8 +300,7 @@ describe("StudyTabPanel", () => {
     expect(screen.queryByTestId("study-tab-rebuild-pack-guided-button")).toBeNull();
   });
 
-  it("posts the new study engine only when the server permits it", async () => {
-    server.syntheticStudyEngine = true;
+  it("posts the new study engine for the Hive owner without an environment flag", async () => {
     render(
       <StudyTabPanel
         hiveId={HIVE_ID}
@@ -312,6 +310,7 @@ describe("StudyTabPanel", () => {
         revisionNumber={3}
         coverageGaps={fixture.coverageGaps}
         documentPages={fixture.documentPages}
+        viewerIsOwner
       />,
     );
     const button = await screen.findByTestId("study-tab-rebuild-pack-guided-button");

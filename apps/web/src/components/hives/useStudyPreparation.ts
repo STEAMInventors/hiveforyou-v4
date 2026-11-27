@@ -311,7 +311,6 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   }, [rebuildReady, start]);
 
   const rebuildPackGuided = useCallback(() => {
-    if (stateRef.current?.syntheticStudyEngine !== true) return;
     if (!rebuildReady?.canRebuild) {
       if (rebuildReady?.reason === "AWAITING_ACKNOWLEDGEMENT") {
         setStartError(null);

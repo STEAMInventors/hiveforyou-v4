@@ -191,7 +191,6 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "pack_guided_study_accepted",
   "pack_guided_engine_failed",
   "study_engine_unavailable",
-  "synthetic_study_engine_gate",
   "output_malformed",
   "mandatory_answer_missing",
   "citation_unresolved",

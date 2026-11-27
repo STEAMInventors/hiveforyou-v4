@@ -15,7 +15,7 @@ import {
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { rebuildStudy } from "@/server/study-preparation/study-preparation";
 import {
@@ -370,15 +370,8 @@ function acceptanceHarness(input: { pageText?: string; quote?: string; content?:
 
 const catalogs: string[] = [];
 
-beforeEach(() => {
-  process.env.HIVE_SYNTHETIC_STUDY_ENGINE = "synthetic";
-  delete process.env.VERCEL_ENV;
-});
-
 afterEach(() => {
   catalogs.splice(0);
-  delete process.env.HIVE_SYNTHETIC_STUDY_ENGINE;
-  delete process.env.VERCEL_ENV;
 });
 
 describe("pack-guided rebuild", () => {
@@ -455,27 +448,39 @@ describe("pack-guided rebuild", () => {
     expect(harness.current.reports).toEqual(PREVIOUS_REPORTS);
   });
 
-  it("refuses the pack-guided choice unless the server gate is open, including when NODE_ENV is production", async () => {
+  it("accepts an explicit pack-guided rebuild without an environment gate, including production NODE_ENV and VERCEL_ENV", async () => {
     const previousNode = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
+    process.env.VERCEL_ENV = "production";
     delete process.env.HIVE_SYNTHETIC_STUDY_ENGINE;
-    delete process.env.VERCEL_ENV;
-    const rpc = vi.fn(async () => ({ data: null, error: null }));
-    const request = {
+    const rpc = vi.fn(async () => ({
+      data: {
+        processingRun: runJson("QUEUED", { preparationMode: "REBUILD" }),
+        created: true,
+      },
+      error: null,
+    }));
+    const guided = {
       hiveId: HIVE_ID,
       correlationId: CORRELATION_ID,
       rawBody: { clientRequestId: REQUEST_ID, studyEngine: "pack-guided" },
     };
     try {
-      await expect(rebuildStudy({ rpc } as never, request)).rejects.toMatchObject({ diagnosticReason: "study_engine_unavailable" });
-      process.env.HIVE_SYNTHETIC_STUDY_ENGINE = "synthetic";
-      process.env.VERCEL_ENV = "production";
-      await expect(rebuildStudy({ rpc } as never, request)).rejects.toMatchObject({ diagnosticReason: "study_engine_unavailable" });
-      expect(rpc).not.toHaveBeenCalled();
+      const started = await rebuildStudy({ rpc } as never, guided);
+      expect(started.packGuided).toBe(true);
+      expect(rpc).toHaveBeenCalledWith(
+        "rebuild_study",
+        expect.objectContaining({ p_hive_id: HIVE_ID, p_request_id: REQUEST_ID }),
+      );
+      const legacy = await rebuildStudy({ rpc } as never, {
+        ...guided,
+        rawBody: { clientRequestId: REQUEST_ID },
+      });
+      expect(legacy.packGuided).toBe(false);
     } finally {
       process.env.NODE_ENV = previousNode;
-      process.env.HIVE_SYNTHETIC_STUDY_ENGINE = "synthetic";
       delete process.env.VERCEL_ENV;
+      delete process.env.HIVE_SYNTHETIC_STUDY_ENGINE;
     }
   });
 });

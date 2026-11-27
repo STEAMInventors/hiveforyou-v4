@@ -77,6 +77,8 @@ type DocumentsPanelProps = {
   initialPreparation?: GetStudyPreparationResponse;
   /** Owner and staff see the legacy-study notice. Clients keep the documents page sentence. */
   showLegacyRebuild?: boolean;
+  /** Authenticated Hive owner. The pack-guided rebuild control is shown only for that role. */
+  viewerIsOwner?: boolean;
 };
 
 function toLoadError(error: unknown, fallback: string): LoadError {
@@ -101,6 +103,7 @@ export function DocumentsPanel({
   topics = [],
   initialPreparation,
   showLegacyRebuild = false,
+  viewerIsOwner = false,
 }: DocumentsPanelProps) {
   const router = useRouter();
   const [documents, setDocuments] = useState(initialDocuments);
@@ -304,6 +307,21 @@ export function DocumentsPanel({
             }}
           >
             Rebuild study
+          </button>
+        ) : null}
+        {showRebuild && viewerIsOwner ? (
+          <button
+            type="button"
+            className={SECONDARY_BUTTON_CLASS}
+            disabled={!analysis.rebuildAvailability?.canRebuild || analysis.starting || busy}
+            aria-describedby="documents-rebuild-hint"
+            data-testid="rebuild-pack-guided-button"
+            onClick={(event) => {
+              analysis.returnFocusRef.current = event.currentTarget;
+              analysis.rebuildPackGuided();
+            }}
+          >
+            Rebuild with the new study engine
           </button>
         ) : null}
       </>

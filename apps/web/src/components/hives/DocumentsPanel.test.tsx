@@ -555,6 +555,7 @@ describe("DocumentsPanel — Analyze", () => {
     });
 
     expect(server.rebuildPosts).toHaveLength(1);
+    expect(server.rebuildPosts[0]?.studyEngine).toBeUndefined();
     expect(server.analysisPosts).toHaveLength(0);
     const status = await screen.findByTestId("rebuild-study-status");
     expect(status.textContent).toContain("Study revision 7 accepted.");
@@ -576,6 +577,24 @@ describe("DocumentsPanel — Analyze", () => {
     expect(dialogLink.getAttribute("href")).not.toContain("/study");
     expect(within(dialog).getByTestId("rebuild-study-identity").textContent).toContain("Revision 7 accepted");
     expect(within(dialog).getByTestId("rebuild-study-identity").textContent).toContain("widget-review 2");
+  });
+
+  it("shows the new study engine to the Hive owner and leaves the default rebuild unchanged", async () => {
+    server.reportStatuses = { CUSTOMER: "SUCCEEDED", PRO: "SUCCEEDED" };
+    render(<DocumentsPanel hiveId={HIVE_ID} initialDocuments={server.documents} />);
+    await screen.findByTestId("rebuild-study-button");
+    expect(screen.queryByTestId("rebuild-pack-guided-button")).toBeNull();
+    cleanup();
+
+    render(<DocumentsPanel hiveId={HIVE_ID} initialDocuments={server.documents} viewerIsOwner />);
+    const button = await screen.findByTestId("rebuild-pack-guided-button");
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(server.rebuildPosts).toHaveLength(1);
+    expect(server.rebuildPosts[0]?.studyEngine).toBe("pack-guided");
+    expect(server.analysisPosts).toHaveLength(0);
   });
 
   it("does not offer rebuild until a study exists and the documents are already read", async () => {

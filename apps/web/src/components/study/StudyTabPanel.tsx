@@ -35,6 +35,8 @@ type StudyTabPanelProps = {
   canonicalStudy?: CanonicalStudy | null;
   referencedDocuments?: readonly StudyViewReferencedDocument[];
   workspaceSurface?: StudyWorkspaceSurface;
+  /** Authenticated Hive owner. The pack-guided rebuild control is shown only for that role. */
+  viewerIsOwner?: boolean;
 };
 
 /**
@@ -53,6 +55,7 @@ export function StudyTabPanel({
   canonicalStudy = null,
   referencedDocuments = [],
   workspaceSurface,
+  viewerIsOwner = false,
 }: StudyTabPanelProps) {
   const router = useRouter();
   const analysis = useStudyPreparation(hiveId, { initialPreparation });
@@ -119,7 +122,7 @@ export function StudyTabPanel({
       >
         Rebuild without checklist
       </button>
-      {analysis.state?.syntheticStudyEngine === true ? (
+      {viewerIsOwner ? (
         <button
           type="button"
           className={SECONDARY_BUTTON_CLASS}

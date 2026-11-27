@@ -365,11 +365,6 @@ export type GetStudyPreparationResponse = {
   studyRevision: StudyRevisionSummary | null;
   /** Latest Writer run per audience for that revision. */
   reportRuns: ReportRun[];
-  /**
-   * Server decision for the synthetic pack-guided rebuild control.
-   * Absent or false hides it. The client cannot turn it on.
-   */
-  syntheticStudyEngine?: boolean;
 };
 
 export type StartStudyPreparationRequest = {
@@ -377,7 +372,7 @@ export type StartStudyPreparationRequest = {
   coverageAcknowledgementDigest?: string;
   /** Rebuild only: skip domain pack selection and canonicalize with hive-canonicalize/1. */
   withoutDomainPack?: boolean;
-  /** Rebuild only, and only when the server synthetic-study gate is open: run the pack-guided Study engine. */
+  /** Rebuild only. Selects the pack-guided Study engine. Omitted requests stay on the existing rebuild path. */
   studyEngine?: "pack-guided";
 };
 
@@ -769,7 +764,6 @@ export function normalizeGetStudyPreparationResponse(raw: unknown): GetStudyPrep
     eligibility,
     studyRevision,
     reportRuns,
-    syntheticStudyEngine: record.syntheticStudyEngine === true,
   };
 }
 
