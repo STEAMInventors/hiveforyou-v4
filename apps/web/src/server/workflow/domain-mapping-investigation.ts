@@ -15,6 +15,7 @@ import {
 import {
   CoordinatedInvestigationLedger,
   fieldMappingRequestLeaksRecordText,
+  formatInvestigationCompletionSummary,
   formatInvestigationRejectionSummary,
   INVESTIGATION_AGENT_TOOLS,
   type InvestigationWindow,
@@ -33,7 +34,28 @@ import { callStudyAgentTurn, type PlannerDeps } from "@/server/study-preparation
  */
 
 const NUDGE_MESSAGE = "No tool was called. Continue the investigation with the provided tools. Copy written values exactly.";
-const FINISH_NUDGE = "Phase F is still open. Call finish_investigation with ready true only after every manifest document has an evidence-backed role, every shown question has an answer or uncertainty, and every non-empty anchor page has been read. Accepted fields do not close the investigation. The call only asks Hive to stop.";
+const CONTINUE_MESSAGE = "Continue the valid investigation work, then call finish_investigation with ready true. Accepted fields do not close the investigation.";
+
+function steer(ledger: CoordinatedInvestigationLedger): string {
+  const counts = ledger.lastTurnRejectionCounts;
+  const hints: string[] = [];
+  if ((counts.unauthorized_evidence ?? 0) > 0) {
+    hints.push("A saved extraction quotation did not verify. Leave that fact unmapped and do not propose it again. That is not a citation you can correct.");
+  }
+  if ((counts.duplicate_fact ?? 0) > 0) {
+    hints.push("An extraction fact is already mapped. Reuse its fact id and do not map it again.");
+  }
+  if ((counts.quote_not_on_page ?? 0) > 0) {
+    hints.push("A quote you sent is not on the authorized page. Read the page and quote a contiguous run of words that is already there.");
+  }
+  if ((counts.invented_value ?? 0) > 0) {
+    hints.push("Copy the written value exactly. Do not convert it.");
+  }
+  const open = ledger.completionFeedback();
+  if (open) hints.push(open);
+  if (hints.length === 0) hints.push(CONTINUE_MESSAGE);
+  return hints.join(" ");
+}
 
 export type MappingAgentTotals = {
   rounds: number;
@@ -101,6 +123,7 @@ export async function runDomainMappingInvestigation(input: {
   const pageTexts = input.pages.flatMap((document) => document.pages.map((page) => ({ text: page.text })));
   let windowIndex = 0;
   let nudged = false;
+  let recoveredWindow: number | null = null;
   const totals: MappingAgentTotals = {
     rounds: 0,
     roundsAllowed: limits.rounds,
@@ -122,6 +145,24 @@ export async function runDomainMappingInvestigation(input: {
   };
   const fail = (diagnosticReason: string, dimension?: StudyAgentBudgetDimension): { ok: false; error: HiveError; totals: MappingAgentTotals } => {
     sync();
+    const blockers = formatInvestigationCompletionSummary(ledger.completionCounts());
+    if (blockers) {
+      emitStructuredEvent({
+        eventName: "mapping.investigation.incomplete",
+        severity: "WARN",
+        timestamp: new Date().toISOString(),
+        component: "pipeline",
+        operation: "canonicalize",
+        stage: "ANALYZE",
+        task: "investigation",
+        correlationId: input.correlationId,
+        processingRunId: input.runId,
+        durationMs: Math.max(0, Math.trunc(clock() - startedAt)),
+        rounds: totals.rounds,
+        diagnosticReason: "mapping_incomplete",
+        rejectionSummary: blockers,
+      });
+    }
     return {
       ok: false,
       totals,
@@ -235,21 +276,22 @@ export async function runDomainMappingInvestigation(input: {
       if (ledger.finished) break;
     }
     const next = nextWindow(windows, windowIndex);
+    if (next && ledger.lastTurnNeedsRecovery() && recoveredWindow !== windowIndex) {
+      recoveredWindow = windowIndex;
+      messages.push({ role: "user", content: steer(ledger) });
+      continue;
+    }
     if (next) {
       const rendered = renderInvestigationWindow({ window: next, extractions: input.extractions, intentText: input.intentText ?? "" });
       if (boundary(rendered)) return fail("investigation_record_text_boundary");
       ledger.presentWindow(next.index, { questionIds: questionIdsOf(rendered) });
       windowIndex = next.index;
+      recoveredWindow = null;
       nudged = false;
       messages.push({ role: "user", content: JSON.stringify(rendered) });
       continue;
     }
-    if (!nudged) {
-      nudged = true;
-      messages.push({ role: "user", content: FINISH_NUDGE });
-      continue;
-    }
-    return fail("mapping_incomplete");
+    messages.push({ role: "user", content: steer(ledger) });
   }
   sync();
   const assembled = ledger.assemble();

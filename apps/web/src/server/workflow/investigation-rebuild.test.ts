@@ -481,7 +481,8 @@ describe("rebuild study investigation engine", () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error.diagnosticReason).toBe("mapping_incomplete");
+    expect(result.error.diagnosticReason).toBe("mapping_agent_budget_exhausted");
+    expect(result.error.diagnosticField).toContain("budget.rounds");
     expect(fetchFn).toHaveBeenCalled();
     expect((bodies[0] as { task: string }).task).toBe("investigation");
     expect(bodies.every((body) => (body as { task: string }).task === "investigation")).toBe(true);

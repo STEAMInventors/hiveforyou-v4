@@ -62,7 +62,7 @@ export const MAPPING_AGENT_TOOLS: readonly MappingAgentToolDefinition[] = [
     type: "function",
     function: {
       name: "propose_field",
-      description: "Propose one extracted fact as the written value of one catalog field. Copy the value exactly.",
+      description: "Propose one extracted fact as the written value of one catalog field. Copy the value exactly. If that fact was already accepted, reuse its fact id and do not propose it again.",
       parameters: closed(
         {
           documentId: str("Document id of the fact."),
@@ -353,6 +353,7 @@ export class DomainMappingLedger {
   private readonly turnRejectionCounts = new Map<string, number>();
   private readonly acceptedFields: FieldRow[] = [];
   private readonly acceptedRelationships: RelationshipRow[] = [];
+  private readonly unverifiable = new Set<string>();
   private toolCallCount = 0;
   private invalidCallCount = 0;
   private invalidBudgetCount = 0;
@@ -390,6 +391,18 @@ export class DomainMappingLedger {
 
   get acceptedFieldCount(): number {
     return this.acceptedFields.length;
+  }
+
+  /** Extraction facts whose saved quotation cannot be verified. A model citation is not one of these. */
+  get unverifiableFactCount(): number {
+    return this.unverifiable.size;
+  }
+
+  unverifiableFactIds(): string[] {
+    return [...this.unverifiable].map((key) => {
+      const splitAt = key.lastIndexOf("\0");
+      return `${key.slice(0, splitAt)}/${key.slice(splitAt + 1)}`;
+    }).sort();
   }
 
   /** Accepted rows before finish. The investigation loop uses these to check later proposals. */
@@ -494,15 +507,20 @@ export class DomainMappingLedger {
     return this.finish(args);
   }
 
+  private refuseUnverifiable(documentId: string, extractionFactId: string, message: string): never {
+    this.unverifiable.add(factKey(documentId, extractionFactId));
+    refuse("unauthorized_evidence", message);
+  }
+
   private located(documentId: string, extractionFactId: string): LocatedFact {
     const located = this.facts.get(factKey(documentId, extractionFactId));
     if (!located || located.documentId !== documentId) refuse("unknown_fact", "That fact is not in the authorized extraction.");
     if (located.fact.evidence.length === 0 || located.fact.evidence.some((item) => item.quote.trim() === "")) {
-      refuse("unauthorized_evidence", "That fact has no authorized quotation.");
+      this.refuseUnverifiable(documentId, extractionFactId, `The saved extraction has no quotation for ${extractionFactId}. Leave it unmapped and do not propose it again.`);
     }
     for (const item of located.fact.evidence) {
       if (this.pages.length > 0 && !quoteOnAuthorizedPage(this.pages, documentId, item.page, item.quote)) {
-        refuse("unauthorized_evidence", "That quotation is not on the authorized page.");
+        this.refuseUnverifiable(documentId, extractionFactId, `The saved extraction quotation for ${extractionFactId} is not on the authorized page. Leave it unmapped and do not propose it again.`);
       }
     }
     return located;
@@ -515,8 +533,16 @@ export class DomainMappingLedger {
 
   private claimFact(documentId: string, extractionFactId: string): void {
     const key = factKey(documentId, extractionFactId);
-    if (this.usedFacts.has(key)) refuse("duplicate_fact", "That fact was already mapped.");
+    if (this.usedFacts.has(key)) refuse("duplicate_fact", "That fact was already mapped. Reuse its fact id and do not map it again.");
     this.usedFacts.add(key);
+  }
+
+  private sameField(existing: FieldRow, proposed: { entityId: string; instanceId: string; fieldId: string; valueType: FieldValueType; value: string }): boolean {
+    return existing.entityId === proposed.entityId
+      && existing.instanceId === proposed.instanceId
+      && existing.fieldId === proposed.fieldId
+      && existing.valueType === proposed.valueType
+      && existing.value === proposed.value;
   }
 
   private proposeField(args: ObjectMap): Record<string, unknown> {
@@ -539,9 +565,16 @@ export class DomainMappingLedger {
       refuse("invented_value", "The value must be the source-written value and the catalog type.");
     }
     if (!located.fact.evidence.some((item) => phraseInQuote(item.quote, located.fact.valueAsWritten))) {
-      refuse("unauthorized_evidence", "The written value is not in the fact's quotation.");
+      this.refuseUnverifiable(documentId, extractionFactId, `The written value is not in the saved extraction quotation for ${extractionFactId}. Leave it unmapped and do not propose it again.`);
     }
     this.assertInstance(instanceId, entityId);
+    const existing = this.acceptedFields.find((row) => row.documentId === documentId && row.extractionFactId === extractionFactId);
+    if (existing) {
+      if (this.sameField(existing, { entityId, instanceId, fieldId, valueType, value: located.fact.valueAsWritten })) {
+        return { kind: "field", extractionFactId, fieldId, reused: true };
+      }
+      refuse("duplicate_fact", "That fact was already mapped. Reuse its fact id and do not map it again.");
+    }
     this.claimFact(documentId, extractionFactId);
     this.instances.set(instanceId, entityId);
     this.acceptedFields.push({
@@ -574,6 +607,13 @@ export class DomainMappingLedger {
     }
     this.assertInstance(fromInstanceId, catalog.fromEntityId);
     this.assertInstance(toInstanceId, catalog.toEntityId);
+    const existing = this.acceptedRelationships.find((row) => row.documentId === documentId && row.extractionFactId === extractionFactId);
+    if (existing) {
+      if (existing.relationshipId === relationshipId && existing.fromInstanceId === fromInstanceId && existing.toInstanceId === toInstanceId) {
+        return { kind: "relationship", extractionFactId, relationshipId, reused: true };
+      }
+      refuse("duplicate_fact", "That fact was already mapped. Reuse its fact id and do not map it again.");
+    }
     this.claimFact(documentId, extractionFactId);
     this.instances.set(fromInstanceId, catalog.fromEntityId);
     this.instances.set(toInstanceId, catalog.toEntityId);

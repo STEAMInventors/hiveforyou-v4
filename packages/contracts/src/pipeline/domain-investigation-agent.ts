@@ -107,7 +107,7 @@ export const INVESTIGATION_AGENT_TOOLS: readonly InvestigationAgentToolDefinitio
     type: "function",
     function: {
       name: "propose_field",
-      description: "Propose one extracted fact as the written value of one catalog field. Copy the value exactly.",
+      description: "Propose one extracted fact as the written value of one catalog field. Copy the value exactly. If that fact was already accepted, reuse its fact id and do not propose it again.",
       parameters: closed(
         {
           documentId: str("Document id of the fact."),
@@ -320,6 +320,60 @@ function identifier(value: unknown): string | null {
   return typeof value === "string" && ID_PATTERN.test(value) ? value : null;
 }
 
+export type InvestigationCompletionCounts = {
+  unpresentedWindows: number;
+  documentsWithoutRole: number;
+  unreadAnchorPages: number;
+  unansweredShownQuestions: number;
+  unansweredIntentQuestions: number;
+  unverifiableFacts: number;
+};
+
+/** Privacy-safe blocker counts. Ids, quotes, page text, and prompt text are not included. */
+export function formatInvestigationCompletionSummary(counts: InvestigationCompletionCounts | null | undefined): string | null {
+  if (!counts) return null;
+  const pairs: [string, number][] = [
+    ["unverifiable_facts", counts.unverifiableFacts],
+    ["documents_without_role", counts.documentsWithoutRole],
+    ["unread_anchor_pages", counts.unreadAnchorPages],
+    ["unanswered_shown_questions", counts.unansweredShownQuestions],
+    ["unanswered_intent_questions", counts.unansweredIntentQuestions],
+    ["unpresented_windows", counts.unpresentedWindows],
+  ];
+  const chosen: string[] = [];
+  for (const [code, count] of pairs) {
+    if (!Number.isInteger(count) || count <= 0) continue;
+    const piece = `${code}:${Math.min(9999, count)}`;
+    const next = chosen.length === 0 ? piece : `${chosen.join(",")},${piece}`;
+    if (next.length > 120) break;
+    chosen.push(piece);
+  }
+  return chosen.length === 0 ? null : chosen.join(",");
+}
+
+const RECOVERY_CODES = new Set<string>([
+  "unauthorized_evidence",
+  "duplicate_fact",
+  "quote_not_on_page",
+  "invented_value",
+  "invalid_arguments",
+  "unknown_fact",
+  "unknown_catalog_id",
+  "unknown_question",
+  "page_not_authorized",
+  "instance_entity_conflict",
+  "mapping_incomplete",
+  "unknown_tool",
+  "tool_call_conflict",
+  "too_many_calls",
+]);
+
+function listIds(ids: readonly string[]): string {
+  const shown = ids.slice(0, 8);
+  const extra = ids.length > 8 ? ` and ${ids.length - 8} more` : "";
+  return `${shown.join(", ")}${extra}`;
+}
+
 export function formatInvestigationRejectionSummary(counts: Readonly<Record<string, number>> | null | undefined): string | null {
   if (!counts) return null;
   const entries = Object.entries(counts)
@@ -513,6 +567,60 @@ export class CoordinatedInvestigationLedger {
     return Object.fromEntries(this.turnRejectionCounts);
   }
 
+  /** A rejected call the model can correct or skip without leaving this window. A later-window finish refusal is not one. */
+  lastTurnNeedsRecovery(): boolean {
+    for (const [code, count] of this.turnRejectionCounts) {
+      if (count > 0 && RECOVERY_CODES.has(code)) return true;
+    }
+    return false;
+  }
+
+  completionCounts(): InvestigationCompletionCounts {
+    const gaps = this.completionGaps();
+    return {
+      unpresentedWindows: gaps.unpresentedWindows,
+      documentsWithoutRole: gaps.documentsWithoutRole.length,
+      unreadAnchorPages: gaps.unreadAnchorPages.length,
+      unansweredShownQuestions: gaps.unansweredShownQuestions.length,
+      unansweredIntentQuestions: gaps.unansweredIntentQuestions.length,
+      unverifiableFacts: this.mapping.unverifiableFactCount,
+    };
+  }
+
+  /** Source-safe unfinished work for the model. Quotes, page text, prompts, and values are omitted. */
+  completionFeedback(): string | null {
+    const gaps = this.completionGaps();
+    if (gaps.scheduleError) return gaps.scheduleError;
+    const parts: string[] = [];
+    if (gaps.unpresentedWindows > 0) {
+      parts.push(`${gaps.unpresentedWindows} later investigation ${gaps.unpresentedWindows === 1 ? "window has" : "windows have"} not been examined.`);
+    }
+    if (gaps.documentsWithoutRole.length > 0) {
+      parts.push(`Manifest documents with no evidence-backed role: ${listIds(gaps.documentsWithoutRole)}.`);
+    }
+    if (gaps.unreadAnchorPages.length > 0) {
+      const shown = gaps.unreadAnchorPages.slice(0, 8).map((item) => `${item.documentId} page ${item.page}`);
+      const extra = gaps.unreadAnchorPages.length > 8 ? ` and ${gaps.unreadAnchorPages.length - 8} more` : "";
+      parts.push(`An anchor page has not been read: ${shown.join(", ")}${extra}.`);
+    }
+    if (gaps.unansweredShownQuestions.length > 0) {
+      parts.push(`Questions with no answer or uncertainty: ${listIds(gaps.unansweredShownQuestions)}.`);
+    }
+    if (gaps.unansweredIntentQuestions.length > 0) {
+      parts.push(`A question from the request has no facts and no uncertainty: ${listIds(gaps.unansweredIntentQuestions)}.`);
+    }
+    const unverifiable = this.mapping.unverifiableFactIds();
+    const unverifiableNote = unverifiable.length === 0
+      ? ""
+      : ` Saved extraction quotations that do not verify, leave unmapped: ${listIds(unverifiable)}. Do not propose them again.`;
+    if (parts.length === 0) {
+      return unverifiable.length === 0
+        ? null
+        : `${unverifiableNote.trim()} The completion checks are done. Call finish_investigation with ready true.`;
+    }
+    return `Phase F is still open. ${parts.join(" ")} Call finish_investigation with ready true only after these are done. Accepted fields do not close the investigation.${unverifiableNote}`;
+  }
+
   /**
    * Arms the Phase F gate for this ledger execution. A missing or invalid schedule
    * refuses every later tool call. The document ids must be exactly the authorized pages.
@@ -595,6 +703,7 @@ export class CoordinatedInvestigationLedger {
     } catch (error) {
       if (!(error instanceof InvestigationRejection)) throw error;
       if (!this.finished && error.countsAsInvalid) this.recordRejection(error.code);
+      else if (!this.finished) this.noteControlRefusal(error.code);
       result = { toolCallId: call.id, ok: false, content: JSON.stringify({ ok: false, error: error.code, message: error.message }) };
     }
     this.calls.set(key, { name: call.name, arguments: call.arguments, result });
@@ -629,6 +738,12 @@ export class CoordinatedInvestigationLedger {
         .sort((left, right) => left.documentId.localeCompare(right.documentId) || left.page - right.page),
       ...(this.schedule ? { shownQuestionIds: [...this.shownQuestionIds].sort() } : {}),
     };
+  }
+
+  private noteControlRefusal(code: string): void {
+    const safe = REJECTION_CODES.has(code) ? code : "investigation_incomplete";
+    this.rejectionCountsByCode.set(safe, (this.rejectionCountsByCode.get(safe) ?? 0) + 1);
+    this.turnRejectionCounts.set(safe, (this.turnRejectionCounts.get(safe) ?? 0) + 1);
   }
 
   private recordRejection(code: string): void {
@@ -722,7 +837,9 @@ export class CoordinatedInvestigationLedger {
     if (!documentId || !ROLES.has(role) || typeof page !== "number" || !Number.isInteger(page) || quote.length === 0) {
       refuse("invalid_arguments", "The document role is missing a document, role, page, or quote.");
     }
-    if (!quoteOnPage(this.pages, documentId, page, quote)) refuse("quote_not_on_page", "That quote is not on the authorized page.");
+    if (!quoteOnPage(this.pages, documentId, page, quote)) {
+      refuse("quote_not_on_page", "That quote is not on the authorized page. Read the page and quote a contiguous run of words that is already there.");
+    }
     const proposal = { documentId, role: role as DocumentRoleProposal["role"], page, quote };
     const existing = this.documentRoles.findIndex((item) => item.documentId === documentId);
     if (existing >= 0) this.documentRoles[existing] = proposal;
@@ -816,16 +933,35 @@ export class CoordinatedInvestigationLedger {
     return { kind: "answer", questionId };
   }
 
-  private unfinishedCompletion(): string | null {
+  private completionGaps(): {
+    scheduleError: string | null;
+    unpresentedWindows: number;
+    documentsWithoutRole: string[];
+    unreadAnchorPages: { documentId: string; page: number }[];
+    unansweredShownQuestions: string[];
+    unansweredIntentQuestions: string[];
+  } {
     const schedule = this.schedule;
-    if (!schedule) return this.scheduleError;
-    for (let index = 0; index < schedule.windowCount; index += 1) {
-      if (!this.presentedWindows.has(index)) return "A later investigation window has not been examined.";
+    const documentsWithoutRole: string[] = [];
+    const unreadAnchorPages: { documentId: string; page: number }[] = [];
+    const unansweredShownQuestions: string[] = [];
+    const unansweredIntentQuestions: string[] = [];
+    if (!schedule) {
+      return {
+        scheduleError: this.scheduleError,
+        unpresentedWindows: 0,
+        documentsWithoutRole,
+        unreadAnchorPages,
+        unansweredShownQuestions,
+        unansweredIntentQuestions,
+      };
     }
-    for (const documentId of schedule.documentIds) {
-      if (!this.documentRoles.some((role) => role.documentId === documentId)) {
-        return "A manifest document has no evidence-backed role.";
-      }
+    let unpresentedWindows = 0;
+    for (let index = 0; index < schedule.windowCount; index += 1) {
+      if (!this.presentedWindows.has(index)) unpresentedWindows += 1;
+    }
+    for (const documentId of [...schedule.documentIds].sort()) {
+      if (!this.documentRoles.some((role) => role.documentId === documentId)) documentsWithoutRole.push(documentId);
     }
     for (const role of this.documentRoles) {
       if (role.role !== "ANCHOR") continue;
@@ -833,21 +969,42 @@ export class CoordinatedInvestigationLedger {
       if (!document) continue;
       for (const page of document.pages) {
         if (page.text.trim() === "") continue;
-        if (!this.pagesRead.has(`${role.documentId}\0${page.pageNumber}`)) return "An anchor page has not been read.";
+        if (!this.pagesRead.has(`${role.documentId}\0${page.pageNumber}`)) {
+          unreadAnchorPages.push({ documentId: role.documentId, page: page.pageNumber });
+        }
       }
     }
-    for (const questionId of this.shownQuestionIds) {
+    unreadAnchorPages.sort((left, right) => left.documentId.localeCompare(right.documentId) || left.page - right.page);
+    for (const questionId of [...this.shownQuestionIds].sort()) {
       const answer = this.answers.find((item) => item.questionId === questionId);
-      if (!answer || (answer.factIds.length === 0 && !answer.uncertainty)) return "A shown question has no answer or uncertainty.";
+      if (!answer || (answer.factIds.length === 0 && !answer.uncertainty)) unansweredShownQuestions.push(questionId);
     }
     const intentCount = intentQuestionCount(this.intentText);
     for (let index = 1; index <= intentCount; index += 1) {
-      const answer = this.answers.find((item) => item.questionId === `intent:${index}`);
-      if (!answer || (answer.factIds.length === 0 && !answer.uncertainty)) {
-        return "A question from the request has no facts and no uncertainty.";
-      }
+      const questionId = `intent:${index}`;
+      const answer = this.answers.find((item) => item.questionId === questionId);
+      if (!answer || (answer.factIds.length === 0 && !answer.uncertainty)) unansweredIntentQuestions.push(questionId);
     }
-    return null;
+    return {
+      scheduleError: null,
+      unpresentedWindows,
+      documentsWithoutRole,
+      unreadAnchorPages,
+      unansweredShownQuestions,
+      unansweredIntentQuestions,
+    };
+  }
+
+  private unfinishedCompletion(): string | null {
+    const gaps = this.completionGaps();
+    if (gaps.scheduleError) return gaps.scheduleError;
+    const blocking = gaps.unpresentedWindows > 0
+      || gaps.documentsWithoutRole.length > 0
+      || gaps.unreadAnchorPages.length > 0
+      || gaps.unansweredShownQuestions.length > 0
+      || gaps.unansweredIntentQuestions.length > 0;
+    if (!blocking) return null;
+    return this.completionFeedback();
   }
 
   private finish(args: ObjectMap): Record<string, unknown> {

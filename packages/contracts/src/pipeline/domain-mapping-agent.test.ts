@@ -312,4 +312,54 @@ describe("domain mapping ledger", () => {
     expect(windows.flatMap((window) => window.fields).some((field) => field.fieldId.startsWith("unused"))).toBe(false);
     expect(MAPPING_AGENT_TOOL_NAMES).toEqual(["propose_field", "propose_relationship", "finish_mapping"]);
   });
+
+  it("reuses an identical accepted fact and reports an unverifiable extraction quotation", () => {
+    const { prepared, row } = world();
+    const ledger = new DomainMappingLedger("run-reuse", prepared.pack, [row], pages);
+    const accepted = ledger.execute(call("once", "propose_field", {
+      documentId: DOC, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north",
+      fieldId: "label", valueType: "TEXT", value: "North",
+    }));
+    expect(JSON.parse(accepted.content).ok).toBe(true);
+    const reused = ledger.execute(call("again", "propose_field", {
+      documentId: DOC, extractionFactId: "F-label", entityId: "entity:item", instanceId: "north",
+      fieldId: "label", valueType: "TEXT", value: "North",
+    }));
+    expect(JSON.parse(reused.content)).toMatchObject({ ok: true, kind: "field", extractionFactId: "F-label", reused: true });
+    expect(ledger.acceptedFieldCount).toBe(1);
+    expect(ledger.invalidCalls).toBe(0);
+
+    const duplicate = ledger.execute(call("other-field", "propose_field", {
+      documentId: DOC, extractionFactId: "F-label", entityId: "entity:other", instanceId: "south",
+      fieldId: "name", valueType: "TEXT", value: "North",
+    }));
+    expect(JSON.parse(duplicate.content).error).toBe("duplicate_fact");
+    expect(JSON.parse(duplicate.content).message).toContain("Reuse its fact id");
+    expect(ledger.acceptedFieldCount).toBe(1);
+
+    const unquoted = extraction([fact("F-bare", "label", "North", "   ")]);
+    const bare = new DomainMappingLedger("run-bare", prepared.pack, [unquoted], pages);
+    const missingQuote = bare.execute(call("bare", "propose_field", {
+      documentId: DOC, extractionFactId: "F-bare", entityId: "entity:item", instanceId: "north",
+      fieldId: "label", valueType: "TEXT", value: "North",
+    }));
+    expect(JSON.parse(missingQuote.content).error).toBe("unauthorized_evidence");
+    expect(JSON.parse(missingQuote.content).message).toContain("saved extraction has no quotation");
+    expect(JSON.parse(missingQuote.content).message).not.toContain("Read the page");
+    expect(bare.acceptedFieldCount).toBe(0);
+    expect(bare.unverifiableFactCount).toBe(1);
+
+    const offPage = extraction([fact("F-off", "label", "North", "not on the page")]);
+    const foreign = new DomainMappingLedger("run-off", prepared.pack, [offPage], pages);
+    const rejected = foreign.execute(call("off", "propose_field", {
+      documentId: DOC, extractionFactId: "F-off", entityId: "entity:item", instanceId: "north",
+      fieldId: "label", valueType: "TEXT", value: "North",
+    }));
+    const rejectedBody = JSON.parse(rejected.content) as { error: string; message: string };
+    expect(rejectedBody.error).toBe("unauthorized_evidence");
+    expect(rejectedBody.message).toContain("saved extraction quotation");
+    expect(rejectedBody.message).not.toContain("not on the page");
+    expect(foreign.unverifiableFactIds()).toEqual([`${DOC}/F-off`]);
+    expect(foreign.acceptedFieldCount).toBe(0);
+  });
 });
