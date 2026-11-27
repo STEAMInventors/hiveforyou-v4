@@ -76,6 +76,7 @@ import {
   loadVerifiedExtractions,
   planRebuildSnapshot,
   persistDomainPackWorkflowState,
+  persistPackGuidedEngineMarker,
   persistV5ExtractStageOutputs,
   recordGapsForWorkItems,
   resolveInvestigationEnginePin,
@@ -89,6 +90,7 @@ import {
 } from "./v5-pipeline-stages";
 import { loadPackById } from "@/server/pipeline/pack-loader";
 import { consumeRebuildWithoutDomainPack } from "./domain-pack-rebuild-opt-out";
+import { isPackGuidedRebuild } from "./pack-guided-selection";
 import { INVOCATION_MAX_DURATION_MS, resolveExtractZeroProgressHandoffLimit } from "@hiveforyou/contracts";
 
 /**
@@ -113,6 +115,8 @@ export type AnalysisWorkflowDeps = {
   readonly clock?: () => number;
   /** `Date.now()` when the route invocation started. Report writes abort 30s before `maxDuration`. */
   readonly invocationStartedAt?: number;
+  /** Test seam for a temporary published catalog. Production omits it and uses the repository packs. */
+  readonly packsCwd?: string;
 };
 
 type StageOutputs = {
@@ -1245,8 +1249,29 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
   }
   // Rebuild Study: re-run CANONICALIZING from cached extractions; re-extract only changed documents (cheap path).
   const requestText = inputs.intents.map((intent) => intent.intentText).join("\n");
-  const resolved =
-    inputs.run.preparationMode === "REBUILD"
+  const packGuided = inputs.run.preparationMode === "REBUILD" && isPackGuidedRebuild(inputs.run.id, inputs.stageOutputs as V5StageOutputs);
+  if (packGuided) {
+    const marked = await persistPackGuidedEngineMarker(context.deps.client, context.runId, {
+      correlationId: context.correlationId,
+      hiveId: inputs.run.hiveId,
+    });
+    if (!marked) {
+      throw new StageFailure(
+        analysisError({
+          errorCode: "PERSISTENCE_FAILED",
+          category: "PERSISTENCE",
+          retryable: true,
+          safeMessage: "The rebuild choice could not be saved. Your earlier study is unchanged.",
+          correlationId: context.correlationId,
+          diagnosticReason: "pack_guided_engine_failed",
+        }),
+        null,
+      );
+    }
+  }
+  const resolved = packGuided
+    ? { ok: true as const, pin: null }
+    : inputs.run.preparationMode === "REBUILD"
       ? await resolveInvestigationEnginePin({
           client: context.deps.client,
           run: inputs.run,
@@ -1268,6 +1293,8 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
     now: context.now,
     rebuildMode: inputs.run.preparationMode === "REBUILD",
     investigationEngine: resolved.pin,
+    packGuided,
+    packsCwd: context.deps.packsCwd,
     extractProgress: inputs.stageOutputs as V5StageOutputs,
     requestText,
     clock: context.deps.clock,

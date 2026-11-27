@@ -1,8 +1,102 @@
 # HiveForYou V4 — NEXT (one active engineering ticket)
 
-> **Active ticket (2026-11-26): Fix Domain Pack investigation scheduling.** Local only. No deploy, no production SQL, and no live model.
+> **Active ticket (2026-11-27): Connect the pack-guided Study engine to Rebuild.** Local only. No deploy, no production SQL, and no live model. The repository planner allowlist now accepts `hive.pack-guided-canonicalize/1` on task `canonicalize`. A running Oracle planner does not, until that image is rebuilt and redeployed.
 
-## Active ticket — Work-aware investigation schedule
+## Active ticket — Connect the pack-guided Study engine to Rebuild
+
+**Objective:** Let an explicit development Rebuild use the pack-guided engine end to end. Resolve the published Domain Pack, compile the effective configuration, verify the frozen pages, generate the case prompt, call `runPackGuidedCanonicalize`, and publish `hive.canonical-study/1` only when `constructPackGuidedStudy` accepts it. A failure leaves the previous Study and its Customer and Pro reports in place.
+
+**Status (2026-11-27): local only.** No production SQL was edited or applied. No migration is required. No external model was called. The selection is `studyEngine: "pack-guided"` on the existing rebuild request. The server accepts it only when `HIVE_SYNTHETIC_STUDY_ENGINE` is exactly `synthetic` and `VERCEL_ENV` is not `production`. `NODE_ENV` is not the gate. A closed gate rejects the request before a run is created and logs `synthetic_study_engine_gate` as deny. The Study tab shows “Rebuild with the new study engine” only when the authenticated preparation response sets `syntheticStudyEngine`. The choice is stored on the run as `domainPack.engine = hive.pack-guided-study/1`. If that marker is not stored, the run stops and does not use another engine.
+
+The selected path does not call the investigation loop or `hive-canonicalize/1`. Those paths stay available when this engine is not selected. A published pack that does not load, evidence that does not match the frozen pages, a page set outside the synthetic registry, a rejected model answer, or an incomplete Study all preserve the previous revision. Logs record the engine id, the effective-pack digest, the evidence digest, `ACCEPTED` or `PRESERVED`, and the validation code. They do not record page text, quotations, prompts, or record values.
+
+`fixture:synthetic-maya` is the twelve page-text digests of the synthetic L001 corpus in the form the document reader stores: PyMuPDF `get_text("text")`, then newline normalization, per-line trailing-space removal, and a full strip. Those texts are `eval/corpora/special-ed-l001/reader-pages`, checked with PyMuPDF 1.28.2 and `pdf_native`. A hive id is not required for that corpus. A caller flag, `content_class`, and `NODE_ENV` are not authorization. One changed, missing, or extra page does not match.
+
+**Ready for a live UI rebuild of synthetic Maya only after deploy.** The repository Oracle allowlist accepts `hive.pack-guided-canonicalize/1` on `canonicalize` only. Extract, write, field mapping, study, writer, and both investigation prompts stay rejected. Bearer auth and the canonicalize alias check are unchanged. Canonicalize still does not run the mapping provider classification; that check stays on mapping and investigation. The planner process that is already running still rejects the new prompt id until its image is rebuilt and redeployed from this commit. The persisted Maya hive is recognized only when its stored page texts hash to those twelve reader digests. When the pages match, publication still requires the model output to satisfy every applicable question and required field of the published pack. Anything short of that preserves the previous Study. Customer and Pro report generation is unchanged: a rebuild does not dispatch Writer. An open gate does not authorize a real case.
+
+**Verification (2026-11-27, later):** `npm run test` passed: contracts 100 files, 872 tests; web 213 files, 1292 tests. Both domain-word lint rules passed. Domain vocabulary for the pack-guided fixtures lives in `packages/contracts/src/pipeline/eval/synthetic-domain-fixtures.ts` and `eval/corpora/special-ed-l001/reader-pages`. `npm run typecheck` passed. `py -m pytest infra/oracle/test_v4_planner.py` — 149 passed. `npm run build` passed, including the pack trace. No live model was called. The closed-gate event now keeps `diagnosticReason=synthetic_study_engine_gate`.
+
+## Previous ticket — Domain-agnostic Study validation and construction
+
+**Objective:** Turn a resolved pack-guided output into `hive.canonical-study/1` through the existing binder, relationship verifier, calculation and rule ledger, and Study projection. The same constructor serves every effective Domain Pack. A failed validation leaves the caller's existing Study unchanged.
+
+**Status (2026-11-27): local only.** No production SQL was edited or applied. No external model was called. Rebuild routing, Oracle, and the multi-window investigation engine were not changed.
+
+`constructPackGuidedStudy` reads `hive.pack-guided-resolution/1`. It keeps FIELD, RELATIONSHIP, DOCUMENT, STATEMENT, and GAP proposals. Quotations and written values come only from the resolution's recovered evidence. A claim value that differs from the written value, a quote that is not the extraction quote, or a page whose text digest does not match is `evidence_unresolved`. The constructor does not scan other pages and does not set `examinedPages`.
+
+Applicable Pro and Firm clauses are compiled with the base definitions. Out-of-scope clauses are left out. An unverified applicability stops the run. Mandatory questions need one STATEMENT. Every authorized document needs one quoted role. A relationship is admitted only when its endpoints are mapped fields and the existing typed-source verifier accepts it. Otherwise it stays unresolved and off the supported spine. An executable calculation is published only by the ledger. A model result is `calculation_unsupported`. A required field with no mapped written value is `incomplete_evidence`.
+
+The accepted object is the existing Canonical Study schema. Its checklist, spine, outside spine, and persona coverage come from the investigation engine. Interpretations stay outside the spine. Uncertainties stay gaps or unanswered coverage. The validation record is `hive.pack-guided-study-validation/1`. It names engine `hive.pack-guided-study/1`, the effective-pack digest, the evidence digest, the compiled pack, plan, and ledger digests, and the outcome `ACCEPTED` or `PRESERVED`.
+
+**Not wired:** Rebuild still uses its existing route. `runPackGuidedCanonicalize` still returns `hive.pack-guided-resolution/1` and does not call this constructor. The live Oracle planner allowlist still rejects `hive.pack-guided-canonicalize/1`. Consent, a BAA, zero-data retention, and Hive content class are still not implemented.
+
+**Verification (2026-11-27):** `npx vitest run src/pipeline/pack-guided-study.test.ts` in `packages/contracts` — 6 passed. `npx vitest run src/pipeline/pack-guided-output.test.ts src/pipeline/study-engine-contracts.test.ts src/pipeline/domain-prompt-compiler.test.ts` — 36 passed. `npx tsc --noEmit` passed in `packages/contracts` and in `apps/web`.
+
+## Previous ticket — Domain-agnostic premium reasoning engine
+
+**Objective:** Connect the dynamic Domain Pack prompt compiler to the bounded canonicalize completion path. The model proposes. Hive verifies. The same executor serves every Domain Pack. This iteration does not accept a Canonical Study.
+
+**Status (2026-11-27): local only.** No production SQL was edited or applied. No external model was called. Oracle, Rebuild routing, Study publication, and Customer/Pro reports were not changed.
+
+`runPackGuidedCanonicalize` posts `hive.pack-guided-canonicalize/1` to `POST /v1/plan-completion` with `task: "canonicalize"`. It does not call `runDomainMappingInvestigation` or the multi-window scheduler. The system prompt is a short fixed instruction. The user payload is `hive.pack-guided-request/1`: the compilation digest, the mandatory question ids, and the four compiled sections.
+
+The output contract is `hive.pack-guided-output/1`. Proposals are FIELD, RELATIONSHIP, DOCUMENT, STATEMENT, and GAP. Each mandatory question id is answered once by a STATEMENT, with evidence-record digests or a short uncertainty. The model does not supply a quotation, an accepted fact, a calculation result, a checklist verdict, or `hive.canonical-study/1`. `hive.model-proposal/1` is unchanged and still requires quotations. Hive does not invent those quotations to satisfy it.
+
+Evidence resolution is deterministic. The model cites record digests. Hive re-verifies the extraction against the frozen pages and refuses the run when that verification does not match the supplied index (`evidence_snapshot_mismatch`). A cited digest must be in that index. Hive recovers the quotation and the written value from the trusted extraction and the frozen page. A digest that is absent, stale, or whose extraction quote does not match is rejected (`citation_unresolved`, `citation_stale`, `citation_mismatch`).
+
+Model execution is permitted only for a page in the closed synthetic fixture registry. The check is server-side. A caller `AUTHORIZED` flag and `RECORDED_AUTHORIZATION` do not disclose a record. A real page returns `privacy_denied` and is not posted.
+
+The shared retry helper is the canonicalize rule: one retry when the answer is not usable JSON, including a rejected proposal. Other planner failures return immediately. Request bytes, input tokens, attempts, and estimated cost stay inside `STUDY_AGENT_BUDGET` and the canonicalize planner caps. A mandatory prompt that exceeds a ceiling returns `prompt_capacity` or `estimated_cost_ceiling` and is not truncated. Logs carry error codes and diagnostic reasons. They do not carry page text, quotations, prompt bodies, or record values.
+
+The resolved artifact is `hive.pack-guided-resolution/1`. `claimStatus` and `studyStatus` stay `NOT_ACCEPTED`.
+
+**Not wired:** production Rebuild still uses its existing route. Study acceptance is a later iteration. The live Oracle planner allowlist still accepts only `hive-canonicalize/1` and `hive-canonicalize/2` on `/v1/plan-completion`, so a live call with `hive.pack-guided-canonicalize/1` is rejected until that allowlist is changed. Consent, a BAA, zero-data retention, and Hive content class are still not implemented. Synthetic fixtures are the only model-execution permission in this process.
+
+**Verification (2026-11-27):** `npx vitest run src/pipeline/domain-prompt-compiler.test.ts src/pipeline/study-engine-contracts.test.ts` in `packages/contracts` — 32 passed (11 compiler, 21 study-engine). `npx vitest run src/pipeline/pack-guided-output.test.ts src/pipeline/domain-prompt-compiler.test.ts` — 15 passed (4 resolver, 11 compiler). `npx tsc --noEmit` in `packages/contracts` passed. `npx vitest run src/server/pipeline/pack-guided-canonicalize.test.ts src/server/pipeline/canonicalize-runner.test.ts` in `apps/web` — 43 passed (33 pack-guided, 10 canonicalize). `npx tsc --noEmit` in `apps/web` passed.
+
+## Previous ticket — Domain-agnostic dynamic prompt compiler
+
+**Objective:** Compile one case-specific prompt from any effective Domain Pack, the case specification, and the verified evidence index. The same compiler serves every domain. Hive keeps evidence checks and acceptance. The premium model is not called.
+
+**Status (2026-11-27): local only.** No production SQL was edited or applied. No external model was called. Rebuild routing, Oracle, and the multi-window investigation engine were not changed.
+
+`compileInvestigationPrompt` reuses `compileEffectiveDomainPack`, `specifyCaseInvestigation`, `evaluateApplicability`, and the verified evidence index. It writes four sections: Hive core, domain guidance, case context, and the output contract. Hive core is a fixed instruction. Domain definitions, professional clauses, firm clauses, user intent, and evidence values sit in fenced untrusted data. A string in that data cannot close the fence or replace Hive core.
+
+A Pro or Firm clause is included when applicability evaluates TRUE, with its id, authority kind, citation, origin, pack id, and version. A FALSE clause is excluded. UNKNOWN applicability returns `applicability_unresolved` and does not compile a prompt. Every applicable question, check, and other mandatory clause stays in the prompt. Relevance filtering and token budgeting may drop only non-mandatory glossary guidance. If the mandatory payload exceeds the existing study-agent ceilings (`1_000_000` request bytes, `900_000` input tokens), the compiler returns `prompt_capacity` and does not truncate.
+
+Fact references come only from the verified evidence index. Unavailable, rejected, stale, and unauthorized records are coverage counts. Verified values are still sensitive record text. They are copied only when disclosure is `AUTHORIZED` with `RECORDED_AUTHORIZATION` or `SYNTHETIC_FIXTURE`, and only when the cited page is supplied with a matching source-page digest. Missing pages are not authorization. The output contract is `hive.pack-guided-output/1`. Proposals cite evidence-record digests. The compiler does not ask the model to write a quotation, a calculation result, a checklist verdict, or an accepted Canonical Study. `hive.model-proposal/1` remains the separate quotation contract.
+
+The artifact is `hive.prompt-compilation/1`, template `hive.domain-prompt/1`. Its digest covers the effective-pack digest, specification digest, evidence digest, clause ids, question obligations, disclosure decision, limitations, and the four sections.
+
+**Not wired by this ticket:** the compiler does not call a model. The active ticket posts the compiled prompt on the canonicalize completion path and resolves digests in trusted code. `ModelProposal` citations still require a quotation, and the verified index does not store quote text. Consent, a BAA, zero-data retention, and Hive content class are still not implemented. A caller `AUTHORIZED` decision is not permission to disclose a record.
+
+**Verification (2026-11-27):** `npx vitest run src/pipeline/domain-prompt-compiler.test.ts src/pipeline/study-engine-contracts.test.ts` — 32 passed (11 prompt compiler, 21 study-engine). `npx tsc --noEmit` in `packages/contracts` passed.
+
+## Previous ticket — Domain-agnostic evidence trust layer
+
+**Objective:** Verify extracted facts, quotations, document references, and blank-field evidence against authorized pages from a frozen case snapshot. The same check serves every domain. A matching quotation does not accept a claim, a document role, or a Canonical Study.
+
+**Status (2026-11-27): local only.** No production SQL was edited or applied. No external model was called. Prompts, Rebuild routing, Oracle, and the multi-window investigation engine were not changed.
+
+`verifyExtractionEvidence` reuses `checkQuote`, `normalizeQuoteText`, and `computeSha256Digest`. It does not add a second quote matcher. Each record binds the document id, page, source-page digest, extraction fact id, and outcome. The verified evidence index keeps only quotations whose declared page digest matches the frozen page text and whose quote is on that page. A stale digest, a wrong page, a wrong document, a missing citation, or a sibling mismatch stays out of the index. `findVerifiedEvidence` is the citation check a later prompt can call. Document-role proposals name a verified fact id and cannot include a quotation. `roleStatus`, `claimStatus`, and `studyStatus` stay `NOT_ACCEPTED`. Model examination and semantic completeness are not recorded.
+
+Page text stays on the existing immutable document-page rows. The verification's canonical JSON is addressed by `verificationDigest`, the same content-digest pattern as an investigation evidence pin. `extractionEvidenceAuditMetadata` carries digests and counts only. This ticket does not insert a row.
+
+**Verification (2026-11-27):** `npx vitest run src/pipeline/extraction-evidence-trust.test.ts src/pipeline/study-engine-contracts.test.ts` — 30 passed (9 evidence trust, 21 study-engine). `npx tsc --noEmit` in `packages/contracts` passed.
+
+## Previous ticket — Generic effective Domain Pack compiler
+
+**Objective:** Compile any published base Domain Pack with applicable Platform, Pro, and Firm extensions into one immutable effective pack. The same compiler serves every domain.
+
+**Status (2026-11-27): local only.** No production SQL was edited or applied. No external model was called. The multi-window investigation engine and the Canonical Study contract were not changed.
+
+`compileEffectiveDomainPack` reuses `compileDomainPack`. Extensions pin a parent digest. Applicability expressions use AND, OR, NOT, EQ, IN, EXISTS, and typed comparisons. A missing or unverified attribute never counts as true. Extensions inherit the parent expression and may narrow it. Broadening the declared window or replacing the expression requires a platform actor and a reason. Pro and Firm edits cannot override regulation or case-law authority, turn off required relationship evidence, or clear a required workflow review. Publication stays `UNPUBLISHED`. An evidence quote match and an investigation-completeness result stay `NOT_ACCEPTED` and do not accept a Study.
+
+A caller-supplied compiled digest is not proof of that snapshot. Before a base or extension is used, `compileEffectiveDomainPack` recompiles it with `compileDomainPack` and accepts it only when the recompiled artifact and the existing digest both match. Tampered definitions, edit history, applicability, ownership, or digest metadata are rejected. The digest is not rewritten to make that input pass. A valid edition keeps the digest `compileDomainPack` already produced. Publication and extension authorization stay separate checks.
+
+**Verification (2026-11-27):** `npx vitest run src/pipeline/study-engine-contracts.test.ts src/pipeline/domain-pack-compiler.test.ts` — 35 passed (21 study-engine, 14 compiler). `npx tsc --noEmit` in `packages/contracts` passed.
+
+## Previous ticket — Work-aware investigation schedule
 
 **Objective:** A pinned Rebuild must present every catalog question and every request question, and must leave room to answer them, under the existing model ceilings. Accepted mappings do not close a window's questions. Work that does not fit stops before a model call and leaves the earlier revision in place.
 

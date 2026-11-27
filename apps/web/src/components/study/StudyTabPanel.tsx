@@ -119,6 +119,21 @@ export function StudyTabPanel({
       >
         Rebuild without checklist
       </button>
+      {analysis.state?.syntheticStudyEngine === true ? (
+        <button
+          type="button"
+          className={SECONDARY_BUTTON_CLASS}
+          disabled={rebuildDisabled}
+          data-testid="study-tab-rebuild-pack-guided-button"
+          aria-describedby="study-tab-rebuild-hint"
+          onClick={(event) => {
+            analysis.returnFocusRef.current = event.currentTarget;
+            analysis.rebuildPackGuided();
+          }}
+        >
+          Rebuild with the new study engine
+        </button>
+      ) : null}
       <p id="study-tab-rebuild-hint" className="m-0 max-w-xs text-caption text-ink-3 sm:text-end">
         {!analysis.state
           ? "Loading rebuild options…"

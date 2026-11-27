@@ -91,4 +91,6 @@ export {
 } from "./pipeline/verify-quotes";
 // Reader contracts use node:crypto and are server-only: import from "@hiveforyou/contracts/document-read".
 // The investigation engine also hashes with node:crypto: import from "@hiveforyou/contracts/investigation".
+// Pack-guided Study contracts also hash with node:crypto and do not use that engine:
+// import from "@hiveforyou/contracts/study-engine".
 // Its prompt id is domain-investigation-prompt.ts so this barrel can name the prompt.

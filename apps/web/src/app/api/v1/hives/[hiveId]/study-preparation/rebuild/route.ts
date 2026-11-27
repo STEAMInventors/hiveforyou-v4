@@ -6,6 +6,7 @@ import { loadPlannerServiceConfig } from "@/server/study-preparation/planner-cli
 import { rebuildStudy } from "@/server/study-preparation/study-preparation";
 import { requireApiSupabaseClient } from "@/server/supabase/server-client";
 import { markRebuildWithoutDomainPack } from "@/server/workflow/domain-pack-rebuild-opt-out";
+import { markPackGuidedRebuild } from "@/server/workflow/pack-guided-selection";
 import { processAnalysisRunSafely } from "@/server/workflow/analysis-workflow";
 import { createWorkerDeps, requireWorkerDispatch } from "@/server/workflow/worker";
 
@@ -30,6 +31,9 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     const started = await rebuildStudy(client, { hiveId, rawBody, correlationId });
     if (started.withoutDomainPack) {
       markRebuildWithoutDomainPack(started.response.processingRun.id);
+    }
+    if (started.packGuided) {
+      markPackGuidedRebuild(started.response.processingRun.id);
     }
     if (started.process) {
       const deps = createWorkerDeps(process.env, {

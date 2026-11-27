@@ -14,11 +14,13 @@ import {
   validateStartStudyPreparationInput,
 } from "@hiveforyou/contracts";
 
+import { emitStructuredEvent } from "@/server/observability/logger";
 import { materializeProcessingRunProgressEstimate } from "@/server/pipeline/progress-estimate-persistence";
 import { loadProgressEstimateSnapshotState } from "@/server/pipeline/progress-estimate-snapshot-state";
 import { loadPipelineThroughput } from "@/server/pipeline/pipeline-throughput";
 
 import { type DocumentPageRpcClient } from "@/server/source-documents/document-pages-persistence";
+import { packGuidedSelectionAllowed } from "@/server/workflow/pack-guided-selection";
 
 /**
  * Owner operations for Analyze (authenticated client). The stages themselves run server-side in
@@ -208,12 +210,38 @@ export async function startStudyPreparation(
 export async function rebuildStudy(
   userClient: StudyPreparationRpcClient,
   input: { readonly hiveId: string; readonly rawBody: unknown; readonly correlationId: string },
-): Promise<{ response: StartStudyPreparationResponse; process: boolean; withoutDomainPack: boolean }> {
+): Promise<{ response: StartStudyPreparationResponse; process: boolean; withoutDomainPack: boolean; packGuided: boolean }> {
   const { correlationId } = input;
   const hiveId = requireHiveId(input.hiveId, correlationId);
   const validated = validateRebuildStudyPreparationInput(input.rawBody);
   if (!validated.ok) {
     throw ownerError("INVALID_REQUEST", "VALIDATION", validated.message, validated.diagnosticReason, correlationId);
+  }
+  if (validated.value.studyEngine === "pack-guided") {
+    const allowed = packGuidedSelectionAllowed();
+    emitStructuredEvent({
+      eventName: "pipeline.pack_guided.gate",
+      severity: allowed ? "INFO" : "WARN",
+      timestamp: new Date().toISOString(),
+      component: "pipeline",
+      operation: "pack_guided_study",
+      stage: "CANONICALIZING",
+      correlationId,
+      hiveId,
+      status: allowed ? "ALLOWED" : "DENIED",
+      diagnosticReason: "synthetic_study_engine_gate",
+      diagnosticField: allowed ? "allow" : "deny",
+      errorDetail: `synthetic_study_engine_gate=${allowed ? "allow" : "deny"}`,
+    });
+    if (!allowed) {
+      throw ownerError(
+        "INVALID_REQUEST",
+        "VALIDATION",
+        "This rebuild option is not available.",
+        "study_engine_unavailable",
+        correlationId,
+      );
+    }
   }
   const { data, error } = await userClient.rpc("rebuild_study", {
     p_hive_id: hiveId,
@@ -239,6 +267,7 @@ export async function rebuildStudy(
     response: { ...response, reusedStudy: false, reportsReady: false, reportRuns: [] },
     process: response.created && response.processingRun.status === "QUEUED",
     withoutDomainPack: validated.value.withoutDomainPack,
+    packGuided: validated.value.studyEngine === "pack-guided",
   };
 }
 
@@ -318,7 +347,7 @@ export async function getStudyPreparation(
     });
     normalized.processingRun = { ...run, progressEstimate };
   }
-  return normalized;
+  return { ...normalized, syntheticStudyEngine: packGuidedSelectionAllowed() };
 }
 
 /** Study tab payload: canonical study + facts (+ narrative from saved report when present). Tries INVOKER then DEFINER if the first RPC is missing. */

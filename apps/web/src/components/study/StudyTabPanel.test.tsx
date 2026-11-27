@@ -31,6 +31,7 @@ function json(body: unknown, status = 200): Response {
 type Server = {
   runStatus: string | null;
   rebuildPosts: Record<string, unknown>[];
+  syntheticStudyEngine: boolean;
 };
 
 let server: Server;
@@ -106,6 +107,7 @@ function preparationBody() {
       createdAt: "2026-11-01T22:00:00.000Z",
     },
     reportRuns: [],
+    syntheticStudyEngine: server.syntheticStudyEngine,
   };
 }
 
@@ -119,7 +121,7 @@ describe("StudyTabPanel", () => {
     vi.clearAllMocks();
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     sessionStorage.clear();
-    server = { runStatus: null, rebuildPosts: [] };
+    server = { runStatus: null, rebuildPosts: [], syntheticStudyEngine: false };
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -281,5 +283,42 @@ describe("StudyTabPanel", () => {
       });
     }
     expect(routerMock.refresh).toHaveBeenCalled();
+  });
+
+  it("hides the new study engine until the server permits it", async () => {
+    render(
+      <StudyTabPanel
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={3}
+        coverageGaps={fixture.coverageGaps}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    await screen.findByTestId("study-tab-rebuild-button");
+    expect(screen.queryByTestId("study-tab-rebuild-pack-guided-button")).toBeNull();
+  });
+
+  it("posts the new study engine only when the server permits it", async () => {
+    server.syntheticStudyEngine = true;
+    render(
+      <StudyTabPanel
+        hiveId={HIVE_ID}
+        revisionFormat="canonical-study-1"
+        view={fixture.view}
+        sources={fixture.sources}
+        revisionNumber={3}
+        coverageGaps={fixture.coverageGaps}
+        documentPages={fixture.documentPages}
+      />,
+    );
+    const button = await screen.findByTestId("study-tab-rebuild-pack-guided-button");
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(server.rebuildPosts).toHaveLength(1);
+    expect(server.rebuildPosts[0]?.studyEngine).toBe("pack-guided");
   });
 });

@@ -365,6 +365,11 @@ export type GetStudyPreparationResponse = {
   studyRevision: StudyRevisionSummary | null;
   /** Latest Writer run per audience for that revision. */
   reportRuns: ReportRun[];
+  /**
+   * Server decision for the synthetic pack-guided rebuild control.
+   * Absent or false hides it. The client cannot turn it on.
+   */
+  syntheticStudyEngine?: boolean;
 };
 
 export type StartStudyPreparationRequest = {
@@ -372,6 +377,8 @@ export type StartStudyPreparationRequest = {
   coverageAcknowledgementDigest?: string;
   /** Rebuild only: skip domain pack selection and canonicalize with hive-canonicalize/1. */
   withoutDomainPack?: boolean;
+  /** Rebuild only, and only when the server synthetic-study gate is open: run the pack-guided Study engine. */
+  studyEngine?: "pack-guided";
 };
 
 export type AcknowledgeStudyCoverageRequest = {
@@ -442,7 +449,7 @@ export function stageIndexForStatus(status: ProcessingRunStatus): number {
 }
 
 const START_FIELDS = new Set(["clientRequestId", "coverageAcknowledgementDigest", "withoutDomainPack"]);
-const REBUILD_FIELDS = new Set(["clientRequestId", "coverageAcknowledgementDigest", "withoutDomainPack"]);
+const REBUILD_FIELDS = new Set(["clientRequestId", "coverageAcknowledgementDigest", "withoutDomainPack", "studyEngine"]);
 const ACKNOWLEDGE_FIELDS = new Set(["processingRunId", "coverageDigest"]);
 
 export function validateAcknowledgeStudyCoverageInput(
@@ -519,6 +526,7 @@ export function validateRebuildStudyPreparationInput(body: unknown): ContractVal
   clientRequestId: string;
   coverageAcknowledgementDigest: string | null;
   withoutDomainPack: boolean;
+  studyEngine: "pack-guided" | null;
 }> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, message: "Request body must be a JSON object.", diagnosticReason: "invalid_payload_shape" };
@@ -539,8 +547,18 @@ export function validateRebuildStudyPreparationInput(body: unknown): ContractVal
     };
   }
   const withoutDomainPack = record.withoutDomainPack === true;
+  let studyEngine: "pack-guided" | null = null;
+  if (record.studyEngine !== undefined) {
+    if (record.studyEngine !== "pack-guided") {
+      return { ok: false, message: "studyEngine is not available.", diagnosticReason: "unexpected_field" };
+    }
+    studyEngine = "pack-guided";
+  }
+  if (studyEngine && withoutDomainPack) {
+    return { ok: false, message: "Choose one rebuild engine.", diagnosticReason: "unexpected_field" };
+  }
   if (record.coverageAcknowledgementDigest === undefined || record.coverageAcknowledgementDigest === null) {
-    return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: null, withoutDomainPack } };
+    return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: null, withoutDomainPack, studyEngine } };
   }
   const digest =
     typeof record.coverageAcknowledgementDigest === "string"
@@ -553,7 +571,7 @@ export function validateRebuildStudyPreparationInput(body: unknown): ContractVal
       diagnosticReason: "invalid_coverage_digest",
     };
   }
-  return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: digest, withoutDomainPack } };
+  return { ok: true, value: { clientRequestId, coverageAcknowledgementDigest: digest, withoutDomainPack, studyEngine } };
 }
 
 function nullableString(value: unknown): string | null | undefined {
@@ -743,7 +761,16 @@ export function normalizeGetStudyPreparationResponse(raw: unknown): GetStudyPrep
   const reportRuns = Array.isArray(record.reportRuns)
     ? record.reportRuns.map(normalizeReportRun).filter((run): run is ReportRun => run !== null)
     : [];
-  return { processingRun, preview, previewSummary, staleness, eligibility, studyRevision, reportRuns };
+  return {
+    processingRun,
+    preview,
+    previewSummary,
+    staleness,
+    eligibility,
+    studyRevision,
+    reportRuns,
+    syntheticStudyEngine: record.syntheticStudyEngine === true,
+  };
 }
 
 export function normalizeStudyRevisionSummary(raw: unknown): StudyRevisionSummary | null {

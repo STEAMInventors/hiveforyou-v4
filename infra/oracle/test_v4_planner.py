@@ -417,6 +417,68 @@ def test_pipeline_task_rejects_wrong_prompt_id(
     assert seen == []
 
 
+PACK_GUIDED_CANONICALIZE_PROMPT_ID = "hive.pack-guided-canonicalize/1"
+
+
+def test_canonicalize_accepts_pack_guided_prompt(client: TestClient, pipeline_aliases: None) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion('{"schema": "synthetic"}')))
+    response = post(client, pipeline_body("canonicalize", prompt_id=PACK_GUIDED_CANONICALIZE_PROMPT_ID))
+    assert response.status_code == 200
+    assert response.json()["model_alias"] == "heavy_lifter"
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == "heavy_lifter"
+    assert "tools" not in sent
+
+
+@pytest.mark.parametrize("task", ["extract", "write"])
+def test_other_tasks_reject_pack_guided_prompt(client: TestClient, pipeline_aliases: None, task: str) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, pipeline_body(task, prompt_id=PACK_GUIDED_CANONICALIZE_PROMPT_ID))
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+
+
+def test_pack_guided_prompt_requires_the_service_token(client: TestClient, pipeline_aliases: None) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, pipeline_body("canonicalize", prompt_id=PACK_GUIDED_CANONICALIZE_PROMPT_ID), token=None)
+    assert response.status_code == 401
+    assert seen == []
+
+
+@pytest.mark.parametrize("task", ["study", "writer", "mapping", "investigation"])
+def test_study_agent_rejects_pack_guided_prompt(client: TestClient, task: str) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post_agent(client, agent_body(task=task, prompt_id=PACK_GUIDED_CANONICALIZE_PROMPT_ID))
+    assert response.status_code == 400
+    assert response.json()["error_code"] == "INVALID_REQUEST"
+    assert seen == []
+
+
+def test_pack_guided_prompt_requires_the_canonicalize_alias(
+    client: TestClient, pipeline_aliases: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("PLANNER_CANONICALIZE_LITELLM_ALIAS", raising=False)
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, pipeline_body("canonicalize", prompt_id=PACK_GUIDED_CANONICALIZE_PROMPT_ID))
+    assert response.status_code == 503
+    assert response.json()["diagnostic_reason"] == "model_alias_unconfigured"
+    assert seen == []
+
+
+@pytest.mark.parametrize(
+    "prompt_id",
+    ["hive.field-mapping-proposal/1", "hive.domain-investigation/1", "hive.domain-investigation/2"],
+)
+def test_plan_completion_still_rejects_mapping_and_investigation_prompts(
+    client: TestClient, pipeline_aliases: None, prompt_id: str
+) -> None:
+    seen = use_litellm(lambda _: httpx.Response(200, json=completion("{}")))
+    response = post(client, pipeline_body("canonicalize", prompt_id=prompt_id))
+    assert response.status_code == 400
+    assert seen == []
+
+
 @pytest.mark.parametrize("task", list(PIPELINE_PROMPT_IDS))
 def test_pipeline_task_fails_closed_without_its_alias(
     client: TestClient, pipeline_aliases: None, monkeypatch: pytest.MonkeyPatch, task: str

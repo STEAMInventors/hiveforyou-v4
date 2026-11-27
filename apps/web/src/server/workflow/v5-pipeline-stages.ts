@@ -38,6 +38,7 @@ import {
   buildV5AcceptanceCounts,
 } from "@hiveforyou/contracts";
 import { normalizeContentDigest } from "@hiveforyou/contracts/document-read";
+import { PACK_GUIDED_CANONICALIZE_PROMPT_ID } from "@hiveforyou/contracts/study-engine";
 import {
   type InvestigationEnginePin,
   acceptCanonicalInvestigation,
@@ -84,6 +85,8 @@ import {
 
 import type { AnalysisWorkflowDeps } from "./analysis-workflow";
 import { runDomainMappingInvestigation } from "./domain-mapping-investigation";
+import { runPackGuidedStudy } from "./pack-guided-rebuild";
+import { PACK_GUIDED_STUDY_ENGINE_ID } from "./pack-guided-selection";
 
 export { V5_CLIENT_TASK_TIMEOUT_MS };
 
@@ -250,7 +253,8 @@ export type V5StageOutputs = {
   };
   domainPack?:
     | { readonly id: string; readonly version: number; readonly score: number }
-    | { readonly skipped: string };
+    | { readonly skipped: string }
+    | { readonly engine: typeof PACK_GUIDED_STUDY_ENGINE_ID };
 };
 
 const TRUNCATION_GAP_DIAGNOSTIC = "model_output_truncated";
@@ -473,6 +477,31 @@ export async function persistV5ExtractStageOutputs(
   });
 }
 
+/** Records the explicit pack-guided selection before any model call. False means the marker was not stored. */
+export async function persistPackGuidedEngineMarker(
+  client: RpcClient,
+  runId: string,
+  input: { correlationId?: string; hiveId?: string },
+): Promise<boolean> {
+  const { data, error } = await client.rpc("patch_processing_run_workflow_state", {
+    p_run_id: runId,
+    p_expected_status: "CANONICALIZING",
+    p_patch: { domainPack: { engine: PACK_GUIDED_STUDY_ENGINE_ID } },
+  });
+  if (error) {
+    logWorkflowStatePatchFailure({
+      correlationId: input.correlationId,
+      hiveId: input.hiveId,
+      runId,
+      operation: "domain_pack_workflow_state",
+      diagnosticReason: "workflow_state_patch_failed",
+      diagnosticField: typeof error.code === "string" ? error.code : "rpc_error",
+    });
+    return false;
+  }
+  return parsePayload(data)?.applied === true;
+}
+
 export async function persistDomainPackWorkflowState(
   client: RpcClient,
   runId: string,
@@ -574,6 +603,9 @@ export async function selectAndPersistDomainPack(input: {
     return { pack, selection: input.existing };
   }
   if (input.existing && "skipped" in input.existing) {
+    return { pack: null, selection: input.existing };
+  }
+  if (input.existing && "engine" in input.existing) {
     return { pack: null, selection: input.existing };
   }
   if (input.hiveId) {
@@ -2621,6 +2653,9 @@ export async function runCanonicalizeForRun(input: {
   investigationEngine?: InvestigationEnginePin | null;
   extractProgress?: V5StageOutputs;
   requestText?: string;
+  /** Explicit development selection. A failure returns here and does not use another engine. */
+  packGuided?: boolean;
+  packsCwd?: string;
 }): Promise<CanonicalizeRunResult> {
   const { deps, run, catalog, correlationId, stageAttempt, now } = input;
   let extractions = input.extractions;
@@ -2659,6 +2694,58 @@ export async function runCanonicalizeForRun(input: {
       };
     }
     extractions = planned.reuse;
+  }
+  if (input.packGuided) {
+    if (!input.rebuildMode || !input.sourceSnapshot) {
+      return {
+        ok: false,
+        error: createHiveError({
+          errorCode: "INVALID_REQUEST",
+          category: "VALIDATION",
+          stage: "ANALYZE",
+          retryable: false,
+          safeMessage: "This rebuild option is not available. Your earlier study is unchanged.",
+          correlationId,
+          operationId: run.id,
+          diagnosticReason: "study_engine_unavailable",
+        }),
+        metric: null,
+      };
+    }
+    try {
+      const pages = [];
+      for (const document of input.sourceSnapshot.documents) {
+        const listed = await loadDocumentPages({
+          client: deps.client,
+          hiveId: run.hiveId,
+          runId: run.id,
+          document,
+          correlationId,
+        });
+        pages.push({ documentId: document.sourceDocumentId, pages: listed });
+      }
+      return await runPackGuidedStudy({
+        planner: deps.planner,
+        run,
+        extractions,
+        pages,
+        requestText: input.requestText ?? "",
+        correlationId,
+        stageAttempt,
+        now,
+        packsCwd: input.packsCwd,
+        resolvePlannerTimeoutMs: () =>
+          extractPlannerTimeoutMs(
+            input.clock ?? deps.clock ?? (() => Date.now()),
+            input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now(),
+          ),
+      });
+    } catch (error) {
+      if (error && typeof error === "object" && "errorCode" in error && "stage" in error) {
+        return { ok: false, error: error as HiveError, metric: null };
+      }
+      throw error;
+    }
   }
   if (input.rebuildMode && input.investigationEngine) {
     return runPinnedInvestigationEngine({
@@ -2813,6 +2900,14 @@ export function acceptanceProvenance(
   promptId: string | null,
 ): { investigationEngine: string; domainPackId: string | null; domainPackVersion: string | null; domainPackDigest: string | null } {
   const packDigest = questionNote(study, "pack-digest:");
+  if (promptId === PACK_GUIDED_CANONICALIZE_PROMPT_ID) {
+    return {
+      investigationEngine: PACK_GUIDED_STUDY_ENGINE_ID,
+      domainPackId: questionNote(study, "pack-id:"),
+      domainPackVersion: questionNote(study, "pack-version:"),
+      domainPackDigest: packDigest,
+    };
+  }
   const usesInvestigation =
     promptId === DOMAIN_INVESTIGATION_PROMPT_V2_ID ||
     promptId === DOMAIN_INVESTIGATION_PROMPT_ID ||
@@ -2852,9 +2947,11 @@ export function buildV5AcceptRevision(input: {
   const canonicalMetric = input.canonicalMetric;
   const acceptanceCounts = buildV5AcceptanceCounts(input.study, input.packTitle ?? null);
   const provenance = acceptanceProvenance(input.study, canonicalMetric?.promptId ?? null);
+  const evidenceDigest = questionNote(input.study, "evidence-digest:");
   const pinnedInvestigation =
     canonicalMetric?.promptId === DOMAIN_INVESTIGATION_PROMPT_V2_ID ||
     canonicalMetric?.promptId === DOMAIN_INVESTIGATION_PROMPT_ID;
+  const packGuidedPrompt = canonicalMetric?.promptId === PACK_GUIDED_CANONICALIZE_PROMPT_ID;
   return {
     format: "canonical-study-1",
     investigation: input.study,
@@ -2871,6 +2968,7 @@ export function buildV5AcceptRevision(input: {
         ...(provenance.domainPackId ? { domainPackId: provenance.domainPackId } : {}),
         ...(provenance.domainPackVersion ? { domainPackVersion: provenance.domainPackVersion } : {}),
         ...(provenance.domainPackDigest ? { domainPackDigest: provenance.domainPackDigest } : {}),
+        ...(evidenceDigest && /^[0-9a-f]{64}$/.test(evidenceDigest) ? { evidenceDigest } : {}),
         revisionStatus: "accepted",
       },
       findings: [],
@@ -2879,7 +2977,7 @@ export function buildV5AcceptRevision(input: {
     audience_configuration: resolveAudienceConfiguration({ analysis: null, intelligence: null }),
     investigation_digest: investigationDigest,
     prompt_digest:
-      pinnedInvestigation && canonicalMetric?.promptDigest
+      (pinnedInvestigation || packGuidedPrompt) && canonicalMetric?.promptDigest
         ? canonicalMetric.promptDigest
         : input.catalog.canonicalize.digest,
     model_alias: canonicalMetric?.modelAliasRequested ?? null,

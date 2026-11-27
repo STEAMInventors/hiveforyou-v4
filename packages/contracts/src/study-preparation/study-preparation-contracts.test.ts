@@ -158,8 +158,26 @@ describe("validateRebuildStudyPreparationInput", () => {
   it("accepts withoutDomainPack for rebuild", () => {
     expect(validateRebuildStudyPreparationInput({ clientRequestId: REQUEST_ID, withoutDomainPack: true })).toEqual({
       ok: true,
-      value: { clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: null, withoutDomainPack: true },
+      value: { clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: null, withoutDomainPack: true, studyEngine: null },
     });
+  });
+
+  it("accepts one explicit pack-guided rebuild and rejects it everywhere else", () => {
+    expect(validateRebuildStudyPreparationInput({ clientRequestId: REQUEST_ID, studyEngine: "pack-guided" })).toEqual({
+      ok: true,
+      value: { clientRequestId: REQUEST_ID, coverageAcknowledgementDigest: null, withoutDomainPack: false, studyEngine: "pack-guided" },
+    });
+    expect(validateStartStudyPreparationInput({ clientRequestId: REQUEST_ID, studyEngine: "pack-guided" })).toMatchObject({
+      ok: false,
+      diagnosticReason: "unexpected_field",
+    });
+    expect(validateRebuildStudyPreparationInput({ clientRequestId: REQUEST_ID, studyEngine: "legacy" })).toMatchObject({
+      ok: false,
+      diagnosticReason: "unexpected_field",
+    });
+    expect(
+      validateRebuildStudyPreparationInput({ clientRequestId: REQUEST_ID, studyEngine: "pack-guided", withoutDomainPack: true }),
+    ).toMatchObject({ ok: false, diagnosticReason: "unexpected_field" });
   });
 });
 

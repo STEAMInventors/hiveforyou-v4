@@ -9,6 +9,8 @@ export type StudyRevisionAcceptanceCounts = {
   packReview?: { id: string; version: number | string; title: string };
   /** Compiled Domain Pack digest recorded with an investigation revision. */
   domainPackDigest?: string;
+  /** Verified evidence index digest recorded with a pack-guided revision. */
+  evidenceDigest?: string;
 };
 
 /** What produced an accepted revision. Missing fields stay null; they are not guessed as zero or as v0.5.0. */
@@ -103,6 +105,10 @@ export function parseStudyRevisionAcceptanceCounts(raw: unknown): StudyRevisionA
     typeof record.domainPackDigest === "string" && /^[0-9a-f]{64}$/.test(record.domainPackDigest)
       ? record.domainPackDigest
       : undefined;
+  const evidenceDigest =
+    typeof record.evidenceDigest === "string" && /^[0-9a-f]{64}$/.test(record.evidenceDigest)
+      ? record.evidenceDigest
+      : undefined;
   return {
     verifiedFacts,
     documents,
@@ -110,6 +116,7 @@ export function parseStudyRevisionAcceptanceCounts(raw: unknown): StudyRevisionA
     ...(checklistNotShown !== undefined ? { checklistNotShown } : {}),
     ...(packReview ? { packReview } : {}),
     ...(domainPackDigest ? { domainPackDigest } : {}),
+    ...(evidenceDigest ? { evidenceDigest } : {}),
   };
 }
 

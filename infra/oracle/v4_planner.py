@@ -81,6 +81,8 @@ DOMAIN_INVESTIGATION_PROMPT_ID = "hive.domain-investigation/1"
 # Pinned iep-us-federal 0.5.0 posts v2. v1 stays accepted on the same task.
 DOMAIN_INVESTIGATION_PROMPT_V2_ID = "hive.domain-investigation/2"
 INVESTIGATION_PROMPT_IDS = frozenset({DOMAIN_INVESTIGATION_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_V2_ID})
+# One JSON completion on task canonicalize. It is not accepted on any other task.
+PACK_GUIDED_CANONICALIZE_PROMPT_ID = "hive.pack-guided-canonicalize/1"
 FIELD_MAPPING_ALIAS_ENV = "PLANNER_FIELD_MAPPING_LITELLM_ALIAS"
 HIVE_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 # Model id already configured as the study alias. Other Anthropic models stay unauthorized.
@@ -127,6 +129,8 @@ PUBLIC_MODEL_PREFIXES = (
 def _prompt_id_allowed(task: str, prompt_id: str) -> bool:
     if prompt_id == FIELD_MAPPING_PROMPT_ID or prompt_id in INVESTIGATION_PROMPT_IDS:
         return False
+    if task == "canonicalize" and prompt_id == PACK_GUIDED_CANONICALIZE_PROMPT_ID:
+        return True
     if prompt_id == TASK_PROMPT_IDS.get(task):
         return True
     return PIPELINE_PROMPT_IDS_V2.get(task) == prompt_id

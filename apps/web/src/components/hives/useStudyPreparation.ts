@@ -97,6 +97,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const actionRef = useRef<"analyze" | "rebuild">("analyze");
   const withoutDomainPackRef = useRef(false);
+  const packGuidedRef = useRef(false);
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -186,6 +187,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
           clientRequestId: crypto.randomUUID(),
           ...(consent ? { coverageAcknowledgementDigest: consent.coverageAcknowledgementDigest } : {}),
           ...(action === "rebuild" && withoutDomainPackRef.current ? { withoutDomainPack: true } : {}),
+          ...(action === "rebuild" && packGuidedRef.current ? { studyEngine: "pack-guided" as const } : {}),
         };
         const result = action === "rebuild" ? await rebuildStudy(hiveId, payload) : await startStudyPreparation(hiveId, payload);
         settledSeqRef.current = Math.max(settledSeqRef.current, requestSeqRef.current, 1);
@@ -278,6 +280,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
     }
     actionRef.current = "rebuild";
     withoutDomainPackRef.current = false;
+    packGuidedRef.current = false;
     setAction("rebuild");
     if (rebuildReady.requiresCoverageAcknowledgement) {
       setStartError(null);
@@ -297,6 +300,28 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
     }
     actionRef.current = "rebuild";
     withoutDomainPackRef.current = true;
+    packGuidedRef.current = false;
+    setAction("rebuild");
+    if (rebuildReady.requiresCoverageAcknowledgement) {
+      setStartError(null);
+      setModalMode("confirm");
+      return;
+    }
+    void start();
+  }, [rebuildReady, start]);
+
+  const rebuildPackGuided = useCallback(() => {
+    if (stateRef.current?.syntheticStudyEngine !== true) return;
+    if (!rebuildReady?.canRebuild) {
+      if (rebuildReady?.reason === "AWAITING_ACKNOWLEDGEMENT") {
+        setStartError(null);
+        setModalMode("progress");
+      }
+      return;
+    }
+    actionRef.current = "rebuild";
+    withoutDomainPackRef.current = false;
+    packGuidedRef.current = true;
     setAction("rebuild");
     if (rebuildReady.requiresCoverageAcknowledgement) {
       setStartError(null);
@@ -373,6 +398,7 @@ export function useStudyPreparation(hiveId: string, options?: UseStudyPreparatio
     analyze,
     rebuild,
     rebuildWithoutChecklist,
+    rebuildPackGuided,
     confirmCoverage,
     acknowledge,
     retry: () => {

@@ -1,6 +1,7 @@
 import type { StudyAgentToolDefinition } from "../analysis/study-agent";
 import type { InvestigationAgentToolDefinition } from "../pipeline/domain-investigation-agent";
 import { DOMAIN_INVESTIGATION_PROMPT_ID, DOMAIN_INVESTIGATION_PROMPT_V2_ID } from "../pipeline/domain-investigation-prompt";
+import { PACK_GUIDED_CANONICALIZE_PROMPT_ID } from "../pipeline/pack-guided-ids";
 import type { MappingAgentToolDefinition } from "../pipeline/domain-mapping-agent";
 import type { WriterAgentToolDefinition } from "../reports/writer-agent";
 import type { ContractValidation } from "../source-documents/source-document-contracts";
@@ -63,6 +64,25 @@ export const PIPELINE_PROMPT_IDS_V2 = {
   write: "hive-write/2",
   assistant_reply: "hive-assistant-reply/2",
 } as const;
+
+/**
+ * `hive.pack-guided-canonicalize/1` is one JSON completion on task `canonicalize`.
+ * Field-mapping and domain-investigation prompts stay on `study-agent-turn` and are rejected here.
+ * The planner allowlist accepts this id on `canonicalize` only. Other tasks still reject it.
+ */
+export function plannerCompletionAcceptsPrompt(task: PlannerCompletionTask, promptId: string): boolean {
+  if (
+    promptId === FIELD_MAPPING_PROMPT_ID ||
+    promptId === DOMAIN_INVESTIGATION_PROMPT_ID ||
+    promptId === DOMAIN_INVESTIGATION_PROMPT_V2_ID
+  ) {
+    return false;
+  }
+  if (task === "canonicalize" && promptId === PACK_GUIDED_CANONICALIZE_PROMPT_ID) return true;
+  if (PLANNER_TASK_PROMPT_IDS[task] === promptId) return true;
+  const second = PIPELINE_PROMPT_IDS_V2[task as keyof typeof PIPELINE_PROMPT_IDS_V2];
+  return second === promptId;
+}
 
 /** Independent Writer semantic review (`study-agent-turn@1`, tool-free JSON completion on `task: "writer"`). */
 export const WRITER_SEMANTIC_REVIEW_PROMPT_ID = "hive.writer-semantic-review/1" as const;

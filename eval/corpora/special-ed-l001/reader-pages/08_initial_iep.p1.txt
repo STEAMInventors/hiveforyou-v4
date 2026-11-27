@@ -1,0 +1,43 @@
+SYNTHETIC DEVELOPMENT RECORD • NestIEP Corpus • L001
+Page 1
+Initial Individualized Education Program (IEP)
+SYNTHETIC DEVELOPMENT RECORD — NOT A REAL STUDENT
+1. Student / IEP Information
+Student:
+Maya Carter
+Date of Birth:
+2017-04-18
+Grade:
+2
+School:
+Synthetic Elementary School
+District:
+Synthetic District
+IEP Date:
+2024-11-12
+IEP Period:
+2024-11-12 through 2025-11-11
+2. Eligibility
+Eligibility Category:
+Specific Learning Disability (SLD) - Reading
+Primary Educational
+Need:
+Reading Fluency
+Determination Date:
+2024-11-01
+This IEP implements the educational eligibility determination. It is not a medical diagnosis.
+3. Present Levels of Academic Achievement and Functional Performance
+Maya has a persistent reading fluency concern. Classroom performance and teacher information indicate
+difficulty reading connected grade-level text accurately and fluently.
+The academic evaluation dated 2024-10-18 documents a reading fluency baseline of 42 WCPM and oral reading
+accuracy of 86%. Reading comprehension during grade-level text tasks is below expected classroom level.
+Connected-text reading is slow and effortful, with frequent pauses. Isolated word reading is stronger than
+connected-text reading.
+4. Educational Need
+The primary educational need is Reading Fluency. Maya has difficulty reading connected grade-level text
+accurately and fluently. This difficulty affects Maya's ability to access grade-level reading activities independently.
+5. Annual Goal
+Given a grade-level connected text passage, Maya will read at least 75 words correct per minute (WCPM) with at
+least 95% accuracy across three consecutive probes.
+Goal ID:
+GOAL_READING_FLUENCY

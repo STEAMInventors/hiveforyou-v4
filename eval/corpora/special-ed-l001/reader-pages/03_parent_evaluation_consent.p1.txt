@@ -1,0 +1,38 @@
+SYNTHETIC DEVELOPMENT RECORD • NestIEP Corpus • L001
+Page 1
+Parent Consent for Initial Special Education Evaluation
+SYNTHETIC DEVELOPMENT RECORD — NOT A REAL STUDENT
+Student Information
+Student:
+Maya Carter
+Date of Birth:
+2017-04-18
+Grade:
+2
+School:
+Synthetic Elementary School
+District:
+Synthetic District
+Purpose of Evaluation
+The parent/guardian gives consent for an initial special-education evaluation in the identified areas below.
+Consent authorizes the district to gather information needed to understand the student's educational needs
+related to reading fluency.
+Consent for evaluation does not guarantee eligibility for special education or the provision of special education
+services.
+Evaluation Areas
+[X]
+Academic achievement / reading
+[X]
+Reading fluency
+[X]
+Review of educational performance
+Consent Selection
+[X]
+I consent to the proposed initial evaluation.
+[ ]
+I do not consent to the proposed initial evaluation.
+Parent/Guardian Acknowledgement
+Parent/Guardian Signature:
+[Synthetic signature omitted]
+Date:
+2024-09-04
