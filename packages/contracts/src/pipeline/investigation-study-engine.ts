@@ -1183,6 +1183,9 @@ export function assessInvestigationCompleteness(input: {
       .map((role) => role.documentId),
   );
   for (const extraction of [...input.extractions].sort((left, right) => left.documentId.localeCompare(right.documentId))) {
+    const document = input.pages.find((item) => item.documentId === extraction.documentId);
+    const quotable = !!document?.pages.some((page) => page.text.trim() !== "");
+    if (!quotable) continue;
     if (!quoted.has(extraction.documentId)) unfinished.push(`document-role:${extraction.documentId}`);
   }
   const intentCount = input.record.intentText.split("?").map((part) => part.trim()).filter((part) => part.length >= 8).length;

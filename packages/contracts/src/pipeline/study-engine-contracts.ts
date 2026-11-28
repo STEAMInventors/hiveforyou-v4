@@ -725,6 +725,7 @@ export type {
   PromptFactValue,
   PromptLimitation,
   PromptSection,
+  WindowPromptScope,
 } from "./domain-prompt-compiler";
 export { compileDomainPack } from "./domain-pack-compiler";
 export {

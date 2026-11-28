@@ -65,7 +65,7 @@ export const STUDY_PREPARATION_STAGES = [
   {
     key: "CANONICALIZING",
     label: "Building study",
-    description: "Building the canonical study from verified extractions.",
+    description: "Building the canonical study. If this stops, the message names the pack version, the stage, the window progress, and the reason.",
   },
   {
     key: "ACCEPTING_STUDY",

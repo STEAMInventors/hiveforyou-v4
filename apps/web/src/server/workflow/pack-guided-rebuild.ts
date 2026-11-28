@@ -12,6 +12,12 @@ import {
 } from "@hiveforyou/contracts";
 import { computeSha256Digest } from "@hiveforyou/contracts/document-read";
 import {
+  acceptCanonicalInvestigation,
+  prepareInvestigationStudy,
+  runInvestigationStudyEngine,
+  type InvestigationWindowProgress,
+} from "@hiveforyou/contracts/investigation";
+import {
   PACK_GUIDED_CANONICALIZE_PROMPT_ID,
   PACK_GUIDED_STUDY_ENGINE_ID,
   compileDomainPack,
@@ -20,21 +26,36 @@ import {
   constructPackGuidedStudy,
   resolveSyntheticExecutionFixtureId,
   specifyCaseInvestigation,
+  SYNTHETIC_MAYA_FIXTURE_ID,
   verifyExtractionEvidence,
   type FrozenCasePage,
 } from "@hiveforyou/contracts/study-engine";
+import { loadPromptCatalog } from "@/server/study-preparation/prompt-catalog";
+import { runInvestigationWindows } from "./investigation-window-runner";
 
 import { emitStructuredEvent } from "@/server/observability/logger";
 import { runPackGuidedCanonicalize } from "@/server/pipeline/pack-guided-canonicalize";
 import type { PlannerDeps } from "@/server/study-preparation/planner-client";
 
-import { resolvePublishedDomainPack, type LoadedPublishedPack } from "./domain-pack-selection";
+import { loadSyntheticMayaProfilePack, resolvePublishedDomainPack, type LoadedPublishedPack } from "./domain-pack-selection";
 
 export type PackGuidedRebuildResult =
   | { ok: true; study: CanonicalStudy; metric: StageMetric }
   | { ok: false; error: HiveError; metric: null };
 
 type AuthorizedPages = { documentId: string; pages: { pageNumber: number; text: string }[] };
+
+const REASON = /^[a-z][a-z0-9_]{0,63}$/;
+const DIAGNOSTIC_FIELD = /^[A-Za-z][A-Za-z0-9_.:/\[\]@+-]{0,127}$/;
+
+function exactReason(code: string): string {
+  return REASON.test(code) ? code : "pack_guided_study_preserved";
+}
+
+function exactField(field: string, fallback: string): string {
+  if (DIAGNOSTIC_FIELD.test(field)) return field;
+  return DIAGNOSTIC_FIELD.test(fallback) ? fallback : "pack_guided_study_preserved";
+}
 
 function preserved(input: {
   correlationId: string;
@@ -45,6 +66,7 @@ function preserved(input: {
   evidenceDigest: string;
   safeMessage: string;
   errorCode?: HiveError["errorCode"];
+  diagnosticField?: string;
 }): HiveError {
   const error = createHiveError({
     errorCode: input.errorCode ?? "MODEL_OUTPUT_INVALID",
@@ -54,10 +76,8 @@ function preserved(input: {
     safeMessage: input.safeMessage,
     correlationId: input.correlationId,
     operationId: input.runId,
-    diagnosticReason: input.code === "privacy_denied" || input.code === "evidence_snapshot_mismatch" || input.code === "prompt_rejected" || input.code === "prompt_capacity"
-      ? input.code
-      : "pack_guided_study_preserved",
-    diagnosticField: input.code,
+    diagnosticReason: exactReason(input.code),
+    diagnosticField: exactField(input.diagnosticField ?? input.code, input.code),
   });
   emitStructuredEvent({
     eventName: "pipeline.pack_guided.study_preserved",
@@ -73,7 +93,7 @@ function preserved(input: {
     errorCode: error.errorCode,
     retryable: false,
     diagnosticReason: error.diagnosticReason,
-    diagnosticField: input.code,
+    diagnosticField: exactField(input.diagnosticField ?? input.code, input.code),
     errorDetail: `engine=${PACK_GUIDED_STUDY_ENGINE_ID};pack=${input.effectivePackDigest};evidence=${input.evidenceDigest};status=PRESERVED;code=${input.code}`,
   });
   return error;
@@ -108,6 +128,10 @@ export async function runPackGuidedStudy(input: {
   packsCwd?: string;
   resolvePlannerTimeoutMs?: () => number | "expired";
   publishedPack?: LoadedPublishedPack | null;
+  savedWindowProgress?: InvestigationWindowProgress | null;
+  onWindowProgress?: (progress: InvestigationWindowProgress) => Promise<void>;
+  callTurn?: Parameters<typeof runInvestigationWindows>[0]["callTurn"];
+  clock?: () => number;
 }): Promise<PackGuidedRebuildResult> {
   const { run, correlationId } = input;
   const published = input.publishedPack === undefined
@@ -225,7 +249,39 @@ export async function runPackGuidedStudy(input: {
     };
   }
   const fixtureId = resolveSyntheticExecutionFixtureId({ hiveId: run.hiveId, pages: frozen });
+  let activePack = published.pack;
+  let activeEffective = effective.value;
+  let activeSpecification = specification.value;
+  if (fixtureId === SYNTHETIC_MAYA_FIXTURE_ID) {
+    const profile = loadSyntheticMayaProfilePack(published.pack, input.packsCwd);
+    if (profile) {
+      const profileCompiled = compileDomainPack(profile.source);
+      const profileEffective = profileCompiled.ok ? compileEffectiveDomainPack({ base: profileCompiled.value }) : null;
+      const profileSpecification = profileEffective?.ok
+        ? specifyCaseInvestigation({ pack: profileEffective.value, hiveId: run.hiveId, attributes: [] })
+        : null;
+      if (!profileCompiled.ok || !profileEffective?.ok || !profileSpecification?.ok) {
+        return {
+          ok: false,
+          metric: null,
+          error: preserved({
+            correlationId,
+            runId: run.id,
+            hiveId: run.hiveId,
+            code: "pack_guided_engine_failed",
+            effectivePackDigest: effective.value.digest,
+            evidenceDigest: evidence.value.index.digest,
+            safeMessage: "The study pack could not be compiled. Your earlier study is unchanged.",
+          }),
+        };
+      }
+      activePack = profile;
+      activeEffective = profileEffective.value;
+      activeSpecification = profileSpecification.value;
+    }
+  }
   if (!fixtureId) {
+    const identity = activePack.source.identity;
     return {
       ok: false,
       metric: null,
@@ -234,12 +290,161 @@ export async function runPackGuidedStudy(input: {
         runId: run.id,
         hiveId: run.hiveId,
         code: "privacy_denied",
-        effectivePackDigest: effective.value.digest,
+        effectivePackDigest: activeEffective.digest,
         evidenceDigest: evidence.value.index.digest,
-        safeMessage: "This case cannot be sent to the model. Your earlier study is unchanged.",
+        safeMessage: `Study pack ${identity.packId} ${identity.version}, stage CANONICALIZING. Reason: privacy_denied. This case cannot be sent to the model. Your earlier study is unchanged.`,
         errorCode: "ACCESS_DENIED",
+        diagnosticField: `pack@${identity.packId}/${identity.version}/stage@CANONICALIZING/code@privacy_denied`,
       }),
     };
+  }
+  const prepared = prepareInvestigationStudy({
+    packSource: activePack.source,
+    artifacts: activePack.artifacts,
+  });
+  const personaObjectives = activePack.source.definitions.some(
+    (definition) => definition.kind === "persona" && (definition.objectives?.length ?? 0) > 0,
+  );
+  if (personaObjectives && (!prepared.ok || prepared.prepared.plan.obligations.length === 0)) {
+    const identity = activePack.source.identity;
+    return {
+      ok: false,
+      metric: null,
+      error: preserved({
+        correlationId,
+        runId: run.id,
+        hiveId: run.hiveId,
+        code: "investigation_objectives_unplanned",
+        effectivePackDigest: activeEffective.digest,
+        evidenceDigest: evidence.value.index.digest,
+        safeMessage: `Study pack ${identity.packId} ${identity.version}, stage CANONICALIZING, 0 of 0 windows complete. Reason: investigation_objectives_unplanned. The single study call was not used. Your earlier study is unchanged.`,
+        diagnosticField: `pack@${identity.packId}/${identity.version}/stage@CANONICALIZING/windows@0/0/code@investigation_objectives_unplanned`,
+      }),
+    };
+  }
+  if (prepared.ok && prepared.prepared.plan.obligations.length > 0) {
+    const catalog = loadPromptCatalog();
+    const startedAt = input.now().toISOString();
+    const windows = await runInvestigationWindows({
+      planner: input.planner,
+      prompt: catalog.investigationV2,
+      runId: run.id,
+      hiveId: run.hiveId,
+      correlationId,
+      intent: input.requestText,
+      pack: prepared.prepared.pack,
+      effective: activeEffective,
+      specification: activeSpecification,
+      evidence: evidence.value,
+      plan: prepared.prepared.plan,
+      extractions: input.extractions,
+      pages: input.pages.map((document) => ({
+        documentId: document.documentId,
+        pages: document.pages.map((page) => ({ pageNumber: page.pageNumber, text: page.text })),
+      })),
+      authorizedPages: frozen.map((page) => ({
+        documentId: page.documentId,
+        pageNumber: page.pageNumber,
+        sourcePageDigest: page.sourcePageDigest,
+      })),
+      saved: input.savedWindowProgress,
+      deadline: (() => {
+        const timeout = input.resolvePlannerTimeoutMs?.();
+        const start = (input.clock ?? Date.now)();
+        return timeout === "expired" || timeout === undefined ? undefined : start + timeout;
+      })(),
+      clock: input.clock,
+      callTurn: input.callTurn,
+      onProgress: input.onWindowProgress,
+    });
+    if (!windows.ok) {
+      if (windows.resumable) return { ok: false, metric: null, error: windows.error };
+      return {
+        ok: false,
+        metric: null,
+        error: preserved({
+          correlationId,
+          runId: run.id,
+          hiveId: run.hiveId,
+          code: windows.error.diagnosticReason ?? "investigation_incomplete",
+          effectivePackDigest: activeEffective.digest,
+          evidenceDigest: evidence.value.index.digest,
+          safeMessage: windows.error.safeMessage,
+          errorCode: windows.error.errorCode,
+        }),
+      };
+    }
+    const engine = runInvestigationStudyEngine({
+      prepared: prepared.prepared,
+      extractions: input.extractions,
+      pages: input.pages.map((document) => ({
+        documentId: document.documentId,
+        pages: document.pages.map((page) => ({ pageNumber: page.pageNumber, text: page.text })),
+      })),
+      proposal: windows.proposal,
+      investigation: windows.record,
+      studyDate: input.now().toISOString().slice(0, 10),
+      relationshipStructures: activePack.relationshipStructures,
+    });
+    const accepted = acceptCanonicalInvestigation(engine);
+    if (!accepted.ok) {
+      return {
+        ok: false,
+        metric: null,
+        error: preserved({
+          correlationId,
+          runId: run.id,
+          hiveId: run.hiveId,
+          code: accepted.code,
+          effectivePackDigest: activeEffective.digest,
+          evidenceDigest: evidence.value.index.digest,
+          safeMessage: "The study did not pass validation, so it was not accepted. Your earlier study is unchanged.",
+        }),
+      };
+    }
+    const identity = activePack.source.identity;
+    const study: CanonicalStudy = {
+      ...accepted.study,
+      questionOrder: [
+        ...(accepted.study.questionOrder ?? []),
+        `pack-id:${identity.packId}`,
+        `pack-version:${identity.version}`,
+        `pack-digest:${prepared.prepared.pack.identity.digest}`,
+        `evidence-digest:${evidence.value.index.digest}`,
+      ],
+    };
+    const metric: StageMetric = {
+      stage: "CANONICALIZING",
+      attempt: input.stageAttempt,
+      outcome: "SUCCEEDED",
+      promptId: catalog.investigationV2.id,
+      promptDigest: catalog.investigationV2.digest,
+      modelAliasRequested: null,
+      resolvedModel: null,
+      promptTokens: windows.progress.windows.reduce((sum, window) => sum + window.inputTokens, 0),
+      completionTokens: windows.progress.windows.reduce((sum, window) => sum + window.outputTokens, 0),
+      totalTokens: windows.progress.windows.reduce((sum, window) => sum + window.inputTokens + window.outputTokens, 0),
+      latencyMs: 0,
+      finishReason: null,
+      startedAt,
+      completedAt: input.now().toISOString(),
+    };
+    emitStructuredEvent({
+      eventName: "pipeline.pack_guided.study_accepted",
+      severity: "INFO",
+      timestamp: input.now().toISOString(),
+      component: "pipeline",
+      operation: "pack_guided_study",
+      stage: "CANONICALIZING",
+      correlationId,
+      hiveId: run.hiveId,
+      processingRunId: run.id,
+      status: "ACCEPTED",
+      diagnosticReason: "pack_guided_study_accepted",
+      diagnosticField: "ACCEPTED",
+      errorDetail: `engine=${PACK_GUIDED_STUDY_ENGINE_ID};pack=${activeEffective.digest};evidence=${evidence.value.index.digest};status=ACCEPTED;code=ACCEPTED`,
+    });
+    return { ok: true, study, metric };
   }
   const preview = compileInvestigationPrompt({
     pack: effective.value,

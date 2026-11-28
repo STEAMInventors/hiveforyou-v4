@@ -12,6 +12,8 @@ import {
   DOMAIN_PACK_SOURCE_SCHEMA,
   INTERVAL_UNITS,
   PACK_CALCULATION_OPERATORS,
+  PACK_EVIDENCE_KINDS,
+  PACK_OBJECTIVE_ROLES,
   PACK_REPORT_BLOCKS,
   PACK_WORKFLOW_ACTIONS,
   calculationFieldBindings,
@@ -48,7 +50,7 @@ const DEFINITION_KEYS: Record<string, readonly string[]> = {
   report: ["audience", "sections", "voice"],
   term: ["meaning"],
   referenceTable: ["columns", "rows"],
-  persona: ["audience", "context", "questionIds", "knows", "doesNotKnow", "decisions", "usefulWhen", "leaveOut", "successTest"],
+  persona: ["audience", "context", "questionIds", "objectives", "knows", "doesNotKnow", "decisions", "usefulWhen", "leaveOut", "successTest"],
   note: ["text", "showWhen"],
   guideline: ["text", "scope"],
 };
@@ -222,6 +224,101 @@ function validatePredicate(raw: unknown, path: string, errors: PackCompileIssue[
   }
 }
 
+const OBJECTIVE_DEFINITION_KINDS = new Set(["check", "chain", "calculation", "term", "note", "guideline"]);
+
+const OBJECTIVE_KEYS = [
+  "id", "description", "role", "window", "appliesWhen", "conditionDescription",
+  "questionIds", "relatedQuestionIds", "definitionIds", "evidence", "reportSectionIds",
+  "dependsOn", "limits", "authorityLabel", "branches",
+] as const;
+const OBJECTIVE_WINDOW = /^[a-z][a-z0-9-]{0,63}$/;
+const EVIDENCE_KINDS: ReadonlySet<string> = new Set(PACK_EVIDENCE_KINDS);
+
+function validatePersonaObjectives(raw: unknown, path: string, errors: PackCompileIssue[]): void {
+  if (!Array.isArray(raw)) {
+    issue(errors, "objective_invalid", path, "Persona objectives must be an array.");
+    return;
+  }
+  const ids: string[] = [];
+  raw.forEach((item, index) => {
+    const at = path + "[" + index + "]";
+    if (!isObject(item)) {
+      issue(errors, "objective_invalid", at, "An objective must be an object.");
+      return;
+    }
+    exactKeys(item, OBJECTIVE_KEYS, at, errors);
+    if (!nonempty(item.id) || !ID.test(item.id)) issue(errors, "objective_invalid", at + ".id", "Objective ID is required.");
+    else ids.push(item.id);
+    if (!nonempty(item.description)) issue(errors, "objective_invalid", at + ".description", "Objective description is required.");
+    if (!(PACK_OBJECTIVE_ROLES as readonly string[]).includes(String(item.role))) {
+      issue(errors, "objective_invalid", at + ".role", "Objective role must be investigate or report.");
+    }
+    if (typeof item.window !== "string" || !OBJECTIVE_WINDOW.test(item.window)) {
+      issue(errors, "objective_invalid", at + ".window", "Objective window must be a short label.");
+    }
+    validatePredicate(item.appliesWhen, at + ".appliesWhen", errors);
+    if (item.conditionDescription !== undefined && typeof item.conditionDescription !== "string") {
+      issue(errors, "objective_invalid", at + ".conditionDescription", "Condition description must be text.");
+    }
+    for (const key of ["questionIds", "relatedQuestionIds", "definitionIds", "reportSectionIds"] as const) {
+      if (!Array.isArray(item[key]) || item[key].some((entry) => !nonempty(entry) || !ID.test(String(entry)))) {
+        issue(errors, "objective_invalid", at + "." + key, "Objective references must be ID arrays.");
+      } else if (!unique(item[key] as string[])) {
+        issue(errors, "objective_invalid", at + "." + key, "Objective references must be unique.");
+      }
+    }
+    if (!isObject(item.evidence)) {
+      issue(errors, "objective_invalid", at + ".evidence", "Evidence requirements are required.");
+    } else {
+      exactKeys(item.evidence, ["documentIds", "expected"], at + ".evidence", errors);
+      if (!Array.isArray(item.evidence.documentIds) || item.evidence.documentIds.some((entry) => !nonempty(entry) || !ID.test(String(entry)))) {
+        issue(errors, "objective_invalid", at + ".evidence.documentIds", "Evidence documents must be an ID array.");
+      } else if (!unique(item.evidence.documentIds as string[])) {
+        issue(errors, "objective_invalid", at + ".evidence.documentIds", "Evidence documents must be unique.");
+      }
+      const expected = item.evidence.expected;
+      if (!isObject(expected) || !EVIDENCE_KINDS.has(String(expected.kind)) || !nonempty(expected.statement)) {
+        issue(errors, "objective_invalid", at + ".evidence.expected", "Evidence expectation needs a known kind and a statement.");
+      } else exactKeys(expected, ["kind", "statement"], at + ".evidence.expected", errors);
+    }
+    if (item.dependsOn !== undefined) {
+      if (!Array.isArray(item.dependsOn) || item.dependsOn.length === 0 || item.dependsOn.some((entry) => !nonempty(entry) || !ID.test(String(entry))) || !unique(item.dependsOn as string[])) {
+        issue(errors, "objective_invalid", at + ".dependsOn", "Objective dependencies must be unique IDs.");
+      }
+    }
+    if (item.limits !== undefined && !nonempty(item.limits)) issue(errors, "objective_invalid", at + ".limits", "Limits must be nonblank text.");
+    if (item.authorityLabel !== undefined && (!nonempty(item.authorityLabel) || item.authorityLabel.length > 80)) {
+      issue(errors, "objective_invalid", at + ".authorityLabel", "Authority label must be short text.");
+    }
+    if (item.branches !== undefined) {
+      if (!Array.isArray(item.branches) || item.branches.length === 0) {
+        issue(errors, "objective_invalid", at + ".branches", "Objective branches must be a non-empty array.");
+      } else {
+        const branchIds: string[] = [];
+        item.branches.forEach((branch, branchIndex) => {
+          const branchPath = at + ".branches[" + branchIndex + "]";
+          if (!isObject(branch)) {
+            issue(errors, "objective_invalid", branchPath, "A branch must be an object.");
+            return;
+          }
+          exactKeys(branch, ["id", "definitionIds", "appliesWhen", "conditionDescription"], branchPath, errors);
+          if (!nonempty(branch.id) || !ID.test(branch.id)) issue(errors, "objective_invalid", branchPath + ".id", "Branch ID is required.");
+          else branchIds.push(branch.id);
+          if (!Array.isArray(branch.definitionIds) || branch.definitionIds.length === 0 || branch.definitionIds.some((entry) => !nonempty(entry) || !ID.test(String(entry))) || !unique(branch.definitionIds as string[])) {
+            issue(errors, "objective_invalid", branchPath + ".definitionIds", "A branch names a unique subset of investigation definitions.");
+          }
+          validatePredicate(branch.appliesWhen, branchPath + ".appliesWhen", errors);
+          if (branch.conditionDescription !== undefined && typeof branch.conditionDescription !== "string") {
+            issue(errors, "objective_invalid", branchPath + ".conditionDescription", "Branch condition description must be text.");
+          }
+        });
+        if (!unique(branchIds)) issue(errors, "objective_invalid", at + ".branches", "Branch IDs must be unique.");
+      }
+    }
+  });
+  if (!unique(ids)) issue(errors, "objective_invalid", path, "Objective IDs must be unique on a persona.");
+}
+
 function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue[]): raw is PackDefinition {
   if (!isObject(raw)) { issue(errors, "definition_invalid", path, "Definition must be an object."); return false; }
   if (!nonempty(raw.id) || !ID.test(raw.id) || !nonempty(raw.label) || !VALID_KINDS.has(String(raw.kind))) {
@@ -317,6 +414,7 @@ function validateDefinition(raw: unknown, path: string, errors: PackCompileIssue
       for (const key of ["knows","doesNotKnow","decisions","usefulWhen","leaveOut","successTest"]) {
         if (raw[key] !== undefined && typeof raw[key] !== "string") issue(errors,"persona_profile",path+"."+key,"Invalid profile text.");
       }
+      if (raw.objectives !== undefined) validatePersonaObjectives(raw.objectives, path + ".objectives", errors);
       break;
     case "note":
       if (!nonempty(raw.text) || !nonempty(raw.showWhen)) issue(errors, "note_invalid", path, "Note text and condition required.");
@@ -436,6 +534,40 @@ function operandValueType(defs: Map<string, EffectiveDefinition>, operand: strin
 
 function validateReferences(defs: readonly EffectiveDefinition[], errors: PackCompileIssue[]): void {
   const byId = new Map(defs.map((d) => [d.id, d]));
+  const objectives = new Map<string, string>();
+  function refs(defId: string, node: PackPredicate): void {
+    if (node.op === "FIELD_PRESENT") {
+      const entity = byId.get(node.entityId);
+      if (entity?.kind !== "entity" || !entity.fields.some((f) => f.id === node.fieldId))
+        issue(errors, "predicate_target_missing", defId, "Unknown entity field binding.");
+    } else if (node.op === "DOCUMENT_PRESENT") {
+      if (byId.get(node.documentKindId)?.kind !== "document")
+        issue(errors, "predicate_target_missing", defId, "Unknown document kind binding.");
+    } else if (node.op === "ALL" || node.op === "ANY") node.conditions.forEach((condition) => refs(defId, condition));
+    else if (node.op === "NOT") refs(defId, node.condition);
+    else if (node.op === "COMPARE") {
+      for (const operand of [node.left, node.right]) {
+        if (typeof operand === "string") continue;
+        if (operand.ref === "FIELD" && !fieldType(byId, operand.entityId, operand.fieldId)) {
+          issue(errors, "predicate_target_missing", defId, "Comparison field binding is not an effective field.");
+        }
+        if (operand.ref === "CALCULATION" && byId.get(operand.calculationId)?.kind !== "calculation") {
+          issue(errors, "predicate_target_missing", defId, "Comparison calculation binding is not an effective calculation.");
+        }
+      }
+      if (typeof node.left !== "string" && typeof node.right !== "string") {
+        const leftType = operandValueType(byId, node.left);
+        const rightType = operandValueType(byId, node.right);
+        if (leftType && rightType && leftType !== "UNSUPPORTED" && rightType !== "UNSUPPORTED") {
+          const ordered = node.comparator === "LT" || node.comparator === "LTE" || node.comparator === "GT" || node.comparator === "GTE";
+          const equalityOnly = leftType === "TEXT" || leftType === "BOOLEAN";
+          if (leftType !== rightType || (ordered && equalityOnly)) {
+            issue(errors, "predicate_type_mismatch", defId, "Comparison operands do not have a comparable type.");
+          }
+        }
+      }
+    }
+  }
   for (const def of defs) {
     if (def.kind === "relationship") {
       if (byId.get(def.fromEntityId)?.kind !== "entity" || byId.get(def.toEntityId)?.kind !== "entity")
@@ -444,8 +576,52 @@ function validateReferences(defs: readonly EffectiveDefinition[], errors: PackCo
     if (def.kind === "document") for (const id of def.settlesCheckIds) {
       if (byId.get(id)?.kind !== "check") issue(errors, "check_target_missing", def.id, "Document settles an unknown check: " + id);
     }
-    if (def.kind === "persona") for (const id of def.questionIds) {
-      if (byId.get(id)?.kind !== "question") issue(errors, "question_target_missing", def.id, "Persona references unknown question: " + id);
+    if (def.kind === "persona") {
+      for (const id of def.questionIds) {
+        if (byId.get(id)?.kind !== "question") issue(errors, "question_target_missing", def.id, "Persona references unknown question: " + id);
+      }
+      for (const objective of def.objectives ?? []) {
+        const prior = objectives.get(objective.id);
+        if (prior) issue(errors, "duplicate_definition", objective.id, "Duplicate objective ID.");
+        else if (byId.has(objective.id)) issue(errors, "duplicate_definition", objective.id, "Objective ID collides with a definition ID.");
+        else objectives.set(objective.id, def.id);
+        const personaQuestions = new Set(def.questionIds);
+        for (const id of objective.questionIds) {
+          const question = byId.get(id);
+          if (question?.kind !== "question" || !personaQuestions.has(id) || (question.audience !== "all" && question.audience !== def.audience)) {
+            issue(errors, "objective_reference_missing", objective.id, "Objective question is not on this persona: " + id);
+          }
+        }
+        for (const id of objective.relatedQuestionIds) {
+          if (byId.get(id)?.kind !== "question") issue(errors, "objective_reference_missing", objective.id, "Related question is unknown: " + id);
+        }
+        for (const id of objective.definitionIds) {
+          const kind = byId.get(id)?.kind;
+          if (!kind || !OBJECTIVE_DEFINITION_KINDS.has(kind)) {
+            issue(errors, "objective_reference_missing", objective.id, "Investigation reference is unknown: " + id);
+          }
+        }
+        for (const id of objective.evidence.documentIds) {
+          if (byId.get(id)?.kind !== "document") issue(errors, "objective_reference_missing", objective.id, "Evidence document is unknown: " + id);
+        }
+        const reports = defs.filter((item) => item.kind === "report" && item.audience === def.audience);
+        const holders = new Set<string>();
+        for (const id of objective.reportSectionIds) {
+          const holder = reports.find((report) => report.kind === "report" && report.sections.some((section) => section.id === id));
+          if (!holder) issue(errors, "objective_reference_missing", objective.id, "Report section is unknown for this audience: " + id);
+          else holders.add(holder.id);
+        }
+        if (holders.size > 1) issue(errors, "objective_reference_missing", objective.id, "Report sections must belong to one report.");
+        refs(objective.id, objective.appliesWhen);
+        for (const branch of objective.branches ?? []) {
+          for (const id of branch.definitionIds) {
+            if (!objective.definitionIds.includes(id)) {
+              issue(errors, "objective_reference_missing", objective.id, "Branch reference is outside the objective: " + id);
+            }
+          }
+          refs(objective.id, branch.appliesWhen);
+        }
+      }
     }
     if (def.kind === "calculation" && def.bindings) {
       for (const binding of def.bindings) {
@@ -471,43 +647,38 @@ function validateReferences(defs: readonly EffectiveDefinition[], errors: PackCo
       }
     }
     if (def.kind === "check" || def.kind === "document" || def.kind === "question") {
-      const p: PackPredicate = def.kind === "check" ? def.criterion : def.appliesWhen;
-      function refs(node: PackPredicate): void {
-        if (node.op === "FIELD_PRESENT") {
-          const entity = byId.get(node.entityId);
-          if (entity?.kind !== "entity" || !entity.fields.some((f) => f.id === node.fieldId))
-            issue(errors, "predicate_target_missing", def.id, "Unknown entity field binding.");
-        } else if (node.op === "DOCUMENT_PRESENT") {
-          if (byId.get(node.documentKindId)?.kind !== "document")
-            issue(errors, "predicate_target_missing", def.id, "Unknown document kind binding.");
-        } else if (node.op === "ALL" || node.op === "ANY") node.conditions.forEach(refs);
-        else if (node.op === "NOT") refs(node.condition);
-        else if (node.op === "COMPARE") {
-          for (const operand of [node.left, node.right]) {
-            if (typeof operand === "string") continue;
-            if (operand.ref === "FIELD" && !fieldType(byId, operand.entityId, operand.fieldId)) {
-              issue(errors, "predicate_target_missing", def.id, "Comparison field binding is not an effective field.");
-            }
-            if (operand.ref === "CALCULATION" && byId.get(operand.calculationId)?.kind !== "calculation") {
-              issue(errors, "predicate_target_missing", def.id, "Comparison calculation binding is not an effective calculation.");
-            }
-          }
-          if (typeof node.left !== "string" && typeof node.right !== "string") {
-            const leftType = operandValueType(byId, node.left);
-            const rightType = operandValueType(byId, node.right);
-            if (leftType && rightType && leftType !== "UNSUPPORTED" && rightType !== "UNSUPPORTED") {
-              const ordered = node.comparator === "LT" || node.comparator === "LTE" || node.comparator === "GT" || node.comparator === "GTE";
-              const equalityOnly = leftType === "TEXT" || leftType === "BOOLEAN";
-              if (leftType !== rightType || (ordered && equalityOnly)) {
-                issue(errors, "predicate_type_mismatch", def.id, "Comparison operands do not have a comparable type.");
-              }
-            }
-          }
-        }
-      }
-      refs(p);
+      refs(def.id, def.kind === "check" ? def.criterion : def.appliesWhen);
     }
   }
+  for (const def of defs) {
+    if (def.kind !== "persona" || !def.objectives) continue;
+    for (const objective of def.objectives) {
+      for (const dependency of objective.dependsOn ?? []) {
+        if (dependency === objective.id || !objectives.has(dependency)) {
+          issue(errors, "objective_reference_missing", objective.id, "Objective dependency is unknown: " + dependency);
+        }
+      }
+    }
+  }
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const dependsOn = new Map<string, readonly string[]>();
+  for (const def of defs) {
+    if (def.kind !== "persona" || !def.objectives) continue;
+    for (const objective of def.objectives) dependsOn.set(objective.id, objective.dependsOn ?? []);
+  }
+  function walk(id: string, stack: string[]): void {
+    if (visited.has(id)) return;
+    if (visiting.has(id)) {
+      issue(errors, "objective_cycle", id, "Objective dependencies cycle: " + [...stack, id].join(" -> "));
+      return;
+    }
+    visiting.add(id);
+    for (const next of dependsOn.get(id) ?? []) if (dependsOn.has(next)) walk(next, [...stack, id]);
+    visiting.delete(id);
+    visited.add(id);
+  }
+  for (const id of [...dependsOn.keys()].sort()) walk(id, []);
 }
 
 function freezeDeep<T>(value: T): T {

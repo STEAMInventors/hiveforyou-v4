@@ -40,7 +40,8 @@ import {
 import { processAnalysisRun, type AnalysisWorkflowDeps } from "./analysis-workflow";
 import { loadApprovedEdition, resolvePublishedDomainPack } from "./domain-pack-selection";
 
-const PUBLISHED_PACK = { packId: "iep-us-federal", version: "0.5.0" } as const;
+const PUBLISHED_PACK = { packId: "iep-us-federal", version: "0.5.1" } as const;
+const PREVIOUS_PACK_DIGEST = "2108f8297a240b5daee6d175c2ba6e3699b952613e4b329ff1712d0a25a7a066";
 
 function publishedPack() {
   const pack = loadApprovedEdition(PUBLISHED_PACK.packId, PUBLISHED_PACK.version);
@@ -755,6 +756,9 @@ describe("pinned rebuild acceptance", () => {
     expect(pinned.source.identity).toMatchObject(PUBLISHED_PACK);
     expect(pinned.investigationPromptId).toBe(DOMAIN_INVESTIGATION_PROMPT_V2_ID);
     expect(pinned.compiledDigest).toMatch(/^[0-9a-f]{64}$/);
+    const previous = loadApprovedEdition("iep-us-federal", "0.5.0");
+    expect(previous?.source.identity.version).toBe("0.5.0");
+    expect(previous?.compiledDigest).toBe(PREVIOUS_PACK_DIGEST);
   });
 
   it("rejects an early finish and keeps the previous revision and reports", async () => {
@@ -923,7 +927,7 @@ describe("pinned rebuild acceptance", () => {
 });
 
 describe("published domain pack resolution", () => {
-  it("selects iep-us-federal 0.5.0 and the v2 prompt from the hive text alone", () => {
+  it("selects iep-us-federal 0.5.1 and the v2 prompt from the hive text alone", () => {
     const resolved = resolvePublishedDomainPack({
       intentText: "I want to understand Maya's IEP and prepare for the evaluation",
       documents: ["Maya IEP 2025.pdf", "Psychoeducational evaluation.pdf"],

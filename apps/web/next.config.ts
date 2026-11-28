@@ -17,6 +17,7 @@ const PACK_TRACE_GLOBS = [
   "../../packs/archive/*.md",
   "../../packs/drafts/*/v0.4.0/**/*",
   "../../packs/drafts/*/v0.5.0/**/*",
+  "../../packs/drafts/*/v0.5.1/**/*",
   "../../packs/published/**/*",
 ] as const;
 

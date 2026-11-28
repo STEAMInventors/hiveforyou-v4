@@ -361,6 +361,41 @@ describe("domain prompt compiler", () => {
     expect(PROMPT_TEMPLATE_VERSION).toBe("hive.domain-prompt/1");
   });
 
+  it("limits one window to its clauses, evidence references, prior findings, and tool names", () => {
+    const compiled = mustCompile(compileInvestigationPrompt({
+      ...(() => {
+        const pack = composeFixture(compilerPlan);
+        const specification = specificationFor(pack, compilerPlan.hiveId, hiveAttributes(compilerPlan));
+        return {
+          pack,
+          specification,
+          evidence: evidenceFor(compilerPlan.documentUuid, compilerPlan.pageText, compilerPlan.quote, "fact:value"),
+          intent: "How does alphatoken apply",
+          disclosure: { decision: "WITHHELD" as const },
+        };
+      })(),
+      windowScope: {
+        definitionIds: [compilerPlan.proCheckId],
+        questionIds: [],
+        priorFindingIds: ["fact:earlier"],
+        toolNames: ["search_case", "read_pages", "propose_relationship", "propose_conflict", "propose_answer"],
+        missingDocumentIds: ["document:absent-record"],
+        evidenceDocumentIds: [compilerPlan.documentUuid],
+      },
+    }));
+    expect(compiled.applicableClauseIds).toContain(compilerPlan.proCheckId);
+    expect(compiled.applicableClauseIds).not.toContain(QUESTION_ID);
+    expect(compiled.questionObligationIds).not.toContain(QUESTION_ID);
+    const caseText = compiled.sections[2]?.text ?? "";
+    const outputText = compiled.sections[3]?.text ?? "";
+    expect(caseText).toContain("fact:earlier");
+    expect(caseText).toContain("document:absent-record");
+    expect(outputText).toContain("search_case");
+    expect(outputText).toContain("propose_relationship");
+    expect(compiled.sections[0]?.text).toContain("Do not produce an authoritative calculation");
+    expect(compiled.sections[0]?.text).not.toContain(compilerPlan.pageText);
+  });
+
   it.each([compilerPlan, compilerFiling, compilerBenefit])("compiles $name with the same compiler and the same Hive core", (fixture) => {
     const first = mustCompile(compileCase(fixture));
     const second = mustCompile(compileCase(fixture));

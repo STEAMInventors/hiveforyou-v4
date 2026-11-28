@@ -1015,6 +1015,7 @@ export class CoordinatedInvestigationLedger {
       if (!this.presentedWindows.has(index)) unpresentedWindows += 1;
     }
     for (const documentId of [...schedule.documentIds].sort()) {
+      if (!this.quotable(documentId)) continue;
       if (!this.documentRoles.some((role) => role.documentId === documentId)) documentsWithoutRole.push(documentId);
     }
     for (const role of this.documentRoles) {
@@ -1047,6 +1048,12 @@ export class CoordinatedInvestigationLedger {
       unansweredShownQuestions,
       unansweredIntentQuestions,
     };
+  }
+
+  /** A role can be quoted only from a page that has text. A blank document is not a role to invent. */
+  private quotable(documentId: string): boolean {
+    const document = this.pages.find((item) => item.documentId === documentId);
+    return !!document?.pages.some((page) => page.text.trim() !== "");
   }
 
   private answerSettled(questionId: string): boolean {

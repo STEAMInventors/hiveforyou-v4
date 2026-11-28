@@ -124,6 +124,50 @@ export const PACK_WORKFLOW_ACTIONS = [
 ] as const;
 export type PackWorkflowAction = (typeof PACK_WORKFLOW_ACTIONS)[number];
 
+/** Whether an objective investigates or fills an existing report. It is not a new task kind. */
+export const PACK_OBJECTIVE_ROLES = ["INVESTIGATE", "REPORT"] as const;
+export type PackObjectiveRole = (typeof PACK_OBJECTIVE_ROLES)[number];
+
+/** What a completed objective is expected to show. The label is data, not a verdict. */
+export const PACK_EVIDENCE_KINDS = ["CITED_OR_NOT_SHOWN", "CONDITIONAL", "UNCERTAINTY", "REVIEW_REQUIRED"] as const;
+export type PackEvidenceKind = (typeof PACK_EVIDENCE_KINDS)[number];
+
+/** A named subset of an objective's investigation definitions. It is not a separate task. */
+export type PackObjectiveBranch = {
+  id: string;
+  definitionIds: string[];
+  appliesWhen: PackPredicate;
+  conditionDescription?: string;
+};
+
+/**
+ * One audience objective. Applicable conditions stay predicates.
+ * A review-required predicate is not activated because its definitions exist.
+ */
+export type PackPersonaObjective = {
+  id: string;
+  description: string;
+  role: PackObjectiveRole;
+  /** Assignment window. A label, not a workflow step. */
+  window: string;
+  appliesWhen: PackPredicate;
+  conditionDescription?: string;
+  questionIds: string[];
+  relatedQuestionIds: string[];
+  /** Checks, chains, calculations, terms, notes, and guidelines. Questions stay in questionIds. */
+  definitionIds: string[];
+  evidence: {
+    documentIds: string[];
+    expected: { kind: PackEvidenceKind; statement: string };
+  };
+  reportSectionIds: string[];
+  dependsOn?: string[];
+  limits?: string;
+  /** Opaque practice label from the pack. Hive Core does not interpret it. */
+  authorityLabel?: string;
+  branches?: PackObjectiveBranch[];
+};
+
 type DefinitionBase = {
   id: string;
   label: string;
@@ -143,7 +187,7 @@ export type PackDefinition =
   | (DefinitionBase & { kind: "report"; audience: "customer" | "professional"; voice?: string; sections: { id: string; heading: string; blocks: string[]; templateDescription?: string }[] })
   | (DefinitionBase & { kind: "term"; meaning: string })
   | (DefinitionBase & { kind: "referenceTable"; columns: string[]; rows: string[][] })
-  | (DefinitionBase & { kind: "persona"; audience: "customer" | "professional"; context: string; questionIds: string[]; knows?: string; doesNotKnow?: string; decisions?: string; usefulWhen?: string; leaveOut?: string; successTest?: string })
+  | (DefinitionBase & { kind: "persona"; audience: "customer" | "professional"; context: string; questionIds: string[]; objectives?: PackPersonaObjective[]; knows?: string; doesNotKnow?: string; decisions?: string; usefulWhen?: string; leaveOut?: string; successTest?: string })
   | (DefinitionBase & { kind: "note"; text: string; showWhen: string })
   | (DefinitionBase & { kind: "guideline"; text: string; scope: "INVESTIGATION" | "REPORTING" | "GENERAL" });
 

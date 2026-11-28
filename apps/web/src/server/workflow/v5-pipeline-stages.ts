@@ -85,6 +85,7 @@ import {
 
 import type { AnalysisWorkflowDeps } from "./analysis-workflow";
 import { runDomainMappingInvestigation } from "./domain-mapping-investigation";
+import type { InvestigationWindowProgress } from "@hiveforyou/contracts/investigation";
 import { runPackGuidedStudy } from "./pack-guided-rebuild";
 import { PACK_GUIDED_STUDY_ENGINE_ID } from "./pack-guided-selection";
 
@@ -254,7 +255,7 @@ export type V5StageOutputs = {
   domainPack?:
     | { readonly id: string; readonly version: number; readonly score: number }
     | { readonly skipped: string }
-    | { readonly engine: typeof PACK_GUIDED_STUDY_ENGINE_ID };
+    | { readonly engine: typeof PACK_GUIDED_STUDY_ENGINE_ID; readonly investigationWindows?: unknown };
 };
 
 const TRUNCATION_GAP_DIAGNOSTIC = "model_output_truncated";
@@ -481,12 +482,16 @@ export async function persistV5ExtractStageOutputs(
 export async function persistPackGuidedEngineMarker(
   client: RpcClient,
   runId: string,
-  input: { correlationId?: string; hiveId?: string },
+  input: { correlationId?: string; hiveId?: string; investigationWindows?: unknown },
 ): Promise<boolean> {
   const { data, error } = await client.rpc("patch_processing_run_workflow_state", {
     p_run_id: runId,
     p_expected_status: "CANONICALIZING",
-    p_patch: { domainPack: { engine: PACK_GUIDED_STUDY_ENGINE_ID } },
+    p_patch: {
+      domainPack: input.investigationWindows
+        ? { engine: PACK_GUIDED_STUDY_ENGINE_ID, investigationWindows: input.investigationWindows }
+        : { engine: PACK_GUIDED_STUDY_ENGINE_ID },
+    },
   });
   if (error) {
     logWorkflowStatePatchFailure({
@@ -2724,6 +2729,13 @@ export async function runCanonicalizeForRun(input: {
         });
         pages.push({ documentId: document.sourceDocumentId, pages: listed });
       }
+      const bookmarked = input.extractProgress?.domainPack;
+      const savedWindows = bookmarked && "investigationWindows" in bookmarked
+        && bookmarked.investigationWindows
+        && typeof bookmarked.investigationWindows === "object"
+        && (bookmarked.investigationWindows as { schema?: unknown }).schema === "hive.investigation-window-progress/1"
+        ? bookmarked.investigationWindows as InvestigationWindowProgress
+        : null;
       return await runPackGuidedStudy({
         planner: deps.planner,
         run,
@@ -2734,6 +2746,14 @@ export async function runCanonicalizeForRun(input: {
         stageAttempt,
         now,
         packsCwd: input.packsCwd,
+        savedWindowProgress: savedWindows,
+        onWindowProgress: async (progress) => {
+          await persistPackGuidedEngineMarker(deps.client, run.id, {
+            correlationId,
+            hiveId: run.hiveId,
+            investigationWindows: progress,
+          });
+        },
         resolvePlannerTimeoutMs: () =>
           extractPlannerTimeoutMs(
             input.clock ?? deps.clock ?? (() => Date.now()),

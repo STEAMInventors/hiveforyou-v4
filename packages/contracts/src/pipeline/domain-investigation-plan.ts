@@ -12,6 +12,9 @@ import {
   type EffectiveDefinition,
   type PackAuthority,
   type PackCompileIssue,
+  type PackEvidenceKind,
+  type PackObjectiveRole,
+  type PackPersonaObjective,
   type PackPredicate,
 } from "./domain-pack-source";
 
@@ -160,6 +163,74 @@ export type InvestigationDependency = {
   reason: string;
 };
 
+/** Pack-level reading of a predicate. A case is not known yet, so nothing is activated. */
+export const PLAN_OBJECTIVE_APPLICABILITY = ["REVIEW_REQUIRED", "CONDITIONAL", "UNRESOLVED"] as const;
+export type PlanObjectiveApplicability = (typeof PLAN_OBJECTIVE_APPLICABILITY)[number];
+
+/** Case reading of a predicate. Review-required stays a review. */
+export const ASSIGNED_OBJECTIVE_APPLICABILITY = ["REVIEW_REQUIRED", "APPLICABLE", "OUT_OF_SCOPE", "UNRESOLVED"] as const;
+export type AssignedObjectiveApplicability = (typeof ASSIGNED_OBJECTIVE_APPLICABILITY)[number];
+
+export type InvestigationObligationBranch = {
+  id: string;
+  definitionIds: readonly string[];
+  /** Existing tasks named by the branch. Not new tasks. */
+  linkedTaskIds: readonly string[];
+  appliesWhen: PackPredicate;
+  applicability: PlanObjectiveApplicability;
+  conditionDescription?: string;
+};
+
+/**
+ * One persona objective bound to existing tasks and an existing report.
+ * Report objectives keep those links and do not add investigation tasks.
+ */
+export type InvestigationObligation = {
+  obligationId: string;
+  objectiveId: string;
+  personaId: string;
+  audience: "customer" | "professional";
+  role: PackObjectiveRole;
+  window: string;
+  description: string;
+  appliesWhen: PackPredicate;
+  applicability: PlanObjectiveApplicability;
+  conditionDescription?: string;
+  questionIds: readonly string[];
+  relatedQuestionIds: readonly string[];
+  definitionIds: readonly string[];
+  linkedTaskIds: readonly string[];
+  documentIds: readonly string[];
+  evidenceKind: PackEvidenceKind;
+  evidenceStatement: string;
+  reportId: string | null;
+  reportSectionIds: readonly string[];
+  dependsOn: readonly string[];
+  limits?: string;
+  authorityLabel?: string;
+  branches: readonly InvestigationObligationBranch[];
+};
+
+export type AssignedObligationBranch = {
+  id: string;
+  applicability: AssignedObjectiveApplicability;
+  /** Empty when the branch is out of scope, or when the objective only fills a report. */
+  investigationTaskIds: readonly string[];
+};
+
+export type AssignedInvestigationObligation = {
+  obligationId: string;
+  objectiveId: string;
+  audience: "customer" | "professional";
+  role: PackObjectiveRole;
+  window: string;
+  applicability: AssignedObjectiveApplicability;
+  /** Existing investigation tasks still in scope. Report objectives leave this empty. */
+  investigationTaskIds: readonly string[];
+  reportSectionIds: readonly string[];
+  branches: readonly AssignedObligationBranch[];
+};
+
 export type DomainInvestigationPlan = {
   schema: typeof DOMAIN_INVESTIGATION_PLAN_SCHEMA;
   plannerVersion: typeof DOMAIN_INVESTIGATION_PLANNER_VERSION;
@@ -196,6 +267,8 @@ export type DomainInvestigationPlan = {
   uncompiledRuleIds: readonly string[];
   /** Chain annotations that do not name a compiled check or question. They are not tasks. */
   unresolvedAnnotationIds: readonly string[];
+  /** Persona objectives. They cite existing tasks and report sections. */
+  obligations: readonly InvestigationObligation[];
   accounting: {
     definitionCount: number;
     presentationCount: number;
@@ -1021,6 +1094,71 @@ function uniqueReasons(reasons: readonly PlannerReasonCode[]): PlannerReasonCode
   return [...new Set(reasons)].sort();
 }
 
+function planApplicability(predicate: PackPredicate): PlanObjectiveApplicability {
+  if (predicate.op === "REVIEW_REQUIRED") return "REVIEW_REQUIRED";
+  return predicateExecutable(predicate) ? "CONDITIONAL" : "UNRESOLVED";
+}
+
+function linkedTaskIds(ids: readonly string[], taskIds: Map<string, string>): string[] {
+  return [...new Set(ids.flatMap((id) => {
+    const taskId = taskIds.get(id);
+    return taskId ? [taskId] : [];
+  }))].sort();
+}
+
+function buildObligations(pack: CompiledDomainPack, taskIds: Map<string, string>): InvestigationObligation[] {
+  const obligations: InvestigationObligation[] = [];
+  for (const definition of pack.definitions) {
+    if (definition.kind !== "persona" || !definition.objectives?.length) continue;
+    const report = pack.definitions.find((item) => item.kind === "report" && item.audience === definition.audience);
+    for (const objective of definition.objectives) {
+      obligations.push(obligationFrom(definition.id, definition.audience, objective, report?.id ?? null, taskIds));
+    }
+  }
+  return obligations.sort((left, right) => left.obligationId.localeCompare(right.obligationId));
+}
+
+function obligationFrom(
+  personaId: string,
+  audience: "customer" | "professional",
+  objective: PackPersonaObjective,
+  reportId: string | null,
+  taskIds: Map<string, string>,
+): InvestigationObligation {
+  return {
+    obligationId: "obligation:" + objective.id,
+    objectiveId: objective.id,
+    personaId,
+    audience,
+    role: objective.role,
+    window: objective.window,
+    description: objective.description,
+    appliesWhen: objective.appliesWhen,
+    applicability: planApplicability(objective.appliesWhen),
+    ...(objective.conditionDescription ? { conditionDescription: objective.conditionDescription } : {}),
+    questionIds: [...objective.questionIds],
+    relatedQuestionIds: [...objective.relatedQuestionIds],
+    definitionIds: [...objective.definitionIds],
+    linkedTaskIds: linkedTaskIds([...objective.questionIds, ...objective.definitionIds], taskIds),
+    documentIds: [...objective.evidence.documentIds],
+    evidenceKind: objective.evidence.expected.kind,
+    evidenceStatement: objective.evidence.expected.statement,
+    reportId,
+    reportSectionIds: [...objective.reportSectionIds],
+    dependsOn: [...(objective.dependsOn ?? [])],
+    ...(objective.limits ? { limits: objective.limits } : {}),
+    ...(objective.authorityLabel ? { authorityLabel: objective.authorityLabel } : {}),
+    branches: (objective.branches ?? []).map((branch) => ({
+      id: branch.id,
+      definitionIds: [...branch.definitionIds],
+      linkedTaskIds: linkedTaskIds(branch.definitionIds, taskIds),
+      appliesWhen: branch.appliesWhen,
+      applicability: planApplicability(branch.appliesWhen),
+      ...(branch.conditionDescription ? { conditionDescription: branch.conditionDescription } : {}),
+    })),
+  };
+}
+
 function buildPlan(pack: CompiledDomainPack, pinned: Pinned, register: RegisterModel, ontology: OntologyModel, issues: InvestigationPlanIssue[]): Omit<DomainInvestigationPlan, "digest"> | null {
   const definitions = new Map(pack.definitions.map((definition) => [definition.id, definition]));
   const relationships = new Map([...definitions.values()].filter((definition): definition is Extract<EffectiveDefinition, { kind: "relationship" }> => definition.kind === "relationship").map((definition) => [definition.id, definition]));
@@ -1226,6 +1364,7 @@ function buildPlan(pack: CompiledDomainPack, pinned: Pinned, register: RegisterM
     uncompiledRuleIds: [...uncompiled].sort(),
     /** Chain annotations that do not name a compiled check or question. They are not tasks. */
     unresolvedAnnotationIds: [...unresolvedAnnotations].sort(),
+    obligations: buildObligations(pack, taskIds),
     accounting: {
       definitionCount: pack.definitions.length,
       presentationCount: presentation.length,
@@ -1465,6 +1604,89 @@ function findCycle(nodeIds: readonly string[], edges: readonly InvestigationDepe
   if (seen === nodeIds.length) return null;
   const remaining = [...indegree.entries()].filter(([, degree]) => degree > 0).map(([id]) => id).sort();
   return remaining.slice(0, 8);
+}
+
+function evaluateObjectiveApplicability(predicate: PackPredicate, present: ReadonlySet<string>): AssignedObjectiveApplicability {
+  switch (predicate.op) {
+    case "REVIEW_REQUIRED":
+      return "REVIEW_REQUIRED";
+    case "DOCUMENT_PRESENT":
+      return present.has(predicate.documentKindId) ? "APPLICABLE" : "OUT_OF_SCOPE";
+    case "FIELD_PRESENT":
+      return "UNRESOLVED";
+    case "COMPARE":
+      return "UNRESOLVED";
+    case "NOT": {
+      const inner = evaluateObjectiveApplicability(predicate.condition, present);
+      if (inner === "APPLICABLE") return "OUT_OF_SCOPE";
+      if (inner === "OUT_OF_SCOPE") return "APPLICABLE";
+      return inner;
+    }
+    case "ANY":
+      return combineApplicability(predicate.conditions.map((condition) => evaluateObjectiveApplicability(condition, present)), "ANY");
+    case "ALL":
+      return combineApplicability(predicate.conditions.map((condition) => evaluateObjectiveApplicability(condition, present)), "ALL");
+    default:
+      return "UNRESOLVED";
+  }
+}
+
+function combineApplicability(results: readonly AssignedObjectiveApplicability[], op: "ANY" | "ALL"): AssignedObjectiveApplicability {
+  if (op === "ANY") {
+    if (results.includes("APPLICABLE")) return "APPLICABLE";
+    if (results.every((result) => result === "OUT_OF_SCOPE")) return "OUT_OF_SCOPE";
+    if (results.includes("UNRESOLVED")) return "UNRESOLVED";
+    if (results.includes("REVIEW_REQUIRED")) return "REVIEW_REQUIRED";
+    return "UNRESOLVED";
+  }
+  if (results.includes("OUT_OF_SCOPE")) return "OUT_OF_SCOPE";
+  if (results.every((result) => result === "APPLICABLE")) return "APPLICABLE";
+  if (results.includes("UNRESOLVED")) return "UNRESOLVED";
+  if (results.includes("REVIEW_REQUIRED")) return "REVIEW_REQUIRED";
+  return "UNRESOLVED";
+}
+
+/**
+ * Assigns compiled obligations to one case.
+ * Document presence is the only case fact. A review-required predicate stays a review.
+ * Definitions that merely exist in the pack are not activated.
+ * Report obligations keep their section ids and add no investigation tasks.
+ */
+export function assignInvestigationObligations(
+  plan: DomainInvestigationPlan,
+  presentDocumentIds: readonly string[],
+): AssignedInvestigationObligation[] {
+  const present = new Set(presentDocumentIds.filter((id) => id.trim().length > 0));
+  return plan.obligations.map((obligation) => {
+    const applicability = evaluateObjectiveApplicability(obligation.appliesWhen, present);
+    const closed = applicability === "OUT_OF_SCOPE";
+    const branches = obligation.branches.map((branch) => {
+      const branchApplicability = closed ? "OUT_OF_SCOPE" as const : evaluateObjectiveApplicability(branch.appliesWhen, present);
+      const investigationTaskIds = obligation.role === "REPORT" || branchApplicability === "OUT_OF_SCOPE" ? [] : [...branch.linkedTaskIds];
+      return { id: branch.id, applicability: branchApplicability, investigationTaskIds };
+    });
+    const excluded = new Set<string>();
+    const retained = new Set<string>();
+    for (const branch of obligation.branches) {
+      const assigned = branches.find((item) => item.id === branch.id);
+      const target = assigned?.applicability === "OUT_OF_SCOPE" ? excluded : retained;
+      for (const taskId of branch.linkedTaskIds) target.add(taskId);
+    }
+    const investigationTaskIds = obligation.role === "REPORT" || closed
+      ? []
+      : obligation.linkedTaskIds.filter((taskId) => !excluded.has(taskId) || retained.has(taskId));
+    return {
+      obligationId: obligation.obligationId,
+      objectiveId: obligation.objectiveId,
+      audience: obligation.audience,
+      role: obligation.role,
+      window: obligation.window,
+      applicability,
+      investigationTaskIds,
+      reportSectionIds: closed ? [] : [...obligation.reportSectionIds],
+      branches,
+    };
+  });
 }
 
 export function compileInvestigationPlan(input: InvestigationPlanInput): InvestigationPlanResult {

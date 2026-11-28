@@ -9,6 +9,15 @@
       "approval": "APPROVED",
       "investigationPromptId": "hive.domain-investigation/2",
       "directory": "drafts/iep-us-federal/v0.5.0"
+    },
+    {
+      "domain": "special-education",
+      "packId": "iep-us-federal",
+      "version": "0.5.1",
+      "publication": "PUBLISHED",
+      "approval": "APPROVED",
+      "investigationPromptId": "hive.domain-investigation/2",
+      "directory": "drafts/iep-us-federal/v0.5.1"
     }
   ]
 }

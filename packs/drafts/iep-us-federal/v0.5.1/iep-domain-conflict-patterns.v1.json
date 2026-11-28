@@ -1,0 +1,386 @@
+{
+  "schema": "hive.domain-conflict-pattern-spec/1",
+  "version": "1.0.0",
+  "status": "DRAFT",
+  "dp1Supported": false,
+  "note": "Fourteen conflict patterns copied from the Stage 3 ontology. They are not DP-1 definitions and are not evaluated.",
+  "patterns": [
+    {
+      "id": "conflictPattern:CP-CONSENT-DATE",
+      "title": "Different consent dates for the same evaluation",
+      "entities": [
+        "entity:consent"
+      ],
+      "fields": [
+        "signedDate",
+        "receivedDate"
+      ],
+      "requiredComparableContext": "Same activityType and same evaluation cycle.",
+      "relationshipRequirements": [
+        "relationship:consent-authorizes-evaluation"
+      ],
+      "temporalRules": "Compare only instances linked to the same evaluation.",
+      "genuineContradictionWhen": "Two verified dates for the same consent instance or same linked evaluation.",
+      "possibleExplanations": [
+        "Signed vs received date",
+        "Re-signed form",
+        "Different activity (reevaluation)"
+      ],
+      "reviewQuestion": "The documents give two consent dates. Which date did the school receive consent?",
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-i"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-EVAL-COMPLETION",
+      "title": "Different evaluation completion dates",
+      "entities": [
+        "entity:evaluation",
+        "entity:evaluation-report"
+      ],
+      "fields": [
+        "completionDate",
+        "reportDate"
+      ],
+      "requiredComparableContext": "Same evaluation cycle.",
+      "relationshipRequirements": [
+        "relationship:evaluation-contains-report"
+      ],
+      "temporalRules": "Report date may precede the overall completion.",
+      "genuineContradictionWhen": "Same field, same instance, different verified values.",
+      "possibleExplanations": [
+        "Multiple reports in one evaluation",
+        "Report dated at typing, not completion"
+      ],
+      "reviewQuestion": "When was the evaluation completed?",
+      "authorityIds": [
+        "AUTH-CFR-300.301-c-1-i"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-ELIGIBILITY-DATE",
+      "title": "Conflicting eligibility dates",
+      "entities": [
+        "entity:eligibility-determination",
+        "entity:iep"
+      ],
+      "fields": [
+        "determinationDate",
+        "meetingDate"
+      ],
+      "requiredComparableContext": "Same determination.",
+      "relationshipRequirements": [
+        "relationship:eligibility-precedes-iep"
+      ],
+      "temporalRules": "Eligibility should precede or equal the IEP meeting.",
+      "genuineContradictionWhen": "Two verified determination dates, or eligibility after the IEP meeting that relies on it.",
+      "possibleExplanations": [
+        "Combined eligibility+IEP meeting",
+        "Typo"
+      ],
+      "reviewQuestion": "Which date was eligibility decided?",
+      "authorityIds": [
+        "AUTH-CFR-300.323-c-1"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-SCORE-MISMATCH",
+      "title": "Assessment value differs across documents",
+      "entities": [
+        "entity:assessment-score",
+        "entity:present-level"
+      ],
+      "fields": [
+        "value"
+      ],
+      "requiredComparableContext": "Same instrument, form, subtest/composite, score type, norm basis and administration date.",
+      "relationshipRequirements": [
+        "relationship:score-supports-finding"
+      ],
+      "temporalRules": "Same administration.",
+      "genuineContradictionWhen": "All comparability fields match and values differ.",
+      "possibleExplanations": [
+        "Different score type (SS vs percentile)",
+        "Different administration",
+        "Rounding",
+        "Different subtest"
+      ],
+      "reviewQuestion": "The IEP and the evaluation give different numbers for the same test. Which is right?",
+      "authorityIds": [
+        "AUTH-AP-SCORE-CONSISTENCY",
+        "AUTH-CFR-300.304-c-1-iii"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-BASELINE-MISMATCH",
+      "title": "Goal baseline does not match cited evaluation value",
+      "entities": [
+        "entity:annual-goal",
+        "entity:assessment-score"
+      ],
+      "fields": [
+        "baselineValue",
+        "value"
+      ],
+      "requiredComparableContext": "Goal cites that instrument/date and same unit.",
+      "relationshipRequirements": [
+        "relationship:present-level-grounds-goal"
+      ],
+      "temporalRules": "Baseline date equals or follows the cited administration.",
+      "genuineContradictionWhen": "Goal explicitly cites the score and values differ.",
+      "possibleExplanations": [
+        "Baseline from a later probe",
+        "Different measure"
+      ],
+      "reviewQuestion": "Where does this goal's starting number come from?",
+      "authorityIds": [
+        "AUTH-AP-SCORE-CONSISTENCY"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-SERVICE-FREQUENCY",
+      "title": "Service frequency/minutes differ between records",
+      "entities": [
+        "entity:service"
+      ],
+      "fields": [
+        "minutesPerWeek",
+        "frequencyAsWritten"
+      ],
+      "requiredComparableContext": "Same service line in the same IEP version.",
+      "relationshipRequirements": [
+        "relationship:iep-contains-service"
+      ],
+      "temporalRules": "Compare within one version; across versions it is a change, not a conflict (see CP-VERSION-CHANGE).",
+      "genuineContradictionWhen": "Same version, different verified values (e.g. service grid vs LRE page).",
+      "possibleExplanations": [
+        "Different periods (week vs month)",
+        "Amendment"
+      ],
+      "reviewQuestion": "The plan lists this service twice with different time. Which is correct?",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-7"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-GOAL-DATE-RANGE",
+      "title": "Goal date outside IEP dates",
+      "entities": [
+        "entity:annual-goal",
+        "entity:iep"
+      ],
+      "fields": [
+        "goalDate",
+        "effectiveEndDate"
+      ],
+      "requiredComparableContext": "Goal belongs to that IEP.",
+      "relationshipRequirements": [
+        "relationship:iep-contains-goal"
+      ],
+      "temporalRules": "Goal date expected within IEP span.",
+      "genuineContradictionWhen": "Goal date after effective end or before start.",
+      "possibleExplanations": [
+        "Typo",
+        "Carried-over goal"
+      ],
+      "reviewQuestion": "This goal's date is outside the plan's dates. Is that intended?",
+      "authorityIds": [
+        "AUTH-CFR-300.324-b-1-i"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-SUPERSEDED-GOAL-PROGRESS",
+      "title": "Progress report refers to a superseded goal",
+      "entities": [
+        "entity:progress-measurement",
+        "entity:annual-goal",
+        "entity:iep"
+      ],
+      "fields": [
+        "goalText"
+      ],
+      "requiredComparableContext": "Goal identity.",
+      "relationshipRequirements": [
+        "relationship:goal-measured-by-progress",
+        "relationship:iep-supersedes-iep"
+      ],
+      "temporalRules": "Report period after the newer IEP's start.",
+      "genuineContradictionWhen": "Reported goal is only in an older version.",
+      "possibleExplanations": [
+        "Report covers period before change"
+      ],
+      "reviewQuestion": "The progress report tracks a goal from the earlier plan. Is there progress data on the current goals?",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-3-ii"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-REC-NOT-TRACEABLE",
+      "title": "Recommendation not traceable to IEP",
+      "entities": [
+        "entity:evaluation-recommendation",
+        "entity:service",
+        "entity:accommodation",
+        "entity:annual-goal"
+      ],
+      "fields": [
+        "recommendationText"
+      ],
+      "requiredComparableContext": "IEP coverage complete.",
+      "relationshipRequirements": [
+        "relationship:recommendation-adopted-as-service"
+      ],
+      "temporalRules": "Recommendation from report in force at IEP development.",
+      "genuineContradictionWhen": "Full IEP coverage and no link or PWN; otherwise NOT SHOWN, not conflict.",
+      "possibleExplanations": [
+        "Addressed under different wording",
+        "Rejected at meeting (check notes/PWN)"
+      ],
+      "reviewQuestion": "The evaluation recommended something I can't find in the plan. Where is it?",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-1-iii"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-SERVICE-DESCRIPTION",
+      "title": "Contradictory service descriptions",
+      "entities": [
+        "entity:service"
+      ],
+      "fields": [
+        "setting",
+        "location",
+        "providerRole"
+      ],
+      "requiredComparableContext": "Same service line, same version.",
+      "relationshipRequirements": [
+        "relationship:iep-contains-service"
+      ],
+      "temporalRules": "Same version.",
+      "genuineContradictionWhen": "Different verified setting/provider for same line.",
+      "possibleExplanations": [
+        "Push-in and pull-out split"
+      ],
+      "reviewQuestion": "Is this service delivered in class or outside it?",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-7"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-PLACEMENT-STATEMENT",
+      "title": "Inconsistent placement statements",
+      "entities": [
+        "entity:placement",
+        "entity:service"
+      ],
+      "fields": [
+        "percentInRegularClass",
+        "minutesOutsideGeneralEducation",
+        "minutesPerWeek"
+      ],
+      "requiredComparableContext": "Same version; school week length known.",
+      "relationshipRequirements": [
+        "relationship:placement-for-iep"
+      ],
+      "temporalRules": "Same version.",
+      "genuineContradictionWhen": "Stated percentage/minutes disagree with summed pull-out minutes beyond rounding (computed, C5).",
+      "possibleExplanations": [
+        "School week length assumption",
+        "Related services counted differently"
+      ],
+      "reviewQuestion": "The plan's percentage of time in class doesn't match the service minutes. Which is right?",
+      "authorityIds": [
+        "AUTH-CFR-300.320-a-5"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-VERSION-MIXING",
+      "title": "Current and historical records mixed",
+      "entities": [
+        "entity:iep"
+      ],
+      "fields": [
+        "effectiveStartDate",
+        "status"
+      ],
+      "requiredComparableContext": "Version chain established.",
+      "relationshipRequirements": [
+        "relationship:iep-supersedes-iep"
+      ],
+      "temporalRules": "Study date vs spans.",
+      "genuineContradictionWhen": "Facts from a superseded version presented as current.",
+      "possibleExplanations": [
+        "Draft vs final"
+      ],
+      "reviewQuestion": "Which IEP is in effect now?",
+      "authorityIds": [
+        "AUTH-AP-CURRENTNESS"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-ASSESSMENT-NONCOMPARABLE",
+      "title": "Assessments compared without equivalence",
+      "entities": [
+        "entity:assessment-score"
+      ],
+      "fields": [
+        "scoreType",
+        "scaleMean",
+        "scaleSD",
+        "normBasis"
+      ],
+      "requiredComparableContext": "Never compare across instruments/score types.",
+      "relationshipRequirements": [],
+      "temporalRules": "Any.",
+      "genuineContradictionWhen": "Not a conflict: block the comparison and raise a question.",
+      "possibleExplanations": [
+        "Different instruments legitimately differ"
+      ],
+      "reviewQuestion": "These two tests measure differently, so their numbers can't be compared directly.",
+      "authorityIds": [
+        "AUTH-CFR-300.304-c-1-iii",
+        "AUTH-PROF-STANDARD-SCORE-SCALES"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    },
+    {
+      "id": "conflictPattern:CP-VERSION-CHANGE",
+      "title": "Provision changed between versions without amendment record",
+      "entities": [
+        "entity:iep",
+        "entity:amendment"
+      ],
+      "fields": [
+        "minutesPerWeek",
+        "goalText"
+      ],
+      "requiredComparableContext": "Two linked versions.",
+      "relationshipRequirements": [
+        "relationship:iep-supersedes-iep",
+        "relationship:amendment-modifies-iep"
+      ],
+      "temporalRules": "Mid-year change.",
+      "genuineContradictionWhen": "Change mid-year with no amendment or meeting record.",
+      "possibleExplanations": [
+        "Annual review replaced IEP"
+      ],
+      "reviewQuestion": "Services changed between these two plans. Was there a meeting or amendment?",
+      "authorityIds": [
+        "AUTH-CFR-300.324-a-4"
+      ],
+      "evidenceRequirement": "Both sides cited as verified facts with source refs; contradiction is never established from one side plus absence."
+    }
+  ]
+}

@@ -273,6 +273,52 @@ export function resolvePublishedDomainPack(hive: HiveDomainText, cwd: string = p
   return pack ? { status: "selected", pack } : { status: "invalid" };
 }
 
+const SYNTHETIC_PROFILE_DIRECTORY = "drafts/iep-us-federal/v0.5.1";
+
+/**
+ * Loads draft 0.5.1 only when the selected edition is still 0.5.0.
+ * A published 0.5.1 edition is used directly by version selection and does not pass through here.
+ */
+export function loadSyntheticMayaProfilePack(
+  published: LoadedPublishedPack,
+  cwd: string = process.cwd(),
+): LoadedPublishedPack | null {
+  if (published.candidate.packId !== "iep-us-federal" || published.candidate.version !== "0.5.0") return null;
+  const root = packsRoot(cwd);
+  if (!root) return null;
+  const directory = path.join(root, SYNTHETIC_PROFILE_DIRECTORY);
+  if (!existsSync(directory)) return null;
+  let files: { schema: string; value: unknown }[];
+  try {
+    files = jsonFiles(directory);
+  } catch {
+    return null;
+  }
+  const source = files.find((file) => file.schema.startsWith(SOURCE_SCHEMA))?.value as DomainPackSource | undefined;
+  const ontology = files.find((file) => file.schema.startsWith(ARTIFACT_SCHEMAS.ontology))?.value;
+  if (!source || !ontology) return null;
+  if (source.identity?.packId !== published.candidate.packId || source.identity?.version !== "0.5.1") return null;
+  const artifacts = { ...published.artifacts, ontology };
+  let prepared: ReturnType<typeof prepareInvestigationStudy>;
+  try {
+    prepared = prepareInvestigationStudy({ packSource: source, artifacts });
+  } catch {
+    return null;
+  }
+  if (!prepared.ok || prepared.prepared.plan.obligations.length === 0) return null;
+  const identity = prepared.prepared.pack.identity;
+  if (identity.packId !== source.identity.packId || identity.version !== "0.5.1" || !identity.digest) return null;
+  return {
+    domain: published.domain,
+    investigationPromptId: published.investigationPromptId,
+    source,
+    artifacts,
+    compiledDigest: identity.digest,
+    relationshipStructures: published.relationshipStructures,
+    candidate: { ...published.candidate, version: "0.5.1" },
+  };
+}
+
 export function loadApprovedEdition(
   packId: string,
   version: string,

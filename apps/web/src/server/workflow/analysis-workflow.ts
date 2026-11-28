@@ -1251,9 +1251,11 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
   const requestText = inputs.intents.map((intent) => intent.intentText).join("\n");
   const packGuided = inputs.run.preparationMode === "REBUILD" && isPackGuidedRebuild(inputs.run.id, inputs.stageOutputs as V5StageOutputs);
   if (packGuided) {
+    const savedWindows = (inputs.stageOutputs as V5StageOutputs | undefined)?.domainPack;
     const marked = await persistPackGuidedEngineMarker(context.deps.client, context.runId, {
       correlationId: context.correlationId,
       hiveId: inputs.run.hiveId,
+      investigationWindows: savedWindows && "investigationWindows" in savedWindows ? savedWindows.investigationWindows : undefined,
     });
     if (!marked) {
       throw new StageFailure(
@@ -1303,6 +1305,9 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
   if (!result.ok) {
     if (result.error.diagnosticReason === "planner_job_handoff" && result.error.retryable) {
       return { next: "handoff", status: "CANONICALIZING", delaySeconds: 5 };
+    }
+    if (result.error.diagnosticReason === "investigation_window_paused" && result.error.retryable) {
+      return { next: "handoff", status: "CANONICALIZING", delaySeconds: 0 };
     }
     throw new StageFailure(result.error, result.metric);
   }

@@ -10,6 +10,8 @@
  * disclosure decision. Missing source pages are not that decision.
  * The output contract asks for evidence-record digests. It does not ask for a quotation.
  * Recovering those digests from the frozen index is pack-guided-output.ts, not this compiler.
+ * An optional window scope limits which clauses, evidence references, prior findings,
+ * and tool names are included. Scheduling and model calls stay outside this module.
  */
 import { isValidUuid } from "../hives/hive-contracts";
 import { estimateInputTokensFromUtf8Bytes } from "./pipeline-timing";
@@ -79,7 +81,7 @@ const DETAIL_KEYS: Record<string, readonly string[]> = {
   report: ["audience", "voice", "sections"],
   term: ["meaning"],
   referenceTable: ["columns", "rows"],
-  persona: ["audience", "context", "questionIds", "knows", "doesNotKnow", "decisions", "usefulWhen", "leaveOut", "successTest"],
+  persona: ["audience", "context", "questionIds", "objectives", "knows", "doesNotKnow", "decisions", "usefulWhen", "leaveOut", "successTest"],
   note: ["text", "showWhen"],
   guideline: ["text", "scope"],
 };
@@ -113,6 +115,19 @@ export type PromptCapacityLimits = {
   maxInputTokens?: number;
 };
 
+const SCOPE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const TOOL_NAME = /^[a-z][a-z0-9_]{0,63}$/;
+
+/** Clauses, evidence, prior findings, and tool names for one investigation window. */
+export type WindowPromptScope = {
+  definitionIds: readonly string[];
+  questionIds: readonly string[];
+  priorFindingIds?: readonly string[];
+  toolNames?: readonly string[];
+  missingDocumentIds?: readonly string[];
+  evidenceDocumentIds?: readonly string[];
+};
+
 export type CompileInvestigationPromptInput = {
   pack: EffectiveDomainPack;
   specification: CaseInvestigationSpecification;
@@ -122,6 +137,7 @@ export type CompileInvestigationPromptInput = {
   factValues?: readonly PromptFactValue[];
   authorizedPages?: readonly AuthorizedDisclosurePage[];
   limits?: PromptCapacityLimits;
+  windowScope?: WindowPromptScope;
 };
 
 export type PromptSection = {
@@ -553,8 +569,49 @@ function overlapScore(text: string, intentTokens: ReadonlySet<string>): number {
   return seen.size;
 }
 
-function caseRecords(bound: BoundEvidence): ObjectMap[] {
-  return bound.index.records.map((record) => {
+function scopedIdList(raw: readonly string[] | undefined, pattern: RegExp): string[] | null {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw) || raw.length > 64) return null;
+  if (raw.some((item) => typeof item !== "string" || !pattern.test(item))) return null;
+  return [...raw];
+}
+
+function readWindowScope(
+  raw: WindowPromptScope | undefined,
+  issues: StudyContractIssue[],
+): { ids: Set<string> | null; priorFindingIds: string[]; toolNames: string[]; missingDocumentIds: string[]; evidenceDocumentIds: string[] } | null {
+  if (raw === undefined) return { ids: null, priorFindingIds: [], toolNames: [], missingDocumentIds: [], evidenceDocumentIds: [] };
+  if (!isObject(raw)) {
+    issue(issues, "window_scope_invalid", "$.windowScope", "Window scope must list clause ids.");
+    return null;
+  }
+  const definitionIds = scopedIdList(raw.definitionIds, SCOPE_ID);
+  const questionIds = scopedIdList(raw.questionIds, SCOPE_ID);
+  const priorFindingIds = scopedIdList(raw.priorFindingIds, SCOPE_ID);
+  const toolNames = scopedIdList(raw.toolNames, TOOL_NAME);
+  const missingDocumentIds = scopedIdList(raw.missingDocumentIds, SCOPE_ID);
+  const evidenceDocumentIds = scopedIdList(raw.evidenceDocumentIds, SCOPE_ID);
+  if (!definitionIds || !questionIds || !priorFindingIds || !toolNames || !missingDocumentIds || !evidenceDocumentIds) {
+    issue(issues, "window_scope_invalid", "$.windowScope", "Window scope ids are not valid.");
+    return null;
+  }
+  if (definitionIds.length + questionIds.length === 0) {
+    issue(issues, "window_scope_empty", "$.windowScope", "Window scope did not include a clause.");
+    return null;
+  }
+  return {
+    ids: new Set([...definitionIds, ...questionIds]),
+    priorFindingIds,
+    toolNames,
+    missingDocumentIds,
+    evidenceDocumentIds,
+  };
+}
+
+function caseRecords(bound: BoundEvidence, evidenceDocumentIds: readonly string[] = []): ObjectMap[] {
+  const allowed = new Set(evidenceDocumentIds);
+  const records = allowed.size === 0 ? bound.index.records : bound.index.records.filter((record) => allowed.has(record.documentId));
+  return records.map((record) => {
     const value = bound.values.get(record.extractionFactId);
     return {
       extractionFactId: record.extractionFactId,
@@ -574,6 +631,7 @@ function renderSections(
   specification: CaseInvestigationSpecification,
   bound: BoundEvidence,
   intent: string,
+  scope: { priorFindingIds: string[]; toolNames: string[]; missingDocumentIds: string[]; evidenceDocumentIds: string[] } | null,
 ): PromptSection[] {
   const included = [...entries].sort((left, right) => left.definitionId.localeCompare(right.definitionId));
   const clauseIds = included.map((entry) => entry.definitionId);
@@ -582,21 +640,24 @@ function renderSections(
     const { score: _score, ...rest } = entry;
     return rest;
   });
+  const verifiedEvidence = caseRecords(bound, scope?.evidenceDocumentIds ?? []);
   const caseData = {
     hiveId: specification.hiveId,
     effectivePackDigest: specification.effectivePackDigest,
     evidenceDigest: bound.index.digest,
     intent,
-    verifiedEvidence: caseRecords(bound),
+    verifiedEvidence,
     limitations: bound.limitations,
+    ...(scope ? { priorAcceptedFindingIds: scope.priorFindingIds, missingDocumentIds: scope.missingDocumentIds } : {}),
   };
   const outputData = {
     schema: PACK_GUIDED_OUTPUT_SCHEMA,
     kinds: [...MODEL_PROPOSAL_KINDS],
     clauseIds,
     questionObligationIds,
-    evidenceRecordDigests: bound.index.records.map((record) => record.recordDigest),
+    evidenceRecordDigests: verifiedEvidence.flatMap((record) => typeof record.recordDigest === "string" ? [record.recordDigest] : []),
     prohibited: ["AUTHORITATIVE_CALCULATION", "CHECKLIST_VERDICT", "FABRICATED_QUOTATION", "CANONICAL_STUDY"],
+    ...(scope && scope.toolNames.length > 0 ? { toolContracts: scope.toolNames } : {}),
   };
   return [
     hiveCoreSection(),
@@ -666,7 +727,8 @@ export function compileInvestigationPrompt(input: CompileInvestigationPromptInpu
   const limits = readLimits(input.limits, issues);
   const factValues = readFactValues(input.factValues, issues);
   const pages = readPages(input.authorizedPages, issues);
-  if (!specification.ok || !evidence || !disclosure || !limits || !factValues || !pages || typeof input.intent !== "string") {
+  const windowScope = readWindowScope(input.windowScope, issues);
+  if (!specification.ok || !evidence || !disclosure || !limits || !factValues || !pages || !windowScope || typeof input.intent !== "string") {
     return failure(issues);
   }
   const fresh = specifyCaseInvestigation({
@@ -686,6 +748,7 @@ export function compileInvestigationPrompt(input: CompileInvestigationPromptInpu
   const excluded: string[] = [];
   const candidates: GuidanceEntry[] = [];
   for (const clause of working.clauses) {
+    if (windowScope.ids && !windowScope.ids.has(clause.definitionId)) continue;
     if (clause.applicability === "DISABLED") {
       excluded.push(clause.definitionId);
       continue;
@@ -734,6 +797,9 @@ export function compileInvestigationPrompt(input: CompileInvestigationPromptInpu
   for (const id of unresolved) {
     issue(issues, "applicability_unresolved", "$.clauses." + id, "Applicability is UNKNOWN. The clause is not sent and the prompt is not compiled.");
   }
+  if (windowScope.ids && candidates.length === 0 && unresolved.length === 0) {
+    issue(issues, "window_scope_empty", "$.windowScope", "Window scope did not include an applicable clause.");
+  }
   const bound = bindEvidence(evidence, disclosure, factValues, pages, issues);
   if (issues.length > 0 || !bound) {
     return failure(issues, unresolved.length > 0 ? { unresolvedClauseIds: unresolved } : undefined);
@@ -747,7 +813,8 @@ export function compileInvestigationPrompt(input: CompileInvestigationPromptInpu
     .filter((entry) => !entry.mandatory && entry.score > 0)
     .sort((left, right) => right.score - left.score || left.definitionId.localeCompare(right.definitionId));
   const irrelevant = candidates.filter((entry) => !entry.mandatory && entry.score === 0).map((entry) => entry.definitionId);
-  const build = (optional: readonly GuidanceEntry[]) => renderSections([...mandatoryEntries, ...optional], working, bound, input.intent);
+  const renderedScope = windowScope.ids ? windowScope : null;
+  const build = (optional: readonly GuidanceEntry[]) => renderSections([...mandatoryEntries, ...optional], working, bound, input.intent, renderedScope);
   let kept = optionalEntries.slice();
   if (capacityFailure(measure(build(kept)), limits)) {
     const mandatoryMeasured = measure(build([]));

@@ -433,7 +433,7 @@ describe("pack-guided rebuild", () => {
     expect(JSON.stringify(harness.failure())).toContain("incomplete_evidence");
   });
 
-  it("does not fall back to the investigation engine when the published pack is selected", async () => {
+  it("uses investigation windows for the published pack when it has persona objectives", async () => {
     markPackGuidedRebuild(RUN_ID);
     const harness = acceptanceHarness({
       intentText: "I want to understand Maya's IEP and prepare for the evaluation",
@@ -442,8 +442,17 @@ describe("pack-guided rebuild", () => {
     const status = await processAnalysisRun(harness.workflowDeps, RUN_ID);
     expect(status).toBe("FAILED");
     expect(harness.calls).not.toContain("accept_study_revision");
-    expect(harness.bodies.every((item) => (item as { task?: string; prompt_id?: string }).task !== "investigation")).toBe(true);
+    expect(harness.bodies.length).toBeGreaterThan(0);
+    expect(harness.bodies.every((item) => (item as { task?: string }).task === "investigation")).toBe(true);
+    expect(harness.bodies.every((item) => (item as { prompt_id?: string }).prompt_id === "hive.domain-investigation/2")).toBe(true);
+    expect(harness.urls.every((url) => url.endsWith("/v1/study-agent-turn"))).toBe(true);
+    expect(harness.bodies.every((item) => (item as { prompt_id?: string }).prompt_id !== PACK_GUIDED_CANONICALIZE_PROMPT_ID)).toBe(true);
     expect(harness.bodies.every((item) => (item as { prompt_id?: string }).prompt_id !== "hive-canonicalize/1")).toBe(true);
+    const failure = JSON.stringify(harness.failure());
+    expect(failure).toContain("0.5.1");
+    expect(failure).toContain("CANONICALIZING");
+    expect(failure).toContain("windows@");
+    expect(failure).toContain("planner_contract_version");
     expect(harness.current.revisionNumber).toBe(1);
     expect(harness.current.reports).toEqual(PREVIOUS_REPORTS);
   });

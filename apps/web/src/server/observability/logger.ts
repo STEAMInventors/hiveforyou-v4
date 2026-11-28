@@ -273,6 +273,8 @@ const ALLOWED_DIAGNOSTIC_REASONS = new Set([
   "mapping_finished",
   "investigation_incomplete",
   "mapping_agent_budget_exhausted",
+  "investigation_window_paused",
+  "investigation_objectives_unplanned",
   "investigation_capacity",
   "invalid_arguments",
   "page_not_authorized",
