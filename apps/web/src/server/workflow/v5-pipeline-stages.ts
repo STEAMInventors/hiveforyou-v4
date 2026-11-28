@@ -6,6 +6,7 @@ import {
   cloudflareProxyLimitSuspect,
   computeExtractPlannerCallTimeoutMs,
   resolveExtractPlannerCallDeadlineMs,
+  buildFailureDiagnostic,
   createHiveError,
   INVOCATION_MAX_DURATION_MS,
   decideExtractRangeFailureAction,
@@ -87,7 +88,12 @@ import type { AnalysisWorkflowDeps } from "./analysis-workflow";
 import { runDomainMappingInvestigation } from "./domain-mapping-investigation";
 import type { InvestigationWindowProgress } from "@hiveforyou/contracts/investigation";
 import { runPackGuidedStudy } from "./pack-guided-rebuild";
-import { PACK_GUIDED_STUDY_ENGINE_ID } from "./pack-guided-selection";
+import {
+  isPackGuidedRebuild,
+  PACK_GUIDED_STUDY_ENGINE_ID,
+  studyEngineDiagnostic,
+  withStudyEngineDiagnostic,
+} from "./pack-guided-selection";
 
 export { V5_CLIENT_TASK_TIMEOUT_MS };
 
@@ -478,18 +484,37 @@ export async function persistV5ExtractStageOutputs(
   });
 }
 
-/** Records the explicit pack-guided selection before any model call. False means the marker was not stored. */
+function retainedInvestigationWindows(input: {
+  investigationWindows?: unknown;
+  current?: V5StageOutputs["domainPack"];
+}): unknown {
+  if (input.investigationWindows !== undefined) return input.investigationWindows;
+  const current = input.current;
+  if (current && "investigationWindows" in current && current.investigationWindows !== undefined) {
+    return current.investigationWindows;
+  }
+  return undefined;
+}
+
+/** Records the explicit pack-guided selection. An engine-only write keeps checkpoints already on `current`. */
 export async function persistPackGuidedEngineMarker(
   client: RpcClient,
   runId: string,
-  input: { correlationId?: string; hiveId?: string; investigationWindows?: unknown },
+  input: {
+    correlationId?: string;
+    hiveId?: string;
+    expectedStatus?: ProcessingRun["status"];
+    investigationWindows?: unknown;
+    current?: V5StageOutputs["domainPack"];
+  },
 ): Promise<boolean> {
+  const investigationWindows = retainedInvestigationWindows(input);
   const { data, error } = await client.rpc("patch_processing_run_workflow_state", {
     p_run_id: runId,
-    p_expected_status: "CANONICALIZING",
+    p_expected_status: input.expectedStatus ?? "CANONICALIZING",
     p_patch: {
-      domainPack: input.investigationWindows
-        ? { engine: PACK_GUIDED_STUDY_ENGINE_ID, investigationWindows: input.investigationWindows }
+      domainPack: investigationWindows !== undefined
+        ? { engine: PACK_GUIDED_STUDY_ENGINE_ID, investigationWindows }
         : { engine: PACK_GUIDED_STUDY_ENGINE_ID },
     },
   });
@@ -505,6 +530,68 @@ export async function persistPackGuidedEngineMarker(
     return false;
   }
   return parsePayload(data)?.applied === true;
+}
+
+/**
+ * Writes the pack-guided engine onto the queued run before any worker starts.
+ * A failed write fails the run so a later worker cannot choose another engine.
+ */
+export async function commitPackGuidedEngineBeforeHandoff(
+  client: RpcClient,
+  input: { runId: string; correlationId: string; hiveId: string },
+): Promise<void> {
+  const saved = await persistPackGuidedEngineMarker(client, input.runId, {
+    correlationId: input.correlationId,
+    hiveId: input.hiveId,
+    expectedStatus: "QUEUED",
+  });
+  if (saved) return;
+  const label = studyEngineDiagnostic({
+    engine: PACK_GUIDED_STUDY_ENGINE_ID,
+    packVersion: "unknown",
+    stage: "QUEUED",
+    windowsComplete: 0,
+    windowsTotal: 0,
+    code: "pack_guided_engine_failed",
+  });
+  const safeMessage = `${label.sentence} The rebuild choice could not be saved. Your earlier study is unchanged.`.slice(0, 280);
+  const diagnostic = buildFailureDiagnostic({
+    component: "analysis",
+    operation: "canonicalize",
+    task: null,
+    stage: "QUEUED",
+    errorCode: "PERSISTENCE_FAILED",
+    diagnosticReason: "pack_guided_engine_failed",
+    diagnosticField: label.field,
+    retryable: true,
+    attempt: 1,
+  });
+  try {
+    await client.rpc("transition_processing_run", {
+      p_run_id: input.runId,
+      p_from_status: "QUEUED",
+      p_to_status: "FAILED",
+      p_details: {
+        error_code: "PERSISTENCE_FAILED",
+        error_message_safe: safeMessage,
+        retryable: true,
+        ...(diagnostic ? { failure_diagnostic: diagnostic } : {}),
+      },
+    });
+  } catch {
+    // The request still fails closed when the status write does not apply.
+  }
+  throw createHiveError({
+    errorCode: "PERSISTENCE_FAILED",
+    category: "PERSISTENCE",
+    stage: "ANALYZE",
+    retryable: true,
+    safeMessage,
+    correlationId: input.correlationId,
+    operationId: input.runId,
+    diagnosticReason: "pack_guided_engine_failed",
+    diagnosticField: label.field,
+  });
 }
 
 export async function persistDomainPackWorkflowState(
@@ -2464,6 +2551,10 @@ function investigationFailure(input: {
   code: keyof typeof INVESTIGATION_FAILURE_REASONS;
   correlationId: string;
   runId: string;
+  engine: string;
+  packVersion: string;
+  windowsComplete?: number;
+  windowsTotal?: number;
 }): HiveError {
   const diagnosticReason = INVESTIGATION_FAILURE_REASONS[input.code];
   const safeMessage =
@@ -2478,7 +2569,7 @@ function investigationFailure(input: {
         : input.code === "RECORD_TEXT_BOUNDARY"
             ? "The analysis stopped before sending the record. Your earlier study is unchanged."
             : "The study could not be checked against the saved evidence. Your earlier study is unchanged.";
-  return createHiveError({
+  return withStudyEngineDiagnostic(createHiveError({
     errorCode: input.code === "EMPTY_CANDIDATES" || input.code === "INCOMPLETE_DOCUMENTS" || input.code === "INVESTIGATION_INCOMPLETE" ? "COVERAGE_INCOMPLETE" : "MODEL_OUTPUT_INVALID",
     category: "VALIDATION",
     stage: "ANALYZE",
@@ -2487,6 +2578,12 @@ function investigationFailure(input: {
     correlationId: input.correlationId,
     operationId: input.runId,
     diagnosticReason,
+  }), {
+    engine: input.engine,
+    packVersion: input.packVersion,
+    stage: "CANONICALIZING",
+    windowsComplete: input.windowsComplete ?? 0,
+    windowsTotal: input.windowsTotal ?? 0,
   });
 }
 
@@ -2502,10 +2599,25 @@ async function runPinnedInvestigationEngine(input: {
   intentText?: string;
 }): Promise<CanonicalizeRunResult> {
   const { deps, run, catalog, correlationId, stageAttempt, now, pin } = input;
+  const engineId = pin.investigationPromptId ?? DOMAIN_INVESTIGATION_PROMPT_V2_ID;
+  const packVersion = pin.packSource.identity.version;
+  const failed = (
+    code: keyof typeof INVESTIGATION_FAILURE_REASONS,
+    windowsComplete = 0,
+    windowsTotal = 0,
+  ) => investigationFailure({
+    code,
+    correlationId,
+    runId: run.id,
+    engine: engineId,
+    packVersion,
+    windowsComplete,
+    windowsTotal,
+  });
   if (pin.hiveId !== run.hiveId) {
     return {
       ok: false,
-      error: createHiveError({
+      error: withStudyEngineDiagnostic(createHiveError({
         errorCode: "INVALID_REQUEST",
         category: "VALIDATION",
         stage: "ANALYZE",
@@ -2514,15 +2626,21 @@ async function runPinnedInvestigationEngine(input: {
         correlationId,
         operationId: run.id,
         diagnosticReason: "investigation_hive_mismatch",
+      }), {
+        engine: engineId,
+        packVersion,
+        stage: "CANONICALIZING",
+        windowsComplete: 0,
+        windowsTotal: 0,
       }),
       metric: null,
     };
   }
   const prepared = prepareInvestigationStudy(pin);
   if (!prepared.ok) {
-    return { ok: false, error: investigationFailure({ code: prepared.code, correlationId, runId: run.id }), metric: null };
+    return { ok: false, error: failed(prepared.code), metric: null };
   }
-  const promptId = pin.investigationPromptId ?? DOMAIN_INVESTIGATION_PROMPT_V2_ID;
+  const promptId = engineId;
   const prompt =
     promptId === catalog.investigationV2.id
       ? catalog.investigationV2
@@ -2530,7 +2648,7 @@ async function runPinnedInvestigationEngine(input: {
         ? catalog.investigation
         : null;
   if (!prompt) {
-    return { ok: false, error: investigationFailure({ code: "PACK_COMPILE_FAILED", correlationId, runId: run.id }), metric: null };
+    return { ok: false, error: failed("PACK_COMPILE_FAILED"), metric: null };
   }
   const startedAt = now().toISOString();
   const mapped = await runDomainMappingInvestigation({
@@ -2548,9 +2666,19 @@ async function runPinnedInvestigationEngine(input: {
   });
   if (!mapped.ok) {
     if (mapped.error.diagnosticReason === "investigation_record_text_boundary") {
-      return { ok: false, error: investigationFailure({ code: "RECORD_TEXT_BOUNDARY", correlationId, runId: run.id }), metric: null };
+      return { ok: false, error: failed("RECORD_TEXT_BOUNDARY", 0, mapped.totals.windowCount), metric: null };
     }
-    return { ok: false, error: mapped.error, metric: null };
+    return {
+      ok: false,
+      error: withStudyEngineDiagnostic(mapped.error, {
+        engine: engineId,
+        packVersion,
+        stage: "CANONICALIZING",
+        windowsComplete: 0,
+        windowsTotal: mapped.totals.windowCount,
+      }),
+      metric: null,
+    };
   }
   await logPipelineCall({
     client: deps.client,
@@ -2591,7 +2719,7 @@ async function runPinnedInvestigationEngine(input: {
     });
     return {
       ok: false,
-      error: investigationFailure({ code: accepted.code, correlationId, runId: run.id }),
+      error: failed(accepted.code, 0, mapped.totals.windowCount),
       metric: null,
     };
   }
@@ -2638,6 +2766,20 @@ async function runPinnedInvestigationEngine(input: {
   };
 }
 
+function savedWindowFacts(stageOutputs: V5StageOutputs | undefined): { windowsComplete: number; windowsTotal: number } {
+  const pack = stageOutputs?.domainPack;
+  const stored = pack && "investigationWindows" in pack ? pack.investigationWindows : undefined;
+  const windows = stored && typeof stored === "object" && Array.isArray((stored as { windows?: unknown }).windows)
+    ? (stored as { windows: { status?: string; executable?: boolean }[] }).windows
+    : [];
+  const executable = windows.filter((window) => window.executable === true);
+  const rows = executable.length > 0 ? executable : windows;
+  return {
+    windowsTotal: rows.length,
+    windowsComplete: rows.filter((window) => window.status === "complete" || window.status === "settled").length,
+  };
+}
+
 export async function runCanonicalizeForRun(input: {
   deps: AnalysisWorkflowDeps;
   run: ProcessingRun;
@@ -2663,12 +2805,20 @@ export async function runCanonicalizeForRun(input: {
   packsCwd?: string;
 }): Promise<CanonicalizeRunResult> {
   const { deps, run, catalog, correlationId, stageAttempt, now } = input;
+  const packGuided = input.packGuided === true || isPackGuidedRebuild(run.id, input.extractProgress);
+  const labelIfGuided = (error: HiveError): HiveError =>
+    packGuided ? withStudyEngineDiagnostic(error, {
+      engine: PACK_GUIDED_STUDY_ENGINE_ID,
+      packVersion: "unknown",
+      stage: "CANONICALIZING",
+      ...savedWindowFacts(input.extractProgress),
+    }) : error;
   let extractions = input.extractions;
   if (input.rebuildMode) {
     if (!input.sourceSnapshot) {
       return {
         ok: false,
-        error: createHiveError({
+        error: labelIfGuided(createHiveError({
           errorCode: "INVALID_REQUEST",
           category: "VALIDATION",
           stage: "ANALYZE",
@@ -2677,7 +2827,7 @@ export async function runCanonicalizeForRun(input: {
           correlationId,
           operationId: run.id,
           diagnosticReason: "rebuild_snapshot_missing",
-        }),
+        })),
         metric: null,
       };
     }
@@ -2685,7 +2835,7 @@ export async function runCanonicalizeForRun(input: {
     if (!planned.ok || planned.reconstruct.length > 0) {
       return {
         ok: false,
-        error: createHiveError({
+        error: labelIfGuided(createHiveError({
           errorCode: "COVERAGE_INCOMPLETE",
           category: "DOCUMENT",
           stage: "ANALYZE",
@@ -2694,17 +2844,17 @@ export async function runCanonicalizeForRun(input: {
           correlationId,
           operationId: run.id,
           diagnosticReason: planned.ok ? "rebuild_extraction_missing" : planned.diagnosticReason,
-        }),
+        })),
         metric: null,
       };
     }
     extractions = planned.reuse;
   }
-  if (input.packGuided) {
+  if (packGuided) {
     if (!input.rebuildMode || !input.sourceSnapshot) {
       return {
         ok: false,
-        error: createHiveError({
+        error: labelIfGuided(createHiveError({
           errorCode: "INVALID_REQUEST",
           category: "VALIDATION",
           stage: "ANALYZE",
@@ -2713,7 +2863,7 @@ export async function runCanonicalizeForRun(input: {
           correlationId,
           operationId: run.id,
           diagnosticReason: "study_engine_unavailable",
-        }),
+        })),
         metric: null,
       };
     }
@@ -2736,7 +2886,7 @@ export async function runCanonicalizeForRun(input: {
         && (bookmarked.investigationWindows as { schema?: unknown }).schema === "hive.investigation-window-progress/1"
         ? bookmarked.investigationWindows as InvestigationWindowProgress
         : null;
-      return await runPackGuidedStudy({
+      const guided = await runPackGuidedStudy({
         planner: deps.planner,
         run,
         extractions,
@@ -2760,9 +2910,10 @@ export async function runCanonicalizeForRun(input: {
             input.invocationStartedAt ?? deps.invocationStartedAt ?? Date.now(),
           ),
       });
+      return guided.ok ? guided : { ok: false, error: labelIfGuided(guided.error), metric: null };
     } catch (error) {
       if (error && typeof error === "object" && "errorCode" in error && "stage" in error) {
-        return { ok: false, error: error as HiveError, metric: null };
+        return { ok: false, error: labelIfGuided(error as HiveError), metric: null };
       }
       throw error;
     }

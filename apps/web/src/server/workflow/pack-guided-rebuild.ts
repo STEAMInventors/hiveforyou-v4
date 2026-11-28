@@ -38,6 +38,7 @@ import { runPackGuidedCanonicalize } from "@/server/pipeline/pack-guided-canonic
 import type { PlannerDeps } from "@/server/study-preparation/planner-client";
 
 import { loadSyntheticMayaProfilePack, resolvePublishedDomainPack, type LoadedPublishedPack } from "./domain-pack-selection";
+import { studyEngineDiagnostic } from "./pack-guided-selection";
 
 export type PackGuidedRebuildResult =
   | { ok: true; study: CanonicalStudy; metric: StageMetric }
@@ -67,17 +68,34 @@ function preserved(input: {
   safeMessage: string;
   errorCode?: HiveError["errorCode"];
   diagnosticField?: string;
+  packVersion?: string;
+  windowsComplete?: number;
+  windowsTotal?: number;
+  retryable?: boolean;
 }): HiveError {
+  const label = studyEngineDiagnostic({
+    engine: PACK_GUIDED_STUDY_ENGINE_ID,
+    packVersion: input.packVersion ?? "unknown",
+    stage: "CANONICALIZING",
+    windowsComplete: input.windowsComplete ?? 0,
+    windowsTotal: input.windowsTotal ?? 0,
+    code: input.code,
+  });
+  const alreadyNamed = input.safeMessage.includes(`Engine ${PACK_GUIDED_STUDY_ENGINE_ID}`) && input.safeMessage.includes("windows complete");
+  const safeMessage = (alreadyNamed ? input.safeMessage : `${label.sentence} ${input.safeMessage}`).slice(0, 280);
+  const diagnosticField = input.diagnosticField && input.diagnosticField.includes("windows@") && input.diagnosticField.includes("engine@")
+    ? exactField(input.diagnosticField, label.field)
+    : label.field;
   const error = createHiveError({
     errorCode: input.errorCode ?? "MODEL_OUTPUT_INVALID",
     category: "VALIDATION",
     stage: "ANALYZE",
-    retryable: false,
-    safeMessage: input.safeMessage,
+    retryable: input.retryable ?? false,
+    safeMessage,
     correlationId: input.correlationId,
     operationId: input.runId,
     diagnosticReason: exactReason(input.code),
-    diagnosticField: exactField(input.diagnosticField ?? input.code, input.code),
+    diagnosticField,
   });
   emitStructuredEvent({
     eventName: "pipeline.pack_guided.study_preserved",
@@ -91,9 +109,9 @@ function preserved(input: {
     processingRunId: input.runId,
     status: "PRESERVED",
     errorCode: error.errorCode,
-    retryable: false,
+    retryable: error.retryable,
     diagnosticReason: error.diagnosticReason,
-    diagnosticField: exactField(input.diagnosticField ?? input.code, input.code),
+    diagnosticField,
     errorDetail: `engine=${PACK_GUIDED_STUDY_ENGINE_ID};pack=${input.effectivePackDigest};evidence=${input.evidenceDigest};status=PRESERVED;code=${input.code}`,
   });
   return error;
@@ -107,6 +125,9 @@ function stopped(input: {
   safeMessage: string;
   errorCode?: HiveError["errorCode"];
   retryable?: boolean;
+  packVersion?: string;
+  windowsComplete?: number;
+  windowsTotal?: number;
 }): HiveError {
   return preserved({
     ...input,
@@ -134,6 +155,9 @@ export async function runPackGuidedStudy(input: {
   clock?: () => number;
 }): Promise<PackGuidedRebuildResult> {
   const { run, correlationId } = input;
+  let packVersion = "unknown";
+  let windowsComplete = 0;
+  let windowsTotal = 0;
   const published = input.publishedPack === undefined
     ? resolvePublishedDomainPack(
         {
@@ -159,6 +183,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: "pack_guided_engine_failed",
         safeMessage: "The study pack could not be loaded. Your earlier study is unchanged.",
       }),
@@ -172,11 +199,15 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: "pack_guided_engine_failed",
         safeMessage: "No published study pack applies to this hive. Your earlier study is unchanged.",
       }),
     };
   }
+  packVersion = published.pack.source.identity.version;
   const compiled = compileDomainPack(published.pack.source);
   if (!compiled.ok) {
     return {
@@ -186,6 +217,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: "pack_guided_engine_failed",
         safeMessage: "The study pack could not be compiled. Your earlier study is unchanged.",
       }),
@@ -200,6 +234,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: "pack_guided_engine_failed",
         safeMessage: "The study pack could not be compiled. Your earlier study is unchanged.",
       }),
@@ -218,6 +255,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: "pack_guided_engine_failed",
         safeMessage: "The case could not be prepared for analysis. Your earlier study is unchanged.",
       }),
@@ -240,6 +280,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: "evidence_snapshot_mismatch",
         effectivePackDigest: effective.value.digest,
         evidenceDigest: "",
@@ -268,6 +311,9 @@ export async function runPackGuidedStudy(input: {
             correlationId,
             runId: run.id,
             hiveId: run.hiveId,
+            packVersion,
+            windowsComplete,
+            windowsTotal,
             code: "pack_guided_engine_failed",
             effectivePackDigest: effective.value.digest,
             evidenceDigest: evidence.value.index.digest,
@@ -278,6 +324,7 @@ export async function runPackGuidedStudy(input: {
       activePack = profile;
       activeEffective = profileEffective.value;
       activeSpecification = profileSpecification.value;
+      packVersion = activePack.source.identity.version;
     }
   }
   if (!fixtureId) {
@@ -289,6 +336,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: "privacy_denied",
         effectivePackDigest: activeEffective.digest,
         evidenceDigest: evidence.value.index.digest,
@@ -314,6 +364,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: "investigation_objectives_unplanned",
         effectivePackDigest: activeEffective.digest,
         evidenceDigest: evidence.value.index.digest,
@@ -357,6 +410,10 @@ export async function runPackGuidedStudy(input: {
       callTurn: input.callTurn,
       onProgress: input.onWindowProgress,
     });
+    const rows = windows.progress.windows.filter((window) => window.executable);
+    const counted = rows.length > 0 ? rows : [...windows.progress.windows];
+    windowsTotal = counted.length;
+    windowsComplete = counted.filter((window) => window.status === "complete" || window.status === "settled").length;
     if (!windows.ok) {
       if (windows.resumable) return { ok: false, metric: null, error: windows.error };
       return {
@@ -366,6 +423,9 @@ export async function runPackGuidedStudy(input: {
           correlationId,
           runId: run.id,
           hiveId: run.hiveId,
+          packVersion,
+          windowsComplete,
+          windowsTotal,
           code: windows.error.diagnosticReason ?? "investigation_incomplete",
           effectivePackDigest: activeEffective.digest,
           evidenceDigest: evidence.value.index.digest,
@@ -395,6 +455,9 @@ export async function runPackGuidedStudy(input: {
           correlationId,
           runId: run.id,
           hiveId: run.hiveId,
+          packVersion,
+          windowsComplete,
+          windowsTotal,
           code: accepted.code,
           effectivePackDigest: activeEffective.digest,
           evidenceDigest: evidence.value.index.digest,
@@ -467,6 +530,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: preview.capacity ? "prompt_capacity" : "prompt_rejected",
         effectivePackDigest: effective.value.digest,
         evidenceDigest: evidence.value.index.digest,
@@ -499,6 +565,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: guided.error.diagnosticReason ?? "pack_guided_engine_failed",
         effectivePackDigest: effective.value.digest,
         evidenceDigest: evidence.value.index.digest,
@@ -530,6 +599,9 @@ export async function runPackGuidedStudy(input: {
         correlationId,
         runId: run.id,
         hiveId: run.hiveId,
+        packVersion,
+        windowsComplete,
+        windowsTotal,
         code: constructed.code,
         effectivePackDigest: constructed.effectivePackDigest || effective.value.digest,
         evidenceDigest: constructed.evidenceDigest || evidence.value.index.digest,

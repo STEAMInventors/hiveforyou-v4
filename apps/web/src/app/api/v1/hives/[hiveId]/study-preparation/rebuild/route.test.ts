@@ -9,8 +9,11 @@ const planner = vi.hoisted(() => ({ loadPlannerServiceConfig: vi.fn() }));
 const workflow = vi.hoisted(() => ({ processAnalysisRunSafely: vi.fn(async () => undefined) }));
 const reportWorkflow = vi.hoisted(() => ({ processReportRunSafely: vi.fn(async () => undefined) }));
 const worker = vi.hoisted(() => ({
-  createWorkerDeps: vi.fn(() => ({ kind: "worker-deps" })),
+  createWorkerDeps: vi.fn(() => ({ kind: "worker-deps", client: { rpc: vi.fn() } })),
   requireWorkerDispatch: vi.fn(),
+}));
+const engines = vi.hoisted(() => ({
+  commitPackGuidedEngineBeforeHandoff: vi.fn(async () => undefined),
 }));
 
 vi.mock("next/server", async (importOriginal) => ({
@@ -23,6 +26,7 @@ vi.mock("@/server/study-preparation/planner-client", () => planner);
 vi.mock("@/server/workflow/analysis-workflow", () => workflow);
 vi.mock("@/server/workflow/report-generation", () => reportWorkflow);
 vi.mock("@/server/workflow/worker", () => worker);
+vi.mock("@/server/workflow/v5-pipeline-stages", () => engines);
 
 import { POST } from "./route";
 
@@ -84,6 +88,55 @@ describe("POST /study-preparation/rebuild", () => {
     const response = await POST(post({ clientRequestId: "55555555-5555-4555-8555-555555555555" }), params);
     expect(response.status).toBe(202);
     expect(workflow.processAnalysisRunSafely).toHaveBeenCalledWith(expect.anything(), RUN_ID);
+    expect(engines.commitPackGuidedEngineBeforeHandoff).not.toHaveBeenCalled();
     expect(reportWorkflow.processReportRunSafely).not.toHaveBeenCalled();
+  });
+
+  it("stores the pack-guided engine before the worker starts", async () => {
+    const order: string[] = [];
+    engines.commitPackGuidedEngineBeforeHandoff.mockImplementation(async () => {
+      order.push("persist");
+    });
+    workflow.processAnalysisRunSafely.mockImplementation(async () => {
+      order.push("worker");
+    });
+    preparation.rebuildStudy.mockResolvedValue({
+      process: true,
+      packGuided: true,
+      withoutDomainPack: false,
+      response: {
+        created: true,
+        reusedStudy: false,
+        reportsReady: false,
+        reportRuns: [],
+        processingRun: { id: RUN_ID, status: "QUEUED", preparationMode: "REBUILD" },
+      },
+    });
+    const response = await POST(post({ clientRequestId: "55555555-5555-4555-8555-555555555555", studyEngine: "pack-guided" }), params);
+    expect(response.status).toBe(202);
+    expect(order).toEqual(["persist", "worker"]);
+    expect(engines.commitPackGuidedEngineBeforeHandoff).toHaveBeenCalledWith(
+      expect.anything(),
+      { runId: RUN_ID, correlationId: CORRELATION_ID, hiveId: HIVE_ID },
+    );
+  });
+
+  it("does not start the worker when the pack-guided engine cannot be stored", async () => {
+    engines.commitPackGuidedEngineBeforeHandoff.mockRejectedValue(new Error("unstored"));
+    preparation.rebuildStudy.mockResolvedValue({
+      process: true,
+      packGuided: true,
+      withoutDomainPack: false,
+      response: {
+        created: true,
+        reusedStudy: false,
+        reportsReady: false,
+        reportRuns: [],
+        processingRun: { id: RUN_ID, status: "QUEUED", preparationMode: "REBUILD" },
+      },
+    });
+    const response = await POST(post({ clientRequestId: "55555555-5555-4555-8555-555555555555", studyEngine: "pack-guided" }), params);
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    expect(workflow.processAnalysisRunSafely).not.toHaveBeenCalled();
   });
 });

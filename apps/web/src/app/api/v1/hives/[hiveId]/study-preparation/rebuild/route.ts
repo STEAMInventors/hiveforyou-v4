@@ -8,6 +8,7 @@ import { requireApiSupabaseClient } from "@/server/supabase/server-client";
 import { markRebuildWithoutDomainPack } from "@/server/workflow/domain-pack-rebuild-opt-out";
 import { markPackGuidedRebuild } from "@/server/workflow/pack-guided-selection";
 import { processAnalysisRunSafely } from "@/server/workflow/analysis-workflow";
+import { commitPackGuidedEngineBeforeHandoff } from "@/server/workflow/v5-pipeline-stages";
 import { createWorkerDeps, requireWorkerDispatch } from "@/server/workflow/worker";
 
 export const maxDuration = 300;
@@ -32,15 +33,22 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     if (started.withoutDomainPack) {
       markRebuildWithoutDomainPack(started.response.processingRun.id);
     }
-    if (started.packGuided) {
-      markPackGuidedRebuild(started.response.processingRun.id);
-    }
     if (started.process) {
       const deps = createWorkerDeps(process.env, {
         origin: resolveAppOrigin({ requestUrl: request.url }),
         correlationId,
       });
+      if (started.packGuided) {
+        await commitPackGuidedEngineBeforeHandoff(deps.client, {
+          runId: started.response.processingRun.id,
+          correlationId,
+          hiveId,
+        });
+        markPackGuidedRebuild(started.response.processingRun.id);
+      }
       after(() => processAnalysisRunSafely(deps, started.response.processingRun.id));
+    } else if (started.packGuided) {
+      markPackGuidedRebuild(started.response.processingRun.id);
     }
     const settled = started.response.processingRun.status === "SUCCEEDED";
     return jsonWithCorrelation(started.response, settled ? 200 : 202, correlationId);

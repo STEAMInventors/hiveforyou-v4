@@ -36,6 +36,7 @@ import {
   type PlannedInvestigationWindow,
 } from "@hiveforyou/contracts/investigation";
 import { computeSha256Digest } from "@hiveforyou/contracts/document-read";
+import { PACK_GUIDED_STUDY_ENGINE_ID, studyEngineDiagnostic } from "./pack-guided-selection";
 import {
   compileInvestigationPrompt,
   resolveSyntheticExecutionFixtureId,
@@ -115,9 +116,16 @@ function windowDiagnostic(
   const rows = counted.length > 0 ? counted : [...progress.windows];
   const done = rows.filter((window) => window.status === "complete" || window.status === "settled").length;
   const current = rows.find((window) => window.status === "running" || window.status === "paused" || window.status === "blocked");
-  const sentence = `Study pack ${pack.identity.packId} ${pack.identity.version}, stage CANONICALIZING, ${done} of ${rows.length} windows complete${current ? `, ${current.windowId} is ${current.status}` : ""}. Reason: ${code}.`;
-  const field = `pack@${pack.identity.packId}/${pack.identity.version}/stage@CANONICALIZING/windows@${done}/${rows.length}/code@${code}`;
-  return { field: DIAGNOSTIC_FIELD.test(field) ? field : `code@${code}`, sentence };
+  const labeled = studyEngineDiagnostic({
+    engine: PACK_GUIDED_STUDY_ENGINE_ID,
+    packVersion: pack.identity.version,
+    stage: "CANONICALIZING",
+    windowsComplete: done,
+    windowsTotal: rows.length,
+    code,
+  });
+  const sentence = `${labeled.sentence}${current ? ` ${current.windowId} is ${current.status}.` : ""}`;
+  return { field: labeled.field, sentence };
 }
 
 function failure(input: {

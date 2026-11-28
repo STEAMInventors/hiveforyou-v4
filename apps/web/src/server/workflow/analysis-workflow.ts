@@ -90,7 +90,7 @@ import {
 } from "./v5-pipeline-stages";
 import { loadPackById } from "@/server/pipeline/pack-loader";
 import { consumeRebuildWithoutDomainPack } from "./domain-pack-rebuild-opt-out";
-import { isPackGuidedRebuild } from "./pack-guided-selection";
+import { isPackGuidedRebuild, markPackGuidedRebuild } from "./pack-guided-selection";
 import { INVOCATION_MAX_DURATION_MS, resolveExtractZeroProgressHandoffLimit } from "@hiveforyou/contracts";
 
 /**
@@ -997,7 +997,7 @@ async function finishExtractingStage(context: Context, run: ProcessingRun): Prom
 
 async function extractDocuments(context: Context): Promise<StepResult> {
   const inputs = await loadInputs(context.deps.client, context.runId);
-  if (consumeRebuildWithoutDomainPack(context.runId)) {
+  if (consumeRebuildWithoutDomainPack(context.runId) && !isPackGuidedRebuild(context.runId, inputs.stageOutputs as V5StageOutputs)) {
     await persistDomainPackWorkflowState(context.deps.client, context.runId, { skipped: "user opted out" }, {
       expectedStatus: "EXTRACTING",
       correlationId: context.correlationId,
@@ -1255,6 +1255,8 @@ async function canonicalizeStudy(context: Context): Promise<StepResult> {
     const marked = await persistPackGuidedEngineMarker(context.deps.client, context.runId, {
       correlationId: context.correlationId,
       hiveId: inputs.run.hiveId,
+      expectedStatus: "CANONICALIZING",
+      current: savedWindows,
       investigationWindows: savedWindows && "investigationWindows" in savedWindows ? savedWindows.investigationWindows : undefined,
     });
     if (!marked) {
@@ -1607,6 +1609,13 @@ export async function processAnalysisRun(deps: AnalysisWorkflowDeps, runId: stri
     p_run_id: runId,
     p_delay_seconds: WRITE_AHEAD_HANDOFF_DELAY_SECONDS,
   }).catch(() => null);
+  await loadInputs(deps.client, runId)
+    .then((inputs) => {
+      if (inputs.run.preparationMode === "REBUILD" && isPackGuidedRebuild(runId, inputs.stageOutputs as V5StageOutputs)) {
+        markPackGuidedRebuild(runId);
+      }
+    })
+    .catch(() => undefined);
 
   let catalog: PromptCatalog | null = null;
   const context: Context = {
